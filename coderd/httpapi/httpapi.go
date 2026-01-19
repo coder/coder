@@ -16,12 +16,11 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
-
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 var Validate *validator.Validate
@@ -494,16 +493,10 @@ func OneWayWebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
 	return sendEvent, closed, nil
 }
 
-// OAuth2Error represents an OAuth2-compliant error response per RFC 6749.
-type OAuth2Error struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description,omitempty"`
-}
-
 // WriteOAuth2Error writes an OAuth2-compliant error response per RFC 6749.
 // This should be used for all OAuth2 endpoints (/oauth2/*) to ensure compliance.
-func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode, description string) {
-	Write(ctx, rw, status, OAuth2Error{
+func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode codersdk.OAuth2ErrorCode, description string) {
+	Write(ctx, rw, status, codersdk.OAuth2Error{
 		Error:            errorCode,
 		ErrorDescription: description,
 	})

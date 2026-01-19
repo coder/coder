@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 type exclusion struct {
@@ -763,6 +762,123 @@ func TestRetentionConfigParsing(t *testing.T) {
 			assert.Equal(t, tt.expectedAuditLogs, dv.Retention.AuditLogs.Value(), "audit logs retention mismatch")
 			assert.Equal(t, tt.expectedConnectionLogs, dv.Retention.ConnectionLogs.Value(), "connection logs retention mismatch")
 			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
+		})
+	}
+}
+
+func TestComputeMaxIdleConns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		maxOpen        int
+		configuredIdle string
+		expectedIdle   int
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "auto_default_10_open",
+			maxOpen:        10,
+			configuredIdle: "auto",
+			expectedIdle:   3, // 10/3 = 3
+		},
+		{
+			name:           "auto_with_whitespace",
+			maxOpen:        10,
+			configuredIdle: " auto ",
+			expectedIdle:   3, // 10/3 = 3
+		},
+		{
+			name:           "auto_30_open",
+			maxOpen:        30,
+			configuredIdle: "auto",
+			expectedIdle:   10, // 30/3 = 10
+		},
+		{
+			name:           "auto_minimum_1",
+			maxOpen:        1,
+			configuredIdle: "auto",
+			expectedIdle:   1, // 1/3 = 0, but minimum is 1
+		},
+		{
+			name:           "auto_minimum_2_open",
+			maxOpen:        2,
+			configuredIdle: "auto",
+			expectedIdle:   1, // 2/3 = 0, but minimum is 1
+		},
+		{
+			name:           "auto_3_open",
+			maxOpen:        3,
+			configuredIdle: "auto",
+			expectedIdle:   1, // 3/3 = 1
+		},
+		{
+			name:           "explicit_equal_to_max",
+			maxOpen:        10,
+			configuredIdle: "10",
+			expectedIdle:   10,
+		},
+		{
+			name:           "explicit_less_than_max",
+			maxOpen:        10,
+			configuredIdle: "5",
+			expectedIdle:   5,
+		},
+		{
+			name:           "explicit_with_whitespace",
+			maxOpen:        10,
+			configuredIdle: " 5 ",
+			expectedIdle:   5,
+		},
+		{
+			name:           "explicit_0",
+			maxOpen:        10,
+			configuredIdle: "0",
+			expectedIdle:   0,
+		},
+		{
+			name:           "error_exceeds_max",
+			maxOpen:        10,
+			configuredIdle: "15",
+			expectError:    true,
+			errorContains:  "cannot exceed",
+		},
+		{
+			name:           "error_exceeds_max_by_1",
+			maxOpen:        10,
+			configuredIdle: "11",
+			expectError:    true,
+			errorContains:  "cannot exceed",
+		},
+		{
+			name:           "error_invalid_string",
+			maxOpen:        10,
+			configuredIdle: "invalid",
+			expectError:    true,
+			errorContains:  "must be \"auto\" or >= 0",
+		},
+		{
+			name:           "error_negative",
+			maxOpen:        10,
+			configuredIdle: "-1",
+			expectError:    true,
+			errorContains:  "must be \"auto\" or >= 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := codersdk.ComputeMaxIdleConns(tt.maxOpen, tt.configuredIdle)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedIdle, result)
+			}
 		})
 	}
 }

@@ -24,9 +24,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -69,6 +68,8 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestTaskStatus(),
 			r.scaletestSMTP(),
 			r.scaletestPrebuilds(),
+			r.scaletestBridge(),
+			r.scaletestLLMMock(),
 		},
 	}
 

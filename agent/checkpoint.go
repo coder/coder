@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"sync"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 )
 
 // checkpoint allows a goroutine to communicate when it is OK to proceed beyond some async condition

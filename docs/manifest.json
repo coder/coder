@@ -309,6 +309,13 @@
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
+					"title": "Workspace Sharing",
+					"description": "Sharing workspaces",
+					"path": "./user-guides/shared-workspaces.md",
+					"icon_path": "./images/icons/generic.svg",
+					"state": ["beta"]
+				},
+				{
 					"title": "Workspace Scheduling",
 					"description": "Cost control with workspace schedules",
 					"path": "./user-guides/workspace-scheduling.md",
@@ -411,6 +418,11 @@
 									"title": "Up to 3,000 Users",
 									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
+								},
+								{
+									"title": "Up to 10,000 Users",
+									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
+									"path": "./admin/infrastructure/validated-architectures/10k-users.md"
 								}
 							]
 						},
@@ -655,6 +667,29 @@
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
 									"state": ["premium"]
+								},
+								{
+									"title": "Startup Dependencies",
+									"description": "Coordinate workspace startup with dependency management",
+									"path": "./admin/templates/startup-coordination/index.md",
+									"state": ["early access"],
+									"children": [
+										{
+											"title": "Usage",
+											"description": "How to use startup coordination",
+											"path": "./admin/templates/startup-coordination/usage.md"
+										},
+										{
+											"title": "Troubleshooting",
+											"description": "Troubleshoot startup coordination",
+											"path": "./admin/templates/startup-coordination/troubleshooting.md"
+										},
+										{
+											"title": "Examples",
+											"description": "Examples of startup coordination",
+											"path": "./admin/templates/startup-coordination/example.md"
+										}
+									]
 								}
 							]
 						},
@@ -960,8 +995,25 @@
 				{
 					"title": "Agent Boundaries",
 					"description": "Understanding Agent Boundaries in Coder Tasks",
-					"path": "./ai-coder/agent-boundary.md",
-					"state": ["early access"]
+					"path": "./ai-coder/boundary/agent-boundary.md",
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "nsjail",
+							"description": "Documentation for Namespace Jail",
+							"path": "./ai-coder/boundary/nsjail.md"
+						},
+						{
+							"title": "landjail",
+							"description": "Documentation for LandJail",
+							"path": "./ai-coder/boundary/landjail.md"
+						},
+						{
+							"title": "Rules Engine",
+							"description": "Documentation for the Boundary rules engine",
+							"path": "./ai-coder/boundary/rules-engine.md"
+						}
+					]
 				},
 				{
 					"title": "AI Bridge",
@@ -1425,6 +1477,11 @@
 							"path": "reference/cli/logout.md"
 						},
 						{
+							"title": "logs",
+							"description": "View logs for a workspace",
+							"path": "reference/cli/logs.md"
+						},
+						{
 							"title": "netcheck",
 							"description": "Print network debug information for DERP and STUN",
 							"path": "reference/cli/netcheck.md"
@@ -1550,6 +1607,11 @@
 							"path": "reference/cli/organizations_settings_set_role-sync.md"
 						},
 						{
+							"title": "organizations settings set workspace-sharing",
+							"description": "Workspace sharing settings for the organization.",
+							"path": "reference/cli/organizations_settings_set_workspace-sharing.md"
+						},
+						{
 							"title": "organizations settings show",
 							"description": "Outputs specified organization setting.",
 							"path": "reference/cli/organizations_settings_show.md"
@@ -1568,6 +1630,11 @@
 							"title": "organizations settings show role-sync",
 							"description": "Role sync settings to sync organization roles from an IdP.",
 							"path": "reference/cli/organizations_settings_show_role-sync.md"
+						},
+						{
+							"title": "organizations settings show workspace-sharing",
+							"description": "Workspace sharing settings for the organization.",
+							"path": "reference/cli/organizations_settings_show_workspace-sharing.md"
 						},
 						{
 							"title": "organizations show",

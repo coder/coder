@@ -143,3 +143,13 @@ WHERE
     id = @id AND
     is_default = false;
 
+-- name: UpdateOrganizationWorkspaceSharingSettings :one
+UPDATE
+    organizations
+SET
+    workspace_sharing_disabled = @workspace_sharing_disabled,
+    updated_at = @updated_at
+WHERE
+    id = @id
+RETURNING *;
+

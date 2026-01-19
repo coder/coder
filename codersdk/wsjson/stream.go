@@ -1,7 +1,7 @@
 package wsjson
 
 import (
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/websocket"
 )
 

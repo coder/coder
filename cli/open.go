@@ -169,8 +169,8 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				// Note that this is irrelevant for devcontainer sub agents, as
 				// they always have a directory set.
 				if workspaceAgent.Directory != "" {
-					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(_ codersdk.WorkspaceAgent) bool {
-						return workspaceAgent.LifecycleState != codersdk.WorkspaceAgentLifecycleCreated
+					workspace, workspaceAgent, err = waitForAgentCond(ctx, client, workspace, workspaceAgent, func(wa codersdk.WorkspaceAgent) bool {
+						return wa.LifecycleState != codersdk.WorkspaceAgentLifecycleCreated
 					})
 					if err != nil {
 						return xerrors.Errorf("wait for agent: %w", err)
@@ -183,7 +183,13 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 				directory = inv.Args[1]
 			}
 
-			directory, err = resolveAgentAbsPath(workspaceAgent.ExpandedDirectory, directory, workspaceAgent.OperatingSystem, insideThisWorkspace)
+			// If we're opening into a dev container, we should use the directory of the dev container.
+			workingDirectory := workspaceAgent.ExpandedDirectory
+			if workingDirectory == "" && devcontainer.Agent != nil {
+				workingDirectory = devcontainer.Agent.Directory
+			}
+
+			directory, err = resolveAgentAbsPath(workingDirectory, directory, workspaceAgent.OperatingSystem, insideThisWorkspace)
 			if err != nil {
 				return xerrors.Errorf("resolve agent path: %w", err)
 			}

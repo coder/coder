@@ -5,11 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/pretty"
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 // versionInfo wraps the stuff we get from buildinfo so that it's

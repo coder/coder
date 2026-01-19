@@ -9,14 +9,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/quartz"
-
-	tf_provider_helpers "github.com/coder/terraform-provider-coder/v2/provider/helpers"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/quartz"
+	tf_provider_helpers "github.com/coder/terraform-provider-coder/v2/provider/helpers"
 )
 
 // ActionType represents the type of action needed to reconcile prebuilds.

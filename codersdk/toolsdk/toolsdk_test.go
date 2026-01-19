@@ -21,9 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/aisdk-go"
-
 	agentapi "github.com/coder/agentapi-sdk-go"
+	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"

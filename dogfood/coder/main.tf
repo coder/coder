@@ -25,8 +25,8 @@ locals {
   // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
   // Kyle for help.
   docker_host = {
-    ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
-    "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    ""              = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
+    "us-pittsburgh" = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
     // For legacy reasons, this host is labelled `eu-helsinki` but it's
     // actually in Germany now.
     "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
@@ -291,11 +291,6 @@ data "coder_parameter" "ide_choices" {
     icon  = "/icon/jetbrains.svg"
   }
   option {
-    name  = "JetBrains Fleet"
-    value = "fleet"
-    icon  = "/icon/fleet.svg"
-  }
-  option {
     name  = "Cursor"
     value = "cursor"
     icon  = "/icon/cursor.svg"
@@ -380,7 +375,7 @@ module "personalize" {
 module "mux" {
   count     = data.coder_workspace.me.start_count
   source    = "registry.coder.com/coder/mux/coder"
-  version   = "1.0.5"
+  version   = "1.0.7"
   agent_id  = coder_agent.dev.id
   subdomain = true
 }
@@ -410,7 +405,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.2.1"
+  version       = "1.3.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -421,7 +416,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.3"
+  version    = "1.1.4"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -453,15 +448,6 @@ module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
   version    = "1.1.4"
-  agent_id   = coder_agent.dev.id
-  agent_name = "dev"
-  folder     = local.repo_dir
-}
-
-module "jetbrains-fleet" {
-  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "fleet") ? data.coder_workspace.me.start_count : 0
-  source     = "registry.coder.com/coder/jetbrains-fleet/coder"
-  version    = "1.0.2"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -516,61 +502,27 @@ resource "coder_agent" "dev" {
   }
 
   metadata {
-    display_name = "CPU Usage (Host)"
-    key          = "cpu_usage_host"
+    display_name = "/home Usage"
+    key          = "home_usage"
     order        = 2
-    script       = "coder stat cpu --host"
-    interval     = 10
-    timeout      = 1
+    script       = "sudo du -sh /home/coder | awk '{print $1}'"
+    interval     = 3600 # 1h to avoid thrashing disk
+    timeout      = 60   # Longer than this is likely problematic
   }
 
   metadata {
-    display_name = "RAM Usage (Host)"
-    key          = "ram_usage_host"
+    display_name = "/var/lib/docker Usage"
+    key          = "var_lib_docker_usage"
     order        = 3
-    script       = "coder stat mem --host"
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Swap Usage (Host)"
-    key          = "swap_usage_host"
-    order        = 4
-    script       = <<EOT
-      #!/usr/bin/env bash
-      echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
-    EOT
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Load Average (Host)"
-    key          = "load_host"
-    order        = 5
-    # get load avg scaled by number of cores
-    script   = <<EOT
-      #!/usr/bin/env bash
-      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
-    EOT
-    interval = 60
-    timeout  = 1
-  }
-
-  metadata {
-    display_name = "Disk Usage (Host)"
-    key          = "disk_host"
-    order        = 6
-    script       = "coder stat disk --path /"
-    interval     = 600
-    timeout      = 10
+    script       = "sudo du -sh /var/lib/docker | awk '{print $1}'"
+    interval     = 3600 # 1h to avoid thrashing disk
+    timeout      = 60   # Longer than this is likely problematic
   }
 
   metadata {
     display_name = "Word of the Day"
     key          = "word"
-    order        = 7
+    order        = 4
     script       = <<EOT
       #!/usr/bin/env bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
@@ -600,7 +552,12 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
     # Allow other scripts to wait for agent startup.
-    trap 'coder exp sync complete agent-startup' EXIT
+    function cleanup() {
+      coder exp sync complete agent-startup
+      # Some folks will also use this for their personalize scripts.
+      touch /tmp/.coder-startup-script.done
+    }
+    trap cleanup EXIT
     coder exp sync start agent-startup
 
     # Authenticate GitHub CLI
@@ -626,6 +583,9 @@ resource "coder_agent" "dev" {
     # Clean up the Go build cache to prevent the home volume from
     # accumulating waste and growing too large.
     go clean -cache
+
+    # Clean up the coder build directory as this can get quite large
+    rm -rf "${local.repo_dir}/build"
 
     # Clean up the unused resources to keep storage usage low.
     #
@@ -894,9 +854,9 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.2.8"
+  version             = "4.4.2"
   enable_boundary     = true
-  boundary_version    = "v0.2.1"
+  boundary_version    = "v0.5.5"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"

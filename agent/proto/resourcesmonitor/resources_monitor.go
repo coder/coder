@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/quartz"
 )

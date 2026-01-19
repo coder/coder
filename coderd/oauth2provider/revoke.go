@@ -9,16 +9,16 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
-
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
@@ -27,6 +27,26 @@ var (
 	// ErrInvalidTokenFormat is returned when a token has an invalid format
 	ErrInvalidTokenFormat = xerrors.New("invalid token format")
 )
+
+func extractRevocationRequest(r *http.Request) (codersdk.OAuth2TokenRevocationRequest, error) {
+	if err := r.ParseForm(); err != nil {
+		return codersdk.OAuth2TokenRevocationRequest{}, xerrors.Errorf("invalid form data: %w", err)
+	}
+
+	req := codersdk.OAuth2TokenRevocationRequest{
+		Token:         r.Form.Get("token"),
+		TokenTypeHint: codersdk.OAuth2RevocationTokenTypeHint(r.Form.Get("token_type_hint")),
+		ClientID:      r.Form.Get("client_id"),
+		ClientSecret:  r.Form.Get("client_secret"),
+	}
+
+	// RFC 7009 requires 'token' parameter.
+	if req.Token == "" {
+		return codersdk.OAuth2TokenRevocationRequest{}, xerrors.New("missing token parameter")
+	}
+
+	return req, nil
+}
 
 // RevokeToken implements RFC 7009 OAuth2 Token Revocation
 // Authentication is unique for this endpoint in that it does not use the
@@ -42,35 +62,29 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		// RFC 7009 requires POST method with application/x-www-form-urlencoded
 		if r.Method != http.MethodPost {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusMethodNotAllowed, "invalid_request", "Method not allowed")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusMethodNotAllowed, codersdk.OAuth2ErrorCodeInvalidRequest, "Method not allowed")
 			return
 		}
 
-		if err := r.ParseForm(); err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid form data")
-			return
-		}
-
-		// RFC 7009 requires 'token' parameter
-		token := r.Form.Get("token")
-		if token == "" {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Missing token parameter")
+		req, err := extractRevocationRequest(r)
+		if err != nil {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 
 		// Determine if this is a refresh token (starts with "coder_") or API key
 		// APIKeys do not have the SecretIdentifier prefix.
 		const coderPrefix = SecretIdentifier + "_"
-		isRefreshToken := strings.HasPrefix(token, coderPrefix)
+		isRefreshToken := strings.HasPrefix(req.Token, coderPrefix)
 
 		// Revoke the token with ownership verification
-		err := db.InTx(func(tx database.Store) error {
+		err = db.InTx(func(tx database.Store) error {
 			if isRefreshToken {
 				// Handle refresh token revocation
-				return revokeRefreshTokenInTx(ctx, tx, token, app.ID)
+				return revokeRefreshTokenInTx(ctx, tx, req.Token, app.ID)
 			}
 			// Handle API key revocation
-			return revokeAPIKeyInTx(ctx, tx, token, app.ID)
+			return revokeAPIKeyInTx(ctx, tx, req.Token, app.ID)
 		}, nil)
 		if err != nil {
 			if errors.Is(err, ErrTokenNotBelongsToClient) {
@@ -86,14 +100,14 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 				logger.Debug(ctx, "token revocation failed: invalid token format",
 					slog.F("client_id", app.ID.String()),
 					slog.F("app_name", app.Name))
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid token format")
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Invalid token format")
 				return
 			}
 			logger.Error(ctx, "token revocation failed with internal server error",
 				slog.Error(err),
 				slog.F("client_id", app.ID.String()),
 				slog.F("app_name", app.Name))
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, "server_error", "Internal server error")
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Internal server error")
 			return
 		}
 

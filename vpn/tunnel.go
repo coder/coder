@@ -26,11 +26,10 @@ import (
 	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine/router"
 
-	"cdr.dev/slog"
-	"github.com/coder/quartz"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
 )
 
 // netStatusInterval is the interval at which the tunnel records latencies,

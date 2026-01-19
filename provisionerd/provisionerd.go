@@ -21,15 +21,15 @@ import (
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-	"github.com/coder/retry"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
+	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/retry"
 )
 
 // Dialer represents the function to create a daemon client connection.
@@ -366,7 +366,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) erro
 	))
 	defer span.End()
 
-	fields := []any{
+	fields := []slog.Field{
 		slog.F("initiator_username", job.UserName),
 		slog.F("provisioner", job.Provisioner),
 		slog.F("job_id", job.JobId),
@@ -418,6 +418,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) erro
 		runner.Options{
 			Updater:             p,
 			QuotaCommitter:      p,
+			FileDownloader:      p,
 			Logger:              p.opts.Logger.Named("runner"),
 			Provisioner:         resp.Client,
 			UpdateInterval:      p.opts.UpdateInterval,
@@ -528,13 +529,13 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 
 		stream, err := client.UploadFile(ctx)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to start CompleteJobWithFiles stream: %w", err)
+			return nil, xerrors.Errorf("failed to start UploadModuleFiles stream: %w", err)
 		}
 		defer stream.Close()
 
 		dataUp, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
 
-		err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: dataUp}})
+		err = stream.Send(&sdkproto.FileUpload{Type: &sdkproto.FileUpload_DataUpload{DataUpload: dataUp}})
 		if err != nil {
 			if retryable(err) { // Do not retry
 				return nil, xerrors.Errorf("send data upload: %s", err.Error())
@@ -543,7 +544,7 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 		}
 
 		for i, chunk := range chunks {
-			err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: chunk}})
+			err = stream.Send(&sdkproto.FileUpload{Type: &sdkproto.FileUpload_ChunkPiece{ChunkPiece: chunk}})
 			if err != nil {
 				if retryable(err) { // Do not retry
 					return nil, xerrors.Errorf("send chunk piece: %s", err.Error())
@@ -566,6 +567,36 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 	}
 
 	return nil
+}
+
+// DownloadFile will download a module file from coderd.
+func (p *Server) DownloadFile(ctx context.Context, request *proto.FileRequest) ([]byte, error) {
+	data, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) ([]byte, error) {
+		// Add some timeout to prevent the stream from hanging indefinitely if something goes wrong.
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
+		stream, err := client.DownloadFile(ctx, request)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to start DownloadFile stream: %w", err)
+		}
+		defer stream.Close()
+
+		file, err := provisionersdk.HandleReceivingDataUpload(stream)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to handle receiving data upload: %w", err)
+		}
+		data, err := file.Complete()
+		if err != nil {
+			return nil, xerrors.Errorf("failed to download file: %w", err)
+		}
+		return data, nil
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("download file %s: %w", request.FileId, err)
+	}
+
+	return data, nil
 }
 
 func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {

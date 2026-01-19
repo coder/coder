@@ -14,19 +14,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/serpent"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -444,6 +442,10 @@ var PostgresAuthDrivers = []string{
 	string(PostgresAuthAWSIAMRDS),
 }
 
+// PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
+// based on max open connections.
+const PostgresConnMaxIdleAuto = "auto"
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -464,6 +466,8 @@ type DeploymentValues struct {
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
+	PostgresConnMaxOpen             serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
+	PostgresConnMaxIdle             serpent.String                       `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -511,7 +515,7 @@ type DeploymentValues struct {
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
-	TemplateInsights                TemplateInsightsConfig               `json:"template_insights,omitempty" typescript:",notnull"`
+	StatsCollection                 StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -611,8 +615,12 @@ type DERPConfig struct {
 	Path            serpent.String `json:"path" typescript:",notnull"`
 }
 
-type TemplateInsightsConfig struct {
+type UsageStatsConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
+}
+
+type StatsCollectionConfig struct {
+	UsageStats UsageStatsConfig `json:"usage_stats" tyescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -1080,7 +1088,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
-			Description: `Configure logging, tracing, and metrics exporting.`,
+			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
 			YAML:        "introspection",
 		}
 		deploymentGroupIntrospectionPPROF = serpent.Group{
@@ -1088,10 +1096,15 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "pprof",
 			YAML:   "pprof",
 		}
-		deploymentGroupIntrospectionTemplateInsights = serpent.Group{
+		deploymentGroupIntrospectionStatsCollection = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
-			Name:   "Template Insights",
-			YAML:   "templateInsights",
+			Name:   "Stats Collection",
+			YAML:   "statsCollection",
+		}
+		deploymentGroupIntrospectionStatsCollectionUsageStats = serpent.Group{
+			Parent: &deploymentGroupIntrospectionStatsCollection,
+			Name:   "Usage Stats",
+			YAML:   "usageStats",
 		}
 		deploymentGroupIntrospectionPrometheus = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
@@ -1718,13 +1731,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "configPath",
 		},
 		{
-			Name:        "Enable Template Insights",
-			Description: "Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.",
-			Flag:        "template-insights-enable",
-			Env:         "CODER_TEMPLATE_INSIGHTS_ENABLE",
+			Name:        "Stats Collection Usage Stats Enable",
+			Description: "Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.",
+			Flag:        "stats-collection-usage-stats-enable",
+			Env:         "CODER_STATS_COLLECTION_USAGE_STATS_ENABLE",
 			Default:     "true",
-			Value:       &c.TemplateInsights.Enable,
-			Group:       &deploymentGroupIntrospectionTemplateInsights,
+			Value:       &c.StatsCollection.UsageStats.Enable,
+			Group:       &deploymentGroupIntrospectionStatsCollectionUsageStats,
 			YAML:        "enable",
 		},
 		// TODO: support Git Auth settings.
@@ -2617,6 +2630,30 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "pgAuth",
 		},
 		{
+			Name:        "Postgres Connection Max Open",
+			Description: "Maximum number of open connections to the database. Defaults to 10.",
+			Flag:        "postgres-conn-max-open",
+			Env:         "CODER_PG_CONN_MAX_OPEN",
+			Default:     "10",
+			Value: serpent.Validate(&c.PostgresConnMaxOpen, func(value *serpent.Int64) error {
+				if value.Value() <= 0 {
+					return xerrors.New("must be greater than zero")
+				}
+				return nil
+			}),
+			YAML: "pgConnMaxOpen",
+		},
+		{
+			Name: "Postgres Connection Max Idle",
+			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3. " +
+				"Value must be greater or equal to 0; 0 means explicitly no idle connections.",
+			Flag:    "postgres-conn-max-idle",
+			Env:     "CODER_PG_CONN_MAX_IDLE",
+			Default: PostgresConnMaxIdleAuto,
+			Value:   &c.PostgresConnMaxIdle,
+			YAML:    "pgConnMaxIdle",
+		},
+		{
 			Name:        "Secure Auth Cookie",
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
@@ -3447,6 +3484,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rateLimit",
 		},
+		{
+			Name:        "AI Bridge Structured Logging",
+			Description: "Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.",
+			Flag:        "aibridge-structured-logging",
+			Env:         "CODER_AIBRIDGE_STRUCTURED_LOGGING",
+			Value:       &c.AI.BridgeConfig.StructuredLogging,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "structuredLogging",
+		},
 
 		// AI Bridge Proxy Options
 		{
@@ -3488,6 +3535,37 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "key_file",
+		},
+		{
+			Name:        "AI Bridge Proxy Domain Allowlist",
+			Description: "Comma-separated list of domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption.",
+			Flag:        "aibridge-proxy-domain-allowlist",
+			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default:     "api.anthropic.com,api.openai.com",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "domain_allowlist",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy",
+			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Flag:        "aibridge-proxy-upstream",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy CA",
+			Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+			Flag:        "aibridge-proxy-upstream-ca",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM_CA",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy_ca",
 		},
 
 		// Retention settings
@@ -3562,6 +3640,7 @@ type AIBridgeConfig struct {
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3583,10 +3662,13 @@ type AIBridgeBedrockConfig struct {
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled    serpent.Bool   `json:"enabled" typescript:",notnull"`
-	ListenAddr serpent.String `json:"listen_addr" typescript:",notnull"`
-	CertFile   serpent.String `json:"cert_file" typescript:",notnull"`
-	KeyFile    serpent.String `json:"key_file" typescript:",notnull"`
+	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
+	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
 type AIConfig struct {
@@ -3843,8 +3925,6 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
-	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
 
 func (e Experiment) DisplayName() string {
@@ -3865,8 +3945,6 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
-	case ExperimentTerraformWorkspace:
-		return "Terraform Directory Reuse"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4124,4 +4202,29 @@ func (c CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := c.Secret != ""
 	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
 	return hasSecret && beforeDelete
+}
+
+// ComputeMaxIdleConns calculates the effective maxIdleConns value. If
+// configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
+// configuredIdle exceeds maxOpen, it returns an error.
+func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
+	configuredIdle = strings.TrimSpace(configuredIdle)
+	if configuredIdle == PostgresConnMaxIdleAuto {
+		computed := maxOpen / 3
+		if computed < 1 {
+			return 1, nil
+		}
+		return computed, nil
+	}
+	idle, err := strconv.Atoi(configuredIdle)
+	if err != nil {
+		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or >= 0", configuredIdle, PostgresConnMaxIdleAuto)
+	}
+	if idle < 0 {
+		return 0, xerrors.Errorf("max idle connections must be %q or >= 0", PostgresConnMaxIdleAuto)
+	}
+	if idle > maxOpen {
+		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
+	}
+	return idle, nil
 }

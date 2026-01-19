@@ -197,7 +197,7 @@ func TestSharingStatus(t *testing.T) {
 			ctx                = testutil.Context(t, testutil.WaitMedium)
 		)
 
-		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -248,7 +248,7 @@ func TestSharingRemove(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Share the workspace with a user to later remove
-		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
 				toRemoveUser.ID.String():    codersdk.WorkspaceRoleUse,
@@ -309,7 +309,7 @@ func TestSharingRemove(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Share the workspace with a user to later remove
-		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				toRemoveUser2.ID.String(): codersdk.WorkspaceRoleUse,
 				toRemoveUser1.ID.String(): codersdk.WorkspaceRoleUse,

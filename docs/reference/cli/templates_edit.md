@@ -169,7 +169,7 @@ Disable the default behavior of granting template access to the 'everyone' group
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### -O, --org
 

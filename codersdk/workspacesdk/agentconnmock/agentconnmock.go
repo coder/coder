@@ -16,7 +16,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	slog "cdr.dev/slog"
+	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"

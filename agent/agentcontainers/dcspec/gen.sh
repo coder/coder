@@ -61,7 +61,7 @@ fi
 exec 3>&-
 
 # Format the generated code.
-go run mvdan.cc/gofumpt@v0.8.0 -w -l "${TMPDIR}/${DEST_FILENAME}"
+"${PROJECT_ROOT}/scripts/format_go_file.sh" "${TMPDIR}/${DEST_FILENAME}"
 
 # Add a header so that Go recognizes this as a generated file.
 if grep -q -- "\[-i extension\]" < <(sed -h 2>&1); then

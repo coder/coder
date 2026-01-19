@@ -3,9 +3,9 @@ package health_test
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/health"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
 
 func Test_MessageURL(t *testing.T) {

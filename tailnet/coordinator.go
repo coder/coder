@@ -15,7 +15,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
@@ -164,7 +164,7 @@ func (c *coordinator) Coordinate(
 		if xerrors.Is(err, ErrClosed) {
 			logger.Debug(ctx, "coordinate failed: Coordinator is closed")
 		} else {
-			logger.Critical(ctx, "coordinate failed: %s", err.Error())
+			logger.Critical(ctx, "coordinate failed", slog.Error(err))
 		}
 	}
 	c.mu.Lock()
@@ -476,7 +476,7 @@ func (c *core) lostPeer(p *peer, closeErr string) error {
 func (c *core) removePeerLocked(id uuid.UUID, kind proto.CoordinateResponse_PeerUpdate_Kind, reason, closeErr string) {
 	p, ok := c.peers[id]
 	if !ok {
-		c.logger.Critical(context.Background(), "removed non-existent peer %s", id)
+		c.logger.Critical(context.Background(), "removed non-existent peer", slog.F("peer_id", id))
 		return
 	}
 	c.updateTunnelPeersLocked(id, nil, kind, reason)

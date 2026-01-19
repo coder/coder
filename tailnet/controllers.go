@@ -21,13 +21,12 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/util/dnsname"
 
-	"cdr.dev/slog"
-	"github.com/coder/quartz"
-	"github.com/coder/retry"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
+	"github.com/coder/retry"
 )
 
 // A Controller connects to the tailnet control plane, and then uses the control protocols to

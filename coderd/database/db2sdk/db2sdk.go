@@ -17,8 +17,6 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	previewtypes "github.com/coder/preview/types"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -30,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	previewtypes "github.com/coder/preview/types"
 )
 
 // List is a helper function to reduce boilerplate when converting slices of
@@ -570,7 +569,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	}.String()
 }
 
-func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
 	sort.Slice(dbApps, func(i, j int) bool {
 		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
 			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder

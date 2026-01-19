@@ -31,6 +31,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { displayDormantDeletion } from "utils/dormant";
+import { formatDate } from "utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
@@ -43,6 +44,7 @@ interface WorkspaceProps {
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	latestVersion?: TypesGen.TemplateVersion;
+	sharingDisabled?: boolean;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -61,6 +63,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	permissions,
 	isUpdating,
 	isRestarting,
+	sharingDisabled,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -201,9 +204,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							css={{ color: "inherit" }}
 						>
 							{workspace.deleting_at ? (
-								<>
-									Deletion on {new Date(workspace.deleting_at).toLocaleString()}
-								</>
+								<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
 							) : (
 								"Deletion soon"
 							)}
@@ -237,6 +238,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						permissions={permissions}
 						isUpdating={isUpdating}
 						isRestarting={isRestarting}
+						sharingDisabled={sharingDisabled}
 						handleStart={handleStart}
 						handleStop={handleStop}
 						handleRestart={handleRestart}

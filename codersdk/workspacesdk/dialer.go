@@ -10,13 +10,12 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/websocket"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 var permanentErrorStatuses = []int{

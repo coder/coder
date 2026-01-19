@@ -33,6 +33,7 @@ interface WorkspaceProps {
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	timings?: TypesGen.WorkspaceBuildTimings;
+	sharingDisabled?: boolean;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -56,6 +57,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	timings,
+	sharingDisabled,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -110,6 +112,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 				latestVersion={latestVersion}
 				isUpdating={isUpdating}
 				isRestarting={isRestarting}
+				sharingDisabled={sharingDisabled}
 				handleStart={handleStart}
 				handleStop={handleStop}
 				handleRestart={handleRestart}

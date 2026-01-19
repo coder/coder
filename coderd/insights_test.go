@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -2401,8 +2401,10 @@ func TestGenericInsights_Disabled(t *testing.T) {
 			dbrollup.WithInterval(time.Millisecond*100),
 		),
 		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-			dv.TemplateInsights = codersdk.TemplateInsightsConfig{
-				Enable: false,
+			dv.StatsCollection = codersdk.StatsCollectionConfig{
+				UsageStats: codersdk.UsageStatsConfig{
+					Enable: false,
+				},
 			}
 		}),
 	})

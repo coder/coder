@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import calendar from "dayjs/plugin/calendar";
+import { formatDate } from "utils/time";
 
 dayjs.extend(calendar);
 
@@ -16,5 +17,9 @@ export const createDisplayDate = (
 			sameElse: "MM/DD/YYYY",
 		});
 	}
-	return date.toLocaleDateString();
+	return formatDate(date, {
+		hour: undefined,
+		minute: undefined,
+		second: undefined,
+	});
 };

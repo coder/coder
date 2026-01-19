@@ -1,1 +1,1 @@
-DROP INDEX IF EXISTS public.workspace_agents_auth_instance_id_deleted_idx;
+DROP INDEX IF EXISTS workspace_agents_auth_instance_id_deleted_idx;

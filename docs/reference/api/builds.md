@@ -1183,6 +1183,44 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update workspace build state
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/state \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /workspacebuilds/{workspacebuild}/state`
+
+> Body parameter
+
+```json
+{
+  "state": [
+    0
+  ]
+}
+```
+
+### Parameters
+
+| Name             | In   | Type                                                                                             | Required | Description        |
+|------------------|------|--------------------------------------------------------------------------------------------------|----------|--------------------|
+| `workspacebuild` | path | string(uuid)                                                                                     | true     | Workspace build ID |
+| `body`           | body | [codersdk.UpdateWorkspaceBuildStateRequest](schemas.md#codersdkupdateworkspacebuildstaterequest) | true     | Request body       |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace build timings by ID
 
 ### Code samples

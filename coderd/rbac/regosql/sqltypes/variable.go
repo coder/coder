@@ -1,9 +1,8 @@
 package sqltypes
 
 import (
-	"golang.org/x/xerrors"
-
 	"github.com/open-policy-agent/opa/ast"
+	"golang.org/x/xerrors"
 )
 
 type VariableMatcher interface {

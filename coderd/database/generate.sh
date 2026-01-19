@@ -55,7 +55,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# Ensure correct imports exist. Modules must all be downloaded so we get correct
 	# suggestions.
 	go mod download
-	go run golang.org/x/tools/cmd/goimports@latest -w queries.sql.go
+	go tool golang.org/x/tools/cmd/goimports -w queries.sql.go
 
 	go run ../../scripts/dbgen
 	# This will error if a view is broken. This is in it's own package to avoid

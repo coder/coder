@@ -122,7 +122,8 @@ spec:
       app.kubernetes.io/name: coder
   template:
     metadata:
-      annotations: {}
+      annotations:
+        app.kubernetes.io/component: wsproxy
       labels:
         app.kubernetes.io/instance: release-name
         app.kubernetes.io/managed-by: Helm

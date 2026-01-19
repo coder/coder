@@ -14,9 +14,8 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -47,6 +46,10 @@ var (
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
 
+const (
+	InterceptionLogMarker = "interception log"
+)
+
 var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
@@ -74,7 +77,8 @@ type Server struct {
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
-	coderMCPConfig *proto.MCPServerConfig // may be nil if not available
+	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
+	structuredLogging bool
 }
 
 func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
@@ -93,8 +97,9 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
-		logger:              logger.Named("aibridgedserver"),
+		logger:              logger,
 		externalAuthConfigs: eac,
+		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
@@ -124,13 +129,33 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("empty API key ID")
 	}
 
+	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "interception_start"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("initiator_id", initID.String()),
+			slog.F("api_key_id", in.ApiKeyId),
+			slog.F("provider", in.Provider),
+			slog.F("model", in.Model),
+			slog.F("started_at", in.StartedAt.AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
+	out, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:          intcID,
 		APIKeyID:    sql.NullString{String: in.ApiKeyId, Valid: true},
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
-		Metadata:    marshalMetadata(ctx, s.logger, in.GetMetadata()),
+		Metadata:    out,
 		StartedAt:   in.StartedAt.AsTime(),
 	})
 	if err != nil {
@@ -147,6 +172,14 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	intcID, err := uuid.Parse(in.GetId())
 	if err != nil {
 		return nil, xerrors.Errorf("invalid interception ID %q: %w", in.GetId(), err)
+	}
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "interception_end"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("ended_at", in.EndedAt.AsTime()),
+		)
 	}
 
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
@@ -169,18 +202,38 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
+	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "token_usage"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("msg_id", in.GetMsgId()),
+			slog.F("input_tokens", in.GetInputTokens()),
+			slog.F("output_tokens", in.GetOutputTokens()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
+	out, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
 	_, err = s.store.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
 		ID:                 uuid.New(),
 		InterceptionID:     intcID,
 		ProviderResponseID: in.GetMsgId(),
 		InputTokens:        in.GetInputTokens(),
 		OutputTokens:       in.GetOutputTokens(),
-		Metadata:           marshalMetadata(ctx, s.logger, in.GetMetadata()),
+		Metadata:           out,
 		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert token usage: %w", err)
 	}
+
 	return &proto.RecordTokenUsageResponse{}, nil
 }
 
@@ -193,17 +246,36 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
+	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "prompt_usage"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("msg_id", in.GetMsgId()),
+			slog.F("prompt", in.GetPrompt()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
+	out, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
 	_, err = s.store.InsertAIBridgeUserPrompt(ctx, database.InsertAIBridgeUserPromptParams{
 		ID:                 uuid.New(),
 		InterceptionID:     intcID,
 		ProviderResponseID: in.GetMsgId(),
 		Prompt:             in.GetPrompt(),
-		Metadata:           marshalMetadata(ctx, s.logger, in.GetMetadata()),
+		Metadata:           out,
 		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
 	}
+
 	return &proto.RecordPromptUsageResponse{}, nil
 }
 
@@ -216,6 +288,28 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
+	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "tool_usage"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("msg_id", in.GetMsgId()),
+			slog.F("tool", in.GetTool()),
+			slog.F("input", in.GetInput()),
+			slog.F("server_url", in.GetServerUrl()),
+			slog.F("injected", in.GetInjected()),
+			slog.F("invocation_error", in.GetInvocationError()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
+	out, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
 	_, err = s.store.InsertAIBridgeToolUsage(ctx, database.InsertAIBridgeToolUsageParams{
 		ID:                 uuid.New(),
 		InterceptionID:     intcID,
@@ -225,12 +319,13 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		Input:              in.GetInput(),
 		Injected:           in.GetInjected(),
 		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.InvocationError != nil},
-		Metadata:           marshalMetadata(ctx, s.logger, in.GetMetadata()),
+		Metadata:           out,
 		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
 	}
+
 	return &proto.RecordToolUsageResponse{}, nil
 }
 
@@ -434,24 +529,16 @@ func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string)
 	}, nil
 }
 
-// marshalMetadata attempts to marshal the given metadata map into a
-// JSON-encoded byte slice. If the marshaling fails, the function logs a
-// warning and returns nil. The supplied context is only used for logging.
-func marshalMetadata(ctx context.Context, logger slog.Logger, in map[string]*anypb.Any) []byte {
-	mdMap := make(map[string]any, len(in))
+func metadataToMap(in map[string]*anypb.Any) map[string]any {
+	meta := make(map[string]any, len(in))
 	for k, v := range in {
 		if v == nil {
 			continue
 		}
 		var sv structpb.Value
 		if err := v.UnmarshalTo(&sv); err == nil {
-			mdMap[k] = sv.AsInterface()
+			meta[k] = sv.AsInterface()
 		}
 	}
-	out, err := json.Marshal(mdMap)
-	if err != nil {
-		logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
-		return nil
-	}
-	return out
+	return meta
 }

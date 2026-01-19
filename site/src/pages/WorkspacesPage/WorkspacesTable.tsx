@@ -51,7 +51,6 @@ import {
 	EllipsisVertical,
 	ExternalLinkIcon,
 	FileIcon,
-	PauseIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	SquareTerminalIcon,
@@ -485,16 +484,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					</PrimaryAction>
 				)}
 
-				{abilities.actions.includes("stop") && (
-					<PrimaryAction
-						onClick={() => setIsStopConfirmOpen(true)}
-						isLoading={stopWorkspaceMutation.isPending}
-						label="Stop workspace"
-					>
-						<PauseIcon />
-					</PrimaryAction>
-				)}
-
 				{abilities.actions.includes("updateAndStart") && (
 					<>
 						<PrimaryAction
@@ -570,6 +559,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				<WorkspaceMoreActions
 					workspace={workspace}
 					disabled={!abilities.canAcceptJobs}
+					onStop={
+						abilities.actions.includes("stop")
+							? () => setIsStopConfirmOpen(true)
+							: undefined
+					}
+					isStopping={stopWorkspaceMutation.isPending}
 				/>
 			</div>
 
@@ -666,7 +661,10 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 
 	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
 	const userApps = agent.apps
-		.filter((app) => app.health === "healthy" && !app.hidden)
+		.filter(
+			(app) =>
+				(app.health === "healthy" || app.health === "disabled") && !app.hidden,
+		)
 		.slice(0, remainingSlots);
 
 	const buttons: ReactNode[] = [];
@@ -736,7 +734,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				}}
 				label="Open Terminal"
 			>
-				<SquareTerminalIcon />
+				<SquareTerminalIcon className="!size-7" />
 			</BaseIconLink>,
 		);
 	}

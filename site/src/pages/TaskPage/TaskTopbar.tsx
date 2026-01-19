@@ -11,17 +11,26 @@ import {
 	ArrowLeftIcon,
 	CheckIcon,
 	CopyIcon,
-	LaptopMinimalIcon,
-	TerminalIcon,
+	LayoutPanelTopIcon,
+	SquareTerminalIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import { ShareButton } from "../WorkspacePage/WorkspaceActions/ShareButton";
 import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";
 
-type TaskTopbarProps = { task: Task; workspace: Workspace };
+type TaskTopbarProps = {
+	task: Task;
+	workspace: Workspace;
+	canUpdatePermissions: boolean;
+};
 
-export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
+export const TaskTopbar: FC<TaskTopbarProps> = ({
+	task,
+	workspace,
+	canUpdatePermissions,
+}) => {
 	return (
 		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
@@ -57,8 +66,8 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button variant="outline" size="sm">
-								<TerminalIcon />
-								Prompt
+								<SquareTerminalIcon />
+								View Prompt
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent className="max-w-xs bg-surface-secondary p-4">
@@ -70,10 +79,15 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 					</Tooltip>
 				</TooltipProvider>
 
+				<ShareButton
+					workspace={workspace}
+					canUpdatePermissions={canUpdatePermissions}
+				/>
+
 				<Button asChild variant="outline" size="sm">
 					<RouterLink to={`/@${workspace.owner_name}/${workspace.name}`}>
-						<LaptopMinimalIcon />
-						Workspace
+						<LayoutPanelTopIcon />
+						Go to workspace
 					</RouterLink>
 				</Button>
 			</div>

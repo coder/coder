@@ -12,9 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -29,7 +30,7 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
+				HealthcheckFunc: func(_ context.Context, apiKey string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 					calls.Add(1)
 					assert.Equal(t, sessionToken, apiKey)
 					return &healthsdk.HealthcheckReport{
@@ -62,7 +63,7 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
+				HealthcheckFunc: func(_ context.Context, apiKey string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 					calls.Add(1)
 					assert.Equal(t, sessionToken, apiKey)
 					return &healthsdk.HealthcheckReport{
@@ -94,19 +95,14 @@ func TestDebugHealth(t *testing.T) {
 			// Need to ignore errors due to ctx timeout
 			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			done        = make(chan struct{})
 			client      = coderdtest.New(t, &coderdtest.Options{
 				Logger:             &logger,
-				HealthcheckTimeout: time.Microsecond,
-				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
-					t := time.NewTimer(time.Second)
-					defer t.Stop()
-
-					select {
-					case <-ctx.Done():
-						return &healthsdk.HealthcheckReport{}
-					case <-t.C:
-						return &healthsdk.HealthcheckReport{}
-					}
+				HealthcheckTimeout: time.Second,
+				HealthcheckFunc: func(_ context.Context, _ string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport {
+					progress.Start("test")
+					<-done
+					return &healthsdk.HealthcheckReport{}
 				},
 			})
 			_ = coderdtest.CreateFirstUser(t, client)
@@ -116,8 +112,14 @@ func TestDebugHealth(t *testing.T) {
 		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		_, _ = io.ReadAll(res.Body)
+		close(done)
+		bs, err := io.ReadAll(res.Body)
+		require.NoError(t, err, "reading body")
 		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+		var sdkResp codersdk.Response
+		require.NoError(t, json.Unmarshal(bs, &sdkResp), "unmarshaling sdk response")
+		require.Equal(t, "Healthcheck timed out.", sdkResp.Message)
+		require.Contains(t, sdkResp.Detail, "Still running: test (elapsed:")
 	})
 
 	t.Run("Refresh", func(t *testing.T) {
@@ -129,7 +131,7 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckRefresh: time.Microsecond,
-				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
+				HealthcheckFunc: func(context.Context, string, *healthcheck.Progress) *healthsdk.HealthcheckReport {
 					calls <- struct{}{}
 					return &healthsdk.HealthcheckReport{}
 				},
@@ -174,7 +176,7 @@ func TestDebugHealth(t *testing.T) {
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckRefresh: time.Hour,
 				HealthcheckTimeout: time.Hour,
-				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
+				HealthcheckFunc: func(context.Context, string, *healthcheck.Progress) *healthsdk.HealthcheckReport {
 					calls++
 					return &healthsdk.HealthcheckReport{
 						Time: time.Now(),
@@ -208,7 +210,7 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
+				HealthcheckFunc: func(_ context.Context, apiKey string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
 					assert.Equal(t, sessionToken, apiKey)
 					return &healthsdk.HealthcheckReport{
 						Time:    time.Now(),
