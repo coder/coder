@@ -2634,7 +2634,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Maximum number of open connections to the database. Defaults to 10.",
 			Flag:        "postgres-conn-max-open",
 			Env:         "CODER_PG_CONN_MAX_OPEN",
-			Default:     "10",
+			Default:     "30",
 			Value: serpent.Validate(&c.PostgresConnMaxOpen, func(value *serpent.Int64) error {
 				if value.Value() <= 0 {
 					return xerrors.New("must be greater than zero")
@@ -2645,11 +2645,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name: "Postgres Connection Max Idle",
-			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3. " +
+			Description: "Maximum number of idle connections to the database. Set to \"auto\" to use max open / 3. " +
 				"Value must be greater or equal to 0; 0 means explicitly no idle connections.",
 			Flag:    "postgres-conn-max-idle",
 			Env:     "CODER_PG_CONN_MAX_IDLE",
-			Default: PostgresConnMaxIdleAuto,
+			Default: "15",
 			Value:   &c.PostgresConnMaxIdle,
 			YAML:    "pgConnMaxIdle",
 		},
