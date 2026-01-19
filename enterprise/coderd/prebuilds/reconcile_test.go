@@ -933,8 +933,8 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(
 				db, pubSub, cache, cfg, logger,
-				quartz.NewMock(t),
-				prometheus.NewRegistry(),
+				clock,
+				registry,
 				fakeEnqueuer,
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
@@ -1084,8 +1084,8 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(
 				db, pubSub, cache, cfg, logger,
-				quartz.NewMock(t),
-				prometheus.NewRegistry(),
+				clock,
+				registry,
 				fakeEnqueuer,
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
@@ -1286,7 +1286,7 @@ func TestRunLoop(t *testing.T) {
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
 		db, pubSub, cache, cfg, logger,
-		quartz.NewMock(t),
+		clock,
 		prometheus.NewRegistry(),
 		newNoopEnqueuer(),
 		newNoopUsageCheckerPtr(),
@@ -1422,7 +1422,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
 		db, ps, cache, cfg, logger,
-		quartz.NewMock(t),
+		clock,
 		prometheus.NewRegistry(),
 		newNoopEnqueuer(),
 		newNoopUsageCheckerPtr(),
@@ -1584,9 +1584,9 @@ func TestTrackResourceReplacement(t *testing.T) {
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
 		db, ps, cache, codersdk.PrebuildsConfig{}, logger,
-		quartz.NewMock(t),
-		prometheus.NewRegistry(),
-		newNoopEnqueuer(),
+		clock,
+		registry,
+		fakeEnqueuer,
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
@@ -1744,8 +1744,8 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(
 				db, pubSub, cache, cfg, logger,
-				quartz.NewMock(t),
-				prometheus.NewRegistry(),
+				clock,
+				registry,
 				fakeEnqueuer,
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
@@ -2207,8 +2207,8 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 				reconciler := prebuilds.NewStoreReconciler(
 					db, ps, cache, codersdk.PrebuildsConfig{}, logger,
-					quartz.NewMock(t),
-					prometheus.NewRegistry(),
+					clock,
+					registry,
 					fakeEnqueuer,
 					newNoopUsageCheckerPtr(),
 					noop.NewTracerProvider(),
@@ -2525,8 +2525,8 @@ func TestReconciliationStats(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	reconciler := prebuilds.NewStoreReconciler(
 		db, ps, cache, codersdk.PrebuildsConfig{}, logger,
-		quartz.NewMock(t),
-		prometheus.NewRegistry(),
+		clock,
+		registry,
 		fakeEnqueuer,
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
@@ -3044,7 +3044,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
 		db, ps, cache, cfg, logger,
-		quartz.NewMock(t),
+		clock,
 		prometheus.NewRegistry(),
 		newNoopEnqueuer(),
 		newNoopUsageCheckerPtr(),
