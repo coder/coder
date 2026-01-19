@@ -2452,8 +2452,8 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 		reconciler := prebuilds.NewStoreReconciler(
 			db, ps, cache, codersdk.PrebuildsConfig{}, logger,
-			quartz.NewMock(t),
-			prometheus.NewRegistry(),
+			clock,
+			registry,
 			fakeEnqueuer,
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
