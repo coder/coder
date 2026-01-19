@@ -970,8 +970,8 @@ github.com/coder/terraform-provider-coder/v2 v2.13.1 h1:dtPaJUvueFm+XwBPUMWQCc5Z
 github.com/coder/terraform-provider-coder/v2 v2.13.1/go.mod h1:2irB3W8xRUo73nP5w6lN/dhN3abeCIKpqg8zElKIX/I=
 github.com/coder/trivy v0.0.0-20250807211036-0bb0acd620a8 h1:VYB/6cIIKsVkwXOAWbqpj4Ux+WwF/XTnRyvHcwfHZ7A=
 github.com/coder/trivy v0.0.0-20250807211036-0bb0acd620a8/go.mod h1:O73tP+UvJlI2GQZD060Jt0sf+6alKcGAgORh6sgB0+M=
-github.com/coder/websocket v1.8.13 h1:f3QZdXy7uGVz+4uCJy2nTZyM0yTBj8yANEHhqlXZ9FE=
-github.com/coder/websocket v1.8.13/go.mod h1:LNVeNrXQZfe5qhS9ALED3uA+l5pPqvwXg3CKoDBB2gs=
+github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
+github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/coder/wgtunnel v0.2.0 h1:yy9dE9ntoNdx/q98CH9uV2cQk1UEKSwPgITy3Xx+Wiw=
 github.com/coder/wgtunnel v0.2.0/go.mod h1:4Ne8vzzdHwkM9BnPW2zDvidvFi5IfEbkecx5JH+0zjY=
 github.com/coder/wireguard-go v0.0.0-20260113101225-9b7a56210e49 h1:go72mN+u8M26ji5XE3N2qV+h136Ie0ZBjq+Ccf4wig0=
@@ -1056,8 +1056,8 @@ github.com/elastic/go-sysinfo v1.15.1 h1:zBmTnFEXxIQ3iwcQuk7MzaUotmKRp3OabbbWM8T
 github.com/elastic/go-sysinfo v1.15.1/go.mod h1:jPSuTgXG+dhhh0GKIyI2Cso+w5lPJ5PvVqKlL8LV/Hk=
 github.com/elastic/go-windows v1.0.0 h1:qLURgZFkkrYyTTkvYpsZIgf83AUsdIHfvlJaqaZ7aSY=
 github.com/elastic/go-windows v1.0.0/go.mod h1:TsU0Nrp7/y3+VwE82FoZF8gC/XFg/Elz6CcloAxnPgU=
-github.com/elazarl/goproxy v1.7.2 h1:Y2o6urb7Eule09PjlhQRGNsqRfPmYI3KKQLFpCAV3+o=
-github.com/elazarl/goproxy v1.7.2/go.mod h1:82vkLNir0ALaW14Rc399OTTjyNREgmdL2cVoIbS6XaE=
+github.com/elazarl/goproxy v1.8.0 h1:dt561rX7UAYMeFRLtzFx6uQGl2TpL1dr6uCG23nFQSY=
+github.com/elazarl/goproxy v1.8.0/go.mod h1:b5xm6W48AUHNpRTCvlnd0YVh+JafCCtsLsJZvvNTz+E=
 github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 h1:OJyUGMJTzHTd1XQp98QTaHernxMYzRaOasRir9hUlFQ=
 github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21/go.mod h1:iL2twTeMvZnrg54ZoPDNfJaJaqy0xIQFuBdrLsmspwQ=
 github.com/emersion/go-smtp v0.21.2 h1:OLDgvZKuofk4em9fT5tFG5j4jE1/hXnX75UMvcrL4AA=
