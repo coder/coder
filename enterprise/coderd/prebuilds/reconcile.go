@@ -57,6 +57,8 @@ type StoreReconciler struct {
 	done              chan struct{}
 	provisionNotifyCh chan database.ProvisionerJob
 
+	reconciliationConcurrency int
+
 	// Prebuild state metrics
 	metrics *MetricsCollector
 	// Operational metrics
@@ -93,20 +95,40 @@ func NewStoreReconciler(store database.Store,
 	notifEnq notifications.Enqueuer,
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 	tracerProvider trace.TracerProvider,
+	maxDBConnections int,
 ) *StoreReconciler {
+	// Limit concurrent preset reconciliation goroutines to avoid exhausting the
+	// coderd database connection pool. Each preset may perform multiple sequential
+	// database operations (creates/deletes). Using half of the pool size leaves
+	// capacity for other database operations while maintaining reasonable parallelism.
+	reconciliationConcurrency := maxDBConnections / 2
+	if reconciliationConcurrency < 1 {
+		reconciliationConcurrency = 1
+	}
+
+	if maxDBConnections <= 0 {
+		logger.Error(context.Background(), "maxDBConnections is not positive, defaulting reconciliation concurrency to 1",
+			slog.F("max_db_connections", maxDBConnections))
+	}
+
+	logger.Debug(context.Background(), "reconciler initialized",
+		slog.F("reconciliation_concurrency", reconciliationConcurrency),
+		slog.F("max_db_connections", maxDBConnections))
+
 	reconciler := &StoreReconciler{
-		store:             store,
-		pubsub:            ps,
-		fileCache:         fileCache,
-		logger:            logger,
-		cfg:               cfg,
-		clock:             clock,
-		registerer:        registerer,
-		notifEnq:          notifEnq,
-		buildUsageChecker: buildUsageChecker,
-		tracer:            tracerProvider.Tracer(tracing.TracerName),
-		done:              make(chan struct{}, 1),
-		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
+		store:                     store,
+		pubsub:                    ps,
+		fileCache:                 fileCache,
+		logger:                    logger,
+		cfg:                       cfg,
+		clock:                     clock,
+		registerer:                registerer,
+		notifEnq:                  notifEnq,
+		buildUsageChecker:         buildUsageChecker,
+		tracer:                    tracerProvider.Tracer(tracing.TracerName),
+		done:                      make(chan struct{}, 1),
+		provisionNotifyCh:         make(chan database.ProvisionerJob, 10),
+		reconciliationConcurrency: reconciliationConcurrency,
 	}
 
 	if registerer != nil {
@@ -127,6 +149,10 @@ func NewStoreReconciler(store database.Store,
 	}
 
 	return reconciler
+}
+
+func (c *StoreReconciler) ReconciliationConcurrency() int {
+	return c.reconciliationConcurrency
 }
 
 func (c *StoreReconciler) Run(ctx context.Context) {
@@ -355,12 +381,8 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 		}
 
 		var eg errgroup.Group
-		// Limit concurrent goroutines to avoid exhausting the database connection pool.
-		// Each preset reconciliation may perform multiple sequential database operations
-		// (creates/deletes), and with a pool limit of 10 connections, allowing unlimited
-		// concurrency would cause connection contention and thrashing. A limit of 5 ensures
-		// we stay below the pool limit while maintaining reasonable parallelism.
-		eg.SetLimit(5)
+		// Limit concurrency to avoid exhausting the coderd database connection pool.
+		eg.SetLimit(c.reconciliationConcurrency)
 
 		presetsReconciled := 0
 

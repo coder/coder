@@ -53,7 +53,15 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -96,7 +104,15 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -426,7 +442,15 @@ func (tc testCase) run(t *testing.T) {
 			pubSub = &brokenPublisher{Pubsub: pubSub}
 		}
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-		controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+		controller := prebuilds.NewStoreReconciler(
+			db, pubSub, cache, cfg, logger,
+			quartz.NewMock(t),
+			prometheus.NewRegistry(),
+			newNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
 
 		// Run the reconciliation multiple times to ensure idempotency
 		// 8 was arbitrary, but large enough to reasonably trust the result
@@ -495,7 +519,15 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -618,7 +650,15 @@ func TestPrebuildScheduling(t *testing.T) {
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				quartz.NewMock(t),
+				prometheus.NewRegistry(),
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			ownerID := uuid.New()
 			dbgen.User(t, db, database.User{
@@ -719,7 +759,15 @@ func TestInvalidPreset(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -781,7 +829,15 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -875,7 +931,15 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				quartz.NewMock(t),
+				prometheus.NewRegistry(),
+				fakeEnqueuer,
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1018,7 +1082,15 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				quartz.NewMock(t),
+				prometheus.NewRegistry(),
+				fakeEnqueuer,
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1212,7 +1284,15 @@ func TestRunLoop(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -1340,7 +1420,15 @@ func TestFailedBuildBackoff(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -1462,7 +1550,9 @@ func TestReconciliationLock(t *testing.T) {
 				quartz.NewMock(t),
 				prometheus.NewRegistry(),
 				newNoopEnqueuer(),
-				newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+				newNoopUsageCheckerPtr(), noop.NewTracerProvider(),
+				10,
+			)
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
 				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
@@ -1492,7 +1582,15 @@ func TestTrackResourceReplacement(t *testing.T) {
 	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// Given: a template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
@@ -1644,7 +1742,15 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				quartz.NewMock(t),
+				prometheus.NewRegistry(),
+				fakeEnqueuer,
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			// Set up test environment with a template, version, and preset
 			ownerID := uuid.New()
@@ -2099,7 +2205,15 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				registry := prometheus.NewRegistry()
 				cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-				reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+				reconciler := prebuilds.NewStoreReconciler(
+					db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+					quartz.NewMock(t),
+					prometheus.NewRegistry(),
+					fakeEnqueuer,
+					newNoopUsageCheckerPtr(),
+					noop.NewTracerProvider(),
+					10,
+				)
 				owner := coderdtest.CreateFirstUser(t, client)
 
 				// Given: a template with a version containing a preset with 1 prebuild instance
@@ -2336,7 +2450,15 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		registry := prometheus.NewRegistry()
 		cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-		reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+		reconciler := prebuilds.NewStoreReconciler(
+			db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+			quartz.NewMock(t),
+			prometheus.NewRegistry(),
+			fakeEnqueuer,
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
 		owner := coderdtest.CreateFirstUser(t, client)
 
 		// Given: template A with 2 versions
@@ -2401,7 +2523,15 @@ func TestReconciliationStats(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		fakeEnqueuer,
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 	owner := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2912,7 +3042,15 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// Setup a template with a preset that should create prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -2974,6 +3112,44 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
 }
 
+func TestReconciliationConcurrency(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		maxDBConnections    int
+		expectedConcurrency int
+	}{
+		{"default pool size", 10, 5},
+		{"large pool", 100, 50},
+		{"small pool", 4, 2},
+		{"minimum pool", 2, 1},
+		{"single connection", 1, 1},
+		{"zero connections floors to 1", 0, 1},
+		{"negative floors to 1", -5, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := slogtest.Make(t, nil)
+			db, ps := dbtestutil.NewDB(t)
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			cfg := codersdk.PrebuildsConfig{}
+
+			reconciler := prebuilds.NewStoreReconciler(
+				db, ps, cache, cfg, logger,
+				quartz.NewMock(t), prometheus.NewRegistry(),
+				newNoopEnqueuer(), newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(), tt.maxDBConnections,
+			)
+
+			require.Equal(t, tt.expectedConcurrency, reconciler.ReconciliationConcurrency())
+		})
+	}
+}
+
 // BenchmarkReconcileAll_NoOps benchmarks the reconciliation loop with varying numbers
 // of presets of inactive versions that require no reconciliation actions.
 //
@@ -2998,8 +3174,10 @@ func BenchmarkReconcileAll_NoOps(b *testing.B) {
 			logger := slog.Make()
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(b, dbtestutil.WithLogger(logger))
 
-			// Database configuration set per replica (see cli/server.go)
-			sqlDB.SetMaxOpenConns(10)
+			// Database configuration set per replica (see cli/server.go).
+			// Default value for CODER_PG_CONN_MAX_OPEN is 10.
+			maxOpenConns := 10
+			sqlDB.SetMaxOpenConns(maxOpenConns)
 			sqlDB.SetMaxIdleConns(3)
 
 			clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
@@ -3008,8 +3186,15 @@ func BenchmarkReconcileAll_NoOps(b *testing.B) {
 			}
 			prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, prebuildsLogger,
-				clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+			controller := prebuilds.NewStoreReconciler(
+				db, ps, cache, cfg, prebuildsLogger,
+				clock,
+				prometheus.NewRegistry(),
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				maxOpenConns,
+			)
 
 			org := dbgen.Organization(b, db, database.Organization{})
 			user := dbgen.User(b, db, database.User{})
@@ -3100,8 +3285,10 @@ func BenchmarkReconcileAll_ConnectionContention(b *testing.B) {
 				logger := slog.Make()
 				db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(b, dbtestutil.WithLogger(logger))
 
-				// Database configuration set per replica (see cli/server.go)
-				sqlDB.SetMaxOpenConns(10)
+				// Database configuration set per replica (see cli/server.go).
+				// Default value for CODER_PG_CONN_MAX_OPEN is 10.
+				maxOpenConns := 10
+				sqlDB.SetMaxOpenConns(maxOpenConns)
 				sqlDB.SetMaxIdleConns(3)
 
 				clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
@@ -3110,8 +3297,15 @@ func BenchmarkReconcileAll_ConnectionContention(b *testing.B) {
 				}
 				prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-				controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, prebuildsLogger,
-					clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+				controller := prebuilds.NewStoreReconciler(
+					db, ps, cache, cfg, prebuildsLogger,
+					clock,
+					prometheus.NewRegistry(),
+					newNoopEnqueuer(),
+					newNoopUsageCheckerPtr(),
+					noop.NewTracerProvider(),
+					maxOpenConns,
+				)
 
 				// Create presets from active template versions that need reconciliation actions
 				org := dbgen.Organization(b, db, database.Organization{})
@@ -3210,8 +3404,10 @@ func BenchmarkReconcileAll_Mix(b *testing.B) {
 				logger := slog.Make()
 				db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(b, dbtestutil.WithLogger(logger))
 
-				// Database configuration set per replica (see cli/server.go)
-				sqlDB.SetMaxOpenConns(10)
+				// Database configuration set per replica (see cli/server.go).
+				// Default value for CODER_PG_CONN_MAX_OPEN is 10.
+				maxOpenConns := 10
+				sqlDB.SetMaxOpenConns(maxOpenConns)
 				sqlDB.SetMaxIdleConns(3)
 
 				clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
@@ -3220,8 +3416,15 @@ func BenchmarkReconcileAll_Mix(b *testing.B) {
 				}
 				prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-				controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, prebuildsLogger,
-					clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+				controller := prebuilds.NewStoreReconciler(
+					db, ps, cache, cfg, prebuildsLogger,
+					clock,
+					prometheus.NewRegistry(),
+					newNoopEnqueuer(),
+					newNoopUsageCheckerPtr(),
+					noop.NewTracerProvider(),
+					maxOpenConns,
+				)
 
 				org := dbgen.Organization(b, db, database.Organization{})
 				user := dbgen.User(b, db, database.User{})
