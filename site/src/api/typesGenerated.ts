@@ -1741,7 +1741,7 @@ export interface DeploymentValues {
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
 	readonly pg_conn_max_open?: number;
-	readonly pg_conn_max_idle?: string;
+	readonly pg_conn_max_idle?: number;
 	readonly oauth2?: OAuth2Config;
 	readonly oidc?: OIDCConfig;
 	readonly telemetry?: TelemetryConfig;
@@ -3581,13 +3581,6 @@ export interface PostWorkspaceUsageRequest {
 export type PostgresAuth = "awsiamrds" | "password";
 
 export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
-
-// From codersdk/deployment.go
-/**
- * PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
- * based on max open connections.
- */
-export const PostgresConnMaxIdleAuto = "auto";
 
 // From codersdk/deployment.go
 export interface PprofConfig {

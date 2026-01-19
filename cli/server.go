@@ -748,10 +748,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var pubsubWatchdogTimeout <-chan struct{}
 
 			maxOpenConns := int(vals.PostgresConnMaxOpen.Value())
-			maxIdleConns, err := codersdk.ComputeMaxIdleConns(maxOpenConns, vals.PostgresConnMaxIdle.Value())
-			if err != nil {
-				return xerrors.Errorf("compute max idle connections: %w", err)
-			}
+			maxIdleConns := int(vals.PostgresConnMaxIdle.Value())
 			logger.Debug(ctx, "creating database connection pool", slog.F("max_open_conns", maxOpenConns), slog.F("max_idle_conns", maxIdleConns))
 			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver,
 				WithMaxOpenConns(maxOpenConns),

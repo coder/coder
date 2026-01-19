@@ -14481,7 +14481,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "pg_conn_max_idle": {
-                    "type": "string"
+                    "type": "integer"
                 },
                 "pg_conn_max_open": {
                     "type": "integer"

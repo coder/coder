@@ -442,10 +442,6 @@ var PostgresAuthDrivers = []string{
 	string(PostgresAuthAWSIAMRDS),
 }
 
-// PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
-// based on max open connections.
-const PostgresConnMaxIdleAuto = "auto"
-
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -467,7 +463,7 @@ type DeploymentValues struct {
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	PostgresConnMaxOpen             serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
-	PostgresConnMaxIdle             serpent.String                       `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
+	PostgresConnMaxIdle             serpent.Int64                        `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2645,7 +2641,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name: "Postgres Connection Max Idle",
-			Description: "Maximum number of idle connections to the database. Set to \"auto\" to use max open / 3. " +
+			Description: "Maximum number of idle connections to the database. " +
 				"Value must be greater or equal to 0; 0 means explicitly no idle connections.",
 			Flag:    "postgres-conn-max-idle",
 			Env:     "CODER_PG_CONN_MAX_IDLE",
@@ -4202,29 +4198,4 @@ func (c CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := c.Secret != ""
 	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
 	return hasSecret && beforeDelete
-}
-
-// ComputeMaxIdleConns calculates the effective maxIdleConns value. If
-// configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
-// configuredIdle exceeds maxOpen, it returns an error.
-func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
-	configuredIdle = strings.TrimSpace(configuredIdle)
-	if configuredIdle == PostgresConnMaxIdleAuto {
-		computed := maxOpen / 3
-		if computed < 1 {
-			return 1, nil
-		}
-		return computed, nil
-	}
-	idle, err := strconv.Atoi(configuredIdle)
-	if err != nil {
-		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or >= 0", configuredIdle, PostgresConnMaxIdleAuto)
-	}
-	if idle < 0 {
-		return 0, xerrors.Errorf("max idle connections must be %q or >= 0", PostgresConnMaxIdleAuto)
-	}
-	if idle > maxOpen {
-		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
-	}
-	return idle, nil
 }
