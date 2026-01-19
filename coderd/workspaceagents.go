@@ -1703,7 +1703,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 	agentIDEncoded := make([]byte, metadatabatcher.UUIDBase64Size)
-	err := metadatabatcher.EncodeAgentID(workspaceAgent.ID, agentIDEncoded)
+	err := metadatabatcher.EncodeAgentID(waws.WorkspaceAgent.ID, agentIDEncoded)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -1737,7 +1737,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 			}
 
 			log.Debug(ctx, "received metadata update from batch channel",
-				slog.F("agent_id", workspaceAgent.ID),
+				slog.F("agent_id", waws.WorkspaceAgent.ID),
 				slog.F("batch_size", len(byt)/metadatabatcher.UUIDBase64Size),
 			)
 
