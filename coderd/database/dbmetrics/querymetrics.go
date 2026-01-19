@@ -2218,8 +2218,8 @@ func (m queryMetricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx contex
 func (m queryMetricsStore) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentAndWorkspaceByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentAndWorkspaceByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByIDWithWorkspace").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentByIDWithWorkspace").Inc()
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentAndWorkspaceByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentAndWorkspaceByID").Inc()
 	return r0, r1
 }
 
