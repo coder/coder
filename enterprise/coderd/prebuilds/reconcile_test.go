@@ -652,7 +652,7 @@ func TestPrebuildScheduling(t *testing.T) {
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(
 				db, pubSub, cache, cfg, logger,
-				quartz.NewMock(t),
+				clock,
 				prometheus.NewRegistry(),
 				newNoopEnqueuer(),
 				newNoopUsageCheckerPtr(),
