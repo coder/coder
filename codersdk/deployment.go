@@ -3549,7 +3549,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy",
-			Description: "URL of an upstream HTTP proxy to chain passthrough (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
 			Flag:        "aibridge-proxy-upstream",
 			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
 			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
