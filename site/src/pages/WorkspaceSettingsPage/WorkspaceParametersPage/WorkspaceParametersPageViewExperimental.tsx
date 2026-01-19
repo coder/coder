@@ -26,6 +26,7 @@ type WorkspaceParametersPageViewExperimentalProps = {
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
 	isSubmitting: boolean;
+	isInTransition: boolean;
 	onCancel: () => void;
 	onSubmit: (values: {
 		rich_parameter_values: WorkspaceBuildParameter[];
@@ -43,6 +44,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	diagnostics,
 	canChangeVersions,
 	isSubmitting,
+	isInTransition,
 	onSubmit,
 	sendMessage,
 	onCancel,
@@ -248,6 +250,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						disabled={
 							isSubmitting ||
 							disabled ||
+							isInTransition ||
 							diagnostics.some(
 								(diagnostic) => diagnostic.severity === "error",
 							) ||

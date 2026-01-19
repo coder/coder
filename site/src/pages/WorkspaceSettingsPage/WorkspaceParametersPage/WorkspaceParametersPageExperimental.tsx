@@ -6,6 +6,7 @@ import type {
 	DynamicParametersResponse,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
@@ -146,29 +147,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		mutationFn: async (buildParameters: WorkspaceBuildParameter[]) => {
 			const currentBuild = workspace.latest_build;
 
-			// If the workspace is in a transitional state, wait for it to reach a stable state
-			if (
-				currentBuild.status === "starting" ||
-				currentBuild.status === "stopping" ||
-				currentBuild.status === "pending" ||
-				currentBuild.status === "canceling"
-			) {
-				const completedBuild = await API.waitForBuild(currentBuild);
-				// If the transition ended up canceled, do not proceed
-				if (completedBuild?.status === "canceled") {
-					throw new Error(
-						"Workspace transition was canceled, not proceeding with parameter update.",
-					);
-				}
-			}
-
-			// If the last transition ended up canceled, do not proceed
-			if (currentBuild.status === "canceled") {
-				throw new Error(
-					"Workspace transition was canceled, not proceeding with parameter update.",
-				);
-			}
-
 			// If workspace is running, stop it first then start with new parameters
 			if (currentBuild.status === "running") {
 				const stopBuild = await API.stopWorkspace(workspace.id);
@@ -239,6 +217,13 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 	const error = wsError || updateParameters.error;
 
+	// Check if workspace is in a transitional state
+	const isInTransition =
+		workspace.latest_build.status === "starting" ||
+		workspace.latest_build.status === "stopping" ||
+		workspace.latest_build.status === "pending" ||
+		workspace.latest_build.status === "canceling";
+
 	if (
 		latestBuildParametersLoading ||
 		!latestResponse ||
@@ -281,12 +266,20 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 
+			{isInTransition && (
+				<Alert severity="info">
+					There is currently a workspace build in progress. Please wait for it
+					to complete before proceeding.
+				</Alert>
+			)}
+
 			{sortedParams.length > 0 ? (
 				<WorkspaceParametersPageViewExperimental
 					templateVersionId={templateVersionId}
 					workspace={workspace}
 					autofillParameters={autofillParameters}
 					canChangeVersions={canChangeVersions}
+					isInTransition={isInTransition}
 					parameters={sortedParams}
 					diagnostics={latestResponse.diagnostics}
 					isSubmitting={updateParameters.isPending}
