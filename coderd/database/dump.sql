@@ -248,7 +248,10 @@ CREATE TYPE build_reason AS ENUM (
     'cli',
     'ssh_connection',
     'vscode_connection',
-    'jetbrains_connection'
+    'jetbrains_connection',
+    'task_auto_pause',
+    'task_manual_pause',
+    'task_resume'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -1846,6 +1849,20 @@ CREATE TABLE tailnet_tunnels (
     updated_at timestamp with time zone NOT NULL
 );
 
+CREATE TABLE task_snapshots (
+    task_id uuid NOT NULL,
+    log_snapshot jsonb NOT NULL,
+    log_snapshot_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE task_snapshots IS 'Stores snapshots of task state when paused, currently limited to conversation history.';
+
+COMMENT ON COLUMN task_snapshots.task_id IS 'The task this snapshot belongs to.';
+
+COMMENT ON COLUMN task_snapshots.log_snapshot IS 'Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.';
+
+COMMENT ON COLUMN task_snapshots.log_snapshot_at IS 'When this snapshot was captured.';
+
 CREATE TABLE task_workspace_apps (
     task_id uuid NOT NULL,
     workspace_agent_id uuid,
@@ -3157,6 +3174,9 @@ ALTER TABLE ONLY tailnet_peers
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
 
+ALTER TABLE ONLY task_snapshots
+    ADD CONSTRAINT task_snapshots_pkey PRIMARY KEY (task_id);
+
 ALTER TABLE ONLY task_workspace_apps
     ADD CONSTRAINT task_workspace_apps_pkey PRIMARY KEY (task_id, workspace_build_number);
 
@@ -3719,6 +3739,9 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY task_snapshots
+    ADD CONSTRAINT task_snapshots_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY task_workspace_apps
     ADD CONSTRAINT task_workspace_apps_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
