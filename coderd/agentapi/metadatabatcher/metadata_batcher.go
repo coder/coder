@@ -88,9 +88,9 @@ type Batcher struct {
 	currentBatchLen atomic.Int64
 	maxBatchSize    int
 
-	// clock is used to create tickers and get the current time.
+	// clock is used to create timers and get the current time.
 	clock      quartz.Clock
-	ticker     *quartz.Ticker
+	timer      *quartz.Timer
 	interval   time.Duration
 	warnTicker *quartz.Ticker // used to only log at warn level infrequently
 
@@ -141,7 +141,6 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 		log:     slog.Logger{},
 		clock:   quartz.NewReal(),
 	}
-	b.warnTicker = b.clock.NewTicker(10 * time.Second)
 
 	for _, opt := range opts {
 		opt(b)
@@ -157,8 +156,11 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 		b.maxBatchSize = defaultMetadataBatchSize
 	}
 
-	if b.ticker == nil {
-		b.ticker = b.clock.NewTicker(b.interval)
+	// Create warn ticker after options are applied so it uses the correct clock.
+	b.warnTicker = b.clock.NewTicker(10 * time.Second)
+
+	if b.timer == nil {
+		b.timer = b.clock.NewTimer(b.interval)
 	}
 
 	// Create buffered channel with 5x batch size capacity
@@ -179,8 +181,8 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 
 func (b *Batcher) Close() {
 	b.cancel()
-	if b.ticker != nil {
-		b.ticker.Stop()
+	if b.timer != nil {
+		b.timer.Stop()
 	}
 	// Wait for the run function to end, it may be sending one last batch.
 	<-b.done
@@ -277,10 +279,15 @@ func (b *Batcher) run(ctx context.Context) {
 			// Check if batch has reached capacity
 			if int(b.currentBatchLen.Load()) >= b.maxBatchSize {
 				b.flush(authCtx, flushCapacity)
+				// Reset timer so the next scheduled flush is interval duration
+				// from now, not from when it was originally scheduled.
+				b.timer.Reset(b.interval, "metadataBatcher", "capacityFlush")
 			}
 
-		case <-b.ticker.C:
+		case <-b.timer.C:
 			b.flush(authCtx, flushTicker)
+			// Reset timer to schedule the next flush.
+			b.timer.Reset(b.interval, "metadataBatcher", "scheduledFlush")
 
 		case <-ctx.Done():
 			b.log.Debug(ctx, "context done, flushing before exit")
