@@ -1858,50 +1858,6 @@ Emit structured logs for AI Bridge interception records. Use this for exporting 
 
 Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).
 
-### --aibridge-circuit-breaker-failure-threshold
-
-|             |                                                                |
-|-------------|----------------------------------------------------------------|
-| Type        | <code>int</code>                                               |
-| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD</code> |
-| YAML        | <code>aibridge.circuitBreakerFailureThreshold</code>           |
-| Default     | <code>5</code>                                                 |
-
-Number of consecutive failures that triggers the circuit breaker to open.
-
-### --aibridge-circuit-breaker-interval
-
-|             |                                                       |
-|-------------|-------------------------------------------------------|
-| Type        | <code>duration</code>                                 |
-| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL</code> |
-| YAML        | <code>aibridge.circuitBreakerInterval</code>          |
-| Default     | <code>10s</code>                                      |
-
-Cyclic period of the closed state for clearing internal failure counts.
-
-### --aibridge-circuit-breaker-timeout
-
-|             |                                                      |
-|-------------|------------------------------------------------------|
-| Type        | <code>duration</code>                                |
-| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT</code> |
-| YAML        | <code>aibridge.circuitBreakerTimeout</code>          |
-| Default     | <code>30s</code>                                     |
-
-How long the circuit breaker stays open before transitioning to half-open state.
-
-### --aibridge-circuit-breaker-max-requests
-
-|             |                                                           |
-|-------------|-----------------------------------------------------------|
-| Type        | <code>int</code>                                          |
-| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS</code> |
-| YAML        | <code>aibridge.circuitBreakerMaxRequests</code>           |
-| Default     | <code>3</code>                                            |
-
-Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.
-
 ### --aibridge-proxy-enabled
 
 |             |                                            |

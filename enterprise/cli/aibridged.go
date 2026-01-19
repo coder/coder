@@ -26,10 +26,10 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	var cbConfig *config.CircuitBreaker
 	if coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerEnabled.Value() {
 		cbConfig = &config.CircuitBreaker{
-			FailureThreshold: uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Value is validated via CLI flags to be within uint32 range.
+			FailureThreshold: uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
 			Interval:         coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerInterval.Value(),
 			Timeout:          coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerTimeout.Value(),
-			MaxRequests:      uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Value is validated via CLI flags to be within uint32 range.
+			MaxRequests:      uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
 		}
 	}
 

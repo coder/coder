@@ -3509,10 +3509,16 @@ Write out the current server config as YAML to stdout.`,
 			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
 			Flag:        "aibridge-circuit-breaker-failure-threshold",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
-			Value:       &c.AI.BridgeConfig.CircuitBreakerFailureThreshold,
-			Default:     "5",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "circuitBreakerFailureThreshold",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "5",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerFailureThreshold",
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Interval",
@@ -3521,6 +3527,7 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
 			Default:     "10s",
+			Hidden:      true,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "circuitBreakerInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -3532,6 +3539,7 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerTimeout,
 			Default:     "30s",
+			Hidden:      true,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "circuitBreakerTimeout",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -3541,10 +3549,16 @@ Write out the current server config as YAML to stdout.`,
 			Description: "Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
 			Flag:        "aibridge-circuit-breaker-max-requests",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS",
-			Value:       &c.AI.BridgeConfig.CircuitBreakerMaxRequests,
-			Default:     "3",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "circuitBreakerMaxRequests",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "3",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerMaxRequests",
 		},
 
 		// AI Bridge Proxy Options
