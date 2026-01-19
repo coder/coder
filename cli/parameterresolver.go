@@ -34,6 +34,7 @@ type ParameterResolver struct {
 
 	promptRichParameters      bool
 	promptEphemeralParameters bool
+	useParameterDefaults      bool
 }
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
@@ -86,8 +87,21 @@ func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParame
 	return pr
 }
 
-// Resolve gathers workspace build parameters in a layered fashion, applying values from various sources
-// in order of precedence: parameter file < CLI/ENV < source build < last build < preset < user input.
+func (pr *ParameterResolver) WithUseParameterDefaults(useParameterDefaults bool) *ParameterResolver {
+	pr.useParameterDefaults = useParameterDefaults
+	return pr
+}
+
+// Resolve gathers workspace build parameters in a layered fashion, applying
+// values from various sources in order of precedence:
+// 1. template defaults (if auto-accepting defaults)
+// 2. cli parameter defaults (if auto-accepting defaults)
+// 3. parameter file
+// 4. CLI/ENV
+// 5. source build
+// 6. last build
+// 7. preset
+// 8. user input (unless auto-accepting defaults)
 func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	var staged []codersdk.WorkspaceBuildParameter
 	var err error
@@ -262,9 +276,25 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
 			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
-			parameterValue, err := cliui.RichParameter(inv, tvp, pr.richParametersDefaults)
-			if err != nil {
-				return nil, err
+			name := tvp.Name
+			if tvp.DisplayName != "" {
+				name = tvp.DisplayName
+			}
+
+			parameterValue := tvp.DefaultValue
+			if v, ok := pr.richParametersDefaults[tvp.Name]; ok {
+				parameterValue = v
+			}
+
+			// Auto-accept the default if there is one.
+			if pr.useParameterDefaults && parameterValue != "" {
+				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, parameterValue)
+			} else {
+				var err error
+				parameterValue, err = cliui.RichParameter(inv, tvp, name, parameterValue)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			resolved = append(resolved, codersdk.WorkspaceBuildParameter{

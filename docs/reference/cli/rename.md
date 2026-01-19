@@ -17,4 +17,4 @@ coder rename [flags] <workspace> <new name>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

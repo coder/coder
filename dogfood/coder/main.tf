@@ -25,8 +25,8 @@ locals {
   // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
   // Kyle for help.
   docker_host = {
-    ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
-    "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    ""              = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
+    "us-pittsburgh" = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
     // For legacy reasons, this host is labelled `eu-helsinki` but it's
     // actually in Germany now.
     "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
@@ -888,7 +888,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.3.0"
+  version             = "4.4.2"
   enable_boundary     = true
   boundary_version    = "v0.5.5"
   agent_id            = coder_agent.dev.id
