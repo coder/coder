@@ -124,5 +124,3 @@ func newMockMCPFactory(proxy *mcpmock.MockServerProxier) *mockMCPFactory {
 func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request, tracer trace.Tracer) (mcp.ServerProxier, error) {
 	return m.proxy, nil
 }
-
-
