@@ -12018,6 +12018,9 @@ const docTemplate = `{
                 "access_key_secret": {
                     "type": "string"
                 },
+                "base_url": {
+                    "type": "string"
+                },
                 "model": {
                     "type": "string"
                 },

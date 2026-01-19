@@ -54,11 +54,12 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 }
 
 func getBedrockConfig(cfg codersdk.AIBridgeBedrockConfig) *aibridge.AWSBedrockConfig {
-	if cfg.Region.String() == "" && cfg.AccessKey.String() == "" && cfg.AccessKeySecret.String() == "" {
+	if cfg.Region.String() == "" && cfg.BaseURL.String() == "" && cfg.AccessKey.String() == "" && cfg.AccessKeySecret.String() == "" {
 		return nil
 	}
 
 	return &aibridge.AWSBedrockConfig{
+		BaseURL:         cfg.BaseURL.String(),
 		Region:          cfg.Region.String(),
 		AccessKey:       cfg.AccessKey.String(),
 		AccessKeySecret: cfg.AccessKeySecret.String(),

@@ -181,6 +181,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
+          "base_url": "string",
           "model": "string",
           "region": "string",
           "small_fast_model": "string"

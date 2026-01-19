@@ -357,6 +357,7 @@
 {
   "access_key": "string",
   "access_key_secret": "string",
+  "base_url": "string",
   "model": "string",
   "region": "string",
   "small_fast_model": "string"
@@ -369,6 +370,7 @@
 |---------------------|--------|----------|--------------|-------------|
 | `access_key`        | string | false    |              |             |
 | `access_key_secret` | string | false    |              |             |
+| `base_url`          | string | false    |              |             |
 | `model`             | string | false    |              |             |
 | `region`            | string | false    |              |             |
 | `small_fast_model`  | string | false    |              |             |
@@ -384,6 +386,7 @@
   "bedrock": {
     "access_key": "string",
     "access_key_secret": "string",
+    "base_url": "string",
     "model": "string",
     "region": "string",
     "small_fast_model": "string"
@@ -739,6 +742,7 @@
     "bedrock": {
       "access_key": "string",
       "access_key_secret": "string",
+      "base_url": "string",
       "model": "string",
       "region": "string",
       "small_fast_model": "string"
@@ -2657,6 +2661,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
+          "base_url": "string",
           "model": "string",
           "region": "string",
           "small_fast_model": "string"
@@ -3204,6 +3209,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "bedrock": {
         "access_key": "string",
         "access_key_secret": "string",
+        "base_url": "string",
         "model": "string",
         "region": "string",
         "small_fast_model": "string"

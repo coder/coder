@@ -3394,14 +3394,26 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AI Bridge Bedrock Region",
-			Description: "The AWS Bedrock API region.",
-			Flag:        "aibridge-bedrock-region",
-			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:       &c.AI.BridgeConfig.Bedrock.Region,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_region",
+			Name: "AI Bridge Bedrock Base URL",
+			Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Most users should " +
+				"prefer setting CODER_AIBRIDGE_BEDROCK_REGION instead.",
+			Flag:    "aibridge-bedrock-base-url",
+			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
+			Value:   &c.AI.BridgeConfig.Bedrock.BaseURL,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_base_url",
+		},
+		{
+			Name: "AI Bridge Bedrock Region",
+			Description: "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
+				"'https://bedrock-runtime.<region>.amazonaws.com'.",
+			Flag:    "aibridge-bedrock-region",
+			Env:     "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:   &c.AI.BridgeConfig.Bedrock.Region,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_region",
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key",
@@ -3654,6 +3666,7 @@ type AIBridgeAnthropicConfig struct {
 }
 
 type AIBridgeBedrockConfig struct {
+	BaseURL         serpent.String `json:"base_url" typescript:",notnull"`
 	Region          serpent.String `json:"region" typescript:",notnull"`
 	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
 	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
