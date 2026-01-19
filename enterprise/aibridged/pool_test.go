@@ -228,4 +228,51 @@ func TestPoolWithCircuitBreakerProviders(t *testing.T) {
 		require.NoError(t, err, "acquire pool instance without circuit breaker")
 		require.NotNil(t, inst)
 	})
+
+	t.Run("WithMultipleProvidersAndCircuitBreaker", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, nil)
+
+		ctrl := gomock.NewController(t)
+		client := mock.NewMockDRPCClient(ctrl)
+		mcpProxy := mcpmock.NewMockServerProxier(ctrl)
+
+		// Create both OpenAI and Anthropic providers with circuit breaker config.
+		cbConfig := config.DefaultCircuitBreaker()
+		providers := []aibridge.Provider{
+			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+				BaseURL:        "https://api.openai.com",
+				Key:            "test-openai-key",
+				CircuitBreaker: &cbConfig,
+			}),
+			aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+				BaseURL:        "https://api.anthropic.com",
+				Key:            "test-anthropic-key",
+				CircuitBreaker: &cbConfig,
+			}, nil),
+		}
+
+		pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
+		require.NoError(t, err)
+		t.Cleanup(func() { pool.Shutdown(context.Background()) })
+
+		id := uuid.New()
+		apiKeyID := uuid.New()
+		clientFn := func() (aibridged.DRPCClient, error) {
+			return client, nil
+		}
+
+		mcpProxy.EXPECT().Init(gomock.Any()).Times(1).Return(nil)
+		mcpProxy.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
+
+		// Pool should work with multiple providers each having circuit breaker.
+		inst, err := pool.Acquire(t.Context(), aibridged.Request{
+			SessionKey:  "key",
+			InitiatorID: id,
+			APIKeyID:    apiKeyID.String(),
+		}, clientFn, newMockMCPFactory(mcpProxy))
+		require.NoError(t, err, "acquire pool instance with multiple circuit breaker providers")
+		require.NotNil(t, inst)
+	})
 }
