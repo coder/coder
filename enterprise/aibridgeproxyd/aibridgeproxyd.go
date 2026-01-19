@@ -474,7 +474,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
 		)
-		// Forward directly to the original destination (no aibridge routing for this host).
+		// Tunnel (forward) directly to the original destination (no aibridge routing for this host).
 		return req, nil
 	}
 
