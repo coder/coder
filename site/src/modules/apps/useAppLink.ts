@@ -51,7 +51,12 @@ export const useAppLink = (
 			return;
 		}
 
-		if (app.external) {
+		// External apps with custom protocols (non-HTTP) need special handling
+		// for error detection when the app isn't installed.
+		const isExternalProtocolApp =
+			app.external && app.url && !app.url.startsWith("http");
+
+		if (isExternalProtocolApp) {
 			// When browser recognizes the protocol and is able to navigate to the app,
 			// it will blur away, and will stop the timer. Otherwise,
 			// an error message will be displayed.
@@ -86,8 +91,8 @@ export const useAppLink = (
 				clearTimeout(openAppExternallyFailed);
 			});
 
-			// External apps don't support open_in since they only should open
-			// external apps.
+			// Custom protocol external apps don't support open_in since they
+			// rely on the browser's protocol handling.
 			return;
 		}
 
