@@ -169,7 +169,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ],
         "enabled": true,
         "key_file": "string",
-        "listen_addr": "string"
+        "listen_addr": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
       },
       "bridge": {
         "anthropic": {

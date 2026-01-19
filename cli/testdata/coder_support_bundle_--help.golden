@@ -19,7 +19,7 @@ OPTIONS:
           example, if you need to troubleshoot a specific Coder replica.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

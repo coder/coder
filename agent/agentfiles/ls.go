@@ -1,4 +1,4 @@
-package agent
+package agentfiles
 
 import (
 	"errors"
@@ -21,7 +21,7 @@ import (
 
 var WindowsDriveRegex = regexp.MustCompile(`^[a-zA-Z]:\\$`)
 
-func (a *agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
+func (api *API) HandleLS(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// An absolute path may be optionally provided, otherwise a path split into an
@@ -43,7 +43,7 @@ func (a *agent) HandleLS(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := listFiles(a.filesystem, path, req)
+	resp, err := listFiles(api.filesystem, path, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
