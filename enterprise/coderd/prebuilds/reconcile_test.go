@@ -3133,16 +3133,19 @@ func TestReconciliationConcurrency(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger := slogtest.Make(t, nil)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			db, ps := dbtestutil.NewDB(t)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			cfg := codersdk.PrebuildsConfig{}
 
 			reconciler := prebuilds.NewStoreReconciler(
 				db, ps, cache, cfg, logger,
-				quartz.NewMock(t), prometheus.NewRegistry(),
-				newNoopEnqueuer(), newNoopUsageCheckerPtr(),
-				noop.NewTracerProvider(), tt.maxDBConnections,
+				quartz.NewMock(t),
+				prometheus.NewRegistry(),
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				tt.maxDBConnections,
 			)
 
 			require.Equal(t, tt.expectedConcurrency, reconciler.ReconciliationConcurrency())
