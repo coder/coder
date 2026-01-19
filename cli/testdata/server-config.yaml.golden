@@ -798,7 +798,7 @@ aibridgeproxy:
   domain_allowlist:
     - api.anthropic.com
     - api.openai.com
-  # URL of an upstream HTTP proxy to chain passthrough (non-allowlisted) requests
+  # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
   # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
   # (default: <unset>, type: string)
   upstream_proxy: ""

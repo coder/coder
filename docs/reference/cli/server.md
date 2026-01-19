@@ -1897,7 +1897,7 @@ Path to the CA private key file for AI Bridge Proxy.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM</code> |
 | YAML        | <code>aibridgeproxy.upstream_proxy</code>   |
 
-URL of an upstream HTTP proxy to chain passthrough (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
 
 ### --aibridge-proxy-upstream-ca
 

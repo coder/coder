@@ -75,8 +75,8 @@ type Options struct {
 	// Only requests to these domains will be MITM'd and forwarded to aibridged.
 	// Requests to other domains will be tunneled directly without decryption.
 	DomainAllowlist []string
-	// UpstreamProxy is the URL of an upstream HTTP proxy to chain passthrough
-	// (non-allowlisted) requests through. If empty, passthrough requests connect
+	// UpstreamProxy is the URL of an upstream HTTP proxy to chain tunneled
+	// (non-allowlisted) requests through. If empty, tunneled requests connect
 	// directly to their destinations.
 	// Format: http://[user:pass@]host:port or https://[user:pass@]host:port
 	UpstreamProxy string
@@ -152,7 +152,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
 	}
 
-	// Configure upstream proxy for passthrough (non-allowlisted) requests.
+	// Configure upstream proxy for tunneled (non-allowlisted) requests.
 	// This only affects CONNECT requests to domains not in the allowlist.
 	// MITM'd requests (allowlisted domains) are handled by aiproxy and forwarded
 	// to aibridge directly, not through the upstream proxy. AI Bridge respects
@@ -164,7 +164,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			return nil, xerrors.Errorf("invalid upstream proxy URL %q: %w", opts.UpstreamProxy, err)
 		}
 
-		logger.Info(ctx, "configuring upstream proxy for passthrough requests",
+		logger.Info(ctx, "configuring upstream proxy for tunneled requests",
 			slog.F("upstream", upstreamURL.Host),
 		)
 
@@ -196,7 +196,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			}
 		}
 
-		// Configure passthrough CONNECT requests to go through upstream proxy.
+		// Configure tunneled CONNECT requests to go through upstream proxy.
 		// This only affects non-allowlisted domains; allowlisted domains are
 		// MITM'd and forwarded to aibridge.
 		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
@@ -223,7 +223,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		srv.authMiddleware,
 	)
 
-	// Handle decrypted requests: route to aibridged for known AI providers, or passthrough to original destination.
+	// Handle decrypted requests: route to aibridged for known AI providers, or tunnel to original destination.
 	proxy.OnRequest().DoFunc(srv.handleRequest)
 
 	// Create listener first so we can get the actual address.
@@ -474,7 +474,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
 		)
-		// Passthrough to the original destination.
+		// Tunnel (forward) directly to the original destination (no aibridge routing for this host).
 		return req, nil
 	}
 

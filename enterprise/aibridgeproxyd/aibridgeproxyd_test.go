@@ -216,7 +216,7 @@ func getProxyCertPool(t *testing.T) *x509.CertPool {
 // newProxyClient creates an HTTP client configured to use the proxy.
 // It adds a Proxy-Authorization header with the provided token for authentication.
 // The certPool parameter specifies which certificates the client should trust.
-// For MITM'd requests, use the proxy's CA. For passthrough, use the target server's cert.
+// For MITM'd requests, use the proxy's CA. For tunneled requests, use the target server's cert.
 func newProxyClient(t *testing.T, srv *aibridgeproxyd.Server, proxyAuth string, certPool *x509.CertPool) *http.Client {
 	t.Helper()
 
@@ -585,17 +585,17 @@ func TestProxy_CertCaching(t *testing.T) {
 	tests := []struct {
 		name            string
 		domainAllowlist []string
-		passthrough     bool
+		tunneled        bool
 	}{
 		{
 			name:            "AllowlistedDomainCached",
 			domainAllowlist: nil, // will use targetURL.Hostname()
-			passthrough:     false,
+			tunneled:        false,
 		},
 		{
 			name:            "NonAllowlistedDomainNotCached",
 			domainAllowlist: []string{"other.example.com"},
-			passthrough:     true,
+			tunneled:        true,
 		},
 	}
 
@@ -624,13 +624,13 @@ func TestProxy_CertCaching(t *testing.T) {
 				withDomainAllowlist(domainAllowlist...),
 			)
 
-			// Build the cert pool for the client to trust.
+			// Build the cert pool for the client to trust:
+			//   - For tunneled requests, the client connects directly to the target server
+			//     through a tunnel, so it needs to trust the target's self-signed certificate.
 			//   - For MITM'd requests, the client connects through the proxy which generates
 			//     certificates signed by our test CA, so it needs to trust the proxy's CA.
-			//   - For passthrough requests, the client connects directly to the target server
-			//     through a tunnel, so it needs to trust the target's self-signed certificate.
 			var certPool *x509.CertPool
-			if tt.passthrough {
+			if tt.tunneled {
 				certPool = x509.NewCertPool()
 				certPool.AddCert(targetServer.Certificate())
 			} else {
@@ -653,7 +653,7 @@ func TestProxy_CertCaching(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if tt.passthrough {
+			if tt.tunneled {
 				// Certificate should NOT have been cached since request was tunneled.
 				require.Equal(t, 1, genCalls, "certificate should NOT have been cached for non-allowlisted domain")
 			} else {
@@ -803,8 +803,8 @@ func TestProxy_MITM(t *testing.T) {
 		name              string
 		domainAllowlist   []string
 		allowedPorts      []string
-		buildTargetURL    func(passthroughURL *url.URL) (string, error)
-		passthrough       bool
+		buildTargetURL    func(tunneledURL *url.URL) (string, error)
+		tunneled          bool
 		noAIBridgeRouting bool
 		expectedPath      string
 	}{
@@ -845,25 +845,25 @@ func TestProxy_MITM(t *testing.T) {
 			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
 		},
 		{
-			name:            "PassthroughUnknownHost",
+			name:            "TunneledUnknownHost",
 			domainAllowlist: []string{"other.example.com"},
-			allowedPorts:    nil, // will use passthroughURL.Port()
-			buildTargetURL: func(passthroughURL *url.URL) (string, error) {
-				return url.JoinPath(passthroughURL.String(), "/some/path")
+			allowedPorts:    nil, // will use tunneledURL.Port()
+			buildTargetURL: func(tunneledURL *url.URL) (string, error) {
+				return url.JoinPath(tunneledURL.String(), "/some/path")
 			},
-			passthrough: true,
+			tunneled: true,
 		},
 		// The host is MITM'd but has no provider mapping.
-		// The request is decrypted but passed through to the original destination
+		// The request is decrypted but forwarded to the original destination
 		// instead of being routed to aibridge.
 		{
 			name:            "MitmdWithoutAIBridgeRouting",
-			domainAllowlist: nil, // will use passthroughURL.Hostname()
-			allowedPorts:    nil, // will use passthroughURL.Port()
-			buildTargetURL: func(passthroughURL *url.URL) (string, error) {
-				return url.JoinPath(passthroughURL.String(), "/some/path")
+			domainAllowlist: nil, // will use tunneledURL.Hostname()
+			allowedPorts:    nil, // will use tunneledURL.Port()
+			buildTargetURL: func(tunneledURL *url.URL) (string, error) {
+				return url.JoinPath(tunneledURL.String(), "/some/path")
 			},
-			passthrough:       false,
+			tunneled:          false,
 			noAIBridgeRouting: true,
 		},
 	}
@@ -885,22 +885,22 @@ func TestProxy_MITM(t *testing.T) {
 			}))
 			t.Cleanup(func() { aibridgedServer.Close() })
 
-			// Create a mock target server for passthrough tests.
-			passthroughServer, passthroughURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			// Create a mock target server for tunneled tests.
+			tunneledServer, tunneledURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("hello from passthrough"))
+				_, _ = w.Write([]byte("hello from tunneled"))
 			})
 
 			// Configure allowed ports.
 			allowedPorts := tt.allowedPorts
 			if allowedPorts == nil {
-				allowedPorts = []string{passthroughURL.Port()}
+				allowedPorts = []string{tunneledURL.Port()}
 			}
 
 			// Configure domain allowlist.
 			domainAllowlist := tt.domainAllowlist
 			if domainAllowlist == nil {
-				domainAllowlist = []string{passthroughURL.Hostname()}
+				domainAllowlist = []string{tunneledURL.Hostname()}
 			}
 
 			// Start the proxy server pointing to our mock aibridged.
@@ -911,18 +911,18 @@ func TestProxy_MITM(t *testing.T) {
 			)
 
 			// Build the target URL:
-			targetURL, err := tt.buildTargetURL(passthroughURL)
+			targetURL, err := tt.buildTargetURL(tunneledURL)
 			require.NoError(t, err)
 
-			// Build the cert pool for the client to trust.
+			// Build the cert pool for the client to trust:
+			//   - For tunneled requests, the client connects directly to the target server
+			//     through a tunnel, so it needs to trust the target's self-signed certificate.
 			//   - For MITM'd requests, the client connects through the proxy which generates
 			//     certificates signed by our test CA, so it needs to trust the proxy's CA.
-			//   - For passthrough requests, the client connects directly to the target server
-			//     through a tunnel, so it needs to trust the target's self-signed certificate.
 			var certPool *x509.CertPool
-			if tt.passthrough {
+			if tt.tunneled {
 				certPool = x509.NewCertPool()
-				certPool.AddCert(passthroughServer.Certificate())
+				certPool.AddCert(tunneledServer.Certificate())
 			} else {
 				certPool = getProxyCertPool(t)
 			}
@@ -941,11 +941,11 @@ func TestProxy_MITM(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			if tt.passthrough || tt.noAIBridgeRouting {
+			if tt.tunneled || tt.noAIBridgeRouting {
 				// Verify request went to target server, not aibridged.
-				require.Equal(t, "hello from passthrough", string(body))
-				require.Empty(t, receivedPath, "aibridged should not receive passthrough requests")
-				require.Empty(t, receivedAuth, "passthrough requests are not authenticated by the proxy")
+				require.Equal(t, "hello from tunneled", string(body))
+				require.Empty(t, receivedPath, "aibridged should not receive tunneled requests")
+				require.Empty(t, receivedAuth, "tunneled requests are not authenticated by the proxy")
 			} else {
 				// Verify the request was routed to aibridged correctly.
 				require.Equal(t, "hello from aibridged", string(body))
@@ -1078,39 +1078,39 @@ func TestUpstreamProxy(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// passthrough determines whether the request should be tunneled through
+		// tunneled determines whether the request should be tunneled through
 		// the upstream proxy (true) or MITM'd by aiproxy (false).
 		// When true, the target domain is NOT in the allowlist.
 		// When false, the target domain IS in the allowlist.
-		passthrough bool
+		tunneled bool
 		// upstreamProxyTLS determines whether the upstream proxy uses TLS.
 		// When true, aiproxy must be configured with the upstream proxy's CA.
 		upstreamProxyTLS bool
-		// buildTargetURL constructs the request URL. For passthrough, it uses
+		// buildTargetURL constructs the request URL. For tunneled requests, it uses
 		// the final destination URL. For MITM, it uses api.anthropic.com.
 		buildTargetURL func(finalDestinationURL *url.URL) string
 		// expectedAIBridgePath is the path aibridge should receive for MITM requests.
 		expectedAIBridgePath string
 	}{
 		{
-			name:             "NonAllowlistedDomain_PassthroughToHTTPUpstreamProxy",
-			passthrough:      true,
+			name:             "NonAllowlistedDomain_TunneledToHTTPUpstreamProxy",
+			tunneled:         true,
 			upstreamProxyTLS: false,
 			buildTargetURL: func(finalDestinationURL *url.URL) string {
-				return fmt.Sprintf("https://%s/passthrough-path", finalDestinationURL.Host)
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
 			},
 		},
 		{
-			name:             "NonAllowlistedDomain_PassthroughToHTTPSUpstreamProxy",
-			passthrough:      true,
+			name:             "NonAllowlistedDomain_TunneledToHTTPSUpstreamProxy",
+			tunneled:         true,
 			upstreamProxyTLS: true,
 			buildTargetURL: func(finalDestinationURL *url.URL) string {
-				return fmt.Sprintf("https://%s/passthrough-path", finalDestinationURL.Host)
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
 			},
 		},
 		{
 			name:             "AllowlistedDomain_MITMByAIProxy",
-			passthrough:      false,
+			tunneled:         false,
 			upstreamProxyTLS: false,
 			buildTargetURL: func(_ *url.URL) string {
 				return "https://api.anthropic.com:443/v1/messages"
@@ -1137,7 +1137,7 @@ func TestUpstreamProxy(t *testing.T) {
 			)
 
 			// Create mock final destination server representing the actual target:
-			//   - For passthrough requests, traffic should reach this server.
+			//   - For tunneled requests, traffic should reach this server.
 			//   - For MITM requests, traffic should NOT reach this server.
 			finalDestination, finalDestinationURL := newTargetServer(t, func(w http.ResponseWriter, r *http.Request) {
 				finalDestinationReceived = true
@@ -1223,7 +1223,7 @@ func TestUpstreamProxy(t *testing.T) {
 			t.Cleanup(upstreamProxy.Close)
 
 			// Create a mock aibridged server:
-			//   - For passthrough requests, traffic should NOT reach this server.
+			//   - For tunneled requests, traffic should NOT reach this server.
 			//   - For MITM requests, aiproxy rewrites the URL and forwards here.
 			aibridgeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				aibridgeReceived = true
@@ -1246,7 +1246,7 @@ func TestUpstreamProxy(t *testing.T) {
 			require.NoError(t, err)
 
 			// Configure allowlist based on test case:
-			//   - For passthrough, api.anthropic.com is in allowlist, but we target a different host.
+			//   - For tunneled requests, api.anthropic.com is in allowlist, but we target a different host.
 			//   - For MITM, api.anthropic.com must be in the allowlist.
 			domainAllowlist := []string{"api.anthropic.com"}
 
@@ -1263,10 +1263,10 @@ func TestUpstreamProxy(t *testing.T) {
 			srv := newTestProxy(t, proxyOpts...)
 
 			// Configure certificate trust based on test case:
-			//   - For passthrough: client trusts final destination's CA.
+			//   - For tunneled requests: client trusts final destination's CA.
 			//   - For MITM: client trusts aiproxy's CA (fake certs).
 			var certPool *x509.CertPool
-			if tt.passthrough {
+			if tt.tunneled {
 				certPool = x509.NewCertPool()
 				certPool.AddCert(finalDestination.Certificate())
 			} else {
@@ -1289,13 +1289,13 @@ func TestUpstreamProxy(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// Verify the request flow based on test case.
-			if tt.passthrough {
+			if tt.tunneled {
 				require.True(t, upstreamProxyCONNECTReceived,
 					"upstream proxy should receive CONNECT for non-allowlisted domain")
 				require.Equal(t, finalDestinationURL.Host, upstreamProxyCONNECTHost,
 					"upstream proxy should receive CONNECT to correct host")
 				require.True(t, finalDestinationReceived,
-					"final destination should receive the passthrough request")
+					"final destination should receive the tunneled request")
 				require.Equal(t, parsedTargetURL.Path, finalDestinationPath,
 					"final destination should receive correct path")
 				require.Equal(t, requestBody, finalDestinationBody,

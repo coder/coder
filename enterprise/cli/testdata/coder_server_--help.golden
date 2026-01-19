@@ -167,7 +167,7 @@ AI BRIDGE PROXY OPTIONS:
           The address the AI Bridge Proxy will listen on.
 
       --aibridge-proxy-upstream string, $CODER_AIBRIDGE_PROXY_UPSTREAM
-          URL of an upstream HTTP proxy to chain passthrough (non-allowlisted)
+          URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
           requests through. Format: http://[user:pass@]host:port or
           https://[user:pass@]host:port.
 
