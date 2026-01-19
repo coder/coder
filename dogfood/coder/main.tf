@@ -506,7 +506,7 @@ resource "coder_agent" "dev" {
     key          = "home_usage"
     order        = 2
     script       = "sudo du -sh /home/coder | awk '{print $1}'"
-    interval     = 600
+    interval     = 3600
     timeout      = 600
   }
 
@@ -515,7 +515,7 @@ resource "coder_agent" "dev" {
     key          = "var_lib_docker_usage"
     order        = 3
     script       = "sudo du -sh /var/lib/docker | awk '{print $1}'"
-    interval     = 600
+    interval     = 3600
     timeout      = 600
   }
 
