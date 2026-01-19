@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
@@ -1535,7 +1533,7 @@ func TestCanSkipReconciliation(t *testing.T) {
 	t.Parallel()
 
 	clock := quartz.NewMock(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	backoffInterval := 5 * time.Minute
 
 	tests := []struct {
