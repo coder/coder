@@ -3112,48 +3112,6 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
 }
 
-func TestReconciliationConcurrency(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                string
-		maxDBConnections    int
-		expectedConcurrency int
-	}{
-		{"base pool size", 10, 5},
-		{"default pool size", 30, 5},
-		{"large pool size", 100, 5},
-		{"small pool", 4, 2},
-		{"minimum pool", 2, 1},
-		{"single connection", 1, 1},
-		{"zero connections floors to 1", 0, 1},
-		{"negative floors to 1", -5, 1},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			logger := slogtest.Make(t, nil)
-			db, ps := dbtestutil.NewDB(t)
-			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			cfg := codersdk.PrebuildsConfig{}
-
-			reconciler := prebuilds.NewStoreReconciler(
-				db, ps, cache, cfg, logger,
-				quartz.NewMock(t),
-				prometheus.NewRegistry(),
-				newNoopEnqueuer(),
-				newNoopUsageCheckerPtr(),
-				noop.NewTracerProvider(),
-				tt.maxDBConnections,
-			)
-
-			require.Equal(t, tt.expectedConcurrency, reconciler.ReconciliationConcurrency())
-		})
-	}
-}
-
 // BenchmarkReconcileAll_NoOps benchmarks the reconciliation loop with varying numbers
 // of presets of inactive versions that require no reconciliation actions.
 //

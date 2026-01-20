@@ -162,10 +162,6 @@ func calculateReconciliationConcurrency(maxDBConnections int) int {
 	return concurrency
 }
 
-func (c *StoreReconciler) ReconciliationConcurrency() int {
-	return c.reconciliationConcurrency
-}
-
 func (c *StoreReconciler) Run(ctx context.Context) {
 	reconciliationInterval := c.cfg.ReconciliationInterval.Value()
 	if reconciliationInterval <= 0 { // avoids a panic
