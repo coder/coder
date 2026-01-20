@@ -987,12 +987,11 @@
 					]
 				},
 				{
-					"title": "MCP Server",
-					"description": "Connect to agents Coder with a MCP server",
-					"path": "./ai-coder/mcp-server.md",
-					"state": ["beta"]
-				},
-				{
+					"title": "AI Governance",
+					"description": "Features around managing agents at scale",
+					"path": "./ai-coder/ai-governance.md",
+					"state": ["premium"],
+					"children": [				{
 					"title": "Agent Boundaries",
 					"description": "Understanding Agent Boundaries in Coder Tasks",
 					"path": "./ai-coder/boundary/agent-boundary.md",
@@ -1049,12 +1048,13 @@
 							"path": "./ai-coder/ai-bridge/reference.md"
 						}
 					]
+				}
+			]
 				},
 				{
-					"title": "Tasks CLI",
-					"description": "Coder CLI for managing tasks programmatically",
-					"path": "./ai-coder/cli.md",
-					"icon_path": "./images/icons/api.svg",
+					"title": "MCP Server",
+					"description": "Connect to agents Coder with a MCP server",
+					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
 				}
 			]
