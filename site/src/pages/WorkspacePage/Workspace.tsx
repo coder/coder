@@ -9,6 +9,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
+import { useAgentMetadataHealthBanner } from "modules/resources/useAgentMetadataHealthBanner";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -118,6 +119,10 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+
+	const agentIds = resources.flatMap((r) => (r.agents ?? []).map((a) => a.id));
+	const { shouldShow: shouldShowAgentMetricsBanner } =
+		useAgentMetadataHealthBanner(agentIds, workspaceRunning);
 
 	return (
 		<div
@@ -229,6 +234,15 @@ export const Workspace: FC<WorkspaceProps> = ({
 							}
 							tags={workspace.latest_build.job.tags}
 						/>
+					)}
+
+					{shouldShowAgentMetricsBanner && (
+						<Alert severity="info">
+							<AlertTitle>Workspace is still preparing</AlertTitle>
+							<AlertDetail>
+								Due to high demand, preparation may take a few minutes.
+							</AlertDetail>
+						</Alert>
 					)}
 
 					{workspace.latest_build.job.error && (
