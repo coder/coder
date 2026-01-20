@@ -1252,8 +1252,7 @@ func (api *API) convertWorkspaceBuild(
 			statuses := statusesByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources),
-				time.Duration(agent.ConnectionTimeoutSeconds)*time.Second,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
