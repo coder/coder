@@ -3547,6 +3547,11 @@ export interface UpdateWorkspaceAutostartRequest {
 	readonly schedule?: string;
 }
 
+// From codersdk/workspacebuilds.go
+export interface UpdateWorkspaceBuildStateRequest {
+	readonly state: string;
+}
+
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceDormancy {
 	readonly dormant: boolean;
