@@ -282,7 +282,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Cleanup Task
-        if: always()
+        if: false  # Temporarily disabled for debugging
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
