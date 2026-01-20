@@ -473,7 +473,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v0.3.1-0.20260119083322-b8b4a7dee7ae
+	github.com/coder/aibridge v0.3.1-0.20260120123323-c997d7bed20e
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.0.1-alpha
 	github.com/coder/preview v1.0.4
