@@ -189,6 +189,28 @@ func (c *Client) WorkspaceBuildState(ctx context.Context, build uuid.UUID) ([]by
 	return io.ReadAll(res.Body)
 }
 
+// UpdateWorkspaceBuildStateRequest is the request body for updating the
+// provisioner state of a workspace build.
+type UpdateWorkspaceBuildStateRequest struct {
+	State []byte `json:"state"`
+}
+
+// UpdateWorkspaceBuildState updates the provisioner state of the build without
+// triggering a new build. This is useful for state-only migrations.
+func (c *Client) UpdateWorkspaceBuildState(ctx context.Context, build uuid.UUID, state []byte) error {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/workspacebuilds/%s/state", build), UpdateWorkspaceBuildStateRequest{
+		State: state,
+	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx context.Context, username string, workspaceName string, buildNumber string) (WorkspaceBuild, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s/builds/%s", username, workspaceName, buildNumber), nil)
 	if err != nil {
