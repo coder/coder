@@ -173,6 +173,46 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_CoderSessionTokenRemoved(t *testing.T) {
+	t.Parallel()
+
+	mockHandler := &mockHandler{}
+
+	srv, client, pool := newTestServer(t)
+	conn := &mockDRPCConn{}
+	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockHandler, nil)
+
+	httpSrv := httptest.NewServer(srv)
+	t.Cleanup(httpSrv.Close)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, httpSrv.URL+"/openai/v1/chat/completions", nil)
+	require.NoError(t, err)
+
+	// X-Coder-Session-Token is used for authentication and should be stripped.
+	// Other authorization headers should be preserved.
+	req.Header.Set(agplaibridge.HeaderCoderSessionAuth, "coder-session-token")
+	req.Header.Set("Authorization", "Bearer some-token")
+	req.Header.Set("X-Api-Key", "some-api-key")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Verify X-Coder-Session-Token was removed before forwarding to handler.
+	require.NotNil(t, mockHandler.headersReceived)
+	require.Empty(t, mockHandler.headersReceived.Get(agplaibridge.HeaderCoderSessionAuth),
+		"X-Coder-Session-Token should be removed before forwarding to handler")
+
+	// Verify other headers were preserved.
+	require.Equal(t, "Bearer some-token", mockHandler.headersReceived.Get("Authorization"))
+	require.Equal(t, "some-api-key", mockHandler.headersReceived.Get("X-Api-Key"))
+}
+
 func TestExtractAuthToken(t *testing.T) {
 	t.Parallel()
 
@@ -183,6 +223,31 @@ func TestExtractAuthToken(t *testing.T) {
 	}{
 		{
 			name: "none",
+		},
+		{
+			name:    "x-coder-session-token/empty",
+			headers: map[string]string{agplaibridge.HeaderCoderSessionAuth: ""},
+		},
+		{
+			name:        "x-coder-session-token/ok",
+			headers:     map[string]string{agplaibridge.HeaderCoderSessionAuth: "coder-token"},
+			expectedKey: "coder-token",
+		},
+		{
+			name: "x-coder-session-token/priority over authorization",
+			headers: map[string]string{
+				agplaibridge.HeaderCoderSessionAuth: "coder-token",
+				"Authorization":                     "Bearer other-token",
+			},
+			expectedKey: "coder-token",
+		},
+		{
+			name: "x-coder-session-token/priority over x-api-key",
+			headers: map[string]string{
+				agplaibridge.HeaderCoderSessionAuth: "coder-token",
+				"X-Api-Key":                         "api-key",
+			},
+			expectedKey: "coder-token",
 		},
 		{
 			name:    "authorization/invalid",
@@ -201,6 +266,14 @@ func TestExtractAuthToken(t *testing.T) {
 			name:        "authorization/case",
 			headers:     map[string]string{"AUTHORIZATION": "BEARer key"},
 			expectedKey: "key",
+		},
+		{
+			name: "authorization/priority over x-api-key",
+			headers: map[string]string{
+				"Authorization": "Bearer auth-token",
+				"X-Api-Key":     "api-key",
+			},
+			expectedKey: "auth-token",
 		},
 		{
 			name:    "x-api-key/empty",
@@ -229,9 +302,12 @@ func TestExtractAuthToken(t *testing.T) {
 
 var _ http.Handler = &mockHandler{}
 
-type mockHandler struct{}
+type mockHandler struct {
+	headersReceived http.Header
+}
 
-func (*mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	h.headersReceived = r.Header.Clone()
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte(r.URL.Path))
 }

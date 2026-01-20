@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/aibridge"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
 // Known AI provider hosts.
@@ -473,7 +474,7 @@ func defaultAIBridgeProvider(host string) string {
 
 // handleRequest intercepts HTTP requests after MITM decryption.
 //   - Requests to known AI providers are rewritten to aibridged, with the Coder session token
-//     (from ctx.UserData, set during CONNECT) injected in the Authorization header.
+//     (from ctx.UserData, set during CONNECT) set in the X-Coder-Session-Token header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -533,8 +534,10 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = aiBridgeParsedURL
 	req.Host = aiBridgeParsedURL.Host
 
-	// Set Authorization header for aibridged authentication.
-	req.Header.Set("Authorization", "Bearer "+coderToken)
+	// Set Coder session token header for aibridged authentication.
+	// Using a separate header preserves the original request headers,
+	// which are forwarded to upstream providers.
+	req.Header.Set(agplaibridge.HeaderCoderSessionAuth, coderToken)
 
 	s.logger.Debug(s.ctx, "routing request to aibridged",
 		slog.F("provider", provider),
