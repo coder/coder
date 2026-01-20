@@ -3120,8 +3120,9 @@ func TestReconciliationConcurrency(t *testing.T) {
 		maxDBConnections    int
 		expectedConcurrency int
 	}{
-		{"default pool size", 10, 5},
-		{"large pool", 100, 50},
+		{"base pool size", 10, 5},
+		{"default pool size", 30, 5},
+		{"large pool size", 100, 5},
 		{"small pool", 4, 2},
 		{"minimum pool", 2, 1},
 		{"single connection", 1, 1},
@@ -3133,7 +3134,7 @@ func TestReconciliationConcurrency(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := slogtest.Make(t, nil)
 			db, ps := dbtestutil.NewDB(t)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			cfg := codersdk.PrebuildsConfig{}

@@ -97,19 +97,7 @@ func NewStoreReconciler(store database.Store,
 	tracerProvider trace.TracerProvider,
 	maxDBConnections int,
 ) *StoreReconciler {
-	// Limit concurrent preset reconciliation goroutines to avoid exhausting the
-	// coderd database connection pool. Each preset may perform multiple sequential
-	// database operations (creates/deletes). Using half of the pool size leaves
-	// capacity for other database operations while maintaining reasonable parallelism.
-	reconciliationConcurrency := maxDBConnections / 2
-	if reconciliationConcurrency < 1 {
-		reconciliationConcurrency = 1
-	}
-
-	if maxDBConnections <= 0 {
-		logger.Error(context.Background(), "maxDBConnections is not positive, defaulting reconciliation concurrency to 1",
-			slog.F("max_db_connections", maxDBConnections))
-	}
+	reconciliationConcurrency := calculateReconciliationConcurrency(maxDBConnections)
 
 	logger.Debug(context.Background(), "reconciler initialized",
 		slog.F("reconciliation_concurrency", reconciliationConcurrency),
@@ -149,6 +137,29 @@ func NewStoreReconciler(store database.Store,
 	}
 
 	return reconciler
+}
+
+// calculateReconciliationConcurrency determines the number of concurrent
+// goroutines for preset reconciliation. Each preset may perform multiple
+// database operations (creates/deletes), so we limit concurrency to avoid
+// exhausting the connection pool while maintaining reasonable parallelism.
+//
+// Uses half the pool size, with a minimum of 1 and a maximum of 5.
+// TODO(ssncferreira): If this becomes a bottleneck, consider adding a configuration option.
+func calculateReconciliationConcurrency(maxDBConnections int) int {
+	if maxDBConnections <= 0 {
+		return 1
+	}
+
+	concurrency := maxDBConnections / 2
+	if concurrency < 1 {
+		return 1
+	}
+	if concurrency > 5 {
+		return 5
+	}
+
+	return concurrency
 }
 
 func (c *StoreReconciler) ReconciliationConcurrency() int {
