@@ -1183,6 +1183,7 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 
 		// Now kill the fake "parent"
+		t.Logf("killing process %q pid: %d", strings.Join(sleepCmd.Args, " "), sleepCmd.Process.Pid)
 		require.NoError(t, sleepCmd.Process.Kill())
 
 		// The command should exit on its own now.

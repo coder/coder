@@ -331,19 +331,12 @@ func TestWatchParentContext(t *testing.T) {
 		// Wait for the ticker to be created
 		trap.MustWait(ctx).MustRelease(ctx)
 
-		// Simulate parent death
+		// When: we simulate parent death and advance the clock
 		parentAlive = false
-
-		// Advance clock to trigger the check
 		mClock.AdvanceNext()
 
-		// The context should be canceled
-		select {
-		case <-childCtx.Done():
-			// Expected - context was canceled because parent is not alive
-		case <-time.After(testutil.WaitShort):
-			t.Fatal("context was not canceled when parent died")
-		}
+		// Then: The context should be canceled
+		_ = testutil.TryReceive(ctx, t, childCtx.Done())
 	})
 
 	t.Run("DoesNotCancelWhenParentAlive", func(t *testing.T) {
@@ -361,18 +354,13 @@ func TestWatchParentContext(t *testing.T) {
 		// Wait for the ticker to be created
 		trap.MustWait(ctx).MustRelease(ctx)
 
-		// Advance clock several times
+		// When: we advance the clock several times with the parent alive
 		for range 3 {
 			mClock.AdvanceNext()
 		}
 
-		// Context should NOT be canceled since parent is still alive
-		select {
-		case <-childCtx.Done():
-			t.Fatal("context was canceled even though parent is still alive")
-		default:
-			// Expected - context stays valid
-		}
+		// Then: context should not be canceled
+		require.NoError(t, childCtx.Err())
 	})
 
 	t.Run("RespectsParentContext", func(t *testing.T) {
@@ -385,16 +373,11 @@ func TestWatchParentContext(t *testing.T) {
 		}, testutil.WaitShort)
 		defer cancel()
 
-		// Cancel the parent context
+		// When: we cancel the parent context
 		cancelParent()
 
-		// Child context should also be canceled
-		select {
-		case <-childCtx.Done():
-			// Expected
-		case <-time.After(testutil.WaitShort):
-			t.Fatal("child context was not canceled when parent context was canceled")
-		}
+		// Then: The context should be canceled
+		require.ErrorIs(t, childCtx.Err(), context.Canceled)
 	})
 
 	t.Run("DoesNotCancelOnError", func(t *testing.T) {
@@ -415,18 +398,13 @@ func TestWatchParentContext(t *testing.T) {
 		// Wait for the ticker to be created
 		trap.MustWait(ctx).MustRelease(ctx)
 
-		// Advance clock several times
+		// When: we advance clock several times
 		for range 3 {
 			mClock.AdvanceNext()
 		}
 
 		// Context should NOT be canceled since we got an error (not a definitive "not alive")
-		select {
-		case <-childCtx.Done():
-			t.Fatal("context was canceled even though pidExists returned an error")
-		default:
-			// Expected - context stays valid
-		}
+		require.NoError(t, childCtx.Err(), "context was canceled even though pidExists returned an error")
 	})
 }
 
