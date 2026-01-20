@@ -211,7 +211,7 @@ jobs:
 
           while [[ $WAITED -lt $MAX_WAIT ]]; do
             # Get task status (|| true prevents set -e from exiting on non-zero)
-            RAW_OUTPUT=$(coder exp task status "${TASK_NAME}" -o json 2>&1) || true
+            RAW_OUTPUT=$(coder task status "${TASK_NAME}" -o json 2>&1) || true
             STATUS_JSON=$(echo "$RAW_OUTPUT" | grep -v "^version mismatch\|^download v" || true)
 
             # Debug: show first poll's raw output
@@ -263,7 +263,7 @@ jobs:
         run: |
           echo "::group::Task Conversation Log"
           if [[ -n "${TASK_NAME}" ]]; then
-            coder exp task logs "${TASK_NAME}" 2>/dev/null || echo "Failed to fetch logs"
+            coder task logs "${TASK_NAME}" 2>&1 || echo "Failed to fetch logs"
           else
             echo "No task name, skipping log fetch"
           fi
@@ -276,7 +276,7 @@ jobs:
         run: |
           if [[ -n "${TASK_NAME}" ]]; then
             echo "Deleting task: ${TASK_NAME}"
-            coder exp task delete "${TASK_NAME}" -y 2>&1 || echo "Task deletion failed or already deleted"
+            coder task delete "${TASK_NAME}" -y 2>&1 || echo "Task deletion failed or already deleted"
           else
             echo "No task name, skipping cleanup"
           fi
