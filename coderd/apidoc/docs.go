@@ -2628,7 +2628,8 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "code"
+                            "code",
+                            "token"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -2683,7 +2684,8 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "code"
+                            "code",
+                            "token"
                         ],
                         "type": "string",
                         "description": "Response type",
@@ -2914,7 +2916,10 @@ const docTemplate = `{
                     {
                         "enum": [
                             "authorization_code",
-                            "refresh_token"
+                            "refresh_token",
+                            "password",
+                            "client_credentials",
+                            "implicit"
                         ],
                         "type": "string",
                         "description": "Grant type",
@@ -3349,8 +3354,8 @@ const docTemplate = `{
                 "tags": [
                     "Members"
                 ],
-                "summary": "Upsert a custom organization role",
-                "operationId": "upsert-a-custom-organization-role",
+                "summary": "Update a custom organization role",
+                "operationId": "update-a-custom-organization-role",
                 "parameters": [
                     {
                         "type": "string",
@@ -3361,7 +3366,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Upsert role request",
+                        "description": "Update role request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4561,6 +4566,86 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/workspace-sharing": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace sharing settings for organization",
+                "operationId": "get-workspace-sharing-settings-for-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update workspace sharing settings for organization",
+                "operationId": "update-workspace-sharing-settings-for-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Workspace sharing settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
                         }
                     }
                 }
@@ -10225,6 +10310,45 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Update workspace build state",
+                "operationId": "update-workspace-build-state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceBuildStateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/timings": {
@@ -11931,6 +12055,9 @@ const docTemplate = `{
                 },
                 "retention": {
                     "type": "integer"
+                },
+                "structured_logging": {
+                    "type": "boolean"
                 }
             }
         },
@@ -12016,6 +12143,12 @@ const docTemplate = `{
                 "cert_file": {
                     "type": "string"
                 },
+                "domain_allowlist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -12023,6 +12156,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "upstream_proxy": {
+                    "type": "string"
+                },
+                "upstream_proxy_ca": {
                     "type": "string"
                 }
             }
@@ -14341,6 +14480,12 @@ const docTemplate = `{
                 "pg_auth": {
                     "type": "string"
                 },
+                "pg_conn_max_idle": {
+                    "type": "string"
+                },
+                "pg_conn_max_open": {
+                    "type": "integer"
+                },
                 "pg_connection_url": {
                     "type": "string"
                 },
@@ -15710,13 +15855,13 @@ const docTemplate = `{
                 "code_challenge_methods_supported": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2PKCECodeChallengeMethod"
                     }
                 },
                 "grant_types_supported": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
                     }
                 },
                 "issuer": {
@@ -15728,7 +15873,7 @@ const docTemplate = `{
                 "response_types_supported": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
                     }
                 },
                 "revocation_endpoint": {
@@ -15746,7 +15891,7 @@ const docTemplate = `{
                 "token_endpoint_auth_methods_supported": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
                     }
                 }
             }
@@ -15778,7 +15923,7 @@ const docTemplate = `{
                 "grant_types": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
                     }
                 },
                 "jwks": {
@@ -15800,10 +15945,7 @@ const docTemplate = `{
                     }
                 },
                 "registration_access_token": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "string"
                 },
                 "registration_client_uri": {
                     "type": "string"
@@ -15811,7 +15953,7 @@ const docTemplate = `{
                 "response_types": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
                     }
                 },
                 "scope": {
@@ -15824,7 +15966,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token_endpoint_auth_method": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
                 },
                 "tos_uri": {
                     "type": "string"
@@ -15849,7 +15991,7 @@ const docTemplate = `{
                 "grant_types": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
                     }
                 },
                 "jwks": {
@@ -15873,7 +16015,7 @@ const docTemplate = `{
                 "response_types": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
                     }
                 },
                 "scope": {
@@ -15889,7 +16031,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token_endpoint_auth_method": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
                 },
                 "tos_uri": {
                     "type": "string"
@@ -15926,7 +16068,7 @@ const docTemplate = `{
                 "grant_types": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
                     }
                 },
                 "jwks": {
@@ -15956,7 +16098,7 @@ const docTemplate = `{
                 "response_types": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
                     }
                 },
                 "scope": {
@@ -15969,7 +16111,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token_endpoint_auth_method": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
                 },
                 "tos_uri": {
                     "type": "string"
@@ -16021,6 +16163,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.OAuth2PKCECodeChallengeMethod": {
+            "type": "string",
+            "enum": [
+                "S256",
+                "plain"
+            ],
+            "x-enum-varnames": [
+                "OAuth2PKCECodeChallengeMethodS256",
+                "OAuth2PKCECodeChallengeMethodPlain"
+            ]
         },
         "codersdk.OAuth2ProtectedResourceMetadata": {
             "type": "object",
@@ -16100,6 +16253,47 @@ const docTemplate = `{
                     "format": "uuid"
                 }
             }
+        },
+        "codersdk.OAuth2ProviderGrantType": {
+            "type": "string",
+            "enum": [
+                "authorization_code",
+                "refresh_token",
+                "password",
+                "client_credentials",
+                "implicit"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ProviderGrantTypeAuthorizationCode",
+                "OAuth2ProviderGrantTypeRefreshToken",
+                "OAuth2ProviderGrantTypePassword",
+                "OAuth2ProviderGrantTypeClientCredentials",
+                "OAuth2ProviderGrantTypeImplicit"
+            ]
+        },
+        "codersdk.OAuth2ProviderResponseType": {
+            "type": "string",
+            "enum": [
+                "code",
+                "token"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ProviderResponseTypeCode",
+                "OAuth2ProviderResponseTypeToken"
+            ]
+        },
+        "codersdk.OAuth2TokenEndpointAuthMethod": {
+            "type": "string",
+            "enum": [
+                "client_secret_basic",
+                "client_secret_post",
+                "none"
+            ],
+            "x-enum-varnames": [
+                "OAuth2TokenEndpointAuthMethodClientSecretBasic",
+                "OAuth2TokenEndpointAuthMethodClientSecretPost",
+                "OAuth2TokenEndpointAuthMethodNone"
+            ]
         },
         "codersdk.OAuthConversionResponse": {
             "type": "object",
@@ -19550,6 +19744,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceBuildStateRequest": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceDormancy": {
             "type": "object",
             "properties": {
@@ -21388,6 +21593,14 @@ const docTemplate = `{
                 "WorkspaceRoleUse",
                 "WorkspaceRoleDeleted"
             ]
+        },
+        "codersdk.WorkspaceSharingSettings": {
+            "type": "object",
+            "properties": {
+                "sharing_disabled": {
+                    "type": "boolean"
+                }
+            }
         },
         "codersdk.WorkspaceStatus": {
             "type": "string",

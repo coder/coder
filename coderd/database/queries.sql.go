@@ -7808,7 +7808,7 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
 FROM
     organizations
 WHERE
@@ -7830,13 +7830,14 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
+		&i.WorkspaceSharingDisabled,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
 FROM
     organizations
 WHERE
@@ -7856,13 +7857,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
+		&i.WorkspaceSharingDisabled,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
 FROM
     organizations
 WHERE
@@ -7891,6 +7893,7 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
+		&i.WorkspaceSharingDisabled,
 	)
 	return i, err
 }
@@ -7961,7 +7964,7 @@ func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organ
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
 FROM
     organizations
 WHERE
@@ -8005,6 +8008,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.DisplayName,
 			&i.Icon,
 			&i.Deleted,
+			&i.WorkspaceSharingDisabled,
 		); err != nil {
 			return nil, err
 		}
@@ -8021,7 +8025,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
 FROM
     organizations
 WHERE
@@ -8066,6 +8070,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrgani
 			&i.DisplayName,
 			&i.Icon,
 			&i.Deleted,
+			&i.WorkspaceSharingDisabled,
 		); err != nil {
 			return nil, err
 		}
@@ -8085,7 +8090,7 @@ INSERT INTO
     organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
 VALUES
     -- If no organizations exist, and this is the first, make it the default.
-    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
+    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
 `
 
 type InsertOrganizationParams struct {
@@ -8119,6 +8124,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
+		&i.WorkspaceSharingDisabled,
 	)
 	return i, err
 }
@@ -8134,7 +8140,7 @@ SET
     icon = $5
 WHERE
     id = $6
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
 `
 
 type UpdateOrganizationParams struct {
@@ -8166,6 +8172,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
+		&i.WorkspaceSharingDisabled,
 	)
 	return i, err
 }
@@ -8188,6 +8195,41 @@ type UpdateOrganizationDeletedByIDParams struct {
 func (q *sqlQuerier) UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateOrganizationDeletedByID, arg.UpdatedAt, arg.ID)
 	return err
+}
+
+const updateOrganizationWorkspaceSharingSettings = `-- name: UpdateOrganizationWorkspaceSharingSettings :one
+UPDATE
+    organizations
+SET
+    workspace_sharing_disabled = $1,
+    updated_at = $2
+WHERE
+    id = $3
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+`
+
+type UpdateOrganizationWorkspaceSharingSettingsParams struct {
+	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
+	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
+	ID                       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationWorkspaceSharingSettings, arg.WorkspaceSharingDisabled, arg.UpdatedAt, arg.ID)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Deleted,
+		&i.WorkspaceSharingDisabled,
+	)
+	return i, err
 }
 
 const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
@@ -11927,7 +11969,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 
 const customRoles = `-- name: CustomRoles :many
 SELECT
-	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
+	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id, is_system, member_permissions
 FROM
 	custom_roles
 WHERE
@@ -11950,16 +11992,30 @@ WHERE
 		organization_id = $3
 	ELSE true
 	END
+	-- Filter system roles. By default, system roles are excluded.
+	-- System roles are managed by Coder and should be hidden from user-facing APIs.
+	-- The authorization system uses @include_system_roles = true to load them.
+	AND CASE WHEN $4 :: boolean THEN
+		true
+	ELSE
+		is_system = false
+	END
 `
 
 type CustomRolesParams struct {
-	LookupRoles     []NameOrganizationPair `db:"lookup_roles" json:"lookup_roles"`
-	ExcludeOrgRoles bool                   `db:"exclude_org_roles" json:"exclude_org_roles"`
-	OrganizationID  uuid.UUID              `db:"organization_id" json:"organization_id"`
+	LookupRoles        []NameOrganizationPair `db:"lookup_roles" json:"lookup_roles"`
+	ExcludeOrgRoles    bool                   `db:"exclude_org_roles" json:"exclude_org_roles"`
+	OrganizationID     uuid.UUID              `db:"organization_id" json:"organization_id"`
+	IncludeSystemRoles bool                   `db:"include_system_roles" json:"include_system_roles"`
 }
 
 func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error) {
-	rows, err := q.db.QueryContext(ctx, customRoles, pq.Array(arg.LookupRoles), arg.ExcludeOrgRoles, arg.OrganizationID)
+	rows, err := q.db.QueryContext(ctx, customRoles,
+		pq.Array(arg.LookupRoles),
+		arg.ExcludeOrgRoles,
+		arg.OrganizationID,
+		arg.IncludeSystemRoles,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -11977,6 +12033,8 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]
 			&i.UpdatedAt,
 			&i.OrganizationID,
 			&i.ID,
+			&i.IsSystem,
+			&i.MemberPermissions,
 		); err != nil {
 			return nil, err
 		}
@@ -11997,6 +12055,9 @@ DELETE FROM
 WHERE
 	name = lower($1)
 	AND organization_id = $2
+	-- Prevents accidental deletion of system roles even if the API
+	-- layer check is bypassed due to a bug.
+	AND is_system = false
 `
 
 type DeleteCustomRoleParams struct {
@@ -12018,6 +12079,8 @@ INSERT INTO
 	site_permissions,
 	org_permissions,
 	user_permissions,
+	member_permissions,
+	is_system,
 	created_at,
 	updated_at
 )
@@ -12029,19 +12092,23 @@ VALUES (
 	$4,
 	$5,
 	$6,
+	$7,
+	$8,
 	now(),
 	now()
 )
-RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id, is_system, member_permissions
 `
 
 type InsertCustomRoleParams struct {
-	Name            string                `db:"name" json:"name"`
-	DisplayName     string                `db:"display_name" json:"display_name"`
-	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
-	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
-	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
-	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	Name              string                `db:"name" json:"name"`
+	DisplayName       string                `db:"display_name" json:"display_name"`
+	OrganizationID    uuid.NullUUID         `db:"organization_id" json:"organization_id"`
+	SitePermissions   CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions    CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions   CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	MemberPermissions CustomRolePermissions `db:"member_permissions" json:"member_permissions"`
+	IsSystem          bool                  `db:"is_system" json:"is_system"`
 }
 
 func (q *sqlQuerier) InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error) {
@@ -12052,6 +12119,8 @@ func (q *sqlQuerier) InsertCustomRole(ctx context.Context, arg InsertCustomRoleP
 		arg.SitePermissions,
 		arg.OrgPermissions,
 		arg.UserPermissions,
+		arg.MemberPermissions,
+		arg.IsSystem,
 	)
 	var i CustomRole
 	err := row.Scan(
@@ -12064,6 +12133,8 @@ func (q *sqlQuerier) InsertCustomRole(ctx context.Context, arg InsertCustomRoleP
 		&i.UpdatedAt,
 		&i.OrganizationID,
 		&i.ID,
+		&i.IsSystem,
+		&i.MemberPermissions,
 	)
 	return i, err
 }
@@ -12076,20 +12147,22 @@ SET
 	site_permissions = $2,
 	org_permissions = $3,
 	user_permissions = $4,
+	member_permissions = $5,
 	updated_at = now()
 WHERE
-	name = lower($5)
-	AND organization_id = $6
-RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
+	name = lower($6)
+	AND organization_id = $7
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id, is_system, member_permissions
 `
 
 type UpdateCustomRoleParams struct {
-	DisplayName     string                `db:"display_name" json:"display_name"`
-	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
-	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
-	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
-	Name            string                `db:"name" json:"name"`
-	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
+	DisplayName       string                `db:"display_name" json:"display_name"`
+	SitePermissions   CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions    CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions   CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	MemberPermissions CustomRolePermissions `db:"member_permissions" json:"member_permissions"`
+	Name              string                `db:"name" json:"name"`
+	OrganizationID    uuid.NullUUID         `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error) {
@@ -12098,6 +12171,7 @@ func (q *sqlQuerier) UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleP
 		arg.SitePermissions,
 		arg.OrgPermissions,
 		arg.UserPermissions,
+		arg.MemberPermissions,
 		arg.Name,
 		arg.OrganizationID,
 	)
@@ -12112,6 +12186,8 @@ func (q *sqlQuerier) UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleP
 		&i.UpdatedAt,
 		&i.OrganizationID,
 		&i.ID,
+		&i.IsSystem,
+		&i.MemberPermissions,
 	)
 	return i, err
 }
@@ -18079,6 +18155,99 @@ func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Cont
 	return i, err
 }
 
+const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one
+SELECT
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
+	users.username as owner_username
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	provisioner_jobs ON workspace_resources.job_id = provisioner_jobs.id
+JOIN
+	workspace_builds ON provisioner_jobs.id = workspace_builds.job_id
+JOIN
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+JOIN
+	users ON workspaces.owner_id = users.id
+WHERE
+	workspace_agents.id = $1
+	AND workspace_agents.deleted = FALSE
+	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
+	AND workspaces.deleted = FALSE
+	AND users.deleted = FALSE
+LIMIT 1
+`
+
+type GetWorkspaceAgentAndWorkspaceByIDRow struct {
+	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceTable WorkspaceTable `db:"workspace_table" json:"workspace_table"`
+	OwnerUsername  string         `db:"owner_username" json:"owner_username"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndWorkspaceByID, id)
+	var i GetWorkspaceAgentAndWorkspaceByIDRow
+	err := row.Scan(
+		&i.WorkspaceAgent.ID,
+		&i.WorkspaceAgent.CreatedAt,
+		&i.WorkspaceAgent.UpdatedAt,
+		&i.WorkspaceAgent.Name,
+		&i.WorkspaceAgent.FirstConnectedAt,
+		&i.WorkspaceAgent.LastConnectedAt,
+		&i.WorkspaceAgent.DisconnectedAt,
+		&i.WorkspaceAgent.ResourceID,
+		&i.WorkspaceAgent.AuthToken,
+		&i.WorkspaceAgent.AuthInstanceID,
+		&i.WorkspaceAgent.Architecture,
+		&i.WorkspaceAgent.EnvironmentVariables,
+		&i.WorkspaceAgent.OperatingSystem,
+		&i.WorkspaceAgent.InstanceMetadata,
+		&i.WorkspaceAgent.ResourceMetadata,
+		&i.WorkspaceAgent.Directory,
+		&i.WorkspaceAgent.Version,
+		&i.WorkspaceAgent.LastConnectedReplicaID,
+		&i.WorkspaceAgent.ConnectionTimeoutSeconds,
+		&i.WorkspaceAgent.TroubleshootingURL,
+		&i.WorkspaceAgent.MOTDFile,
+		&i.WorkspaceAgent.LifecycleState,
+		&i.WorkspaceAgent.ExpandedDirectory,
+		&i.WorkspaceAgent.LogsLength,
+		&i.WorkspaceAgent.LogsOverflowed,
+		&i.WorkspaceAgent.StartedAt,
+		&i.WorkspaceAgent.ReadyAt,
+		pq.Array(&i.WorkspaceAgent.Subsystems),
+		pq.Array(&i.WorkspaceAgent.DisplayApps),
+		&i.WorkspaceAgent.APIVersion,
+		&i.WorkspaceAgent.DisplayOrder,
+		&i.WorkspaceAgent.ParentID,
+		&i.WorkspaceAgent.APIKeyScope,
+		&i.WorkspaceAgent.Deleted,
+		&i.WorkspaceTable.ID,
+		&i.WorkspaceTable.CreatedAt,
+		&i.WorkspaceTable.UpdatedAt,
+		&i.WorkspaceTable.OwnerID,
+		&i.WorkspaceTable.OrganizationID,
+		&i.WorkspaceTable.TemplateID,
+		&i.WorkspaceTable.Deleted,
+		&i.WorkspaceTable.Name,
+		&i.WorkspaceTable.AutostartSchedule,
+		&i.WorkspaceTable.Ttl,
+		&i.WorkspaceTable.LastUsedAt,
+		&i.WorkspaceTable.DormantAt,
+		&i.WorkspaceTable.DeletingAt,
+		&i.WorkspaceTable.AutomaticUpdates,
+		&i.WorkspaceTable.Favorite,
+		&i.WorkspaceTable.NextStartAt,
+		&i.WorkspaceTable.GroupACL,
+		&i.WorkspaceTable.UserACL,
+		&i.OwnerUsername,
+	)
+	return i, err
+}
+
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted
@@ -22107,6 +22276,21 @@ WHERE
 
 func (q *sqlQuerier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteWorkspaceACLByID, id)
+	return err
+}
+
+const deleteWorkspaceACLsByOrganization = `-- name: DeleteWorkspaceACLsByOrganization :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::jsonb,
+	user_acl = '{}'::jsonb
+WHERE
+	organization_id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceACLsByOrganization, organizationID)
 	return err
 }
 

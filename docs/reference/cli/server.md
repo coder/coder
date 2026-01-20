@@ -1015,6 +1015,28 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
+### --postgres-conn-max-open
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>int</code>                     |
+| Environment | <code>$CODER_PG_CONN_MAX_OPEN</code> |
+| YAML        | <code>pgConnMaxOpen</code>           |
+| Default     | <code>10</code>                      |
+
+Maximum number of open connections to the database. Defaults to 10.
+
+### --postgres-conn-max-idle
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_PG_CONN_MAX_IDLE</code> |
+| YAML        | <code>pgConnMaxIdle</code>           |
+| Default     | <code>auto</code>                    |
+
+Maximum number of idle connections to the database. Set to "auto" (the default) to use max open / 3. Value must be greater or equal to 0; 0 means explicitly no idle connections.
+
 ### --secure-auth-cookie
 
 |             |                                          |
@@ -1814,6 +1836,17 @@ Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
 
 Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
 
+### --aibridge-structured-logging
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_STRUCTURED_LOGGING</code> |
+| YAML        | <code>aibridge.structuredLogging</code>         |
+| Default     | <code>false</code>                              |
+
+Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
+
 ### --aibridge-proxy-enabled
 
 |             |                                            |
@@ -1855,6 +1888,26 @@ Path to the CA certificate file for AI Bridge Proxy.
 | YAML        | <code>aibridgeproxy.key_file</code>         |
 
 Path to the CA private key file for AI Bridge Proxy.
+
+### --aibridge-proxy-upstream
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy</code>   |
+
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+
+### --aibridge-proxy-upstream-ca
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM_CA</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
+
+Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
 
 ### --audit-logs-retention
 

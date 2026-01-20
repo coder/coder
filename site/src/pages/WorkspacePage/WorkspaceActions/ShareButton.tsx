@@ -5,7 +5,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { UsersIcon } from "lucide-react";
+import { Share2Icon } from "lucide-react";
 import { isGroup } from "modules/groups";
 import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
 import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
@@ -27,8 +27,8 @@ export const ShareButton: FC<ShareButtonProps> = ({
 		<Popover>
 			<PopoverTrigger asChild>
 				<TopbarButton data-testid="workspace-share-button">
-					<UsersIcon />
-					Share
+					<Share2Icon />
+					Share Workspace
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[580px] p-4">

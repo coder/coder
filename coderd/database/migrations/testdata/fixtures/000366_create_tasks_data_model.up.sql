@@ -1,4 +1,4 @@
-INSERT INTO public.tasks VALUES (
+INSERT INTO tasks VALUES (
     'f5a1c3e4-8b2d-4f6a-9d7e-2a8b5c9e1f3d', -- id
     'bb640d07-ca8a-4869-b6bc-ae61ebb2fda1', -- organization_id
     '30095c71-380b-457a-8995-97b8ee6e5307', -- owner_id
@@ -11,7 +11,7 @@ INSERT INTO public.tasks VALUES (
     NULL                                    -- deleted_at
 ) ON CONFLICT DO NOTHING;
 
-INSERT INTO public.task_workspace_apps VALUES (
+INSERT INTO task_workspace_apps VALUES (
     'f5a1c3e4-8b2d-4f6a-9d7e-2a8b5c9e1f3d', -- task_id
     'a8c0b8c5-c9a8-4f33-93a4-8142e6858244', -- workspace_build_id
     '8fa17bbd-c48c-44c7-91ae-d4acbc755fad', -- workspace_agent_id

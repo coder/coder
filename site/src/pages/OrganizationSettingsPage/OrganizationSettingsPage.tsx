@@ -1,14 +1,16 @@
 import { getErrorMessage } from "api/errors";
 import {
 	deleteOrganization,
+	patchWorkspaceSharingSettings,
 	updateOrganization,
+	workspaceSharingSettings,
 } from "api/queries/organizations";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
@@ -23,6 +25,15 @@ const OrganizationSettingsPage: FC = () => {
 	);
 	const deleteOrganizationMutation = useMutation(
 		deleteOrganization(queryClient),
+	);
+
+	const sharingSettingsQuery = useQuery({
+		...workspaceSharingSettings(organization?.id ?? ""),
+		enabled: !!organization,
+	});
+
+	const patchSharingSettingsMutation = useMutation(
+		patchWorkspaceSharingSettings(organization?.id ?? "", queryClient),
 	);
 
 	if (!organization) {
@@ -46,6 +57,26 @@ const OrganizationSettingsPage: FC = () => {
 
 	const error =
 		updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
+
+	const handleToggleWorkspaceSharing = async (enabled: boolean) => {
+		try {
+			await patchSharingSettingsMutation.mutateAsync({
+				sharing_disabled: !enabled,
+			});
+			displaySuccess(
+				enabled ? "Workspace sharing enabled." : "Workspace sharing disabled.",
+			);
+		} catch (error) {
+			displayError(
+				getErrorMessage(
+					error,
+					enabled
+						? "Failed to enable workspace sharing"
+						: "Failed to disable workspace sharing",
+				),
+			);
+		}
+	};
 
 	return (
 		<>
@@ -73,6 +104,11 @@ const OrganizationSettingsPage: FC = () => {
 						);
 					}
 				}}
+				workspaceSharingEnabled={
+					!(sharingSettingsQuery.data?.sharing_disabled ?? false)
+				}
+				onToggleWorkspaceSharing={handleToggleWorkspaceSharing}
+				isTogglingWorkspaceSharing={patchSharingSettingsMutation.isPending}
 			/>
 		</>
 	);

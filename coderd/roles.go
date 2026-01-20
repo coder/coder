@@ -34,8 +34,9 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	dbCustomRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles: nil,
 		// Only site wide custom roles to be included
-		ExcludeOrgRoles: true,
-		OrganizationID:  uuid.Nil,
+		ExcludeOrgRoles:    true,
+		OrganizationID:     uuid.Nil,
+		IncludeSystemRoles: false,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -67,9 +68,10 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 
 	roles := rbac.OrganizationRoles(organization.ID)
 	dbCustomRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
-		LookupRoles:     nil,
-		ExcludeOrgRoles: false,
-		OrganizationID:  organization.ID,
+		LookupRoles:        nil,
+		ExcludeOrgRoles:    false,
+		OrganizationID:     organization.ID,
+		IncludeSystemRoles: false,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

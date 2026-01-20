@@ -24,6 +24,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
@@ -684,6 +685,7 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
 	transport := http.DefaultTransport
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
+	transport = wrapTransportWithUserAgentHeader(transport, inv)
 	if !r.noVersionCheck {
 		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
@@ -922,6 +924,9 @@ func splitNamedWorkspace(identifier string) (owner string, workspaceName string,
 // a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
 // where user is either a username or UUID.
 func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+	if uid, err := uuid.Parse(identifier); err == nil {
+		return client.Workspace(ctx, uid)
+	}
 	owner, name, err := splitNamedWorkspace(identifier)
 	if err != nil {
 		return codersdk.Workspace{}, err
@@ -1493,6 +1498,22 @@ func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.
 		if value != "" {
 			req.Header.Add(codersdk.CLITelemetryHeader, value)
 		}
+		return transport.RoundTrip(req)
+	})
+}
+
+// wrapTransportWithUserAgentHeader sets a User-Agent header for all CLI requests
+// that includes the CLI version, os/arch, and the specific command being run.
+func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.Invocation) http.RoundTripper {
+	var (
+		userAgent string
+		once      sync.Once
+	)
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		once.Do(func() {
+			userAgent = fmt.Sprintf("coder-cli/%s (%s/%s; %s)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH, inv.Command.FullName())
+		})
+		req.Header.Set("User-Agent", userAgent)
 		return transport.RoundTrip(req)
 	})
 }

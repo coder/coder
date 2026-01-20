@@ -164,9 +164,14 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "ai": {
       "aibridge_proxy": {
         "cert_file": "string",
+        "domain_allowlist": [
+          "string"
+        ],
         "enabled": true,
         "key_file": "string",
-        "listen_addr": "string"
+        "listen_addr": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
       },
       "bridge": {
         "anthropic": {
@@ -188,7 +193,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "key": "string"
         },
         "rate_limit": 0,
-        "retention": 0
+        "retention": 0,
+        "structured_logging": true
       }
     },
     "allow_workspace_renames": true,
@@ -433,6 +439,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "username_field": "string"
     },
     "pg_auth": "string",
+    "pg_conn_max_idle": "string",
+    "pg_conn_max_open": 0,
     "pg_connection_url": "string",
     "pprof": {
       "address": {

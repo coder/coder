@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +71,20 @@ type Options struct {
 	// CertStore is an optional certificate cache for MITM. If nil, a default
 	// cache is created. Exposed for testing.
 	CertStore goproxy.CertStorage
+	// DomainAllowlist is the list of domains to intercept and route through AI Bridge.
+	// Only requests to these domains will be MITM'd and forwarded to aibridged.
+	// Requests to other domains will be tunneled directly without decryption.
+	DomainAllowlist []string
+	// UpstreamProxy is the URL of an upstream HTTP proxy to chain tunneled
+	// (non-allowlisted) requests through. If empty, tunneled requests connect
+	// directly to their destinations.
+	// Format: http://[user:pass@]host:port or https://[user:pass@]host:port
+	UpstreamProxy string
+	// UpstreamProxyCA is the path to a PEM-encoded CA certificate file to trust
+	// for the upstream proxy's TLS connection. Only needed for HTTPS upstream
+	// proxies with certificates not trusted by the system. If empty, the system
+	// certificate pool is used.
+	UpstreamProxyCA string
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -78,10 +94,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.New("listen address is required")
 	}
 
-	if opts.CertFile == "" || opts.KeyFile == "" {
-		return nil, xerrors.New("cert file and key file are required")
-	}
-
 	if strings.TrimSpace(opts.CoderAccessURL) == "" {
 		return nil, xerrors.New("coder access URL is required")
 	}
@@ -89,6 +101,31 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid coder access URL %q: %w", opts.CoderAccessURL, err)
 	}
+
+	if opts.CertFile == "" || opts.KeyFile == "" {
+		return nil, xerrors.New("cert file and key file are required")
+	}
+
+	allowedPorts := opts.AllowedPorts
+	if len(allowedPorts) == 0 {
+		allowedPorts = []string{"80", "443"}
+	}
+
+	if len(opts.DomainAllowlist) == 0 {
+		return nil, xerrors.New("domain allow list is required")
+	}
+	mitmHosts, err := convertDomainsToHosts(opts.DomainAllowlist, allowedPorts)
+	if err != nil {
+		return nil, xerrors.Errorf("invalid domain allowlist: %w", err)
+	}
+	if len(mitmHosts) == 0 {
+		return nil, xerrors.New("domain allowlist is empty, at least one domain is required")
+	}
+
+	logger.Info(ctx, "configured domain allowlist for MITM",
+		slog.F("domains", opts.DomainAllowlist),
+		slog.F("hosts", mitmHosts),
+	)
 
 	// Load CA certificate for MITM
 	certPEM, err := loadMitmCertificate(opts.CertFile, opts.KeyFile)
@@ -100,13 +137,69 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	// Cache generated leaf certificates to avoid expensive RSA key generation
 	// and signing on every request to the same hostname.
-	// TODO(ssncferreira): Currently certs are cached for all MITM'd hosts, but once
-	//   host filtering is implemented, only AI provider certs will be cached.
-	//   Related to https://github.com/coder/internal/issues/1182
 	if opts.CertStore != nil {
 		proxy.CertStore = opts.CertStore
 	} else {
 		proxy.CertStore = NewCertCache()
+	}
+
+	// Always set secure TLS defaults, overriding goproxy's default.
+	// This ensures secure TLS connections for:
+	// - HTTPS upstream proxy connections
+	// - MITM'd requests if aibridge uses HTTPS
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
+	}
+
+	// Configure upstream proxy for tunneled (non-allowlisted) requests.
+	// This only affects CONNECT requests to domains not in the allowlist.
+	// MITM'd requests (allowlisted domains) are handled by aiproxy and forwarded
+	// to aibridge directly, not through the upstream proxy. AI Bridge respects
+	// proxy environment variables if set, so the upstream proxy is used at that
+	// layer instead.
+	if opts.UpstreamProxy != "" {
+		upstreamURL, err := url.Parse(opts.UpstreamProxy)
+		if err != nil {
+			return nil, xerrors.Errorf("invalid upstream proxy URL %q: %w", opts.UpstreamProxy, err)
+		}
+
+		logger.Info(ctx, "configuring upstream proxy for tunneled requests",
+			slog.F("upstream", upstreamURL.Host),
+		)
+
+		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
+		// not through any upstream proxy.
+		proxy.Tr = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    rootCAs,
+			},
+		}
+
+		// Add custom CA certificate if provided (for corporate proxies with private CAs).
+		// If no CA certificate is provided, the system certificate pool is used.
+		if opts.UpstreamProxyCA != "" {
+			if upstreamURL.Scheme == "https" {
+				caCert, err := os.ReadFile(opts.UpstreamProxyCA)
+				if err != nil {
+					return nil, xerrors.Errorf("failed to read upstream proxy CA certificate from %q: %w", opts.UpstreamProxyCA, err)
+				}
+				if !rootCAs.AppendCertsFromPEM(caCert) {
+					return nil, xerrors.Errorf("failed to parse upstream proxy CA certificate")
+				}
+				logger.Info(ctx, "configured upstream proxy CA certificate")
+			} else {
+				logger.Warn(ctx, "upstream proxy CA certificate is only used for HTTPS upstream proxies, ignoring",
+					slog.F("upstream_scheme", upstreamURL.Scheme),
+				)
+			}
+		}
+
+		// Configure tunneled CONNECT requests to go through upstream proxy.
+		// This only affects non-allowlisted domains; allowlisted domains are
+		// MITM'd and forwarded to aibridge.
+		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
 	}
 
 	srv := &Server{
@@ -118,19 +211,19 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	// Reject CONNECT requests to non-standard ports.
-	allowedPorts := opts.AllowedPorts
-	if len(allowedPorts) == 0 {
-		allowedPorts = []string{"80", "443"}
-	}
 	proxy.OnRequest().HandleConnectFunc(srv.portMiddleware(allowedPorts))
 
-	// Extract Coder session token from proxy authentication to forward to aibridged.
-	proxy.OnRequest().HandleConnectFunc(srv.authMiddleware)
+	// Apply MITM with authentication only to allowlisted hosts.
+	proxy.OnRequest(
+		// Only CONNECT requests to these hosts will be intercepted and decrypted.
+		// All other requests will be tunneled directly to their destination.
+		goproxy.ReqHostIs(mitmHosts...),
+	).HandleConnectFunc(
+		// Extract Coder session token from proxy authentication to forward to aibridged.
+		srv.authMiddleware,
+	)
 
-	// Handle decrypted requests: route to aibridged for known AI providers, or passthrough to original destination.
-	// TODO(ssncferreira): Currently the proxy always behaves as MITM, but this should only happen for known
-	//   AI providers as all other requests should be tunneled. This will be implemented upstack.
-	//   Related to https://github.com/coder/internal/issues/1182
+	// Handle decrypted requests: route to aibridged for known AI providers, or tunnel to original destination.
 	proxy.OnRequest().DoFunc(srv.handleRequest)
 
 	// Create listener first so we can get the actual address.
@@ -249,6 +342,38 @@ func (s *Server) portMiddleware(allowedPorts []string) func(host string, ctx *go
 	}
 }
 
+// convertDomainsToHosts converts a list of domain names to host:port combinations.
+// Each domain is combined with each allowed port.
+// Returns an error if a domain includes a port that's not in the allowed ports list.
+// For example, ["api.anthropic.com"] with ports ["443"] becomes ["api.anthropic.com:443"].
+func convertDomainsToHosts(domains []string, allowedPorts []string) ([]string, error) {
+	var hosts []string
+	for _, domain := range domains {
+		domain = strings.TrimSpace(strings.ToLower(domain))
+		if domain == "" {
+			continue
+		}
+
+		// If domain already includes a port, validate it's in the allowed list.
+		if strings.Contains(domain, ":") {
+			host, port, err := net.SplitHostPort(domain)
+			if err != nil {
+				return nil, xerrors.Errorf("invalid domain %q: %w", domain, err)
+			}
+			if !slices.Contains(allowedPorts, port) {
+				return nil, xerrors.Errorf("invalid port in domain %q: port %s is not in allowed ports %v", domain, port, allowedPorts)
+			}
+			hosts = append(hosts, host+":"+port)
+		} else {
+			// Otherwise, combine domain with all allowed ports.
+			for _, port := range allowedPorts {
+				hosts = append(hosts, domain+":"+port)
+			}
+		}
+	}
+	return hosts, nil
+}
+
 // authMiddleware is a CONNECT middleware that extracts the Coder session token
 // from the Proxy-Authorization header and stores it in ctx.UserData for use by
 // downstream request handlers.
@@ -317,10 +442,6 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 //   - Known AI providers return their provider name, used to route to the
 //     corresponding aibridge endpoint.
 //   - Unknown hosts return empty string and are passed through directly.
-//
-// TODO(ssncferreira): Provider list configurable via domain allowlists will be implemented upstack.
-//
-//	Related to https://github.com/coder/internal/issues/1182.
 func providerFromURL(reqURL *url.URL) string {
 	if reqURL == nil {
 		return ""
@@ -345,14 +466,15 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// Check if this request is for a supported AI provider.
 	provider := providerFromURL(req.URL)
 	if provider == "" {
-		// TODO(ssncferreira): After implementing selective MITM, this case should never
-		//   happen since unknown hosts will be tunneled, not decrypted.
-		//   Related to https://github.com/coder/internal/issues/1182
-		s.logger.Debug(s.ctx, "passthrough request to unknown host",
+		// This can happen if a domain is in the allowlist but doesn't have a
+		// corresponding provider mapping in providerFromURL(). The request was
+		// decrypted but we don't know how to route it to aibridged.
+		s.logger.Warn(s.ctx, "decrypted request has no provider mapping, passing through",
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
 		)
+		// Tunnel (forward) directly to the original destination (no aibridge routing for this host).
 		return req, nil
 	}
 

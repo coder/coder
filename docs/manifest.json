@@ -667,6 +667,29 @@
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
 									"state": ["premium"]
+								},
+								{
+									"title": "Startup Dependencies",
+									"description": "Coordinate workspace startup with dependency management",
+									"path": "./admin/templates/startup-coordination/index.md",
+									"state": ["early access"],
+									"children": [
+										{
+											"title": "Usage",
+											"description": "How to use startup coordination",
+											"path": "./admin/templates/startup-coordination/usage.md"
+										},
+										{
+											"title": "Troubleshooting",
+											"description": "Troubleshoot startup coordination",
+											"path": "./admin/templates/startup-coordination/troubleshooting.md"
+										},
+										{
+											"title": "Examples",
+											"description": "Examples of startup coordination",
+											"path": "./admin/templates/startup-coordination/example.md"
+										}
+									]
 								}
 							]
 						},
@@ -1584,6 +1607,11 @@
 							"path": "reference/cli/organizations_settings_set_role-sync.md"
 						},
 						{
+							"title": "organizations settings set workspace-sharing",
+							"description": "Workspace sharing settings for the organization.",
+							"path": "reference/cli/organizations_settings_set_workspace-sharing.md"
+						},
+						{
 							"title": "organizations settings show",
 							"description": "Outputs specified organization setting.",
 							"path": "reference/cli/organizations_settings_show.md"
@@ -1602,6 +1630,11 @@
 							"title": "organizations settings show role-sync",
 							"description": "Role sync settings to sync organization roles from an IdP.",
 							"path": "reference/cli/organizations_settings_show_role-sync.md"
+						},
+						{
+							"title": "organizations settings show workspace-sharing",
+							"description": "Workspace sharing settings for the organization.",
+							"path": "reference/cli/organizations_settings_show_workspace-sharing.md"
 						},
 						{
 							"title": "organizations show",
