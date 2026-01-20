@@ -1847,6 +1847,17 @@ Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
 
 Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
 
+### --aibridge-circuit-breaker-enabled
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED</code> |
+| YAML        | <code>aibridge.circuitBreakerEnabled</code>          |
+| Default     | <code>false</code>                                   |
+
+Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).
+
 ### --aibridge-proxy-enabled
 
 |             |                                            |
