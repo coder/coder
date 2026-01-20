@@ -18155,6 +18155,99 @@ func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Cont
 	return i, err
 }
 
+const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one
+SELECT
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
+	users.username as owner_username
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	provisioner_jobs ON workspace_resources.job_id = provisioner_jobs.id
+JOIN
+	workspace_builds ON provisioner_jobs.id = workspace_builds.job_id
+JOIN
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+JOIN
+	users ON workspaces.owner_id = users.id
+WHERE
+	workspace_agents.id = $1
+	AND workspace_agents.deleted = FALSE
+	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
+	AND workspaces.deleted = FALSE
+	AND users.deleted = FALSE
+LIMIT 1
+`
+
+type GetWorkspaceAgentAndWorkspaceByIDRow struct {
+	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceTable WorkspaceTable `db:"workspace_table" json:"workspace_table"`
+	OwnerUsername  string         `db:"owner_username" json:"owner_username"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndWorkspaceByID, id)
+	var i GetWorkspaceAgentAndWorkspaceByIDRow
+	err := row.Scan(
+		&i.WorkspaceAgent.ID,
+		&i.WorkspaceAgent.CreatedAt,
+		&i.WorkspaceAgent.UpdatedAt,
+		&i.WorkspaceAgent.Name,
+		&i.WorkspaceAgent.FirstConnectedAt,
+		&i.WorkspaceAgent.LastConnectedAt,
+		&i.WorkspaceAgent.DisconnectedAt,
+		&i.WorkspaceAgent.ResourceID,
+		&i.WorkspaceAgent.AuthToken,
+		&i.WorkspaceAgent.AuthInstanceID,
+		&i.WorkspaceAgent.Architecture,
+		&i.WorkspaceAgent.EnvironmentVariables,
+		&i.WorkspaceAgent.OperatingSystem,
+		&i.WorkspaceAgent.InstanceMetadata,
+		&i.WorkspaceAgent.ResourceMetadata,
+		&i.WorkspaceAgent.Directory,
+		&i.WorkspaceAgent.Version,
+		&i.WorkspaceAgent.LastConnectedReplicaID,
+		&i.WorkspaceAgent.ConnectionTimeoutSeconds,
+		&i.WorkspaceAgent.TroubleshootingURL,
+		&i.WorkspaceAgent.MOTDFile,
+		&i.WorkspaceAgent.LifecycleState,
+		&i.WorkspaceAgent.ExpandedDirectory,
+		&i.WorkspaceAgent.LogsLength,
+		&i.WorkspaceAgent.LogsOverflowed,
+		&i.WorkspaceAgent.StartedAt,
+		&i.WorkspaceAgent.ReadyAt,
+		pq.Array(&i.WorkspaceAgent.Subsystems),
+		pq.Array(&i.WorkspaceAgent.DisplayApps),
+		&i.WorkspaceAgent.APIVersion,
+		&i.WorkspaceAgent.DisplayOrder,
+		&i.WorkspaceAgent.ParentID,
+		&i.WorkspaceAgent.APIKeyScope,
+		&i.WorkspaceAgent.Deleted,
+		&i.WorkspaceTable.ID,
+		&i.WorkspaceTable.CreatedAt,
+		&i.WorkspaceTable.UpdatedAt,
+		&i.WorkspaceTable.OwnerID,
+		&i.WorkspaceTable.OrganizationID,
+		&i.WorkspaceTable.TemplateID,
+		&i.WorkspaceTable.Deleted,
+		&i.WorkspaceTable.Name,
+		&i.WorkspaceTable.AutostartSchedule,
+		&i.WorkspaceTable.Ttl,
+		&i.WorkspaceTable.LastUsedAt,
+		&i.WorkspaceTable.DormantAt,
+		&i.WorkspaceTable.DeletingAt,
+		&i.WorkspaceTable.AutomaticUpdates,
+		&i.WorkspaceTable.Favorite,
+		&i.WorkspaceTable.NextStartAt,
+		&i.WorkspaceTable.GroupACL,
+		&i.WorkspaceTable.UserACL,
+		&i.OwnerUsername,
+	)
+	return i, err
+}
+
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope, deleted

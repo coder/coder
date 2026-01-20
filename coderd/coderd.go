@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
@@ -334,6 +335,7 @@ func New(options *Options) *API {
 
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
+		options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
 	}
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
@@ -1436,9 +1438,7 @@ func New(options *Options) *API {
 						Optional: true,
 					}),
 					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
-
-					httpmw.ExtractWorkspaceAgentParam(options.Database),
-					httpmw.ExtractWorkspaceParam(options.Database),
+					httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)

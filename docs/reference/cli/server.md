@@ -1889,6 +1889,26 @@ Path to the CA certificate file for AI Bridge Proxy.
 
 Path to the CA private key file for AI Bridge Proxy.
 
+### --aibridge-proxy-upstream
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy</code>   |
+
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+
+### --aibridge-proxy-upstream-ca
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM_CA</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
+
+Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
+
 ### --audit-logs-retention
 
 |             |                                          |
