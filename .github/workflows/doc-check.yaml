@@ -52,6 +52,12 @@ jobs:
       actions: write
 
     steps:
+      - name: Setup Coder CLI
+        uses: coder/setup-action@v1
+        with:
+          access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+
       - name: Determine PR Context
         id: determine-context
         env:
@@ -64,7 +70,6 @@ jobs:
         run: |
           echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
           echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
-          echo "coder_user=doc-check-bot" >> "${GITHUB_OUTPUT}"
 
           # Determine trigger type for task context
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
@@ -165,12 +170,12 @@ jobs:
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
           coder-task-name-prefix: doc-check
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
-          coder-user: doc-check-bot
+          coder-username: doc-check-bot
           github-token: ${{ github.token }}
           github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
           comment-on-issue: true
 
-      - name: Write outputs
+      - name: Write Task Info
         env:
           TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
@@ -185,5 +190,92 @@ jobs:
             echo "**Task name:** ${TASK_NAME}"
             echo "**Task URL:** ${TASK_URL}"
             echo ""
-            echo "The Coder task is analyzing the PR changes and will comment with documentation recommendations."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Wait for Task Completion
+        id: wait_task
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "Waiting for task to complete..."
+          MAX_WAIT=600  # 10 minutes
+          WAITED=0
+          POLL_INTERVAL=10
+
+          while [[ $WAITED -lt $MAX_WAIT ]]; do
+            STATUS_JSON=$(coder exp task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
+            TASK_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
+            TASK_MESSAGE=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
+            WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
+
+            echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
+
+            # Task is complete when state is "idle"
+            if [[ "$TASK_STATE" == "idle" ]]; then
+              echo ""
+              echo "Task completed!"
+              RESULT_URI=$(echo "$STATUS_JSON" | jq -r '.current_state.uri // ""')
+              echo "result_uri=${RESULT_URI}" >> "${GITHUB_OUTPUT}"
+              echo "task_message=${TASK_MESSAGE}" >> "${GITHUB_OUTPUT}"
+              break
+            fi
+
+            # Check for failed workspace
+            if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
+              echo "::error::Workspace failed: ${WORKSPACE_STATUS}"
+              exit 1
+            fi
+
+            sleep $POLL_INTERVAL
+            WAITED=$((WAITED + POLL_INTERVAL))
+          done
+
+          if [[ $WAITED -ge $MAX_WAIT ]]; then
+            echo "::warning::Task monitoring timed out after ${MAX_WAIT}s"
+          fi
+
+      - name: Fetch Task Logs
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::Task Conversation Log"
+          if [[ -n "${TASK_NAME}" ]]; then
+            coder exp task logs "${TASK_NAME}" 2>/dev/null || echo "Failed to fetch logs"
+          else
+            echo "No task name, skipping log fetch"
+          fi
+          echo "::endgroup::"
+
+      - name: Cleanup Task
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          if [[ -n "${TASK_NAME}" ]]; then
+            echo "Deleting task: ${TASK_NAME}"
+            coder exp task delete "${TASK_NAME}" --yes 2>&1 || echo "Task deletion failed or already deleted"
+          else
+            echo "No task name, skipping cleanup"
+          fi
+
+      - name: Write Final Summary
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
+          RESULT_URI: ${{ steps.wait_task.outputs.result_uri }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+        run: |
+          {
+            echo ""
+            echo "---"
+            echo "### Result"
+            echo ""
+            echo "**Status:** ${TASK_MESSAGE:-Task completed}"
+            if [[ -n "${RESULT_URI}" ]]; then
+              echo "**Comment:** ${RESULT_URI}"
+            fi
+            echo ""
+            echo "Task \`${TASK_NAME}\` has been cleaned up."
           } >> "${GITHUB_STEP_SUMMARY}"
