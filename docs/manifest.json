@@ -2088,6 +2088,18 @@
 							"path": "./reference/agent-api/schemas.md"
 						}
 					]
+				},
+				{
+					"title": "Internals",
+					"description": "Deep dives into Coder's internal architecture",
+					"path": "./reference/internals/index.md",
+					"icon_path": "./images/icons/gear.svg",
+					"children": [
+						{
+							"title": "Terraform State Management",
+							"path": "./reference/internals/terraform-state-management.md"
+						}
+					]
 				}
 			]
 		}
