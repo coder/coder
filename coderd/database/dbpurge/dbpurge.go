@@ -64,11 +64,21 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
+	inst := &instance{
+		cancel:            cancelFunc,
+		closed:            closed,
+		logger:            logger,
+		vals:              vals,
+		clk:               clk,
+		iterationDuration: iterationDuration,
+		recordsPurged:     recordsPurged,
+	}
+
 	// Start the ticker with the initial delay.
 	ticker := clk.NewTicker(delay)
 	doTick := func(ctx context.Context, start time.Time) {
 		defer ticker.Reset(delay)
-		err := PurgeTick(ctx, db, logger, vals, clk, iterationDuration, recordsPurged, start)
+		err := inst.purgeTick(ctx, db, start)
 		if err != nil {
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 
@@ -93,15 +103,12 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			}
 		}
 	})
-	return &instance{
-		cancel: cancelFunc,
-		closed: closed,
-	}
+	return inst
 }
 
-// PurgeTick performs a single purge iteration. It returns an error if the
-// purge fails. This method is extracted for testing purposes.
-func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals *codersdk.DeploymentValues, clk quartz.Clock, iterationDuration *prometheus.HistogramVec, recordsPurged *prometheus.CounterVec, start time.Time) error {
+// purgeTick performs a single purge iteration. It returns an error if the
+// purge fails.
+func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
 	return db.InTx(func(tx database.Store) error {
@@ -112,12 +119,12 @@ func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals 
 			return err
 		}
 		if !ok {
-			logger.Debug(ctx, "unable to acquire lock for purging old database entries, skipping")
+			i.logger.Debug(ctx, "unable to acquire lock for purging old database entries, skipping")
 			return nil
 		}
 
 		var purgedWorkspaceAgentLogs int64
-		workspaceAgentLogsRetention := vals.Retention.WorkspaceAgentLogs.Value()
+		workspaceAgentLogsRetention := i.vals.Retention.WorkspaceAgentLogs.Value()
 		if workspaceAgentLogsRetention > 0 {
 			deleteOldWorkspaceAgentLogsBefore := start.Add(-workspaceAgentLogsRetention)
 			purgedWorkspaceAgentLogs, err = tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore)
@@ -139,7 +146,7 @@ func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals 
 		}
 
 		var expiredAPIKeys int64
-		apiKeysRetention := vals.Retention.APIKeys.Value()
+		apiKeysRetention := i.vals.Retention.APIKeys.Value()
 		if apiKeysRetention > 0 {
 			// Delete keys that have been expired for at least the retention period.
 			// A higher retention period allows the backend to return a more helpful
@@ -170,7 +177,7 @@ func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals 
 		}
 
 		var purgedAIBridgeRecords int64
-		aibridgeRetention := vals.AI.BridgeConfig.Retention.Value()
+		aibridgeRetention := i.vals.AI.BridgeConfig.Retention.Value()
 		if aibridgeRetention > 0 {
 			deleteAIBridgeRecordsBefore := start.Add(-aibridgeRetention)
 			// nolint:gocritic // Needs to run as aibridge context.
@@ -181,7 +188,7 @@ func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals 
 		}
 
 		var purgedConnectionLogs int64
-		connectionLogsRetention := vals.Retention.ConnectionLogs.Value()
+		connectionLogsRetention := i.vals.Retention.ConnectionLogs.Value()
 		if connectionLogsRetention > 0 {
 			deleteConnectionLogsBefore := start.Add(-connectionLogsRetention)
 			purgedConnectionLogs, err = tx.DeleteOldConnectionLogs(ctx, database.DeleteOldConnectionLogsParams{
@@ -194,7 +201,7 @@ func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals 
 		}
 
 		var purgedAuditLogs int64
-		auditLogsRetention := vals.Retention.AuditLogs.Value()
+		auditLogsRetention := i.vals.Retention.AuditLogs.Value()
 		if auditLogsRetention > 0 {
 			deleteAuditLogsBefore := start.Add(-auditLogsRetention)
 			purgedAuditLogs, err = tx.DeleteOldAuditLogs(ctx, database.DeleteOldAuditLogsParams{
@@ -206,25 +213,25 @@ func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals 
 			}
 		}
 
-		logger.Debug(ctx, "purged old database entries",
+		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
 			slog.F("aibridge_records", purgedAIBridgeRecords),
 			slog.F("connection_logs", purgedConnectionLogs),
 			slog.F("audit_logs", purgedAuditLogs),
-			slog.F("duration", clk.Since(start)),
+			slog.F("duration", i.clk.Since(start)),
 		)
 
-		if iterationDuration != nil {
-			duration := clk.Since(start)
-			iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
+		if i.iterationDuration != nil {
+			duration := i.clk.Since(start)
+			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
 		}
-		if recordsPurged != nil {
-			recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
-			recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
-			recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
-			recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
-			recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
+		if i.recordsPurged != nil {
+			i.recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
+			i.recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
+			i.recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
+			i.recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
+			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
 		}
 
 		return nil
@@ -232,12 +239,30 @@ func PurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals 
 }
 
 type instance struct {
-	cancel context.CancelFunc
-	closed chan struct{}
+	cancel            context.CancelFunc
+	closed            chan struct{}
+	logger            slog.Logger
+	vals              *codersdk.DeploymentValues
+	clk               quartz.Clock
+	iterationDuration *prometheus.HistogramVec
+	recordsPurged     *prometheus.CounterVec
 }
 
 func (i *instance) Close() error {
 	i.cancel()
 	<-i.closed
 	return nil
+}
+
+// TestPurgeTick is a test helper that creates an instance and calls purgeTick.
+// This is exported for testing purposes only.
+func TestPurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals *codersdk.DeploymentValues, clk quartz.Clock, iterationDuration *prometheus.HistogramVec, recordsPurged *prometheus.CounterVec, start time.Time) error {
+	inst := &instance{
+		logger:            logger,
+		vals:              vals,
+		clk:               clk,
+		iterationDuration: iterationDuration,
+		recordsPurged:     recordsPurged,
+	}
+	return inst.purgeTick(ctx, db, start)
 }

@@ -1671,12 +1671,12 @@ func TestDBPurgeAuthorization(t *testing.T) {
 			},
 		}
 
-		// Call PurgeTick directly to test that all operations have proper RBAC
+		// Call TestPurgeTick directly to test that all operations have proper RBAC
 		// permissions. This tests the actual dbpurge behavior rather than
 		// reimplementing it. We only check for RBAC errors, not whether the
 		// operations actually delete records (that's tested elsewhere).
-		err := dbpurge.PurgeTick(ctx, db, testutil.Logger(t), vals, clk, nil, nil, now)
-		require.NoError(t, err, "PurgeTick should succeed with DBPurge actor")
+		err := dbpurge.TestPurgeTick(ctx, db, testutil.Logger(t), vals, clk, nil, nil, now)
+		require.NoError(t, err, "TestPurgeTick should succeed with DBPurge actor")
 	})
 }
 
