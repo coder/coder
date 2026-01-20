@@ -29,5 +29,5 @@ func TestBoundarySubcommand(t *testing.T) {
 	// Expect the --help output to include the short description.
 	// We're simply confirming that `coder boundary --help` ran without a runtime error as
 	// a good chunk of serpents self validation logic happens at runtime.
-	pty.ExpectMatch(boundarycli.BaseCommand().Short)
+	pty.ExpectMatch(boundarycli.BaseCommand("dev").Short)
 }

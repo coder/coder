@@ -90,6 +90,7 @@ const (
 	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
+	FeatureBoundary               FeatureName = "boundary"
 )
 
 var (
@@ -119,6 +120,7 @@ var (
 		FeatureManagedAgentLimit,
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
+		FeatureBoundary,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -163,6 +165,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
+		FeatureBoundary:                   true,
 	}[n]
 }
 

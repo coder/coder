@@ -2109,6 +2109,7 @@ export type FeatureName =
 	| "advanced_template_scheduling"
 	| "appearance"
 	| "audit_log"
+	| "boundary"
 	| "browser_only"
 	| "connection_log"
 	| "control_shared_ports"
@@ -2135,6 +2136,7 @@ export const FeatureNames: FeatureName[] = [
 	"advanced_template_scheduling",
 	"appearance",
 	"audit_log",
+	"boundary",
 	"browser_only",
 	"connection_log",
 	"control_shared_ports",
