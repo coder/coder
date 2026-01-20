@@ -24,6 +24,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/spf13/afero"
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
@@ -174,6 +175,18 @@ func (r *RootCmd) ssh() *serpent.Command {
 			defer stop()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
+
+			// When running as a ProxyCommand (stdio mode), monitor the parent process
+			// and exit if it dies to avoid leaving orphaned processes. This is
+			// particularly important when editors like VSCode/Cursor spawn SSH
+			// connections and then crash or are killed - we don't want zombie
+			// `coder ssh` processes accumulating.
+			// Note: using gopsutil to check the parent process as this handles
+			// windows processes as well in a standard way.
+			if stdio {
+				ctx, cancel = watchParentContext(ctx, quartz.NewReal(), int32(os.Getppid()), process.PidExistsWithContext)
+				defer cancel()
+			}
 
 			// Prevent unnecessary logs from the stdlib from messing up the TTY.
 			// See: https://github.com/coder/coder/issues/13144
@@ -1661,4 +1674,34 @@ func normalizeWorkspaceInput(input string) string {
 	default:
 		return input // Fallback
 	}
+}
+
+// watchParentContext returns a context that is canceled when the parent process
+// dies. It polls using the provided clock and checks if the parent is alive
+// using the provided pidExists function.
+func watchParentContext(ctx context.Context, clock quartz.Clock, originalPPID int32, pidExists func(context.Context, int32) (bool, error)) (context.Context, context.CancelFunc) {
+	childCtx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		ticker := clock.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-childCtx.Done():
+				return
+			case <-ticker.C:
+				alive, err := pidExists(childCtx, originalPPID)
+				// If we get an error checking the parent process (e.g., permission
+				// denied, the process is in an unknown state), we assume the parent
+				// is still alive to avoid disrupting the SSH connection. We only
+				// cancel when we definitively know the parent is gone (alive=false, err=nil).
+				if !alive && err == nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	return childCtx, cancel
 }

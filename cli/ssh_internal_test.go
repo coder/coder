@@ -312,6 +312,124 @@ type fakeCloser struct {
 	err    error
 }
 
+func TestWatchParentContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CancelsWhenParentDies", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker()
+		defer trap.Close()
+
+		parentAlive := true
+		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
+			return parentAlive, nil
+		})
+		defer cancel()
+
+		// Wait for the ticker to be created
+		trap.MustWait(ctx).MustRelease(ctx)
+
+		// Simulate parent death
+		parentAlive = false
+
+		// Advance clock to trigger the check
+		mClock.AdvanceNext()
+
+		// The context should be cancelled
+		select {
+		case <-childCtx.Done():
+			// Expected - context was cancelled because parent is not alive
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("context was not cancelled when parent died")
+		}
+	})
+
+	t.Run("DoesNotCancelWhenParentAlive", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker()
+		defer trap.Close()
+
+		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
+			return true, nil // Parent always alive
+		})
+		defer cancel()
+
+		// Wait for the ticker to be created
+		trap.MustWait(ctx).MustRelease(ctx)
+
+		// Advance clock several times
+		for range 3 {
+			mClock.AdvanceNext()
+		}
+
+		// Context should NOT be cancelled since parent is still alive
+		select {
+		case <-childCtx.Done():
+			t.Fatal("context was cancelled even though parent is still alive")
+		default:
+			// Expected - context stays valid
+		}
+	})
+
+	t.Run("RespectsParentContext", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelParent := context.WithCancel(context.Background())
+		mClock := quartz.NewMock(t)
+
+		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
+			return true, nil
+		})
+		defer cancel()
+
+		// Cancel the parent context
+		cancelParent()
+
+		// Child context should also be cancelled
+		select {
+		case <-childCtx.Done():
+			// Expected
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("child context was not cancelled when parent context was cancelled")
+		}
+	})
+
+	t.Run("DoesNotCancelOnError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker()
+		defer trap.Close()
+
+		// Simulate an error checking parent status (e.g., permission denied).
+		// We should not cancel the context in this case to avoid disrupting
+		// the SSH connection.
+		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
+			return false, xerrors.New("permission denied")
+		})
+		defer cancel()
+
+		// Wait for the ticker to be created
+		trap.MustWait(ctx).MustRelease(ctx)
+
+		// Advance clock several times
+		for range 3 {
+			mClock.AdvanceNext()
+		}
+
+		// Context should NOT be cancelled since we got an error (not a definitive "not alive")
+		select {
+		case <-childCtx.Done():
+			t.Fatal("context was cancelled even though pidExists returned an error")
+		default:
+			// Expected - context stays valid
+		}
+	})
+}
+
 func (c *fakeCloser) Close() error {
 	*c.closes = append(*c.closes, c)
 	return c.err
