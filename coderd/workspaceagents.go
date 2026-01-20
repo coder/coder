@@ -40,7 +40,9 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	strutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -395,6 +397,32 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 
 	// Notify on state change to Working/Idle for AI tasks
 	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace, workspaceAgent)
+
+	// Determine if we should bump workspace activity based on state transitions.
+	// We bump the deadline to prevent auto-stop (task pause) during AI activity,
+	// except when transitioning from terminal states (complete/failure) to
+	// terminal or idle states, which indicates the work is done.
+	shouldBump := true
+	terminalStates := []database.WorkspaceAppStatusState{
+		database.WorkspaceAppStatusStateComplete,
+		database.WorkspaceAppStatusStateFailure,
+	}
+	if latestAppStatus.ID != uuid.Nil {
+		prevState := latestAppStatus.State
+		newState := database.WorkspaceAppStatusState(req.State)
+
+		// Skip bump for terminal to terminal or terminal to idle.
+		if slice.Contains(terminalStates, prevState) &&
+			(slice.Contains(terminalStates, newState) || newState == database.WorkspaceAppStatusStateIdle) {
+			shouldBump = false
+		}
+	}
+	if shouldBump {
+		// We pass time.Time{} for nextAutostart since we don't have access to
+		// TemplateScheduleStore here. The activity bump logic handles this by
+		// defaulting to the template's activity_bump duration (typically 1 hour).
+		workspacestats.ActivityBumpWorkspace(ctx, api.Logger, api.Database, workspace.ID, time.Time{})
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
