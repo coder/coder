@@ -531,15 +531,18 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 	}
 
 	// Then: the circuit breaker metrics should reflect that both circuits opened.
-	// With 2 providers each tripping, we expect at least 2 trips total across both providers.
-	require.Eventually(t, func() bool {
-		// CollectAndCount returns total number of metric series (one per provider).
-		count := promtest.CollectAndCount(metrics.CircuitBreakerTrips)
-		return count >= 2
-	}, testutil.WaitShort, testutil.IntervalFast, "circuit breakers should have tripped for both providers")
 
-	// Verify circuit breaker state metrics exist for both providers.
-	stateCount := promtest.CollectAndCount(metrics.CircuitBreakerState)
-	t.Logf("Circuit breaker state metrics count: %d", stateCount)
-	require.GreaterOrEqual(t, stateCount, 2, "circuit breaker state should be tracked for both providers")
+	// OpenAI circuit breaker should have tripped (state=1 means open).
+	openaiTrips := promtest.ToFloat64(metrics.CircuitBreakerTrips.WithLabelValues("openai", "/v1/chat/completions", "gpt-4"))
+	require.Equal(t, 1.0, openaiTrips, "OpenAI CircuitBreakerTrips should be 1")
+
+	openaiState := promtest.ToFloat64(metrics.CircuitBreakerState.WithLabelValues("openai", "/v1/chat/completions", "gpt-4"))
+	require.Equal(t, 1.0, openaiState, "OpenAI CircuitBreakerState should be 1 (open)")
+
+	// Anthropic circuit breaker should have tripped.
+	anthropicTrips := promtest.ToFloat64(metrics.CircuitBreakerTrips.WithLabelValues("anthropic", "/v1/messages", "claude-3-5-sonnet-20241022"))
+	require.Equal(t, 1.0, anthropicTrips, "Anthropic CircuitBreakerTrips should be 1")
+
+	anthropicState := promtest.ToFloat64(metrics.CircuitBreakerState.WithLabelValues("anthropic", "/v1/messages", "claude-3-5-sonnet-20241022"))
+	require.Equal(t, 1.0, anthropicState, "Anthropic CircuitBreakerState should be 1 (open)")
 }
