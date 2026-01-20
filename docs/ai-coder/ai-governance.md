@@ -1,6 +1,6 @@
 # AI Governance Add-On (Premium)
 
-While you can run any AI tool (such as [Cursor](https://registry.coder.com/modules/coder/cursor) or [Claude Code](https://registry.coder.com/modules/coder/claude-code)) inside Coder Workspaces, many enterprises need additional observability, management, and policy for secure and productive AI rollouts.
+Coder Workspaces already lets teams run AI tools like [Cursor](https://registry.coder.com/modules/coder/cursor) and [Claude Code](https://registry.coder.com/modules/coder/claude-code) inside their development environments. As adoption grows, many enterprises also need observability, management, and policy controls to support secure and auditable AI rollouts.
 
 Coder’s AI Governance Add-On for Premium licenses includes a set of features that help organizations safely roll out AI tooling at scale:
 
@@ -8,15 +8,19 @@ Coder’s AI Governance Add-On for Premium licenses includes a set of features t
 - [Boundaries](./boundary/agent-boundary.md): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
 - [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured): Additional allowance of Agent Workspace Builds for continued use of Coder Tasks.
 
-## What this means for Coder Premium customers
+## GA status and availability
 
-As of Coder’s February 2026 release (v2.30), Coder AI Bridge and Agent Boundaries enter General Availability, and a warning will appear for deployments with these features enabled. In v2.30, this is a soft warning, but a feature version of Coder will restrict usage.
+Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are generally available as part of the AI Governance Add-On.
 
-You can [contact your account team](https://coder.com/contact) for more information about pricing or a trial license to evaluate these features.
+If you’ve been experimenting with these features in earlier releases, you’ll see a notification banner in your deployment in v2.30. This banner is a reminder that these features have moved out of beta and are now included with the AI Governance Add-On.
 
-## Who this add-on is for
+In v2.30, this notification is informational only. A future Coder release will require the add-on to continue using AI Bridge and Agent Boundaries.
 
-Coder already provides a vendor-neutral platform for development environments. The AI Governance Add-On is for teams that want to extend that platform to support AI-powered IDEs and coding agents in a controlled, observable way.
+To learn more about enabling the AI Governance Add-On, pricing, or trial options, reach out to your [Coder account team](https://coder.com/contact/sales).
+
+## Who should use the AI Governance Add-On
+
+The AI Governance Add-On is for teams that want to extend that platform to support AI-powered IDEs and coding agents in a controlled, observable way.
 
 It’s a good fit if you’re:
 
@@ -50,6 +54,6 @@ In the future, additional capabilities for managing agents (beyond Coder Tasks) 
 
 ### Agent Workspace Build Limits
 
-Without proper controls and sandboxing, it is not recommended to open up Coder Tasks to a large audience in the enterprise. Coder Premium deployments have up to 1,000 Agent Workspace Builds, primarily for proof-of-concept use and basic workflows.
+Without proper controls and sandboxing, it is not recommended to open up Coder Tasks to a large audience in the enterprise. Coder Premium deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept use and basic workflows.
 
 Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of Agent Workspace Builds for automated workflows, along with limits that scale proportionately with user count. If you are approaching your deployment-wide limits, [contact us](https://coder.com/contact) to discuss your use case with our team.
