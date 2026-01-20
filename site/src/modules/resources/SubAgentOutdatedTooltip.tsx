@@ -33,9 +33,15 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 		return null;
 	}
 
+	// A devcontainer has a pre-created sub agent if subagent_id is present and
+	// non-empty. These are defined in Terraform and cannot be rebuilt from the UI.
+	const hasPrecreatedSubagent = Boolean(devcontainer.subagent_id);
+
 	const title = "Dev Container Outdated";
 	const opener = "This Dev Container is outdated.";
-	const text = `${opener} This can happen if you modify your devcontainer.json file after the Dev Container has been created. To fix this, you can rebuild the Dev Container.`;
+	const text = hasPrecreatedSubagent
+		? `${opener} This dev container is managed by your template. Update the template to apply changes.`
+		: `${opener} This can happen if you modify your devcontainer.json file after the Dev Container has been created. To fix this, you can rebuild the Dev Container.`;
 
 	return (
 		<HelpTooltip>
@@ -51,15 +57,17 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 						<HelpTooltipText>{text}</HelpTooltipText>
 					</div>
 
-					<HelpTooltipLinksGroup>
-						<HelpTooltipAction
-							icon={RotateCcwIcon}
-							onClick={onUpdate}
-							ariaLabel="Rebuild Dev Container"
-						>
-							Rebuild Dev Container
-						</HelpTooltipAction>
-					</HelpTooltipLinksGroup>
+					{!hasPrecreatedSubagent && (
+						<HelpTooltipLinksGroup>
+							<HelpTooltipAction
+								icon={RotateCcwIcon}
+								onClick={onUpdate}
+								ariaLabel="Rebuild Dev Container"
+							>
+								Rebuild Dev Container
+							</HelpTooltipAction>
+						</HelpTooltipLinksGroup>
+					)}
 				</Stack>
 			</HelpTooltipContent>
 		</HelpTooltip>
