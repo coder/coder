@@ -198,12 +198,34 @@ jobs:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
           echo "Waiting for task to complete..."
+          echo "Task name: ${TASK_NAME}"
+
+          if [[ -z "${TASK_NAME}" ]]; then
+            echo "::error::TASK_NAME is empty"
+            exit 1
+          fi
+
           MAX_WAIT=600  # 10 minutes
           WAITED=0
           POLL_INTERVAL=10
 
           while [[ $WAITED -lt $MAX_WAIT ]]; do
-            STATUS_JSON=$(coder exp task status "${TASK_NAME}" -o json 2>/dev/null || echo '{}')
+            # Get task status
+            RAW_OUTPUT=$(coder exp task status "${TASK_NAME}" -o json 2>&1)
+            STATUS_JSON=$(echo "$RAW_OUTPUT" | grep -v "^version mismatch\|^download v")
+
+            # Debug: show first poll's raw output
+            if [[ $WAITED -eq 0 ]]; then
+              echo "::debug::Raw status output: ${RAW_OUTPUT:0:200}..."
+            fi
+
+            if [[ -z "$STATUS_JSON" ]] || ! echo "$STATUS_JSON" | jq -e . >/dev/null 2>&1; then
+              echo "[${WAITED}s] Waiting for task status..."
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
+              continue
+            fi
+
             TASK_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
             TASK_MESSAGE=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
             WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
