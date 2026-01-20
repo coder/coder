@@ -846,8 +846,8 @@ github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5 h1:BjkPE3785EwP
 github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5/go.mod h1:jtAfVaU/2cu1+wdSRPWE2c1N2qeAA3K4RH9pYgqwets=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
-github.com/cenkalti/backoff/v5 v5.0.2 h1:rIfFVxEf1QsI7E1ZHfp/B4DF/6QBAUhmgkxc0H7Zss8=
-github.com/cenkalti/backoff/v5 v5.0.2/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
+github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
+github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/census-instrumentation/opencensus-proto v0.3.0/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/census-instrumentation/opencensus-proto v0.4.1/go.mod h1:4T9NM4+4Vw91VeyqjLS6ao50K5bOcLKN6Q42XnYaRYw=
@@ -915,8 +915,8 @@ github.com/coder/aibridge v0.1.4-0.20251112094427-5899d515872f h1:uaBJAuI2t7Al+Q
 github.com/coder/aibridge v0.1.4-0.20251112094427-5899d515872f/go.mod h1:GWc0Owtlzz5iMHosDm6FhbO+SoG5W+VeOKyP9p9g9ZM=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
-github.com/coder/boundary v1.0.1-0.20250925154134-55a44f2a7945 h1:hDUf02kTX8EGR3+5B+v5KdYvORs4YNfDPci0zCs+pC0=
-github.com/coder/boundary v1.0.1-0.20250925154134-55a44f2a7945/go.mod h1:d1AMFw81rUgrGHuZzWdPNhkY0G8w7pvLNLYF0e3ceC4=
+github.com/coder/boundary v0.0.1-alpha h1:6shUQ2zkrWrfbgVcqWvpV2ibljOQvPvYqTctWBkKoUA=
+github.com/coder/boundary v0.0.1-alpha/go.mod h1:d1AMFw81rUgrGHuZzWdPNhkY0G8w7pvLNLYF0e3ceC4=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwuWwPHPYoCZ/KLAjHv5g4h2MS4f2/MTI=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41/go.mod h1:I9ULxr64UaOSUv7hcb3nX4kowodJCVS7vt7VVJk/kW4=
 github.com/coder/clistat v1.1.1 h1:T45dlwr7fSmjLPGLk7QRKgynnDeMOPoraHSGtLIHY3s=
