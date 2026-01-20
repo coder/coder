@@ -203,34 +203,12 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{!workspace.health.healthy && (
-							<Alert severity="warning" prominent>
-								<AlertTitle>Workspace is unhealthy</AlertTitle>
-								<AlertDetail>
-									<p>
-										Your workspace is running but{" "}
-										{workspace.health.failing_agents.length > 1
-											? `${workspace.health.failing_agents.length} agents are unhealthy`
-											: "1 agent is unhealthy"}
-										.{" "}
-										{troubleshootingURL && (
-											<Link href={troubleshootingURL} target="_blank">
-												View docs to troubleshoot
-											</Link>
-										)}
-									</p>
-									{hasActions && (
-										<div className="flex items-center gap-2">
-											{permissions.updateWorkspace && (
-												<NotificationActionButton
-													onClick={() => handleRestart()}
-												>
-													Restart
-												</NotificationActionButton>
-											)}
-										</div>
-									)}
-								</AlertDetail>
-							</Alert>
+							<UnhealthyWorkspaceAlert
+								workspace={workspace}
+								troubleshootingURL={troubleshootingURL}
+								canUpdate={permissions.updateWorkspace}
+								onRestart={() => handleRestart()}
+							/>
 						)}
 
 						{transitionStats !== undefined && (
@@ -287,6 +265,49 @@ export const Workspace: FC<WorkspaceProps> = ({
 				</div>
 			</div>
 		</div>
+	);
+};
+
+interface UnhealthyWorkspaceAlertProps {
+	workspace: TypesGen.Workspace;
+	troubleshootingURL: string | undefined;
+	canUpdate: boolean;
+	onRestart: () => void;
+}
+
+const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
+	workspace,
+	troubleshootingURL,
+	canUpdate,
+	onRestart,
+}) => {
+	const failingAgentCount = workspace.health.failing_agents.length;
+
+	return (
+		<Alert severity="warning" prominent>
+			<AlertTitle>Workspace is unhealthy</AlertTitle>
+			<AlertDetail>
+				<p>
+					Your workspace is running but{" "}
+					{failingAgentCount > 1
+						? `${failingAgentCount} agents are unhealthy`
+						: "1 agent is unhealthy"}
+					.{" "}
+					{troubleshootingURL && (
+						<Link href={troubleshootingURL} target="_blank">
+							View docs to troubleshoot
+						</Link>
+					)}
+				</p>
+				{canUpdate && (
+					<div className="flex items-center gap-2">
+						<NotificationActionButton onClick={onRestart}>
+							Restart
+						</NotificationActionButton>
+					</div>
+				)}
+			</AlertDetail>
+		</Alert>
 	);
 };
 
