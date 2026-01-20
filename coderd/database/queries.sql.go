@@ -1980,6 +1980,116 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const deleteBoundaryActiveUsersBefore = `-- name: DeleteBoundaryActiveUsersBefore :exec
+DELETE FROM boundary_active_users WHERE recorded_at < $1
+`
+
+func (q *sqlQuerier) DeleteBoundaryActiveUsersBefore(ctx context.Context, recordedAt time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteBoundaryActiveUsersBefore, recordedAt)
+	return err
+}
+
+const deleteBoundaryActiveWorkspacesBefore = `-- name: DeleteBoundaryActiveWorkspacesBefore :exec
+DELETE FROM boundary_active_workspaces WHERE recorded_at < $1
+`
+
+func (q *sqlQuerier) DeleteBoundaryActiveWorkspacesBefore(ctx context.Context, recordedAt time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteBoundaryActiveWorkspacesBefore, recordedAt)
+	return err
+}
+
+const getBoundaryActiveUsersSince = `-- name: GetBoundaryActiveUsersSince :many
+SELECT DISTINCT user_id FROM boundary_active_users
+WHERE recorded_at > $1
+`
+
+func (q *sqlQuerier) GetBoundaryActiveUsersSince(ctx context.Context, recordedAt time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getBoundaryActiveUsersSince, recordedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBoundaryActiveWorkspacesSince = `-- name: GetBoundaryActiveWorkspacesSince :many
+SELECT DISTINCT workspace_id, template_id FROM boundary_active_workspaces
+WHERE recorded_at > $1
+`
+
+type GetBoundaryActiveWorkspacesSinceRow struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	TemplateID  uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) GetBoundaryActiveWorkspacesSince(ctx context.Context, recordedAt time.Time) ([]GetBoundaryActiveWorkspacesSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getBoundaryActiveWorkspacesSince, recordedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetBoundaryActiveWorkspacesSinceRow
+	for rows.Next() {
+		var i GetBoundaryActiveWorkspacesSinceRow
+		if err := rows.Scan(&i.WorkspaceID, &i.TemplateID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertBoundaryActiveUser = `-- name: InsertBoundaryActiveUser :exec
+INSERT INTO boundary_active_users (user_id, recorded_at)
+VALUES ($1, $2)
+`
+
+type InsertBoundaryActiveUserParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	RecordedAt time.Time `db:"recorded_at" json:"recorded_at"`
+}
+
+func (q *sqlQuerier) InsertBoundaryActiveUser(ctx context.Context, arg InsertBoundaryActiveUserParams) error {
+	_, err := q.db.ExecContext(ctx, insertBoundaryActiveUser, arg.UserID, arg.RecordedAt)
+	return err
+}
+
+const insertBoundaryActiveWorkspace = `-- name: InsertBoundaryActiveWorkspace :exec
+INSERT INTO boundary_active_workspaces (workspace_id, template_id, recorded_at)
+VALUES ($1, $2, $3)
+`
+
+type InsertBoundaryActiveWorkspaceParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	TemplateID  uuid.UUID `db:"template_id" json:"template_id"`
+	RecordedAt  time.Time `db:"recorded_at" json:"recorded_at"`
+}
+
+func (q *sqlQuerier) InsertBoundaryActiveWorkspace(ctx context.Context, arg InsertBoundaryActiveWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, insertBoundaryActiveWorkspace, arg.WorkspaceID, arg.TemplateID, arg.RecordedAt)
+	return err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count

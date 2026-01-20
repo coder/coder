@@ -1663,6 +1663,20 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteBoundaryActiveUsersBefore(ctx context.Context, recordedAt time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteBoundaryActiveUsersBefore(ctx, recordedAt)
+}
+
+func (q *querier) DeleteBoundaryActiveWorkspacesBefore(ctx context.Context, recordedAt time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteBoundaryActiveWorkspacesBefore(ctx, recordedAt)
+}
+
 func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -2249,6 +2263,20 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetBoundaryActiveUsersSince(ctx context.Context, recordedAt time.Time) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetBoundaryActiveUsersSince(ctx, recordedAt)
+}
+
+func (q *querier) GetBoundaryActiveWorkspacesSince(ctx context.Context, recordedAt time.Time) ([]database.GetBoundaryActiveWorkspacesSinceRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetBoundaryActiveWorkspacesSince(ctx, recordedAt)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -4151,6 +4179,20 @@ func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.U
 
 func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
+}
+
+func (q *querier) InsertBoundaryActiveUser(ctx context.Context, arg database.InsertBoundaryActiveUserParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertBoundaryActiveUser(ctx, arg)
+}
+
+func (q *querier) InsertBoundaryActiveWorkspace(ctx context.Context, arg database.InsertBoundaryActiveWorkspaceParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertBoundaryActiveWorkspace(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {

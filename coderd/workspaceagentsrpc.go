@@ -130,6 +130,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		AgentID:        workspaceAgent.ID,
 		OwnerID:        workspace.OwnerID,
 		WorkspaceID:    workspace.ID,
+		TemplateID:     workspace.TemplateID,
 		OrganizationID: workspace.OrganizationID,
 
 		AuthenticatedCtx:                  ctx,
@@ -146,6 +147,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
+		BoundaryTelemetryCollector:        api.BoundaryTelemetryCollector,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,

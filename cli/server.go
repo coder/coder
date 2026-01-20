@@ -865,6 +865,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("remove secrets from deployment values: %w", err)
 			}
+
+			// Create boundary telemetry collector for tracking boundary feature usage.
+			boundaryTelemetryCollector := telemetry.NewBoundaryTelemetryCollector(
+				options.Database,
+				logger.Named("boundary_telemetry"),
+			)
+			options.BoundaryTelemetryCollector = boundaryTelemetryCollector
+
 			telemetryReporter, err := telemetry.New(telemetry.Options{
 				Disabled:         !vals.Telemetry.Enable.Value(),
 				BuiltinPostgres:  builtinPostgres,
@@ -873,8 +881,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Experiments:      coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value()),
 				Logger:           logger.Named("telemetry"),
 				URL:              vals.Telemetry.URL.Value(),
-				Tunnel:           tunnel != nil,
-				DeploymentConfig: deploymentConfigWithoutSecrets,
+				Tunnel:                     tunnel != nil,
+				DeploymentConfig:           deploymentConfigWithoutSecrets,
+				BoundaryTelemetryCollector: boundaryTelemetryCollector,
 				ParseLicenseJWT: func(lic *telemetry.License) error {
 					// This will be nil when running in AGPL-only mode.
 					if options.ParseLicenseClaims == nil {

@@ -34,6 +34,9 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
+	// Boundary telemetry data only needs to persist for 24 hours since snapshots
+	// are taken every 30 minutes.
+	maxBoundaryTelemetryAge = 24 * time.Hour
 )
 
 // New creates a new periodically purging database instance.
@@ -125,6 +128,14 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
 			if err := tx.DeleteOldTelemetryLocks(ctx, deleteOldTelemetryLocksBefore); err != nil {
 				return xerrors.Errorf("failed to delete old telemetry locks: %w", err)
+			}
+
+			deleteOldBoundaryTelemetryBefore := start.Add(-maxBoundaryTelemetryAge)
+			if err := tx.DeleteBoundaryActiveUsersBefore(ctx, deleteOldBoundaryTelemetryBefore); err != nil {
+				return xerrors.Errorf("failed to delete old boundary active users: %w", err)
+			}
+			if err := tx.DeleteBoundaryActiveWorkspacesBefore(ctx, deleteOldBoundaryTelemetryBefore); err != nil {
+				return xerrors.Errorf("failed to delete old boundary active workspaces: %w", err)
 			}
 
 			deleteOldAuditLogConnectionEventsBefore := start.Add(-maxAuditLogConnectionEventAge)

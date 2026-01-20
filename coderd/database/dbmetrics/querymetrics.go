@@ -336,6 +336,22 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
+func (m queryMetricsStore) DeleteBoundaryActiveUsersBefore(ctx context.Context, recordedAt time.Time) error {
+	start := time.Now()
+	r0 := m.s.DeleteBoundaryActiveUsersBefore(ctx, recordedAt)
+	m.queryLatencies.WithLabelValues("DeleteBoundaryActiveUsersBefore").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteBoundaryActiveUsersBefore").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteBoundaryActiveWorkspacesBefore(ctx context.Context, recordedAt time.Time) error {
+	start := time.Now()
+	r0 := m.s.DeleteBoundaryActiveWorkspacesBefore(ctx, recordedAt)
+	m.queryLatencies.WithLabelValues("DeleteBoundaryActiveWorkspacesBefore").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteBoundaryActiveWorkspacesBefore").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteCoordinator(ctx, id)
@@ -924,6 +940,22 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationUserRoles").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetBoundaryActiveUsersSince(ctx context.Context, recordedAt time.Time) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetBoundaryActiveUsersSince(ctx, recordedAt)
+	m.queryLatencies.WithLabelValues("GetBoundaryActiveUsersSince").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetBoundaryActiveUsersSince").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetBoundaryActiveWorkspacesSince(ctx context.Context, recordedAt time.Time) ([]database.GetBoundaryActiveWorkspacesSinceRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetBoundaryActiveWorkspacesSince(ctx, recordedAt)
+	m.queryLatencies.WithLabelValues("GetBoundaryActiveWorkspacesSince").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetBoundaryActiveWorkspacesSince").Inc()
 	return r0, r1
 }
 
@@ -2725,6 +2757,22 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	m.queryLatencies.WithLabelValues("InsertAuditLog").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAuditLog").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) InsertBoundaryActiveUser(ctx context.Context, arg database.InsertBoundaryActiveUserParams) error {
+	start := time.Now()
+	r0 := m.s.InsertBoundaryActiveUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertBoundaryActiveUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertBoundaryActiveUser").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) InsertBoundaryActiveWorkspace(ctx context.Context, arg database.InsertBoundaryActiveWorkspaceParams) error {
+	start := time.Now()
+	r0 := m.s.InsertBoundaryActiveWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertBoundaryActiveWorkspace").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertBoundaryActiveWorkspace").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {

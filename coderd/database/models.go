@@ -3693,6 +3693,19 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+type BoundaryActiveUser struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	RecordedAt time.Time `db:"recorded_at" json:"recorded_at"`
+}
+
+type BoundaryActiveWorkspace struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	TemplateID  uuid.UUID `db:"template_id" json:"template_id"`
+	RecordedAt  time.Time `db:"recorded_at" json:"recorded_at"`
+}
+
 type ConnectionLog struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`

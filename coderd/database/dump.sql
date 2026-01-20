@@ -1182,6 +1182,19 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE boundary_active_users (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE boundary_active_workspaces (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    workspace_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
     connect_time timestamp with time zone NOT NULL,
@@ -3019,6 +3032,12 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY boundary_active_users
+    ADD CONSTRAINT boundary_active_users_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY boundary_active_workspaces
+    ADD CONSTRAINT boundary_active_workspaces_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
 
@@ -3349,6 +3368,14 @@ CREATE INDEX idx_audit_log_resource_id ON audit_logs USING btree (resource_id);
 CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
+
+CREATE INDEX idx_boundary_active_users_recorded_at ON boundary_active_users USING btree (recorded_at);
+
+CREATE INDEX idx_boundary_active_users_user_id ON boundary_active_users USING btree (user_id);
+
+CREATE INDEX idx_boundary_active_workspaces_recorded_at ON boundary_active_workspaces USING btree (recorded_at);
+
+CREATE INDEX idx_boundary_active_workspaces_workspace_id ON boundary_active_workspaces USING btree (workspace_id);
 
 CREATE INDEX idx_connection_logs_connect_time_desc ON connection_logs USING btree (connect_time DESC);
 

@@ -58,8 +58,9 @@ type Options struct {
 	BuiltinPostgres  bool
 	Tunnel           bool
 
-	SnapshotFrequency time.Duration
-	ParseLicenseJWT   func(lic *License) error
+	SnapshotFrequency          time.Duration
+	ParseLicenseJWT            func(lic *License) error
+	BoundaryTelemetryCollector *BoundaryTelemetryCollector
 }
 
 // New constructs a reporter for telemetry data.
@@ -291,6 +292,14 @@ func (r *remoteReporter) reportWithDeployment() {
 		r.options.Logger.Debug(r.ctx, "update deployment", slog.Error(err))
 		return
 	}
+
+	// Flush boundary telemetry data to the database before creating the snapshot.
+	if r.options.BoundaryTelemetryCollector != nil {
+		if err := r.options.BoundaryTelemetryCollector.Flush(r.ctx); err != nil {
+			r.options.Logger.Error(r.ctx, "failed to flush boundary telemetry", slog.Error(err))
+		}
+	}
+
 	snapshot, err := r.createSnapshot()
 	if errors.Is(err, context.Canceled) {
 		return
@@ -757,6 +766,33 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			return xerrors.Errorf("generate AI Bridge interceptions telemetry summaries: %w", err)
 		}
 		snapshot.AIBridgeInterceptionsSummaries = summaries
+		return nil
+	})
+	eg.Go(func() error {
+		// Query boundary active users from the last snapshot interval.
+		since := dbtime.Time(r.options.Clock.Now().Add(-r.options.SnapshotFrequency))
+		users, err := r.options.Database.GetBoundaryActiveUsersSince(ctx, since)
+		if err != nil {
+			return xerrors.Errorf("get boundary active users: %w", err)
+		}
+		snapshot.BoundaryActiveUsers = make([]BoundaryActiveUser, 0, len(users))
+		for _, userID := range users {
+			snapshot.BoundaryActiveUsers = append(snapshot.BoundaryActiveUsers, BoundaryActiveUser{
+				ID: userID,
+			})
+		}
+
+		workspaces, err := r.options.Database.GetBoundaryActiveWorkspacesSince(ctx, since)
+		if err != nil {
+			return xerrors.Errorf("get boundary active workspaces: %w", err)
+		}
+		snapshot.BoundaryActiveWorkspaces = make([]BoundaryActiveWorkspace, 0, len(workspaces))
+		for _, ws := range workspaces {
+			snapshot.BoundaryActiveWorkspaces = append(snapshot.BoundaryActiveWorkspaces, BoundaryActiveWorkspace{
+				ID:         ws.WorkspaceID,
+				TemplateID: ws.TemplateID,
+			})
+		}
 		return nil
 	})
 
@@ -1309,6 +1345,8 @@ type Snapshot struct {
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
+	BoundaryActiveUsers                  []BoundaryActiveUser                  `json:"boundary_active_users"`
+	BoundaryActiveWorkspaces             []BoundaryActiveWorkspace             `json:"boundary_active_workspaces"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1993,6 +2031,17 @@ type AIBridgeInterceptionsSummary struct {
 
 	ToolCallsCount             AIBridgeInterceptionsSummaryToolCallsCount `json:"tool_calls_count"`
 	InjectedToolCallErrorCount int64                                      `json:"injected_tool_call_error_count"`
+}
+
+// BoundaryActiveUser represents a user who has used the boundary feature.
+type BoundaryActiveUser struct {
+	ID uuid.UUID `json:"id"`
+}
+
+// BoundaryActiveWorkspace represents a workspace that has used the boundary feature.
+type BoundaryActiveWorkspace struct {
+	ID         uuid.UUID `json:"id"`
+	TemplateID uuid.UUID `json:"template_id"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

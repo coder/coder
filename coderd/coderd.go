@@ -197,6 +197,7 @@ type Options struct {
 	DERPMapUpdateFrequency         time.Duration
 	NetworkTelemetryBatchFrequency time.Duration
 	NetworkTelemetryBatchMaxSize   int
+	BoundaryTelemetryCollector     *telemetry.BoundaryTelemetryCollector
 	SwaggerEndpoint                bool
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]

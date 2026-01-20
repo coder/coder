@@ -8,14 +8,23 @@ import (
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/telemetry"
 )
 
 type BoundaryLogsAPI struct {
-	Log         slog.Logger
-	WorkspaceID uuid.UUID
+	Log                        slog.Logger
+	OwnerID                    uuid.UUID
+	WorkspaceID                uuid.UUID
+	TemplateID                 uuid.UUID
+	BoundaryTelemetryCollector *telemetry.BoundaryTelemetryCollector
 }
 
 func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
+	// Record boundary usage for telemetry if we have any logs.
+	if len(req.Logs) > 0 && a.BoundaryTelemetryCollector != nil {
+		a.BoundaryTelemetryCollector.RecordBoundaryUsage(a.OwnerID, a.WorkspaceID, a.TemplateID)
+	}
+
 	for _, l := range req.Logs {
 		var logTime time.Time
 		if l.Time != nil {
