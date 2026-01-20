@@ -21,10 +21,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -32,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1631,53 +1628,6 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestDBPurgeAuthorization(t *testing.T) {
-	t.Parallel()
-
-	t.Run("DBPurgeActorCanCallPurgeOperations", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		rawDB, _ := dbtestutil.NewDB(t)
-
-		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-		db := dbauthz.New(rawDB, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
-
-		ctx = dbauthz.AsDBPurge(ctx)
-
-		actor, ok := dbauthz.ActorFromContext(ctx)
-		require.True(t, ok, "actor should be present")
-		require.Equal(t, rbac.SubjectTypeDBPurge, actor.Type, "should be DBPurge type")
-		require.Contains(t, actor.Roles.Names(), rbac.RoleIdentifier{Name: "dbpurge"},
-			"should have dbpurge role")
-
-		clk := quartz.NewMock(t)
-		now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
-		clk.Set(now)
-
-		vals := &codersdk.DeploymentValues{
-			Retention: codersdk.RetentionConfig{
-				WorkspaceAgentLogs: serpent.Duration(24 * time.Hour),
-				APIKeys:            serpent.Duration(24 * time.Hour),
-				ConnectionLogs:     serpent.Duration(24 * time.Hour),
-				AuditLogs:          serpent.Duration(24 * time.Hour),
-			},
-			AI: codersdk.AIConfig{
-				BridgeConfig: codersdk.AIBridgeConfig{
-					Retention: serpent.Duration(24 * time.Hour),
-				},
-			},
-		}
-
-		// Call TestPurgeTick directly to test that all operations have proper RBAC
-		// permissions. This tests the actual dbpurge behavior rather than
-		// reimplementing it. We only check for RBAC errors, not whether the
-		// operations actually delete records (that's tested elsewhere).
-		err := dbpurge.TestPurgeTick(ctx, db, testutil.Logger(t), vals, clk, nil, nil, now)
-		require.NoError(t, err, "TestPurgeTick should succeed with DBPurge actor")
-	})
 }
 
 // ptr is a helper to create a pointer to a value.

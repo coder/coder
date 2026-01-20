@@ -253,16 +253,3 @@ func (i *instance) Close() error {
 	<-i.closed
 	return nil
 }
-
-// TestPurgeTick is a test helper that creates an instance and calls purgeTick.
-// This is exported for testing purposes only.
-func TestPurgeTick(ctx context.Context, db database.Store, logger slog.Logger, vals *codersdk.DeploymentValues, clk quartz.Clock, iterationDuration *prometheus.HistogramVec, recordsPurged *prometheus.CounterVec, start time.Time) error {
-	inst := &instance{
-		logger:            logger,
-		vals:              vals,
-		clk:               clk,
-		iterationDuration: iterationDuration,
-		recordsPurged:     recordsPurged,
-	}
-	return inst.purgeTick(ctx, db, start)
-}
