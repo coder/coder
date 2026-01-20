@@ -798,6 +798,15 @@ aibridgeproxy:
   domain_allowlist:
     - api.anthropic.com
     - api.openai.com
+  # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
+  # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+  # (default: <unset>, type: string)
+  upstream_proxy: ""
+  # Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS
+  # connection. Only needed for HTTPS upstream proxies with certificates not trusted
+  # by the system. If not provided, the system certificate pool is used.
+  # (default: <unset>, type: string)
+  upstream_proxy_ca: ""
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

@@ -17,4 +17,4 @@ coder organizations create [flags] <organization name>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

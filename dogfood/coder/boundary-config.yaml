@@ -1,16 +1,14 @@
 allowlist:
-  # specified in claude-code module as well (effectively a duplicate); needed for basic functionality of claude-code agent
-  - domain=anthropic.com
-  - domain=registry.npmjs.org
-  - domain=sentry.io
-  - domain=claude.ai
+  # Test domains
+  - method=GET domain=typicode.com
+  - method=GET domain=*.typicode.com
+
+  # Coder Dogfood Deployment
   - domain=dev.coder.com
 
-  # test domains
-  - method=GET domain=typicode.com
-
-  # domain used in coder task workspaces
+  # Domain used in coder workspaces
   - method=POST domain=http-intake.logs.datadoghq.com
+  - method=POST domain=http-intake.logs.us5.datadoghq.com
 
   # Default allowed domains from Claude Code on the web
   # Source: https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains
@@ -123,8 +121,31 @@ allowlist:
   - domain=index.golang.org
   - domain=golang.org
   - domain=www.golang.org
+  - domain=go.dev
+  - domain=dl.google.com
   - domain=goproxy.io
   - domain=pkg.go.dev
+
+  # Go Module Domains (from go.mod)
+  - domain=cdr.dev
+  - domain=cel.dev
+  - domain=dario.cat
+  - domain=git.sr.ht
+  - domain=go.mozilla.org
+  - domain=go.nhat.io
+  - domain=go.opentelemetry.io
+  - domain=go.uber.org
+  - domain=go.yaml.in
+  - domain=go4.org
+  - domain=golang.zx2c4.com
+  - domain=gonum.org
+  - domain=gopkg.in
+  - domain=gvisor.dev
+  - domain=howett.net
+  - domain=kernel.org
+  - domain=mvdan.cc
+  - domain=sigs.k8s.io
+  - domain=storj.io
 
   # Package Managers - JVM
   - domain=maven.org

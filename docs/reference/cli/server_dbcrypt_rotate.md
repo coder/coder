@@ -54,4 +54,4 @@ The old external token encryption keys. Must be a comma-separated list of base64
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.

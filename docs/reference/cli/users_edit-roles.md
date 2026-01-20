@@ -17,7 +17,7 @@ coder users edit-roles [flags] <username|user_id>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### --roles
 

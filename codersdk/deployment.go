@@ -3547,6 +3547,26 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "domain_allowlist",
 		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy",
+			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Flag:        "aibridge-proxy-upstream",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy CA",
+			Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+			Flag:        "aibridge-proxy-upstream-ca",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM_CA",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy_ca",
+		},
 
 		// Retention settings
 		{
@@ -3647,6 +3667,8 @@ type AIBridgeProxyConfig struct {
 	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
 	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
 	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
 type AIConfig struct {

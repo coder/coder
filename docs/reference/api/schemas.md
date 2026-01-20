@@ -604,19 +604,23 @@
   ],
   "enabled": true,
   "key_file": "string",
-  "listen_addr": "string"
+  "listen_addr": "string",
+  "upstream_proxy": "string",
+  "upstream_proxy_ca": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type            | Required | Restrictions | Description |
-|--------------------|-----------------|----------|--------------|-------------|
-| `cert_file`        | string          | false    |              |             |
-| `domain_allowlist` | array of string | false    |              |             |
-| `enabled`          | boolean         | false    |              |             |
-| `key_file`         | string          | false    |              |             |
-| `listen_addr`      | string          | false    |              |             |
+| Name                | Type            | Required | Restrictions | Description |
+|---------------------|-----------------|----------|--------------|-------------|
+| `cert_file`         | string          | false    |              |             |
+| `domain_allowlist`  | array of string | false    |              |             |
+| `enabled`           | boolean         | false    |              |             |
+| `key_file`          | string          | false    |              |             |
+| `listen_addr`       | string          | false    |              |             |
+| `upstream_proxy`    | string          | false    |              |             |
+| `upstream_proxy_ca` | string          | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -723,7 +727,9 @@
     ],
     "enabled": true,
     "key_file": "string",
-    "listen_addr": "string"
+    "listen_addr": "string",
+    "upstream_proxy": "string",
+    "upstream_proxy_ca": "string"
   },
   "bridge": {
     "anthropic": {
@@ -2639,7 +2645,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "enabled": true,
         "key_file": "string",
-        "listen_addr": "string"
+        "listen_addr": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
       },
       "bridge": {
         "anthropic": {
@@ -3184,7 +3192,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "enabled": true,
       "key_file": "string",
-      "listen_addr": "string"
+      "listen_addr": "string",
+      "upstream_proxy": "string",
+      "upstream_proxy_ca": "string"
     },
     "bridge": {
       "anthropic": {

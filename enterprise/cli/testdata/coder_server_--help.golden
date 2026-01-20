@@ -166,6 +166,17 @@ AI BRIDGE PROXY OPTIONS:
       --aibridge-proxy-listen-addr string, $CODER_AIBRIDGE_PROXY_LISTEN_ADDR (default: :8888)
           The address the AI Bridge Proxy will listen on.
 
+      --aibridge-proxy-upstream string, $CODER_AIBRIDGE_PROXY_UPSTREAM
+          URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
+          requests through. Format: http://[user:pass@]host:port or
+          https://[user:pass@]host:port.
+
+      --aibridge-proxy-upstream-ca string, $CODER_AIBRIDGE_PROXY_UPSTREAM_CA
+          Path to a PEM-encoded CA certificate to trust for the upstream proxy's
+          TLS connection. Only needed for HTTPS upstream proxies with
+          certificates not trusted by the system. If not provided, the system
+          certificate pool is used.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
