@@ -128,7 +128,7 @@ func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, ini
 }
 
 func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render dynamicparameters.Renderer) {
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 	defer cancel()
 
 	conn, err := websocket.Accept(rw, r, nil)
