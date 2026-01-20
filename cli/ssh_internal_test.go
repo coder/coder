@@ -325,7 +325,7 @@ func TestWatchParentContext(t *testing.T) {
 		parentAlive := true
 		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
 			return parentAlive, nil
-		})
+		}, testutil.WaitShort)
 		defer cancel()
 
 		// Wait for the ticker to be created
@@ -355,7 +355,7 @@ func TestWatchParentContext(t *testing.T) {
 
 		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
 			return true, nil // Parent always alive
-		})
+		}, testutil.WaitShort)
 		defer cancel()
 
 		// Wait for the ticker to be created
@@ -382,7 +382,7 @@ func TestWatchParentContext(t *testing.T) {
 
 		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
 			return true, nil
-		})
+		}, testutil.WaitShort)
 		defer cancel()
 
 		// Cancel the parent context
@@ -409,7 +409,7 @@ func TestWatchParentContext(t *testing.T) {
 		// the SSH connection.
 		childCtx, cancel := watchParentContext(ctx, mClock, 1234, func(context.Context, int32) (bool, error) {
 			return false, xerrors.New("permission denied")
-		})
+		}, testutil.WaitShort)
 		defer cancel()
 
 		// Wait for the ticker to be created

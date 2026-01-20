@@ -85,6 +85,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 		containerName string
 		containerUser string
+
+		// Used in tests to simulate the parent exiting.
+		unsafeForcePPID int64
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -184,8 +187,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			// Note: using gopsutil to check the parent process as this handles
 			// windows processes as well in a standard way.
 			if stdio {
-				ppid := int32(os.Getppid()) // nolint:gosec
-				ctx, cancel = watchParentContext(ctx, quartz.NewReal(), ppid, process.PidExistsWithContext)
+				ppid := int32(os.Getppid())             // nolint:gosec
+				checkParentInterval := 10 * time.Second // Arbitrary interval to not be too frequent
+				if unsafeForcePPID > 0 {
+					ppid = int32(unsafeForcePPID)                // nolint:gosec
+					checkParentInterval = 100 * time.Millisecond // Shorter interval for testing
+				}
+				ctx, cancel = watchParentContext(ctx, quartz.NewReal(), ppid, process.PidExistsWithContext, checkParentInterval)
 				defer cancel()
 			}
 
@@ -787,6 +795,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Flag:        "force-new-tunnel",
 			Description: "Force the creation of a new tunnel to the workspace, even if the Coder Connect tunnel is available.",
 			Value:       serpent.BoolOf(&forceNewTunnel),
+			Hidden:      true,
+		},
+		{
+			Flag:        "unsafe-force-ppid",
+			Description: "Override the parent process ID to simulate a different parent process. ONLY USE THIS IN TESTS.",
+			Value:       serpent.Int64Of(&unsafeForcePPID),
 			Hidden:      true,
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
@@ -1680,11 +1694,11 @@ func normalizeWorkspaceInput(input string) string {
 // watchParentContext returns a context that is canceled when the parent process
 // dies. It polls using the provided clock and checks if the parent is alive
 // using the provided pidExists function.
-func watchParentContext(ctx context.Context, clock quartz.Clock, originalPPID int32, pidExists func(context.Context, int32) (bool, error)) (context.Context, context.CancelFunc) {
+func watchParentContext(ctx context.Context, clock quartz.Clock, originalPPID int32, pidExists func(context.Context, int32) (bool, error), interval time.Duration) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(ctx) // intentionally shadowed
 
 	go func() {
-		ticker := clock.NewTicker(10 * time.Second) // Arbitrarily chosen to not be too frequent
+		ticker := clock.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {

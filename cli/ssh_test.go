@@ -1122,6 +1122,73 @@ func TestSSH(t *testing.T) {
 		}
 	})
 
+	t.Run("StdioExitOnParentDeath", func(t *testing.T) {
+		t.Parallel()
+
+		// Start a sleep process which we will pretend is the parent's PID.
+		sleepCmd := exec.Command("sleep", "infinity")
+		require.NoError(t, sleepCmd.Start())
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			_ = sleepCmd.Wait()
+		})
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			_ = agenttest.New(t, client.URL, agentToken)
+			<-ctx.Done()
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--unsafe-force-ppid", fmt.Sprintf("%d", sleepCmd.Process.Pid))
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		// Open a connection to the agent
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		defer sshClient.Close()
+
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		err = session.Shell()
+		require.NoError(t, err)
+
+		// Now kill the fake "parent"
+		require.NoError(t, sleepCmd.Process.Kill())
+
+		// The command should exit on its own now.
+		_ = testutil.TryReceive(ctx, t, cmdDone)
+	})
+
 	t.Run("ForwardAgent", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("Test not supported on windows")
