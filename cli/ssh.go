@@ -1681,17 +1681,17 @@ func normalizeWorkspaceInput(input string) string {
 // dies. It polls using the provided clock and checks if the parent is alive
 // using the provided pidExists function.
 func watchParentContext(ctx context.Context, clock quartz.Clock, originalPPID int32, pidExists func(context.Context, int32) (bool, error)) (context.Context, context.CancelFunc) {
-	childCtx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx) // intentionally shadowed
 
 	go func() {
-		ticker := clock.NewTicker(time.Second)
+		ticker := clock.NewTicker(10 * time.Second) // Arbitrarily chosen to not be too frequent
 		defer ticker.Stop()
 		for {
 			select {
-			case <-childCtx.Done():
+			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				alive, err := pidExists(childCtx, originalPPID)
+				alive, err := pidExists(ctx, originalPPID)
 				// If we get an error checking the parent process (e.g., permission
 				// denied, the process is in an unknown state), we assume the parent
 				// is still alive to avoid disrupting the SSH connection. We only
@@ -1704,5 +1704,5 @@ func watchParentContext(ctx context.Context, clock quartz.Clock, originalPPID in
 		}
 	}()
 
-	return childCtx, cancel
+	return ctx, cancel
 }
