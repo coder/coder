@@ -208,6 +208,7 @@ jobs:
           MAX_WAIT=600  # 10 minutes
           WAITED=0
           POLL_INTERVAL=10
+          TASK_STARTED=false
 
           while [[ $WAITED -lt $MAX_WAIT ]]; do
             # Get task status (|| true prevents set -e from exiting on non-zero)
@@ -232,14 +233,25 @@ jobs:
 
             echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
 
-            # Task is complete when state is "idle"
-            if [[ "$TASK_STATE" == "idle" ]]; then
+            # Track if we've seen "working" state (AI is actually processing)
+            if [[ "$TASK_STATE" == "working" ]]; then
+              TASK_STARTED=true
+            fi
+
+            # Task is complete when state is "idle" AND we previously saw "working"
+            # This prevents exiting early if task shows "idle" before AI starts
+            if [[ "$TASK_STATE" == "idle" && "$TASK_STARTED" == "true" ]]; then
               echo ""
               echo "Task completed!"
               RESULT_URI=$(echo "$STATUS_JSON" | jq -r '.current_state.uri // ""')
               echo "result_uri=${RESULT_URI}" >> "${GITHUB_OUTPUT}"
               echo "task_message=${TASK_MESSAGE}" >> "${GITHUB_OUTPUT}"
               break
+            fi
+
+            # If idle but never saw working, keep waiting
+            if [[ "$TASK_STATE" == "idle" && "$TASK_STARTED" == "false" ]]; then
+              echo "  (waiting for AI to start processing...)"
             fi
 
             # Check for failed workspace
