@@ -1980,6 +1980,110 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const deleteBoundaryUsageStatsByReplicaID = `-- name: DeleteBoundaryUsageStatsByReplicaID :exec
+DELETE FROM boundary_usage_stats WHERE replica_id = $1
+`
+
+// Deletes boundary usage statistics for a specific replica.
+func (q *sqlQuerier) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteBoundaryUsageStatsByReplicaID, replicaID)
+	return err
+}
+
+const getBoundaryUsageSummary = `-- name: GetBoundaryUsageSummary :one
+SELECT
+    COALESCE(SUM(unique_workspaces_count), 0)::bigint AS unique_workspaces,
+    COALESCE(SUM(unique_users_count), 0)::bigint AS unique_users,
+    COALESCE(SUM(allowed_requests), 0)::bigint AS allowed_requests,
+    COALESCE(SUM(denied_requests), 0)::bigint AS denied_requests
+FROM boundary_usage_stats
+WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+`
+
+type GetBoundaryUsageSummaryRow struct {
+	UniqueWorkspaces int64 `db:"unique_workspaces" json:"unique_workspaces"`
+	UniqueUsers      int64 `db:"unique_users" json:"unique_users"`
+	AllowedRequests  int64 `db:"allowed_requests" json:"allowed_requests"`
+	DeniedRequests   int64 `db:"denied_requests" json:"denied_requests"`
+}
+
+// Aggregates boundary usage statistics across all replicas. Filters to only
+// include data where window_start is within the given interval to exclude
+// stale data from failed resets.
+func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getBoundaryUsageSummary, maxStalenessMs)
+	var i GetBoundaryUsageSummaryRow
+	err := row.Scan(
+		&i.UniqueWorkspaces,
+		&i.UniqueUsers,
+		&i.AllowedRequests,
+		&i.DeniedRequests,
+	)
+	return i, err
+}
+
+const resetBoundaryUsageStats = `-- name: ResetBoundaryUsageStats :exec
+DELETE FROM boundary_usage_stats
+`
+
+// Deletes all boundary usage statistics. Called after telemetry reports the
+// aggregated stats. Each replica will insert a fresh row on its next flush.
+func (q *sqlQuerier) ResetBoundaryUsageStats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetBoundaryUsageStats)
+	return err
+}
+
+const upsertBoundaryUsageStats = `-- name: UpsertBoundaryUsageStats :one
+INSERT INTO boundary_usage_stats (
+    replica_id,
+    unique_workspaces_count,
+    unique_users_count,
+    allowed_requests,
+    denied_requests,
+    window_start,
+    updated_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    NOW(),
+    NOW()
+) ON CONFLICT (replica_id) DO UPDATE SET
+    unique_workspaces_count = EXCLUDED.unique_workspaces_count,
+    unique_users_count = EXCLUDED.unique_users_count,
+    allowed_requests = boundary_usage_stats.allowed_requests + EXCLUDED.allowed_requests,
+    denied_requests = boundary_usage_stats.denied_requests + EXCLUDED.denied_requests,
+    updated_at = NOW()
+RETURNING (xmax = 0) AS new_period
+`
+
+type UpsertBoundaryUsageStatsParams struct {
+	ReplicaID             uuid.UUID `db:"replica_id" json:"replica_id"`
+	UniqueWorkspacesCount int64     `db:"unique_workspaces_count" json:"unique_workspaces_count"`
+	UniqueUsersCount      int64     `db:"unique_users_count" json:"unique_users_count"`
+	AllowedRequests       int64     `db:"allowed_requests" json:"allowed_requests"`
+	DeniedRequests        int64     `db:"denied_requests" json:"denied_requests"`
+}
+
+// Upserts boundary usage statistics for a replica. Unique counts are replaced
+// (they represent the current in-memory state which accumulates over the period).
+// Request counts are added to existing values (they represent deltas since last
+// flush). Returns true if this was an insert (new period), false if update.
+func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, upsertBoundaryUsageStats,
+		arg.ReplicaID,
+		arg.UniqueWorkspacesCount,
+		arg.UniqueUsersCount,
+		arg.AllowedRequests,
+		arg.DeniedRequests,
+	)
+	var new_period bool
+	err := row.Scan(&new_period)
+	return new_period, err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count

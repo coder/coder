@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -172,6 +173,7 @@ type Options struct {
 	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
+	BoundaryUsageTracker           *boundaryusage.Tracker
 	TracerProvider                 trace.TracerProvider
 	ExternalAuthConfigs            []*externalauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
@@ -1780,6 +1782,11 @@ func New(options *Options) *API {
 
 	api.RootHandler = r
 
+	// Start periodic flushing of boundary usage stats to the database.
+	if api.BoundaryUsageTracker != nil {
+		go api.runBoundaryUsageFlush()
+	}
+
 	return api
 }
 
@@ -1930,6 +1937,34 @@ func (api *API) Close() error {
 	}
 
 	return nil
+}
+
+const boundaryUsageFlushInterval = time.Minute
+
+// runBoundaryUsageFlush periodically flushes in-memory boundary usage stats to
+// the database. This allows telemetry to aggregate stats across all replicas.
+func (api *API) runBoundaryUsageFlush() {
+	ticker, done := api.NewTicker(boundaryUsageFlushInterval)
+	defer done()
+
+	for {
+		select {
+		case <-api.ctx.Done():
+			// Final flush on shutdown.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := api.BoundaryUsageTracker.FlushToDB(ctx, api.Database, api.ID)
+			cancel()
+			if err != nil {
+				api.Logger.Error(api.ctx, "failed to flush boundary usage stats on shutdown", slog.Error(err))
+			}
+			return
+		case <-ticker:
+			err := api.BoundaryUsageTracker.FlushToDB(api.ctx, api.Database, api.ID)
+			if err != nil {
+				api.Logger.Error(api.ctx, "failed to flush boundary usage stats", slog.Error(err))
+			}
+		}
+	}
 }
 
 func compressHandler(h http.Handler) http.Handler {

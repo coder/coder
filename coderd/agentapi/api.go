@@ -19,6 +19,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -84,6 +85,7 @@ type Options struct {
 	PublishWorkspaceUpdateFn          func(ctx context.Context, userID uuid.UUID, event wspubsub.WorkspaceEvent)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
+	BoundaryUsageTracker              *boundaryusage.Tracker
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -223,6 +225,8 @@ func New(opts Options, workspace database.Workspace) *API {
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
 		Log:         opts.Log,
 		WorkspaceID: opts.WorkspaceID,
+		OwnerID:     opts.OwnerID,
+		Tracker:     opts.BoundaryUsageTracker,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

@@ -759,12 +759,64 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot.AIBridgeInterceptionsSummaries = summaries
 		return nil
 	})
+	eg.Go(func() error {
+		boundaryUsageSummary, err := r.generateBoundaryUsageSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("generate boundary usage summary: %w", err)
+		}
 
+		snapshot.BoundaryUsageSummary = boundaryUsageSummary
+		return nil
+	})
 	err := eg.Wait()
 	if err != nil {
 		return nil, err
 	}
+
 	return snapshot, nil
+}
+
+func (r *remoteReporter) generateBoundaryUsageSummary(ctx context.Context) (*BoundaryUsageSummary, error) {
+	// Use the snapshot frequency to determine the period for deduplication.
+	now := dbtime.Time(r.options.Clock.Now()).UTC()
+	periodEndingAt := now.Truncate(r.options.SnapshotFrequency)
+
+	// Try to claim the lock for this period. If another replica already claimed
+	// it, skip reporting to avoid duplicate telemetry.
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "boundary_usage_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "boundary usage telemetry lock already claimed for this period by another replica, skipping",
+			slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // Lock already taken, skip reporting.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert boundary usage telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	// Query aggregated stats from all replicas. The query filters by window_start
+	// to exclude stale data. Use 2x snapshot frequency as the max staleness to
+	// allow for some timing variance since the replicas update their stats unsynchronized.
+	maxStalenessMs := (2 * r.options.SnapshotFrequency).Milliseconds()
+	stats, err := r.options.Database.GetBoundaryUsageSummary(ctx, maxStalenessMs)
+	if err != nil {
+		return nil, xerrors.Errorf("get boundary usage summary: %w", err)
+	}
+
+	// Delete all stats so the next period starts fresh.
+	err = r.options.Database.ResetBoundaryUsageStats(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("reset boundary usage stats: %w", err)
+	}
+
+	return &BoundaryUsageSummary{
+		UniqueWorkspaces: stats.UniqueWorkspaces,
+		UniqueUsers:      stats.UniqueUsers,
+		AllowedRequests:  stats.AllowedRequests,
+		DeniedRequests:   stats.DeniedRequests,
+	}, nil
 }
 
 func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Context) ([]AIBridgeInterceptionsSummary, error) {
@@ -1309,6 +1361,7 @@ type Snapshot struct {
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
+	BoundaryUsageSummary                 *BoundaryUsageSummary                 `json:"boundary_usage_summary,omitempty"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -2026,6 +2079,30 @@ func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, cli
 		},
 		InjectedToolCallErrorCount: summary.InjectedToolCallErrorCount,
 	}
+}
+
+// BoundaryUsageSummary tracks boundary feature usage during a telemetry
+// snapshot period.
+// BoundaryUsageSummary contains approximate boundary usage stats aggregated
+// across all replicas for roughly the snapshot interval. Values are approximate
+// because each replica flushes independently, so time windows don't align
+// precisely. Unique counts may be inflated due to the same user/workspace
+// connecting through multiple replicas.
+type BoundaryUsageSummary struct {
+	// UniqueWorkspaces is the approximate number of distinct workspaces that
+	// used boundary. May be inflated if the same workspace connected through
+	// multiple replicas.
+	UniqueWorkspaces int64 `json:"unique_workspaces"`
+	// UniqueUsers is the approximate number of distinct users that used
+	// boundary. May be inflated if the same user connected through multiple
+	// replicas.
+	UniqueUsers int64 `json:"unique_users"`
+	// AllowedRequests is the total number of requests allowed by boundary
+	// across all replicas.
+	AllowedRequests int64 `json:"allowed_requests"`
+	// DeniedRequests is the total number of requests denied by boundary
+	// across all replicas.
+	DeniedRequests int64 `json:"denied_requests"`
 }
 
 type noopReporter struct{}
