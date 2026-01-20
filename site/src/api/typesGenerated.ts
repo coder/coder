@@ -3548,10 +3548,6 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspacebuilds.go
-/**
- * UpdateWorkspaceBuildStateRequest is the request body for updating the
- * provisioner state of a workspace build.
- */
 export interface UpdateWorkspaceBuildStateRequest {
 	readonly state: string;
 }
