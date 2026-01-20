@@ -17,13 +17,9 @@ export const isValidAgentMetadataSample = (
 		return false;
 	}
 
-	// Treat as valid if we have at least one item that:
-	// - has a real collected_at timestamp
-	// - has a non-empty value
+	// Treat as valid if we have at least one item that has a real collected_at
+	// timestamp (i.e. not zero-time and not obviously invalid).
 	return metadata.some((item) => {
-		if (item.result.value.trim().length === 0) {
-			return false;
-		}
 		if (item.result.collected_at === ZERO_TIME_ISO) {
 			return false;
 		}
@@ -36,14 +32,9 @@ export const isInvalidAgentMetadataSample = (
 	metadata: readonly WorkspaceAgentMetadata[],
 ): boolean => {
 	// Consider "invalid" the specific failure mode we observed:
-	// - collected_at is zero time or looks uninitialized
-	// - and values are empty
+	// - collected_at is zero time or looks uninitialized for all entries.
 	if (metadata.length === 0) {
 		return true;
-	}
-	const allEmpty = metadata.every((m) => m.result.value.trim().length === 0);
-	if (!allEmpty) {
-		return false;
 	}
 	const allZeroTime = metadata.every((m) => {
 		if (m.result.collected_at === ZERO_TIME_ISO) {
