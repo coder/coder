@@ -105,8 +105,9 @@ func GenerateState(t *testing.T) string {
 	return base64.RawURLEncoding.EncodeToString(bytes)
 }
 
-// AuthorizeOAuth2App performs the OAuth2 authorization flow and returns the authorization code
-func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams) string {
+// doAuthorizeRequest performs the OAuth2 authorization request and returns the response.
+// Caller is responsible for closing the response body.
+func doAuthorizeRequest(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams) *http.Response {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -123,6 +124,8 @@ func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, p
 
 	if params.CodeChallenge != "" {
 		query.Set("code_challenge", params.CodeChallenge)
+	}
+	if params.CodeChallengeMethod != "" {
 		query.Set("code_challenge_method", params.CodeChallengeMethod)
 	}
 	if params.Resource != "" {
@@ -151,6 +154,15 @@ func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, p
 
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err, "failed to perform authorization request")
+
+	return resp
+}
+
+// AuthorizeOAuth2App performs the OAuth2 authorization flow and returns the authorization code
+func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams) string {
+	t.Helper()
+
+	resp := doAuthorizeRequest(t, client, baseURL, params)
 	defer resp.Body.Close()
 
 	// Should get a redirect response (either 302 Found or 307 Temporary Redirect)
@@ -325,4 +337,14 @@ func CleanupOAuth2App(t *testing.T, client *codersdk.Client, appID uuid.UUID) {
 	if err != nil {
 		t.Logf("Warning: failed to cleanup OAuth2 app %s: %v", appID, err)
 	}
+}
+
+// AuthorizeOAuth2AppExpectingError performs the OAuth2 authorization flow expecting an error
+func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedStatusCode int) {
+	t.Helper()
+
+	resp := doAuthorizeRequest(t, client, baseURL, params)
+	defer resp.Body.Close()
+
+	require.Equal(t, expectedStatusCode, resp.StatusCode, "unexpected status code")
 }

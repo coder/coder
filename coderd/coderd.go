@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
@@ -205,7 +206,7 @@ type Options struct {
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
+	HealthcheckFunc              func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -334,6 +335,7 @@ func New(options *Options) *API {
 
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
+		options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
 	}
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
@@ -568,6 +570,16 @@ func New(options *Options) *API {
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
+	// Ensure all system role permissions are current.
+	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
+	// no user request context here, so use a system-restricted context.
+	err = rolestore.ReconcileSystemRoles(dbauthz.AsSystemRestricted(ctx), options.Logger, options.Database)
+	if err != nil {
+		// Not ideal, but not using Fatal here and just continuing
+		// after logging the error would be a potential security hole.
+		options.Logger.Fatal(ctx, "failed to reconcile system role permissions", slog.Error(err))
+	}
+
 	// AGPL uses a no-op build usage checker as there are no license
 	// entitlements to enforce. This is swapped out in
 	// enterprise/coderd/coderd.go.
@@ -671,7 +683,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -699,6 +711,7 @@ func New(options *Options) *API {
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
 				},
+				Progress: progress,
 			})
 		}
 	}
@@ -871,6 +884,7 @@ func New(options *Options) *API {
 		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
+		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
@@ -1424,9 +1438,7 @@ func New(options *Options) *API {
 						Optional: true,
 					}),
 					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
-
-					httpmw.ExtractWorkspaceAgentParam(options.Database),
-					httpmw.ExtractWorkspaceParam(options.Database),
+					httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
@@ -1849,8 +1861,9 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
-	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
+	healthCheckGroup    *singleflight.Group[string, *healthsdk.HealthcheckReport]
+	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
+	healthCheckProgress healthcheck.Progress
 
 	statsReporter *workspacestats.Reporter
 

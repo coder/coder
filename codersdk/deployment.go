@@ -442,6 +442,10 @@ var PostgresAuthDrivers = []string{
 	string(PostgresAuthAWSIAMRDS),
 }
 
+// PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
+// based on max open connections.
+const PostgresConnMaxIdleAuto = "auto"
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -462,6 +466,8 @@ type DeploymentValues struct {
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
+	PostgresConnMaxOpen             serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
+	PostgresConnMaxIdle             serpent.String                       `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2624,6 +2630,30 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "pgAuth",
 		},
 		{
+			Name:        "Postgres Connection Max Open",
+			Description: "Maximum number of open connections to the database. Defaults to 10.",
+			Flag:        "postgres-conn-max-open",
+			Env:         "CODER_PG_CONN_MAX_OPEN",
+			Default:     "10",
+			Value: serpent.Validate(&c.PostgresConnMaxOpen, func(value *serpent.Int64) error {
+				if value.Value() <= 0 {
+					return xerrors.New("must be greater than zero")
+				}
+				return nil
+			}),
+			YAML: "pgConnMaxOpen",
+		},
+		{
+			Name: "Postgres Connection Max Idle",
+			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3. " +
+				"Value must be greater or equal to 0; 0 means explicitly no idle connections.",
+			Flag:    "postgres-conn-max-idle",
+			Env:     "CODER_PG_CONN_MAX_IDLE",
+			Default: PostgresConnMaxIdleAuto,
+			Value:   &c.PostgresConnMaxIdle,
+			YAML:    "pgConnMaxIdle",
+		},
+		{
 			Name:        "Secure Auth Cookie",
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
@@ -3454,6 +3484,82 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rateLimit",
 		},
+		{
+			Name:        "AI Bridge Structured Logging",
+			Description: "Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.",
+			Flag:        "aibridge-structured-logging",
+			Env:         "CODER_AIBRIDGE_STRUCTURED_LOGGING",
+			Value:       &c.AI.BridgeConfig.StructuredLogging,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "structuredLogging",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Enabled",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Flag:        "aibridge-circuit-breaker-enabled",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerEnabled",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Failure Threshold",
+			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+			Flag:        "aibridge-circuit-breaker-failure-threshold",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "5",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerFailureThreshold",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Interval",
+			Description: "Cyclic period of the closed state for clearing internal failure counts.",
+			Flag:        "aibridge-circuit-breaker-interval",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
+			Default:     "10s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerInterval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Timeout",
+			Description: "How long the circuit breaker stays open before transitioning to half-open state.",
+			Flag:        "aibridge-circuit-breaker-timeout",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerTimeout,
+			Default:     "30s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Max Requests",
+			Description: "Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
+			Flag:        "aibridge-circuit-breaker-max-requests",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "3",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerMaxRequests",
+		},
 
 		// AI Bridge Proxy Options
 		{
@@ -3495,6 +3601,37 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "key_file",
+		},
+		{
+			Name:        "AI Bridge Proxy Domain Allowlist",
+			Description: "Comma-separated list of domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption.",
+			Flag:        "aibridge-proxy-domain-allowlist",
+			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default:     "api.anthropic.com,api.openai.com",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "domain_allowlist",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy",
+			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Flag:        "aibridge-proxy-upstream",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy CA",
+			Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+			Flag:        "aibridge-proxy-upstream-ca",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM_CA",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy_ca",
 		},
 
 		// Retention settings
@@ -3569,6 +3706,14 @@ type AIBridgeConfig struct {
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
+	// Circuit breaker protects against cascading failures from upstream AI
+	// provider rate limits (429, 503, 529 overloaded).
+	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
+	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
+	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
+	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
+	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3590,10 +3735,13 @@ type AIBridgeBedrockConfig struct {
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled    serpent.Bool   `json:"enabled" typescript:",notnull"`
-	ListenAddr serpent.String `json:"listen_addr" typescript:",notnull"`
-	CertFile   serpent.String `json:"cert_file" typescript:",notnull"`
-	KeyFile    serpent.String `json:"key_file" typescript:",notnull"`
+	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
+	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
 type AIConfig struct {
@@ -4127,4 +4275,29 @@ func (c CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := c.Secret != ""
 	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
 	return hasSecret && beforeDelete
+}
+
+// ComputeMaxIdleConns calculates the effective maxIdleConns value. If
+// configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
+// configuredIdle exceeds maxOpen, it returns an error.
+func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
+	configuredIdle = strings.TrimSpace(configuredIdle)
+	if configuredIdle == PostgresConnMaxIdleAuto {
+		computed := maxOpen / 3
+		if computed < 1 {
+			return 1, nil
+		}
+		return computed, nil
+	}
+	idle, err := strconv.Atoi(configuredIdle)
+	if err != nil {
+		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or >= 0", configuredIdle, PostgresConnMaxIdleAuto)
+	}
+	if idle < 0 {
+		return 0, xerrors.Errorf("max idle connections must be %q or >= 0", PostgresConnMaxIdleAuto)
+	}
+	if idle > maxOpen {
+		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
+	}
+	return idle, nil
 }

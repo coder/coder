@@ -2228,6 +2228,170 @@ func TestReadCustomRoles(t *testing.T) {
 	}
 }
 
+func TestDeleteCustomRoleDoesNotDeleteSystemRole(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	systemRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:        "test-system-role",
+		DisplayName: "",
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+		SitePermissions:   database.CustomRolePermissions{},
+		OrgPermissions:    database.CustomRolePermissions{},
+		UserPermissions:   database.CustomRolePermissions{},
+		MemberPermissions: database.CustomRolePermissions{},
+		IsSystem:          true,
+	})
+	require.NoError(t, err)
+
+	nonSystemRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:        "test-custom-role",
+		DisplayName: "",
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+		SitePermissions:   database.CustomRolePermissions{},
+		OrgPermissions:    database.CustomRolePermissions{},
+		UserPermissions:   database.CustomRolePermissions{},
+		MemberPermissions: database.CustomRolePermissions{},
+		IsSystem:          false,
+	})
+	require.NoError(t, err)
+
+	err = db.DeleteCustomRole(ctx, database.DeleteCustomRoleParams{
+		Name: systemRole.Name,
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	err = db.DeleteCustomRole(ctx, database.DeleteCustomRoleParams{
+		Name: nonSystemRole.Name,
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	roles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           systemRole.Name,
+				OrganizationID: org.ID,
+			},
+			{
+				Name:           nonSystemRole.Name,
+				OrganizationID: org.ID,
+			},
+		},
+		IncludeSystemRoles: true,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, roles, 1)
+	require.Equal(t, systemRole.Name, roles[0].Name)
+	require.True(t, roles[0].IsSystem)
+}
+
+func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	updated, err := db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
+		ID:                       org.ID,
+		WorkspaceSharingDisabled: true,
+		UpdatedAt:                dbtime.Now(),
+	})
+	require.NoError(t, err)
+	require.True(t, updated.WorkspaceSharingDisabled)
+
+	got, err := db.GetOrganizationByID(ctx, org.ID)
+	require.NoError(t, err)
+	require.True(t, got.WorkspaceSharingDisabled)
+}
+
+func TestDeleteWorkspaceACLsByOrganization(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org1 := dbgen.Organization(t, db, database.Organization{})
+	org2 := dbgen.Organization(t, db, database.Organization{})
+
+	owner1 := dbgen.User(t, db, database.User{})
+	owner2 := dbgen.User(t, db, database.User{})
+	sharedUser := dbgen.User(t, db, database.User{})
+	sharedGroup := dbgen.Group(t, db, database.Group{
+		OrganizationID: org1.ID,
+	})
+
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org1.ID,
+		UserID:         owner1.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org2.ID,
+		UserID:         owner2.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org1.ID,
+		UserID:         sharedUser.ID,
+	})
+
+	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner1.ID,
+		OrganizationID: org1.ID,
+		UserACL: database.WorkspaceACL{
+			sharedUser.ID.String(): {
+				Permissions: []policy.Action{policy.ActionRead},
+			},
+		},
+		GroupACL: database.WorkspaceACL{
+			sharedGroup.ID.String(): {
+				Permissions: []policy.Action{policy.ActionRead},
+			},
+		},
+	}).Do().Workspace
+
+	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner2.ID,
+		OrganizationID: org2.ID,
+		UserACL: database.WorkspaceACL{
+			uuid.NewString(): {
+				Permissions: []policy.Action{policy.ActionRead},
+			},
+		},
+	}).Do().Workspace
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	err := db.DeleteWorkspaceACLsByOrganization(ctx, org1.ID)
+	require.NoError(t, err)
+
+	got1, err := db.GetWorkspaceByID(ctx, ws1.ID)
+	require.NoError(t, err)
+	require.Empty(t, got1.UserACL)
+	require.Empty(t, got1.GroupACL)
+
+	got2, err := db.GetWorkspaceByID(ctx, ws2.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, got2.UserACL)
+}
+
 func TestAuthorizedAuditLogs(t *testing.T) {
 	t.Parallel()
 

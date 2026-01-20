@@ -1,3 +1,4 @@
+import { workspaceSharingSettings } from "api/queries/organizations";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -37,6 +38,12 @@ export const WorkspaceSettingsLayout: FC = () => {
 		isError,
 	} = useQuery(workspaceByOwnerAndName(username, workspaceName));
 
+	const sharingSettingsQuery = useQuery({
+		...workspaceSharingSettings(workspace?.organization_id ?? ""),
+		enabled: !!workspace,
+	});
+	const sharingDisabled = sharingSettingsQuery.data?.sharing_disabled ?? false;
+
 	if (isLoading) {
 		return <Loader />;
 	}
@@ -52,7 +59,11 @@ export const WorkspaceSettingsLayout: FC = () => {
 					) : (
 						workspace && (
 							<WorkspaceSettings.Provider value={workspace}>
-								<Sidebar workspace={workspace} username={username} />
+								<Sidebar
+									workspace={workspace}
+									username={username}
+									sharingDisabled={sharingDisabled}
+								/>
 								<Suspense fallback={<Loader />}>
 									<main css={{ width: "100%" }}>
 										<Outlet />

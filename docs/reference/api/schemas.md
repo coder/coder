@@ -388,6 +388,11 @@
     "region": "string",
     "small_fast_model": "string"
   },
+  "circuit_breaker_enabled": true,
+  "circuit_breaker_failure_threshold": 0,
+  "circuit_breaker_interval": 0,
+  "circuit_breaker_max_requests": 0,
+  "circuit_breaker_timeout": 0,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -396,22 +401,29 @@
     "key": "string"
   },
   "rate_limit": 0,
-  "retention": 0
+  "retention": 0,
+  "structured_logging": true
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                                                 | Required | Restrictions | Description |
-|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
-| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
-| `enabled`                | boolean                                                              | false    |              |             |
-| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
-| `max_concurrency`        | integer                                                              | false    |              |             |
-| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
-| `rate_limit`             | integer                                                              | false    |              |             |
-| `retention`              | integer                                                              | false    |              |             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              |                                                                                                                       |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                       |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
 
 ## codersdk.AIBridgeInterception
 
@@ -597,20 +609,28 @@
 ```json
 {
   "cert_file": "string",
+  "domain_allowlist": [
+    "string"
+  ],
   "enabled": true,
   "key_file": "string",
-  "listen_addr": "string"
+  "listen_addr": "string",
+  "upstream_proxy": "string",
+  "upstream_proxy_ca": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `cert_file`   | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `key_file`    | string  | false    |              |             |
-| `listen_addr` | string  | false    |              |             |
+| Name                | Type            | Required | Restrictions | Description |
+|---------------------|-----------------|----------|--------------|-------------|
+| `cert_file`         | string          | false    |              |             |
+| `domain_allowlist`  | array of string | false    |              |             |
+| `enabled`           | boolean         | false    |              |             |
+| `key_file`          | string          | false    |              |             |
+| `listen_addr`       | string          | false    |              |             |
+| `upstream_proxy`    | string          | false    |              |             |
+| `upstream_proxy_ca` | string          | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -712,9 +732,14 @@
 {
   "aibridge_proxy": {
     "cert_file": "string",
+    "domain_allowlist": [
+      "string"
+    ],
     "enabled": true,
     "key_file": "string",
-    "listen_addr": "string"
+    "listen_addr": "string",
+    "upstream_proxy": "string",
+    "upstream_proxy_ca": "string"
   },
   "bridge": {
     "anthropic": {
@@ -728,6 +753,11 @@
       "region": "string",
       "small_fast_model": "string"
     },
+    "circuit_breaker_enabled": true,
+    "circuit_breaker_failure_threshold": 0,
+    "circuit_breaker_interval": 0,
+    "circuit_breaker_max_requests": 0,
+    "circuit_breaker_timeout": 0,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -736,7 +766,8 @@
       "key": "string"
     },
     "rate_limit": 0,
-    "retention": 0
+    "retention": 0,
+    "structured_logging": true
   }
 }
 ```
@@ -2624,9 +2655,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "ai": {
       "aibridge_proxy": {
         "cert_file": "string",
+        "domain_allowlist": [
+          "string"
+        ],
         "enabled": true,
         "key_file": "string",
-        "listen_addr": "string"
+        "listen_addr": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
       },
       "bridge": {
         "anthropic": {
@@ -2640,6 +2676,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "region": "string",
           "small_fast_model": "string"
         },
+        "circuit_breaker_enabled": true,
+        "circuit_breaker_failure_threshold": 0,
+        "circuit_breaker_interval": 0,
+        "circuit_breaker_max_requests": 0,
+        "circuit_breaker_timeout": 0,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -2648,7 +2689,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "key": "string"
         },
         "rate_limit": 0,
-        "retention": 0
+        "retention": 0,
+        "structured_logging": true
       }
     },
     "allow_workspace_renames": true,
@@ -2893,6 +2935,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "username_field": "string"
     },
     "pg_auth": "string",
+    "pg_conn_max_idle": "string",
+    "pg_conn_max_open": 0,
     "pg_connection_url": "string",
     "pprof": {
       "address": {
@@ -3163,9 +3207,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "ai": {
     "aibridge_proxy": {
       "cert_file": "string",
+      "domain_allowlist": [
+        "string"
+      ],
       "enabled": true,
       "key_file": "string",
-      "listen_addr": "string"
+      "listen_addr": "string",
+      "upstream_proxy": "string",
+      "upstream_proxy_ca": "string"
     },
     "bridge": {
       "anthropic": {
@@ -3179,6 +3228,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "region": "string",
         "small_fast_model": "string"
       },
+      "circuit_breaker_enabled": true,
+      "circuit_breaker_failure_threshold": 0,
+      "circuit_breaker_interval": 0,
+      "circuit_breaker_max_requests": 0,
+      "circuit_breaker_timeout": 0,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -3187,7 +3241,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "key": "string"
       },
       "rate_limit": 0,
-      "retention": 0
+      "retention": 0,
+      "structured_logging": true
     }
   },
   "allow_workspace_renames": true,
@@ -3432,6 +3487,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "username_field": "string"
   },
   "pg_auth": "string",
+  "pg_conn_max_idle": "string",
+  "pg_conn_max_open": 0,
   "pg_connection_url": "string",
   "pprof": {
     "address": {
@@ -3622,6 +3679,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
 | `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_idle`                   | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_open`                   | integer                                                                                              | false    |              |                                                                    |
 | `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
@@ -5164,15 +5223,15 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "authorization_endpoint": "string",
   "code_challenge_methods_supported": [
-    "string"
+    "S256"
   ],
   "grant_types_supported": [
-    "string"
+    "authorization_code"
   ],
   "issuer": "string",
   "registration_endpoint": "string",
   "response_types_supported": [
-    "string"
+    "code"
   ],
   "revocation_endpoint": "string",
   "scopes_supported": [
@@ -5180,25 +5239,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   ],
   "token_endpoint": "string",
   "token_endpoint_auth_methods_supported": [
-    "string"
+    "client_secret_basic"
   ]
 }
 ```
 
 ### Properties
 
-| Name                                    | Type            | Required | Restrictions | Description |
-|-----------------------------------------|-----------------|----------|--------------|-------------|
-| `authorization_endpoint`                | string          | false    |              |             |
-| `code_challenge_methods_supported`      | array of string | false    |              |             |
-| `grant_types_supported`                 | array of string | false    |              |             |
-| `issuer`                                | string          | false    |              |             |
-| `registration_endpoint`                 | string          | false    |              |             |
-| `response_types_supported`              | array of string | false    |              |             |
-| `revocation_endpoint`                   | string          | false    |              |             |
-| `scopes_supported`                      | array of string | false    |              |             |
-| `token_endpoint`                        | string          | false    |              |             |
-| `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
+| Name                                    | Type                                                                                      | Required | Restrictions | Description |
+|-----------------------------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `authorization_endpoint`                | string                                                                                    | false    |              |             |
+| `code_challenge_methods_supported`      | array of [codersdk.OAuth2PKCECodeChallengeMethod](#codersdkoauth2pkcecodechallengemethod) | false    |              |             |
+| `grant_types_supported`                 | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)             | false    |              |             |
+| `issuer`                                | string                                                                                    | false    |              |             |
+| `registration_endpoint`                 | string                                                                                    | false    |              |             |
+| `response_types_supported`              | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype)       | false    |              |             |
+| `revocation_endpoint`                   | string                                                                                    | false    |              |             |
+| `scopes_supported`                      | array of string                                                                           | false    |              |             |
+| `token_endpoint`                        | string                                                                                    | false    |              |             |
+| `token_endpoint_auth_methods_supported` | array of [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod) | false    |              |             |
 
 ## codersdk.OAuth2ClientConfiguration
 
@@ -5213,7 +5272,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -5222,45 +5281,43 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": [
-    0
-  ],
+  "registration_access_token": "string",
   "registration_client_uri": "string",
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type             | Required | Restrictions | Description |
-|------------------------------|------------------|----------|--------------|-------------|
-| `client_id`                  | string           | false    |              |             |
-| `client_id_issued_at`        | integer          | false    |              |             |
-| `client_name`                | string           | false    |              |             |
-| `client_secret_expires_at`   | integer          | false    |              |             |
-| `client_uri`                 | string           | false    |              |             |
-| `contacts`                   | array of string  | false    |              |             |
-| `grant_types`                | array of string  | false    |              |             |
-| `jwks`                       | object           | false    |              |             |
-| `jwks_uri`                   | string           | false    |              |             |
-| `logo_uri`                   | string           | false    |              |             |
-| `policy_uri`                 | string           | false    |              |             |
-| `redirect_uris`              | array of string  | false    |              |             |
-| `registration_access_token`  | array of integer | false    |              |             |
-| `registration_client_uri`    | string           | false    |              |             |
-| `response_types`             | array of string  | false    |              |             |
-| `scope`                      | string           | false    |              |             |
-| `software_id`                | string           | false    |              |             |
-| `software_version`           | string           | false    |              |             |
-| `token_endpoint_auth_method` | string           | false    |              |             |
-| `tos_uri`                    | string           | false    |              |             |
+| Name                         | Type                                                                                | Required | Restrictions | Description |
+|------------------------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client_id`                  | string                                                                              | false    |              |             |
+| `client_id_issued_at`        | integer                                                                             | false    |              |             |
+| `client_name`                | string                                                                              | false    |              |             |
+| `client_secret_expires_at`   | integer                                                                             | false    |              |             |
+| `client_uri`                 | string                                                                              | false    |              |             |
+| `contacts`                   | array of string                                                                     | false    |              |             |
+| `grant_types`                | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)       | false    |              |             |
+| `jwks`                       | object                                                                              | false    |              |             |
+| `jwks_uri`                   | string                                                                              | false    |              |             |
+| `logo_uri`                   | string                                                                              | false    |              |             |
+| `policy_uri`                 | string                                                                              | false    |              |             |
+| `redirect_uris`              | array of string                                                                     | false    |              |             |
+| `registration_access_token`  | string                                                                              | false    |              |             |
+| `registration_client_uri`    | string                                                                              | false    |              |             |
+| `response_types`             | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype) | false    |              |             |
+| `scope`                      | string                                                                              | false    |              |             |
+| `software_id`                | string                                                                              | false    |              |             |
+| `software_version`           | string                                                                              | false    |              |             |
+| `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
+| `tos_uri`                    | string                                                                              | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationRequest
 
@@ -5272,7 +5329,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -5282,37 +5339,37 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_statement": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_name`                | string          | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_statement`         | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type                                                                                | Required | Restrictions | Description |
+|------------------------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client_name`                | string                                                                              | false    |              |             |
+| `client_uri`                 | string                                                                              | false    |              |             |
+| `contacts`                   | array of string                                                                     | false    |              |             |
+| `grant_types`                | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)       | false    |              |             |
+| `jwks`                       | object                                                                              | false    |              |             |
+| `jwks_uri`                   | string                                                                              | false    |              |             |
+| `logo_uri`                   | string                                                                              | false    |              |             |
+| `policy_uri`                 | string                                                                              | false    |              |             |
+| `redirect_uris`              | array of string                                                                     | false    |              |             |
+| `response_types`             | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype) | false    |              |             |
+| `scope`                      | string                                                                              | false    |              |             |
+| `software_id`                | string                                                                              | false    |              |             |
+| `software_statement`         | string                                                                              | false    |              |             |
+| `software_version`           | string                                                                              | false    |              |             |
+| `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
+| `tos_uri`                    | string                                                                              | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationResponse
 
@@ -5328,7 +5385,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -5340,41 +5397,41 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "registration_access_token": "string",
   "registration_client_uri": "string",
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_id`                  | string          | false    |              |             |
-| `client_id_issued_at`        | integer         | false    |              |             |
-| `client_name`                | string          | false    |              |             |
-| `client_secret`              | string          | false    |              |             |
-| `client_secret_expires_at`   | integer         | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `registration_access_token`  | string          | false    |              |             |
-| `registration_client_uri`    | string          | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type                                                                                | Required | Restrictions | Description |
+|------------------------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client_id`                  | string                                                                              | false    |              |             |
+| `client_id_issued_at`        | integer                                                                             | false    |              |             |
+| `client_name`                | string                                                                              | false    |              |             |
+| `client_secret`              | string                                                                              | false    |              |             |
+| `client_secret_expires_at`   | integer                                                                             | false    |              |             |
+| `client_uri`                 | string                                                                              | false    |              |             |
+| `contacts`                   | array of string                                                                     | false    |              |             |
+| `grant_types`                | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)       | false    |              |             |
+| `jwks`                       | object                                                                              | false    |              |             |
+| `jwks_uri`                   | string                                                                              | false    |              |             |
+| `logo_uri`                   | string                                                                              | false    |              |             |
+| `policy_uri`                 | string                                                                              | false    |              |             |
+| `redirect_uris`              | array of string                                                                     | false    |              |             |
+| `registration_access_token`  | string                                                                              | false    |              |             |
+| `registration_client_uri`    | string                                                                              | false    |              |             |
+| `response_types`             | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype) | false    |              |             |
+| `scope`                      | string                                                                              | false    |              |             |
+| `software_id`                | string                                                                              | false    |              |             |
+| `software_version`           | string                                                                              | false    |              |             |
+| `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
+| `tos_uri`                    | string                                                                              | false    |              |             |
 
 ## codersdk.OAuth2Config
 
@@ -5437,6 +5494,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `default_provider_enable` | boolean         | false    |              |             |
 | `device_flow`             | boolean         | false    |              |             |
 | `enterprise_base_url`     | string          | false    |              |             |
+
+## codersdk.OAuth2PKCECodeChallengeMethod
+
+```json
+"S256"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `S256`, `plain` |
 
 ## codersdk.OAuth2ProtectedResourceMetadata
 
@@ -5524,6 +5595,48 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |----------------------|--------|----------|--------------|-------------|
 | `client_secret_full` | string | false    |              |             |
 | `id`                 | string | false    |              |             |
+
+## codersdk.OAuth2ProviderGrantType
+
+```json
+"authorization_code"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                            |
+|-------------------------------------------------------------------------------------|
+| `authorization_code`, `client_credentials`, `implicit`, `password`, `refresh_token` |
+
+## codersdk.OAuth2ProviderResponseType
+
+```json
+"code"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `code`, `token` |
+
+## codersdk.OAuth2TokenEndpointAuthMethod
+
+```json
+"client_secret_basic"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `client_secret_basic`, `client_secret_post`, `none` |
 
 ## codersdk.OAuthConversionResponse
 
@@ -11646,6 +11759,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)           |
 |--------------------|
 | ``, `admin`, `use` |
+
+## codersdk.WorkspaceSharingSettings
+
+```json
+{
+  "sharing_disabled": true
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `sharing_disabled` | boolean | false    |              |             |
 
 ## codersdk.WorkspaceStatus
 

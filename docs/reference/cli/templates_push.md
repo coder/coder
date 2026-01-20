@@ -74,7 +74,7 @@ Whether the new template will be marked active.
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### -d, --directory
 

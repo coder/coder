@@ -884,3 +884,8 @@ func WorkspaceIdentityFromWorkspace(w Workspace) WorkspaceIdentity {
 		AutostartSchedule: w.AutostartSchedule,
 	}
 }
+
+// A workspace agent belongs to the owner of the associated workspace.
+func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}

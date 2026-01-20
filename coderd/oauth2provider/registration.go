@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -85,9 +86,9 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{Time: now, Valid: true},
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
-			GrantTypes:              req.GrantTypes,
-			ResponseTypes:           req.ResponseTypes,
-			TokenEndpointAuthMethod: sql.NullString{String: req.TokenEndpointAuthMethod, Valid: true},
+			GrantTypes:              slice.ToStrings(req.GrantTypes),
+			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
+			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
 			Scope:                   sql.NullString{String: req.Scope, Valid: true},
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
@@ -154,9 +155,9 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			JWKS:                    app.Jwks.RawMessage,
 			SoftwareID:              app.SoftwareID.String,
 			SoftwareVersion:         app.SoftwareVersion.String,
-			GrantTypes:              app.GrantTypes,
-			ResponseTypes:           app.ResponseTypes,
-			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod.String,
+			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
+			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
+			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String),
 			Scope:                   app.Scope.String,
 			Contacts:                app.Contacts,
 			RegistrationAccessToken: registrationToken,
@@ -217,12 +218,12 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 			JWKS:                    app.Jwks.RawMessage,
 			SoftwareID:              app.SoftwareID.String,
 			SoftwareVersion:         app.SoftwareVersion.String,
-			GrantTypes:              app.GrantTypes,
-			ResponseTypes:           app.ResponseTypes,
-			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod.String,
+			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
+			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
+			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String),
 			Scope:                   app.Scope.String,
 			Contacts:                app.Contacts,
-			RegistrationAccessToken: nil, // RFC 7592: Not returned in GET responses for security
+			RegistrationAccessToken: "", // RFC 7592: Not returned in GET responses for security
 			RegistrationClientURI:   app.RegistrationClientUri.String,
 		}
 
@@ -303,9 +304,9 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			RedirectUris:            req.RedirectURIs,
 			ClientType:              sql.NullString{String: req.DetermineClientType(), Valid: true},
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
-			GrantTypes:              req.GrantTypes,
-			ResponseTypes:           req.ResponseTypes,
-			TokenEndpointAuthMethod: sql.NullString{String: req.TokenEndpointAuthMethod, Valid: true},
+			GrantTypes:              slice.ToStrings(req.GrantTypes),
+			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
+			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
 			Scope:                   sql.NullString{String: req.Scope, Valid: true},
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
@@ -341,12 +342,12 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			JWKS:                    updatedApp.Jwks.RawMessage,
 			SoftwareID:              updatedApp.SoftwareID.String,
 			SoftwareVersion:         updatedApp.SoftwareVersion.String,
-			GrantTypes:              updatedApp.GrantTypes,
-			ResponseTypes:           updatedApp.ResponseTypes,
-			TokenEndpointAuthMethod: updatedApp.TokenEndpointAuthMethod.String,
+			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](updatedApp.GrantTypes),
+			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](updatedApp.ResponseTypes),
+			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(updatedApp.TokenEndpointAuthMethod.String),
 			Scope:                   updatedApp.Scope.String,
 			Contacts:                updatedApp.Contacts,
-			RegistrationAccessToken: updatedApp.RegistrationAccessToken,
+			RegistrationAccessToken: "", // RFC 7592: Not returned for security
 			RegistrationClientURI:   updatedApp.RegistrationClientUri.String,
 		}
 

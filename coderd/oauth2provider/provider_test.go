@@ -248,7 +248,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 		req := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   fmt.Sprintf("valid-grant-types-client-%d", time.Now().UnixNano()),
-			GrantTypes:   []string{"authorization_code", "refresh_token"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, codersdk.OAuth2ProviderGrantTypeRefreshToken},
 		}
 
 		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
@@ -266,7 +266,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 		req := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   fmt.Sprintf("invalid-grant-types-client-%d", time.Now().UnixNano()),
-			GrantTypes:   []string{"unsupported_grant"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{"unsupported_grant"},
 		}
 
 		_, err := client.PostOAuth2ClientRegistration(ctx, req)
@@ -284,7 +284,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 		req := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs:  []string{"https://example.com/callback"},
 			ClientName:    fmt.Sprintf("valid-response-types-client-%d", time.Now().UnixNano()),
-			ResponseTypes: []string{"code"},
+			ResponseTypes: []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode},
 		}
 
 		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
@@ -302,7 +302,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 		req := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs:  []string{"https://example.com/callback"},
 			ClientName:    fmt.Sprintf("invalid-response-types-client-%d", time.Now().UnixNano()),
-			ResponseTypes: []string{"token"}, // Not supported
+			ResponseTypes: []codersdk.OAuth2ProviderResponseType{"token"}, // Not supported
 		}
 
 		_, err := client.PostOAuth2ClientRegistration(ctx, req)

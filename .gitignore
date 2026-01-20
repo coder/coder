@@ -3,6 +3,7 @@
 .eslintcache
 .gitpod.yml
 .idea
+.run
 **/*.swp
 gotests.coverage
 gotests.xml

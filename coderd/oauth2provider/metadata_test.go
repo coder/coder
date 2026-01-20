@@ -32,10 +32,10 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	require.NotEmpty(t, metadata.Issuer)
 	require.NotEmpty(t, metadata.AuthorizationEndpoint)
 	require.NotEmpty(t, metadata.TokenEndpoint)
-	require.Contains(t, metadata.ResponseTypesSupported, "code")
-	require.Contains(t, metadata.GrantTypesSupported, "authorization_code")
-	require.Contains(t, metadata.GrantTypesSupported, "refresh_token")
-	require.Contains(t, metadata.CodeChallengeMethodsSupported, "S256")
+	require.Contains(t, metadata.ResponseTypesSupported, codersdk.OAuth2ProviderResponseTypeCode)
+	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
+	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeRefreshToken)
+	require.Contains(t, metadata.CodeChallengeMethodsSupported, codersdk.OAuth2PKCECodeChallengeMethodS256)
 	// Supported scopes are published from the curated catalog
 	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
 }

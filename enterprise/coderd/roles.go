@@ -65,6 +65,9 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		SitePermissions: db2sdk.List(req.SitePermissions, sdkPermissionToDB),
 		OrgPermissions:  db2sdk.List(req.OrganizationPermissions, sdkPermissionToDB),
 		UserPermissions: db2sdk.List(req.UserPermissions, sdkPermissionToDB),
+		// Satisfy the linter (we don't support member permissions in non-system roles).
+		MemberPermissions: database.CustomRolePermissions{},
+		IsSystem:          false,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -82,15 +85,15 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Role(inserted))
 }
 
-// patchRole will allow creating a custom organization role
+// putOrgRoles will allow updating a custom organization role
 //
-// @Summary Upsert a custom organization role
-// @ID upsert-a-custom-organization-role
+// @Summary Update a custom organization role
+// @ID update-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.CustomRoleRequest true "Upsert role request"
+// @Param request body codersdk.CustomRoleRequest true "Update role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /organizations/{organization}/members/roles [put]
@@ -126,8 +129,9 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 				OrganizationID: organization.ID,
 			},
 		},
-		ExcludeOrgRoles: false,
-		OrganizationID:  organization.ID,
+		ExcludeOrgRoles:    false,
+		OrganizationID:     organization.ID,
+		IncludeSystemRoles: false,
 	})
 	// If it is a 404 (not found) error, ignore it.
 	if err != nil && !httpapi.Is404Error(err) {
@@ -153,6 +157,8 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		SitePermissions: db2sdk.List(filterInvalidPermissions(req.SitePermissions), sdkPermissionToDB),
 		OrgPermissions:  db2sdk.List(filterInvalidPermissions(req.OrganizationPermissions), sdkPermissionToDB),
 		UserPermissions: db2sdk.List(filterInvalidPermissions(req.UserPermissions), sdkPermissionToDB),
+		// Satisfy the linter (we don't support member permissions in non-system roles).
+		MemberPermissions: database.CustomRolePermissions{},
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -197,6 +203,12 @@ func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	rolename := chi.URLParam(r, "roleName")
+
+	// Catch requests that try to delete system roles.
+	if !validOrganizationRoleRequest(ctx, codersdk.CustomRoleRequest{Name: rolename}, rw) {
+		return
+	}
+
 	roles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles: []database.NameOrganizationPair{
 			{
@@ -204,7 +216,8 @@ func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 				OrganizationID: organization.ID,
 			},
 		},
-		ExcludeOrgRoles: false,
+		ExcludeOrgRoles:    false,
+		IncludeSystemRoles: false,
 		// Linter requires all fields to be set. This field is not actually required.
 		OrganizationID: organization.ID,
 	})

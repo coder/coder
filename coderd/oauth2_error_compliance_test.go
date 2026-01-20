@@ -99,7 +99,7 @@ func TestOAuth2RegistrationErrorCodes(t *testing.T) {
 			req: codersdk.OAuth2ClientRegistrationRequest{
 				RedirectURIs: []string{"https://example.com/callback"},
 				ClientName:   fmt.Sprintf("test-client-%d", time.Now().UnixNano()),
-				GrantTypes:   []string{"unsupported_grant_type"},
+				GrantTypes:   []codersdk.OAuth2ProviderGrantType{"unsupported_grant_type"},
 			},
 			expectedError: "invalid_client_metadata",
 			expectedCode:  http.StatusBadRequest,
@@ -109,7 +109,7 @@ func TestOAuth2RegistrationErrorCodes(t *testing.T) {
 			req: codersdk.OAuth2ClientRegistrationRequest{
 				RedirectURIs:  []string{"https://example.com/callback"},
 				ClientName:    fmt.Sprintf("test-client-%d", time.Now().UnixNano()),
-				ResponseTypes: []string{"unsupported_response_type"},
+				ResponseTypes: []codersdk.OAuth2ProviderResponseType{"unsupported_response_type"},
 			},
 			expectedError: "invalid_client_metadata",
 			expectedCode:  http.StatusBadRequest,

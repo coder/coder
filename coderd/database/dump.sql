@@ -746,6 +746,37 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION insert_org_member_system_role() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO custom_roles (
+        name,
+        display_name,
+        organization_id,
+        site_permissions,
+        org_permissions,
+        user_permissions,
+        member_permissions,
+        is_system,
+        created_at,
+        updated_at
+    ) VALUES (
+        'organization-member',
+        '',
+        NEW.id,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        true,
+        NOW(),
+        NOW()
+    );
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION insert_user_links_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1203,6 +1234,8 @@ CREATE TABLE custom_roles (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     organization_id uuid,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    is_system boolean DEFAULT false NOT NULL,
+    member_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT organization_id_not_zero CHECK ((organization_id <> '00000000-0000-0000-0000-000000000000'::uuid))
 );
 
@@ -1211,6 +1244,8 @@ COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at r
 COMMENT ON COLUMN custom_roles.organization_id IS 'Roles can optionally be scoped to an organization';
 
 COMMENT ON COLUMN custom_roles.id IS 'Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.';
+
+COMMENT ON COLUMN custom_roles.is_system IS 'System roles are managed by Coder and cannot be modified or deleted by users.';
 
 CREATE TABLE dbcrypt_keys (
     number integer NOT NULL,
@@ -1595,7 +1630,8 @@ CREATE TABLE organizations (
     is_default boolean DEFAULT false NOT NULL,
     display_name text NOT NULL,
     icon text DEFAULT ''::text NOT NULL,
-    deleted boolean DEFAULT false NOT NULL
+    deleted boolean DEFAULT false NOT NULL,
+    workspace_sharing_disabled boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -3545,6 +3581,8 @@ CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE O
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_insert_org_member_system_role AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_org_member_system_role();
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 
