@@ -1677,7 +1677,6 @@ func TestDBPurgeAuthorization(t *testing.T) {
 		// operations actually delete records (that's tested elsewhere).
 		err := dbpurge.PurgeTick(ctx, db, testutil.Logger(t), vals, clk, nil, nil, now)
 		require.NoError(t, err, "PurgeTick should succeed with DBPurge actor")
-		require.False(t, dbauthz.IsNotAuthorizedError(err), "should not return RBAC authorization error")
 	})
 }
 
