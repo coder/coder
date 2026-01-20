@@ -337,12 +337,12 @@ func TestWatchParentContext(t *testing.T) {
 		// Advance clock to trigger the check
 		mClock.AdvanceNext()
 
-		// The context should be cancelled
+		// The context should be canceled
 		select {
 		case <-childCtx.Done():
-			// Expected - context was cancelled because parent is not alive
+			// Expected - context was canceled because parent is not alive
 		case <-time.After(testutil.WaitShort):
-			t.Fatal("context was not cancelled when parent died")
+			t.Fatal("context was not canceled when parent died")
 		}
 	})
 
@@ -366,10 +366,10 @@ func TestWatchParentContext(t *testing.T) {
 			mClock.AdvanceNext()
 		}
 
-		// Context should NOT be cancelled since parent is still alive
+		// Context should NOT be canceled since parent is still alive
 		select {
 		case <-childCtx.Done():
-			t.Fatal("context was cancelled even though parent is still alive")
+			t.Fatal("context was canceled even though parent is still alive")
 		default:
 			// Expected - context stays valid
 		}
@@ -388,12 +388,12 @@ func TestWatchParentContext(t *testing.T) {
 		// Cancel the parent context
 		cancelParent()
 
-		// Child context should also be cancelled
+		// Child context should also be canceled
 		select {
 		case <-childCtx.Done():
 			// Expected
 		case <-time.After(testutil.WaitShort):
-			t.Fatal("child context was not cancelled when parent context was cancelled")
+			t.Fatal("child context was not canceled when parent context was canceled")
 		}
 	})
 
@@ -420,10 +420,10 @@ func TestWatchParentContext(t *testing.T) {
 			mClock.AdvanceNext()
 		}
 
-		// Context should NOT be cancelled since we got an error (not a definitive "not alive")
+		// Context should NOT be canceled since we got an error (not a definitive "not alive")
 		select {
 		case <-childCtx.Done():
-			t.Fatal("context was cancelled even though pidExists returned an error")
+			t.Fatal("context was canceled even though pidExists returned an error")
 		default:
 			// Expected - context stays valid
 		}

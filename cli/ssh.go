@@ -184,7 +184,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 			// Note: using gopsutil to check the parent process as this handles
 			// windows processes as well in a standard way.
 			if stdio {
-				ctx, cancel = watchParentContext(ctx, quartz.NewReal(), int32(os.Getppid()), process.PidExistsWithContext)
+				ppid := int32(os.Getppid()) // nolint:gosec
+				ctx, cancel = watchParentContext(ctx, quartz.NewReal(), ppid, process.PidExistsWithContext)
 				defer cancel()
 			}
 
