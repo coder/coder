@@ -37,14 +37,14 @@ Traditional Coder Workspaces started manually by developers or scheduled to auto
 
 ### Scenarios
 
-| Scenario | Consumes Agent Workspace Build |
-| --- | --- |
-| Developer creates a Coder Task to write end-to-end tests | Yes |
-| Automated pipeline creates a task via Coder Tasks CLI (with Claude Code) to review a pull request | Yes |
-| Developer resumes an old Coder Task order to continue prototyping | Yes |
-| Developer starts a workspace for use with VS Code and Jupyter | No |
-| Developer creates a workspace for use with Cursor and Claude Code CLI | No |
-| Developer creates a workspace for use with Coder AI Bridge and Boundaries | No |
+| Scenario                                                                                          | Consumes Agent Workspace Build |
+|---------------------------------------------------------------------------------------------------|--------------------------------|
+| Developer creates a Coder Task to write end-to-end tests                                          | Yes                            |
+| Automated pipeline creates a task via Coder Tasks CLI (with Claude Code) to review a pull request | Yes                            |
+| Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |
+| Developer starts a workspace for use with VS Code and Jupyter                                     | No                             |
+| Developer creates a workspace for use with Cursor and Claude Code CLI                             | No                             |
+| Developer creates a workspace for use with Coder AI Bridge and Boundaries                         | No                             |
 
 In the future, additional capabilities for managing agents (beyond Coder Tasks) may also consume agent workspace builds.
 
