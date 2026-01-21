@@ -344,6 +344,7 @@ func TestRuntimeAudit(t *testing.T) {
 
 	for i, v := range vectors {
 		t.Run(v.name, func(t *testing.T) {
+			t.Parallel()
 			v.expect(workspaces[i].CreatedAt, v.builds)
 		})
 	}
