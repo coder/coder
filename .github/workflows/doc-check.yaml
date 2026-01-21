@@ -250,6 +250,7 @@ jobs:
           MAX_WAIT=600  # 10 minutes
           WAITED=0
           POLL_INTERVAL=3
+          LAST_STATUS=""
 
           is_workspace_message() {
             local msg="$1"
@@ -270,7 +271,10 @@ jobs:
             fi
 
             if [[ -z "$STATUS_JSON" ]] || ! echo "$STATUS_JSON" | jq -e . >/dev/null 2>&1; then
-              echo "[${WAITED}s] Waiting for task status..."
+              if [[ "$LAST_STATUS" != "waiting" ]]; then
+                echo "[${WAITED}s] Waiting for task status..."
+                LAST_STATUS="waiting"
+              fi
               sleep $POLL_INTERVAL
               WAITED=$((WAITED + POLL_INTERVAL))
               continue
@@ -280,7 +284,18 @@ jobs:
             TASK_MESSAGE=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
             WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
 
-            echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
+            # Build current status string for comparison
+            CURRENT_STATUS="${TASK_STATE}|${WORKSPACE_STATUS}|${TASK_MESSAGE}"
+
+            # Only log if status changed
+            if [[ "$CURRENT_STATUS" != "$LAST_STATUS" ]]; then
+              if [[ "$TASK_STATE" == "idle" ]] && is_workspace_message "$TASK_MESSAGE"; then
+                echo "[${WAITED}s] Workspace ready, waiting for Agent..."
+              else
+                echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
+              fi
+              LAST_STATUS="$CURRENT_STATUS"
+            fi
 
             if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
               echo "::error::Workspace failed: ${WORKSPACE_STATUS}"
@@ -296,9 +311,6 @@ jobs:
                 echo "result_uri=${RESULT_URI}" >> "${GITHUB_OUTPUT}"
                 echo "task_message=${TASK_MESSAGE}" >> "${GITHUB_OUTPUT}"
                 break
-              else
-                # Idle but no real message yet - workspace is ready, waiting for Claude
-                echo "  (workspace ready, waiting for AI to complete...)"
               fi
             fi
 
