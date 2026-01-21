@@ -9,12 +9,12 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "68fa7d79-1c3f-4f2d-b47a-188338b2c622",
+          "id": "37a1bd80-851e-48cf-bd36-af4aab414203",
           "name": "main",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "91e53d03-c264-4929-b0be-c818d8c2b11e"
+            "Token": "c95ffdc5-6456-464d-ae10-33126e7a0d6e"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -28,8 +28,8 @@
             {
               "workspace_folder": "/workspace",
               "name": "dev",
-              "id": "907d5a40-3d81-4f03-9619-74cffb208750",
-              "subagent_id": "5d37c7c2-931c-4bb9-8243-c1a41c85c98c",
+              "id": "bb802ac6-f83a-4687-9103-87f551c6f144",
+              "subagent_id": "523258bd-d830-4ff4-b3d0-a665496d8075",
               "apps": [
                 {
                   "slug": "devcontainer-app",
@@ -42,8 +42,8 @@
             {
               "workspace_folder": "/other",
               "name": "other",
-              "id": "f3ec71d7-518c-45dc-b436-fe64e4018acb",
-              "subagent_id": "c04ecc9f-9920-419c-a1c0-38d989553c6a"
+              "id": "8e5a16da-e98c-4a6f-b24c-3c0cbd6bb9df",
+              "subagent_id": "cfa0a8fc-29cf-44e8-8ae2-42637057826a"
             }
           ],
           "api_key_scope": "all"
@@ -59,12 +59,12 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "b584209b-ff90-424c-a158-7aa62ed07bf8",
+          "id": "79762ce7-0eef-49e2-8782-779e9f8ac62f",
           "name": "secondary",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "8fad7f71-78d4-413c-b035-a131ff777893"
+            "Token": "c79ef145-c76d-44f0-a384-19421e503230"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
