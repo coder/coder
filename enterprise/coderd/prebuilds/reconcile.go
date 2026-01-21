@@ -171,7 +171,8 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 	c.logger.Info(ctx, "starting reconciler",
 		slog.F("interval", reconciliationInterval),
 		slog.F("backoff_interval", c.cfg.ReconciliationBackoffInterval.String()),
-		slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()))
+		slog.F("backoff_lookback", c.cfg.ReconciliationBackoffLookback.String()),
+		slog.F("preset_concurrency", c.reconciliationConcurrency))
 
 	var wg sync.WaitGroup
 	ticker := c.clock.NewTicker(reconciliationInterval)
