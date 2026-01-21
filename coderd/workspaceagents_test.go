@@ -491,6 +491,24 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 			newState:   codersdk.WorkspaceAppStatusStateComplete,
 			shouldBump: false,
 		},
+		{
+			name:       "WorkingToFailureBumps",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			newState:   codersdk.WorkspaceAppStatusStateFailure,
+			shouldBump: true,
+		},
+		{
+			name:       "IdleToIdleNoBump",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: false,
+		},
+		{
+			name:       "IdleToWorkingBumps",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			newState:   codersdk.WorkspaceAppStatusStateWorking,
+			shouldBump: true,
+		},
 	}
 
 	for _, tt := range tests {
