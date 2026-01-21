@@ -4,9 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	boundarycli "github.com/coder/boundary/cli"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -18,7 +20,11 @@ func TestBoundarySubcommand(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	inv, _ := clitest.New(t, "exp", "boundary", "--help")
+	var root cli.RootCmd
+	cmd, err := root.Command(root.EnterpriseSubcommands())
+	require.NoError(t, err)
+
+	inv, _ := clitest.NewWithCommand(t, cmd, "boundary", "--help")
 	pty := ptytest.New(t).Attach(inv)
 
 	go func() {
