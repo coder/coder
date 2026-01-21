@@ -1195,7 +1195,7 @@ func TestSSH(t *testing.T) {
 		sleepPid := testutil.RequireReceive(ctx, t, sleepStart)
 		// Wait for the agent to be ready
 		testutil.SoftTryReceive(ctx, t, agentReady)
-		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--test-force-ppid", fmt.Sprintf("%d", sleepPid))
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--test.force-ppid", fmt.Sprintf("%d", sleepPid))
 		clitest.SetupConfig(t, client, root)
 		inv.Stdin = clientOutput
 		inv.Stdout = serverInput

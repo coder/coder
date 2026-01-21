@@ -798,7 +798,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Hidden:      true,
 		},
 		{
-			Flag:        "test-force-ppid",
+			Flag:        "test.force-ppid",
 			Description: "Override the parent process ID to simulate a different parent process. ONLY USE THIS IN TESTS.",
 			Value:       serpent.Int64Of(&testForcePPID),
 			Hidden:      true,
