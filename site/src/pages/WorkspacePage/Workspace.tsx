@@ -11,7 +11,7 @@ import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAl
 import { AgentRow } from "modules/resources/AgentRow";
 import { useAgentMetadataHealthBanner } from "modules/resources/useAgentMetadataHealthBanner";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import type { FC } from "react";
+import { useEffect, useMemo, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -122,9 +122,25 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 	// Collect all agent IDs from all resources for banner detection
 	// This ensures we monitor agents even if no resource is selected
-	const agentIds = resources.flatMap((r) => (r.agents ?? []).map((a) => a.id));
+	// Memoize to prevent unnecessary re-renders
+	const agentIds = useMemo(
+		() => resources.flatMap((r) => (r.agents ?? []).map((a) => a.id)),
+		[resources],
+	);
 	const { shouldShow: shouldShowAgentMetricsBanner } =
 		useAgentMetadataHealthBanner(agentIds, workspaceRunning);
+
+	// Debug logging
+	useEffect(() => {
+		console.log(
+			"[Workspace] Banner state:",
+			shouldShowAgentMetricsBanner,
+			"workspaceRunning:",
+			workspaceRunning,
+			"agentIds:",
+			agentIds,
+		);
+	}, [shouldShowAgentMetricsBanner, workspaceRunning, agentIds]);
 
 	return (
 		<div
