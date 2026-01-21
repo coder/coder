@@ -36,6 +36,15 @@ export interface AIBridgeConfig {
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
+	/**
+	 * Circuit breaker protects against cascading failures from upstream AI
+	 * provider rate limits (429, 503, 529 overloaded).
+	 */
+	readonly circuit_breaker_enabled: boolean;
+	readonly circuit_breaker_failure_threshold: number;
+	readonly circuit_breaker_interval: number;
+	readonly circuit_breaker_timeout: number;
+	readonly circuit_breaker_max_requests: number;
 }
 
 // From codersdk/aibridge.go

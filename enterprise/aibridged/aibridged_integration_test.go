@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/config"
 	aibtracing "github.com/coder/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -414,4 +415,134 @@ func TestIntegrationWithMetrics(t *testing.T) {
 		count := promtest.ToFloat64(metrics.InterceptionCount)
 		return count == 1
 	}, testutil.WaitShort, testutil.IntervalFast, "interceptions_total metric should be 1")
+}
+
+// TestIntegrationCircuitBreaker validates that the circuit breaker opens after
+// consecutive failures and that the corresponding metrics are exposed.
+func TestIntegrationCircuitBreaker(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create prometheus registry and metrics.
+	registry := prometheus.NewRegistry()
+	metrics := aibridge.NewMetrics(registry)
+
+	// Set up mock OpenAI server that always returns 429 Too Many Requests.
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Disable SDK retries.
+		w.Header().Set("x-should-retry", "false")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"type":"rate_limit_error","message":"rate limited","code":"rate_limit_exceeded"}}`))
+	}))
+	t.Cleanup(mockOpenAI.Close)
+
+	// Set up mock Anthropic server that always returns 529 Overloaded.
+	mockAnthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Anthropic uses 529 for overloaded errors.
+		w.WriteHeader(529)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`))
+	}))
+	t.Cleanup(mockAnthropic.Close)
+
+	// Database and coderd setup.
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		},
+	})
+
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+	// Create an API token for the user.
+	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
+		TokenName: fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeCoderAll,
+	})
+	require.NoError(t, err)
+
+	// Create aibridge client.
+	aiBridgeClient, err := api.CreateInMemoryAIBridgeServer(ctx)
+	require.NoError(t, err)
+
+	logger := testutil.Logger(t)
+
+	// Create providers with circuit breaker configured to open after 2 failures.
+	cbConfig := &config.CircuitBreaker{
+		FailureThreshold: 2,
+		Interval:         time.Minute,
+		Timeout:          time.Minute,
+		MaxRequests:      1,
+	}
+	providers := []aibridge.Provider{
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+			BaseURL:        mockOpenAI.URL,
+			CircuitBreaker: cbConfig,
+		}),
+		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+			BaseURL:        mockAnthropic.URL,
+			Key:            "test-key",
+			CircuitBreaker: cbConfig,
+		}, nil),
+	}
+
+	// Create pool with metrics.
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, metrics, testTracer)
+	require.NoError(t, err)
+
+	// Given: aibridged is started.
+	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+		return aiBridgeClient, nil
+	}, logger, testTracer)
+	require.NoError(t, err, "create new aibridged")
+	t.Cleanup(func() {
+		_ = srv.Shutdown(ctx)
+	})
+
+	// Test OpenAI circuit breaker.
+	openaiRequestBody := `{"messages":[{"role":"user","content":"test"}],"model":"gpt-4"}`
+	for i := 0; i < 3; i++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(openaiRequestBody))
+		require.NoError(t, err)
+		req.Header.Add("Authorization", "Bearer "+apiKey.Key)
+		req.Header.Add("Accept", "application/json")
+
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		t.Logf("OpenAI request %d: status=%d", i+1, rec.Code)
+	}
+
+	// Test Anthropic circuit breaker.
+	anthropicRequestBody := `{"messages":[{"role":"user","content":"test"}],"model":"claude-3-5-sonnet-20241022","max_tokens":100}`
+	for i := 0; i < 3; i++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/anthropic/v1/messages", bytes.NewBufferString(anthropicRequestBody))
+		require.NoError(t, err)
+		req.Header.Add("Authorization", "Bearer "+apiKey.Key)
+		req.Header.Add("Accept", "application/json")
+
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		t.Logf("Anthropic request %d: status=%d", i+1, rec.Code)
+	}
+
+	// Then: the circuit breaker metrics should reflect that both circuits opened.
+
+	// OpenAI circuit breaker should have tripped (state=1 means open).
+	openaiTrips := promtest.ToFloat64(metrics.CircuitBreakerTrips.WithLabelValues("openai", "/v1/chat/completions", "gpt-4"))
+	require.Equal(t, 1.0, openaiTrips, "OpenAI CircuitBreakerTrips should be 1")
+
+	openaiState := promtest.ToFloat64(metrics.CircuitBreakerState.WithLabelValues("openai", "/v1/chat/completions", "gpt-4"))
+	require.Equal(t, 1.0, openaiState, "OpenAI CircuitBreakerState should be 1 (open)")
+
+	// Anthropic circuit breaker should have tripped.
+	anthropicTrips := promtest.ToFloat64(metrics.CircuitBreakerTrips.WithLabelValues("anthropic", "/v1/messages", "claude-3-5-sonnet-20241022"))
+	require.Equal(t, 1.0, anthropicTrips, "Anthropic CircuitBreakerTrips should be 1")
+
+	anthropicState := promtest.ToFloat64(metrics.CircuitBreakerState.WithLabelValues("anthropic", "/v1/messages", "claude-3-5-sonnet-20241022"))
+	require.Equal(t, 1.0, anthropicState, "Anthropic CircuitBreakerState should be 1 (open)")
 }
