@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -15,7 +17,52 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// mockConnection implements io.ReadWriteCloser for testing
+const forceReconnectSingleflightKey = "force-reconnect"
+
+// singleflightDupsForBackedPipe returns the current singleflight duplicate count
+// for the given key.
+//
+// This is test-only introspection used to avoid flakes caused by goroutine
+// scheduling between signaling "about to call" and actually entering
+// ForceReconnect's singleflight.
+func singleflightDupsForBackedPipe(bp *backedpipe.BackedPipe, key string) (int, bool) {
+	if bp == nil {
+		return 0, false
+	}
+
+	sfVal := reflect.ValueOf(bp).Elem().FieldByName("sf")
+	if !sfVal.IsValid() {
+		return 0, false
+	}
+
+	muVal := sfVal.FieldByName("mu")
+	if !muVal.IsValid() {
+		return 0, false
+	}
+
+	mu := (*sync.Mutex)(unsafe.Pointer(muVal.Addr().Pointer()))
+	mu.Lock()
+	defer mu.Unlock()
+
+	mVal := sfVal.FieldByName("m")
+	if !mVal.IsValid() || mVal.IsNil() {
+		return 0, false
+	}
+
+	callVal := mVal.MapIndex(reflect.ValueOf(key))
+	if !callVal.IsValid() || callVal.IsNil() {
+		return 0, false
+	}
+
+	dupsVal := callVal.Elem().FieldByName("dups")
+	if !dupsVal.IsValid() {
+		return 0, false
+	}
+
+	return int(dupsVal.Int()), true
+}
+
+// mockConnection implements io.ReadWriteCloser for testing.
 type mockConnection struct {
 	mu          sync.Mutex
 	readBuffer  bytes.Buffer
@@ -781,6 +828,15 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	for i := 1; i < numConcurrent; i++ {
 		<-startedSignals[i]
 	}
+
+	// Ensure followers *actually* joined the in-flight singleflight call before we
+	// unblock the leader reconnect. Otherwise a follower can be preempted after
+	// signaling startedSignals[i] but before it enters ForceReconnect, and then
+	// run after the leader completes, causing an extra reconnect (flake).
+	require.Eventually(t, func() bool {
+		dups, ok := singleflightDupsForBackedPipe(bp, forceReconnectSingleflightKey)
+		return ok && dups == numConcurrent-1
+	}, testutil.WaitShort, testutil.IntervalFast, "all ForceReconnect calls should join the same singleflight")
 
 	// At this point, one reconnect has started and is blocked,
 	// and all other goroutines have called ForceReconnect and should be
