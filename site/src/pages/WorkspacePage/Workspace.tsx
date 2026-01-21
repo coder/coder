@@ -120,6 +120,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 
+	// Collect all agent IDs from all resources for banner detection
+	// This ensures we monitor agents even if no resource is selected
 	const agentIds = resources.flatMap((r) => (r.agents ?? []).map((a) => a.id));
 	const { shouldShow: shouldShowAgentMetricsBanner } =
 		useAgentMetadataHealthBanner(agentIds, workspaceRunning);

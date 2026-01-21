@@ -35,8 +35,19 @@ export const useAgentMetadataHealthBanner = (
 		}
 
 		if (!enabled || stableAgentIds.length === 0) {
+			console.log(
+				"[AgentMetadataHealthBanner] Skipping: enabled=",
+				enabled,
+				"agentIds.length=",
+				stableAgentIds.length,
+			);
 			return;
 		}
+
+		console.log(
+			"[AgentMetadataHealthBanner] Starting monitoring for agents:",
+			stableAgentIds,
+		);
 
 		const sources = stableAgentIds.map((agentId) => {
 			const source = watchAgentMetadata(agentId);
@@ -45,6 +56,10 @@ export const useAgentMetadataHealthBanner = (
 				const data = JSON.parse(e.data) as WorkspaceAgentMetadata[];
 
 				if (isValidAgentMetadataSample(data)) {
+					console.log(
+						"[AgentMetadataHealthBanner] Valid sample for agent:",
+						agentId,
+					);
 					hasValidAgentRef.current = true;
 					invalidSinceByAgentRef.current.delete(agentId);
 					setShouldShow(false);
@@ -54,6 +69,12 @@ export const useAgentMetadataHealthBanner = (
 				if (isInvalidAgentMetadataSample(data)) {
 					const now = Date.now();
 					if (!invalidSinceByAgentRef.current.has(agentId)) {
+						console.log(
+							"[AgentMetadataHealthBanner] Invalid sample detected for agent:",
+							agentId,
+							"at",
+							now,
+						);
 						invalidSinceByAgentRef.current.set(agentId, now);
 					}
 				}
@@ -81,6 +102,14 @@ export const useAgentMetadataHealthBanner = (
 				const invalidSince = invalidSinceByAgent.get(id);
 				return invalidSince !== undefined && now - invalidSince >= THRESHOLD_MS;
 			});
+			if (allInvalidLongEnough !== shouldShow) {
+				console.log(
+					"[AgentMetadataHealthBanner] Banner state changed:",
+					allInvalidLongEnough,
+					"invalidSinceByAgent:",
+					Object.fromEntries(invalidSinceByAgent),
+				);
+			}
 			setShouldShow(allInvalidLongEnough);
 		}, 1000);
 
