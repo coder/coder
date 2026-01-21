@@ -391,6 +391,11 @@
     "region": "string",
     "small_fast_model": "string"
   },
+  "circuit_breaker_enabled": true,
+  "circuit_breaker_failure_threshold": 0,
+  "circuit_breaker_interval": 0,
+  "circuit_breaker_max_requests": 0,
+  "circuit_breaker_timeout": 0,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -406,17 +411,22 @@
 
 ### Properties
 
-| Name                     | Type                                                                 | Required | Restrictions | Description |
-|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
-| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
-| `enabled`                | boolean                                                              | false    |              |             |
-| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
-| `max_concurrency`        | integer                                                              | false    |              |             |
-| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
-| `rate_limit`             | integer                                                              | false    |              |             |
-| `retention`              | integer                                                              | false    |              |             |
-| `structured_logging`     | boolean                                                              | false    |              |             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              |                                                                                                                       |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                       |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
 
 ## codersdk.AIBridgeInterception
 
@@ -747,6 +757,11 @@
       "region": "string",
       "small_fast_model": "string"
     },
+    "circuit_breaker_enabled": true,
+    "circuit_breaker_failure_threshold": 0,
+    "circuit_breaker_interval": 0,
+    "circuit_breaker_max_requests": 0,
+    "circuit_breaker_timeout": 0,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -2666,6 +2681,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "region": "string",
           "small_fast_model": "string"
         },
+        "circuit_breaker_enabled": true,
+        "circuit_breaker_failure_threshold": 0,
+        "circuit_breaker_interval": 0,
+        "circuit_breaker_max_requests": 0,
+        "circuit_breaker_timeout": 0,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -3214,6 +3234,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "region": "string",
         "small_fast_model": "string"
       },
+      "circuit_breaker_enabled": true,
+      "circuit_breaker_failure_threshold": 0,
+      "circuit_breaker_interval": 0,
+      "circuit_breaker_max_requests": 0,
+      "circuit_breaker_timeout": 0,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,

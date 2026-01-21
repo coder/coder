@@ -129,6 +129,10 @@ AI BRIDGE OPTIONS:
           See
           https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
+      --aibridge-circuit-breaker-enabled bool, $CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED (default: false)
+          Enable the circuit breaker to protect against cascading failures from
+          upstream AI provider rate limits (429, 503, 529 overloaded).
+
       --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 60d)
           Length of time to retain data such as interceptions and all related
           records (token, prompt, tool use).
