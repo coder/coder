@@ -674,7 +674,7 @@ func TestProxy_CertCaching(t *testing.T) {
 			}
 
 			// Make a request through the proxy to the target server.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-session-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
@@ -750,7 +750,7 @@ func TestProxy_PortValidation(t *testing.T) {
 			)
 
 			// Make a request through the proxy to the target server.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-session-token"), getProxyCertPool(t))
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t))
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 			require.NoError(t, err)
 
@@ -781,7 +781,7 @@ func TestProxy_Authentication(t *testing.T) {
 	}{
 		{
 			name:        "ValidCredentials",
-			proxyAuth:   makeProxyAuthHeader("test-coder-session-token"),
+			proxyAuth:   makeProxyAuthHeader("test-coder-token"),
 			expectError: false,
 		},
 		{
@@ -915,7 +915,7 @@ func TestProxy_MITM(t *testing.T) {
 			// Create a mock aibridged server that captures requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				receivedPath = r.URL.Path
-				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderSessionAuth)
+				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
 			}))
@@ -966,7 +966,7 @@ func TestProxy_MITM(t *testing.T) {
 			}
 
 			// Make a request through the proxy to the target URL.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-session-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
@@ -988,7 +988,7 @@ func TestProxy_MITM(t *testing.T) {
 				// Verify the request was routed to aibridged correctly.
 				require.Equal(t, "hello from aibridged", string(body))
 				require.Equal(t, tt.expectedPath, receivedPath)
-				require.Equal(t, "test-session-token", receivedCoderToken, "MITM'd requests must include Coder session token")
+				require.Equal(t, "test-token", receivedCoderToken, "MITM'd requests must include Coder token")
 			}
 		})
 	}
@@ -1269,7 +1269,7 @@ func TestUpstreamProxy(t *testing.T) {
 			aibridgeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				aibridgeReceived = true
 				aibridgePath = r.URL.Path
-				aibridgeCoderToken = r.Header.Get(agplaibridge.HeaderCoderSessionAuth)
+				aibridgeCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
 				body, err := io.ReadAll(r.Body)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1346,7 +1346,7 @@ func TestUpstreamProxy(t *testing.T) {
 				require.False(t, aibridgeReceived,
 					"aibridge should NOT receive request for non-allowlisted domain")
 				require.Empty(t, aibridgeCoderToken,
-					"tunneled requests should not have Coder session token")
+					"tunneled requests should not have Coder token")
 			} else {
 				require.False(t, upstreamProxyCONNECTReceived,
 					"upstream proxy should NOT receive CONNECT for allowlisted domain")
@@ -1355,7 +1355,7 @@ func TestUpstreamProxy(t *testing.T) {
 				require.Equal(t, tt.expectedAIBridgePath, aibridgePath,
 					"aibridge should receive rewritten path")
 				require.Equal(t, "test-coder-token", aibridgeCoderToken,
-					"aibridge should receive Coder session token header")
+					"aibridge should receive Coder token header")
 				require.Equal(t, requestBody, aibridgeBody,
 					"aibridge should receive the exact request body")
 				require.False(t, finalDestinationReceived,

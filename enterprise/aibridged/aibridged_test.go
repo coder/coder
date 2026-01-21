@@ -173,7 +173,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 	}
 }
 
-func TestServeHTTP_CoderSessionTokenRemoved(t *testing.T) {
+func TestServeHTTP_CoderTokenRemoved(t *testing.T) {
 	t.Parallel()
 
 	mockHandler := &mockHandler{}
@@ -191,9 +191,9 @@ func TestServeHTTP_CoderSessionTokenRemoved(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, httpSrv.URL+"/openai/v1/chat/completions", nil)
 	require.NoError(t, err)
 
-	// X-Coder-Session-Token is used for authentication and should be stripped.
+	// X-Coder-Token is used for authentication and should be stripped.
 	// Other authorization headers should be preserved.
-	req.Header.Set(agplaibridge.HeaderCoderSessionAuth, "coder-session-token")
+	req.Header.Set(agplaibridge.HeaderCoderAuth, "coder-token")
 	req.Header.Set("Authorization", "Bearer some-token")
 	req.Header.Set("X-Api-Key", "some-api-key")
 
@@ -203,10 +203,10 @@ func TestServeHTTP_CoderSessionTokenRemoved(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Verify X-Coder-Session-Token was removed before forwarding to handler.
+	// Verify X-Coder-Token was removed before forwarding to handler.
 	require.NotNil(t, mockHandler.headersReceived)
-	require.Empty(t, mockHandler.headersReceived.Get(agplaibridge.HeaderCoderSessionAuth),
-		"X-Coder-Session-Token should be removed before forwarding to handler")
+	require.Empty(t, mockHandler.headersReceived.Get(agplaibridge.HeaderCoderAuth),
+		"X-Coder-Token should be removed before forwarding to handler")
 
 	// Verify other headers were preserved.
 	require.Equal(t, "Bearer some-token", mockHandler.headersReceived.Get("Authorization"))
@@ -225,27 +225,27 @@ func TestExtractAuthToken(t *testing.T) {
 			name: "none",
 		},
 		{
-			name:    "x-coder-session-token/empty",
-			headers: map[string]string{agplaibridge.HeaderCoderSessionAuth: ""},
+			name:    "x-coder-token/empty",
+			headers: map[string]string{agplaibridge.HeaderCoderAuth: ""},
 		},
 		{
-			name:        "x-coder-session-token/ok",
-			headers:     map[string]string{agplaibridge.HeaderCoderSessionAuth: "coder-token"},
+			name:        "x-coder-token/ok",
+			headers:     map[string]string{agplaibridge.HeaderCoderAuth: "coder-token"},
 			expectedKey: "coder-token",
 		},
 		{
-			name: "x-coder-session-token/priority over authorization",
+			name: "x-coder-token/priority over authorization",
 			headers: map[string]string{
-				agplaibridge.HeaderCoderSessionAuth: "coder-token",
-				"Authorization":                     "Bearer other-token",
+				agplaibridge.HeaderCoderAuth: "coder-token",
+				"Authorization":              "Bearer other-token",
 			},
 			expectedKey: "coder-token",
 		},
 		{
-			name: "x-coder-session-token/priority over x-api-key",
+			name: "x-coder-token/priority over x-api-key",
 			headers: map[string]string{
-				agplaibridge.HeaderCoderSessionAuth: "coder-token",
-				"X-Api-Key":                         "api-key",
+				agplaibridge.HeaderCoderAuth: "coder-token",
+				"X-Api-Key":                  "api-key",
 			},
 			expectedKey: "coder-token",
 		},

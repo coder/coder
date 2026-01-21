@@ -43,8 +43,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Remove the Coder session token header so it's not forwarded to upstream providers.
-	r.Header.Del(agplaibridge.HeaderCoderSessionAuth)
+	// Remove the Coder token header so it's not forwarded to upstream providers.
+	r.Header.Del(agplaibridge.HeaderCoderAuth)
 
 	client, err := s.Client()
 	if err != nil {
