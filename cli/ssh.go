@@ -87,7 +87,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		containerUser string
 
 		// Used in tests to simulate the parent exiting.
-		unsafeForcePPID int64
+		testForcePPID int64
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -189,8 +189,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 			if stdio {
 				ppid := int32(os.Getppid())             // nolint:gosec
 				checkParentInterval := 10 * time.Second // Arbitrary interval to not be too frequent
-				if unsafeForcePPID > 0 {
-					ppid = int32(unsafeForcePPID)                // nolint:gosec
+				if testForcePPID > 0 {
+					ppid = int32(testForcePPID)                  // nolint:gosec
 					checkParentInterval = 100 * time.Millisecond // Shorter interval for testing
 				}
 				ctx, cancel = watchParentContext(ctx, quartz.NewReal(), ppid, process.PidExistsWithContext, checkParentInterval)
@@ -798,9 +798,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Hidden:      true,
 		},
 		{
-			Flag:        "unsafe-force-ppid",
+			Flag:        "test-force-ppid",
 			Description: "Override the parent process ID to simulate a different parent process. ONLY USE THIS IN TESTS.",
-			Value:       serpent.Int64Of(&unsafeForcePPID),
+			Value:       serpent.Int64Of(&testForcePPID),
 			Hidden:      true,
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
