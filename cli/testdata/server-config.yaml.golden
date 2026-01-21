@@ -747,8 +747,7 @@ aibridge:
   # (default: https://api.anthropic.com/, type: string)
   anthropic_base_url: https://api.anthropic.com/
   # The base URL to use for the AWS Bedrock API. Use this setting to specify an
-  # exact URL to use. Most users should prefer setting CODER_AIBRIDGE_BEDROCK_REGION
-  # instead.
+  # exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
   # (default: <unset>, type: string)
   bedrock_base_url: ""
   # The AWS Bedrock API region to use. Constructs a base URL to use for the AWS

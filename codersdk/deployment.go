@@ -3395,8 +3395,8 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name: "AI Bridge Bedrock Base URL",
-			Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Most users should " +
-				"prefer setting CODER_AIBRIDGE_BEDROCK_REGION instead.",
+			Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
+				"over CODER_AIBRIDGE_BEDROCK_REGION.",
 			Flag:    "aibridge-bedrock-base-url",
 			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
 			Value:   &c.AI.BridgeConfig.Bedrock.BaseURL,

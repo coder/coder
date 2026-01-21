@@ -111,8 +111,8 @@ AI BRIDGE OPTIONS:
 
       --aibridge-bedrock-base-url string, $CODER_AIBRIDGE_BEDROCK_BASE_URL
           The base URL to use for the AWS Bedrock API. Use this setting to
-          specify an exact URL to use. Most users should prefer setting
-          CODER_AIBRIDGE_BEDROCK_REGION instead.
+          specify an exact URL to use. Takes precedence over
+          CODER_AIBRIDGE_BEDROCK_REGION.
 
       --aibridge-bedrock-model string, $CODER_AIBRIDGE_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
           The model to use when making requests to the AWS Bedrock API.

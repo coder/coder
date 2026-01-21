@@ -1750,7 +1750,7 @@ The key to authenticate against the Anthropic API.
 | Environment | <code>$CODER_AIBRIDGE_BEDROCK_BASE_URL</code> |
 | YAML        | <code>aibridge.bedrock_base_url</code>        |
 
-The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Most users should prefer setting CODER_AIBRIDGE_BEDROCK_REGION instead.
+The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
 
 ### --aibridge-bedrock-region
 
