@@ -1135,7 +1135,6 @@ func TestSSH(t *testing.T) {
 		sessionStarted := make(chan struct{})
 		sleepKill := make(chan struct{})
 		sleepDone := make(chan struct{})
-		cmdDone := make(chan error)
 
 		// Start a sleep process which we will pretend is the parent.
 		go func() {
@@ -1203,11 +1202,7 @@ func TestSSH(t *testing.T) {
 		inv.Stderr = io.Discard
 
 		// Start the command
-		go func() {
-			defer close(cmdDone)
-			err := inv.Run()
-			assert.NoError(t, err, "coder ssh command exited with an error")
-		}()
+		clitest.Start(t, inv.WithContext(ctx))
 
 		// Wait for a session to be established
 		testutil.SoftTryReceive(ctx, t, sessionStarted)
@@ -1215,8 +1210,7 @@ func TestSSH(t *testing.T) {
 		close(sleepKill)
 		// The sleep process should exit
 		testutil.SoftTryReceive(ctx, t, sleepDone)
-		// And then the command should exit
-		testutil.SoftTryReceive(ctx, t, cmdDone)
+		// And then the command should exit. This is tracked by clitest.Start.
 	})
 
 	t.Run("ForwardAgent", func(t *testing.T) {
