@@ -1852,7 +1852,7 @@ CREATE TABLE tailnet_tunnels (
 CREATE TABLE task_snapshots (
     task_id uuid NOT NULL,
     log_snapshot jsonb NOT NULL,
-    log_snapshot_at timestamp with time zone DEFAULT now() NOT NULL
+    log_snapshot_created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 COMMENT ON TABLE task_snapshots IS 'Stores snapshots of task state when paused, currently limited to conversation history.';
@@ -1861,7 +1861,7 @@ COMMENT ON COLUMN task_snapshots.task_id IS 'The task this snapshot belongs to.'
 
 COMMENT ON COLUMN task_snapshots.log_snapshot IS 'Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.';
 
-COMMENT ON COLUMN task_snapshots.log_snapshot_at IS 'When this snapshot was captured.';
+COMMENT ON COLUMN task_snapshots.log_snapshot_created_at IS 'When this log snapshot was captured.';
 
 CREATE TABLE task_workspace_apps (
     task_id uuid NOT NULL,

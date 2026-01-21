@@ -4250,8 +4250,8 @@ type TaskSnapshot struct {
 	TaskID uuid.UUID `db:"task_id" json:"task_id"`
 	// Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.
 	LogSnapshot json.RawMessage `db:"log_snapshot" json:"log_snapshot"`
-	// When this snapshot was captured.
-	LogSnapshotAt time.Time `db:"log_snapshot_at" json:"log_snapshot_at"`
+	// When this log snapshot was captured.
+	LogSnapshotCreatedAt time.Time `db:"log_snapshot_created_at" json:"log_snapshot_created_at"`
 }
 
 type TaskTable struct {
