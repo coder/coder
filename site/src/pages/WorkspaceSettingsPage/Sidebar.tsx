@@ -17,9 +17,14 @@ import type { FC } from "react";
 interface SidebarProps {
 	username: string;
 	workspace: Workspace;
+	sharingDisabled?: boolean;
 }
 
-export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
+export const Sidebar: FC<SidebarProps> = ({
+	username,
+	workspace,
+	sharingDisabled,
+}) => {
 	const { experiments } = useDashboard();
 
 	return (
@@ -46,7 +51,7 @@ export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
 			<SidebarNavItem href="schedule" icon={ScheduleIcon}>
 				Schedule
 			</SidebarNavItem>
-			{experiments.includes("workspace-sharing") && (
+			{experiments.includes("workspace-sharing") && !sharingDisabled && (
 				<SidebarNavItem href="sharing" icon={SharingIcon}>
 					Sharing
 				</SidebarNavItem>

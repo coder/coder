@@ -12018,6 +12018,9 @@ const docTemplate = `{
                 "access_key_secret": {
                     "type": "string"
                 },
+                "base_url": {
+                    "type": "string"
+                },
                 "model": {
                     "type": "string"
                 },
@@ -12037,6 +12040,22 @@ const docTemplate = `{
                 },
                 "bedrock": {
                     "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
+                },
+                "circuit_breaker_enabled": {
+                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
+                    "type": "boolean"
+                },
+                "circuit_breaker_failure_threshold": {
+                    "type": "integer"
+                },
+                "circuit_breaker_interval": {
+                    "type": "integer"
+                },
+                "circuit_breaker_max_requests": {
+                    "type": "integer"
+                },
+                "circuit_breaker_timeout": {
+                    "type": "integer"
                 },
                 "enabled": {
                     "type": "boolean"
@@ -12156,6 +12175,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "upstream_proxy": {
+                    "type": "string"
+                },
+                "upstream_proxy_ca": {
                     "type": "string"
                 }
             }

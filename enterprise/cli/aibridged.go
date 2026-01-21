@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/config"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -21,15 +22,28 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 
 	logger := coderAPI.Logger.Named("aibridged")
 
-	// Setup supported providers.
+	// Build circuit breaker config if enabled.
+	var cbConfig *config.CircuitBreaker
+	if coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerEnabled.Value() {
+		cbConfig = &config.CircuitBreaker{
+			FailureThreshold: uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+			Interval:         coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerInterval.Value(),
+			Timeout:          coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerTimeout.Value(),
+			MaxRequests:      uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+		}
+	}
+
+	// Setup supported providers with circuit breaker config.
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+			BaseURL:        coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
+			Key:            coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+			CircuitBreaker: cbConfig,
 		}),
 		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+			BaseURL:        coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
+			Key:            coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+			CircuitBreaker: cbConfig,
 		}, getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
 	}
 
@@ -54,11 +68,12 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 }
 
 func getBedrockConfig(cfg codersdk.AIBridgeBedrockConfig) *aibridge.AWSBedrockConfig {
-	if cfg.Region.String() == "" && cfg.AccessKey.String() == "" && cfg.AccessKeySecret.String() == "" {
+	if cfg.Region.String() == "" && cfg.BaseURL.String() == "" && cfg.AccessKey.String() == "" && cfg.AccessKeySecret.String() == "" {
 		return nil
 	}
 
 	return &aibridge.AWSBedrockConfig{
+		BaseURL:         cfg.BaseURL.String(),
 		Region:          cfg.Region.String(),
 		AccessKey:       cfg.AccessKey.String(),
 		AccessKeySecret: cfg.AccessKeySecret.String(),

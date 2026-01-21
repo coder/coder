@@ -248,6 +248,33 @@ export const patchRoleSyncSettings = (
 	};
 };
 
+const getWorkspaceSharingSettingsKey = (organization: string) => [
+	"organization",
+	organization,
+	"workspaceSharingSettings",
+];
+
+export const workspaceSharingSettings = (organization: string) => {
+	return {
+		queryKey: getWorkspaceSharingSettingsKey(organization),
+		queryFn: () => API.getWorkspaceSharingSettings(organization),
+	};
+};
+
+export const patchWorkspaceSharingSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (request: { sharing_disabled: boolean }) =>
+			API.patchWorkspaceSharingSettings(organization, request),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries({
+				queryKey: getWorkspaceSharingSettingsKey(organization),
+			}),
+	};
+};
+
 export const provisionerJobsQueryKey = (
 	orgId: string,
 	params: GetProvisionerJobsParams = {},

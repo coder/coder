@@ -39,7 +39,9 @@ type ReconciliationOrchestrator interface {
 
 // ReconcileStats contains statistics about a reconciliation cycle.
 type ReconcileStats struct {
-	Elapsed time.Duration
+	Elapsed           time.Duration
+	PresetsTotal      int
+	PresetsReconciled int
 }
 
 type Reconciler interface {

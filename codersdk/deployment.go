@@ -3394,14 +3394,26 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AI Bridge Bedrock Region",
-			Description: "The AWS Bedrock API region.",
-			Flag:        "aibridge-bedrock-region",
-			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:       &c.AI.BridgeConfig.Bedrock.Region,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_region",
+			Name: "AI Bridge Bedrock Base URL",
+			Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
+				"over CODER_AIBRIDGE_BEDROCK_REGION.",
+			Flag:    "aibridge-bedrock-base-url",
+			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
+			Value:   &c.AI.BridgeConfig.Bedrock.BaseURL,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_base_url",
+		},
+		{
+			Name: "AI Bridge Bedrock Region",
+			Description: "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
+				"'https://bedrock-runtime.<region>.amazonaws.com'.",
+			Flag:    "aibridge-bedrock-region",
+			Env:     "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:   &c.AI.BridgeConfig.Bedrock.Region,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_region",
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key",
@@ -3494,6 +3506,72 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "structuredLogging",
 		},
+		{
+			Name:        "AI Bridge Circuit Breaker Enabled",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Flag:        "aibridge-circuit-breaker-enabled",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerEnabled",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Failure Threshold",
+			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+			Flag:        "aibridge-circuit-breaker-failure-threshold",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "5",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerFailureThreshold",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Interval",
+			Description: "Cyclic period of the closed state for clearing internal failure counts.",
+			Flag:        "aibridge-circuit-breaker-interval",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
+			Default:     "10s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerInterval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Timeout",
+			Description: "How long the circuit breaker stays open before transitioning to half-open state.",
+			Flag:        "aibridge-circuit-breaker-timeout",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerTimeout,
+			Default:     "30s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Max Requests",
+			Description: "Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
+			Flag:        "aibridge-circuit-breaker-max-requests",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "3",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerMaxRequests",
+		},
 
 		// AI Bridge Proxy Options
 		{
@@ -3546,6 +3624,26 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "domain_allowlist",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy",
+			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Flag:        "aibridge-proxy-upstream",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy CA",
+			Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+			Flag:        "aibridge-proxy-upstream-ca",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM_CA",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy_ca",
 		},
 
 		// Retention settings
@@ -3621,6 +3719,13 @@ type AIBridgeConfig struct {
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
+	// Circuit breaker protects against cascading failures from upstream AI
+	// provider rate limits (429, 503, 529 overloaded).
+	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
+	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
+	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
+	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
+	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3634,6 +3739,7 @@ type AIBridgeAnthropicConfig struct {
 }
 
 type AIBridgeBedrockConfig struct {
+	BaseURL         serpent.String `json:"base_url" typescript:",notnull"`
 	Region          serpent.String `json:"region" typescript:",notnull"`
 	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
 	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
@@ -3647,6 +3753,8 @@ type AIBridgeProxyConfig struct {
 	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
 	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
 	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
 type AIConfig struct {

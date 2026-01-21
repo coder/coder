@@ -11,7 +11,7 @@ OPTIONS:
           the user may have.
 
   -y, --yes bool
-          Bypass prompts.
+          Bypass confirmation prompts.
 
 ———
 Run `coder --help` for a list of global options.

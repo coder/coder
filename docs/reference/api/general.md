@@ -169,7 +169,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ],
         "enabled": true,
         "key_file": "string",
-        "listen_addr": "string"
+        "listen_addr": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
       },
       "bridge": {
         "anthropic": {
@@ -179,10 +181,16 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
+          "base_url": "string",
           "model": "string",
           "region": "string",
           "small_fast_model": "string"
         },
+        "circuit_breaker_enabled": true,
+        "circuit_breaker_failure_threshold": 0,
+        "circuit_breaker_interval": 0,
+        "circuit_breaker_max_requests": 0,
+        "circuit_breaker_timeout": 0,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,

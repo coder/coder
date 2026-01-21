@@ -25,7 +25,7 @@ coder organizations roles update [flags] <role_name>
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Bypass confirmation prompts.
 
 ### --dry-run
 

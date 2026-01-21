@@ -43,6 +43,9 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Remove the Coder token header so it's not forwarded to upstream providers.
+	r.Header.Del(agplaibridge.HeaderCoderAuth)
+
 	client, err := s.Client()
 	if err != nil {
 		logger.Warn(ctx, "failed to connect to coderd", slog.Error(err))
