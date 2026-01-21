@@ -567,7 +567,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		}).Do()
 
 		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-		agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
+		agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
 		require.NoError(t, err)
 
 		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
@@ -2788,7 +2788,7 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 
 			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
 			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
+			agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
 			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 				ID:             agent.WorkspaceAgent.ID,
@@ -2887,7 +2887,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
 	// nolint:gocritic
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-	agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
+	agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
 	require.NoError(t, err)
 	err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 		ID:             agent.WorkspaceAgent.ID,
