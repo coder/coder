@@ -987,74 +987,75 @@
 					]
 				},
 				{
+					"title": "AI Governance",
+					"description": "Features around managing agents at scale",
+					"path": "./ai-coder/ai-governance.md",
+					"state": ["premium"],
+					"children": [
+						{
+							"title": "Agent Boundaries",
+							"description": "Understanding Agent Boundaries in Coder Tasks",
+							"path": "./ai-coder/boundary/agent-boundary.md",
+							"state": ["beta"],
+							"children": [
+								{
+									"title": "nsjail",
+									"description": "Documentation for Namespace Jail",
+									"path": "./ai-coder/boundary/nsjail.md"
+								},
+								{
+									"title": "landjail",
+									"description": "Documentation for LandJail",
+									"path": "./ai-coder/boundary/landjail.md"
+								},
+								{
+									"title": "Rules Engine",
+									"description": "Documentation for the Boundary rules engine",
+									"path": "./ai-coder/boundary/rules-engine.md"
+								}
+							]
+						},
+						{
+							"title": "AI Bridge",
+							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
+							"path": "./ai-coder/ai-bridge/index.md",
+							"icon_path": "./images/icons/api.svg",
+							"state": ["premium", "beta"],
+							"children": [
+								{
+									"title": "Setup",
+									"description": "How to set up and configure AI Bridge",
+									"path": "./ai-coder/ai-bridge/setup.md"
+								},
+								{
+									"title": "Client Configuration",
+									"description": "How to configure your AI coding tools to use AI Bridge",
+									"path": "./ai-coder/ai-bridge/client-config.md"
+								},
+								{
+									"title": "MCP Tools Injection",
+									"description": "How to configure MCP servers for tools injection through AI Bridge",
+									"path": "./ai-coder/ai-bridge/mcp.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Monitoring",
+									"description": "How to monitor AI Bridge",
+									"path": "./ai-coder/ai-bridge/monitoring.md"
+								},
+								{
+									"title": "Reference",
+									"description": "Technical reference for AI Bridge",
+									"path": "./ai-coder/ai-bridge/reference.md"
+								}
+							]
+						}
+					]
+				},
+				{
 					"title": "MCP Server",
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Agent Boundaries",
-					"description": "Understanding Agent Boundaries in Coder Tasks",
-					"path": "./ai-coder/boundary/agent-boundary.md",
-					"state": ["beta"],
-					"children": [
-						{
-							"title": "nsjail",
-							"description": "Documentation for Namespace Jail",
-							"path": "./ai-coder/boundary/nsjail.md"
-						},
-						{
-							"title": "landjail",
-							"description": "Documentation for LandJail",
-							"path": "./ai-coder/boundary/landjail.md"
-						},
-						{
-							"title": "Rules Engine",
-							"description": "Documentation for the Boundary rules engine",
-							"path": "./ai-coder/boundary/rules-engine.md"
-						}
-					]
-				},
-				{
-					"title": "AI Bridge",
-					"description": "AI Gateway for Enterprise Governance \u0026 Observability",
-					"path": "./ai-coder/ai-bridge/index.md",
-					"icon_path": "./images/icons/api.svg",
-					"state": ["premium", "beta"],
-					"children": [
-						{
-							"title": "Setup",
-							"description": "How to set up and configure AI Bridge",
-							"path": "./ai-coder/ai-bridge/setup.md"
-						},
-						{
-							"title": "Client Configuration",
-							"description": "How to configure your AI coding tools to use AI Bridge",
-							"path": "./ai-coder/ai-bridge/client-config.md"
-						},
-						{
-							"title": "MCP Tools Injection",
-							"description": "How to configure MCP servers for tools injection through AI Bridge",
-							"path": "./ai-coder/ai-bridge/mcp.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Monitoring",
-							"description": "How to monitor AI Bridge",
-							"path": "./ai-coder/ai-bridge/monitoring.md"
-						},
-						{
-							"title": "Reference",
-							"description": "Technical reference for AI Bridge",
-							"path": "./ai-coder/ai-bridge/reference.md"
-						}
-					]
-				},
-				{
-					"title": "Tasks CLI",
-					"description": "Coder CLI for managing tasks programmatically",
-					"path": "./ai-coder/cli.md",
-					"icon_path": "./images/icons/api.svg",
 					"state": ["beta"]
 				}
 			]
