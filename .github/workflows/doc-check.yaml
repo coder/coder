@@ -123,13 +123,13 @@ jobs:
         run: |
           echo "Analyzing PR #${PR_NUMBER} (trigger: ${TRIGGER_TYPE})"
 
-          # Build context message based on trigger type
+          # Build context based on trigger type
           case "${TRIGGER_TYPE}" in
             new_pr)
               CONTEXT="This is a NEW PR. Perform an initial documentation review."
               ;;
             pr_updated)
-              CONTEXT="This PR was UPDATED with new commits. Re-review for any documentation changes needed based on the latest changes."
+              CONTEXT="This PR was UPDATED with new commits. Re-review and check if previous feedback was addressed."
               ;;
             label_requested)
               CONTEXT="A documentation review was REQUESTED via label. Perform a thorough review."
@@ -142,14 +142,48 @@ jobs:
               ;;
           esac
 
-          # Build task prompt with context
-          TASK_PROMPT=$(cat <<EOF
-          Use the doc-check skill to review PR #${PR_NUMBER} for documentation needs.
+          # Build task prompt with PR-specific context
+          TASK_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
 
-          Context: ${CONTEXT}
-          Repository: coder/coder
-          EOF
-          )
+          ${CONTEXT}
+
+          Use \`gh\` to get PR details, diff, and existing comments.
+
+          ## When to comment
+
+          Post a comment if:
+          - Documentation updates are needed
+          - New documentation should be created
+          - This is the first review (confirm it was checked, even if no changes needed)
+          - Previous feedback was addressed (confirm closure)
+          - Previous feedback was partially addressed (note what's done vs pending)
+
+          Do NOT post if:
+          - A previous doc-check comment exists AND no new commits since then
+          - You would be posting identical content to an existing comment
+
+          ## Comment format
+
+          Use this structure (only include relevant sections):
+
+          \`\`\`
+          ## 📚 Documentation Check
+
+          ### Previous Feedback
+          [For re-reviews only: ✅ Addressed | ⚠️ Partially addressed | ❌ Not yet addressed]
+
+          ### Updates Needed
+          - [ ] \`docs/path/file.md\` - [what needs to change]
+
+          ### New Documentation Needed
+          - [ ] \`docs/suggested/path.md\` - [what should be documented]
+
+          ### No Changes Needed
+          [brief explanation - use this OR the above sections, not both]
+
+          ---
+          *Automated review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+          \`\`\`"
 
           # Output the prompt
           {
@@ -247,7 +281,6 @@ jobs:
             WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
 
             echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
-
 
             if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
               echo "::error::Workspace failed: ${WORKSPACE_STATUS}"

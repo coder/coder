@@ -8,58 +8,28 @@ description: Checks if code changes require documentation updates
 Review code changes and determine if documentation updates or new documentation
 is needed.
 
-## Setup for PR Review
-
-When given a PR number, get the PR info and changes:
-
-```bash
-cd ~/coder
-
-# Get PR details (title, description, author)
-gh pr view <PR_NUMBER> --repo coder/coder
-
-# View changed files
-gh pr diff <PR_NUMBER> --repo coder/coder --name-only
-
-# View the full diff
-gh pr diff <PR_NUMBER> --repo coder/coder
-```
-
 ## Workflow
 
-1. **Check the PR title first** - If it's clearly not user-facing (refactor, test,
-   chore, internal, typo fix), skip the full review and post a quick comment
-   that no documentation updates are needed
-2. **Read the code changes** to understand what's new or modified
-3. **Search the docs** for related content using grep, find, or by reading files
+1. **Get the code changes** - Use the method provided in the prompt, or if none
+   specified:
+   - For a PR: `gh pr diff <PR_NUMBER> --repo coder/coder`
+   - For local changes: `git diff main` or `git diff --staged`
+   - For a branch: `git diff main...<branch>`
+
+2. **Understand the scope** - Consider what changed:
+   - Is this user-facing or internal?
+   - Does it change behavior, APIs, CLI flags, or configuration?
+   - Even for "internal" or "chore" changes, always verify the actual diff
+
+3. **Search the docs** for related content in `docs/`
+
 4. **Decide what's needed**:
    - Do existing docs need updates to match the code?
    - Is new documentation needed for undocumented features?
    - Or is everything already covered?
-5. **Post a comment** on the PR with your findings
 
-## Trigger Context
-
-The task prompt will include context about why the review was triggered:
-
-- **NEW PR**: First review of this PR. Do a full initial review.
-- **PR UPDATED**: New commits were pushed. Focus on what changed since last
-  review - check if previous recommendations were addressed or if new changes
-  need documentation.
-- **REQUESTED via label**: Someone manually requested a review. Do a thorough
-  review.
-- **MANUAL**: Workflow was manually triggered. Do a thorough review.
-
-Adjust your comment accordingly - for PR updates, acknowledge if previous
-feedback was addressed.
-
-### Skip doc-check for
-
-- Refactors with no behavior change
-- Test-only changes
-- Internal/chore changes
-- Typo fixes in code
-- Dependency updates
+5. **Report findings** - Use the method provided in the prompt, or if none
+   specified, summarize findings directly
 
 ## What to Check
 
@@ -67,64 +37,43 @@ feedback was addressed.
 - **Completeness**: Are new features/options documented?
 - **Examples**: Do code examples still work?
 - **CLI/API changes**: Are new flags, endpoints, or options documented?
+- **Configuration**: Are new environment variables or settings documented?
+- **Breaking changes**: Are migration steps documented if needed?
+- **Premium features**: Should docs indicate `(Premium)` in the title?
 
-## Output Format
+## Key Documentation Info
 
-```markdown
-## Documentation Check
+- **`docs/manifest.json`** - Navigation structure; new pages MUST be added here
+- **`docs/reference/cli/*.md`** - Auto-generated from Go code, don't edit directly
+- **Premium features** - H1 title should include `(Premium)` suffix
 
-Reviewed docs related to [brief description of code changes].
+## Coder-Specific Patterns
 
-**Updates needed:**
-- [ ] docs/admin/users.md:L42 - Parameter name changed from X to Y
-- [ ] docs/cli/server.md:L15 - Missing new --timeout flag
+### Callouts
 
-**New documentation needed:**
-- [ ] docs/admin/notifications.md - New notification system is undocumented
-
-**Suggested fixes:**
-[Include specific suggestions using GitHub suggestion format]
-```
-
-If no changes needed:
+Use GitHub-Flavored Markdown alerts:
 
 ```markdown
-## Documentation Check
+> [!NOTE]
+> Additional helpful information.
 
-Reviewed docs related to [brief description].
+> [!WARNING]
+> Important warning about potential issues.
 
-**No documentation updates needed** - existing docs accurately reflect the
-code changes.
+> [!TIP]
+> Helpful tip for users.
 ```
 
-If skipped based on PR title:
+### CLI Documentation
 
-```markdown
-## Documentation Check
+CLI docs in `docs/reference/cli/` are auto-generated. Don't suggest editing them
+directly. Instead, changes should be made in the Go code that defines the CLI
+commands (typically in `cli/` directory).
 
-**Skipped** - This PR appears to be [refactor/test/chore] based on the title
-and is unlikely to need documentation updates.
+### Code Examples
+
+Use `sh` for shell commands:
+
+```sh
+coder server --flag-name value
 ```
-
-For PR updates (re-review after new commits):
-
-```markdown
-## Documentation Check (Update)
-
-Reviewed latest changes to PR.
-
-**Previous feedback status:**
-- ✅ docs/admin/users.md update - addressed in latest commit
-- ⏳ docs/cli/server.md - still needs --timeout flag documented
-
-**New changes:**
-- No additional documentation updates needed from latest commits
-```
-
-## Common Issues
-
-- Code examples that no longer work
-- Missing documentation for new features
-- New CLI flags/options not documented
-- Changed default values not reflected
-- Outdated screenshots or version numbers
