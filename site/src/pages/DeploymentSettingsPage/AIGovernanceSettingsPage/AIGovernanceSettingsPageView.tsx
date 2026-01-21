@@ -1,5 +1,6 @@
 import type { SerpentOption } from "api/typesGenerated";
 import { Badges, PremiumBadge } from "components/Badges/Badges";
+import { Paywall } from "components/Paywall/Paywall";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
@@ -56,7 +57,7 @@ export const AIGovernanceSettingsPageView: FC<
 				</Badges>
 			</div>
 
-			{featureAIBridgeEnabled && (
+			{featureAIBridgeEnabled ? (
 				<div>
 					<SettingsHeader
 						actions={
@@ -77,6 +78,12 @@ export const AIGovernanceSettingsPageView: FC<
 							.filter((o) => !o.annotations?.secret === true)}
 					/>
 				</div>
+			) : (
+				<Paywall
+					message="AI Bridge"
+					description="AI Bridge is a smart gateway for AI that intercepts traffic between coding agents and AI providers. Enable it to monitor prompts, token usage, and tool invocations across your deployment."
+					documentationLink={docs("/ai-coder/ai-bridge")}
+				/>
 			)}
 		</Stack>
 	);

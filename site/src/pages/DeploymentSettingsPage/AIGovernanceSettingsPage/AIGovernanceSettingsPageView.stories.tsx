@@ -32,7 +32,7 @@ type Story = StoryObj<typeof AIGovernanceSettingsPageView>;
 
 export const Page: Story = {};
 
-export const AIBridgeDisabled: Story = {
+export const Paywall: Story = {
 	args: {
 		featureAIBridgeEnabled: false,
 		options: [],
