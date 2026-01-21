@@ -147,7 +147,7 @@ jobs:
 
           ${CONTEXT}
 
-          Use \`gh\` to get PR details, diff, and existing comments.
+          Use \`gh\` to get PR details, diff, and ALL comments.
 
           ## When to comment
 
@@ -167,7 +167,7 @@ jobs:
           Use this structure (only include relevant sections):
 
           \`\`\`
-          ## 📚 Documentation Check
+          ## Documentation Check
 
           ### Previous Feedback
           [For re-reviews only: ✅ Addressed | ⚠️ Partially addressed | ❌ Not yet addressed]
