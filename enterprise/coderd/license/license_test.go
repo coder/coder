@@ -28,6 +28,11 @@ func TestEntitlements(t *testing.T) {
 		all[n] = true
 	}
 
+	premium := make(map[codersdk.FeatureName]bool)
+	for _, n := range codersdk.FeatureSetPremium.Features() {
+		premium[n] = !n.IsAddonFeature()
+	}
+
 	empty := map[codersdk.FeatureName]bool{}
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -189,10 +194,8 @@ func TestEntitlements(t *testing.T) {
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureUserLimit:             100,
-					codersdk.FeatureAuditLog:              1,
-					codersdk.FeatureAIGovernanceUserLimit: 1000,
-					codersdk.FeatureManagedAgentLimit:     1000,
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
 				},
 				FeatureSet: codersdk.FeatureSetPremium,
 				GraceAt:    graceDate,
@@ -203,7 +206,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 
 		// Warning should be generated.
-		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, premium)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -230,7 +233,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 
 		// Warning should be suppressed.
-		entitlements, err = license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
+		entitlements, err = license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, premium)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
