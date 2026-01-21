@@ -18084,7 +18084,6 @@ WHERE
 					WHERE l2.workspace_id = latest.workspace_id
 				)
 				AND latest.transition = 'stop'
-				AND latest.template_version_id = workspace_build_with_user.template_version_id
 				AND pj.job_status IN ('pending', 'running')
 			) THEN TRUE
 		ELSE FALSE
