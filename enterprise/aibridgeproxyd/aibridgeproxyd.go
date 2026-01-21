@@ -43,12 +43,13 @@ var loadMitmOnce sync.Once
 //   - decrypting requests using the configured CA certificate
 //   - forwarding requests to aibridged for processing
 type Server struct {
-	ctx            context.Context
-	logger         slog.Logger
-	proxy          *goproxy.ProxyHttpServer
-	httpServer     *http.Server
-	listener       net.Listener
-	coderAccessURL *url.URL
+	ctx                      context.Context
+	logger                   slog.Logger
+	proxy                    *goproxy.ProxyHttpServer
+	httpServer               *http.Server
+	listener                 net.Listener
+	coderAccessURL           *url.URL
+	aibridgeProviderFromHost func(host string) string
 	// caCert is the PEM-encoded CA certificate loaded during initialization.
 	// This is served to clients who need to trust the proxy.
 	caCert []byte
@@ -75,6 +76,9 @@ type Options struct {
 	// Only requests to these domains will be MITM'd and forwarded to aibridged.
 	// Requests to other domains will be tunneled directly without decryption.
 	DomainAllowlist []string
+	// AIBridgeProviderFromHost maps a hostname to a known aibridge provider name.
+	// If nil, the default provider mapping is used.
+	AIBridgeProviderFromHost func(host string) string
 	// UpstreamProxy is the URL of an upstream HTTP proxy to chain tunneled
 	// (non-allowlisted) requests through. If empty, tunneled requests connect
 	// directly to their destinations.
@@ -120,6 +124,19 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 	if len(mitmHosts) == 0 {
 		return nil, xerrors.New("domain allowlist is empty, at least one domain is required")
+	}
+
+	// Use custom provider mapper if provided, otherwise use default.
+	aibridgeProviderFromHost := opts.AIBridgeProviderFromHost
+	if aibridgeProviderFromHost == nil {
+		aibridgeProviderFromHost = defaultAIBridgeProvider
+	}
+
+	// Validate that all allowlisted domains have correct aibridge provider mappings.
+	for _, domain := range opts.DomainAllowlist {
+		if aibridgeProviderFromHost(domain) == "" {
+			return nil, xerrors.Errorf("domain %q is in allowlist but has no provider mapping", domain)
+		}
 	}
 
 	logger.Info(ctx, "configured domain allowlist for MITM",
@@ -203,11 +220,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	srv := &Server{
-		ctx:            ctx,
-		logger:         logger,
-		proxy:          proxy,
-		coderAccessURL: coderAccessURL,
-		caCert:         certPEM,
+		ctx:                      ctx,
+		logger:                   logger,
+		proxy:                    proxy,
+		coderAccessURL:           coderAccessURL,
+		aibridgeProviderFromHost: aibridgeProviderFromHost,
+		caCert:                   certPEM,
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -438,15 +456,12 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
-// providerFromHost maps the request host to the aibridge provider name.
+// defaultAIBridgeProvider maps the request host to the aibridge provider name.
 //   - Known AI providers return their provider name, used to route to the
 //     corresponding aibridge endpoint.
 //   - Unknown hosts return empty string and are passed through directly.
-func providerFromURL(reqURL *url.URL) string {
-	if reqURL == nil {
-		return ""
-	}
-	switch strings.ToLower(reqURL.Hostname()) {
+func defaultAIBridgeProvider(host string) string {
+	switch strings.ToLower(host) {
 	case HostAnthropic:
 		return aibridge.ProviderAnthropic
 	case HostOpenAI:
@@ -464,17 +479,18 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	originalPath := req.URL.Path
 
 	// Check if this request is for a supported AI provider.
-	provider := providerFromURL(req.URL)
+	provider := s.aibridgeProviderFromHost(req.URL.Hostname())
 	if provider == "" {
-		// This can happen if a domain is in the allowlist but doesn't have a
-		// corresponding provider mapping in providerFromURL(). The request was
-		// decrypted but we don't know how to route it to aibridged.
-		s.logger.Warn(s.ctx, "decrypted request has no provider mapping, passing through",
+		// This should never happen: startup validation ensures all allowlisted
+		// domains have known aibridge provider mappings.
+		// The request is MITM'd (decrypted) but since there is no mapping,
+		// there is no known route to aibridge.
+		// Log error and forward to the original destination as a fallback.
+		s.logger.Error(s.ctx, "decrypted request has no provider mapping, passing through",
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
 		)
-		// Tunnel (forward) directly to the original destination (no aibridge routing for this host).
 		return req, nil
 	}
 

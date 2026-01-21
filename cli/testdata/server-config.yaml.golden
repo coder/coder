@@ -777,6 +777,23 @@ aibridge:
   # these records to external SIEM or observability systems.
   # (default: false, type: bool)
   structuredLogging: false
+  # Enable the circuit breaker to protect against cascading failures from upstream
+  # AI provider rate limits (429, 503, 529 overloaded).
+  # (default: false, type: bool)
+  circuitBreakerEnabled: false
+  # Number of consecutive failures that triggers the circuit breaker to open.
+  # (default: 5, type: int)
+  circuitBreakerFailureThreshold: 5
+  # Cyclic period of the closed state for clearing internal failure counts.
+  # (default: 10s, type: duration)
+  circuitBreakerInterval: 10s
+  # How long the circuit breaker stays open before transitioning to half-open state.
+  # (default: 30s, type: duration)
+  circuitBreakerTimeout: 30s
+  # Maximum number of requests allowed in half-open state before deciding to close
+  # or re-open the circuit.
+  # (default: 3, type: int)
+  circuitBreakerMaxRequests: 3
 aibridgeproxy:
   # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
   # requests.
