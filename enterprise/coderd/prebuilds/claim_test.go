@@ -166,7 +166,15 @@ func TestClaimPrebuild(t *testing.T) {
 				defer provisionerCloser.Close()
 
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+				reconciler := prebuilds.NewStoreReconciler(
+					spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger,
+					quartz.NewMock(t),
+					prometheus.NewRegistry(),
+					newNoopEnqueuer(),
+					newNoopUsageCheckerPtr(),
+					noop.NewTracerProvider(),
+					10,
+				)
 				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 

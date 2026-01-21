@@ -1122,6 +1122,97 @@ func TestSSH(t *testing.T) {
 		}
 	})
 
+	// This test ensures that the SSH session exits when the parent process dies.
+	t.Run("StdioExitOnParentDeath", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// sleepStart -> agentReady -> sessionStarted -> sleepKill -> sleepDone -> cmdDone
+		sleepStart := make(chan int)
+		agentReady := make(chan struct{})
+		sessionStarted := make(chan struct{})
+		sleepKill := make(chan struct{})
+		sleepDone := make(chan struct{})
+
+		// Start a sleep process which we will pretend is the parent.
+		go func() {
+			sleepCmd := exec.Command("sleep", "infinity")
+			if !assert.NoError(t, sleepCmd.Start(), "failed to start sleep command") {
+				return
+			}
+			sleepStart <- sleepCmd.Process.Pid
+			defer close(sleepDone)
+			<-sleepKill
+			sleepCmd.Process.Kill()
+			_ = sleepCmd.Wait()
+		}()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		go func() {
+			defer close(agentReady)
+			_ = agenttest.New(t, client.URL, agentToken)
+			coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).WaitFor(coderdtest.AgentsReady)
+		}()
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		// Start a connection to the agent once it's ready
+		go func() {
+			<-agentReady
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			if !assert.NoError(t, err, "failed to create SSH client connection") {
+				return
+			}
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			defer sshClient.Close()
+
+			session, err := sshClient.NewSession()
+			if !assert.NoError(t, err, "failed to create SSH session") {
+				return
+			}
+			close(sessionStarted)
+			<-sleepDone
+			assert.NoError(t, session.Close())
+		}()
+
+		// Wait for our "parent" process to start
+		sleepPid := testutil.RequireReceive(ctx, t, sleepStart)
+		// Wait for the agent to be ready
+		testutil.SoftTryReceive(ctx, t, agentReady)
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--test.force-ppid", fmt.Sprintf("%d", sleepPid))
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		// Start the command
+		clitest.Start(t, inv.WithContext(ctx))
+
+		// Wait for a session to be established
+		testutil.SoftTryReceive(ctx, t, sessionStarted)
+		// Now kill the fake "parent"
+		close(sleepKill)
+		// The sleep process should exit
+		testutil.SoftTryReceive(ctx, t, sleepDone)
+		// And then the command should exit. This is tracked by clitest.Start.
+	})
+
 	t.Run("ForwardAgent", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("Test not supported on windows")
