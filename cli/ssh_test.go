@@ -1132,13 +1132,8 @@ func TestSSH(t *testing.T) {
 			_ = sleepCmd.Wait()
 		})
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		_, _ = tGoContext(t, func(ctx context.Context) {
-			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
-			_ = agenttest.New(t, client.URL, agentToken)
-			<-ctx.Done()
-		})
-
+		_ = agenttest.New(t, client.URL, agentToken)
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
