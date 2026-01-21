@@ -16,19 +16,34 @@ export const useAgentMetadataHealthBanner = (
 	agentIds: readonly string[],
 	enabled: boolean,
 ): AgentMetadataHealthBannerState => {
-	const stableAgentIds = useMemo(
-		() => Array.from(new Set(agentIds)).sort(),
-		[agentIds],
-	);
+	// Memoize agent IDs with stable reference
+	const agentIdsKey = useMemo(() => agentIds.join(","), [agentIds]);
+	const stableAgentIds = useMemo(() => {
+		const sorted = Array.from(new Set(agentIds)).sort();
+		return sorted;
+	}, [agentIdsKey]);
+	
 	const [shouldShow, setShouldShow] = useState(false);
 	const invalidSinceByAgentRef = useRef<Map<string, number>>(new Map());
 	const hasValidAgentRef = useRef(false);
 	const timerRef = useRef<number | null>(null);
+	const previousAgentIdsRef = useRef<string>("");
 
 	useEffect(() => {
-		invalidSinceByAgentRef.current = new Map();
-		hasValidAgentRef.current = false;
-		setShouldShow(false);
+		// Only reset if agent IDs actually changed
+		if (previousAgentIdsRef.current !== agentIdsKey) {
+			console.log(
+				"[AgentMetadataHealthBanner] Agent IDs changed:",
+				previousAgentIdsRef.current,
+				"->",
+				agentIdsKey,
+			);
+			invalidSinceByAgentRef.current = new Map();
+			hasValidAgentRef.current = false;
+			setShouldShow(false);
+			previousAgentIdsRef.current = agentIdsKey;
+		}
+
 		if (timerRef.current !== null) {
 			window.clearInterval(timerRef.current);
 			timerRef.current = null;
@@ -122,7 +137,7 @@ export const useAgentMetadataHealthBanner = (
 				timerRef.current = null;
 			}
 		};
-	}, [enabled, stableAgentIds]);
+	}, [enabled, agentIdsKey, stableAgentIds]);
 
 	return { shouldShow };
 };
