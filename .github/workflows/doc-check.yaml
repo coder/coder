@@ -75,6 +75,14 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             echo "trigger_type=manual" >> "${GITHUB_OUTPUT}"
             echo "Using PR URL: ${INPUTS_PR_URL}"
+
+            # Validate PR URL format
+            if [[ ! "${INPUTS_PR_URL}" =~ ^https://github\.com/[^/]+/[^/]+/pull/[0-9]+$ ]]; then
+              echo "::error::Invalid PR URL format: ${INPUTS_PR_URL}"
+              echo "::error::Expected format: https://github.com/owner/repo/pull/NUMBER"
+              exit 1
+            fi
+
             ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
             PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
@@ -266,7 +274,8 @@ jobs:
           done
 
           if [[ $WAITED -ge $MAX_WAIT ]]; then
-            echo "::warning::Task monitoring timed out after ${MAX_WAIT}s"
+            echo "::error::Task monitoring timed out after ${MAX_WAIT}s"
+            exit 1
           fi
 
       - name: Fetch Task Logs
