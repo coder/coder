@@ -77,15 +77,19 @@ export const UserCombobox: FC<UserComboboxProps> = ({
 					<ChevronsUpDownIcon className="h-4 w-4 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-[280px] p-0 " side="bottom" align="start">
-				<Command>
+			<PopoverContent
+				className="flex flex-col w-[280px] p-0"
+				side="bottom"
+				align="start"
+			>
+				<Command className="flex-1 min-h-0">
 					<CommandInput
 						placeholder="Search user..."
 						value={search}
 						onValueChange={setSearch}
 						aria-label="Search user"
 					/>
-					<CommandList>
+					<CommandList className="flex-1 min-h-0 max-h-none">
 						<CommandEmpty>No users found.</CommandEmpty>
 						<CommandGroup>
 							{options?.map((option) => (
