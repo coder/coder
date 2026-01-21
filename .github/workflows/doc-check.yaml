@@ -126,19 +126,19 @@ jobs:
           # Build context based on trigger type
           case "${TRIGGER_TYPE}" in
             new_pr)
-              CONTEXT="This is a NEW PR. Perform an initial documentation review."
+              CONTEXT="This is a NEW PR. Perform a thorough documentation review."
               ;;
             pr_updated)
-              CONTEXT="This PR was UPDATED with new commits. Re-review and check if previous feedback was addressed."
+              CONTEXT="This PR was UPDATED with new commits. Only comment if the changes affect documentation needs or address previous feedback."
               ;;
             label_requested)
-              CONTEXT="A documentation review was REQUESTED via label. Perform a thorough review."
+              CONTEXT="A documentation review was REQUESTED via label. Perform a thorough documentation review."
               ;;
             manual)
               CONTEXT="This is a MANUAL review request. Perform a thorough documentation review."
               ;;
             *)
-              CONTEXT="Perform a documentation review."
+              CONTEXT="Perform a thorough documentation review."
               ;;
           esac
 
