@@ -28,35 +28,56 @@ export const useAgentMetadataHealthBanner = (
 	const hasValidAgentRef = useRef(false);
 	const timerRef = useRef<number | null>(null);
 	const previousAgentIdsRef = useRef<string>("");
+	const sourcesRef = useRef<EventSource[]>([]);
 
 	useEffect(() => {
 		// Only reset if agent IDs actually changed
-		if (previousAgentIdsRef.current !== agentIdsKey) {
+		const agentIdsChanged = previousAgentIdsRef.current !== agentIdsKey;
+		if (agentIdsChanged) {
 			console.log(
 				"[AgentMetadataHealthBanner] Agent IDs changed:",
 				previousAgentIdsRef.current,
 				"->",
 				agentIdsKey,
 			);
+			// Clear existing timer and sources when agent IDs change
+			if (timerRef.current !== null) {
+				window.clearInterval(timerRef.current);
+				timerRef.current = null;
+			}
 			invalidSinceByAgentRef.current = new Map();
 			hasValidAgentRef.current = false;
 			setShouldShow(false);
 			previousAgentIdsRef.current = agentIdsKey;
 		}
 
-		if (timerRef.current !== null) {
-			window.clearInterval(timerRef.current);
-			timerRef.current = null;
+		if (!enabled || stableAgentIds.length === 0) {
+			if (agentIdsChanged) {
+				console.log(
+					"[AgentMetadataHealthBanner] Skipping: enabled=",
+					enabled,
+					"agentIds.length=",
+					stableAgentIds.length,
+				);
+			}
+			// Don't clear timer if agent IDs haven't changed - just skip setup
+			return;
 		}
 
-		if (!enabled || stableAgentIds.length === 0) {
+		// If agent IDs haven't changed and timer is already running, don't recreate
+		if (!agentIdsChanged && timerRef.current !== null) {
 			console.log(
-				"[AgentMetadataHealthBanner] Skipping: enabled=",
-				enabled,
-				"agentIds.length=",
-				stableAgentIds.length,
+				"[AgentMetadataHealthBanner] Already monitoring, skipping setup",
 			);
 			return;
+		}
+
+		// Close existing sources if agent IDs changed
+		if (agentIdsChanged) {
+			for (const source of sourcesRef.current) {
+				source.close();
+			}
+			sourcesRef.current = [];
 		}
 
 		console.log(
@@ -104,6 +125,8 @@ export const useAgentMetadataHealthBanner = (
 			return source;
 		});
 
+		sourcesRef.current = sources;
+
 		timerRef.current = window.setInterval(() => {
 			if (hasValidAgentRef.current) {
 				setShouldShow(false);
@@ -129,9 +152,10 @@ export const useAgentMetadataHealthBanner = (
 		}, 1000);
 
 		return () => {
-			for (const source of sources) {
+			for (const source of sourcesRef.current) {
 				source.close();
 			}
+			sourcesRef.current = [];
 			if (timerRef.current !== null) {
 				window.clearInterval(timerRef.current);
 				timerRef.current = null;
