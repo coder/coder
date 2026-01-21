@@ -57,8 +57,8 @@ func TestRuntimeAudit(t *testing.T) {
 
 	type vec struct {
 		name   string
-		builds []workspaceBuild
-		expect func(createdAt time.Time, inputs []workspaceBuild) int
+		builds []workspaceBuildArgs
+		expect func(createdAt time.Time, inputs []workspaceBuildArgs) int
 	}
 
 	vectors := []vec{
@@ -69,43 +69,43 @@ func TestRuntimeAudit(t *testing.T) {
 		{
 			name: "long_run_inside_window_start_to_stop_counts_and_rounds",
 			// Basic succeeded start -> stop within window.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(3, 0, 15), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(20, 12, 0), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
 			},
 		},
 		{
 			name: "failed_start_does_not_count_usage",
 			// Only succeeded starts count; failed start means no accumulation.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(5, 10, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
 				{at: decUTC(5, 11, 0), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int { return 0 },
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
 		{
 			name: "multiple_starts_while_running_ignores_later_start_uses_first_start",
 			// Second succeeded start is ignored while already "on".
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(6, 10, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(6, 10, 5), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(6, 10, 30), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[2].at, in[0].at)
 			},
 		},
 		{
 			name: "delete_transition_treated_as_stop",
 			// Non-(start+succeeded) transitions behave like stop when running.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(7, 9, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(7, 9, 20), transition: database.WorkspaceTransitionDelete, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
 			},
 		},
@@ -117,44 +117,44 @@ func TestRuntimeAudit(t *testing.T) {
 		{
 			name: "started_before_window_clips_start_to_window_start",
 			// Start before period; only count from startPeriod.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: novUTC(27, 23, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(1, 1, 0), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, startPeriod)
 			},
 		},
 		{
 			name: "stopped_after_window_clips_stop_to_window_end",
 			// Stop after period; only count until endPeriod.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(31, 23, 30), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: janUTC(1, 1, 0), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(endPeriod, in[0].at)
 			},
 		},
 		{
 			name: "window_clips_both_start_and_stop",
 			// Stop after period; only count until endPeriod.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: novUTC(27, 23, 30), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: janUTC(1, 8, 0), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int {
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int {
 				return roundUpHours(endPeriod, startPeriod)
 			},
 		},
 		{
 			name: "stop_exactly_at_window_start_counts_zero_due_to_strict_gt",
 			// Script uses `turned_off > start_time`, so equality yields 0.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: novUTC(30, 23, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: startPeriod, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int { return 0 },
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
 
 		// -------------------------
@@ -164,20 +164,20 @@ func TestRuntimeAudit(t *testing.T) {
 		{
 			name: "started_in_window_no_stop_accumulates_until_window_end",
 			// Tail case: still on -> add (endPeriod - turned_on).
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(10, 8, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int {
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int {
 				return roundUpHours(endPeriod, decUTC(10, 8, 0))
 			},
 		},
 		{
 			name: "started_before_window_no_stop_accumulates_full_window",
 			// Tail case + clipping: start before period -> treat as startPeriod.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: novUTC(1, 0, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int {
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int {
 				return roundUpHours(endPeriod, startPeriod)
 			},
 		},
@@ -189,20 +189,20 @@ func TestRuntimeAudit(t *testing.T) {
 		{
 			name: "two_segments_sum_then_single_round_up",
 			// 20m + 20m => 40m total => ceil(total)=1 hour.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(12, 10, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(12, 10, 20), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(12, 11, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(12, 11, 20), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int {
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int {
 				return 1
 			},
 		},
 		{
 			name: "two_segments_sum",
 			// 20m + 20m => 40m total => ceil(total)=1 hour.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(12, 10, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(12, 15, 20), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 
@@ -219,7 +219,7 @@ func TestRuntimeAudit(t *testing.T) {
 				{at: decUTC(16, 0, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
 				{at: decUTC(17, 0, 0), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at) +
 					roundUpHours(in[3].at, in[2].at) +
 					roundUpHours(in[5].at, in[4].at) +
@@ -234,20 +234,20 @@ func TestRuntimeAudit(t *testing.T) {
 		{
 			name: "activity_entirely_before_window_counts_zero",
 			// Stop before startPeriod => no overlap.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: novUTC(10, 10, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: novUTC(10, 10, 10), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int { return 0 },
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
 		{
 			name: "activity_entirely_after_window_counts_zero",
 			// Start after endPeriod => no overlap.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: janUTC(2, 10, 0), transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: janUTC(2, 10, 10), transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int { return 0 },
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
 
 		// -------------------------
@@ -257,51 +257,51 @@ func TestRuntimeAudit(t *testing.T) {
 		{
 			name: "cancelled_start_does_not_count_usage",
 			// Only start+succeeded counts; cancelled start is ignored.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(8, 9, 0), cancelled: true, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusCanceled},
 				{at: decUTC(8, 10, 0), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int { return 0 },
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
 		{
 			name: "failed_start_does_not_count_even_if_later_stop_occurs",
 			// Start failed => never turns on => later stop does nothing.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(9, 9, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
 				{at: decUTC(9, 12, 0), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, _ []workspaceBuild) int { return 0 },
+			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
 		{
 			name: "cancelled_stop_still_stops_timer_and_counts_time",
 			// Any non-(start+succeeded) is treated as stop while running, regardless of status/cancelled.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(10, 9, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(10, 9, 40), cancelled: true, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusCanceled},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
 			},
 		},
 		{
 			name: "failed_stop_still_stops_timer_and_counts_time",
 			// Same as above: stop is stop even if job failed (ELSE path).
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(11, 10, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(11, 10, 10), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusFailed},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
 			},
 		},
 		{
 			name: "failed_transition_stops_timer_and_counts_time",
 			// A failed *non-stop* transition (e.g. delete) still stops if currently on.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(12, 8, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				{at: decUTC(12, 8, 5), cancelled: false, transition: database.WorkspaceTransitionDelete, jobStatus: database.ProvisionerJobStatusFailed},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
 			},
 		},
@@ -309,14 +309,14 @@ func TestRuntimeAudit(t *testing.T) {
 			name: "start_succeeded_then_start_failed_does_not_reset_start_time",
 			// When already on, a subsequent non-(start+succeeded) build triggers stop logic.
 			// This verifies you *do not* treat start+failed as a "start"; it will stop the running timer.
-			builds: []workspaceBuild{
+			builds: []workspaceBuildArgs{
 				{at: decUTC(13, 9, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				// This goes to ELSE branch (because job_status != succeeded) and will stop the timer.
 				{at: decUTC(13, 9, 30), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
 				// Subsequent stop should not add more time because timer was reset.
 				{at: decUTC(13, 10, 0), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
-			expect: func(_ time.Time, in []workspaceBuild) int {
+			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				// Only counts from first start to failed-start event.
 				return roundUpHours(in[1].at, in[0].at)
 			},
@@ -366,14 +366,14 @@ func initSetup(t *testing.T, db database.Store) *setup {
 	}
 }
 
-type workspaceBuild struct {
+type workspaceBuildArgs struct {
 	at         time.Time
 	cancelled  bool
 	transition database.WorkspaceTransition
 	jobStatus  database.ProvisionerJobStatus
 }
 
-func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []workspaceBuild) database.WorkspaceTable {
+func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []workspaceBuildArgs) database.WorkspaceTable {
 	// Insert the first build
 	tv := dbfake.TemplateVersion(t, db).
 		Seed(database.TemplateVersion{
