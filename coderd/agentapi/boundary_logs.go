@@ -13,6 +13,7 @@ import (
 type BoundaryLogsAPI struct {
 	Log         slog.Logger
 	WorkspaceID uuid.UUID
+	TemplateID  uuid.UUID
 }
 
 func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
@@ -33,6 +34,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 			fields := []slog.Field{
 				slog.F("decision", allowBoolToString(l.Allowed)),
 				slog.F("workspace_id", a.WorkspaceID.String()),
+				slog.F("template_id", a.TemplateID.String()),
 				slog.F("http_method", r.HttpRequest.Method),
 				slog.F("http_url", r.HttpRequest.Url),
 				slog.F("event_time", logTime.Format(time.RFC3339Nano)),

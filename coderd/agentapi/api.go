@@ -223,6 +223,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
 		Log:         opts.Log,
 		WorkspaceID: opts.WorkspaceID,
+		TemplateID:  workspace.TemplateID,
 	}
 
 	// Start background cache refresh loop to handle workspace changes
