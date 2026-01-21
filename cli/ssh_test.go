@@ -1187,7 +1187,7 @@ func TestSSH(t *testing.T) {
 				return
 			}
 			close(sessionStarted)
-			<-sleepKill
+			<-sleepDone
 			assert.NoError(t, session.Close())
 		}()
 
