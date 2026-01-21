@@ -56,6 +56,22 @@ type Server struct {
 	caCert []byte
 }
 
+// requestContext holds metadata propagated through the proxy request/response chain.
+// It is stored in goproxy's ProxyCtx.UserData and enriched as the request progresses
+// through the proxy handlers.
+type requestContext struct {
+	// ConnectSessionID is the session ID from the CONNECT handshake.
+	// Set in authMiddleware during the CONNECT handshake.
+	// Used to correlate requests/responses with their originating CONNECT.
+	ConnectSessionID int64
+	// CoderToken is the authentication token extracted from Proxy-Authorization.
+	// Set in authMiddleware during the CONNECT handshake.
+	CoderToken string
+	// Provider is the aibridge provider name .
+	// Set in handleRequest when handling MITM requests for allowlisted domains.
+	Provider string
+}
+
 // Options configures the AI Bridge Proxy server.
 type Options struct {
 	// ListenAddr is the address the proxy server will listen on.
@@ -93,7 +109,7 @@ type Options struct {
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
-	logger.Info(ctx, "initializing AI Bridge Proxy server")
+	logger.Info(ctx, "initializing aibridgeproxyd")
 
 	if opts.ListenAddr == "" {
 		return nil, xerrors.New("listen address is required")
@@ -140,11 +156,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		}
 	}
 
-	logger.Info(ctx, "configured domain allowlist for MITM",
-		slog.F("domains", opts.DomainAllowlist),
-		slog.F("hosts", mitmHosts),
-	)
-
 	// Load CA certificate for MITM
 	certPEM, err := loadMitmCertificate(opts.CertFile, opts.KeyFile)
 	if err != nil {
@@ -181,10 +192,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		if err != nil {
 			return nil, xerrors.Errorf("invalid upstream proxy URL %q: %w", opts.UpstreamProxy, err)
 		}
-
-		logger.Info(ctx, "configuring upstream proxy for tunneled requests",
-			slog.F("upstream", upstreamURL.Host),
-		)
 
 		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
 		// not through any upstream proxy.
@@ -242,8 +249,15 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		srv.authMiddleware,
 	)
 
+	// Tunnel CONNECT requests for non-allowlisted domains directly to their destination.
+	// Order matters: this must come after other CONNECT handlers so it only handles
+	// requests that weren't matched by the allowlist.
+	proxy.OnRequest().HandleConnectFunc(srv.handleTunnelRequest)
+
 	// Handle decrypted requests: route to aibridged for known AI providers, or tunnel to original destination.
 	proxy.OnRequest().DoFunc(srv.handleRequest)
+	// Handle responses from aibridged.
+	proxy.OnResponse().DoFunc(srv.handleResponse)
 
 	// Create listener first so we can get the actual address.
 	// This is useful in tests where port 0 is used to avoid conflicts.
@@ -259,8 +273,15 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	logger.Info(ctx, "aibridgeproxyd configured",
+		slog.F("listen_addr", listener.Addr().String()),
+		slog.F("coder_access_url", coderAccessURL.String()),
+		slog.F("domain_allowlist", mitmHosts),
+		slog.F("upstream_proxy", opts.UpstreamProxy),
+	)
+
 	go func() {
-		logger.Info(ctx, "starting AI Bridge Proxy", slog.F("addr", listener.Addr().String()))
+		logger.Info(ctx, "starting aibridgeproxyd server", slog.F("addr", listener.Addr().String()))
 		if err := srv.httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error(ctx, "aibridgeproxyd server error", slog.Error(err))
 		}
@@ -283,6 +304,7 @@ func (s *Server) Close() error {
 	if s.httpServer == nil {
 		return nil
 	}
+	s.logger.Info(s.ctx, "closing aibridgeproxyd server")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return s.httpServer.Shutdown(ctx)
@@ -333,29 +355,32 @@ func (s *Server) portMiddleware(allowedPorts []string) func(host string, ctx *go
 		allowed[p] = true
 	}
 
-	return func(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	return func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+		logger := s.logger.With(
+			slog.F("connect_id", ctx.Session),
+			slog.F("host", host),
+		)
+
 		_, port, err := net.SplitHostPort(host)
 		if err != nil {
-			s.logger.Warn(s.ctx, "rejecting CONNECT with invalid host format",
-				slog.F("host", host),
+			logger.Warn(s.ctx, "rejecting CONNECT with invalid host format",
 				slog.Error(err),
 			)
 			return goproxy.RejectConnect, host
 		}
 		if port == "" {
-			s.logger.Warn(s.ctx, "rejecting CONNECT with empty port",
-				slog.F("host", host),
-			)
+			logger.Warn(s.ctx, "rejecting CONNECT with empty port")
 			return goproxy.RejectConnect, host
 		}
 
+		logger = logger.With(slog.F("port", port))
+
 		if !allowed[port] {
-			s.logger.Warn(s.ctx, "rejecting CONNECT to non-allowed port",
-				slog.F("host", host),
-				slog.F("port", port),
-			)
+			logger.Warn(s.ctx, "rejecting CONNECT to non-allowed port")
 			return goproxy.RejectConnect, host
 		}
+
+		logger.Debug(s.ctx, "request CONNECT port allowed")
 
 		return nil, ""
 	}
@@ -394,8 +419,8 @@ func convertDomainsToHosts(domains []string, allowedPorts []string) ([]string, e
 }
 
 // authMiddleware is a CONNECT middleware that extracts the Coder token from
-// the Proxy-Authorization header and stores it in ctx.UserData for use by
-// downstream request handlers.
+// the Proxy-Authorization header and stores it in a requestContext in ctx.UserData
+// for use by downstream handlers.
 // Requests without valid credentials are rejected.
 //
 // Clients provide credentials by setting their HTTP Proxy as:
@@ -407,20 +432,29 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
 	coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
 
+	logger := s.logger.With(
+		slog.F("connect_id", ctx.Session),
+		slog.F("host", host),
+	)
+
 	// Reject requests without valid credentials.
 	if coderToken == "" {
 		hasAuth := proxyAuth != ""
-		s.logger.Warn(s.ctx, "rejecting CONNECT request",
-			slog.F("host", host),
+		logger.Warn(s.ctx, "rejecting CONNECT request",
 			slog.F("reason", map[bool]string{true: "invalid_credentials", false: "missing_credentials"}[hasAuth]),
 		)
 		return goproxy.RejectConnect, host
 	}
 
-	// Store the token in UserData for downstream handlers.
-	// goproxy propagates UserData to subsequent request contexts
+	// Store the request context in UserData for downstream handlers.
+	// goproxy propagates UserData to subsequent request/response contexts
 	// for decrypted requests within this MITM session.
-	ctx.UserData = coderToken
+	ctx.UserData = &requestContext{
+		ConnectSessionID: ctx.Session,
+		CoderToken:       coderToken,
+	}
+
+	logger.Debug(s.ctx, "request CONNECT authenticated")
 
 	return goproxy.MitmConnect, host
 }
@@ -457,6 +491,16 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
+// handleTunnelRequest handles CONNECT requests for non-allowlisted domains.
+// These requests are tunneled directly to their destination without MITM decryption.
+func (s *Server) handleTunnelRequest(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	s.logger.Debug(s.ctx, "tunneling request",
+		slog.F("connect_id", ctx.Session),
+		slog.F("host", host),
+	)
+	return goproxy.OkConnect, host
+}
+
 // defaultAIBridgeProvider maps the request host to the aibridge provider name.
 //   - Known AI providers return their provider name, used to route to the
 //     corresponding aibridge endpoint.
@@ -479,6 +523,28 @@ func defaultAIBridgeProvider(host string) string {
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
 
+	// Get the request context stored during CONNECT.
+	reqCtx, _ := ctx.UserData.(*requestContext)
+	if reqCtx == nil {
+		s.logger.Warn(s.ctx, "rejecting request with missing context",
+			slog.F("request_id", ctx.Session),
+			slog.F("host", req.Host),
+			slog.F("method", req.Method),
+			slog.F("path", originalPath),
+		)
+		resp := goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
+		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Bridge Proxy"`)
+		return req, resp
+	}
+
+	logger := s.logger.With(
+		slog.F("connect_id", reqCtx.ConnectSessionID),
+		slog.F("request_id", ctx.Session),
+		slog.F("host", req.Host),
+		slog.F("method", req.Method),
+		slog.F("path", originalPath),
+	)
+
 	// Check if this request is for a supported AI provider.
 	provider := s.aibridgeProviderFromHost(req.URL.Hostname())
 	if provider == "" {
@@ -487,44 +553,40 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		// The request is MITM'd (decrypted) but since there is no mapping,
 		// there is no known route to aibridge.
 		// Log error and forward to the original destination as a fallback.
-		s.logger.Error(s.ctx, "decrypted request has no provider mapping, passing through",
-			slog.F("host", req.Host),
-			slog.F("method", req.Method),
-			slog.F("path", originalPath),
-		)
+		logger.Error(s.ctx, "decrypted request has no provider mapping, passing through")
 		return req, nil
 	}
 
-	// Get the Coder token stored during CONNECT.
-	coderToken, _ := ctx.UserData.(string)
+	logger = logger.With(slog.F("provider", provider))
 
 	// Reject unauthenticated requests to AI providers.
-	if coderToken == "" {
-		s.logger.Warn(s.ctx, "rejecting unauthenticated request to AI provider",
-			slog.F("host", req.Host),
-			slog.F("provider", provider),
-		)
+	if reqCtx.CoderToken == "" {
+		logger.Warn(s.ctx, "rejecting unauthenticated request to AI provider")
 		resp := goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
-		// Describe to the client how to authenticate with the proxy.
 		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Bridge Proxy"`)
 		return req, resp
 	}
 
+	// Store provider in context for response handler.
+	reqCtx.Provider = provider
+
+	logger.Debug(s.ctx, "handling decrypted MITM request")
+
 	// Rewrite the request to point to aibridged.
 	if s.coderAccessURL == nil || s.coderAccessURL.String() == "" {
-		s.logger.Error(s.ctx, "coderAccessURL is not configured")
+		logger.Error(s.ctx, "coderAccessURL is not configured")
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
 	}
 
 	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), "api/v2/aibridge", provider, originalPath)
 	if err != nil {
-		s.logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
+		logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Bridge URL")
 	}
 
 	aiBridgeParsedURL, err := url.Parse(aiBridgeURL)
 	if err != nil {
-		s.logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
+		logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Bridge URL")
 	}
 
@@ -537,15 +599,39 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// Set X-Coder-Token header for aibridged authentication.
 	// Using a separate header preserves the original request headers,
 	// which are forwarded to upstream providers.
-	req.Header.Set(agplaibridge.HeaderCoderAuth, coderToken)
+	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
 
-	s.logger.Debug(s.ctx, "routing request to aibridged",
-		slog.F("provider", provider),
-		slog.F("original_path", originalPath),
+	logger.Info(s.ctx, "routing MITM request to aibridged",
 		slog.F("aibridged_url", aiBridgeParsedURL.String()),
 	)
 
 	return req, nil
+}
+
+// handleResponse handles responses received from aibridged.
+// This is only called for MITM'd requests (allowlisted domains routed through aibridged).
+// Tunneled requests (non-allowlisted domains) bypass this handler entirely.
+func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
+	if resp == nil {
+		return nil
+	}
+
+	reqCtx, _ := ctx.UserData.(*requestContext)
+	connectID := int64(0)
+	provider := ""
+	if reqCtx != nil {
+		connectID = reqCtx.ConnectSessionID
+		provider = reqCtx.Provider
+	}
+
+	s.logger.Debug(s.ctx, "received response from aibridged",
+		slog.F("connect_id", connectID),
+		slog.F("request_id", ctx.Session),
+		slog.F("status", resp.StatusCode),
+		slog.F("provider", provider),
+	)
+
+	return resp
 }
 
 // Handler returns an HTTP handler for the AI Bridge Proxy's HTTP endpoints.

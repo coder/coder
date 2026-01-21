@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
@@ -171,7 +172,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 	}
 
 	certFile, keyFile := getSharedTestCA(t)
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	aibridgeOpts := aibridgeproxyd.Options{
 		ListenAddr:               cfg.listenAddr,
