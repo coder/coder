@@ -10,6 +10,13 @@ import (
 	"github.com/coder/serpent"
 )
 
+const (
+	TemplateVersionParameterString     string = "string"
+	TemplateVersionParameterNumber     string = "number"
+	TemplateVersionParameterBool       string = "bool"
+	TemplateVersionParameterListString string = "list(string)"
+)
+
 func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.TemplateVersionParameter, name, defaultValue string) (string, error) {
 	label := name
 	if templateVersionParameter.Ephemeral {
@@ -25,7 +32,7 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 	var err error
 	var value string
 	switch {
-	case templateVersionParameter.Type == "list(string)":
+	case templateVersionParameter.Type == TemplateVersionParameterListString:
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
 

@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -109,7 +111,9 @@ func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCL
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
 	staged = pr.resolveWithSourceBuildParameters(staged, templateVersionParameters)
-	staged = pr.resolveWithLastBuildParameters(staged, templateVersionParameters)
+	if staged, err = pr.resolveWithLastBuildParameters(staged, templateVersionParameters); err != nil {
+		return nil, err
+	}
 	staged = pr.resolveWithPreset(staged) // Preset parameters take precedence from all other parameters
 	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
@@ -180,9 +184,9 @@ nextEphemeralParameter:
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	if pr.promptRichParameters {
-		return resolved // don't pull parameters from last build
+		return resolved, nil // don't pull parameters from last build
 	}
 
 next:
@@ -200,7 +204,12 @@ next:
 			continue // immutables should not be passed to consecutive builds
 		}
 
-		if len(tvp.Options) > 0 && !isValidTemplateParameterOption(buildParameter, tvp.Options) {
+		isValidOption, err := isValidTemplateParameterOption(buildParameter, tvp)
+		if err != nil {
+			return nil, err // error checking validity, skip this parameter
+		}
+
+		if len(tvp.Options) > 0 && !isValidOption {
 			continue // do not propagate invalid options
 		}
 
@@ -213,7 +222,7 @@ next:
 
 		resolved = append(resolved, buildParameter)
 	}
-	return resolved
+	return resolved, nil
 }
 
 func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
@@ -267,7 +276,11 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		// PreviewParameter has not been resolved yet, so CLI needs to determine if user should input it.
 
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
-		promptParameterOption := pr.isLastBuildParameterInvalidOption(tvp)
+		promptParameterOption, err := pr.isLastBuildParameterInvalidOption(tvp)
+
+		if err != nil {
+			return nil, err
+		}
 
 		if (tvp.Ephemeral && pr.promptEphemeralParameters) ||
 			(action == WorkspaceCreate && tvp.Required) ||
@@ -312,17 +325,21 @@ func (pr *ParameterResolver) isFirstTimeUse(parameterName string) bool {
 	return findWorkspaceBuildParameter(parameterName, pr.lastBuildParameters) == nil
 }
 
-func (pr *ParameterResolver) isLastBuildParameterInvalidOption(templateVersionParameter codersdk.TemplateVersionParameter) bool {
+func (pr *ParameterResolver) isLastBuildParameterInvalidOption(templateVersionParameter codersdk.TemplateVersionParameter) (bool, error) {
 	if len(templateVersionParameter.Options) == 0 {
-		return false
+		return false, nil
 	}
 
 	for _, buildParameter := range pr.lastBuildParameters {
 		if buildParameter.Name == templateVersionParameter.Name {
-			return !isValidTemplateParameterOption(buildParameter, templateVersionParameter.Options)
+			isValidParameterOption, err := isValidTemplateParameterOption(buildParameter, &templateVersionParameter)
+			if err != nil {
+				return false, err
+			}
+			return !isValidParameterOption, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) *codersdk.TemplateVersionParameter {
@@ -343,13 +360,24 @@ func findWorkspaceBuildParameter(parameterName string, params []codersdk.Workspa
 	return nil
 }
 
-func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParameter, options []codersdk.TemplateVersionParameterOption) bool {
-	for _, opt := range options {
-		if opt.Value == buildParameter.Value {
-			return true
+func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParameter, tvp *codersdk.TemplateVersionParameter) (bool, error) {
+	for _, opt := range tvp.Options {
+		switch tvp.Type {
+		case cliui.TemplateVersionParameterListString:
+			var values []string
+			if err := json.Unmarshal([]byte(buildParameter.Value), &values); err != nil {
+				return false, err
+			}
+			if slices.Contains(values, opt.Value) {
+				return true, nil
+			}
+		default:
+			if opt.Value == buildParameter.Value {
+				return true, nil
+			}
 		}
 	}
-	return false
+	return false, nil
 }
 
 func templateVersionParametersNotFound(unknown string, params []codersdk.TemplateVersionParameter) error {
