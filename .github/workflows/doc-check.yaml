@@ -147,20 +147,7 @@ jobs:
 
           ${CONTEXT}
 
-          Use \`gh\` to get PR details, diff, and ALL comments.
-
-          ## When to comment
-
-          Post a comment if:
-          - Documentation updates are needed
-          - New documentation should be created
-          - This is the first review (confirm it was checked, even if no changes needed)
-          - Previous feedback was addressed (confirm closure)
-          - Previous feedback was partially addressed (note what's done vs pending)
-
-          Do NOT post if:
-          - A previous doc-check comment exists AND no new commits since then
-          - You would be posting identical content to an existing comment
+          Use \`gh\` to get PR details, diff, and all comments. Check for previous doc-check comments (from coder-doc-check) and only post a new comment if it adds value.
 
           ## Comment format
 
@@ -170,7 +157,7 @@ jobs:
           ## Documentation Check
 
           ### Previous Feedback
-          [For re-reviews only: ✅ Addressed | ⚠️ Partially addressed | ❌ Not yet addressed]
+          [For re-reviews only: Addressed | Partially addressed | Not yet addressed]
 
           ### Updates Needed
           - [ ] \`docs/path/file.md\` - [what needs to change]
