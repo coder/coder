@@ -1344,6 +1344,11 @@
 							"path": "reference/cli/autoupdate.md"
 						},
 						{
+							"title": "boundary",
+							"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests",
+							"path": "reference/cli/boundary.md"
+						},
+						{
 							"title": "coder",
 							"path": "reference/cli/index.md"
 						},
