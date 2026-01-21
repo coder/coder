@@ -282,7 +282,7 @@ const TaskRow: FC<TaskRowProps> = ({
 								}}
 							>
 								<Share2Icon />
-								Share workspace
+								Share
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
