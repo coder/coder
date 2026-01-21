@@ -1186,9 +1186,9 @@ func TestSSH(t *testing.T) {
 			if !assert.NoError(t, err, "failed to create SSH session") {
 				return
 			}
-			defer session.Close()
 			close(sessionStarted)
 			<-sleepKill
+			assert.NoError(t, session.Close())
 		}()
 
 		// Wait for our "parent" process to start
