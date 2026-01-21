@@ -9,12 +9,11 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "c9ada5fd-2d18-4942-b903-8c95ac337529",
           "name": "main",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "723b283e-7b61-4f42-b0af-eb86560343f5"
+            "Token": ""
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -28,8 +27,6 @@
             {
               "workspace_folder": "/workspace",
               "name": "dev",
-              "id": "829a2bfb-3af9-4451-bfd9-04f1c5940bd2",
-              "subagent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
               "apps": [
                 {
                   "slug": "devcontainer-app",
@@ -37,20 +34,11 @@
                   "open_in": 1,
                   "id": "a917a82a-fc11-9d2e-5431-cdbb8925e507"
                 }
-              ],
-              "scripts": [
-                {
-                  "display_name": "Devcontainer Script",
-                  "script": "echo devcontainer",
-                  "run_on_start": true
-                }
-              ],
-              "envs": [
-                {
-                  "name": "DEVCONTAINER_ENV",
-                  "value": "devcontainer-value"
-                }
               ]
+            },
+            {
+              "workspace_folder": "/other",
+              "name": "other"
             }
           ],
           "api_key_scope": "all"
@@ -58,8 +46,31 @@
       ]
     },
     {
-      "name": "devcontainer-env",
-      "type": "coder_env"
+      "name": "other",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "secondary",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "secondary",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
     }
   ],
   "Parameters": [],

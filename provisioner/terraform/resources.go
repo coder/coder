@@ -60,6 +60,7 @@ type agentAttributes struct {
 }
 
 type agentDevcontainerAttributes struct {
+	ID              string `mapstructure:"id"`
 	AgentID         string `mapstructure:"agent_id"`
 	WorkspaceFolder string `mapstructure:"workspace_folder"`
 	ConfigPath      string `mapstructure:"config_path"`
@@ -464,6 +465,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 					}
 
 					agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+						Id:              attrs.ID,
 						Name:            resource.Name,
 						WorkspaceFolder: attrs.WorkspaceFolder,
 						ConfigPath:      attrs.ConfigPath,

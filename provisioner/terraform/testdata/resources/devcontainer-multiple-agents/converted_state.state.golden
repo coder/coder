@@ -9,12 +9,12 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "c9ada5fd-2d18-4942-b903-8c95ac337529",
+          "id": "68fa7d79-1c3f-4f2d-b47a-188338b2c622",
           "name": "main",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "723b283e-7b61-4f42-b0af-eb86560343f5"
+            "Token": "91e53d03-c264-4929-b0be-c818d8c2b11e"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -28,8 +28,8 @@
             {
               "workspace_folder": "/workspace",
               "name": "dev",
-              "id": "829a2bfb-3af9-4451-bfd9-04f1c5940bd2",
-              "subagent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
+              "id": "907d5a40-3d81-4f03-9619-74cffb208750",
+              "subagent_id": "5d37c7c2-931c-4bb9-8243-c1a41c85c98c",
               "apps": [
                 {
                   "slug": "devcontainer-app",
@@ -37,20 +37,13 @@
                   "open_in": 1,
                   "id": "a917a82a-fc11-9d2e-5431-cdbb8925e507"
                 }
-              ],
-              "scripts": [
-                {
-                  "display_name": "Devcontainer Script",
-                  "script": "echo devcontainer",
-                  "run_on_start": true
-                }
-              ],
-              "envs": [
-                {
-                  "name": "DEVCONTAINER_ENV",
-                  "value": "devcontainer-value"
-                }
               ]
+            },
+            {
+              "workspace_folder": "/other",
+              "name": "other",
+              "id": "f3ec71d7-518c-45dc-b436-fe64e4018acb",
+              "subagent_id": "c04ecc9f-9920-419c-a1c0-38d989553c6a"
             }
           ],
           "api_key_scope": "all"
@@ -58,8 +51,32 @@
       ]
     },
     {
-      "name": "devcontainer-env",
-      "type": "coder_env"
+      "name": "other",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "secondary",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "b584209b-ff90-424c-a158-7aa62ed07bf8",
+          "name": "secondary",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "8fad7f71-78d4-413c-b035-a131ff777893"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
     }
   ],
   "Parameters": [],

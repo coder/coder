@@ -977,6 +977,57 @@ func TestConvertResources(t *testing.T) {
 				{Name: "devcontainer-env", Type: "coder_env"},
 			},
 		},
+		"devcontainer-multiple-agents": {
+			resources: []*proto.Resource{
+				{Name: "dev", Type: "coder_devcontainer"},
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								Name:            "dev",
+								WorkspaceFolder: "/workspace",
+								Apps: []*proto.App{
+									{
+										Slug:        "devcontainer-app",
+										DisplayName: "devcontainer-app",
+										OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+									},
+								},
+							},
+							{
+								Name:            "other",
+								WorkspaceFolder: "/other",
+							},
+						},
+					}},
+				},
+				{Name: "other", Type: "coder_devcontainer"},
+				{
+					Name: "secondary",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "secondary",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+					}},
+				},
+			},
+		},
 	} {
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
@@ -1019,6 +1070,7 @@ func TestConvertResources(t *testing.T) {
 							app.Id = ""
 						}
 						for _, dc := range agent.Devcontainers {
+							dc.Id = ""
 							dc.SubagentId = ""
 							for _, app := range dc.Apps {
 								app.Id = ""
@@ -1098,6 +1150,7 @@ func TestConvertResources(t *testing.T) {
 							app.Id = ""
 						}
 						for _, dc := range agent.Devcontainers {
+							dc.Id = ""
 							dc.SubagentId = ""
 							for _, app := range dc.Apps {
 								app.Id = ""
