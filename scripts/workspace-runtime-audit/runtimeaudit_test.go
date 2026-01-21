@@ -417,12 +417,12 @@ func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []worksp
 			UpdatedAt:         b.at,
 			WorkspaceID:       wrk.ID,
 			TemplateVersionID: tv.TemplateVersion.ID,
-			BuildNumber:       int32(i) + 1,
-			Transition:        b.transition,
-			InitiatorID:       s.usr.ID,
-			JobID:             job.ID,
+			///nolint:gosec // this will not overflow
+			BuildNumber: int32(i) + 1,
+			Transition:  b.transition,
+			InitiatorID: s.usr.ID,
+			JobID:       job.ID,
 		})
-
 	}
 
 	return wrk
