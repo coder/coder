@@ -1,4 +1,4 @@
-// Package main implements a test runner for the workspace runtime audit SQL script.
+// Package runtimeaudit_test implements a test runner for the workspace runtime audit SQL script.
 // It is intentionally not named with `_test.go` suffix to avoid running `go test` automatically.
 //
 // This script is not recommend to be used without guidance from the Coder team.
@@ -251,15 +251,15 @@ func TestRuntimeAudit(t *testing.T) {
 		},
 
 		// -------------------------
-		// Cancelled / failed builds
+		// Canceled / failed builds
 		// -------------------------
 
 		{
-			name: "cancelled_start_does_not_count_usage",
-			// Only start+succeeded counts; cancelled start is ignored.
+			name: "canceled_start_does_not_count_usage",
+			// Only start+succeeded counts; canceled start is ignored.
 			builds: []workspaceBuildArgs{
-				{at: decUTC(8, 9, 0), cancelled: true, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusCanceled},
-				{at: decUTC(8, 10, 0), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
+				{at: decUTC(8, 9, 0), canceled: true, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusCanceled},
+				{at: decUTC(8, 10, 0), canceled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
 			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
@@ -267,17 +267,17 @@ func TestRuntimeAudit(t *testing.T) {
 			name: "failed_start_does_not_count_even_if_later_stop_occurs",
 			// Start failed => never turns on => later stop does nothing.
 			builds: []workspaceBuildArgs{
-				{at: decUTC(9, 9, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
-				{at: decUTC(9, 12, 0), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
+				{at: decUTC(9, 9, 0), canceled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
+				{at: decUTC(9, 12, 0), canceled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
 			expect: func(_ time.Time, _ []workspaceBuildArgs) int { return 0 },
 		},
 		{
-			name: "cancelled_stop_still_stops_timer_and_counts_time",
-			// Any non-(start+succeeded) is treated as stop while running, regardless of status/cancelled.
+			name: "canceled_stop_still_stops_timer_and_counts_time",
+			// Any non-(start+succeeded) is treated as stop while running, regardless of status/canceled.
 			builds: []workspaceBuildArgs{
-				{at: decUTC(10, 9, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
-				{at: decUTC(10, 9, 40), cancelled: true, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusCanceled},
+				{at: decUTC(10, 9, 0), canceled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
+				{at: decUTC(10, 9, 40), canceled: true, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusCanceled},
 			},
 			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
@@ -287,8 +287,8 @@ func TestRuntimeAudit(t *testing.T) {
 			name: "failed_stop_still_stops_timer_and_counts_time",
 			// Same as above: stop is stop even if job failed (ELSE path).
 			builds: []workspaceBuildArgs{
-				{at: decUTC(11, 10, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
-				{at: decUTC(11, 10, 10), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusFailed},
+				{at: decUTC(11, 10, 0), canceled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
+				{at: decUTC(11, 10, 10), canceled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusFailed},
 			},
 			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
@@ -298,8 +298,8 @@ func TestRuntimeAudit(t *testing.T) {
 			name: "failed_transition_stops_timer_and_counts_time",
 			// A failed *non-stop* transition (e.g. delete) still stops if currently on.
 			builds: []workspaceBuildArgs{
-				{at: decUTC(12, 8, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
-				{at: decUTC(12, 8, 5), cancelled: false, transition: database.WorkspaceTransitionDelete, jobStatus: database.ProvisionerJobStatusFailed},
+				{at: decUTC(12, 8, 0), canceled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
+				{at: decUTC(12, 8, 5), canceled: false, transition: database.WorkspaceTransitionDelete, jobStatus: database.ProvisionerJobStatusFailed},
 			},
 			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				return roundUpHours(in[1].at, in[0].at)
@@ -310,11 +310,11 @@ func TestRuntimeAudit(t *testing.T) {
 			// When already on, a subsequent non-(start+succeeded) build triggers stop logic.
 			// This verifies you *do not* treat start+failed as a "start"; it will stop the running timer.
 			builds: []workspaceBuildArgs{
-				{at: decUTC(13, 9, 0), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
+				{at: decUTC(13, 9, 0), canceled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusSucceeded},
 				// This goes to ELSE branch (because job_status != succeeded) and will stop the timer.
-				{at: decUTC(13, 9, 30), cancelled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
+				{at: decUTC(13, 9, 30), canceled: false, transition: database.WorkspaceTransitionStart, jobStatus: database.ProvisionerJobStatusFailed},
 				// Subsequent stop should not add more time because timer was reset.
-				{at: decUTC(13, 10, 0), cancelled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
+				{at: decUTC(13, 10, 0), canceled: false, transition: database.WorkspaceTransitionStop, jobStatus: database.ProvisionerJobStatusSucceeded},
 			},
 			expect: func(_ time.Time, in []workspaceBuildArgs) int {
 				// Only counts from first start to failed-start event.
@@ -368,7 +368,7 @@ func initSetup(t *testing.T, db database.Store) *setup {
 
 type workspaceBuildArgs struct {
 	at         time.Time
-	cancelled  bool
+	canceled   bool
 	transition database.WorkspaceTransition
 	jobStatus  database.ProvisionerJobStatus
 }
@@ -399,7 +399,7 @@ func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []worksp
 			},
 			CanceledAt: sql.NullTime{
 				Time:  b.at,
-				Valid: b.cancelled,
+				Valid: b.canceled,
 			},
 			CompletedAt: sql.NullTime{
 				Time:  b.at,
