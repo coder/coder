@@ -2244,6 +2244,14 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 	return q.db.GetAuthorizedAuditLogsOffset(ctx, arg, prep)
 }
 
+func (q *querier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+	// This is a system function
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, err
+	}
+	return q.db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken)
+}
+
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetAuthorizationUserRolesRow{}, err
@@ -3604,14 +3612,6 @@ func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (databa
 		return database.GetWorkspaceACLByIDRow{}, err
 	}
 	return q.db.GetWorkspaceACLByID(ctx, id)
-}
-
-func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
-	// This is a system function
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, err
-	}
-	return q.db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)
 }
 
 func (q *querier) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentAndWorkspaceByIDRow, error) {

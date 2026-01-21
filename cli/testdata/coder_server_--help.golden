@@ -109,11 +109,18 @@ AI BRIDGE OPTIONS:
           The access key secret to use with the access key to authenticate
           against the AWS Bedrock API.
 
+      --aibridge-bedrock-base-url string, $CODER_AIBRIDGE_BEDROCK_BASE_URL
+          The base URL to use for the AWS Bedrock API. Use this setting to
+          specify an exact URL to use. Takes precedence over
+          CODER_AIBRIDGE_BEDROCK_REGION.
+
       --aibridge-bedrock-model string, $CODER_AIBRIDGE_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
           The model to use when making requests to the AWS Bedrock API.
 
       --aibridge-bedrock-region string, $CODER_AIBRIDGE_BEDROCK_REGION
-          The AWS Bedrock API region.
+          The AWS Bedrock API region to use. Constructs a base URL to use for
+          the AWS Bedrock API in the form of
+          'https://bedrock-runtime.<region>.amazonaws.com'.
 
       --aibridge-bedrock-small-fastmodel string, $CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
           The small fast model to use when making requests to the AWS Bedrock
