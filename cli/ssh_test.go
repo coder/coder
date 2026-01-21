@@ -1122,20 +1122,40 @@ func TestSSH(t *testing.T) {
 		}
 	})
 
+	// This test ensures that the SSH session exits when the parent process dies.
 	t.Run("StdioExitOnParentDeath", func(t *testing.T) {
 		t.Parallel()
 
-		// Start a sleep process which we will pretend is the parent's PID.
-		sleepCmd := exec.Command("sleep", "infinity")
-		require.NoError(t, sleepCmd.Start())
-		_, _ = tGoContext(t, func(ctx context.Context) {
-			_ = sleepCmd.Wait()
-		})
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		_ = agenttest.New(t, client.URL, agentToken)
-		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
+
+		// sleepStart -> agentReady -> sessionStarted -> sleepKill -> sleepDone -> cmdDone
+		sleepStart := make(chan int)
+		agentReady := make(chan struct{})
+		sessionStarted := make(chan struct{})
+		sleepKill := make(chan struct{})
+		sleepDone := make(chan struct{})
+		cmdDone := make(chan error)
+
+		// Start a sleep process which we will pretend is the parent.
+		go func() {
+			sleepCmd := exec.Command("sleep", "infinity")
+			if !assert.NoError(t, sleepCmd.Start(), "failed to start sleep command") {
+				return
+			}
+			sleepStart <- sleepCmd.Process.Pid
+			defer close(sleepDone)
+			<-sleepKill
+			sleepCmd.Process.Kill()
+			_ = sleepCmd.Wait()
+		}()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		go func() {
+			defer close(agentReady)
+			_ = agenttest.New(t, client.URL, agentToken)
+			coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).WaitFor(coderdtest.AgentsReady)
+		}()
 
 		clientOutput, clientInput := io.Pipe()
 		serverOutput, serverInput := io.Pipe()
@@ -1145,43 +1165,58 @@ func TestSSH(t *testing.T) {
 			}
 		}()
 
-		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--unsafe-force-ppid", fmt.Sprintf("%d", sleepCmd.Process.Pid))
+		// Start a connection to the agent once it's ready
+		go func() {
+			<-agentReady
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			if !assert.NoError(t, err, "failed to create SSH client connection") {
+				return
+			}
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			defer sshClient.Close()
+
+			session, err := sshClient.NewSession()
+			if !assert.NoError(t, err, "failed to create SSH session") {
+				return
+			}
+			defer session.Close()
+			close(sessionStarted)
+			<-sleepKill
+		}()
+
+		// Wait for our "parent" process to start
+		sleepPid := testutil.RequireReceive(ctx, t, sleepStart)
+		// Wait for the agent to be ready
+		testutil.SoftTryReceive(ctx, t, agentReady)
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--unsafe-force-ppid", fmt.Sprintf("%d", sleepPid))
 		clitest.SetupConfig(t, client, root)
 		inv.Stdin = clientOutput
 		inv.Stdout = serverInput
 		inv.Stderr = io.Discard
 
-		cmdDone := tGo(t, func() {
-			_ = inv.WithContext(ctx).Run()
-		})
+		// Start the command
+		go func() {
+			defer close(cmdDone)
+			err := inv.Run()
+			assert.NoError(t, err, "coder ssh command exited with an error")
+		}()
 
-		// Open a connection to the agent
-		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
-			Reader: serverOutput,
-			Writer: clientInput,
-		}, "", &ssh.ClientConfig{
-			// #nosec
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		sshClient := ssh.NewClient(conn, channels, requests)
-		defer sshClient.Close()
-
-		session, err := sshClient.NewSession()
-		require.NoError(t, err)
-		defer session.Close()
-
-		err = session.Shell()
-		require.NoError(t, err)
-
+		// Wait for a session to be established
+		testutil.SoftTryReceive(ctx, t, sessionStarted)
 		// Now kill the fake "parent"
-		t.Logf("killing process %q pid: %d", strings.Join(sleepCmd.Args, " "), sleepCmd.Process.Pid)
-		require.NoError(t, sleepCmd.Process.Kill())
-
-		// The command should exit on its own now.
-		_ = testutil.TryReceive(ctx, t, cmdDone)
+		close(sleepKill)
+		// The sleep process should exit
+		testutil.SoftTryReceive(ctx, t, sleepDone)
+		// And then the command should exit
+		testutil.SoftTryReceive(ctx, t, cmdDone)
 	})
 
 	t.Run("ForwardAgent", func(t *testing.T) {
