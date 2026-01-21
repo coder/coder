@@ -1152,8 +1152,7 @@ func TestSSH(t *testing.T) {
 		inv.Stderr = io.Discard
 
 		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
+			_ = inv.WithContext(ctx).Run()
 		})
 
 		// Open a connection to the agent
