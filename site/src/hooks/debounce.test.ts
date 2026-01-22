@@ -4,15 +4,6 @@ import { useDebouncedFunction, useDebouncedValue } from "./debounce";
 beforeAll(() => {
 	vi.useFakeTimers();
 	vi.spyOn(global, "setTimeout");
-	// Mock window timers to use global timers (which are controlled by vi.useFakeTimers)
-	Object.defineProperty(window, "setTimeout", {
-		writable: true,
-		value: global.setTimeout,
-	});
-	Object.defineProperty(window, "clearTimeout", {
-		writable: true,
-		value: global.clearTimeout,
-	});
 });
 
 afterAll(() => {

@@ -46,7 +46,7 @@ export function useDebouncedFunction<
 	const timeoutIdRef = useRef<number | undefined>(undefined);
 	const cancelDebounce = useCallback(() => {
 		if (timeoutIdRef.current !== undefined) {
-			window.clearTimeout(timeoutIdRef.current);
+			clearTimeout(timeoutIdRef.current);
 		}
 
 		timeoutIdRef.current = undefined;
@@ -70,7 +70,7 @@ export function useDebouncedFunction<
 		(...args: Args): void => {
 			cancelDebounce();
 
-			timeoutIdRef.current = window.setTimeout(
+			timeoutIdRef.current = setTimeout(
 				() => void callbackRef.current(...args),
 				debounceTimeRef.current,
 			);
@@ -105,10 +105,10 @@ export function useDebouncedValue<T>(value: T, debounceTimeoutMs: number): T {
 			return;
 		}
 
-		const timeoutId = window.setTimeout(() => {
+		const timeoutId = setTimeout(() => {
 			setDebouncedValue(value);
 		}, debounceTimeoutMs);
-		return () => window.clearTimeout(timeoutId);
+		return () => clearTimeout(timeoutId);
 	}, [value, debounceTimeoutMs]);
 
 	return debouncedValue;
