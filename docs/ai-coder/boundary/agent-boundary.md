@@ -133,6 +133,7 @@ Each boundary audit log entry includes:
 | `workspace_id`   | The UUID of the workspace where the request originated                                  |
 | `workspace_name` | The name of the workspace where the request originated                                  |
 | `owner`          | The owner of the workspace where the request originated                                 |
+| `template_id`    | The UUID of the template that the workspace was created from                            |
 | `http_method`    | The HTTP method used (GET, POST, PUT, DELETE, etc.)                                     |
 | `http_url`       | The fully qualified URL that was requested                                              |
 | `event_time`     | Timestamp when boundary processed the request (RFC3339 format)                          |
