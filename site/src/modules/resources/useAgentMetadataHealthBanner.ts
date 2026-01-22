@@ -34,12 +34,6 @@ export const useAgentMetadataHealthBanner = (
 		// Only reset if agent IDs actually changed
 		const agentIdsChanged = previousAgentIdsRef.current !== agentIdsKey;
 		if (agentIdsChanged) {
-			console.log(
-				"[AgentMetadataHealthBanner] Agent IDs changed:",
-				previousAgentIdsRef.current,
-				"->",
-				agentIdsKey,
-			);
 			// Clear existing timer and sources when agent IDs change
 			if (timerRef.current !== null) {
 				window.clearInterval(timerRef.current);
@@ -52,23 +46,11 @@ export const useAgentMetadataHealthBanner = (
 		}
 
 		if (!enabled || stableAgentIds.length === 0) {
-			if (agentIdsChanged) {
-				console.log(
-					"[AgentMetadataHealthBanner] Skipping: enabled=",
-					enabled,
-					"agentIds.length=",
-					stableAgentIds.length,
-				);
-			}
-			// Don't clear timer if agent IDs haven't changed - just skip setup
 			return;
 		}
 
 		// If agent IDs haven't changed and timer is already running, don't recreate
 		if (!agentIdsChanged && timerRef.current !== null) {
-			console.log(
-				"[AgentMetadataHealthBanner] Already monitoring, skipping setup",
-			);
 			return;
 		}
 
@@ -80,11 +62,6 @@ export const useAgentMetadataHealthBanner = (
 			sourcesRef.current = [];
 		}
 
-		console.log(
-			"[AgentMetadataHealthBanner] Starting monitoring for agents:",
-			stableAgentIds,
-		);
-
 		const sources = stableAgentIds.map((agentId) => {
 			const source = watchAgentMetadata(agentId);
 
@@ -92,10 +69,6 @@ export const useAgentMetadataHealthBanner = (
 				const data = JSON.parse(e.data) as WorkspaceAgentMetadata[];
 
 				if (isValidAgentMetadataSample(data)) {
-					console.log(
-						"[AgentMetadataHealthBanner] Valid sample for agent:",
-						agentId,
-					);
 					hasValidAgentRef.current = true;
 					invalidSinceByAgentRef.current.delete(agentId);
 					setShouldShow(false);
@@ -105,12 +78,6 @@ export const useAgentMetadataHealthBanner = (
 				if (isInvalidAgentMetadataSample(data)) {
 					const now = Date.now();
 					if (!invalidSinceByAgentRef.current.has(agentId)) {
-						console.log(
-							"[AgentMetadataHealthBanner] Invalid sample detected for agent:",
-							agentId,
-							"at",
-							now,
-						);
 						invalidSinceByAgentRef.current.set(agentId, now);
 					}
 				}
@@ -140,14 +107,6 @@ export const useAgentMetadataHealthBanner = (
 				const invalidSince = invalidSinceByAgent.get(id);
 				return invalidSince !== undefined && now - invalidSince >= THRESHOLD_MS;
 			});
-			if (allInvalidLongEnough !== shouldShow) {
-				console.log(
-					"[AgentMetadataHealthBanner] Banner state changed:",
-					allInvalidLongEnough,
-					"invalidSinceByAgent:",
-					Object.fromEntries(invalidSinceByAgent),
-				);
-			}
 			setShouldShow(allInvalidLongEnough);
 		}, 1000);
 
