@@ -80,11 +80,6 @@ export const useAgentMetadataHealthBanner = (
 			sourcesRef.current = [];
 		}
 
-		console.log(
-			"[AgentMetadataHealthBanner] Starting monitoring for agents:",
-			stableAgentIds,
-		);
-
 		const sources = stableAgentIds.map((agentId) => {
 			const source = watchAgentMetadata(agentId);
 
