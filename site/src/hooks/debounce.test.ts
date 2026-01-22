@@ -75,7 +75,7 @@ describe(useDebouncedValue.name, () => {
 
 		rerender({ value: !initialValue, time });
 
-		// Act wrapper ensures React updates are handled properly
+		// Waiting until the debounce time has elapsed will trigger a state update.
 		await act(async () => {
 			await vi.runAllTimersAsync();
 		});
