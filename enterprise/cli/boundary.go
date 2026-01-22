@@ -67,6 +67,9 @@ func (r *RootCmd) boundary() *serpent.Command {
 	// Wrap the handler to check for FeatureBoundary entitlement.
 	originalHandler := cmd.Handler
 	cmd.Handler = func(inv *serpent.Invocation) error {
+		// Boundary re-executes itself with CHILD=true to run the target process
+		// inside a jailed network namespace. Skip the license check for child
+		// processes since the parent already verified entitlement.
 		if isChild() {
 			return originalHandler(inv)
 		}
