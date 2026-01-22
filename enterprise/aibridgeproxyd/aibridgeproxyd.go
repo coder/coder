@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/aibridge"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
 // Known AI provider hosts.
@@ -237,7 +238,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		// All other requests will be tunneled directly to their destination.
 		goproxy.ReqHostIs(mitmHosts...),
 	).HandleConnectFunc(
-		// Extract Coder session token from proxy authentication to forward to aibridged.
+		// Extract Coder token from proxy authentication to forward to aibridged.
 		srv.authMiddleware,
 	)
 
@@ -392,8 +393,8 @@ func convertDomainsToHosts(domains []string, allowedPorts []string) ([]string, e
 	return hosts, nil
 }
 
-// authMiddleware is a CONNECT middleware that extracts the Coder session token
-// from the Proxy-Authorization header and stores it in ctx.UserData for use by
+// authMiddleware is a CONNECT middleware that extracts the Coder token from
+// the Proxy-Authorization header and stores it in ctx.UserData for use by
 // downstream request handlers.
 // Requests without valid credentials are rejected.
 //
@@ -424,7 +425,7 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	return goproxy.MitmConnect, host
 }
 
-// extractCoderTokenFromProxyAuth extracts the Coder session token from the
+// extractCoderTokenFromProxyAuth extracts the Coder token from the
 // Proxy-Authorization header. The token is expected to be in the password
 // field of basic auth: "Basic base64(username:token)".
 //
@@ -472,8 +473,8 @@ func defaultAIBridgeProvider(host string) string {
 }
 
 // handleRequest intercepts HTTP requests after MITM decryption.
-//   - Requests to known AI providers are rewritten to aibridged, with the Coder session token
-//     (from ctx.UserData, set during CONNECT) injected in the Authorization header.
+//   - Requests to known AI providers are rewritten to aibridged, with the Coder token
+//     (from ctx.UserData, set during CONNECT) set in the X-Coder-Token header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -494,7 +495,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, nil
 	}
 
-	// Get the Coder session token stored during CONNECT.
+	// Get the Coder token stored during CONNECT.
 	coderToken, _ := ctx.UserData.(string)
 
 	// Reject unauthenticated requests to AI providers.
@@ -533,8 +534,10 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = aiBridgeParsedURL
 	req.Host = aiBridgeParsedURL.Host
 
-	// Set Authorization header for aibridged authentication.
-	req.Header.Set("Authorization", "Bearer "+coderToken)
+	// Set X-Coder-Token header for aibridged authentication.
+	// Using a separate header preserves the original request headers,
+	// which are forwarded to upstream providers.
+	req.Header.Set(agplaibridge.HeaderCoderAuth, coderToken)
 
 	s.logger.Debug(s.ctx, "routing request to aibridged",
 		slog.F("provider", provider),
