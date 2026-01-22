@@ -3702,6 +3702,24 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// Per-replica boundary usage statistics for telemetry aggregation.
+type BoundaryUsageStat struct {
+	// The unique identifier of the replica reporting stats.
+	ReplicaID uuid.UUID `db:"replica_id" json:"replica_id"`
+	// Count of unique workspaces that used boundary on this replica.
+	UniqueWorkspacesCount int64 `db:"unique_workspaces_count" json:"unique_workspaces_count"`
+	// Count of unique users that used boundary on this replica.
+	UniqueUsersCount int64 `db:"unique_users_count" json:"unique_users_count"`
+	// Total allowed requests through boundary on this replica.
+	AllowedRequests int64 `db:"allowed_requests" json:"allowed_requests"`
+	// Total denied requests through boundary on this replica.
+	DeniedRequests int64 `db:"denied_requests" json:"denied_requests"`
+	// Start of the time window for these stats, set on first flush after reset.
+	WindowStart time.Time `db:"window_start" json:"window_start"`
+	// Timestamp of the last update to this row.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ConnectionLog struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`

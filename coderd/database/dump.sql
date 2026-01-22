@@ -1111,6 +1111,32 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE boundary_usage_stats (
+    replica_id uuid NOT NULL,
+    unique_workspaces_count bigint DEFAULT 0 NOT NULL,
+    unique_users_count bigint DEFAULT 0 NOT NULL,
+    allowed_requests bigint DEFAULT 0 NOT NULL,
+    denied_requests bigint DEFAULT 0 NOT NULL,
+    window_start timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE boundary_usage_stats IS 'Per-replica boundary usage statistics for telemetry aggregation.';
+
+COMMENT ON COLUMN boundary_usage_stats.replica_id IS 'The unique identifier of the replica reporting stats.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_workspaces_count IS 'Count of unique workspaces that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_users_count IS 'Count of unique users that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.allowed_requests IS 'Total allowed requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
+
+COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
+
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
     connect_time timestamp with time zone NOT NULL,
@@ -2002,7 +2028,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -2940,6 +2966,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY boundary_usage_stats
+    ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
