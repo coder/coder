@@ -21,7 +21,6 @@ import {
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { NotificationActionButton } from "./WorkspaceNotifications/Notifications";
 import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
@@ -290,26 +289,27 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 	// Disconnected is a more serious failure than timeout, so we can
 	// prioritize handling it first.
 	if (failureSet.has("disconnected")) {
-		title = "Workspace agents are disconnected";
+		title = "Workspace agents have disconnected";
 		message =
-			"The agents have disconnected. If logs are streaming, the agent may still connect if you wait. Otherwise restarting the workspace can be done to try again.";
-
+			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
 	} else if (failureSet.has("timeout")) {
 		// Handle timeout case
-		title = "Workspace agents have timed out";
+		title = "Your workspace is starting, but the agent has not yet connected.";
 		message =
-			"The agents did not connect within the expected time. If logs are still streaming, they may finish connecting if you wait. Otherwise, restart the workspace to try again.";
+			"The agent is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the agent does not connect, restarting the workspace can be used to try again.";
 	}
 
 	return (
 		<Alert severity="warning" prominent>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDetail>
-				<p>Your workspace is running but{" "}
+				<p>
+					Your workspace is running but{" "}
 					{failingAgentCount > 1
 						? `${failingAgentCount} agents have not connected yet.`
 						: "the agent has not connected yet."}
-					.{" "}</p>
+					.{" "}
+				</p>
 				<p>{message}</p>
 				<p>
 					{troubleshootingURL && (
