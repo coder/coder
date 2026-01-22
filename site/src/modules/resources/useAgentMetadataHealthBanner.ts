@@ -10,7 +10,7 @@ export type AgentMetadataHealthBannerState = {
 	shouldShow: boolean;
 };
 
-const THRESHOLD_MS = 30_000;
+const THRESHOLD_MS = 10_000;
 
 export const useAgentMetadataHealthBanner = (
 	agentIds: readonly string[],
