@@ -497,7 +497,6 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	require.Equal(t, droppedBefore+1, prom_testutil.ToFloat64(b.metrics.droppedKeysTotal))
 	require.Equal(t, float64(12), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 	require.Equal(t, float64(6), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity)))
-
 }
 
 // TestMetadataBatcher_Deduplication executes two Add calls, the second with a later timestamp than the first, to check
