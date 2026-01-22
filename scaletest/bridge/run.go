@@ -92,10 +92,6 @@ type Runner struct {
 }
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
-	httpTimeout := cfg.HTTPTimeout
-	if httpTimeout <= 0 {
-		httpTimeout = 30 * time.Second
-	}
 	return &Runner{
 		client:           client,
 		cfg:              cfg,
@@ -103,7 +99,6 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 		providerStrategy: NewProviderStrategy(cfg.Provider),
 		clock:            quartz.NewReal(),
 		httpClient: &http.Client{
-			Timeout:   httpTimeout,
 			Transport: newTracingTransport(cfg, http.DefaultTransport),
 		},
 	}
@@ -188,6 +183,10 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 		requestNum: requestNum + 1,
 		mode:       r.cfg.Mode,
 	})
+
+	// Set timeout per request
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.HTTPTimeout)
+	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(r.cfg.RequestBody))
 	if err != nil {
