@@ -1,3 +1,4 @@
+import { expect, test } from "vitest";
 import { AxiosError, type AxiosResponse } from "axios";
 import { newRetryDelay } from "./GitDeviceAuth";
 
