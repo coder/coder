@@ -220,3 +220,53 @@ test("Submit button is only enabled when changes are made", async () => {
 	// There are now no changes, the button should be disabled.
 	expect(submitButton.disabled).toBeTruthy();
 });
+
+test("Submit button is disabled and shows warning when workspace is in transition", async () => {
+	// Create a workspace in starting state
+	const startingWorkspace = {
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspaceBuild,
+			status: "starting" as const,
+			transition: "start" as const,
+		},
+	};
+
+	// Mock the API calls that loads data
+	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+		startingWorkspace,
+	);
+	vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+		MockTemplateVersionParameter1,
+		MockTemplateVersionParameter2,
+	]);
+	vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+		MockWorkspaceBuildParameter1,
+		MockWorkspaceBuildParameter2,
+	]);
+
+	// Setup event and rendering
+	const user = userEvent.setup();
+	renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
+		route: "/@test-user/test-workspace/settings",
+		path: "/:username/:workspace/settings",
+	});
+	await waitForLoaderToBeRemoved();
+
+	const submitButton: HTMLButtonElement = screen.getByRole("button", {
+		name: "Submit and restart",
+	});
+
+	const form = screen.getByTestId("form");
+	const parameter1 = within(form).getByLabelText(
+		MockWorkspaceBuildParameter1.name,
+		{ exact: false },
+	);
+
+	// Make changes to the form
+	await user.clear(parameter1);
+	await user.type(parameter1, "new-value");
+
+	// Even with changes, button should still be disabled due to transition
+	expect(submitButton.disabled).toBeTruthy();
+});
