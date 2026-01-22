@@ -292,14 +292,13 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 	if (failureSet.has("disconnected")) {
 		title = "Workspace agents are disconnected";
 		message =
-			"Your workspace agents were connected but have since disconnected. If logs are streaming, the agent may still connect if you wait. Otherwise restarting the workspace can be done to try again.";
+			"The agents have disconnected. If logs are streaming, the agent may still connect if you wait. Otherwise restarting the workspace can be done to try again.";
 
 	} else if (failureSet.has("timeout")) {
 		// Handle timeout case
 		title = "Workspace agents have timed out";
 		message =
-			"Your workspace agents have not connected in the expected time. If logs are streaming, the agent may still connect if you wait. Otherwise restarting the workspace can be done to try again.";
-
+			"The agents did not connect within the expected time. If logs are still streaming, they may finish connecting if you wait. Otherwise, restart the workspace to try again.";
 	}
 
 	return (
@@ -308,8 +307,8 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 			<AlertDetail>
 				<p>Your workspace is running but{" "}
 					{failingAgentCount > 1
-						? `${failingAgentCount} agents are not connected`
-						: "the agent is not connected"}
+						? `${failingAgentCount} agents have not connected yet.`
+						: "the agent has not connected yet."}
 					.{" "}</p>
 				<p>{message}</p>
 				<p>
