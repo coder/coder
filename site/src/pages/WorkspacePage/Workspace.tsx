@@ -284,7 +284,8 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 	});
 
 	var title = "Workspace agents are not connected";
-	var message = "Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
+	var message =
+		"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
 
 	// Disconnected is a more serious failure than timeout, so we can
 	// prioritize handling it first.
