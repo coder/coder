@@ -105,7 +105,8 @@ const WorkspaceParametersPage: FC = () => {
 		workspace.latest_build.status === "starting" ||
 		workspace.latest_build.status === "stopping" ||
 		workspace.latest_build.status === "pending" ||
-		workspace.latest_build.status === "canceling";
+		workspace.latest_build.status === "canceling" ||
+		workspace.latest_build.status === "deleting";
 
 	return (
 		<>
@@ -188,8 +189,10 @@ export const WorkspaceParametersPageView: FC<
 
 			{isInTransition && (
 				<Alert severity="info">
-					There is currently a workspace build in progress. Please wait for it
-					to complete before proceeding.
+					There is currently a{" "}
+					<strong>{workspace.latest_build.transition}</strong> workspace build{" "}
+					<strong>{workspace.latest_build.status}</strong>. Please wait for the
+					workspace build to complete before proceeding.
 				</Alert>
 			)}
 
