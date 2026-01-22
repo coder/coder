@@ -11,7 +11,7 @@ import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAl
 import { AgentRow } from "modules/resources/AgentRow";
 import { useAgentMetadataHealthBanner } from "modules/resources/useAgentMetadataHealthBanner";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import { useEffect, useMemo, type FC } from "react";
+import { useMemo, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
