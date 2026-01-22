@@ -130,18 +130,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const { shouldShow: shouldShowAgentMetricsBanner } =
 		useAgentMetadataHealthBanner(agentIds, workspaceRunning);
 
-	// Debug logging
-	useEffect(() => {
-		console.log(
-			"[Workspace] Banner state:",
-			shouldShowAgentMetricsBanner,
-			"workspaceRunning:",
-			workspaceRunning,
-			"agentIds:",
-			agentIds,
-		);
-	}, [shouldShowAgentMetricsBanner, workspaceRunning, agentIds]);
-
 	return (
 		<div
 			css={{
