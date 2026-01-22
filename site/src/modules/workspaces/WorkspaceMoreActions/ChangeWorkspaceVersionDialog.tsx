@@ -1,4 +1,3 @@
-import { css } from "@emotion/css";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
@@ -130,7 +129,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 															{params.InputProps.endAdornment}
 														</>
 													),
-													classes: { root: classNames.root },
+													classes: { root: "!pl-3.5" },
 												}}
 											/>
 										</>
@@ -159,11 +158,4 @@ export const ChangeWorkspaceVersionDialog: FC<
 			}
 		/>
 	);
-};
-
-const classNames = {
-	// Same `padding-left` as input
-	root: css`
-    padding-left: 14px !important;
-  `,
 };

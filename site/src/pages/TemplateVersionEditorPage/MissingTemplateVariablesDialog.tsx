@@ -1,5 +1,3 @@
-import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -47,16 +45,16 @@ export const MissingTemplateVariablesDialog: FC<
 		>
 			<DialogTitle
 				id="update-build-parameters-title"
-				classes={{ root: classNames.root }}
+				className="py-6 px-10 [&_h2]:text-xl [&_h2]:font-normal"
 			>
 				Template variables
 			</DialogTitle>
-			<DialogContent css={styles.content}>
-				<DialogContentText css={styles.info}>
+			<DialogContent className="px-10">
+				<DialogContentText className="m-0">
 					There are a few missing template variable values. Please fill them in.
 				</DialogContentText>
 				<VerticalForm
-					css={styles.form}
+					className="pt-8"
 					id="updateVariables"
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -89,7 +87,7 @@ export const MissingTemplateVariablesDialog: FC<
 					)}
 				</VerticalForm>
 			</DialogContent>
-			<DialogActions disableSpacing css={styles.dialogActions}>
+			<DialogActions disableSpacing className="p-10 flex-col gap-2">
 				<Button className="w-full" type="submit" form="updateVariables">
 					Submit
 				</Button>
@@ -105,34 +103,3 @@ export const MissingTemplateVariablesDialog: FC<
 		</Dialog>
 	);
 };
-
-const classNames = {
-	root: css`
-    padding: 24px 40px;
-
-    & h2 {
-      font-size: 20px;
-      font-weight: 400;
-    }
-  `,
-};
-
-const styles = {
-	content: {
-		padding: "0 40px",
-	},
-
-	info: {
-		margin: 0,
-	},
-
-	form: {
-		paddingTop: 32,
-	},
-
-	dialogActions: {
-		padding: 40,
-		flexDirection: "column",
-		gap: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
