@@ -140,14 +140,6 @@ export const useAgentMetadataHealthBanner = (
 				const invalidSince = invalidSinceByAgent.get(id);
 				return invalidSince !== undefined && now - invalidSince >= THRESHOLD_MS;
 			});
-			if (allInvalidLongEnough !== shouldShow) {
-				console.log(
-					"[AgentMetadataHealthBanner] Banner state changed:",
-					allInvalidLongEnough,
-					"invalidSinceByAgent:",
-					Object.fromEntries(invalidSinceByAgent),
-				);
-			}
 			setShouldShow(allInvalidLongEnough);
 		}, 1000);
 
