@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import { buildPagedList, getOffset, isNonInitialPage } from "./utils";
 
 describe(buildPagedList.name, () => {

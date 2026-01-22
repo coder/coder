@@ -1,4 +1,4 @@
-import { describe, expect, it, type Mock } from "vitest";
+import type { Mock } from "vitest";
 import {
 	displayError,
 	displaySuccess,
