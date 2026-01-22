@@ -417,12 +417,8 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	ps := psmock.NewMockPubsub(ctrl)
 	clock := quartz.NewMock(t)
 
-	// Generate mock agent IDs
-	agent1 := uuid.New()
-	agent2 := uuid.New()
-
 	reg := prometheus.NewRegistry()
-	// Create batcher with very small capacity
+	// Batch size of 2 means channel capacity = 10 (2 * 5)
 	b, err := NewBatcher(ctx, reg, store, ps,
 		WithLogger(log),
 		WithBatchSize(2),
@@ -431,85 +427,77 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(b.Close)
 
-	// --- FLUSH 1: First capacity flush with 2 entries ---
 	t1 := clock.Now()
-	psCap := newPubsubCapture(t)
 
+	// Channels to control when the store call blocks/unblocks
+	flushStarted := make(chan struct{})
+	unblockFlush := make(chan struct{})
+
+	pubsubCap := newPubsubCapture(t)
+
+	// Make the first store call block until we signal. After unblocking,
+	// the 10 queued entries will trigger 5 more capacity flushes (10/2 = 5).
+	// Total expected flushes: 1 (initial) + 5 (queued) = 6
+	firstCall := true
 	store.EXPECT().
-		BatchUpdateWorkspaceAgentMetadata(
-			gomock.Any(),
-			matchMetadata(
-				[]uuid.UUID{agent1, agent2},
-				[]string{"key1", "key1"},
-				[]string{"value1", "value2"},
-				[]string{"", ""},
-				[]time.Time{t1, t1},
-			),
-		).
-		Return(nil).
-		Times(1)
+		BatchUpdateWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, params database.BatchUpdateWorkspaceAgentMetadataParams) error {
+			if firstCall {
+				firstCall = false
+				close(flushStarted) // Signal that first flush has started
+				<-unblockFlush      // Wait for signal to continue
+			}
+			return nil
+		}).
+		Times(6)
 
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(psCap.capture).
+		Do(pubsubCap.capture).
 		Return(nil).
-		Times(1)
+		Times(6)
 
-	// Fill buffer to capacity
+	// Add 2 entries - this will trigger capacity flush (batch size = 2) that blocks
+	agent1 := uuid.New()
+	agent2 := uuid.New()
 	require.NoError(t, b.Add(agent1, []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1}))
 	require.NoError(t, b.Add(agent2, []string{"key1"}, []string{"value2"}, []string{""}, []time.Time{t1}))
 
-	// Buffer should now trigger automatic flush at capacity
+	// Wait for flush to start and block in the store call
+	<-flushStarted
+
+	// Now the flush is blocked. Channel capacity is 10.
+	// Fill the channel with 10 entries
+	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+
+	for i := 0; i < 10; i++ {
+		agent := uuid.New()
+		require.NoError(t, b.Add(agent, []string{"key1"}, []string{fmt.Sprintf("value%d", i)}, []string{""}, []time.Time{t1}))
+	}
+
+	// Channel should now be full. Next add should drop.
+	agentDropped := uuid.New()
+	require.NoError(t, b.Add(agentDropped, []string{"key1"}, []string{"dropped"}, []string{""}, []time.Time{t1}))
+
+	// Verify that 1 key was dropped
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
+		dropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+		return dropped == droppedBefore+1
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(2), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
-	// Wait for pubsub capture to complete and verify all agent IDs were published.
+	// Unblock the flush
+	close(unblockFlush)
+
+	// Wait for all queued entries to be processed (channel should be empty)
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return psCap.count() == 2
+		return len(b.updateCh) == 0
 	}, testutil.IntervalFast)
-	psCap.requireContainsAll([]uuid.UUID{agent1, agent2})
 
-	// --- FLUSH 2: Second capacity flush with 2 different entries ---
-	t2 := clock.Now()
-	psCap.clear()
+	// Verify final state: 1 key was dropped, 12 metadata sent in 6 capacity batches
+	require.Equal(t, droppedBefore+1, prom_testutil.ToFloat64(b.metrics.droppedKeysTotal))
+	require.Equal(t, float64(12), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(6), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity)))
 
-	store.EXPECT().
-		BatchUpdateWorkspaceAgentMetadata(
-			gomock.Any(),
-			matchMetadata(
-				[]uuid.UUID{agent1, agent2},
-				[]string{"key2", "key2"},
-				[]string{"value3", "value4"},
-				[]string{"", ""},
-				[]time.Time{t2, t2},
-			),
-		).
-		Return(nil).
-		Times(1)
-
-	ps.EXPECT().
-		Publish(gomock.Any(), gomock.Any()).
-		Do(psCap.capture).
-		Return(nil).
-		Times(1)
-
-	// Try to add another update - buffer is now empty but we'll fill it again
-	require.NoError(t, b.Add(agent1, []string{"key2"}, []string{"value3"}, []string{""}, []time.Time{t2}))
-	require.NoError(t, b.Add(agent2, []string{"key2"}, []string{"value4"}, []string{""}, []time.Time{t2}))
-
-	// Wait for the second automatic flush
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(2) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
-	}, testutil.IntervalFast)
-	require.Equal(t, float64(4), prom_testutil.ToFloat64(b.metrics.metadataTotal))
-
-	// Wait for pubsub capture to complete and verify all agent IDs were published.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return psCap.count() == 2
-	}, testutil.IntervalFast)
-	psCap.requireContainsAll([]uuid.UUID{agent1, agent2})
 }
 
 // TestMetadataBatcher_Deduplication executes two Add calls, the second with a later timestamp than the first, to check
