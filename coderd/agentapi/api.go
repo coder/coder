@@ -65,10 +65,11 @@ type API struct {
 var _ agentproto.DRPCAgentServer = &API{}
 
 type Options struct {
-	AgentID        uuid.UUID
-	OwnerID        uuid.UUID
-	WorkspaceID    uuid.UUID
-	OrganizationID uuid.UUID
+	AgentID           uuid.UUID
+	OwnerID           uuid.UUID
+	WorkspaceID       uuid.UUID
+	OrganizationID    uuid.UUID
+	TemplateVersionID uuid.UUID
 
 	AuthenticatedCtx                  context.Context
 	Log                               slog.Logger
@@ -221,9 +222,10 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
-		Log:         opts.Log,
-		WorkspaceID: opts.WorkspaceID,
-		TemplateID:  workspace.TemplateID,
+		Log:               opts.Log,
+		WorkspaceID:       opts.WorkspaceID,
+		TemplateID:        workspace.TemplateID,
+		TemplateVersionID: opts.TemplateVersionID,
 	}
 
 	// Start background cache refresh loop to handle workspace changes
