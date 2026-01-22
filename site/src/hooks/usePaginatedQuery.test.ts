@@ -1,9 +1,3 @@
-// TODO: This test is timing out after upgrade a few Jest dependencies
-// and I was not able to figure out why. When running it specifically, I
-// can see many act warnings that may can help us to find the issue.
-// (Note: This comment was originally written by Bruno, and was relocated by
-// me. If you go poking at `git blame`, disabling these tests was not my idea.
-
 import { renderHookWithAuth } from "testHelpers/hooks";
 import { waitFor } from "@testing-library/react";
 import {
@@ -12,7 +6,6 @@ import {
 	usePaginatedQuery,
 } from "./usePaginatedQuery";
 
-// Removed global fake timers - they will be used locally where needed
 afterEach(() => {
 	vi.clearAllMocks();
 });
@@ -135,19 +128,12 @@ describe(usePaginatedQuery.name, () => {
 			const pageMatcher = expect.objectContaining({ pageNumber: targetPage });
 			if (shouldMatch) {
 				await waitFor(() => expect(result.current.totalRecords).toBeDefined());
-				await waitFor(() => expect(mockQueryFn).toBeCalledWith(pageMatcher));
+				await waitFor(() =>
+					expect(mockQueryFn).toHaveBeenCalledWith(pageMatcher),
+				);
 			} else {
-				// Use fake timers only for this specific case
-				vi.useFakeTimers();
-				// Can't use waitFor to test this, because the expect call will
-				// immediately succeed for the not case, even though queryFn needs to be
-				// called async via React Query
-				setTimeout(() => {
-					expect(mockQueryFn).not.toBeCalledWith(pageMatcher);
-				}, 1000);
-
-				vi.runAllTimers();
-				vi.useRealTimers();
+				await new Promise((resolve) => setTimeout(resolve, 10));
+				expect(mockQueryFn).not.toHaveBeenCalledWith(pageMatcher);
 			}
 		};
 
@@ -178,20 +164,28 @@ describe(usePaginatedQuery.name, () => {
 			);
 
 			const currentMatcher = expect.objectContaining({ pageNumber: startPage });
-			expect(mockQueryKey).toBeCalledWith(currentMatcher);
-			expect(mockQueryFn).toBeCalledWith(currentMatcher);
+			expect(mockQueryKey).toHaveBeenCalledWith(currentMatcher);
+			expect(mockQueryFn).toHaveBeenCalledWith(currentMatcher);
 
 			const prevPageMatcher = expect.objectContaining({
 				pageNumber: startPage - 1,
 			});
-			await waitFor(() => expect(mockQueryKey).toBeCalledWith(prevPageMatcher));
-			await waitFor(() => expect(mockQueryFn).toBeCalledWith(prevPageMatcher));
+			await waitFor(() =>
+				expect(mockQueryKey).toHaveBeenCalledWith(prevPageMatcher),
+			);
+			await waitFor(() =>
+				expect(mockQueryFn).toHaveBeenCalledWith(prevPageMatcher),
+			);
 
 			const nextPageMatcher = expect.objectContaining({
 				pageNumber: startPage + 1,
 			});
-			await waitFor(() => expect(mockQueryKey).toBeCalledWith(nextPageMatcher));
-			await waitFor(() => expect(mockQueryFn).toBeCalledWith(nextPageMatcher));
+			await waitFor(() =>
+				expect(mockQueryKey).toHaveBeenCalledWith(nextPageMatcher),
+			);
+			await waitFor(() =>
+				expect(mockQueryFn).toHaveBeenCalledWith(nextPageMatcher),
+			);
 		});
 	});
 
