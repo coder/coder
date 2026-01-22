@@ -1,5 +1,3 @@
-import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import type { Template, TransitionStats, Workspace } from "api/typesGenerated";
 import dayjs, { type Dayjs } from "dayjs";
@@ -120,10 +118,13 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 		return null;
 	}
 	return (
-		<div css={styles.stack}>
+		<div className="px-0.5">
 			{variant === "task" && (
 				<div className="mb-1 text-center">
-					<div css={styles.label} data-chromatic="ignore">
+					<div
+						className="text-xs font-semibold text-content-secondary"
+						data-chromatic="ignore"
+					>
 						{progressText}
 					</div>
 				</div>
@@ -140,22 +141,29 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 						? "determinate"
 						: "indeterminate"
 				}
-				classes={{
+				sx={{
 					// If a transition is set, there is a moment on new load where the bar
 					// accelerates to progressValue and then rapidly decelerates, which is
 					// not indicative of true progress.
-					bar: classNames.bar,
+					"& .MuiLinearProgress-bar": {
+						transition: "none",
+					},
 					// With the "task" variant, the progress bar is fullscreen, so remove
 					// the border radius.
-					root: variant === "task" ? classNames.root : undefined,
+					...(variant === "task" && {
+						borderRadius: 0,
+					}),
 				}}
 			/>
 			{variant !== "task" && (
 				<div className="flex mt-1 justify-between">
-					<div css={styles.label}>
+					<div className="text-xs font-semibold text-content-secondary">
 						{capitalize(workspace.latest_build.status)} workspace...
 					</div>
-					<div css={styles.label} data-chromatic="ignore">
+					<div
+						className="text-xs font-semibold text-content-secondary"
+						data-chromatic="ignore"
+					>
 						{progressText}
 					</div>
 				</div>
@@ -163,25 +171,3 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 		</div>
 	);
 };
-
-const classNames = {
-	bar: css`
-    transition: none;
-  `,
-	root: css`
-    border-radius: 0;
-  `,
-};
-
-const styles = {
-	stack: {
-		paddingLeft: 2,
-		paddingRight: 2,
-	},
-	label: (theme) => ({
-		fontSize: 12,
-		display: "block",
-		fontWeight: 600,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

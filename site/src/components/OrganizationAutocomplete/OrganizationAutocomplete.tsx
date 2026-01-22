@@ -1,4 +1,3 @@
-import { css } from "@emotion/css";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
@@ -129,7 +128,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 								{params.InputProps.endAdornment}
 							</>
 						),
-						classes: { root },
+						classes: { root: "!pl-3.5 gap-1" },
 					}}
 					InputLabelProps={{
 						shrink: true,
@@ -139,8 +138,3 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 		/>
 	);
 };
-
-const root = css`
-	padding-left: 14px !important; // Same padding left as input
-	gap: 4px;
-`;

@@ -1,4 +1,3 @@
-import { css } from "@emotion/css";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
@@ -181,7 +180,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 								{params.InputProps.endAdornment}
 							</>
 						),
-						classes: { root },
+						classes: { root: "!pl-3.5 gap-1" },
 					}}
 					InputLabelProps={{
 						shrink: true,
@@ -191,8 +190,3 @@ const InnerAutocomplete = <T extends SelectedUser>({
 		/>
 	);
 };
-
-const root = css`
-  padding-left: 14px !important; // Same padding left as input
-  gap: 4px;
-`;

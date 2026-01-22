@@ -1,4 +1,3 @@
-import { css } from "@emotion/css";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import { Button } from "components/Button/Button";
@@ -66,7 +65,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 			<FormSection
 				title="Name"
 				description="What is this token for?"
-				classes={{ sectionInfo: classNames.sectionInfo }}
+				classes={{ sectionInfo: "min-w-[300px]" }}
 			>
 				<FormFields>
 					<TextField
@@ -96,7 +95,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 						"Please set a token expiration."
 					)
 				}
-				classes={{ sectionInfo: classNames.sectionInfo }}
+				classes={{ sectionInfo: "min-w-[300px]" }}
 			>
 				<FormFields>
 					<Stack direction="row">
@@ -165,10 +164,4 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 			</FormFooter>
 		</HorizontalForm>
 	);
-};
-
-const classNames = {
-	sectionInfo: css`
-    min-width: 300px;
-  `,
 };
