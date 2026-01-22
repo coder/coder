@@ -71,9 +71,12 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added `FailedFile` type for file upload failures.
 //   - Add `DownloadFile` capability for provisioner daemons to fetch files from coderd.
 //   - Moved type `UploadFileRequest` -> `provisioner.FileUpload`
+//
+// API v1.15:
+//   - Add `id`, `subagent_id`, `apps`, `scripts` and `envs` to `provisioner.Devcontainer`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 14
+	CurrentMinor = 15
 )
 
 // CurrentVersion is the current provisionerd API version.
