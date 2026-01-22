@@ -82,17 +82,16 @@ type Batcher struct {
 	// updateCh is the buffered channel that receives metadata updates from Add() calls.
 	updateCh chan update
 
-	// batch holds the current batch being accumulated. Updates with the same
-	// composite key are deduplicated, keeping only the most recent value.
+	// batch holds the current batch being accumulated. For updates with the same composite key the most recent value wins.
 	batch           map[compositeKey]value
 	currentBatchLen atomic.Int64
 	maxBatchSize    int
 
-	// clock is used to create timers and get the current time.
-	clock      quartz.Clock
-	timer      *quartz.Timer
-	interval   time.Duration
-	warnTicker *quartz.Ticker // used to only log at warn level infrequently
+	clock    quartz.Clock
+	timer    *quartz.Timer
+	interval time.Duration
+	// Used to only log at warn level for dropped keys infrequently, as it could be noisy in failure scenarios.
+	warnTicker *quartz.Ticker
 
 	// ctx is the context for the batcher. Used to check if shutdown has begun.
 	ctx    context.Context
@@ -244,26 +243,20 @@ func (b *Batcher) processUpdate(update update) {
 		key:     update.key,
 	}
 
-	// Check if key already exists and only update if new value is newer
-	if existing, exists := b.batch[ck]; exists {
-		if update.collectedAt.After(existing.collectedAt) {
-			b.batch[ck] = value{
-				v:           update.v,
-				error:       update.error,
-				collectedAt: update.collectedAt,
-			}
-		}
-		// Else: existing value is newer or same, ignore this update
+	// Check if key already exists and only update if new value is newer.
+	existing, exists := b.batch[ck]
+	if exists && update.collectedAt.Before(existing.collectedAt) {
 		return
 	}
 
-	// New key, add to batch and increment counter
 	b.batch[ck] = value{
 		v:           update.v,
 		error:       update.error,
 		collectedAt: update.collectedAt,
 	}
-	b.currentBatchLen.Add(1)
+	if !exists {
+		b.currentBatchLen.Add(1)
+	}
 }
 
 // run runs the batcher loop, reading from the update channel and flushing
@@ -338,6 +331,8 @@ func (b *Batcher) flush(ctx context.Context, reason string) {
 	}
 
 	// Batch has been processed into slices for our DB request, so we can clear it.
+	// It's safe to clear before we know whether the flush is successful as agent metadata is not critical, and therefore
+	// we do not retry failed flushes and losing a batch of metadata is okay.
 	b.batch = make(map[compositeKey]value)
 	b.currentBatchLen.Store(0)
 

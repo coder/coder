@@ -1730,7 +1730,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 			return
 		}
 
-		// Lazily decode and check each agent ID until we find ours.
+		// Compare each encoded agentID to our encoded agent ID.
 		for i := 0; i < len(byt); i += metadatabatcher.UUIDBase64Size {
 			if !bytes.Equal(byt[i:i+metadatabatcher.UUIDBase64Size], agentIDEncoded) {
 				continue

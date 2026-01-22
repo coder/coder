@@ -28,8 +28,7 @@ import (
 // Custom gomock matchers for metadata batcher testing
 // ============================================================================
 
-// metadataParamsMatcher validates BatchUpdateWorkspaceAgentMetadataParams
-// by checking all fields match expected values.
+// metadataParamsMatcher validates BatchUpdateWorkspaceAgentMetadataParams by checking all fields match expected values.
 type metadataParamsMatcher struct {
 	expectedAgentIDs []uuid.UUID
 	expectedKeys     []string
@@ -54,8 +53,7 @@ func (m metadataParamsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	// Check each field matches expected values. We create a map of expected
-	// entries and verify all actual entries match, handling any order.
+	// Check each field matches expected values. We create a map of expected entries and verify all actual entries match.
 	expectedEntries := make(map[string]bool)
 	for i := 0; i < len(m.expectedKeys); i++ {
 		key := fmt.Sprintf("%s|%s|%s|%s|%s",
@@ -110,14 +108,15 @@ func matchMetadata(agentIDs []uuid.UUID, keys, values, errors []string, times []
 
 // pubsubCapture captures and decodes pubsub publish calls to accumulate agent IDs.
 type pubsubCapture struct {
-	mu       sync.Mutex
-	agentIDs map[uuid.UUID]bool
-	t        *testing.T
+	t  *testing.T
+	mu sync.Mutex
+
+	agentIDs map[uuid.UUID]struct{}
 }
 
 func newPubsubCapture(t *testing.T) *pubsubCapture {
 	return &pubsubCapture{
-		agentIDs: make(map[uuid.UUID]bool),
+		agentIDs: make(map[uuid.UUID]struct{}),
 		t:        t,
 	}
 }
@@ -146,7 +145,7 @@ func (c *pubsubCapture) capture(event string, message []byte) {
 		agentID, err := uuid.FromBytes(uuidBytes[:])
 		assert.NoError(c.t, err)
 
-		c.agentIDs[agentID] = true
+		c.agentIDs[agentID] = struct{}{}
 	}
 }
 
@@ -154,13 +153,14 @@ func (c *pubsubCapture) requireContainsAll(expected []uuid.UUID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Check all expected IDs are present.
-	for _, expectedID := range expected {
-		require.True(c.t, c.agentIDs[expectedID], "expected agent ID %s not found in pubsub messages", expectedID)
-	}
-
 	// Check we don't have extra IDs.
 	require.Equal(c.t, len(expected), len(c.agentIDs), "unexpected number of agent IDs in pubsub messages")
+
+	// Check all expected IDs are present.
+	for _, expectedID := range expected {
+		_, ok := c.agentIDs[expectedID]
+		require.True(c.t, ok, "expected agent ID %s not found in pubsub messages", expectedID)
+	}
 }
 
 func (c *pubsubCapture) count() int {
@@ -169,34 +169,10 @@ func (c *pubsubCapture) count() int {
 	return len(c.agentIDs)
 }
 
-// requireAddedAndEnqueued adds metadata to the batcher and waits for it to be
-// enqueued into the batch, verifying that no updates were dropped.
-func requireAddedAndEnqueued(
-	ctx context.Context,
-	t *testing.T,
-	b *Batcher,
-	agentID uuid.UUID,
-	keys []string,
-	values []string,
-	errors []string,
-	collectedAt []time.Time,
-	expectedBatchLen int,
-) {
-	t.Helper()
-
-	// Capture current dropped count before adding.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
-
-	// Add the metadata updates.
-	require.NoError(t, b.Add(agentID, keys, values, errors, collectedAt))
-
-	// Wait for the channel to be processed and verify nothing was dropped.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
-		batchHasExpected := int(b.currentBatchLen.Load()) == expectedBatchLen
-		return channelEmpty && nothingDropped && batchHasExpected
-	}, testutil.IntervalFast)
+func (c *pubsubCapture) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.agentIDs = make(map[uuid.UUID]struct{})
 }
 
 func TestMetadataBatcher(t *testing.T) {
@@ -220,6 +196,9 @@ func TestMetadataBatcher(t *testing.T) {
 	agent1 := uuid.New()
 	agent2 := uuid.New()
 
+	// Create a single pubsub capture to reuse across all flushes.
+	psCap := newPubsubCapture(t)
+
 	// --- FLUSH 1: Empty flush (no calls expected) ---
 	// No expectations set - if DB query called, test will fail.
 	reg := prometheus.NewRegistry()
@@ -241,9 +220,6 @@ func TestMetadataBatcher(t *testing.T) {
 	// --- FLUSH 2: Single agent with 2 metadata entries ---
 	t2 := clock.Now()
 
-	// Capture pubsub publish calls for this flush.
-	pubsubCap2 := newPubsubCapture(t)
-
 	// Expect exactly 1 database call with exact values.
 	store.EXPECT().
 		BatchUpdateWorkspaceAgentMetadata(
@@ -262,13 +238,25 @@ func TestMetadataBatcher(t *testing.T) {
 	// Expect exactly 1 pubsub publish with correct event and agent IDs.
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap2.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(1)
 
 	// Given: a single metadata update is added for agent1
 	t.Log("adding metadata for 1 agent")
-	requireAddedAndEnqueued(ctx, t, b, agent1, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t2, t2}, 2)
+
+	// Capture dropped count before adding.
+	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+
+	require.NoError(t, b.Add(agent1, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t2, t2}))
+
+	// Wait for the channel to be processed and verify nothing was dropped.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		channelEmpty := len(b.updateCh) == 0
+		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+		batchHasExpected := int(b.currentBatchLen.Load()) == 2
+		return channelEmpty && nothingDropped && batchHasExpected
+	}, testutil.IntervalFast)
 
 	// When: it becomes time to flush
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
@@ -283,15 +271,15 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap2.count() == 1
+		return psCap.count() == 1
 	}, testutil.IntervalFast)
-	pubsubCap2.requireContainsAll([]uuid.UUID{agent1})
+	psCap.requireContainsAll([]uuid.UUID{agent1})
 
 	// --- FLUSH 3: Multiple agents with 5 total metadata entries ---
 	t3 := clock.Now()
 
-	// Capture pubsub publish calls for this flush.
-	pubsubCap3 := newPubsubCapture(t)
+	// Clear pubsub capture for the next flush.
+	psCap.clear()
 
 	// Expect exactly 1 database call with exact values for both agents.
 	store.EXPECT().
@@ -311,7 +299,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// Expect exactly 1 pubsub publish with both agent IDs.
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap3.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(1)
 
@@ -319,7 +307,7 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("adding metadata for 2 agents")
 
 	// Capture dropped count before any adds.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+	droppedBefore = prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
 
 	require.NoError(t, b.Add(agent1, []string{"key1", "key2", "key3"}, []string{"new_value1", "new_value2", "new_value3"}, []string{"", "", ""}, []time.Time{t3, t3, t3}))
 	require.NoError(t, b.Add(agent2, []string{"key1", "key2"}, []string{"agent2_value1", "agent2_value2"}, []string{"", ""}, []time.Time{t3, t3}))
@@ -345,13 +333,16 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap3.count() == 2
+		return psCap.count() == 2
 	}, testutil.IntervalFast)
-	pubsubCap3.requireContainsAll([]uuid.UUID{agent1, agent2})
+	psCap.requireContainsAll([]uuid.UUID{agent1, agent2})
 
 	// --- FLUSH 4: Capacity flush with defaultMetadataBatchSize entries ---
 	t4 := clock.Now()
 	numAgents := defaultMetadataBatchSize
+
+	// Clear pubsub capture for the next flush.
+	psCap.clear()
 
 	// Pre-generate all agent IDs so we can assert on exact values.
 	agentIDs := make([]uuid.UUID, numAgents)
@@ -371,9 +362,6 @@ func TestMetadataBatcher(t *testing.T) {
 		expectedTimes[i] = t4
 	}
 
-	// Capture pubsub publish calls for this flush.
-	pubsubCap4 := newPubsubCapture(t)
-
 	// Assert on exact database values.
 	store.EXPECT().
 		BatchUpdateWorkspaceAgentMetadata(
@@ -387,7 +375,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// With 500 agents, we expect exactly 2 pubsub calls due to chunking (363 + 137).
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap4.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(2)
 
@@ -413,9 +401,9 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published (across all chunks).
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap4.count() == numAgents
+		return psCap.count() == numAgents
 	}, testutil.IntervalFast)
-	pubsubCap4.requireContainsAll(agentIDs)
+	psCap.requireContainsAll(agentIDs)
 }
 
 func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
@@ -445,7 +433,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	// --- FLUSH 1: First capacity flush with 2 entries ---
 	t1 := clock.Now()
-	pubsubCap1 := newPubsubCapture(t)
+	psCap := newPubsubCapture(t)
 
 	store.EXPECT().
 		BatchUpdateWorkspaceAgentMetadata(
@@ -463,7 +451,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap1.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(1)
 
@@ -479,13 +467,13 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap1.count() == 2
+		return psCap.count() == 2
 	}, testutil.IntervalFast)
-	pubsubCap1.requireContainsAll([]uuid.UUID{agent1, agent2})
+	psCap.requireContainsAll([]uuid.UUID{agent1, agent2})
 
 	// --- FLUSH 2: Second capacity flush with 2 different entries ---
 	t2 := clock.Now()
-	pubsubCap2 := newPubsubCapture(t)
+	psCap.clear()
 
 	store.EXPECT().
 		BatchUpdateWorkspaceAgentMetadata(
@@ -503,7 +491,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap2.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(1)
 
@@ -519,171 +507,179 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap2.count() == 2
+		return psCap.count() == 2
 	}, testutil.IntervalFast)
-	pubsubCap2.requireContainsAll([]uuid.UUID{agent1, agent2})
+	psCap.requireContainsAll([]uuid.UUID{agent1, agent2})
 }
 
-func TestMetadataBatcher_MultipleUpdatesForSameAgent(t *testing.T) {
+// TestMetadataBatcher_Deduplication executes two Add calls, the second with a later timestamp than the first, to check
+// that existing keys within a batch have their values updated.
+func TestMetadataBatcher_Deduplication(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-	ps := psmock.NewMockPubsub(ctrl)
-	clock := quartz.NewMock(t)
+	tests := []struct {
+		name string
 
-	// Generate mock agent ID.
-	agent := uuid.New()
+		// First Add call
+		add1Keys   []string
+		add1Values []string
 
-	reg := prometheus.NewRegistry()
-	b, err := NewBatcher(ctx, reg, store, ps,
-		WithLogger(log),
-		WithClock(clock),
-	)
-	require.NoError(t, err)
-	t.Cleanup(b.Close)
+		// Second Add call
+		add2Keys   []string
+		add2Values []string
 
-	t1 := clock.Now()
-	t2 := t1.Add(time.Millisecond)
+		// Expected result after deduplication
+		wantKeys   []string
+		wantValues []string
+	}{
+		{
+			name: "same key updated twice keeps newest",
 
-	// --- FLUSH: Scheduled flush with deduplicated entry (only most recent value) ---
-	pubsubCap := newPubsubCapture(t)
+			add1Keys:   []string{"key1"},
+			add1Values: []string{"first_value"},
 
-	// Expect exactly 1 entry with the second (newer) value due to deduplication.
-	store.EXPECT().
-		BatchUpdateWorkspaceAgentMetadata(
-			gomock.Any(),
-			matchMetadata(
-				[]uuid.UUID{agent},
-				[]string{"key1"},
-				[]string{"second_value"},
-				[]string{""},
-				[]time.Time{t2},
-			),
-		).
-		Return(nil).
-		Times(1)
+			add2Keys:   []string{"key1"},
+			add2Values: []string{"second_value"},
 
-	ps.EXPECT().
-		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap.capture).
-		Return(nil).
-		Times(1)
+			wantKeys:   []string{"key1"},
+			wantValues: []string{"second_value"},
+		},
+		{
+			name: "mixed keys with partial overlap",
 
-	// Add first update
-	// Capture dropped count before any adds.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+			add1Keys:   []string{"key1", "key2"},
+			add1Values: []string{"value1", "value2"},
 
-	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"first_value"}, []string{""}, []time.Time{t1}))
+			add2Keys:   []string{"key1", "key3"},
+			add2Values: []string{"new_value1", "value3"},
 
-	// Add second update for same agent+key (should deduplicate)
-	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"second_value"}, []string{""}, []time.Time{t2}))
+			wantKeys:   []string{"key1", "key2", "key3"},
+			wantValues: []string{"new_value1", "value2", "value3"},
+		},
+	}
 
-	// Wait for all channel messages to be processed by the run() goroutine into the batch.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
-		batchHasExpected := int(b.currentBatchLen.Load()) == 1
-		return channelEmpty && nothingDropped && batchHasExpected
-	}, testutil.IntervalFast)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Flush - advance the full flush interval from when the batcher was created.
-	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			ctrl := gomock.NewController(t)
+			store := dbmock.NewMockStore(ctrl)
+			ps := psmock.NewMockPubsub(ctrl)
+			clock := quartz.NewMock(t)
 
-	// Verify deduplication - only 1 entry should be flushed
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
-	}, testutil.IntervalFast)
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+			agent := uuid.New()
 
-	// Wait for pubsub capture to complete and verify agent ID was published.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap.count() == 1
-	}, testutil.IntervalFast)
-	pubsubCap.requireContainsAll([]uuid.UUID{agent})
-}
+			reg := prometheus.NewRegistry()
+			b, err := NewBatcher(ctx, reg, store, ps,
+				WithLogger(log),
+				WithClock(clock),
+			)
+			require.NoError(t, err)
+			t.Cleanup(b.Close)
 
-func TestMetadataBatcher_DeduplicationWithMixedKeys(t *testing.T) {
-	t.Parallel()
+			// Set up timestamps - t2 is 1ms after t1
+			t1 := clock.Now()
+			t2 := t1.Add(time.Millisecond)
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-	ps := psmock.NewMockPubsub(ctrl)
-	clock := quartz.NewMock(t)
+			// Create time slices for add1 (all t1) and add2 (all t2)
+			add1Times := make([]time.Time, len(tt.add1Keys))
+			for i := range add1Times {
+				add1Times[i] = t1
+			}
+			add2Times := make([]time.Time, len(tt.add2Keys))
+			for i := range add2Times {
+				add2Times[i] = t2
+			}
 
-	// Generate mock agent ID.
-	agent := uuid.New()
+			// Build expected times based on which add they came from.
+			// If a key appears in add2, it gets t2 (newer), otherwise t1.
+			expectedTimes := make([]time.Time, len(tt.wantKeys))
+			for i, wantKey := range tt.wantKeys {
+				// Check if key appears in add2 (newer)
+				foundInAdd2 := false
+				for _, add2Key := range tt.add2Keys {
+					if add2Key == wantKey {
+						expectedTimes[i] = t2
+						foundInAdd2 = true
+						break
+					}
+				}
+				if !foundInAdd2 {
+					// Must be from add1
+					expectedTimes[i] = t1
+				}
+			}
 
-	reg := prometheus.NewRegistry()
-	b, err := NewBatcher(ctx, reg, store, ps,
-		WithLogger(log),
-		WithClock(clock),
-	)
-	require.NoError(t, err)
-	t.Cleanup(b.Close)
+			// Set up mock expectations
+			psCap := newPubsubCapture(t)
 
-	t1 := clock.Now()
-	t2 := t1.Add(time.Millisecond)
+			// Build expected errors (all empty) and agent IDs (all same agent)
+			expectedErrors := make([]string, len(tt.wantKeys))
+			for i := range expectedErrors {
+				expectedErrors[i] = ""
+			}
+			expectedAgents := make([]uuid.UUID, len(tt.wantKeys))
+			for i := range expectedAgents {
+				expectedAgents[i] = agent
+			}
 
-	// --- FLUSH: Scheduled flush with 3 deduplicated entries ---
-	pubsubCap := newPubsubCapture(t)
+			store.EXPECT().
+				BatchUpdateWorkspaceAgentMetadata(
+					gomock.Any(),
+					matchMetadata(
+						expectedAgents,
+						tt.wantKeys,
+						tt.wantValues,
+						expectedErrors,
+						expectedTimes,
+					),
+				).
+				Return(nil).
+				Times(1)
 
-	// Expect 3 entries: key1 (updated to new_value1), key2 (from first add), key3 (new).
-	store.EXPECT().
-		BatchUpdateWorkspaceAgentMetadata(
-			gomock.Any(),
-			matchMetadata(
-				[]uuid.UUID{agent, agent, agent},
-				[]string{"key1", "key2", "key3"},
-				[]string{"new_value1", "value2", "value3"},
-				[]string{"", "", ""},
-				[]time.Time{t2, t1, t2},
-			),
-		).
-		Return(nil).
-		Times(1)
+			ps.EXPECT().
+				Publish(gomock.Any(), gomock.Any()).
+				Do(psCap.capture).
+				Return(nil).
+				Times(1)
 
-	ps.EXPECT().
-		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap.capture).
-		Return(nil).
-		Times(1)
+			// Perform the adds
+			droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
 
-	// Add updates with some duplicate keys and some unique keys
-	// Capture dropped count before any adds.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+			// First add with all empty error strings
+			add1Errors := make([]string, len(tt.add1Keys))
+			require.NoError(t, b.Add(agent, tt.add1Keys, tt.add1Values, add1Errors, add1Times))
 
-	require.NoError(t, b.Add(agent, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t1, t1}))
+			// Second add with all empty error strings
+			add2Errors := make([]string, len(tt.add2Keys))
+			require.NoError(t, b.Add(agent, tt.add2Keys, tt.add2Values, add2Errors, add2Times))
 
-	// Update key1, add key3 - key2 stays from first update
-	require.NoError(t, b.Add(agent, []string{"key1", "key3"}, []string{"new_value1", "value3"}, []string{"", ""}, []time.Time{t2, t2}))
+			// Wait for all channel messages to be processed into the batch
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				channelEmpty := len(b.updateCh) == 0
+				nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+				batchHasExpected := int(b.currentBatchLen.Load()) == len(tt.wantKeys)
+				return channelEmpty && nothingDropped && batchHasExpected
+			}, testutil.IntervalFast)
 
-	// Wait for all channel messages to be processed by the run() goroutine into the batch.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
-		batchHasExpected := int(b.currentBatchLen.Load()) == 3
-		return channelEmpty && nothingDropped && batchHasExpected
-	}, testutil.IntervalFast)
+			// Trigger scheduled flush
+			clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 
-	// Flush - advance the full flush interval from when the batcher was created.
-	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
+			// Verify flush occurred with correct number of entries
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+			}, testutil.IntervalFast)
+			require.Equal(t, float64(len(tt.wantKeys)), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 
-	// Verify deduplication - 3 unique keys (key1 deduplicated, key2 and key3 unique)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
-	}, testutil.IntervalFast)
-	require.Equal(t, float64(3), prom_testutil.ToFloat64(b.metrics.metadataTotal))
-
-	// Wait for pubsub capture to complete and verify agent ID was published.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap.count() == 1
-	}, testutil.IntervalFast)
-	pubsubCap.requireContainsAll([]uuid.UUID{agent})
+			// Verify pubsub published the agent ID
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				return psCap.count() == 1
+			}, testutil.IntervalFast)
+			psCap.requireContainsAll([]uuid.UUID{agent})
+		})
+	}
 }
 
 func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
@@ -712,7 +708,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	t3 := t2.Add(time.Second)
 
 	// Set up pubsub capture for the flush.
-	pubsubCap := newPubsubCapture(t)
+	psCap := newPubsubCapture(t)
 
 	// Expect the store to be called with only the newest timestamp.
 	store.EXPECT().
@@ -732,7 +728,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	// Expect pubsub publish to be called when flush happens.
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(1)
 
@@ -762,9 +758,9 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap.count() == 1
+		return psCap.count() == 1
 	}, testutil.IntervalFast)
-	pubsubCap.requireContainsAll([]uuid.UUID{agent})
+	psCap.requireContainsAll([]uuid.UUID{agent})
 
 	// Verify only 1 entry was flushed (newest timestamp wins)
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -813,7 +809,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	}
 
 	// Set up pubsub capture for the flush.
-	pubsubCap := newPubsubCapture(t)
+	psCap := newPubsubCapture(t)
 
 	// With 600 agents and default batch size of 500:
 	// - First flush at 500 agents (capacity): 2 pubsub chunks (363 + 137)
@@ -858,7 +854,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// Total: 3 publishes
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(3)
 
@@ -906,9 +902,9 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap.count() == numAgents
+		return psCap.count() == numAgents
 	}, testutil.IntervalFast)
-	pubsubCap.requireContainsAll(agents)
+	psCap.requireContainsAll(agents)
 
 	// Verify that all metadata was flushed successfully.
 	// We should have 1 capacity flush (500 entries) and 1 scheduled flush (100 entries).
@@ -943,21 +939,18 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	// Single agent, multiple goroutines updating same keys concurrently
 	agentID := uuid.New()
 	numGoroutines := 20
-
-	// Pre-calculate timestamps using clock advances
 	timestamps := make([]time.Time, numGoroutines)
 	initialTS := clock.Now()
 	for i := 0; i < numGoroutines; i++ {
 		timestamps[i] = initialTS.Add(time.Duration(i) * time.Millisecond)
 	}
 
-	// The latest timestamp will have the final values, since deduplication
-	// keeps the newest value for each key.
+	// The latest timestamp will have the final values, since deduplication keeps the newest value for each key.
 	latestTimestamp := timestamps[numGoroutines-1]
 	latestValue := fmt.Sprintf("value_from_goroutine_%d", numGoroutines-1)
 
 	// Set up pubsub capture for the flush.
-	pubsubCap := newPubsubCapture(t)
+	psCap := newPubsubCapture(t)
 
 	// Expect the store to be called with exactly 3 keys (after deduplication).
 	// The values should be from the goroutine with the latest timestamp.
@@ -977,7 +970,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	ps.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap.capture).
+		Do(psCap.capture).
 		Return(nil).
 		Times(1)
 
@@ -1016,107 +1009,13 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap.count() == 1
+		return psCap.count() == 1
 	}, testutil.IntervalFast)
-	pubsubCap.requireContainsAll([]uuid.UUID{agentID})
+	psCap.requireContainsAll([]uuid.UUID{agentID})
 
 	// Verify exactly 3 unique keys were flushed
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
 	}, testutil.IntervalFast)
 	require.Equal(t, float64(3), prom_testutil.ToFloat64(b.metrics.metadataTotal))
-}
-
-func TestMetadataBatcher_AutomaticFlushOnCapacity(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-	ps := psmock.NewMockPubsub(ctrl)
-	clock := quartz.NewMock(t)
-
-	batchSize := 100
-	reg := prometheus.NewRegistry()
-	b, err := NewBatcher(ctx, reg, store, ps,
-		WithLogger(log),
-		WithBatchSize(batchSize),
-		WithClock(clock),
-	)
-	require.NoError(t, err)
-	t.Cleanup(b.Close)
-
-	agentID := uuid.New()
-	t1 := clock.Now()
-
-	// Pre-generate all expected data for the capacity flush.
-	expectedAgentIDs := make([]uuid.UUID, batchSize)
-	expectedKeys := make([]string, batchSize)
-	expectedValues := make([]string, batchSize)
-	expectedErrors := make([]string, batchSize)
-	expectedTimes := make([]time.Time, batchSize)
-
-	for i := 0; i < batchSize-1; i++ {
-		expectedAgentIDs[i] = agentID
-		expectedKeys[i] = fmt.Sprintf("key%d", i)
-		expectedValues[i] = fmt.Sprintf("value%d", i)
-		expectedErrors[i] = ""
-		expectedTimes[i] = t1
-	}
-	// The last entry is the capacity-triggering entry.
-	expectedAgentIDs[batchSize-1] = agentID
-	expectedKeys[batchSize-1] = "key_at_capacity"
-	expectedValues[batchSize-1] = "value_at_capacity"
-	expectedErrors[batchSize-1] = ""
-	expectedTimes[batchSize-1] = t1
-
-	// Set up pubsub capture for the flush.
-	pubsubCap := newPubsubCapture(t)
-
-	// Expect the store to be called with exactly batchSize entries.
-	store.EXPECT().
-		BatchUpdateWorkspaceAgentMetadata(
-			gomock.Any(),
-			matchMetadata(
-				expectedAgentIDs,
-				expectedKeys,
-				expectedValues,
-				expectedErrors,
-				expectedTimes,
-			),
-		).
-		Return(nil).
-		Times(1)
-
-	ps.EXPECT().
-		Publish(gomock.Any(), gomock.Any()).
-		Do(pubsubCap.capture).
-		Return(nil).
-		Times(1)
-
-	// Add entries up to but not exceeding capacity
-	for i := 0; i < batchSize-1; i++ {
-		key := fmt.Sprintf("key%d", i)
-		value := fmt.Sprintf("value%d", i)
-		require.NoError(t, b.Add(agentID, []string{key}, []string{value}, []string{""}, []time.Time{t1}))
-	}
-
-	// Verify no flush has occurred yet
-	require.Equal(t, float64(0), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity)))
-
-	// Add one more entry to reach capacity - this should trigger automatic flush
-	require.NoError(t, b.Add(agentID, []string{"key_at_capacity"}, []string{"value_at_capacity"}, []string{""}, []time.Time{t1}))
-
-	// Wait for pubsub capture to complete and verify all agent IDs were published.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return pubsubCap.count() == 1
-	}, testutil.IntervalFast)
-	pubsubCap.requireContainsAll([]uuid.UUID{agentID})
-
-	// Wait for automatic flush
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
-	}, testutil.IntervalFast)
-	require.Equal(t, float64(batchSize), prom_testutil.ToFloat64(b.metrics.metadataTotal))
 }

@@ -94,7 +94,9 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
-func TestEncodeAgentIDChunks(t *testing.T) {
+// TestEncodeAgentIDChunks_PGPubsubSize ensures that each pubsub message generated via EncodeAgentIDChunks fits within
+// the max allowed 8kb by Postgres.
+func TestEncodeAgentIDChunks_PGPubsubSize(t *testing.T) {
 	t.Parallel()
 
 	// Create 600 agents (should split into 2 chunks: 363 + 237).
