@@ -475,7 +475,7 @@ require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aibridge v0.3.1-0.20260120123323-c997d7bed20e
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/boundary v0.5.5-0.20260121163154-e36b6e079e8e
+	github.com/coder/boundary v0.6.0
 	github.com/coder/preview v1.0.4
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.3.0
