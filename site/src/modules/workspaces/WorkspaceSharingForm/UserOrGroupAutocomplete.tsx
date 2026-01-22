@@ -1,13 +1,12 @@
 import { groupsByOrganization } from "api/queries/groups";
-import { users } from "api/queries/users";
-import type { Group, User } from "api/typesGenerated";
+import { organizationMembers } from "api/queries/organizations";
+import type { Group, OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Check } from "lucide-react";
 import { getGroupSubtitle, isGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
-import { prepareQuery } from "utils/filters";
 
 type AutocompleteOption = User | Group;
 export type UserOrGroupAutocompleteValue = AutocompleteOption | null;
@@ -20,6 +19,24 @@ type UserOrGroupAutocompleteProps = {
 	organizationId: string;
 	exclude: ExcludableOption[];
 };
+
+/**
+ * Converts an OrganizationMemberWithUserData to a User-like shape for the autocomplete.
+ * The org members endpoint returns user_id instead of id, so we normalize it here.
+ */
+const memberToUser = (member: OrganizationMemberWithUserData): User => ({
+	id: member.user_id,
+	username: member.username,
+	name: member.name,
+	avatar_url: member.avatar_url ?? "",
+	email: member.email,
+	created_at: member.created_at,
+	updated_at: member.updated_at,
+	status: "active",
+	login_type: "password",
+	organization_ids: [member.organization_id],
+	roles: member.global_roles,
+});
 
 export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	value,
@@ -37,11 +54,11 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 		}
 	};
 
-	const usersQuery = useQuery({
-		...users({
-			q: prepareQuery(encodeURI(inputValue)),
-			limit: 25,
-		}),
+	// Use org members endpoint instead of site-wide /users endpoint.
+	// This allows regular org members to see other members in their org
+	// for workspace sharing, without needing site-wide user:read permission.
+	const membersQuery = useQuery({
+		...organizationMembers(organizationId),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
@@ -53,6 +70,8 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	});
 
 	const filterValue = inputValue.trim().toLowerCase();
+
+	// Filter groups by search input (client-side filtering).
 	const groupOptions = groupsQuery.data
 		? groupsQuery.data.filter((group) => {
 				if (!filterValue) {
@@ -63,13 +82,27 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			})
 		: [];
 
+	// Filter members by search input (client-side filtering since org members
+	// endpoint doesn't support search params).
+	const userOptions = membersQuery.data?.members
+		? membersQuery.data.members
+				.filter((member) => {
+					if (!filterValue) {
+						return true;
+					}
+					const haystack = `${member.name ?? ""} ${member.username} ${member.email}`.toLowerCase();
+					return haystack.includes(filterValue);
+				})
+				.map(memberToUser)
+		: [];
+
 	const excludeIds = exclude
 		.map((optionToExclude) => optionToExclude?.id)
 		.filter((id): id is string => Boolean(id));
 
 	const options: AutocompleteOption[] = [
 		...groupOptions,
-		...(usersQuery.data?.users ?? []),
+		...userOptions,
 	].filter((result) => !excludeIds.includes(result.id));
 
 	return (
@@ -102,7 +135,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			onOpenChange={handleOpenChange}
 			inputValue={inputValue}
 			onInputChange={setInputValue}
-			loading={usersQuery.isFetching || groupsQuery.isFetching}
+			loading={membersQuery.isFetching || groupsQuery.isFetching}
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
 			className="w-80"
