@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	strutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -395,6 +396,31 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 
 	// Notify on state change to Working/Idle for AI tasks
 	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace, workspaceAgent)
+
+	// Bump deadline when agent reports working or transitions away from working.
+	// This prevents auto-pause during active work and gives users time to interact
+	// after work completes.
+	shouldBump := false
+	newState := database.WorkspaceAppStatusState(req.State)
+
+	// Bump if reporting working state.
+	if newState == database.WorkspaceAppStatusStateWorking {
+		shouldBump = true
+	}
+
+	// Bump if transitioning away from working state.
+	if latestAppStatus.ID != uuid.Nil {
+		prevState := latestAppStatus.State
+		if prevState == database.WorkspaceAppStatusStateWorking {
+			shouldBump = true
+		}
+	}
+	if shouldBump {
+		// We pass time.Time{} for nextAutostart since we don't have access to
+		// TemplateScheduleStore here. The activity bump logic handles this by
+		// defaulting to the template's activity_bump duration (typically 1 hour).
+		workspacestats.ActivityBumpWorkspace(ctx, api.Logger, api.Database, workspace.ID, time.Time{})
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
