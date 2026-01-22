@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import type { WorkspaceAgentStatus } from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { Link } from "components/Link/Link";
@@ -101,7 +102,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 	const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
-	const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
@@ -206,8 +206,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 							<UnhealthyWorkspaceAlert
 								workspace={workspace}
 								troubleshootingURL={troubleshootingURL}
-								canUpdate={permissions.updateWorkspace}
-								onRestart={() => handleRestart()}
 							/>
 						)}
 
@@ -271,41 +269,56 @@ export const Workspace: FC<WorkspaceProps> = ({
 interface UnhealthyWorkspaceAlertProps {
 	workspace: TypesGen.Workspace;
 	troubleshootingURL: string | undefined;
-	canUpdate: boolean;
-	onRestart: () => void;
 }
 
 const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 	workspace,
 	troubleshootingURL,
-	canUpdate,
-	onRestart,
 }) => {
 	const failingAgentCount = workspace.health.failing_agents.length;
+	const failureSet = new Set<WorkspaceAgentStatus>();
+
+	workspace.latest_build.resources.forEach((resource) => {
+		resource.agents?.forEach((agent) => {
+			failureSet.add(agent.status);
+		});
+	});
+
+	var title = "Workspace agents are not connected";
+	var message = "Your workspace cannot be used until an agent connects.";
+
+	// Disconnected is a more serious failure than timeout, so we can
+	// prioritize handling it first.
+	if (failureSet.has("disconnected")) {
+		title = "Workspace agents are disconnected";
+		message =
+			"Your workspace agents were connected but have since disconnected. If logs are streaming, the agent may still connect if you wait. Otherwise restarting the workspace can be done to try again.";
+
+	} else if (failureSet.has("timeout")) {
+		// Handle timeout case
+		title = "Workspace agents have timed out";
+		message =
+			"Your workspace agents have not connected in the expected time. If logs are streaming, the agent may still connect if you wait. Otherwise restarting the workspace can be done to try again.";
+
+	}
 
 	return (
 		<Alert severity="warning" prominent>
-			<AlertTitle>Workspace is unhealthy</AlertTitle>
+			<AlertTitle>{title}</AlertTitle>
 			<AlertDetail>
-				<p>
-					Your workspace is running but{" "}
+				<p>Your workspace is running but{" "}
 					{failingAgentCount > 1
-						? `${failingAgentCount} agents are unhealthy`
-						: "1 agent is unhealthy"}
-					.{" "}
+						? `${failingAgentCount} agents are not connected`
+						: "the agent is not connected"}
+					.{" "}</p>
+				<p>{message}</p>
+				<p>
 					{troubleshootingURL && (
 						<Link href={troubleshootingURL} target="_blank">
 							View docs to troubleshoot
 						</Link>
 					)}
 				</p>
-				{canUpdate && (
-					<div className="flex items-center gap-2">
-						<NotificationActionButton onClick={onRestart}>
-							Restart
-						</NotificationActionButton>
-					</div>
-				)}
 			</AlertDetail>
 		</Alert>
 	);
