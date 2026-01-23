@@ -112,10 +112,3 @@ If an upgrade gets stuck in a restart loop due to database locks:
    ```shell
    kubectl scale deployment coder --replicas=1
    ```
-
-## Next steps
-
-- Review the [upgrade documentation](./upgrade.md) for standard upgrade
-  procedures.
-- For Kubernetes-specific upgrade guidance, see
-  [Upgrading Coder via Helm](./kubernetes.md#upgrading-coder-via-helm).
