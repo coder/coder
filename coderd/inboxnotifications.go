@@ -232,8 +232,12 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 
 	for {
 		select {
+		case <-api.ctx.Done():
+			return
+
 		case <-ctx.Done():
 			return
+
 		case notif := <-notificationCh:
 			unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
 			if err != nil {
