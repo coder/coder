@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -2105,7 +2106,11 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 func TestWorkspaceAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		MetadataBatcherOptions: []metadatabatcher.Option{
+			metadatabatcher.WithInterval(100 * time.Millisecond),
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
@@ -2232,7 +2237,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	update = recvUpdate()
 	require.Len(t, update, 3)
-	check(wantMetadata1, update[0], false)
+	check(wantMetadata1, update[0], true)
 	// The second metadata result is not yet posted.
 	require.Zero(t, update[1].Result.CollectedAt)
 

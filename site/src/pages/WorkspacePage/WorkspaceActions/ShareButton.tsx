@@ -42,6 +42,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 					updatingGroupId={sharing.updatingGroupId}
 					onUpdateGroup={sharing.updateGroup}
 					onRemoveGroup={sharing.removeGroup}
+					showRestartWarning={sharing.hasRemovedMember}
 					isCompact
 					addMemberForm={
 						<AddWorkspaceUserOrGroup

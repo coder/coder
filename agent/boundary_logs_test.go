@@ -79,10 +79,12 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	logger := slog.Make(sink)
 	workspaceID := uuid.New()
 	templateID := uuid.New()
+	templateVersionID := uuid.New()
 	reporter := &agentapi.BoundaryLogsAPI{
-		Log:         logger,
-		WorkspaceID: workspaceID,
-		TemplateID:  templateID,
+		Log:               logger,
+		WorkspaceID:       workspaceID,
+		TemplateID:        templateID,
+		TemplateVersionID: templateVersionID,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -126,6 +128,7 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	require.Equal(t, "allow", getField(entry.Fields, "decision"))
 	require.Equal(t, workspaceID.String(), getField(entry.Fields, "workspace_id"))
 	require.Equal(t, templateID.String(), getField(entry.Fields, "template_id"))
+	require.Equal(t, templateVersionID.String(), getField(entry.Fields, "template_version_id"))
 	require.Equal(t, "GET", getField(entry.Fields, "http_method"))
 	require.Equal(t, "https://example.com/allowed", getField(entry.Fields, "http_url"))
 	require.Equal(t, "*.example.com", getField(entry.Fields, "matched_rule"))
@@ -159,6 +162,7 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	require.Equal(t, "deny", getField(entry.Fields, "decision"))
 	require.Equal(t, workspaceID.String(), getField(entry.Fields, "workspace_id"))
 	require.Equal(t, templateID.String(), getField(entry.Fields, "template_id"))
+	require.Equal(t, templateVersionID.String(), getField(entry.Fields, "template_version_id"))
 	require.Equal(t, "POST", getField(entry.Fields, "http_method"))
 	require.Equal(t, "https://blocked.com/denied", getField(entry.Fields, "http_url"))
 	require.Equal(t, nil, getField(entry.Fields, "matched_rule"))
