@@ -931,8 +931,8 @@ github.com/coder/aibridge v0.3.1-0.20260121122740-e164b504fc52 h1:UcsOXQH881tXPp
 github.com/coder/aibridge v0.3.1-0.20260121122740-e164b504fc52/go.mod h1:x45BE/NNDesDN1eWy4bsg81QsL6ou7xXPIeQr0ePETQ=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
-github.com/coder/boundary v0.0.1-alpha h1:6shUQ2zkrWrfbgVcqWvpV2ibljOQvPvYqTctWBkKoUA=
-github.com/coder/boundary v0.0.1-alpha/go.mod h1:d1AMFw81rUgrGHuZzWdPNhkY0G8w7pvLNLYF0e3ceC4=
+github.com/coder/boundary v0.6.0 h1:DfYVBIH8/6EBfg9I0qz7rX2jo+4blUx4P4amd13nib8=
+github.com/coder/boundary v0.6.0/go.mod h1:jEXVbTGQP9JFoXkyzsnitj2rsWJuTt+VVej1Yzr2CkQ=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwuWwPHPYoCZ/KLAjHv5g4h2MS4f2/MTI=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41/go.mod h1:I9ULxr64UaOSUv7hcb3nX4kowodJCVS7vt7VVJk/kW4=
 github.com/coder/clistat v1.2.0 h1:37KJKqiCllJsRvWqTHf3qiLIXX0JB6oqE5oxcqgdLkY=
@@ -1544,6 +1544,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/kyokomi/emoji/v2 v2.2.13 h1:GhTfQa67venUUvmleTNFnb+bi7S3aocF7ZCXU9fSO7U=
 github.com/kyokomi/emoji/v2 v2.2.13/go.mod h1:JUcn42DTdsXJo1SWanHh4HKDEyPaR5CqkmoirZZP9qE=
+github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c h1:QcKqiunpt7hooa/xIx0iyepA6Cs2BgKexaYOxHvHNCs=
+github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c/go.mod h1:stwyhp9tfeEy3A4bRJLdOEvjW/CetRJg/vcijNG8M5A=
 github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80 h1:6Yzfa6GP0rIo/kULo2bwGEkFvCePZ3qHDDTC3/J9Swo=
 github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80/go.mod h1:imJHygn/1yfhB7XSJJKlFZKl/J+dCPAknuiaGOshXAs=
 github.com/leodido/go-urn v1.4.0 h1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=
@@ -2847,8 +2849,9 @@ k8s.io/utils v0.0.0-20241210054802-24370beab758 h1:sdbE21q2nlQtFh65saZY+rRM6x6aJ
 k8s.io/utils v0.0.0-20241210054802-24370beab758/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.73 h1:Th2b8jljYqkyZKS3aD3N9VpYsQpHuXLgea+SZUIfODA=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.73/go.mod h1:hbeKwKcboEsxARYmcy/AdPVN11wmT/Wnpgv4k4ftyqY=
-kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 h1:SEAEUiPVylTD4vqqi+vtGkSnXeP2FcRO3FoZB1MklMw=
 kernel.org/pub/linux/libs/security/libcap/psx v1.2.73/go.mod h1:+l6Ee2F59XiJ2I6WR5ObpC1utCQJZ/VLsEbQCD8RG24=
+kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 h1:Z06sMOzc0GNCwp6efaVrIrz4ywGJ1v+DP0pjVkOfDuA=
+kernel.org/pub/linux/libs/security/libcap/psx v1.2.77/go.mod h1:+l6Ee2F59XiJ2I6WR5ObpC1utCQJZ/VLsEbQCD8RG24=
 lukechampine.com/uint128 v1.1.1/go.mod h1:c4eWIwlEGaxC/+H1VguhU4PHXNWDCDMUlWdIWl2j1gk=
 lukechampine.com/uint128 v1.2.0/go.mod h1:c4eWIwlEGaxC/+H1VguhU4PHXNWDCDMUlWdIWl2j1gk=
 modernc.org/cc/v3 v3.36.0/go.mod h1:NFUHyPn4ekoC/JHeZFfZurN6ixxawE1BnVonP/oahEI=
