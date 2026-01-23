@@ -453,7 +453,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	howett.net/plist v1.0.0 // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	sigs.k8s.io/yaml v1.5.0 // indirect
 )
 
@@ -473,9 +473,9 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v0.3.1-0.20260120123323-c997d7bed20e
+	github.com/coder/aibridge v0.3.1-0.20260121122740-e164b504fc52
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/boundary v0.0.1-alpha
+	github.com/coder/boundary v0.6.0
 	github.com/coder/preview v1.0.4
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.3.0
@@ -541,6 +541,7 @@ require (
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
+	github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect

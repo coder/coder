@@ -267,7 +267,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
-	ownerWorkspaceActions := slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionShare)
+	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
 	if opts.NoOwnerWorkspaceExec {
 		// Remove ssh and application connect from the owner role. This
 		// prevents owners from have exec access to all workspaces.

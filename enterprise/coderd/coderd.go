@@ -1311,7 +1311,18 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer
 	}
 
-	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.AGPL.FileCache, api.DeploymentValues.Prebuilds,
-		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer, api.AGPL.BuildUsageChecker, api.TracerProvider)
+	reconciler := prebuilds.NewStoreReconciler(
+		api.Database,
+		api.Pubsub,
+		api.AGPL.FileCache,
+		api.DeploymentValues.Prebuilds,
+		api.Logger.Named("prebuilds"),
+		quartz.NewReal(),
+		api.PrometheusRegistry,
+		api.NotificationsEnqueuer,
+		api.AGPL.BuildUsageChecker,
+		api.TracerProvider,
+		int(api.DeploymentValues.PostgresConnMaxOpen.Value()),
+	)
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
 }

@@ -1862,6 +1862,18 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), arg).Return([]database.WorkspaceAgentMetadatum{dt}, nil).AnyTimes()
 		check.Args(arg).Asserts(w, policy.ActionRead).Returns([]database.WorkspaceAgentMetadatum{dt})
 	}))
+	s.Run("BatchUpdateWorkspaceAgentMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.BatchUpdateWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: []uuid.UUID{agt.ID},
+			Key:              []string{"key1"},
+			Value:            []string{"value1"},
+			Error:            []string{""},
+			CollectedAt:      []time.Time{dbtime.Now()},
+		}
+		dbm.EXPECT().BatchUpdateWorkspaceAgentMetadata(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspace.All(), policy.ActionUpdate).Returns()
+	}))
 	s.Run("GetWorkspaceAgentByInstanceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
@@ -3472,9 +3484,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetReplicaByID(gomock.Any(), id).Return(database.Replica{}, sql.ErrNoRows).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
-	s.Run("GetWorkspaceAgentAndLatestBuildByAuthToken", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		tok := uuid.New()
-		dbm.EXPECT().GetWorkspaceAgentAndLatestBuildByAuthToken(gomock.Any(), tok).Return(database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows).AnyTimes()
+		dbm.EXPECT().GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(gomock.Any(), tok).Return(database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, sql.ErrNoRows).AnyTimes()
 		check.Args(tok).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetUserLinksByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

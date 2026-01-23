@@ -18,6 +18,7 @@ export interface AIBridgeAnthropicConfig {
 
 // From codersdk/deployment.go
 export interface AIBridgeBedrockConfig {
+	readonly base_url: string;
 	readonly region: string;
 	readonly access_key: string;
 	readonly access_key_secret: string;
@@ -2109,6 +2110,7 @@ export type FeatureName =
 	| "advanced_template_scheduling"
 	| "appearance"
 	| "audit_log"
+	| "boundary"
 	| "browser_only"
 	| "connection_log"
 	| "control_shared_ports"
@@ -2135,6 +2137,7 @@ export const FeatureNames: FeatureName[] = [
 	"advanced_template_scheduling",
 	"appearance",
 	"audit_log",
+	"boundary",
 	"browser_only",
 	"connection_log",
 	"control_shared_ports",

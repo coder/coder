@@ -26,6 +26,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -673,7 +674,7 @@ func TestProxy_CertCaching(t *testing.T) {
 			}
 
 			// Make a request through the proxy to the target server.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-session-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
@@ -749,7 +750,7 @@ func TestProxy_PortValidation(t *testing.T) {
 			)
 
 			// Make a request through the proxy to the target server.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-session-token"), getProxyCertPool(t))
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t))
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 			require.NoError(t, err)
 
@@ -780,7 +781,7 @@ func TestProxy_Authentication(t *testing.T) {
 	}{
 		{
 			name:        "ValidCredentials",
-			proxyAuth:   makeProxyAuthHeader("test-coder-session-token"),
+			proxyAuth:   makeProxyAuthHeader("test-coder-token"),
 			expectError: false,
 		},
 		{
@@ -909,13 +910,12 @@ func TestProxy_MITM(t *testing.T) {
 			t.Parallel()
 
 			// Track what aibridged receives.
-			var receivedPath string
-			var receivedAuth string
+			var receivedPath, receivedCoderToken string
 
 			// Create a mock aibridged server that captures requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				receivedPath = r.URL.Path
-				receivedAuth = r.Header.Get("Authorization")
+				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
 			}))
@@ -966,7 +966,7 @@ func TestProxy_MITM(t *testing.T) {
 			}
 
 			// Make a request through the proxy to the target URL.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-session-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
@@ -983,12 +983,12 @@ func TestProxy_MITM(t *testing.T) {
 				// Verify request went to target server, not aibridged.
 				require.Equal(t, "hello from tunneled", string(body))
 				require.Empty(t, receivedPath, "aibridged should not receive tunneled requests")
-				require.Empty(t, receivedAuth, "tunneled requests are not authenticated by the proxy")
+				require.Empty(t, receivedCoderToken, "tunneled requests are not authenticated by the proxy")
 			} else {
 				// Verify the request was routed to aibridged correctly.
 				require.Equal(t, "hello from aibridged", string(body))
 				require.Equal(t, tt.expectedPath, receivedPath)
-				require.Equal(t, "Bearer test-session-token", receivedAuth, "MITM'd requests must include authentication")
+				require.Equal(t, "test-token", receivedCoderToken, "MITM'd requests must include Coder token")
 			}
 		})
 	}
@@ -1173,7 +1173,7 @@ func TestUpstreamProxy(t *testing.T) {
 				finalDestinationBody         string
 				aibridgeReceived             bool
 				aibridgePath                 string
-				aibridgeAuthHeader           string
+				aibridgeCoderToken           string
 				aibridgeBody                 string
 			)
 
@@ -1269,7 +1269,7 @@ func TestUpstreamProxy(t *testing.T) {
 			aibridgeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				aibridgeReceived = true
 				aibridgePath = r.URL.Path
-				aibridgeAuthHeader = r.Header.Get("Authorization")
+				aibridgeCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
 				body, err := io.ReadAll(r.Body)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1345,6 +1345,8 @@ func TestUpstreamProxy(t *testing.T) {
 					"final destination should receive the exact request body")
 				require.False(t, aibridgeReceived,
 					"aibridge should NOT receive request for non-allowlisted domain")
+				require.Empty(t, aibridgeCoderToken,
+					"tunneled requests should not have Coder token")
 			} else {
 				require.False(t, upstreamProxyCONNECTReceived,
 					"upstream proxy should NOT receive CONNECT for allowlisted domain")
@@ -1352,8 +1354,8 @@ func TestUpstreamProxy(t *testing.T) {
 					"aibridge should receive the MITM'd request")
 				require.Equal(t, tt.expectedAIBridgePath, aibridgePath,
 					"aibridge should receive rewritten path")
-				require.Equal(t, "Bearer test-coder-token", aibridgeAuthHeader,
-					"aibridge should receive auth header extracted from proxy auth")
+				require.Equal(t, "test-coder-token", aibridgeCoderToken,
+					"aibridge should receive Coder token header")
 				require.Equal(t, requestBody, aibridgeBody,
 					"aibridge should receive the exact request body")
 				require.False(t, finalDestinationReceived,

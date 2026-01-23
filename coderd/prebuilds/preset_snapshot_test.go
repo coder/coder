@@ -1527,6 +1527,262 @@ func TestCalculateDesiredInstances(t *testing.T) {
 	}
 }
 
+// TestCanSkipReconciliation ensures that CanSkipReconciliation only returns true
+// when CalculateActions would return no actions.
+func TestCanSkipReconciliation(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	logger := testutil.Logger(t)
+	backoffInterval := 5 * time.Minute
+
+	tests := []struct {
+		name               string
+		preset             database.GetTemplatePresetsWithPrebuildsRow
+		running            []database.GetRunningPrebuiltWorkspacesRow
+		expired            []database.GetRunningPrebuiltWorkspacesRow
+		inProgress         []database.CountInProgressPrebuildsRow
+		pendingCount       int
+		backoff            *database.GetPresetsBackoffRow
+		isHardLimited      bool
+		expectedCanSkip    bool
+		expectedActionNoOp bool
+	}{
+		{
+			name: "inactive_with_nothing_to_cleanup",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            false,
+				Deprecated:         false,
+				DesiredInstances:   sql.NullInt32{Int32: 5, Valid: true},
+			},
+			running:            []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      false,
+			expectedCanSkip:    true, // Inactive with nothing to clean up
+			expectedActionNoOp: true, // No actions needed
+		},
+		{
+			name: "inactive_with_running_workspaces",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            false,
+				Deprecated:         false,
+			},
+			running: []database.GetRunningPrebuiltWorkspacesRow{
+				{ID: uuid.New()},
+			},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      false,
+			expectedCanSkip:    false, // Has running prebuilds to delete
+			expectedActionNoOp: false, // Returns ActionTypeDelete
+		},
+		{
+			name: "inactive_with_pending_jobs",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            false,
+				Deprecated:         false,
+			},
+			running:            []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       3,
+			backoff:            nil,
+			isHardLimited:      false,
+			expectedCanSkip:    false, // Has pending jobs to cancel
+			expectedActionNoOp: false, // Returns ActionTypeCancelPending
+		},
+		{
+			name: "inactive_with_backoff",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            false,
+				Deprecated:         false,
+			},
+			running:      []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:      []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:   []database.CountInProgressPrebuildsRow{},
+			pendingCount: 0,
+			backoff: &database.GetPresetsBackoffRow{
+				NumFailed:   3,
+				LastBuildAt: clock.Now().Add(-1 * time.Minute),
+			},
+			isHardLimited:      false,
+			expectedCanSkip:    false, // Has backoff
+			expectedActionNoOp: false, // Returns ActionTypeBackoff
+		},
+		{
+			name: "inactive_deleted_template_with_nothing_to_cleanup",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            true,
+				Deprecated:         false,
+			},
+			running:            []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      false,
+			expectedCanSkip:    true, // Deleted template with nothing to clean up
+			expectedActionNoOp: true, // No actions needed
+		},
+		{
+			name: "inactive_deprecated_template_with_nothing_to_cleanup",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            false,
+				Deprecated:         true,
+			},
+			running:            []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      false,
+			expectedCanSkip:    true, // Deprecated template with nothing to clean up
+			expectedActionNoOp: true, // No actions needed
+		},
+		{
+			name: "inactive_hard_limited",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: false,
+				Deleted:            false,
+				Deprecated:         false,
+			},
+			running:            []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      true,
+			expectedCanSkip:    true, // Hard limited but nothing to clean up
+			expectedActionNoOp: true, // No actions needed
+		},
+		{
+			name: "active_with_desired_instances",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: true,
+				Deleted:            false,
+				Deprecated:         false,
+				DesiredInstances:   sql.NullInt32{Int32: 2, Valid: true},
+			},
+			running: []database.GetRunningPrebuiltWorkspacesRow{
+				{ID: uuid.New()},
+				{ID: uuid.New()},
+			},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      false,
+			expectedCanSkip:    false, // Active presets are never skipped
+			expectedActionNoOp: true,  // Already at desired count
+		},
+		{
+			name: "active_with_no_workspaces",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: true,
+				Deleted:            false,
+				Deprecated:         false,
+				DesiredInstances:   sql.NullInt32{Int32: 5, Valid: true},
+			},
+			running:            []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      false,
+			expectedCanSkip:    false, // Active presets are never skipped
+			expectedActionNoOp: false, // Returns ActionTypeCreate
+		},
+		{
+			name: "active_with_backoff",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: true,
+				Deleted:            false,
+				Deprecated:         false,
+				DesiredInstances:   sql.NullInt32{Int32: 5, Valid: true},
+			},
+			running:      []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:      []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:   []database.CountInProgressPrebuildsRow{},
+			pendingCount: 0,
+			backoff: &database.GetPresetsBackoffRow{
+				NumFailed:   3,
+				LastBuildAt: clock.Now().Add(-1 * time.Minute),
+			},
+			isHardLimited:      false,
+			expectedCanSkip:    false, // Active presets are never skipped
+			expectedActionNoOp: false, // Returns ActionTypeBackoff
+		},
+		{
+			name: "active_hard_limited",
+			preset: database.GetTemplatePresetsWithPrebuildsRow{
+				UsingActiveVersion: true,
+				Deleted:            false,
+				Deprecated:         false,
+				DesiredInstances:   sql.NullInt32{Int32: 5, Valid: true},
+			},
+			running:            []database.GetRunningPrebuiltWorkspacesRow{},
+			expired:            []database.GetRunningPrebuiltWorkspacesRow{},
+			inProgress:         []database.CountInProgressPrebuildsRow{},
+			pendingCount:       0,
+			backoff:            nil,
+			isHardLimited:      true,
+			expectedCanSkip:    false, // Active presets are never skipped
+			expectedActionNoOp: false, // Returns ActionTypeCreate (skipped in executeReconciliationAction)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ps := prebuilds.NewPresetSnapshot(
+				tt.preset,
+				[]database.TemplateVersionPresetPrebuildSchedule{},
+				tt.running,
+				tt.expired,
+				tt.inProgress,
+				tt.pendingCount,
+				tt.backoff,
+				tt.isHardLimited,
+				clock,
+				logger,
+			)
+
+			canSkip := ps.CanSkipReconciliation()
+			require.Equal(t, tt.expectedCanSkip, canSkip)
+
+			actions, err := ps.CalculateActions(backoffInterval)
+			require.NoError(t, err)
+
+			actionNoOp := true
+			for _, action := range actions {
+				if !action.IsNoop() {
+					actionNoOp = false
+					break
+				}
+			}
+			require.Equal(t, tt.expectedActionNoOp, actionNoOp,
+				"CalculateActions() isNoOp mismatch")
+
+			// IMPORTANT: If CanSkipReconciliation is true, CalculateActions must return no actions
+			if canSkip {
+				require.True(t, actionNoOp)
+			}
+		})
+	}
+}
+
 func mustParseTime(t *testing.T, layout, value string) time.Time {
 	t.Helper()
 	parsedTime, err := time.Parse(layout, value)

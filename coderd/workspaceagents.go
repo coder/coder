@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -24,7 +25,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -41,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	strutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -395,6 +397,31 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 
 	// Notify on state change to Working/Idle for AI tasks
 	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace, workspaceAgent)
+
+	// Bump deadline when agent reports working or transitions away from working.
+	// This prevents auto-pause during active work and gives users time to interact
+	// after work completes.
+	shouldBump := false
+	newState := database.WorkspaceAppStatusState(req.State)
+
+	// Bump if reporting working state.
+	if newState == database.WorkspaceAppStatusStateWorking {
+		shouldBump = true
+	}
+
+	// Bump if transitioning away from working state.
+	if latestAppStatus.ID != uuid.Nil {
+		prevState := latestAppStatus.State
+		if prevState == database.WorkspaceAppStatusStateWorking {
+			shouldBump = true
+		}
+	}
+	if shouldBump {
+		// We pass time.Time{} for nextAutostart since we don't have access to
+		// TemplateScheduleStore here. The activity bump logic handles this by
+		// defaulting to the template's activity_bump duration (typically 1 hour).
+		workspacestats.ActivityBumpWorkspace(ctx, api.Logger, api.Database, workspace.ID, time.Time{})
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
@@ -1675,6 +1702,12 @@ func (api *API) watchWorkspaceAgentMetadata(
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+	agentIDEncoded := make([]byte, metadatabatcher.UUIDBase64Size)
+	err := metadatabatcher.EncodeAgentID(waws.WorkspaceAgent.ID, agentIDEncoded)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	log := api.Logger.Named("workspace_metadata_watcher").With(
 		slog.F("workspace_agent_id", waws.WorkspaceAgent.ID),
 		slog.F("workspace_id", waws.WorkspaceTable.ID),
@@ -1682,34 +1715,49 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
-	update := make(chan agentapi.WorkspaceAgentMetadataChannelPayload, 1)
-	cancelSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(waws.WorkspaceAgent.ID), func(_ context.Context, byt []byte) {
+	// The channel carries no data - it's just a signal to fetch all metadata.
+	update := make(chan struct{}, 1)
+
+	// Subscribe to the global batched metadata channel.
+	// The batcher publishes only to this channel to achieve O(1) NOTIFY scaling.
+	cancelBatchSub, err := api.Pubsub.Subscribe(metadatabatcher.MetadataBatchPubsubChannel, func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
 			return
 		}
 
-		var payload agentapi.WorkspaceAgentMetadataChannelPayload
-		err := json.Unmarshal(byt, &payload)
-		if err != nil {
-			log.Error(ctx, "failed to unmarshal pubsub message", slog.Error(err))
+		if len(byt)%metadatabatcher.UUIDBase64Size != 0 {
+			log.Error(ctx, "invalid batched pubsub message, pubsub message length was not a multiple of encoded agent UUID length", slog.Error(err))
 			return
 		}
 
-		log.Debug(ctx, "received metadata update", slog.F("payload", payload))
+		// Compare each encoded agentID to our encoded agent ID.
+		for i := 0; i < len(byt); i += metadatabatcher.UUIDBase64Size {
+			if !bytes.Equal(byt[i:i+metadatabatcher.UUIDBase64Size], agentIDEncoded) {
+				continue
+			}
 
-		select {
-		case prev := <-update:
-			payload.Keys = appendUnique(prev.Keys, payload.Keys)
-		default:
+			log.Debug(ctx, "received metadata update from batch channel",
+				slog.F("agent_id", waws.WorkspaceAgent.ID),
+				slog.F("batch_size", len(byt)/metadatabatcher.UUIDBase64Size),
+			)
+
+			// Signal to re-fetch all metadata for this agent.
+			// Batch notifications don't include which keys changed, so we
+			// always fetch all keys for this agent.
+			// Attempt to read from the channel first so that we do not block on the write.
+			select {
+			case <-update:
+			default:
+			}
+			update <- struct{}{}
+			break
 		}
-		// This can never block since we pop and merge beforehand.
-		update <- payload
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	defer cancelSub()
+	defer cancelBatchSub()
 
 	// We always use the original Request context because it contains
 	// the RBAC actor.
@@ -1793,10 +1841,11 @@ func (api *API) watchWorkspaceAgentMetadata(
 			select {
 			case <-ctx.Done():
 				return
-			case payload := <-update:
+			case <-update:
+				// Batch notification received - fetch all metadata for this agent.
 				md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
 					WorkspaceAgentID: waws.WorkspaceAgent.ID,
-					Keys:             payload.Keys,
+					Keys:             nil, // nil means fetch all keys
 				})
 				if err != nil {
 					if !database.IsQueryCanceledError(err) {
@@ -1817,9 +1866,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 				// We want to block here to avoid constantly pinging the
 				// database when the metadata isn't being processed.
 				case fetchedMetadata <- md:
-					log.Debug(ctx, "fetched metadata update for keys",
-						slog.F("keys", payload.Keys),
-						slog.F("num", len(md)))
+					log.Debug(ctx, "fetched all metadata after batch update", slog.F("num", len(md)))
 				}
 			}
 		}
@@ -1853,21 +1900,6 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 		sendMetadata()
 	}
-}
-
-// appendUnique is like append and adds elements from src to dst,
-// skipping any elements that already exist in dst.
-func appendUnique[T comparable](dst, src []T) []T {
-	exists := make(map[T]struct{}, len(dst))
-	for _, key := range dst {
-		exists[key] = struct{}{}
-	}
-	for _, key := range src {
-		if _, ok := exists[key]; !ok {
-			dst = append(dst, key)
-		}
-	}
-	return dst
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {

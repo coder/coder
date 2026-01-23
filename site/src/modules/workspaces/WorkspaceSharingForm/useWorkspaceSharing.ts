@@ -11,6 +11,7 @@ import type {
 	WorkspaceUser,
 } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
 /**
@@ -20,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
  */
 export function useWorkspaceSharing(workspace: Workspace) {
 	const queryClient = useQueryClient();
+	const [hasRemovedMember, setHasRemovedMember] = useState(false);
 
 	const workspaceACLQuery = useQuery(workspaceACL(workspace.id));
 
@@ -41,6 +43,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			userId: user.id,
 			role,
 		});
+		setHasRemovedMember(false);
 		displaySuccess("User added to workspace successfully!");
 		reset();
 	};
@@ -60,6 +63,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			userId: user.id,
 			role: "",
 		});
+		setHasRemovedMember(true);
 		displaySuccess("User removed successfully!");
 	};
 
@@ -73,6 +77,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			groupId: group.id,
 			role,
 		});
+		setHasRemovedMember(false);
 		displaySuccess("Group added to workspace successfully!");
 		reset();
 	};
@@ -92,6 +97,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			groupId: group.id,
 			role: "",
 		});
+		setHasRemovedMember(true);
 		displaySuccess("Group removed successfully!");
 	};
 
@@ -108,6 +114,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 		isLoading: workspaceACLQuery.isLoading,
 		error: workspaceACLQuery.error,
 		mutationError,
+		hasRemovedMember,
 		// User actions
 		addUser,
 		updateUser,

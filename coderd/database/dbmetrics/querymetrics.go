@@ -152,6 +152,13 @@ func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceAgentMetadata(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
 	start := time.Now()
 	r0 := m.s.BatchUpdateWorkspaceLastUsedAt(ctx, arg)
@@ -916,6 +923,14 @@ func (m queryMetricsStore) GetAuditLogsOffset(ctx context.Context, arg database.
 	r0, r1 := m.s.GetAuditLogsOffset(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAuditLogsOffset").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuditLogsOffset").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken)
+	m.queryLatencies.WithLabelValues("GetAuthenticatedWorkspaceAgentAndBuildByAuthToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken").Inc()
 	return r0, r1
 }
 
@@ -2204,14 +2219,6 @@ func (m queryMetricsStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID
 	r0, r1 := m.s.GetWorkspaceACLByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetWorkspaceACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceACLByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentAndLatestBuildByAuthToken").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentAndLatestBuildByAuthToken").Inc()
 	return r0, r1
 }
 

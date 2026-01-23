@@ -132,6 +132,20 @@ func (mr *MockStoreMockRecorder) ArchiveUnusedTemplateVersions(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveUnusedTemplateVersions", reflect.TypeOf((*MockStore)(nil).ArchiveUnusedTemplateVersions), ctx, arg)
 }
 
+// BatchUpdateWorkspaceAgentMetadata mocks base method.
+func (m *MockStore) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchUpdateWorkspaceAgentMetadata", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BatchUpdateWorkspaceAgentMetadata indicates an expected call of BatchUpdateWorkspaceAgentMetadata.
+func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceAgentMetadata(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceAgentMetadata), ctx, arg)
+}
+
 // BatchUpdateWorkspaceLastUsedAt mocks base method.
 func (m *MockStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
 	m.ctrl.T.Helper()
@@ -1570,6 +1584,21 @@ func (m *MockStore) GetAuditLogsOffset(ctx context.Context, arg database.GetAudi
 func (mr *MockStoreMockRecorder) GetAuditLogsOffset(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuditLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuditLogsOffset), ctx, arg)
+}
+
+// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken mocks base method.
+func (m *MockStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", ctx, authToken)
+	ret0, _ := ret[0].(database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken indicates an expected call of GetAuthenticatedWorkspaceAgentAndBuildByAuthToken.
+func (mr *MockStoreMockRecorder) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetAuthenticatedWorkspaceAgentAndBuildByAuthToken), ctx, authToken)
 }
 
 // GetAuthorizationUserRoles mocks base method.
@@ -4120,21 +4149,6 @@ func (m *MockStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (data
 func (mr *MockStoreMockRecorder) GetWorkspaceACLByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceACLByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceACLByID), ctx, id)
-}
-
-// GetWorkspaceAgentAndLatestBuildByAuthToken mocks base method.
-func (m *MockStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentAndLatestBuildByAuthToken", ctx, authToken)
-	ret0, _ := ret[0].(database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetWorkspaceAgentAndLatestBuildByAuthToken indicates an expected call of GetWorkspaceAgentAndLatestBuildByAuthToken.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentAndLatestBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentAndLatestBuildByAuthToken), ctx, authToken)
 }
 
 // GetWorkspaceAgentAndWorkspaceByID mocks base method.

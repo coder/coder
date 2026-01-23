@@ -75,6 +75,11 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						Observability
 					</SidebarNavItem>
 				)}
+				{permissions.viewDeploymentConfig && (
+					<SidebarNavItem href="/deployment/ai-governance">
+						AI Governance
+					</SidebarNavItem>
+				)}
 				{permissions.viewAllUsers && (
 					<SidebarNavItem href="/deployment/users">Users</SidebarNavItem>
 				)}
