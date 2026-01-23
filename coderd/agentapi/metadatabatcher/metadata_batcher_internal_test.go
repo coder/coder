@@ -215,7 +215,7 @@ func TestMetadataBatcher(t *testing.T) {
 	clock.Advance(defaultMetadataFlushInterval).MustWait(ctx)
 	resetTrap.MustWait(ctx).MustRelease(ctx) // Wait for timer reset after flush
 	t.Log("flush 1 completed (expected 0 entries)")
-	require.Equal(t, float64(0), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker)))
+	require.Equal(t, float64(0), prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker)))
 
 	// --- FLUSH 2: Single agent with 2 metadata entries ---
 	t2 := clock.Now()
@@ -246,14 +246,14 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("adding metadata for 1 agent")
 
 	// Capture dropped count before adding.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+	droppedBefore := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 
 	require.NoError(t, b.Add(agent1, []string{"key1", "key2"}, []string{"value1", "value2"}, []string{"", ""}, []time.Time{t2, t2}))
 
 	// Wait for the channel to be processed and verify nothing was dropped.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+		nothingDropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal) == droppedBefore
 		batchHasExpected := int(b.currentBatchLen.Load()) == 2
 		return channelEmpty && nothingDropped && batchHasExpected
 	}, testutil.IntervalFast)
@@ -263,11 +263,11 @@ func TestMetadataBatcher(t *testing.T) {
 	resetTrap.MustWait(ctx).MustRelease(ctx) // Wait for timer reset after flush
 	t.Log("flush 2 completed (expected 2 entries)")
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		val := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
-		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		val := prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker))
+		totalMeta := prom_testutil.ToFloat64(b.Metrics.MetadataTotal)
 		return float64(1) == val && totalMeta >= float64(2)
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(2), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(2), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -307,7 +307,7 @@ func TestMetadataBatcher(t *testing.T) {
 	t.Log("adding metadata for 2 agents")
 
 	// Capture dropped count before any adds.
-	droppedBefore = prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+	droppedBefore = prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 
 	require.NoError(t, b.Add(agent1, []string{"key1", "key2", "key3"}, []string{"new_value1", "new_value2", "new_value3"}, []string{"", "", ""}, []time.Time{t3, t3, t3}))
 	require.NoError(t, b.Add(agent2, []string{"key1", "key2"}, []string{"agent2_value1", "agent2_value2"}, []string{"", ""}, []time.Time{t3, t3}))
@@ -315,7 +315,7 @@ func TestMetadataBatcher(t *testing.T) {
 	// Wait for all channel messages to be processed into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+		nothingDropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal) == droppedBefore
 		batchHasExpected := int(b.currentBatchLen.Load()) == 5
 		return channelEmpty && nothingDropped && batchHasExpected
 	}, testutil.IntervalFast)
@@ -325,11 +325,11 @@ func TestMetadataBatcher(t *testing.T) {
 	resetTrap.MustWait(ctx).MustRelease(ctx) // Wait for timer reset after flush
 	t.Log("flush 3 completed (expected 5 new entries)")
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		val := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
-		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		val := prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker))
+		totalMeta := prom_testutil.ToFloat64(b.Metrics.MetadataTotal)
 		return float64(2) == val && totalMeta >= float64(7)
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(7), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(7), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -395,9 +395,9 @@ func TestMetadataBatcher(t *testing.T) {
 	capacityResetTrap.MustWait(ctx).MustRelease(ctx) // Wait for timer reset after capacity flush
 	t.Log("flush 4 completed (capacity flush, expected", defaultMetadataBatchSize, "entries)")
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
+		return float64(1) == prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity))
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(507), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(507), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 
 	// Wait for pubsub capture to complete and verify all agent IDs were published (across all chunks).
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -468,7 +468,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	// Now the flush is blocked. Channel capacity is 10.
 	// Fill the channel with 10 entries
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+	droppedBefore := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 
 	for i := 0; i < 10; i++ {
 		agent := uuid.New()
@@ -481,7 +481,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 
 	// Verify that 1 key was dropped
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		dropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+		dropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 		return dropped == droppedBefore+1
 	}, testutil.IntervalFast)
 
@@ -494,9 +494,9 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	}, testutil.IntervalFast)
 
 	// Verify final state: 1 key was dropped, 12 metadata sent in 6 capacity batches
-	require.Equal(t, droppedBefore+1, prom_testutil.ToFloat64(b.metrics.droppedKeysTotal))
-	require.Equal(t, float64(12), prom_testutil.ToFloat64(b.metrics.metadataTotal))
-	require.Equal(t, float64(6), prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity)))
+	require.Equal(t, droppedBefore+1, prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal))
+	require.Equal(t, float64(12), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
+	require.Equal(t, float64(6), prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity)))
 }
 
 // TestMetadataBatcher_Deduplication executes two Add calls, the second with a later timestamp than the first, to check
@@ -633,7 +633,7 @@ func TestMetadataBatcher_Deduplication(t *testing.T) {
 				Times(1)
 
 			// Perform the adds
-			droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+			droppedBefore := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 
 			// First add with all empty error strings
 			add1Errors := make([]string, len(tt.add1Keys))
@@ -646,7 +646,7 @@ func TestMetadataBatcher_Deduplication(t *testing.T) {
 			// Wait for all channel messages to be processed into the batch
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				channelEmpty := len(b.updateCh) == 0
-				nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+				nothingDropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal) == droppedBefore
 				batchHasExpected := int(b.currentBatchLen.Load()) == len(tt.wantKeys)
 				return channelEmpty && nothingDropped && batchHasExpected
 			}, testutil.IntervalFast)
@@ -656,9 +656,9 @@ func TestMetadataBatcher_Deduplication(t *testing.T) {
 
 			// Verify flush occurred with correct number of entries
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+				return float64(1) == prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker))
 			}, testutil.IntervalFast)
-			require.Equal(t, float64(len(tt.wantKeys)), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+			require.Equal(t, float64(len(tt.wantKeys)), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 
 			// Verify pubsub published the agent ID
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -721,7 +721,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	// Add update with t2 timestamp
 	// Capture dropped count before any adds.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+	droppedBefore := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 
 	require.NoError(t, b.Add(agent, []string{"key1"}, []string{"newer_value"}, []string{""}, []time.Time{t2}))
 
@@ -734,7 +734,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+		nothingDropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal) == droppedBefore
 		batchHasExpected := int(b.currentBatchLen.Load()) == 1
 		return channelEmpty && nothingDropped && batchHasExpected
 	}, testutil.IntervalFast)
@@ -751,9 +751,9 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 
 	// Verify only 1 entry was flushed (newest timestamp wins)
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+		return float64(1) == prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker))
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(1), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(1), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 }
 
 func TestMetadataBatcher_PubsubChunking(t *testing.T) {
@@ -847,7 +847,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 
 	// Add first 499 metadata updates (just under the capacity threshold of 500)
 	// Capture dropped count before any adds.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+	droppedBefore := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 
 	for i := 0; i < 499; i++ {
 		require.NoError(t, b.Add(agents[i], []string{"key1"}, []string{"value1"}, []string{""}, []time.Time{t1}))
@@ -857,7 +857,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// Batch should have 499 entries, no capacity flush yet.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+		nothingDropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal) == droppedBefore
 		batchHasExpected := int(b.currentBatchLen.Load()) == 499
 		return channelEmpty && nothingDropped && batchHasExpected
 	}, testutil.IntervalFast)
@@ -871,15 +871,15 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// triggered an automatic capacity flush, leaving 100 entries in the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+		nothingDropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal) == droppedBefore
 		batchHasExpected := int(b.currentBatchLen.Load()) == 100
 		return channelEmpty && nothingDropped && batchHasExpected
 	}, testutil.IntervalFast)
 
 	// Verify capacity flush metrics and total metadata count.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		capacity := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
-		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		capacity := prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity))
+		totalMeta := prom_testutil.ToFloat64(b.Metrics.MetadataTotal)
 		// Should have 1 capacity flush (500 entries) so far
 		return capacity == float64(1) && totalMeta == float64(500)
 	}, testutil.IntervalFast)
@@ -896,13 +896,13 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	// Verify that all metadata was flushed successfully.
 	// We should have 1 capacity flush (500 entries) and 1 scheduled flush (100 entries).
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		capacity := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushCapacity))
-		scheduled := prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
-		totalMeta := prom_testutil.ToFloat64(b.metrics.metadataTotal)
+		capacity := prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushCapacity))
+		scheduled := prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker))
+		totalMeta := prom_testutil.ToFloat64(b.Metrics.MetadataTotal)
 		// Check that we've had 1 capacity flush and 1 scheduled flush
 		return capacity == float64(1) && scheduled == float64(1) && totalMeta == float64(600)
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(numAgents), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(numAgents), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 }
 
 func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
@@ -965,7 +965,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	wg.Add(numGoroutines)
 
 	// Capture dropped count before any adds.
-	droppedBefore := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal)
+	droppedBefore := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal)
 
 	// Each goroutine updates the same set of keys with different values
 	for i := 0; i < numGoroutines; i++ {
@@ -985,7 +985,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	// Wait for all channel messages to be processed by the run() goroutine into the batch.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		channelEmpty := len(b.updateCh) == 0
-		nothingDropped := prom_testutil.ToFloat64(b.metrics.droppedKeysTotal) == droppedBefore
+		nothingDropped := prom_testutil.ToFloat64(b.Metrics.DroppedKeysTotal) == droppedBefore
 		batchHasExpected := int(b.currentBatchLen.Load()) == 3
 		return channelEmpty && nothingDropped && batchHasExpected
 	}, testutil.IntervalFast)
@@ -1002,7 +1002,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 
 	// Verify exactly 3 unique keys were flushed
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return float64(1) == prom_testutil.ToFloat64(b.metrics.batchesTotal.WithLabelValues(flushTicker))
+		return float64(1) == prom_testutil.ToFloat64(b.Metrics.BatchesTotal.WithLabelValues(flushTicker))
 	}, testutil.IntervalFast)
-	require.Equal(t, float64(3), prom_testutil.ToFloat64(b.metrics.metadataTotal))
+	require.Equal(t, float64(3), prom_testutil.ToFloat64(b.Metrics.MetadataTotal))
 }

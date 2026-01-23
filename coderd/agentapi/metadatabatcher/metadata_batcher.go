@@ -98,8 +98,8 @@ type Batcher struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	// metrics collects Prometheus metrics for the batcher.
-	metrics Metrics
+	// Metrics collects Prometheus metrics for the batcher.
+	Metrics Metrics
 }
 
 // Option is a functional option for configuring a Batcher.
@@ -135,7 +135,7 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 	b := &Batcher{
 		store:   store,
 		ps:      ps,
-		metrics: NewMetrics(),
+		Metrics: NewMetrics(),
 		done:    make(chan struct{}),
 		log:     slog.Logger{},
 		clock:   quartz.NewReal(),
@@ -145,7 +145,7 @@ func NewBatcher(ctx context.Context, reg prometheus.Registerer, store database.S
 		opt(b)
 	}
 
-	b.metrics.register(reg)
+	b.Metrics.register(reg)
 
 	if b.interval == 0 {
 		b.interval = defaultMetadataFlushInterval
@@ -230,7 +230,7 @@ func (b *Batcher) Add(agentID uuid.UUID, keys []string, values []string, errors 
 			b.log.Debug(context.Background(), msg, fields...)
 		}
 
-		b.metrics.droppedKeysTotal.Add(float64(droppedCount))
+		b.Metrics.DroppedKeysTotal.Add(float64(droppedCount))
 	}
 
 	return nil
@@ -338,7 +338,7 @@ func (b *Batcher) flush(ctx context.Context, reason string) {
 
 	// Record per-agent utilization metrics.
 	for _, keyCount := range agentKeys {
-		b.metrics.batchUtilization.Observe(float64(keyCount))
+		b.Metrics.BatchUtilization.Observe(float64(keyCount))
 	}
 
 	// Update the database with all metadata updates in a single query.
@@ -379,15 +379,15 @@ func (b *Batcher) flush(ctx context.Context, reason string) {
 				slog.F("chunk_size", len(chunk)/UUIDBase64Size),
 				slog.F("payload_size", len(chunk)),
 			)
-			b.metrics.publishErrors.Inc()
+			b.Metrics.PublishErrors.Inc()
 		}
 	}
 
 	// Record successful batch size and flush duration after successful send/publish.
-	b.metrics.batchSize.Observe(float64(count))
-	b.metrics.metadataTotal.Add(float64(count))
-	b.metrics.batchesTotal.WithLabelValues(reason).Inc()
-	b.metrics.flushDuration.WithLabelValues(reason).Observe(time.Since(start).Seconds())
+	b.Metrics.BatchSize.Observe(float64(count))
+	b.Metrics.MetadataTotal.Add(float64(count))
+	b.Metrics.BatchesTotal.WithLabelValues(reason).Inc()
+	b.Metrics.FlushDuration.WithLabelValues(reason).Observe(time.Since(start).Seconds())
 
 	elapsed = time.Since(start)
 	b.log.Debug(ctx, "flush complete",
