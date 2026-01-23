@@ -1857,6 +1857,17 @@ Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
 
 Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
 
+### --aibridge-send-actor-headers
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_SEND_ACTOR_HEADERS</code> |
+| YAML        | <code>aibridge.send_actor_headers</code>        |
+| Default     | <code>false</code>                              |
+
+Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider.
+
 ### --aibridge-circuit-breaker-enabled
 
 |             |                                                      |
