@@ -815,8 +815,8 @@ func TestEntitlements(t *testing.T) {
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
-				GraceAt:    time.Now().Add(time.Hour * 24 * 60),
-				ExpiresAt:  time.Now().Add(time.Hour * 24 * 90),
+				GraceAt:    time.Now().Add(time.Hour * 24 * 30),
+				ExpiresAt:  time.Now().Add(time.Hour * 24 * 60),
 			}),
 			Exp: time.Now().Add(time.Hour * 24 * 90),
 		})
