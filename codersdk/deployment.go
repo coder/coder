@@ -225,9 +225,9 @@ func (set FeatureSet) Features() []FeatureName {
 	case FeatureSetPremium:
 		premiumFeatures := make([]FeatureName, len(FeatureNames))
 		copy(premiumFeatures, FeatureNames)
-		// Remove features that use limits and AI Bridge (now a separate add-on).
+		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
-			return f.UsesLimit() || f == FeatureAIBridge
+			return f.UsesLimit()
 		})
 		return premiumFeatures
 	}

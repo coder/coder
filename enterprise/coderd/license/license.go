@@ -550,7 +550,7 @@ func LicensesEntitlements(
 
 		// AI Bridge has a custom warning message as it moved to a separate add-on.
 		aiBridge := entitlements.Features[codersdk.FeatureAIBridge]
-		if aiBridge.Enabled && aiBridge.Entitlement != codersdk.EntitlementEntitled {
+		if aiBridge.Enabled {
 			entitlements.Warnings = append(entitlements.Warnings,
 				"AI Bridge has reached General Availability and your Coder deployment is not entitled "+
 					"to run this feature. Contact your account team (https://coder.com/contact) for "+
