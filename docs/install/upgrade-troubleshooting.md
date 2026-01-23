@@ -24,15 +24,28 @@ new pod from acquiring necessary locks.
 
 ### Recommended strategy for major upgrades
 
-1. **Scale to one replica:** Before running `helm upgrade`, manually scale your
-   Coder deployment to 1 replica. This ensures only one pod handles the
-   migration and eliminates contention from other active replicas.
+1. **Scale down before upgrading:** Before running `helm upgrade`, scale your
+   Coder deployment down to eliminate database connection contention from
+   existing pods.
 
-   ```shell
-   kubectl scale deployment coder --replicas=1
-   ```
+   - **Scale to zero** for a clean cutover with no active database connections
+     when the upgrade starts. This momentarily ensures no application access to
+     the database, allowing migrations to acquire locks immediately:
 
-1. **Perform upgrade:** Run your standard Helm upgrade command.
+     ```shell
+     kubectl scale deployment coder --replicas=0
+     ```
+
+   - **Scale to one** if you prefer to minimize downtime. This keeps one pod
+     running but eliminates contention from multiple replicas:
+
+     ```shell
+     kubectl scale deployment coder --replicas=1
+     ```
+
+1. **Perform upgrade:** Run your standard Helm upgrade command. When scaling to
+   zero, this will bring up a fresh pod that can run migrations without
+   competing for database locks.
 
 1. **Scale back:** Once the upgrade is healthy, scale back to your desired
    replica count.
