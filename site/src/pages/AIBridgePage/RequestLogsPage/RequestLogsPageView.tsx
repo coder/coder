@@ -14,7 +14,6 @@ import {
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ComponentProps, FC } from "react";
-import { docs } from "utils/docs";
 import { RequestLogsFilter } from "./filter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
@@ -37,8 +36,25 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 		return (
 			<Paywall
 				message="AI Bridge"
-				description="AI Bridge allows you to monitor and manage AI requests. You need an Premium license to use this feature."
-				documentationLink={docs("/ai-coder/ai-bridge")}
+				description="AI Bridge provides auditable visibility into user prompts and LLM tool calls from developer tools within Coder Workspaces. AI Bridge requires a Premium license with AI Governance add-on."
+				documentationLink="https://coder.com/docs/ai-coder/ai-governance"
+				documentationLinkText="Learn about AI Governance"
+				badgeText="AI Governance"
+				ctaText="Contact Sales"
+				ctaLink="https://coder.com/contact"
+				features={[
+					{ text: "Auditable history of user prompts" },
+					{ text: "Logged LLM tool invocations" },
+					{ text: "Token usage and consumption visibility" },
+					{ text: "User-level AI request attribution" },
+					{
+						text: "Visit",
+						link: {
+							href: "https://coder.com/docs/ai-coder/ai-bridge",
+							text: "AI Bridge Docs",
+						},
+					},
+				]}
 			/>
 		);
 	}

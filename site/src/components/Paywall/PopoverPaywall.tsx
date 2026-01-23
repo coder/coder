@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import { CircleCheckBigIcon } from "lucide-react";
@@ -10,12 +9,18 @@ interface PopoverPaywallProps {
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
+	badgeText?: string;
+	ctaText?: string;
+	ctaLink?: string;
 }
 
 export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 	message,
 	description,
 	documentationLink,
+	badgeText = "Premium",
+	ctaText = "Learn about Premium",
+	ctaLink = "https://coder.com/pricing#compare-plans",
 }) => {
 	return (
 		<div
@@ -30,7 +35,30 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
 					<h5 css={styles.title}>{message}</h5>
-					<PremiumBadge />
+					<span
+						css={[
+							{
+								fontSize: 10,
+								height: 24,
+								fontWeight: 600,
+								textTransform: "uppercase",
+								letterSpacing: "0.085em",
+								padding: "0 12px",
+								borderRadius: 9999,
+								display: "flex",
+								alignItems: "center",
+								width: "fit-content",
+								whiteSpace: "nowrap",
+							},
+							(theme) => ({
+								backgroundColor: theme.branding.premium.background,
+								border: `1px solid ${theme.branding.premium.border}`,
+								color: theme.branding.premium.text,
+							}),
+						]}
+					>
+						{badgeText}
+					</span>
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
@@ -61,12 +89,8 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 				</ul>
 				<div css={styles.learnButton}>
 					<Button asChild>
-						<a
-							href="https://coder.com/pricing#compare-plans"
-							target="_blank"
-							rel="noreferrer"
-						>
-							Learn about Premium
+						<a href={ctaLink} target="_blank" rel="noreferrer">
+							{ctaText}
 						</a>
 					</Button>
 				</div>
