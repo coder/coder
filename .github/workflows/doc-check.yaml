@@ -223,7 +223,7 @@ jobs:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
           coder-organization: "default"
-          coder-template-name: doc-check-bot
+          coder-template-name: coder-workflow-bot
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
           coder-task-name-prefix: doc-check
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
