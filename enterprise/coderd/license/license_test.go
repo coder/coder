@@ -25,10 +25,6 @@ func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	all := make(map[codersdk.FeatureName]bool)
 	for _, n := range codersdk.FeatureNames {
-		// AI Bridge is a separate add-on, not included in standard feature sets.
-		if n == codersdk.FeatureAIBridge {
-			continue
-		}
 		all[n] = true
 	}
 
@@ -370,9 +366,9 @@ func TestEntitlements(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
 		for _, featureName := range codersdk.FeatureNames {
-			if featureName == codersdk.FeatureUserLimit || featureName == codersdk.FeatureHighAvailability || featureName == codersdk.FeatureMultipleExternalAuth || featureName == codersdk.FeatureManagedAgentLimit || featureName == codersdk.FeatureAIBridge {
+			if featureName == codersdk.FeatureUserLimit || featureName == codersdk.FeatureHighAvailability || featureName == codersdk.FeatureMultipleExternalAuth || featureName == codersdk.FeatureManagedAgentLimit {
 				// These fields don't generate warnings when not entitled unless
-				// a limit is breached, or have custom warning messages.
+				// a limit is breached.
 				continue
 			}
 			niceName := featureName.Humanize()
@@ -802,25 +798,6 @@ func TestEntitlements(t *testing.T) {
 		require.Equal(t, "You have multiple External Auth Providers configured but your license is expired. Reduce to one.", entitlements.Warnings[0])
 	})
 
-	t.Run("AIBridgeEnabledNotEntitled", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			Exp: time.Now().Add(time.Hour),
-			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAuditLog: 1, // Some feature but not AI Bridge.
-				},
-			}),
-		})
-		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, map[codersdk.FeatureName]bool{
-			codersdk.FeatureAIBridge: true, // Enabled but not entitled.
-		})
-		require.NoError(t, err)
-		require.True(t, entitlements.HasLicense)
-		require.Contains(t, entitlements.Warnings, "AI Bridge has reached General Availability and your Coder deployment is not entitled to run this feature. Contact your account team (https://coder.com/contact) for information around getting a license with AI Bridge.")
-	})
-
 	t.Run("ManagedAgentLimitHasValue", func(t *testing.T) {
 		t.Parallel()
 
@@ -915,7 +892,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureAccessControl:              true,
 		codersdk.FeatureControlSharedPorts:         true,
 		codersdk.FeatureWorkspaceExternalAgent:     true,
-		// FeatureAIBridge is intentionally not included as it's a separate add-on.
+		codersdk.FeatureAIBridge:                   true,
 	}
 
 	legacyLicense := func() *coderdenttest.LicenseOptions {

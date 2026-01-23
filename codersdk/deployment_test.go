@@ -623,16 +623,16 @@ func TestPremiumSuperSet(t *testing.T) {
 	// Premium ⊃ Enterprise
 	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
 
-	// Premium = All Features EXCEPT usage limit features and AI Bridge (add-on).
+	// Premium = All Features EXCEPT usage limit features
 	expectedPremiumFeatures := []codersdk.FeatureName{}
 	for _, feature := range codersdk.FeatureNames {
-		if feature.UsesLimit() || feature == codersdk.FeatureAIBridge {
+		if feature.UsesLimit() {
 			continue
 		}
 		expectedPremiumFeatures = append(expectedPremiumFeatures, feature)
 	}
 	require.NotEmpty(t, expectedPremiumFeatures, "expectedPremiumFeatures should not be empty")
-	require.ElementsMatch(t, premium.Features(), expectedPremiumFeatures, "premium should contain all features except usage limit features and AI Bridge")
+	require.ElementsMatch(t, premium.Features(), expectedPremiumFeatures, "premium should contain all features except usage limit features")
 
 	// This check exists because if you misuse the slices.Delete, you can end up
 	// with zero'd values.
