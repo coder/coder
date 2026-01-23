@@ -130,12 +130,9 @@ If an upgrade gets stuck in a restart loop due to database locks:
    [migrations directory](https://github.com/coder/coder/tree/main/coderd/database/migrations)
    to the value in the `schema_migrations` output.
 
-1. **Scale to one:** Scale the deployment to 1 to restart the migration process
-   in isolation.
-
-   ```shell
-   kubectl scale deployment coder --replicas=1
-   ```
+1. **Resume the upgrade:** Follow the
+   [pre-upgrade strategy](#recommended-strategy-for-major-upgrades) to scale
+   back up and continue the upgrade process.
 
 ## When to contact support
 
