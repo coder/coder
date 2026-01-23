@@ -35,6 +35,7 @@ type ParameterResolver struct {
 	promptRichParameters      bool
 	promptEphemeralParameters bool
 	useParameterDefaults      bool
+	nonInteractive            bool
 }
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
@@ -89,6 +90,11 @@ func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParame
 
 func (pr *ParameterResolver) WithUseParameterDefaults(useParameterDefaults bool) *ParameterResolver {
 	pr.useParameterDefaults = useParameterDefaults
+	return pr
+}
+
+func (pr *ParameterResolver) WithNonInteractive(nonInteractive bool) *ParameterResolver {
+	pr.nonInteractive = nonInteractive
 	return pr
 }
 
@@ -286,10 +292,16 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 				parameterValue = v
 			}
 
+			switch {
 			// Auto-accept the default if there is one.
-			if pr.useParameterDefaults && parameterValue != "" {
-				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, parameterValue)
-			} else {
+			case (pr.nonInteractive || pr.useParameterDefaults) && parameterValue != "":
+				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %q: '%s'\n", tvp.Name, parameterValue)
+			case pr.nonInteractive && tvp.Required:
+				return nil, xerrors.Errorf("parameter %q is required and has no default value", tvp.Name)
+			case pr.nonInteractive:
+				_, _ = fmt.Fprintf(inv.Stdout, "Skipping optional parameter %q\n", tvp.Name)
+				continue
+			default:
 				var err error
 				parameterValue, err = cliui.RichParameter(inv, tvp, name, parameterValue)
 				if err != nil {

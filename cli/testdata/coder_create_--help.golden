@@ -20,6 +20,10 @@ OPTIONS:
       --copy-parameters-from string, $CODER_WORKSPACE_COPY_PARAMETERS_FROM
           Specify the source workspace name to copy parameters from.
 
+      --non-interactive bool, $CODER_NON_INTERACTIVE
+          Automatically accept all defaults and error when there is no default
+          for a required input.
+
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 
