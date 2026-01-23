@@ -260,9 +260,9 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 	defer c.running.Store(false)
 
 	if cause != nil {
-		c.logger.Error(context.Background(), "stopping reconciler due to an error", slog.Error(cause))
+		c.logger.Info(context.Background(), "stopping reconciler", slog.F("cause", cause.Error()))
 	} else {
-		c.logger.Info(context.Background(), "gracefully stopping reconciler")
+		c.logger.Info(context.Background(), "stopping reconciler")
 	}
 
 	// If previously stopped (Swap returns previous value), then short-circuit.
@@ -272,7 +272,7 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 		return
 	}
 
-	// Unregister the metrics collector.
+	// Unregister prebuilds state and operational metrics.
 	if c.metrics != nil && c.registerer != nil {
 		if !c.registerer.Unregister(c.metrics) {
 			// The API doesn't allow us to know why the de-registration failed, but it's not very consequential.
@@ -280,6 +280,11 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 			// disabled (and consequently this Stop method being called), and then adding a new license which enables the
 			// feature again. If the metrics cannot be registered, it'll log an error from NewStoreReconciler.
 			c.logger.Warn(context.Background(), "failed to unregister metrics collector")
+		}
+		if c.reconciliationDuration != nil {
+			if !c.registerer.Unregister(c.reconciliationDuration) {
+				c.logger.Warn(context.Background(), "failed to unregister reconciliation duration histogram")
+			}
 		}
 	}
 
