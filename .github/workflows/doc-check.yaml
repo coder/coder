@@ -7,6 +7,10 @@
 #   - PR updated (synchronize): Re-review after changes
 #   - Label "doc-check" added: Manual trigger for review
 #   - Workflow dispatch: Manual run with PR URL
+#
+# Note: This workflow requires access to secrets and will be skipped for:
+#   - Any PR where secrets are not available
+# For these PRs, maintainers can manually trigger via workflow_dispatch.
 
 name: AI Documentation Check
 
@@ -52,13 +56,36 @@ jobs:
       actions: write
 
     steps:
+      - name: Check if secrets are available
+        id: check-secrets
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+        run: |
+          if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "Secrets not available - skipping doc-check."
+            echo "This is expected for PRs where secrets are not available."
+            echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            {
+              echo "⚠️ Workflow skipped: Secrets not available"
+              echo ""
+              echo "This workflow requires secrets that are unavailable for this run."
+              echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Setup Coder CLI
+        if: steps.check-secrets.outputs.skip != 'true'
         uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1
         with:
           access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
 
       - name: Determine PR Context
+        if: steps.check-secrets.outputs.skip != 'true'
         id: determine-context
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -116,6 +143,7 @@ jobs:
           fi
 
       - name: Build task prompt
+        if: steps.check-secrets.outputs.skip != 'true'
         id: extract-context
         env:
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
@@ -180,6 +208,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Checkout create-task-action
+        if: steps.check-secrets.outputs.skip != 'true'
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 1
@@ -189,13 +218,14 @@ jobs:
           repository: coder/create-task-action
 
       - name: Create Coder Task for Documentation Check
+        if: steps.check-secrets.outputs.skip != 'true'
         id: create_task
         uses: ./.github/actions/create-task-action
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
           coder-organization: "default"
-          coder-template-name: doc-check-bot
+          coder-template-name: coder-workflow-bot
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
           coder-task-name-prefix: doc-check
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
@@ -205,6 +235,7 @@ jobs:
           comment-on-issue: true
 
       - name: Write Task Info
+        if: steps.check-secrets.outputs.skip != 'true'
         env:
           TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
@@ -222,6 +253,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Wait for Task Completion
+        if: steps.check-secrets.outputs.skip != 'true'
         id: wait_task
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
@@ -311,7 +343,7 @@ jobs:
           fi
 
       - name: Fetch Task Logs
-        if: always()
+        if: always() && steps.check-secrets.outputs.skip != 'true'
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
@@ -324,7 +356,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Cleanup Task
-        if: always()
+        if: always() && steps.check-secrets.outputs.skip != 'true'
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
@@ -336,7 +368,7 @@ jobs:
           fi
 
       - name: Write Final Summary
-        if: always()
+        if: always() && steps.check-secrets.outputs.skip != 'true'
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
           TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
