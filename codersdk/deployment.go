@@ -227,6 +227,8 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
+			// TODO: Remove AI Bridge once it's moved to a separate add-on and we begin
+			// TODO: license entitlement enforcement.
 			return f.UsesLimit()
 		})
 		return premiumFeatures
