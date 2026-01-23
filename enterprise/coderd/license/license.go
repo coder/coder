@@ -552,7 +552,7 @@ func LicensesEntitlements(
 		aiBridge := entitlements.Features[codersdk.FeatureAIBridge]
 		// TODO: Only add this warning if the addon isn't present.
 		// TODO: This is reliant on #21532 being merged.
-		if aiBridge.Enabled {
+		if aiBridge.Enabled && aiBridge.Entitlement != codersdk.EntitlementEntitled {
 			entitlements.Warnings = append(entitlements.Warnings,
 				"AI Bridge has reached General Availability and your Coder deployment is not entitled "+
 					"to run this feature. Contact your account team (https://coder.com/contact) for "+

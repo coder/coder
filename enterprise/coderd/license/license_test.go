@@ -809,12 +809,12 @@ func TestEntitlements(t *testing.T) {
 		require.Equal(t, "You have multiple External Auth Providers configured but your license is expired. Reduce to one.", entitlements.Warnings[0])
 	})
 
-	t.Run("PremiumAIBridgeEnabledEntitledWarned", func(t *testing.T) {
+	t.Run("PremiumAIBridgeEnabledNotEntitledWarned", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				FeatureSet: codersdk.FeatureSetPremium,
+				FeatureSet: codersdk.FeatureSetEnterprise,
 				GraceAt:    time.Now().Add(time.Hour * 24 * 30),
 				ExpiresAt:  time.Now().Add(time.Hour * 24 * 60),
 			}),
@@ -825,9 +825,30 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.True(t, entitlements.Features[codersdk.FeatureAIBridge].Entitlement.Entitled())
+		require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[codersdk.FeatureAIBridge].Entitlement)
 		require.Len(t, entitlements.Warnings, 1)
 		require.Equal(t, "AI Bridge has reached General Availability and your Coder deployment is not entitled to run this feature. Contact your account team (https://coder.com/contact) for information around getting a license with AI Bridge.", entitlements.Warnings[0])
+	})
+
+	t.Run("AIBridgeNotEnabledNoWarning", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAuditLog: 1, // Some feature but not AI Bridge
+				},
+				GraceAt:   time.Now().Add(time.Hour * 24 * 30),
+				ExpiresAt: time.Now().Add(time.Hour * 24 * 60),
+			}),
+			Exp: time.Now().Add(time.Hour),
+		})
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, map[codersdk.FeatureName]bool{
+			// AIBridge NOT enabled
+		})
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.Empty(t, entitlements.Warnings)
 	})
 
 	t.Run("ManagedAgentLimitHasValue", func(t *testing.T) {
