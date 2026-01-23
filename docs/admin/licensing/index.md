@@ -1,15 +1,9 @@
 # Licensing
 
-Some features are only accessible with a Premium or Enterprise license. See our
-[pricing page](https://coder.com/pricing) for more details. To try Premium
+Some features are only accessible with a Premium license or the [AI Governance Add-On](../../ai-coder/ai-governance.md). See our
+[pricing page](https://coder.com/pricing) for more details. To try paid
 features, you can [request a trial](https://coder.com/trial) or
 [contact sales](https://coder.com/contact).
-
-<!-- markdown-link-check-disable -->
-
-You can learn more about Coder Premium in the [Coder v2.16 blog post](https://coder.com/blog/release-recap-2-16-0)
-
-<!-- markdown-link-check-enable -->
 
 ![Licenses screen shows license information and seat consumption](../../images/admin/licenses/licenses-screen.png)
 
