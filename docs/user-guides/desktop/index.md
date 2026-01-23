@@ -132,8 +132,6 @@ defaults write com.coder.Coder-Desktop disableUpdater -bool true
 
 Organization administrators can also enforce this setting across managed devices using MDM (Mobile Device Management) software by deploying a configuration profile that sets this preference.
 
-When disabled, the "Check for Updates" option will not appear in the application menu.
-
 ### Windows
 
 Set the `Updater:Enable` registry value to `0` under `HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\App`:
