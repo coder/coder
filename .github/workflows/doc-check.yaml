@@ -67,6 +67,10 @@ jobs:
             echo "Secrets not available - skipping doc-check."
             echo "This is expected for PRs where secrets are not available."
             echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            echo "⚠️ Workflow skipped: Secrets not available" >> "${GITHUB_STEP_SUMMARY}"
+            echo "" >> "${GITHUB_STEP_SUMMARY}"
+            echo "This workflow requires secrets that are unavailable for this run." >> "${GITHUB_STEP_SUMMARY}"
+            echo "Maintainers can manually trigger via workflow_dispatch if needed." >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
