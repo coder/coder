@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -520,6 +522,96 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
+}
+
+func TestExecutorAutostopAIAgentActivity(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx        = context.Background()
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+	)
+
+	// Given: we have a user with a task workspace.
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithTask(database.TaskTable{
+		Name:   "test-task",
+		Prompt: "AI agent activity test task",
+	}, &proto.App{Slug: "test-app"}).Do()
+
+	// Given: template has activity bump enabled.
+	_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
+		DefaultTTLMillis:   (2 * time.Hour).Milliseconds(),
+		ActivityBumpMillis: time.Hour.Milliseconds(),
+	})
+	require.NoError(t, err)
+
+	// Set deadline to past to meet 5% threshold for activity bump.
+	now := time.Now()
+	pastDeadline := now.Add(-30 * time.Minute)
+	err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
+		ID:          r.Build.ID,
+		UpdatedAt:   now,
+		Deadline:    pastDeadline,
+		MaxDeadline: time.Time{},
+	})
+	require.NoError(t, err)
+
+	// Given: agent reports "working" status.
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+		AppSlug: "test-app",
+		State:   codersdk.WorkspaceAppStatusStateWorking,
+		Message: "AI agent is working",
+	})
+	require.NoError(t, err)
+
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), r.Workspace.OrganizationID, nil)
+	require.NoError(t, err)
+
+	// When: the autobuild executor ticks after the past deadline.
+	go func() {
+		tickTime := now.Add(30 * time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
+	}()
+
+	// Then: nothing should happen and the workspace should stay running.
+	stats := <-statsCh
+	require.Len(t, stats.Errors, 0)
+	require.Len(t, stats.Transitions, 0)
+
+	// Given: agent reports "complete" status.
+	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+		AppSlug: "test-app",
+		State:   codersdk.WorkspaceAppStatusStateComplete,
+		Message: "AI agent completed",
+	})
+	require.NoError(t, err)
+
+	// When: the autobuild executor ticks after the bumped deadline.
+	go func() {
+		tickTime := now.Add(time.Hour).Add(time.Minute)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
+		close(tickCh)
+	}()
+
+	// Then: the workspace should be stopped.
+	stats = <-statsCh
+	require.Len(t, stats.Errors, 0)
+	require.Len(t, stats.Transitions, 1)
+	require.Contains(t, stats.Transitions, r.Workspace.ID)
+	require.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[r.Workspace.ID])
 }
 
 func TestExecutorAutostopAlreadyStopped(t *testing.T) {

@@ -987,7 +987,7 @@
 					]
 				},
 				{
-					"title": "AI Governance",
+					"title": "AI Governance Add-On",
 					"description": "Features around managing agents at scale",
 					"path": "./ai-coder/ai-governance.md",
 					"state": ["premium"],

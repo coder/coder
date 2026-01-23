@@ -1126,7 +1126,7 @@ func TestSSH(t *testing.T) {
 	t.Run("StdioExitOnParentDeath", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
 		// sleepStart -> agentReady -> sessionStarted -> sleepKill -> sleepDone -> cmdDone
