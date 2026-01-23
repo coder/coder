@@ -9,7 +9,11 @@ import type {
 /**
  * Union of all user-like types that can be distinguished from Group.
  */
-type UserLike = User | ReducedUser | WorkspaceUser | OrganizationMemberWithUserData;
+type UserLike =
+	| User
+	| ReducedUser
+	| WorkspaceUser
+	| OrganizationMemberWithUserData;
 
 /**
  * Type guard to check if the value is a Group.
