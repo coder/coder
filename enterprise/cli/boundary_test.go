@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -232,82 +231,75 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "your deployment appears to be an AGPL deployment")
 	})
+}
 
-	t.Run("ChildProcessSkipsCheck", func(t *testing.T) {
-		// Cannot use t.Parallel() with os.Setenv(), so this test runs sequentially.
-		// When CHILD=true, the license check should be skipped.
-		// This simulates boundary re-executing itself to run the target process.
-		// We use a proxy that would fail the license check to verify it's skipped.
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					// No FeatureBoundary - would normally fail
-				},
+// TestBoundaryChildProcessSkipsCheck verifies that when CHILD=true, the license
+// check is skipped. This simulates boundary re-executing itself to run the
+// target process. We use a proxy that would fail the license check to verify
+// it's skipped.
+func TestBoundaryChildProcessSkipsCheck(t *testing.T) {
+	// Cannot use t.Parallel() with t.Setenv().
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				// No FeatureBoundary - would normally fail
 			},
-		})
+		},
+	})
 
-		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/api/v2/entitlements" {
-				// Return not entitled for boundary - this would normally cause failure.
-				res := codersdk.Entitlements{
-					Features:         map[codersdk.FeatureName]codersdk.Feature{},
-					Warnings:         []string{},
-					Errors:           []string{},
-					HasLicense:       true,
-					Trial:            false,
-					RequireTelemetry: false,
-				}
-				for _, feature := range codersdk.FeatureNames {
-					if feature == codersdk.FeatureBoundary {
-						res.Features[feature] = codersdk.Feature{
-							Entitlement: codersdk.EntitlementNotEntitled,
-							Enabled:     false,
-						}
-					} else {
-						res.Features[feature] = codersdk.Feature{
-							Entitlement: codersdk.EntitlementEntitled,
-							Enabled:     true,
-						}
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/entitlements" {
+			// Return not entitled for boundary - this would normally cause failure.
+			res := codersdk.Entitlements{
+				Features:         map[codersdk.FeatureName]codersdk.Feature{},
+				Warnings:         []string{},
+				Errors:           []string{},
+				HasLicense:       true,
+				Trial:            false,
+				RequireTelemetry: false,
+			}
+			for _, feature := range codersdk.FeatureNames {
+				if feature == codersdk.FeatureBoundary {
+					res.Features[feature] = codersdk.Feature{
+						Entitlement: codersdk.EntitlementNotEntitled,
+						Enabled:     false,
+					}
+				} else {
+					res.Features[feature] = codersdk.Feature{
+						Entitlement: codersdk.EntitlementEntitled,
+						Enabled:     true,
 					}
 				}
-				httpapi.Write(r.Context(), w, http.StatusOK, res)
-				return
 			}
+			httpapi.Write(r.Context(), w, http.StatusOK, res)
+			return
+		}
 
-			// Otherwise, proxy the request to the real API server.
-			rp := httputil.NewSingleHostReverseProxy(client.URL)
-			tp := &http.Transport{}
-			defer tp.CloseIdleConnections()
-			rp.Transport = tp
-			rp.ServeHTTP(w, r)
-		}))
-		defer proxy.Close()
+		// Otherwise, proxy the request to the real API server.
+		rp := httputil.NewSingleHostReverseProxy(client.URL)
+		tp := &http.Transport{}
+		defer tp.CloseIdleConnections()
+		rp.Transport = tp
+		rp.ServeHTTP(w, r)
+	}))
+	defer proxy.Close()
 
-		proxyURL, err := url.Parse(proxy.URL)
-		require.NoError(t, err)
-		proxyClient := codersdk.New(proxyURL)
-		proxyClient.SetSessionToken(client.SessionToken())
-		t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
+	proxyURL, err := url.Parse(proxy.URL)
+	require.NoError(t, err)
+	proxyClient := codersdk.New(proxyURL)
+	proxyClient.SetSessionToken(client.SessionToken())
+	t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
-		inv, conf := newCLI(t, "boundary", "--version")
-		clitest.SetupConfig(t, proxyClient, conf)
+	inv, conf := newCLI(t, "boundary", "--version")
+	clitest.SetupConfig(t, proxyClient, conf)
 
-		// Set CHILD=true in the actual OS environment to simulate boundary re-execution.
-		// This should skip the license check, so the command should succeed
-		// even though the proxy would return "not entitled".
-		oldValue := os.Getenv("CHILD")
-		os.Setenv("CHILD", "true")
-		t.Cleanup(func() {
-			if oldValue == "" {
-				os.Unsetenv("CHILD")
-			} else {
-				os.Setenv("CHILD", oldValue)
-			}
-		})
+	// Set CHILD=true to simulate boundary re-execution. This should skip the
+	// license check, so the command should succeed even though the proxy would
+	// return "not entitled".
+	t.Setenv("CHILD", "true")
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		err = inv.WithContext(ctx).Run()
-		// Should succeed because license check is skipped for child processes.
-		require.NoError(t, err)
-	})
+	ctx := testutil.Context(t, testutil.WaitShort)
+	err = inv.WithContext(ctx).Run()
+	// Should succeed because license check is skipped for child processes.
+	require.NoError(t, err)
 }
