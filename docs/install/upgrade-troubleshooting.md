@@ -4,6 +4,17 @@ This guide covers common issues encountered during Coder upgrades, particularly
 with database migrations in high availability (HA) deployments, and provides
 step-by-step troubleshooting and recovery procedures.
 
+## Before you upgrade
+
+- **The larger the version jump, the more migrations will run.** If you are
+  upgrading across multiple minor versions, expect longer migration times.
+- **Large upgrades should complete in minutes** (typically 4-7 minutes). If your
+  upgrade is taking significantly longer, there may be an issue requiring
+  investigation.
+- **Upgrades from v2.26.0 to v2.27.8** may encounter specific issues with the
+  `api_keys` table. If you are upgrading within this range, consider upgrading
+  to v2.26.6 first to mitigate potential issues with this table.
+
 ## Pre-upgrade strategy for HA deployments
 
 Standard rolling updates may fail when exclusive database locks are required
@@ -112,3 +123,21 @@ If an upgrade gets stuck in a restart loop due to database locks:
    ```shell
    kubectl scale deployment coder --replicas=1
    ```
+
+## When to contact support
+
+If you encounter any of the following issues, contact
+[Coder Support](https://coder.com/support):
+
+- Locking issues that cannot be mitigated by the steps in this guide
+- Migrations taking significantly longer than expected (more than 10-15 minutes)
+- Resource consumption issues (excessive memory, CPU, or OOM kills) during
+  upgrades
+- Any other upgrade problems not covered by this documentation
+
+When contacting support, please collect and provide:
+
+- `coderd` logs with details on the stages where the upgrade stalled
+- PostgreSQL logs if available
+- The Coder versions involved (source and target)
+- Your deployment configuration (number of replicas, resource limits)
