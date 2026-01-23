@@ -1049,6 +1049,11 @@
 									"path": "./ai-coder/ai-bridge/reference.md"
 								}
 							]
+						},
+						{
+							"title": "Usage Data Reporting",
+							"description": "Configure AI usage data reporting",
+							"path": "./ai-coder/usage-data-reporting.md"
 						}
 					]
 				},
