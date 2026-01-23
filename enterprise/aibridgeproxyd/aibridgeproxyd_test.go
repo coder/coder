@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -911,12 +912,13 @@ func TestProxy_MITM(t *testing.T) {
 			t.Parallel()
 
 			// Track what aibridged receives.
-			var receivedPath, receivedCoderToken string
+			var receivedPath, receivedCoderToken, receivedRequestID string
 
 			// Create a mock aibridged server that captures requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				receivedPath = r.URL.Path
 				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
+				receivedRequestID = r.Header.Get(aibridgeproxyd.HeaderAIBridgeRequestID)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
 			}))
@@ -985,11 +987,15 @@ func TestProxy_MITM(t *testing.T) {
 				require.Equal(t, "hello from tunneled", string(body))
 				require.Empty(t, receivedPath, "aibridged should not receive tunneled requests")
 				require.Empty(t, receivedCoderToken, "tunneled requests are not authenticated by the proxy")
+				require.Empty(t, receivedRequestID, "tunneled requests should not have request ID header")
 			} else {
 				// Verify the request was routed to aibridged correctly.
 				require.Equal(t, "hello from aibridged", string(body))
 				require.Equal(t, tt.expectedPath, receivedPath)
 				require.Equal(t, "test-token", receivedCoderToken, "MITM'd requests must include Coder token")
+				require.NotEmpty(t, receivedRequestID, "MITM'd requests must include request ID header")
+				_, err := uuid.Parse(receivedRequestID)
+				require.NoError(t, err, "request ID must be a valid UUID")
 			}
 		})
 	}

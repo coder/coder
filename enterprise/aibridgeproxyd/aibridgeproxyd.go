@@ -18,6 +18,7 @@ import (
 
 	"github.com/elazarl/goproxy"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -29,6 +30,12 @@ import (
 const (
 	HostAnthropic = "api.anthropic.com"
 	HostOpenAI    = "api.openai.com"
+)
+
+const (
+	// HeaderAIBridgeRequestID is the header used to correlate requests
+	// between aibridgeproxyd and aibridged.
+	HeaderAIBridgeRequestID = "X-Coder-AI-Bridge-Request-Id"
 )
 
 // loadMitmOnce ensures the MITM certificate is loaded exactly once.
@@ -60,14 +67,18 @@ type Server struct {
 // It is stored in goproxy's ProxyCtx.UserData and enriched as the request progresses
 // through the proxy handlers.
 type requestContext struct {
-	// ConnectSessionID is the session ID from the CONNECT handshake.
+	// ConnectSessionID is a unique identifier for this CONNECT session.
 	// Set in authMiddleware during the CONNECT handshake.
 	// Used to correlate requests/responses with their originating CONNECT.
-	ConnectSessionID int64
+	ConnectSessionID uuid.UUID
 	// CoderToken is the authentication token extracted from Proxy-Authorization.
 	// Set in authMiddleware during the CONNECT handshake.
 	CoderToken string
-	// Provider is the aibridge provider name .
+	// RequestID is a unique identifier for this request.
+	// Set in handleRequest for MITM'd requests.
+	// Sent to aibridged via X-Coder-AI-Bridge-Request-Id header for cross-service correlation.
+	RequestID uuid.UUID
+	// Provider is the aibridge provider name.
 	// Set in handleRequest when handling MITM requests for allowlisted domains.
 	Provider string
 }
@@ -429,6 +440,9 @@ func convertDomainsToHosts(domains []string, allowedPorts []string) ([]string, e
 //
 // The token is extracted from the password field of basic auth.
 func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	// Generate a unique connect session ID for this CONNECT request.
+	connectSessionID := uuid.New()
+
 	proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
 	coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
 
@@ -450,7 +464,7 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	// goproxy propagates UserData to subsequent request/response contexts
 	// for decrypted requests within this MITM session.
 	ctx.UserData = &requestContext{
-		ConnectSessionID: ctx.Session,
+		ConnectSessionID: connectSessionID,
 		CoderToken:       coderToken,
 	}
 
@@ -537,9 +551,13 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, resp
 	}
 
+	// Generate a unique request ID for this request.
+	// This ID is sent to aibridged for cross-service log correlation.
+	reqCtx.RequestID = uuid.New()
+
 	logger := s.logger.With(
-		slog.F("connect_id", reqCtx.ConnectSessionID),
-		slog.F("request_id", ctx.Session),
+		slog.F("connect_id", reqCtx.ConnectSessionID.String()),
+		slog.F("request_id", reqCtx.RequestID.String()),
 		slog.F("host", req.Host),
 		slog.F("method", req.Method),
 		slog.F("path", originalPath),
@@ -601,6 +619,10 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// which are forwarded to upstream providers.
 	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
 
+	// Set X-Coder-AI-Bridge-Request-Id header for cross-service log correlation.
+	// This allows correlating aibridgeproxyd logs with aibridged logs.
+	req.Header.Set(HeaderAIBridgeRequestID, reqCtx.RequestID.String())
+
 	logger.Info(s.ctx, "routing MITM request to aibridged",
 		slog.F("aibridged_url", aiBridgeParsedURL.String()),
 	)
@@ -617,16 +639,18 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 	}
 
 	reqCtx, _ := ctx.UserData.(*requestContext)
-	connectID := int64(0)
+	connecSessiontID := uuid.Nil
+	requestID := uuid.Nil
 	provider := ""
 	if reqCtx != nil {
-		connectID = reqCtx.ConnectSessionID
+		connecSessiontID = reqCtx.ConnectSessionID
+		requestID = reqCtx.RequestID
 		provider = reqCtx.Provider
 	}
 
 	s.logger.Debug(s.ctx, "received response from aibridged",
-		slog.F("connect_id", connectID),
-		slog.F("request_id", ctx.Session),
+		slog.F("connect_id", connecSessiontID.String()),
+		slog.F("request_id", requestID.String()),
 		slog.F("status", resp.StatusCode),
 		slog.F("provider", provider),
 	)
