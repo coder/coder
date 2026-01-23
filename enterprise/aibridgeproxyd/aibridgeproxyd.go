@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/elazarl/goproxy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ import (
 const (
 	HostAnthropic = "api.anthropic.com"
 	HostOpenAI    = "api.openai.com"
+	HostCopilot   = "api.individual.githubcopilot.com"
 )
 
 const (
@@ -543,6 +545,8 @@ func defaultAIBridgeProvider(host string) string {
 		return aibridge.ProviderAnthropic
 	case HostOpenAI:
 		return aibridge.ProviderOpenAI
+	case HostCopilot:
+		return aibridge.ProviderCopilot
 	default:
 		return ""
 	}

@@ -820,13 +820,16 @@ aibridgeproxy:
   # Path to the CA private key file for AI Bridge Proxy.
   # (default: <unset>, type: string)
   key_file: ""
-  # Comma-separated list of domains for which HTTPS traffic will be decrypted and
-  # routed through AI Bridge. Requests to other domains will be tunneled directly
-  # without decryption.
-  # (default: api.anthropic.com,api.openai.com, type: string-array)
+  # Comma-separated list of AI provider domains for which HTTPS traffic will be
+  # decrypted and routed through AI Bridge. Requests to other domains will be
+  # tunneled directly without decryption. Supported domains: api.anthropic.com,
+  # api.openai.com, api.individual.githubcopilot.com.
+  # (default: api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,
+  # type: string-array)
   domain_allowlist:
     - api.anthropic.com
     - api.openai.com
+    - api.individual.githubcopilot.com
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
   # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
   # (default: <unset>, type: string)
