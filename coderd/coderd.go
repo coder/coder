@@ -1428,6 +1428,9 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
+				r.Route("/tasks/{task}", func(r chi.Router) {
+					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
+				})
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(

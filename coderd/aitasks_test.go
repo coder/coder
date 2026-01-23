@@ -1,12 +1,14 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1656,4 +1658,269 @@ func TestTasksNotification(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
+	t.Parallel()
+
+	// DB envelope format.
+	type envelope struct {
+		Format string                          `json:"format"`
+		Data   agentapisdk.GetMessagesResponse `json:"data"`
+	}
+
+	// Shared coderd with mock clock for all tests.
+	clock := quartz.NewMock(t)
+	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Clock: clock,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+	createTaskWorkspace := func(t *testing.T, agentToken string) (taskID uuid.UUID, workspaceID uuid.UUID) {
+		t.Helper()
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        owner.UserID,
+		}).WithTask(database.TaskTable{
+			Prompt: "test prompt",
+		}, &proto.App{
+			Slug: "task-app",
+			Url:  "http://localhost:8080",
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Auth = &proto.Agent_Token{Token: agentToken}
+			return agents
+		}).Do()
+		return workspaceBuild.Task.ID, workspaceBuild.Workspace.ID
+	}
+
+	makePayload := func(t *testing.T, content string) []byte {
+		t.Helper()
+		data := agentapisdk.GetMessagesResponse{
+			Messages: []agentapisdk.Message{
+				{Id: 0, Role: "agent", Content: content, Time: time.Now()},
+			},
+		}
+		b, err := json.Marshal(data)
+		require.NoError(t, err)
+		return b
+	}
+
+	makeRequest := func(t *testing.T, taskID uuid.UUID, agentToken string, payload []byte, format string) *http.Response {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		url := ownerClient.URL.JoinPath("/api/v2/workspaceagents/me/tasks", taskID.String(), "log-snapshot").String()
+		if format != "" {
+			url += "?format=" + format
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, agentToken)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		return res
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+
+		snapshot, err := db.GetTaskSnapshot(dbauthz.AsSystemRestricted(ctx), taskID)
+		require.NoError(t, err)
+
+		var e envelope
+		err = json.Unmarshal(snapshot.LogSnapshot, &e)
+		require.NoError(t, err)
+		require.Equal(t, "agentapi", e.Format)
+		require.NotNil(t, e.Data)
+		require.Len(t, e.Data.Messages, 1)
+		require.Equal(t, "test", e.Data.Messages[0].Content)
+	})
+
+	//nolint:paralleltest // Not parallel, advances shared clock.
+	t.Run("Overwrite", func(t *testing.T) {
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// First snapshot.
+		res1 := makeRequest(t, taskID, agentToken, makePayload(t, "first"), "agentapi")
+		res1.Body.Close()
+		require.Equal(t, http.StatusNoContent, res1.StatusCode)
+
+		snapshot1, err := db.GetTaskSnapshot(dbauthz.AsSystemRestricted(ctx), taskID)
+		require.NoError(t, err)
+		firstTime := snapshot1.LogSnapshotCreatedAt
+
+		// Advance clock to ensure timestamp differs.
+		clock.Advance(time.Second)
+
+		// Second snapshot.
+		res2 := makeRequest(t, taskID, agentToken, makePayload(t, "second"), "agentapi")
+		res2.Body.Close()
+		require.Equal(t, http.StatusNoContent, res2.StatusCode)
+
+		snapshot2, err := db.GetTaskSnapshot(dbauthz.AsSystemRestricted(ctx), taskID)
+		require.NoError(t, err)
+		require.True(t, snapshot2.LogSnapshotCreatedAt.After(firstTime))
+
+		// Verify data was overwritten.
+		var e envelope
+		err = json.Unmarshal(snapshot2.LogSnapshot, &e)
+		require.NoError(t, err)
+		require.Equal(t, "agentapi", e.Format)
+		require.NotNil(t, e.Data)
+		require.Len(t, e.Data.Messages, 1)
+		require.Equal(t, "second", e.Data.Messages[0].Content)
+	})
+
+	t.Run("MissingFormat", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Missing required query parameter")
+	})
+
+	t.Run("InvalidFormat", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "unknown")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid format parameter")
+	})
+
+	t.Run("PayloadTooLarge", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		largeContent := strings.Repeat("x", 65*1024)
+		payload := makePayload(t, largeContent)
+
+		res := makeRequest(t, taskID, agentToken, payload, "agentapi")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		res.Body.Close()
+	})
+
+	t.Run("InvalidTaskID", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		url := ownerClient.URL.JoinPath("/api/v2/workspaceagents/me/tasks", "not-a-uuid", "log-snapshot").String() + "?format=agentapi"
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(makePayload(t, "test")))
+		req.Header.Set(codersdk.SessionTokenHeader, agentToken)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid task ID format")
+	})
+
+	t.Run("TaskNotFound", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, uuid.New(), agentToken, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("WrongWorkspace", func(t *testing.T) {
+		t.Parallel()
+		agent1Token := uuid.NewString()
+		agent2Token := uuid.NewString()
+		taskID1, _ := createTaskWorkspace(t, agent1Token)
+		taskID2, _ := createTaskWorkspace(t, agent2Token)
+
+		// Try to POST snapshot for task2 using agent1's token.
+		res := makeRequest(t, taskID2, agent1Token, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+
+		// Verify we CAN post for our own task.
+		res2 := makeRequest(t, taskID1, agent1Token, makePayload(t, "test"), "agentapi")
+		defer res2.Body.Close()
+		require.Equal(t, http.StatusNoContent, res2.StatusCode)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, "", makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("MalformedJSON", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, agentToken, []byte("{invalid json"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid agentapi payload structure")
+	})
+
+	t.Run("InvalidAgentAPIPayload", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		// Missing required "messages" field.
+		res := makeRequest(t, taskID, agentToken, []byte(`{"truncated":false,"total_count":0}`), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid agentapi payload structure")
+	})
+
+	t.Run("DeletedTask", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Delete the task.
+		err := ownerClient.DeleteTask(ctx, owner.UserID.String(), taskID)
+		require.NoError(t, err)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		// Agent token becomes invalid after task deletion.
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
 }

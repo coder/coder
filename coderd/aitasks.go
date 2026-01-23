@@ -1,10 +1,13 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,10 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	aiagentapi "github.com/coder/agentapi-sdk-go"
+	"cdr.dev/slog/v3"
+	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -740,7 +745,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
+		agentAPIClient, err := agentapisdk.NewClient(appURL.String(), agentapisdk.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Failed to create agentapi client.",
@@ -756,16 +761,16 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		if statusResp.Status != aiagentapi.StatusStable {
+		if statusResp.Status != agentapisdk.StatusStable {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
 				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
 		}
 
-		_, err = agentAPIClient.PostMessage(ctx, aiagentapi.PostMessageParams{
+		_, err = agentAPIClient.PostMessage(ctx, agentapisdk.PostMessageParams{
 			Content: req.Input,
-			Type:    aiagentapi.MessageTypeUser,
+			Type:    agentapisdk.MessageTypeUser,
 		})
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -798,7 +803,7 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 
 	var out codersdk.TaskLogsResponse
 	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
+		agentAPIClient, err := agentapisdk.NewClient(appURL.String(), agentapisdk.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Failed to create agentapi client.",
@@ -818,9 +823,9 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 		for _, m := range messagesResp.Messages {
 			var typ codersdk.TaskLogType
 			switch m.Role {
-			case aiagentapi.RoleUser:
+			case agentapisdk.RoleUser:
 				typ = codersdk.TaskLogTypeInput
-			case aiagentapi.RoleAgent:
+			case agentapisdk.RoleAgent:
 				typ = codersdk.TaskLogTypeOutput
 			default:
 				return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -949,4 +954,158 @@ func (api *API) authAndDoWithTaskAppClient(
 		},
 	}
 	return do(ctx, client, parsedURL)
+}
+
+// @Summary Upload task log snapshot
+// @ID upload-task-log-snapshot
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Tasks
+// @Param task path string true "Task ID" format(uuid)
+// @Param format query string true "Snapshot format" enums(agentapi)
+// @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
+// @Success 204
+// @Router /workspaceagents/me/tasks/{task}/log-snapshot [post]
+func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx         = r.Context()
+		latestBuild = httpmw.LatestBuild(r)
+	)
+
+	// Parse task ID from path.
+	taskIDStr := chi.URLParam(r, "task")
+	taskID, err := uuid.Parse(taskIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid task ID format.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Validate format parameter (required).
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing required query parameter.",
+			Detail:  `The "format" query parameter is required.`,
+		})
+		return
+	}
+	if format != "agentapi" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid format parameter.",
+			Detail:  fmt.Sprintf(`Only "agentapi" format is currently supported, got %q.`, format),
+		})
+		return
+	}
+
+	// Verify task exists before reading the potentially large payload.
+	// This prevents DoS attacks where attackers spam large payloads for
+	// non-existent or deleted tasks, forcing us to read 64KB into memory
+	// and do expensive JSON operations before the database rejects it.
+	// The UpsertTaskSnapshot will re-fetch for RBAC validation, but this
+	// early check protects against malicious load.
+	task, err := api.Database.GetTaskByID(ctx, taskID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Reject deleted tasks early.
+	if task.DeletedAt.Valid {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Verify task belongs to this agent's workspace.
+	if !task.WorkspaceID.Valid || task.WorkspaceID.UUID != latestBuild.WorkspaceID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Read and validate payload size to avoid excessive memory or data usage.
+	maxSize := int64(64 * 1024) // 64KB
+	r.Body = http.MaxBytesReader(rw, r.Body, maxSize)
+
+	// Read raw JSON payload, structure depends on format parameter.
+	rawPayload, err := io.ReadAll(r.Body)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Validate the payload structure matches the expected format.
+	switch format {
+	case "agentapi":
+		var payload agentapisdk.GetMessagesResponse
+		if err := json.Unmarshal(rawPayload, &payload); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid agentapi payload structure.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// Verify messages field exists (can be empty array).
+		if payload.Messages == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid agentapi payload structure.",
+				Detail:  `Missing required "messages" field.`,
+			})
+			return
+		}
+	default:
+		// Defensive branch, we already validated "agentapi" format but may add
+		// more formats in the future.
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid format parameter.",
+			Detail:  fmt.Sprintf(`Only "agentapi" format is currently supported, got %q.`, format),
+		})
+		return
+	}
+
+	// Wrap in format envelope using bytes.Buffer for efficiency.
+	var buf bytes.Buffer
+	_, _ = buf.WriteString(`{"format":"`)
+	_, _ = buf.WriteString(format)
+	_, _ = buf.WriteString(`","data":`)
+	_, _ = buf.Write(rawPayload)
+	_ = buf.WriteByte('}')
+	snapshotJSON := buf.Bytes()
+
+	// Upsert to database using agent's RBAC context.
+	err = api.Database.UpsertTaskSnapshot(ctx, database.UpsertTaskSnapshotParams{
+		TaskID:               task.ID,
+		LogSnapshot:          json.RawMessage(snapshotJSON),
+		LogSnapshotCreatedAt: dbtime.Time(api.Clock.Now()),
+	})
+	if err != nil {
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error storing snapshot.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.Logger.Debug(ctx, "stored task log snapshot",
+		slog.F("task_id", task.ID),
+		slog.F("workspace_id", latestBuild.WorkspaceID),
+		slog.F("snapshot_size_bytes", len(snapshotJSON))) // Note: May be slightly >64KB.
+
+	rw.WriteHeader(http.StatusNoContent)
 }

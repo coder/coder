@@ -9556,6 +9556,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/tasks/{task}/log-snapshot": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Upload task log snapshot",
+                "operationId": "upload-task-log-snapshot",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "agentapi"
+                        ],
+                        "type": "string",
+                        "description": "Snapshot format",
+                        "name": "format",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "description": "Raw snapshot payload (structure depends on format parameter)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}": {
             "get": {
                 "security": [

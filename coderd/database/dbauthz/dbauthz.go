@@ -3102,6 +3102,25 @@ func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUI
 	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
 }
 
+func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
+	// Fetch task to build RBAC object for authorization.
+	task, err := q.GetTaskByID(ctx, taskID)
+	if err != nil {
+		return database.TaskSnapshot{}, err
+	}
+
+	obj := rbac.ResourceTask.
+		WithID(task.ID).
+		WithOwner(task.OwnerID.String()).
+		InOrg(task.OrganizationID)
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.TaskSnapshot{}, err
+	}
+
+	return q.db.GetTaskSnapshot(ctx, taskID)
+}
+
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.TelemetryItem{}, err
@@ -6090,6 +6109,25 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTaskSnapshot(ctx context.Context, arg database.UpsertTaskSnapshotParams) error {
+	// Fetch task to build RBAC object for authorization.
+	task, err := q.GetTaskByID(ctx, arg.TaskID)
+	if err != nil {
+		return err
+	}
+
+	obj := rbac.ResourceTask.
+		WithID(task.ID).
+		WithOwner(task.OwnerID.String()).
+		InOrg(task.OrganizationID)
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+
+	return q.db.UpsertTaskSnapshot(ctx, arg)
 }
 
 func (q *querier) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
