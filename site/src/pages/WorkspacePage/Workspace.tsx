@@ -9,7 +9,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
-import { useAgentConnectionDelayBanner } from "modules/resources/useAgentConnectionDelayBanner";
+import { useAgentConnectionDelayBanner } from "hooks/useAgentConnectionDelayBanner";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
