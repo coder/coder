@@ -9,7 +9,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
-import { useAgentMetadataHealthBanner } from "modules/resources/useAgentMetadataHealthBanner";
+import { useAgentConnectionDelayBanner } from "hooks/useAgentConnectionDelayBanner";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -120,11 +120,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 
-	// Collect all agent IDs from all resources for banner detection
-	// This ensures we monitor agents even if no resource is selected
-	const agentIds = resources.flatMap((r) => (r.agents ?? []).map((a) => a.id));
-	const { shouldShow: shouldShowAgentMetricsBanner } =
-		useAgentMetadataHealthBanner(agentIds, workspaceRunning);
+	const { shouldShow: shouldShowAgentConnectionDelayBanner } =
+		useAgentConnectionDelayBanner(timings, workspaceRunning);
 
 	return (
 		<div
@@ -238,7 +235,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{shouldShowAgentMetricsBanner && (
+					{shouldShowAgentConnectionDelayBanner && (
 						<Alert severity="info">
 							<AlertTitle>Workspace is still preparing</AlertTitle>
 							<AlertDetail>
