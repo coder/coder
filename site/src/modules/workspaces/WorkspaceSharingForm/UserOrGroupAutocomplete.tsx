@@ -1,15 +1,16 @@
 import { groupsByOrganization } from "api/queries/groups";
-import { organizationMembers } from "api/queries/organizations";
+import { paginatedOrganizationMembers } from "api/queries/organizations";
 import type { Group, OrganizationMemberWithUserData } from "api/typesGenerated";
 import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { Check } from "lucide-react";
 import { getGroupSubtitle, isGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 
-type MemberType = OrganizationMemberWithUserData & { id: string };
-type AutocompleteOption = MemberType | Group;
+type OrganizationMember = OrganizationMemberWithUserData & { id: string };
+type AutocompleteOption = OrganizationMember | Group;
 export type UserOrGroupAutocompleteValue = AutocompleteOption | null;
 
 type ExcludableOption = { id?: string | null } | null;
@@ -23,7 +24,7 @@ type UserOrGroupAutocompleteProps = {
 
 const normalizeMember = (
 	member: OrganizationMemberWithUserData,
-): MemberType => ({
+): OrganizationMember => ({
 	...member,
 	id: member.user_id,
 });
@@ -47,10 +48,11 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	// Use org members endpoint instead of site-wide /users endpoint.
 	// This allows regular org members to see other members in their org
 	// for workspace sharing, without needing site-wide user:read permission.
-	const membersQuery = useQuery({
-		...organizationMembers(organizationId),
+	const membersQuery = usePaginatedQuery({
+		...paginatedOrganizationMembers(organizationId, new URLSearchParams()),
 		enabled: open,
 		placeholderData: keepPreviousData,
+		prefetch: false,
 	});
 
 	const groupsQuery = useQuery({
