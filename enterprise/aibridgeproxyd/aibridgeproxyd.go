@@ -260,11 +260,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		srv.authMiddleware,
 	)
 
-	// Tunnel CONNECT requests for non-allowlisted domains directly to their destination.
-	// Order matters: this must come after other CONNECT handlers so it only handles
-	// requests that weren't matched by the allowlist.
-	proxy.OnRequest().HandleConnectFunc(srv.handleTunnelRequest)
-
 	// Handle decrypted requests: route to aibridged for known AI providers, or tunnel to original destination.
 	proxy.OnRequest().DoFunc(srv.handleRequest)
 	// Handle responses from aibridged.
@@ -505,16 +500,6 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
-// handleTunnelRequest handles CONNECT requests for non-allowlisted domains.
-// These requests are tunneled directly to their destination without MITM decryption.
-func (s *Server) handleTunnelRequest(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
-	s.logger.Debug(s.ctx, "tunneling request",
-		slog.F("connect_id", ctx.Session),
-		slog.F("host", host),
-	)
-	return goproxy.OkConnect, host
-}
-
 // defaultAIBridgeProvider maps the request host to the aibridge provider name.
 //   - Known AI providers return their provider name, used to route to the
 //     corresponding aibridge endpoint.
@@ -587,8 +572,6 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 
 	// Store provider in context for response handler.
 	reqCtx.Provider = provider
-
-	logger.Debug(s.ctx, "handling decrypted MITM request")
 
 	// Rewrite the request to point to aibridged.
 	if s.coderAccessURL == nil || s.coderAccessURL.String() == "" {
