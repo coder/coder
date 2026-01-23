@@ -622,17 +622,17 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 	}
 
 	reqCtx, _ := ctx.UserData.(*requestContext)
-	connecSessiontID := uuid.Nil
+	connectSessionID := uuid.Nil
 	requestID := uuid.Nil
 	provider := ""
 	if reqCtx != nil {
-		connecSessiontID = reqCtx.ConnectSessionID
+		connectSessionID = reqCtx.ConnectSessionID
 		requestID = reqCtx.RequestID
 		provider = reqCtx.Provider
 	}
 
 	s.logger.Debug(s.ctx, "received response from aibridged",
-		slog.F("connect_id", connecSessiontID.String()),
+		slog.F("connect_id", connectSessionID.String()),
 		slog.F("request_id", requestID.String()),
 		slog.F("status", resp.StatusCode),
 		slog.F("provider", provider),
