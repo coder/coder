@@ -137,7 +137,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
 ## When to contact support
 
 If you encounter any of the following issues, contact
-[Coder Support](https://coder.com/support):
+[Coder support](../support/index.md):
 
 - Locking issues that cannot be mitigated by the steps in this guide
 - Migrations taking significantly longer than expected (more than 10-15 minutes)
