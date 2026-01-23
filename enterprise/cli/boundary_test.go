@@ -58,6 +58,7 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 		})
 
 		inv, conf := newCLI(t, "boundary", "--version")
+		//nolint:gocritic // requires owner
 		clitest.SetupConfig(t, client, conf)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
