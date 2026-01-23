@@ -120,8 +120,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 
-	const { shouldShow: shouldShowAgentMetricsBanner } =
-		useAgentConnectionDelayBanner(timings, workspaceRunning || workspacePending);
+	const { shouldShow: shouldShowAgentConnectionDelayBanner } =
+		useAgentConnectionDelayBanner(timings, workspaceRunning);
 
 	return (
 		<div
@@ -235,7 +235,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{shouldShowAgentMetricsBanner && (
+					{shouldShowAgentConnectionDelayBanner && (
 						<Alert severity="info">
 							<AlertTitle>Workspace is still preparing</AlertTitle>
 							<AlertDetail>
