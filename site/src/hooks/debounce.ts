@@ -43,7 +43,9 @@ export function useDebouncedFunction<
 		);
 	}
 
-	const timeoutIdRef = useRef<number | undefined>(undefined);
+	const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+		undefined,
+	);
 	const cancelDebounce = useCallback(() => {
 		if (timeoutIdRef.current !== undefined) {
 			clearTimeout(timeoutIdRef.current);
