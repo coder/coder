@@ -571,6 +571,13 @@ func TestEntitlements(t *testing.T) {
 				continue
 			}
 
+			if featureName == codersdk.FeatureAIBridge {
+				// AI Bridge is entitled but not auto-enabled (requires CODER_AIBRIDGE_ENABLED=true)
+				require.False(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
+				continue
+			}
+
 			if slices.Contains(enterpriseFeatures, featureName) {
 				require.True(t, entitlements.Features[featureName].Enabled, featureName)
 				require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
