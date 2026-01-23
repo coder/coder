@@ -1,4 +1,4 @@
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { useDebouncedFunction, useDebouncedValue } from "./debounce";
 
 beforeAll(() => {

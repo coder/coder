@@ -303,8 +303,6 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 		const mockQueryKey = vi.fn(() => ["mock"]);
 
 		const mockQueryFn = vi.fn(({ pageNumber, limit }) => {
-			type Data = PaginatedData & { data: readonly number[] };
-
 			return Promise.resolve({
 				data: new Array(limit).fill(pageNumber),
 				count: 100,
