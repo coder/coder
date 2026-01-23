@@ -1,6 +1,6 @@
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationMembers } from "api/queries/organizations";
-import type { Group, OrganizationMemberWithUserData, User } from "api/typesGenerated";
+import type { Group, OrganizationMemberWithUserData } from "api/typesGenerated";
 import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Check } from "lucide-react";
@@ -8,7 +8,8 @@ import { getGroupSubtitle, isGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 
-type AutocompleteOption = User | Group;
+type MemberType = OrganizationMemberWithUserData & { id: string };
+type AutocompleteOption = MemberType | Group;
 export type UserOrGroupAutocompleteValue = AutocompleteOption | null;
 
 type ExcludableOption = { id?: string | null } | null;
@@ -20,22 +21,9 @@ type UserOrGroupAutocompleteProps = {
 	exclude: ExcludableOption[];
 };
 
-/**
- * Converts an OrganizationMemberWithUserData to a User-like shape for the autocomplete.
- * The org members endpoint returns user_id instead of id, so we normalize it here.
- */
-const memberToUser = (member: OrganizationMemberWithUserData): User => ({
+const normalizeMember = (member: OrganizationMemberWithUserData): MemberType => ({
+	...member,
 	id: member.user_id,
-	username: member.username,
-	name: member.name,
-	avatar_url: member.avatar_url ?? "",
-	email: member.email,
-	created_at: member.created_at,
-	updated_at: member.updated_at,
-	status: "active",
-	login_type: "password",
-	organization_ids: [member.organization_id],
-	roles: member.global_roles,
 });
 
 export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
@@ -93,7 +81,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 					const haystack = `${member.name ?? ""} ${member.username} ${member.email}`.toLowerCase();
 					return haystack.includes(filterValue);
 				})
-				.map(memberToUser)
+				.map(normalizeMember)
 		: [];
 
 	const excludeIds = exclude
