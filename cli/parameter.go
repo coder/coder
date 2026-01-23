@@ -24,6 +24,7 @@ type workspaceParameterFlags struct {
 	richParameterDefaults []string
 
 	promptRichParameters bool
+	useParameterDefaults bool
 }
 
 func (wpf *workspaceParameterFlags) allOptions() []serpent.Option {
@@ -97,6 +98,15 @@ func (wpf *workspaceParameterFlags) alwaysPrompt() serpent.Option {
 		Flag:        "always-prompt",
 		Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
 		Value:       serpent.BoolOf(&wpf.promptRichParameters),
+	}
+}
+
+func (wfp *workspaceParameterFlags) workspaceParameterDefaults() serpent.Option {
+	return serpent.Option{
+		Flag:        "use-parameter-defaults",
+		Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
+		Description: "Automatically accept parameter defaults when no value is provided.",
+		Value:       serpent.BoolOf(&wfp.useParameterDefaults),
 	}
 }
 

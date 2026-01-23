@@ -42,10 +42,9 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		stopAfter       time.Duration
 		workspaceName   string
 
-		parameterFlags       workspaceParameterFlags
-		autoUpdates          string
-		copyParametersFrom   string
-		useParameterDefaults bool
+		parameterFlags     workspaceParameterFlags
+		autoUpdates        string
+		copyParametersFrom string
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -331,7 +330,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
 
-				UseParameterDefaults: useParameterDefaults,
+				UseParameterDefaults: parameterFlags.useParameterDefaults,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -438,12 +437,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Description: "Specify the source workspace name to copy parameters from.",
 			Value:       serpent.StringOf(&copyParametersFrom),
 		},
-		serpent.Option{
-			Flag:        "use-parameter-defaults",
-			Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
-			Description: "Automatically accept parameter defaults when no value is provided.",
-			Value:       serpent.BoolOf(&useParameterDefaults),
-		},
+		parameterFlags.workspaceParameterDefaults(),
 		cliui.SkipPromptOption(),
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
