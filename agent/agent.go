@@ -882,7 +882,7 @@ const (
 )
 
 func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
-	// a blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
+	// A blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
 	// still report it, and the recipient can handle a blank IP.
 	if ip != "" {
 		// Remove the port from the IP because ports are not supported in coderd.
