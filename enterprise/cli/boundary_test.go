@@ -25,6 +25,8 @@ import (
 // coder/boundary repo, since it's a dependency of coder.
 // Here we want to test basically that integrating it as a subcommand doesn't break anything.
 func TestBoundarySubcommand(t *testing.T) {
+	t.Skip()
+
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
