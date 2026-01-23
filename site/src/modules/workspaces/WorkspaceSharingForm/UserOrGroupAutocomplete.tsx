@@ -21,7 +21,9 @@ type UserOrGroupAutocompleteProps = {
 	exclude: ExcludableOption[];
 };
 
-const normalizeMember = (member: OrganizationMemberWithUserData): MemberType => ({
+const normalizeMember = (
+	member: OrganizationMemberWithUserData,
+): MemberType => ({
 	...member,
 	id: member.user_id,
 });
@@ -78,7 +80,8 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 					if (!filterValue) {
 						return true;
 					}
-					const haystack = `${member.name ?? ""} ${member.username} ${member.email}`.toLowerCase();
+					const haystack =
+						`${member.name ?? ""} ${member.username} ${member.email}`.toLowerCase();
 					return haystack.includes(filterValue);
 				})
 				.map(normalizeMember)
