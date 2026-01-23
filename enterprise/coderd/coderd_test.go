@@ -113,7 +113,8 @@ func TestEntitlements(t *testing.T) {
 		assert.True(t, al.Enabled)
 		assert.Nil(t, al.Limit)
 		assert.Nil(t, al.Actual)
-		assert.Empty(t, res.Warnings)
+		assert.Len(t, res.Warnings, 1)
+		assert.Contains(t, res.Warnings[0], "AI Bridge has reached General Availability and your Coder deployment is not entitled to run this feature. Contact your account team (https://coder.com/contact) for information around getting a license with AI Bridge.")
 	})
 	t.Run("FullLicenseToNone", func(t *testing.T) {
 		t.Parallel()
