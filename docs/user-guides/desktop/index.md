@@ -124,11 +124,13 @@ Administrators can disable the built-in auto-updater to manage updates through t
 
 ### macOS
 
-Set the `disableUpdater` preference to `true` using MDM or the `defaults` command:
+Set the `disableUpdater` preference to `true` using the `defaults` command:
 
 ```shell
 defaults write com.coder.Coder-Desktop disableUpdater -bool true
 ```
+
+Organization administrators can also enforce this setting across managed devices using MDM (Mobile Device Management) software by deploying a configuration profile that sets this preference.
 
 When disabled, the "Check for Updates" option will not appear in the application menu.
 
