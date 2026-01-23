@@ -110,7 +110,6 @@ func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
 	if a == AddonAIGovernance {
 		requiredFeatures := []FeatureName{
 			FeatureAIGovernanceUserLimit,
-			FeatureManagedAgentLimit,
 		}
 
 		for _, featureName := range requiredFeatures {
