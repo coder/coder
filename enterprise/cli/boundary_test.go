@@ -233,8 +233,7 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 	})
 
 	t.Run("ChildProcessSkipsCheck", func(t *testing.T) {
-		t.Parallel()
-
+		// Cannot use t.Parallel() with os.Setenv(), so this test runs sequentially.
 		// When CHILD=true, the license check should be skipped.
 		// This simulates boundary re-executing itself to run the target process.
 		// We use a proxy that would fail the license check to verify it's skipped.
@@ -292,12 +291,17 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 		inv, conf := newCLI(t, "boundary", "--version")
 		clitest.SetupConfig(t, proxyClient, conf)
 
-		// Set CHILD=true to simulate boundary re-execution.
+		// Set CHILD=true in the actual OS environment to simulate boundary re-execution.
 		// This should skip the license check, so the command should succeed
 		// even though the proxy would return "not entitled".
-		inv.Environ.Set("CHILD", "true")
+		oldValue := os.Getenv("CHILD")
+		os.Setenv("CHILD", "true")
 		t.Cleanup(func() {
-			os.Unsetenv("CHILD")
+			if oldValue == "" {
+				os.Unsetenv("CHILD")
+			} else {
+				os.Setenv("CHILD", oldValue)
+			}
 		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)
