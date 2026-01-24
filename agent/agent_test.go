@@ -150,12 +150,31 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			require.NoError(t, err)
 
 			var s *proto.Stats
+			// We are looking for four different stats to be reported. They might not all
+			// arrive at the same time, so we loop until we've seen them all.
+			var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSshSeen bool
 			require.Eventuallyf(t, func() bool {
 				var ok bool
 				s, ok = <-stats
-				return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountSsh == 1
+				if !ok {
+					return false
+				}
+				if s.ConnectionCount > 0 {
+					connectionCountSeen = true
+				}
+				if s.RxBytes > 0 {
+					rxBytesSeen = true
+				}
+				if s.TxBytes > 0 {
+					txBytesSeen = true
+				}
+				if s.SessionCountSsh == 1 {
+					sessionCountSshSeen = true
+				}
+				return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSshSeen
 			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw stats: %+v", s,
+				"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountSsh: %t",
+				s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSshSeen,
 			)
 			_, err = stdin.Write([]byte("exit 0\n"))
 			require.NoError(t, err, "writing exit to stdin")
@@ -187,12 +206,31 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	require.NoError(t, err)
 
 	var s *proto.Stats
+	// We are looking for four different stats to be reported. They might not all
+	// arrive at the same time, so we loop until we've seen them all.
+	var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen bool
 	require.Eventuallyf(t, func() bool {
 		var ok bool
 		s, ok = <-stats
-		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountReconnectingPty == 1
+		if !ok {
+			return false
+		}
+		if s.ConnectionCount > 0 {
+			connectionCountSeen = true
+		}
+		if s.RxBytes > 0 {
+			rxBytesSeen = true
+		}
+		if s.TxBytes > 0 {
+			txBytesSeen = true
+		}
+		if s.SessionCountReconnectingPty == 1 {
+			sessionCountReconnectingPTYSeen = true
+		}
+		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountReconnectingPTYSeen
 	}, testutil.WaitLong, testutil.IntervalFast,
-		"never saw stats: %+v", s,
+		"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountReconnectingPTY: %t",
+		s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen,
 	)
 }
 
@@ -222,6 +260,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, strings.TrimSpace(string(output)))
 	})
+
 	t.Run("TracksVSCode", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
