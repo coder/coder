@@ -121,7 +121,9 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// NOTE: These tests only work when your default shell is bash for some reason.
+// NOTE: Some non-Bash shells return exit status 1 when you close stdin.
+//       If your default shell isn't Bash and these tests fail, double-check
+//       that you're properly writing "exit 0" to stdin to ensure a clean exit.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
@@ -155,9 +157,11 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			}, testutil.WaitLong, testutil.IntervalFast,
 				"never saw stats: %+v", s,
 			)
+			_, err = stdin.Write([]byte("exit 0\n"))
+			require.NoError(t, err, "writing exit to stdin")
 			_ = stdin.Close()
 			err = session.Wait()
-			require.NoError(t, err)
+			require.NoError(t, err, "waiting for session to exit")
 		})
 	}
 }
@@ -220,7 +224,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 	})
 	t.Run("TracksVSCode", func(t *testing.T) {
 		t.Parallel()
-		if runtime.GOOS == "window" {
+		if runtime.GOOS == "windows" {
 			t.Skip("Sleeping for infinity doesn't work on Windows")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -252,7 +256,9 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats",
 		)
-		// The shell will automatically exit if there is no stdin!
+
+		_, err = stdin.Write([]byte("exit 0\n"))
+		require.NoError(t, err, "writing exit to stdin")
 		_ = stdin.Close()
 		err = session.Wait()
 		require.NoError(t, err)
@@ -3633,9 +3639,11 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		}
 	}
 
+	_, err = stdin.Write([]byte("exit 0\n"))
+	require.NoError(t, err, "writing exit to stdin")
 	_ = stdin.Close()
 	err = session.Wait()
-	require.NoError(t, err)
+	require.NoError(t, err, "waiting for session to exit")
 }
 
 // echoOnce accepts a single connection, reads 4 bytes and echos them back
