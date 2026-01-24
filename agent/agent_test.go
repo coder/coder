@@ -152,7 +152,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			var s *proto.Stats
 			// We are looking for four different stats to be reported. They might not all
 			// arrive at the same time, so we loop until we've seen them all.
-			var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSshSeen bool
+			var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen bool
 			require.Eventuallyf(t, func() bool {
 				var ok bool
 				s, ok = <-stats
@@ -169,12 +169,12 @@ func TestAgent_Stats_SSH(t *testing.T) {
 					txBytesSeen = true
 				}
 				if s.SessionCountSsh == 1 {
-					sessionCountSshSeen = true
+					sessionCountSSHSeen = true
 				}
-				return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSshSeen
+				return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
 			}, testutil.WaitLong, testutil.IntervalFast,
 				"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountSsh: %t",
-				s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSshSeen,
+				s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen,
 			)
 			_, err = stdin.Write([]byte("exit 0\n"))
 			require.NoError(t, err, "writing exit to stdin")
