@@ -36,7 +36,7 @@ var (
 	errInvalidResource = xerrors.New("invalid resource parameter")
 )
 
-func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
+func extractTokenRequest(r *http.Request, redirectURIs []*url.URL) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
@@ -53,6 +53,10 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 		p.RequiredNotEmpty("refresh_token")
 	case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
 		p.RequiredNotEmpty("client_secret", "client_id", "code")
+		// RFC 6749 Section 4.1.3: redirect_uri is REQUIRED if multiple URIs are registered.
+		if len(redirectURIs) > 1 {
+			p.RequiredNotEmpty("redirect_uri")
+		}
 	}
 
 	req := codersdk.OAuth2TokenRequest{
@@ -67,8 +71,8 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 		Scope:        p.String(vals, "", "scope"),
 	}
 
-	// Validate redirect URI - errors are added to p.Errors.
-	_ = p.RedirectURL(vals, callbackURL, "redirect_uri")
+	// Validate redirect URI against all registered URIs - errors are added to p.Errors.
+	_ = p.RedirectURLWithList(vals, redirectURIs, "redirect_uri")
 
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment.
 	if err := validateResourceParameter(req.Resource); err != nil {
@@ -93,7 +97,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
+		redirectURIs, _, err := parseRedirectURIs(app)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate form values.",
@@ -102,7 +106,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			return
 		}
 
-		req, validationErrs, err := extractTokenRequest(r, callbackURL)
+		req, validationErrs, err := extractTokenRequest(r, redirectURIs)
 		if err != nil {
 			// Check for specific validation errors in priority order
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {

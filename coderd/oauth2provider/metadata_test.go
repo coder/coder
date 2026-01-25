@@ -66,3 +66,26 @@ func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	// Supported scopes are published from the curated catalog
 	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
 }
+
+func TestOAuth2ProtectedResourceMetadataWithPath(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	serverURL := client.URL
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Test that requesting metadata for a specific resource path returns that path
+	// in the resource field (RFC 9728 compliance).
+	resourcePath := "/api/experimental/mcp/http"
+	endpoint := serverURL.ResolveReference(&url.URL{Path: "/.well-known/oauth-protected-resource" + resourcePath}).String()
+	var metadata codersdk.OAuth2ProtectedResourceMetadata
+	testutil.RequireEventuallyResponseOK(ctx, t, endpoint, &metadata)
+
+	// Verify the resource matches the requested path
+	expectedResource := serverURL.ResolveReference(&url.URL{Path: resourcePath}).String()
+	require.Equal(t, expectedResource, metadata.Resource, "resource should match the requested path per RFC 9728")
+	// Authorization server should still be the root URL
+	require.Equal(t, serverURL.String(), metadata.AuthorizationServers[0])
+}

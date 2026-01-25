@@ -123,7 +123,7 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, []*url.URL{callbackURL})
 
 			// Verify no errors occurred
 			require.NoError(t, err, "extractTokenRequest should not return error for: %s", tc.description)
@@ -186,7 +186,7 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			}
 
 			// Extract token request
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, []*url.URL{callbackURL})
 
 			// Verify no errors
 			require.NoError(t, err)
@@ -266,7 +266,7 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 				Form:     form,
 			}
 
-			tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+			tokenReq, validationErrs, err := extractTokenRequest(req, []*url.URL{callbackURL})
 
 			require.NoError(t, err, "extractTokenRequest should not error for: %s", tc.description)
 			require.Empty(t, validationErrs)
@@ -332,7 +332,7 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			params, validationErrs, err := extractAuthorizeParams(req, []*url.URL{callbackURL}, callbackURL)
 
 			require.NoError(t, err)
 			require.Empty(t, validationErrs)
@@ -361,7 +361,7 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 		Form:     form,
 	}
 
-	tokenReq, validationErrs, err := extractTokenRequest(req, callbackURL)
+	tokenReq, validationErrs, err := extractTokenRequest(req, []*url.URL{callbackURL})
 
 	require.NoError(t, err)
 	require.Empty(t, validationErrs)

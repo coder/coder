@@ -586,3 +586,109 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 		})
 	}
 }
+
+func TestRedirectURLWithList(t *testing.T) {
+	t.Parallel()
+
+	mustParse := func(s string) *url.URL {
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		return u
+	}
+
+	tests := []struct {
+		name           string
+		redirectURI    string
+		registeredURIs []*url.URL
+		wantErr        bool
+	}{
+		{
+			name:        "exact match",
+			redirectURI: "https://example.com/callback",
+			registeredURIs: []*url.URL{
+				mustParse("https://example.com/callback"),
+			},
+			wantErr: false,
+		},
+		{
+			name:        "match with subpath",
+			redirectURI: "https://example.com/callback/extra",
+			registeredURIs: []*url.URL{
+				mustParse("https://example.com/callback"),
+			},
+			wantErr: false,
+		},
+		{
+			name:        "match second registered URI",
+			redirectURI: "https://vscode.dev/redirect",
+			registeredURIs: []*url.URL{
+				mustParse("http://localhost:8080/callback"),
+				mustParse("https://vscode.dev/redirect"),
+			},
+			wantErr: false,
+		},
+		{
+			name:        "no match - different host",
+			redirectURI: "https://evil.com/callback",
+			registeredURIs: []*url.URL{
+				mustParse("https://example.com/callback"),
+			},
+			wantErr: true,
+		},
+		{
+			name:        "no match - different path",
+			redirectURI: "https://example.com/other",
+			registeredURIs: []*url.URL{
+				mustParse("https://example.com/callback"),
+			},
+			wantErr: true,
+		},
+		{
+			name:        "no match - path continuation without segment boundary",
+			redirectURI: "https://example.com/callbackevil",
+			registeredURIs: []*url.URL{
+				mustParse("https://example.com/callback"),
+			},
+			wantErr: true, // /callbackevil should NOT match /callback
+		},
+		{
+			name:        "match - explicit directory prefix",
+			redirectURI: "https://example.com/auth/callback",
+			registeredURIs: []*url.URL{
+				mustParse("https://example.com/auth/"),
+			},
+			wantErr: false, // /auth/ is explicit directory, allows subpaths
+		},
+		{
+			name:        "empty redirect URI",
+			redirectURI: "",
+			registeredURIs: []*url.URL{
+				mustParse("https://example.com/callback"),
+			},
+			wantErr: false, // Empty is allowed, caller decides default
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := httpapi.NewQueryParamParser()
+			vals := url.Values{}
+			if tt.redirectURI != "" {
+				vals.Set("redirect_uri", tt.redirectURI)
+			}
+
+			result := p.RedirectURLWithList(vals, tt.registeredURIs, "redirect_uri")
+
+			if tt.wantErr {
+				require.NotEmpty(t, p.Errors, "expected validation error")
+			} else {
+				require.Empty(t, p.Errors, "unexpected validation error: %v", p.Errors)
+				if tt.redirectURI != "" {
+					require.Equal(t, tt.redirectURI, result.String())
+				}
+			}
+		})
+	}
+}

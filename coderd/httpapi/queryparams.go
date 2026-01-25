@@ -240,6 +240,63 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 	return v
 }
 
+// RedirectURLWithList validates a redirect URI against a list of allowed base URLs.
+// This is used for OAuth2 authorization where clients may register multiple redirect URIs
+// per RFC 6749. The redirect URI must match the host and have one of the registered URIs
+// as a path prefix (i.e., the registered URI must be a prefix of the redirect URI).
+func (p *QueryParamParser) RedirectURLWithList(vals url.Values, bases []*url.URL, queryParam string) *url.URL {
+	v, err := parseQueryParam(p, vals, url.Parse, nil, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid url: %s", queryParam, err.Error()),
+		})
+		return v
+	}
+
+	// Empty redirect_uri is allowed if there's only one registered URI (handled by caller).
+	if v == nil {
+		return nil
+	}
+
+	// Check if the redirect URI matches any of the registered URIs.
+	// It can be a sub-directory but not a sub-domain.
+	// Path matching requires either exact match or a segment boundary (trailing slash).
+	for _, base := range bases {
+		if v.Host == base.Host && isPathPrefixMatch(base.Path, v.Path) {
+			return v
+		}
+	}
+
+	p.Errors = append(p.Errors, codersdk.ValidationError{
+		Field:  queryParam,
+		Detail: fmt.Sprintf("Query param %q must match one of the registered redirect URIs", queryParam),
+	})
+
+	return v
+}
+
+// isPathPrefixMatch checks if basePath is a prefix of targetPath with proper segment boundary.
+// This prevents "/callback" from matching "/callbackevil" - it requires either:
+// 1. Exact match (basePath == targetPath)
+// 2. basePath ends with "/" (explicit directory)
+// 3. targetPath continues with "/" after basePath (proper subdirectory)
+func isPathPrefixMatch(basePath, targetPath string) bool {
+	if !strings.HasPrefix(targetPath, basePath) {
+		return false
+	}
+	// Exact match is always valid.
+	if len(targetPath) == len(basePath) {
+		return true
+	}
+	// Base ends with slash means it's explicitly a directory prefix.
+	if strings.HasSuffix(basePath, "/") {
+		return true
+	}
+	// Otherwise, the next character in target must be "/" for a valid segment boundary.
+	return targetPath[len(basePath)] == '/'
+}
+
 func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam, layout string) time.Time {
 	return p.timeWithMutate(vals, def, queryParam, layout, nil)
 }

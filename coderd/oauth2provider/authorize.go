@@ -30,7 +30,7 @@ type authorizeParams struct {
 	codeChallengeMethod string // PKCE challenge method
 }
 
-func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
+func extractAuthorizeParams(r *http.Request, redirectURIs []*url.URL, defaultRedirectURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
@@ -38,13 +38,17 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
-		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
+		redirectURL:         p.RedirectURLWithList(vals, redirectURIs, "redirect_uri"),
 		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 		state:               p.String(vals, "", "state"),
 		resource:            p.String(vals, "", "resource"),
 		codeChallenge:       p.String(vals, "", "code_challenge"),
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
+	}
+	// If no redirect_uri provided, use the default (first registered URI).
+	if params.redirectURL == nil {
+		params.redirectURL = defaultRedirectURL
 	}
 	// Validate resource indicator syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
@@ -67,13 +71,41 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
+// parseRedirectURIs parses and returns all redirect URIs registered for the app.
+// Returns the parsed URIs and the default (first) redirect URI for use when
+// the client doesn't provide a redirect_uri parameter.
+func parseRedirectURIs(app database.OAuth2ProviderApp) ([]*url.URL, *url.URL, error) {
+	// Use RedirectUris if available (DCR clients), otherwise fall back to CallbackURL.
+	uriStrings := app.RedirectUris
+	if len(uriStrings) == 0 {
+		uriStrings = []string{app.CallbackURL}
+	}
+
+	var parsedURIs []*url.URL
+	for _, uriStr := range uriStrings {
+		parsed, err := url.Parse(uriStr)
+		if err != nil {
+			return nil, nil, err
+		}
+		parsedURIs = append(parsedURIs, parsed)
+	}
+
+	// Default to first URI if redirect_uri not provided in request.
+	var defaultURI *url.URL
+	if len(parsedURIs) > 0 {
+		defaultURI = parsedURIs[0]
+	}
+
+	return parsedURIs, defaultURI, nil
+}
+
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
 func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		app := httpmw.OAuth2ProviderApp(r)
 		ua := httpmw.UserAuthorization(r.Context())
 
-		callbackURL, err := url.Parse(app.CallbackURL)
+		redirectURIs, defaultRedirectURI, err := parseRedirectURIs(app)
 		if err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusInternalServerError,
@@ -90,7 +122,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			return
 		}
 
-		params, validationErrs, err := extractAuthorizeParams(r, callbackURL)
+		params, validationErrs, err := extractAuthorizeParams(r, redirectURIs, defaultRedirectURI)
 		if err != nil {
 			errStr := make([]string, len(validationErrs))
 			for i, err := range validationErrs {
@@ -135,13 +167,13 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		apiKey := httpmw.APIKey(r)
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
+		redirectURIs, defaultRedirectURI, err := parseRedirectURIs(app)
 		if err != nil {
 			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to validate query parameters")
 			return
 		}
 
-		params, _, err := extractAuthorizeParams(r, callbackURL)
+		params, _, err := extractAuthorizeParams(r, redirectURIs, defaultRedirectURI)
 		if err != nil {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return

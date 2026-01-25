@@ -3,6 +3,7 @@ package oauth2provider
 import (
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -30,11 +31,26 @@ func GetAuthorizationServerMetadata(accessURL *url.URL) http.HandlerFunc {
 }
 
 // GetProtectedResourceMetadata returns an http.HandlerFunc that handles GET /.well-known/oauth-protected-resource
+// Per RFC 9728, the resource identifier MUST match the protected resource the client is trying to access.
+// The endpoint supports path-based resource identification: requests to
+// /.well-known/oauth-protected-resource/api/v2/users will return metadata with
+// resource set to {accessURL}/api/v2/users.
 func GetProtectedResourceMetadata(accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
+		// Build resource URL from the request path.
+		// The path comes in as /.well-known/oauth-protected-resource{/resource-path}
+		// Strip the well-known prefix to get the actual resource path.
+		resourceURL := *accessURL
+		const wellKnownPrefix = "/.well-known/oauth-protected-resource"
+		resourcePath := strings.TrimPrefix(r.URL.Path, wellKnownPrefix)
+		if resourcePath != "" && resourcePath != "/" {
+			resourceURL.Path = resourcePath
+		}
+
 		metadata := codersdk.OAuth2ProtectedResourceMetadata{
-			Resource:             accessURL.String(),
+			Resource:             resourceURL.String(),
 			AuthorizationServers: []string{accessURL.String()},
 			ScopesSupported:      rbac.ExternalScopeNames(),
 			// RFC 6750 Bearer Token methods supported as fallback methods in api key middleware
