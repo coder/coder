@@ -172,8 +172,8 @@
 					"icon_path": "./images/icons/upgrade.svg",
 					"children": [
 						{
-							"title": "Upgrade Troubleshooting Steps",
-							"description": "Troubleshoot common issues during Coder upgrades",
+							"title": "Upgrading Best Practices",
+							"description": "Best practices and troubleshooting for Coder upgrades",
 							"path": "./install/upgrade-troubleshooting.md"
 						}
 					]

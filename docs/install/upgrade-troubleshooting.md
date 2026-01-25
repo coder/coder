@@ -1,11 +1,14 @@
-# Upgrade Troubleshooting Steps
+# Upgrading Best Practices
 
-This guide covers common issues encountered during Coder upgrades, particularly
-with database migrations in high availability (HA) deployments, and provides
-step-by-step troubleshooting and recovery procedures.
+This guide provides best practices for upgrading Coder, along with
+troubleshooting steps for common issues encountered during upgrades,
+particularly with database migrations in high availability (HA) deployments.
 
 ## Before you upgrade
 
+- **Schedule upgrades during off-peak hours.** Upgrades cause a noticeable
+  disruption to the developer experience. Plan your maintenance window when
+  fewest developers are actively using their workspaces.
 - **The larger the version jump, the more migrations will run.** If you are
   upgrading across multiple minor versions, expect longer migration times.
 - **Large upgrades should complete in minutes** (typically 4-7 minutes). If your
