@@ -7,8 +7,8 @@ templates, and development environments.
 
 ## MCP Registry
 
-Coder is published to the [MCP Registry](https://registry.modelcontextprotocol.io/servers/io.github.coder/coder),
-enabling one-click installation in supported MCP clients.
+Coder is published to the [MCP Registry](https://registry.modelcontextprotocol.io/),
+enabling easy installation in supported MCP clients.
 
 ### VS Code / GitHub Copilot
 
