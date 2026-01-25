@@ -1,0 +1,47 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.coder/coder",
+  "title": "Coder",
+  "description": "Manage Coder workspaces, templates, and cloud development environments",
+  "repository": {
+    "url": "https://github.com/coder/coder",
+    "source": "github"
+  },
+  "version": "2.29.2",
+  "websiteUrl": "https://coder.com/docs",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/coder/coder/main/docs/images/logo-black.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "{coder_url}/api/experimental/mcp/http",
+      "variables": {
+        "coder_url": {
+          "description": "URL of your Coder deployment (e.g., https://coder.example.com)",
+          "isRequired": true,
+          "format": "string",
+          "placeholder": "https://coder.example.com"
+        }
+      }
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "documentation": "https://coder.com/docs/admin/mcp",
+      "keywords": [
+        "workspaces",
+        "cloud-development",
+        "templates",
+        "devcontainers",
+        "terraform",
+        "self-hosted"
+      ],
+      "license": "AGPL-3.0",
+      "publisher": "Coder"
+    }
+  }
+}
