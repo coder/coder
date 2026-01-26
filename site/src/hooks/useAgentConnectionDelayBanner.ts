@@ -8,7 +8,7 @@ export type AgentConnectionDelayBannerState = {
 	shouldShow: boolean;
 };
 
-const DELAY_THRESHOLD_MS = 10_000;
+const DELAY_THRESHOLD_MS = 5_000;
 const INVALID_ENDED_AT = "0001-01-01T00:00:00Z";
 
 export const useAgentConnectionDelayBanner = (
