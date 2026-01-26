@@ -18,12 +18,12 @@ particularly with database migrations in high availability (HA) deployments.
   `api_keys` table. If you are upgrading within this range, consider upgrading
   to v2.26.6 first to mitigate potential issues with this table.
 
-## Pre-upgrade strategy for HA deployments
+## Pre-upgrade strategy for Kubernetes HA deployments
 
-Standard rolling updates may fail when exclusive database locks are required
-because old replicas keep connections open. For production deployments running
-multiple replicas (HA), active connections from existing pods can prevent the
-new pod from acquiring necessary locks.
+Standard Kubernetes rolling updates may fail when exclusive database locks are
+required because old replicas keep connections open. For production deployments
+running multiple replicas (HA), active connections from existing pods can
+prevent the new pod from acquiring necessary locks.
 
 ### Recommended strategy for major upgrades
 
@@ -53,12 +53,12 @@ new pod from acquiring necessary locks.
 1. **Scale back:** Once the upgrade is healthy, scale back to your desired
    replica count.
 
-## Liveness probe configuration for long-running migrations
+## Kubernetes liveness probe configuration for long-running migrations
 
-Large database migrations may exceed default `livenessProbe` timeouts. If you
-observe pods restarting with `CrashLoopBackOff` during an upgrade and logs
-indicate a migration in progress, Kubernetes might be killing the pod
-prematurely.
+Large database migrations may exceed default Kubernetes `livenessProbe`
+timeouts. If you observe pods restarting with `CrashLoopBackOff` during an
+upgrade and logs indicate a migration in progress, Kubernetes might be killing
+the pod prematurely.
 
 ### Configuration example
 
