@@ -613,6 +613,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	encoder := wsjson.NewEncoder[[]codersdk.WorkspaceAgentLog](conn, websocket.MessageText)
@@ -1479,6 +1480,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	defer wsNetConn.Close()
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
@@ -2290,6 +2292,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	}()
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",

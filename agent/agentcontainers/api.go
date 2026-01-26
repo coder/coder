@@ -780,6 +780,7 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 	_ = conn.CloseRead(context.Background())
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
