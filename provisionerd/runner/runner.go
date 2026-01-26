@@ -836,72 +836,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 	}()
 
-	// Track last log time for idle detection
-	lastLogTime := time.Now()
-	lastLogTimeMutex := &sync.Mutex{}
-
-	// Show a one-time status message if no logs are received for a short period.
-	statusMessageCtx, statusMessageCancel := context.WithCancel(ctx)
-	defer statusMessageCancel()
-
-	go func() {
-		const (
-			initialDelay   = 10 * time.Second
-			repeatInterval = 30 * time.Second
-			maxDuration    = 5*time.Minute + 10*time.Second
-		)
-
-		select {
-		case <-statusMessageCtx.Done():
-			return
-		case <-time.After(initialDelay):
-		}
-
-		windowStart := time.Now()
-		deadline := windowStart.Add(maxDuration)
-
-		lastLogTimeMutex.Lock()
-		timeSinceLastLog := time.Since(lastLogTime)
-		lastLogTimeMutex.Unlock()
-		if timeSinceLastLog >= initialDelay {
-			r.queueLog(ctx, &proto.Log{
-				Source:    proto.LogSource_PROVISIONER_DAEMON,
-				Level:     sdkproto.LogLevel_INFO,
-				CreatedAt: time.Now().UnixMilli(),
-				Output:    "Due to high demand, preparation may take a few minutes.",
-				Stage:     stage,
-			})
-		}
-
-		ticker := time.NewTicker(repeatInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-statusMessageCtx.Done():
-				return
-			case now := <-ticker.C:
-				if now.After(deadline) {
-					return
-				}
-
-				lastLogTimeMutex.Lock()
-				timeSinceLastLog := time.Since(lastLogTime)
-				lastLogTimeMutex.Unlock()
-				if timeSinceLastLog < initialDelay {
-					continue
-				}
-
-				r.queueLog(ctx, &proto.Log{
-					Source:    proto.LogSource_PROVISIONER_DAEMON,
-					Level:     sdkproto.LogLevel_INFO,
-					CreatedAt: time.Now().UnixMilli(),
-					Output:    "Due to high demand, preparation may take a few minutes.",
-					Stage:     stage,
-				})
-			}
-		}
-	}()
-
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
@@ -909,12 +843,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			// Update last log time and stop status message goroutine
-			lastLogTimeMutex.Lock()
-			lastLogTime = time.Now()
-			lastLogTimeMutex.Unlock()
-			statusMessageCancel() // Stop sending status messages when real logs arrive
-
 			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
