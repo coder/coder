@@ -1111,7 +1111,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	api.Logger.Debug(ctx, "stored task log snapshot",
 		slog.F("task_id", task.ID),
 		slog.F("workspace_id", latestBuild.WorkspaceID),
-		slog.F("snapshot_size_bytes", len(snapshotJSON))) // Note: May be slightly >64KB.
+		slog.F("snapshot_size_bytes", len(snapshotJSON)))
 
 	rw.WriteHeader(http.StatusNoContent)
 }
