@@ -121,9 +121,8 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// NOTE: Some non-Bash shells return exit status 1 when you close stdin.
-//       If your default shell isn't Bash and these tests fail, double-check
-//       that you're properly writing "exit 0" to stdin to ensure a clean exit.
+// NOTE(Cian): I noticed that these tests would fail when my default shell was zsh.
+//             Writing "exit 0" to stdin before closing fixed the issue for me.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
