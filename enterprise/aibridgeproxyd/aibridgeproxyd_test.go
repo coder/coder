@@ -1,6 +1,8 @@
 package aibridgeproxyd_test
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -276,6 +278,42 @@ func newTargetServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, 
 func makeProxyAuthHeader(token string) string {
 	credentials := base64.StdEncoding.EncodeToString([]byte("ignored:" + token))
 	return "Basic " + credentials
+}
+
+// sendCONNECT sends a raw CONNECT request to the proxy and returns the response.
+// This is needed to test proxy authentication challenges because Go's HTTP client
+// doesn't expose the response when CONNECT fails with a non-2xx status.
+func sendCONNECT(t *testing.T, proxyAddr, targetHost, proxyAuth string) *http.Response {
+	t.Helper()
+
+	conn, err := net.Dial("tcp", proxyAddr)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	// Build CONNECT request.
+	var reqBuf bytes.Buffer
+	_, err = fmt.Fprintf(&reqBuf, "CONNECT %s HTTP/1.1\r\n", targetHost)
+	require.NoError(t, err)
+	_, err = fmt.Fprintf(&reqBuf, "Host: %s\r\n", targetHost)
+	require.NoError(t, err)
+	if proxyAuth != "" {
+		_, err = fmt.Fprintf(&reqBuf, "Proxy-Authorization: %s\r\n", proxyAuth)
+		require.NoError(t, err)
+	}
+	_, err = reqBuf.WriteString("\r\n")
+	require.NoError(t, err)
+
+	// Send the CONNECT request to the proxy.
+	_, err = conn.Write(reqBuf.Bytes())
+	require.NoError(t, err)
+
+	// Read and parse the proxy's response.
+	// On success (200), the proxy establishes a tunnel.
+	// On auth failure (407), the proxy returns a challenge with Proxy-Authenticate header.
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	require.NoError(t, err)
+
+	return resp
 }
 
 func TestNew(t *testing.T) {
@@ -777,29 +815,29 @@ func TestProxy_Authentication(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		proxyAuth   string
-		expectError bool
+		name          string
+		proxyAuth     string
+		expectSuccess bool
 	}{
 		{
-			name:        "ValidCredentials",
-			proxyAuth:   makeProxyAuthHeader("test-coder-token"),
-			expectError: false,
+			name:          "ValidCredentials",
+			proxyAuth:     makeProxyAuthHeader("test-coder-token"),
+			expectSuccess: true,
 		},
 		{
-			name:        "MissingCredentials",
-			proxyAuth:   "",
-			expectError: true,
+			name:          "MissingCredentials",
+			proxyAuth:     "",
+			expectSuccess: false,
 		},
 		{
-			name:        "InvalidBase64",
-			proxyAuth:   "Basic not-valid-base64!",
-			expectError: true,
+			name:          "InvalidBase64",
+			proxyAuth:     "Basic not-valid-base64!",
+			expectSuccess: false,
 		},
 		{
-			name:        "EmptyToken",
-			proxyAuth:   makeProxyAuthHeader(""),
-			expectError: true,
+			name:          "EmptyToken",
+			proxyAuth:     makeProxyAuthHeader(""),
+			expectSuccess: false,
 		},
 	}
 
@@ -827,15 +865,12 @@ func TestProxy_Authentication(t *testing.T) {
 				withDomainAllowlist(targetURL.Hostname()),
 			)
 
-			// Make a request through the proxy to the target server.
-			client := newProxyClient(t, srv, tt.proxyAuth, getProxyCertPool(t))
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
-			require.NoError(t, err)
-			resp, err := client.Do(req)
-
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
+			if tt.expectSuccess {
+				// Use the standard HTTP client for successful requests.
+				client := newProxyClient(t, srv, tt.proxyAuth, getProxyCertPool(t))
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
+				require.NoError(t, err)
+				resp, err := client.Do(req)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
@@ -844,6 +879,25 @@ func TestProxy_Authentication(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 				require.Equal(t, "hello from aibridged", string(body))
+			} else {
+				// Verify the proxy returns a 407 challenge with Proxy-Authenticate header.
+				// A raw CONNECT request is sent because Go's HTTP client doesn't expose
+				// the response when CONNECT fails with a non-2xx status.
+				resp := sendCONNECT(t, srv.Addr(), targetURL.Host, tt.proxyAuth)
+				defer resp.Body.Close()
+
+				// Verify the status code indicates proxy authentication is required.
+				require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+
+				// Verify the Proxy-Authenticate header is present and contains the
+				// expected realm. This header tells clients how to authenticate.
+				proxyAuthenticate := resp.Header.Get("Proxy-Authenticate")
+				require.Equal(t, `Basic realm="Coder AI Bridge Proxy"`, proxyAuthenticate)
+
+				// Verify the response body contains the expected error message.
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, "407 Proxy Authentication Required", string(body))
 			}
 		})
 	}
