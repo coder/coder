@@ -544,7 +544,7 @@ func (f *logFollower) follow() {
 		return
 	}
 	defer f.conn.Close(websocket.StatusNormalClosure, "done")
-	go httpapi.Heartbeat(f.ctx, f.conn)
+	go httpapi.HeartbeatClose(f.ctx, f.logger, cancel, f.conn)
 	f.enc = wsjson.NewEncoder[codersdk.ProvisionerJobLog](f.conn, websocket.MessageText)
 
 	// query for logs once right away, so we can get historical data from before
