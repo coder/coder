@@ -174,6 +174,19 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 	return xerrors.Errorf("authorize context: %w", workspaceErr)
 }
 
+func workspaceTransitionAction(transition database.WorkspaceTransition) (policy.Action, error) {
+	switch transition {
+	case database.WorkspaceTransitionStart:
+		return policy.ActionWorkspaceStart, nil
+	case database.WorkspaceTransitionStop:
+		return policy.ActionWorkspaceStop, nil
+	case database.WorkspaceTransitionDelete:
+		return policy.ActionDelete, nil
+	default:
+		return "", xerrors.Errorf("unsupported workspace transition %q", transition)
+	}
+}
+
 // authorizeAIBridgeInterceptionAction validates that the context's actor matches the initiator of the AIBridgeInterception.
 // This is used by all of the sub-resources which fall under the [ResourceAibridgeInterception] umbrella.
 func (q *querier) authorizeAIBridgeInterceptionAction(ctx context.Context, action policy.Action, interceptionID uuid.UUID) error {
@@ -4575,11 +4588,9 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		return xerrors.Errorf("get workspace by id: %w", err)
 	}
 
-	var action policy.Action = policy.ActionWorkspaceStart
-	if arg.Transition == database.WorkspaceTransitionDelete {
-		action = policy.ActionDelete
-	} else if arg.Transition == database.WorkspaceTransitionStop {
-		action = policy.ActionWorkspaceStop
+	action, err := workspaceTransitionAction(arg.Transition)
+	if err != nil {
+		return err
 	}
 
 	// Special handling for prebuilt workspace deletion
@@ -4623,8 +4634,13 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 		return err
 	}
 
+	action, err := workspaceTransitionAction(build.Transition)
+	if err != nil {
+		return err
+	}
+
 	// Special handling for prebuilt workspace deletion
-	if err := q.authorizePrebuiltWorkspace(ctx, policy.ActionUpdate, workspace); err != nil {
+	if err := q.authorizePrebuiltWorkspace(ctx, action, workspace); err != nil {
 		return err
 	}
 

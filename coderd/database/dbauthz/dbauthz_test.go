@@ -2145,9 +2145,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().InsertWorkspaceBuild(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(w, policy.ActionDelete)
 	}))
-	s.Run("InsertWorkspaceBuildParameters", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("Start/InsertWorkspaceBuildParameters", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
-		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: w.ID})
+		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{
+			WorkspaceID: w.ID,
+			Transition:  database.WorkspaceTransitionStart,
+		})
 		arg := database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: b.ID,
 			Name:             []string{"foo", "bar"},
@@ -2156,7 +2159,39 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().InsertWorkspaceBuildParameters(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate)
+		check.Args(arg).Asserts(w, policy.ActionWorkspaceStart)
+	}))
+	s.Run("Stop/InsertWorkspaceBuildParameters", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{
+			WorkspaceID: w.ID,
+			Transition:  database.WorkspaceTransitionStop,
+		})
+		arg := database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: b.ID,
+			Name:             []string{"foo", "bar"},
+			Value:            []string{"baz", "qux"},
+		}
+		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().InsertWorkspaceBuildParameters(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionWorkspaceStop)
+	}))
+	s.Run("Delete/InsertWorkspaceBuildParameters", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{
+			WorkspaceID: w.ID,
+			Transition:  database.WorkspaceTransitionDelete,
+		})
+		arg := database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: b.ID,
+			Name:             []string{"foo", "bar"},
+			Value:            []string{"baz", "qux"},
+		}
+		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().InsertWorkspaceBuildParameters(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionDelete)
 	}))
 	s.Run("UpdateWorkspace", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -4389,7 +4424,7 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 				return nil
 			}).Asserts(w, policy.ActionDelete, w.AsPrebuild(), policy.ActionDelete)
 	}))
-	s.Run("PrebuildUpdate/InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("PrebuildDelete/InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		tpl := dbgen.Template(s.T(), db, database.Template{
@@ -4411,6 +4446,7 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 		})
 		wb := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
 			JobID:             pj.ID,
+			Transition:        database.WorkspaceTransitionDelete,
 			WorkspaceID:       w.ID,
 			TemplateVersionID: tv.ID,
 		})
@@ -4426,7 +4462,7 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 					return xerrors.Errorf("not authorized for workspace type")
 				}
 				return nil
-			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
+			}).Asserts(w, policy.ActionDelete, w.AsPrebuild(), policy.ActionDelete)
 	}))
 }
 
