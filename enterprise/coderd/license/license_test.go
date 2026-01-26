@@ -188,9 +188,11 @@ func TestEntitlements(t *testing.T) {
 		graceDate := dbtime.Now().AddDate(0, 0, 1)
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				// TODO: Remove explicit FeatureAIBridge once AI Bridge is enforced as an add-on license.
 				Features: license.Features{
 					codersdk.FeatureUserLimit: 100,
 					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureAIBridge:  1, // Explicit AI Bridge to avoid soft warning
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,
@@ -214,9 +216,11 @@ func TestEntitlements(t *testing.T) {
 		// license expires.
 		_, err = db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				// TODO: Remove explicit FeatureAIBridge once AI Bridge is enforced as an add-on license.
 				Features: license.Features{
 					codersdk.FeatureUserLimit: 100,
 					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureAIBridge:  1, // Explicit AI Bridge to avoid soft warning
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,
@@ -245,9 +249,11 @@ func TestEntitlements(t *testing.T) {
 		graceDate := dbtime.Now().AddDate(0, 0, 1)
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				// TODO: Remove explicit FeatureAIBridge once AI Bridge is enforced as an add-on license.
 				Features: license.Features{
 					codersdk.FeatureUserLimit: 100,
 					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureAIBridge:  1, // Explicit AI Bridge to avoid soft warning
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,
@@ -271,9 +277,11 @@ func TestEntitlements(t *testing.T) {
 		// license expires (e.g. there's a gap)
 		_, err = db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				// TODO: Remove explicit FeatureAIBridge once AI Bridge is enforced as an add-on license.
 				Features: license.Features{
 					codersdk.FeatureUserLimit: 100,
 					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureAIBridge:  1, // Explicit AI Bridge to avoid soft warning
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,
@@ -806,12 +814,17 @@ func TestEntitlements(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
 
+		// TODO: Remove explicit FeatureAIBridge once AI Bridge is enforced as an add-on license.
 		licenseOpts := (&coderdenttest.LicenseOptions{
 			FeatureSet: codersdk.FeatureSetPremium,
 			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
 			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
 			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
 			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
+			// Explicit AI Bridge to avoid soft warning in tests
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
 		}).
 			UserLimit(100).
 			ManagedAgentLimit(100, 200)
@@ -895,6 +908,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureAIBridge:                   true,
 	}
 
+	// TODO: Remove explicit FeatureAIBridge from these license helpers once AI Bridge is enforced as an add-on license.
 	legacyLicense := func() *coderdenttest.LicenseOptions {
 		return (&coderdenttest.LicenseOptions{
 			AccountType: "salesforce",
@@ -902,6 +916,10 @@ func TestLicenseEntitlements(t *testing.T) {
 			Trial:       false,
 			// Use the legacy boolean
 			AllFeatures: true,
+			// Explicit AI Bridge to avoid soft warning in tests
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
 		}).Valid(time.Now())
 	}
 
@@ -913,6 +931,10 @@ func TestLicenseEntitlements(t *testing.T) {
 			Trial:         false,
 			FeatureSet:    codersdk.FeatureSetEnterprise,
 			AllFeatures:   true,
+			// Explicit AI Bridge to avoid soft warning in tests
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
 		}).Valid(time.Now())
 	}
 
@@ -924,6 +946,10 @@ func TestLicenseEntitlements(t *testing.T) {
 			Trial:         false,
 			FeatureSet:    codersdk.FeatureSetPremium,
 			AllFeatures:   true,
+			// Explicit AI Bridge to avoid soft warning in tests
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
 		}).Valid(time.Now())
 	}
 
@@ -1283,6 +1309,164 @@ func TestLicenseEntitlements(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAIBridgeSoftWarning(t *testing.T) {
+	t.Parallel()
+
+	aiBridgeEnabledEnablements := map[codersdk.FeatureName]bool{
+		codersdk.FeatureAIBridge: true,
+	}
+
+	aiBridgeDisabledEnablements := map[codersdk.FeatureName]bool{
+		codersdk.FeatureAIBridge: false,
+	}
+
+	aiBridgeWarningMessage := "AI Bridge is now Generally Available in v2.30. In a future Coder version, your deployment will require the AI Governance Add-On to continue using this feature. Please reach out to your account team or sales@coder.com to learn more."
+
+	t.Run("PremiumLicenseWithAIBridgeEnabled", func(t *testing.T) {
+		t.Parallel()
+		// Premium license with AI Bridge enabled should show soft warning
+		// because AI Bridge is not explicitly granted via add-on.
+		lo := (&coderdenttest.LicenseOptions{
+			AccountType: "salesforce",
+			AccountID:   "test",
+			FeatureSet:  codersdk.FeatureSetPremium,
+		}).Valid(time.Now())
+
+		generatedLicenses := []database.License{
+			{
+				ID:         1,
+				UploadedAt: time.Now().Add(time.Hour * -1),
+				JWT:        lo.Generate(t),
+				Exp:        lo.GraceAt,
+				UUID:       uuid.New(),
+			},
+		}
+
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		require.NoError(t, err)
+
+		// AI Bridge should be enabled and entitled.
+		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		assert.True(t, aiBridgeFeature.Enabled)
+		assert.Equal(t, codersdk.EntitlementEntitled, aiBridgeFeature.Entitlement)
+
+		// Should have the soft warning.
+		require.Contains(t, entitlements.Warnings, aiBridgeWarningMessage)
+	})
+
+	t.Run("ExplicitAIBridgeLicense", func(t *testing.T) {
+		t.Parallel()
+		// License with explicit AI Bridge feature (add-on) should NOT show warning.
+		lo := (&coderdenttest.LicenseOptions{
+			AccountType: "salesforce",
+			AccountID:   "test",
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		}).Valid(time.Now())
+
+		generatedLicenses := []database.License{
+			{
+				ID:         1,
+				UploadedAt: time.Now().Add(time.Hour * -1),
+				JWT:        lo.Generate(t),
+				Exp:        lo.GraceAt,
+				UUID:       uuid.New(),
+			},
+		}
+
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		require.NoError(t, err)
+
+		// AI Bridge should be enabled and entitled.
+		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		assert.True(t, aiBridgeFeature.Enabled)
+		assert.Equal(t, codersdk.EntitlementEntitled, aiBridgeFeature.Entitlement)
+
+		// Should NOT have the soft warning.
+		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
+	})
+
+	t.Run("PremiumLicenseWithAIBridgeDisabled", func(t *testing.T) {
+		t.Parallel()
+		// Premium license with AI Bridge NOT enabled should NOT show warning.
+		lo := (&coderdenttest.LicenseOptions{
+			AccountType: "salesforce",
+			AccountID:   "test",
+			FeatureSet:  codersdk.FeatureSetPremium,
+		}).Valid(time.Now())
+
+		generatedLicenses := []database.License{
+			{
+				ID:         1,
+				UploadedAt: time.Now().Add(time.Hour * -1),
+				JWT:        lo.Generate(t),
+				Exp:        lo.GraceAt,
+				UUID:       uuid.New(),
+			},
+		}
+
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		require.NoError(t, err)
+
+		// AI Bridge should NOT be enabled.
+		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		assert.False(t, aiBridgeFeature.Enabled)
+
+		// Should NOT have the soft warning.
+		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
+	})
+
+	t.Run("PremiumPlusExplicitAIBridge", func(t *testing.T) {
+		t.Parallel()
+		// Premium license PLUS explicit AI Bridge add-on should NOT show warning.
+		lo := (&coderdenttest.LicenseOptions{
+			AccountType: "salesforce",
+			AccountID:   "test",
+			FeatureSet:  codersdk.FeatureSetPremium,
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		}).Valid(time.Now())
+
+		generatedLicenses := []database.License{
+			{
+				ID:         1,
+				UploadedAt: time.Now().Add(time.Hour * -1),
+				JWT:        lo.Generate(t),
+				Exp:        lo.GraceAt,
+				UUID:       uuid.New(),
+			},
+		}
+
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		require.NoError(t, err)
+
+		// AI Bridge should be enabled and entitled.
+		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		assert.True(t, aiBridgeFeature.Enabled)
+		assert.Equal(t, codersdk.EntitlementEntitled, aiBridgeFeature.Entitlement)
+
+		// Should NOT have the soft warning.
+		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
+	})
+
+	t.Run("NoLicenseWithAIBridgeEnabled", func(t *testing.T) {
+		t.Parallel()
+		// No license with AI Bridge enabled should NOT show the soft warning
+		// (it will show the generic "not entitled" warning instead).
+		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{}, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
+		require.NoError(t, err)
+
+		// AI Bridge should NOT be entitled.
+		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		assert.Equal(t, codersdk.EntitlementNotEntitled, aiBridgeFeature.Entitlement)
+
+		// Should NOT have the soft warning (the feature is not entitled so it won't be enabled).
+		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
+	})
 }
 
 func TestUsageLimitFeatures(t *testing.T) {
