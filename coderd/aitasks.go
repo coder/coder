@@ -962,8 +962,8 @@ const (
 
 // TaskLogSnapshotEnvelope wraps a task log snapshot with format metadata.
 type TaskLogSnapshotEnvelope struct {
-	Format string          `json:"format"`
-	Data   json.RawMessage `json:"data"`
+	Format string `json:"format"`
+	Data   any    `json:"data"`
 }
 
 // @Summary Upload task log snapshot
@@ -1044,8 +1044,11 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	// Limit payload size to avoid excessive memory or data usage.
 	r.Body = http.MaxBytesReader(rw, r.Body, taskSnapshotMaxSize)
 
-	// Decode and validate the payload structure matches the expected format.
-	var validatedData []byte
+	// Create envelope to store validated payload.
+	envelope := TaskLogSnapshotEnvelope{
+		Format: format,
+	}
+
 	switch format {
 	case "agentapi":
 		var payload agentapisdk.GetMessagesResponse
@@ -1064,18 +1067,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 			})
 			return
 		}
-
-		// Re-marshal the validated payload to ensure we only store validated
-		// data. This prevents storing extra JSON fields that weren't part of
-		// the validation.
-		validatedData, err = json.Marshal(payload)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to encode validated payload.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		envelope.Data = payload
 	default:
 		// Defensive branch, we already validated "agentapi" format but may add
 		// more formats in the future.
@@ -1086,11 +1078,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	// Wrap in format envelope to ensure we only store validated data.
-	envelope := TaskLogSnapshotEnvelope{
-		Format: format,
-		Data:   json.RawMessage(validatedData),
-	}
+	// Marshal envelope with validated payload in a single pass.
 	snapshotJSON, err := json.Marshal(envelope)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

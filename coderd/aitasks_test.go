@@ -1719,15 +1719,16 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 
 	unmarshalSnapshot := func(t *testing.T, snapshotJSON json.RawMessage) agentapisdk.GetMessagesResponse {
 		t.Helper()
-		var envelope coderd.TaskLogSnapshotEnvelope
+		// Pre-populate Data with the correct type so json.Unmarshal decodes
+		// directly into it instead of creating a map[string]any.
+		envelope := coderd.TaskLogSnapshotEnvelope{
+			Data: &agentapisdk.GetMessagesResponse{},
+		}
 		err := json.Unmarshal(snapshotJSON, &envelope)
 		require.NoError(t, err)
 		require.Equal(t, "agentapi", envelope.Format)
 
-		var data agentapisdk.GetMessagesResponse
-		err = json.Unmarshal(envelope.Data, &data)
-		require.NoError(t, err)
-		return data
+		return *envelope.Data.(*agentapisdk.GetMessagesResponse)
 	}
 
 	t.Run("Success", func(t *testing.T) {
