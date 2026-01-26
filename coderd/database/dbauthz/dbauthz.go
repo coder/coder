@@ -1641,13 +1641,6 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.DeleteAllTailnetClientSubscriptions(ctx, arg)
-}
-
 func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -1670,13 +1663,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
-}
-
-func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.DeleteCoordinator(ctx, id)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -1885,27 +1871,6 @@ func (q *querier) DeleteRuntimeConfig(ctx context.Context, key string) error {
 		return err
 	}
 	return q.db.DeleteRuntimeConfig(ctx, key)
-}
-
-func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.DeleteTailnetAgentRow{}, err
-	}
-	return q.db.DeleteTailnetAgent(ctx, arg)
-}
-
-func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.DeleteTailnetClientRow{}, err
-	}
-	return q.db.DeleteTailnetClient(ctx, arg)
-}
-
-func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.DeleteTailnetClientSubscription(ctx, arg)
 }
 
 func (q *querier) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
@@ -2190,13 +2155,6 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 		return []database.WorkspaceBuild{}, err
 	}
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
-}
-
-func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return []database.TailnetAgent{}, err
-	}
-	return q.db.GetAllTailnetAgents(ctx)
 }
 
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
@@ -3062,20 +3020,6 @@ func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, err
 		return "", err
 	}
 	return q.db.GetRuntimeConfig(ctx, key)
-}
-
-func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return nil, err
-	}
-	return q.db.GetTailnetAgents(ctx, id)
-}
-
-func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]database.TailnetClient, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return nil, err
-	}
-	return q.db.GetTailnetClientsForAgent(ctx, agentID)
 }
 
 func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {
@@ -6057,27 +6001,6 @@ func (q *querier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRu
 		return err
 	}
 	return q.db.UpsertRuntimeConfig(ctx, arg)
-}
-
-func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.TailnetAgent{}, err
-	}
-	return q.db.UpsertTailnetAgent(ctx, arg)
-}
-
-func (q *querier) UpsertTailnetClient(ctx context.Context, arg database.UpsertTailnetClientParams) (database.TailnetClient, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.TailnetClient{}, err
-	}
-	return q.db.UpsertTailnetClient(ctx, arg)
-}
-
-func (q *querier) UpsertTailnetClientSubscription(ctx context.Context, arg database.UpsertTailnetClientSubscriptionParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.UpsertTailnetClientSubscription(ctx, arg)
 }
 
 func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {
