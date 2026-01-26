@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -17,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -25,23 +25,21 @@ import (
 // coder/boundary repo, since it's a dependency of coder.
 // Here we want to test basically that integrating it as a subcommand doesn't break anything.
 func TestBoundarySubcommand(t *testing.T) {
-	t.Skip()
-
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
 
 	inv, _ := newCLI(t, "boundary", "--help")
-	pty := ptytest.New(t).Attach(inv)
+	var buf bytes.Buffer
+	inv.Stdout = &buf
+	inv.Stderr = &buf
 
-	go func() {
-		err := inv.WithContext(ctx).Run()
-		assert.NoError(t, err)
-	}()
+	err := inv.Run()
+	require.NoError(t, err)
 
-	// Expect the --help output to include the short description.
+	// Verify help output contains expected information.
 	// We're simply confirming that `coder boundary --help` ran without a runtime error as
 	// a good chunk of serpents self validation logic happens at runtime.
-	pty.ExpectMatch(boundarycli.BaseCommand("dev").Short)
+	output := buf.String()
+	assert.Contains(t, output, boundarycli.BaseCommand("dev").Short)
 }
 
 func TestBoundaryLicenseVerification(t *testing.T) {
