@@ -361,9 +361,8 @@ func (s *Server) portMiddleware(allowedPorts []string) func(host string, ctx *go
 		allowed[p] = true
 	}
 
-	return func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	return func(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 		logger := s.logger.With(
-			slog.F("connect_id", ctx.Session),
 			slog.F("host", host),
 		)
 
@@ -385,8 +384,6 @@ func (s *Server) portMiddleware(allowedPorts []string) func(host string, ctx *go
 			logger.Warn(s.ctx, "rejecting CONNECT to non-allowed port")
 			return goproxy.RejectConnect, host
 		}
-
-		logger.Debug(s.ctx, "request CONNECT port allowed")
 
 		return nil, ""
 	}
@@ -442,7 +439,7 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
 
 	logger := s.logger.With(
-		slog.F("connect_id", ctx.Session),
+		slog.F("connect_id", connectSessionID),
 		slog.F("host", host),
 	)
 
@@ -526,7 +523,6 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	reqCtx, _ := ctx.UserData.(*requestContext)
 	if reqCtx == nil {
 		s.logger.Warn(s.ctx, "rejecting request with missing context",
-			slog.F("request_id", ctx.Session),
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
