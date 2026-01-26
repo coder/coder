@@ -12075,6 +12075,9 @@ const docTemplate = `{
                 "retention": {
                     "type": "integer"
                 },
+                "send_actor_headers": {
+                    "type": "boolean"
+                },
                 "structured_logging": {
                     "type": "boolean"
                 }
