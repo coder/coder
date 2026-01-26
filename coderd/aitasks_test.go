@@ -19,6 +19,7 @@ import (
 	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -1663,12 +1664,6 @@ func TestTasksNotification(t *testing.T) {
 func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 	t.Parallel()
 
-	// DB envelope format.
-	type envelope struct {
-		Format string                          `json:"format"`
-		Data   agentapisdk.GetMessagesResponse `json:"data"`
-	}
-
 	// Shared coderd with mock clock for all tests.
 	clock := quartz.NewMock(t)
 	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1722,6 +1717,19 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 		return res
 	}
 
+	unmarshalSnapshot := func(t *testing.T, snapshotJSON json.RawMessage) agentapisdk.GetMessagesResponse {
+		t.Helper()
+		var envelope coderd.TaskLogSnapshotEnvelope
+		err := json.Unmarshal(snapshotJSON, &envelope)
+		require.NoError(t, err)
+		require.Equal(t, "agentapi", envelope.Format)
+
+		var data agentapisdk.GetMessagesResponse
+		err = json.Unmarshal(envelope.Data, &data)
+		require.NoError(t, err)
+		return data
+	}
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		agentToken := uuid.NewString()
@@ -1735,13 +1743,9 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 		snapshot, err := db.GetTaskSnapshot(dbauthz.AsSystemRestricted(ctx), taskID)
 		require.NoError(t, err)
 
-		var e envelope
-		err = json.Unmarshal(snapshot.LogSnapshot, &e)
-		require.NoError(t, err)
-		require.Equal(t, "agentapi", e.Format)
-		require.NotNil(t, e.Data)
-		require.Len(t, e.Data.Messages, 1)
-		require.Equal(t, "test", e.Data.Messages[0].Content)
+		data := unmarshalSnapshot(t, snapshot.LogSnapshot)
+		require.Len(t, data.Messages, 1)
+		require.Equal(t, "test", data.Messages[0].Content)
 	})
 
 	//nolint:paralleltest // Not parallel, advances shared clock.
@@ -1772,13 +1776,9 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 		require.True(t, snapshot2.LogSnapshotCreatedAt.After(firstTime))
 
 		// Verify data was overwritten.
-		var e envelope
-		err = json.Unmarshal(snapshot2.LogSnapshot, &e)
-		require.NoError(t, err)
-		require.Equal(t, "agentapi", e.Format)
-		require.NotNil(t, e.Data)
-		require.Len(t, e.Data.Messages, 1)
-		require.Equal(t, "second", e.Data.Messages[0].Content)
+		data := unmarshalSnapshot(t, snapshot2.LogSnapshot)
+		require.Len(t, data.Messages, 1)
+		require.Equal(t, "second", data.Messages[0].Content)
 	})
 
 	t.Run("MissingFormat", func(t *testing.T) {
@@ -1890,7 +1890,7 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 
 		var errResp codersdk.Response
 		json.NewDecoder(res.Body).Decode(&errResp)
-		require.Contains(t, errResp.Message, "Invalid agentapi payload structure")
+		require.Contains(t, errResp.Message, "Failed to decode request payload")
 	})
 
 	t.Run("InvalidAgentAPIPayload", func(t *testing.T) {

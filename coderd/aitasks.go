@@ -1,13 +1,11 @@
 package coderd
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -956,6 +954,18 @@ func (api *API) authAndDoWithTaskAppClient(
 	return do(ctx, client, parsedURL)
 }
 
+const (
+	// taskSnapshotMaxSize is the maximum size for task log snapshots (64KB).
+	// Protects against excessive memory usage and database payload sizes.
+	taskSnapshotMaxSize = 64 * 1024
+)
+
+// TaskLogSnapshotEnvelope wraps a task log snapshot with format metadata.
+type TaskLogSnapshotEnvelope struct {
+	Format string          `json:"format"`
+	Data   json.RawMessage `json:"data"`
+}
+
 // @Summary Upload task log snapshot
 // @ID upload-task-log-snapshot
 // @Security CoderSessionToken
@@ -1031,27 +1041,17 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	// Read and validate payload size to avoid excessive memory or data usage.
-	maxSize := int64(64 * 1024) // 64KB
-	r.Body = http.MaxBytesReader(rw, r.Body, maxSize)
+	// Limit payload size to avoid excessive memory or data usage.
+	r.Body = http.MaxBytesReader(rw, r.Body, taskSnapshotMaxSize)
 
-	// Read raw JSON payload, structure depends on format parameter.
-	rawPayload, err := io.ReadAll(r.Body)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read request body.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Validate the payload structure matches the expected format.
+	// Decode and validate the payload structure matches the expected format.
+	var validatedData []byte
 	switch format {
 	case "agentapi":
 		var payload agentapisdk.GetMessagesResponse
-		if err := json.Unmarshal(rawPayload, &payload); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid agentapi payload structure.",
+				Message: "Failed to decode request payload.",
 				Detail:  err.Error(),
 			})
 			return
@@ -1061,6 +1061,18 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid agentapi payload structure.",
 				Detail:  `Missing required "messages" field.`,
+			})
+			return
+		}
+
+		// Re-marshal the validated payload to ensure we only store validated
+		// data. This prevents storing extra JSON fields that weren't part of
+		// the validation.
+		validatedData, err = json.Marshal(payload)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to encode validated payload.",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -1074,14 +1086,19 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	// Wrap in format envelope using bytes.Buffer for efficiency.
-	var buf bytes.Buffer
-	_, _ = buf.WriteString(`{"format":"`)
-	_, _ = buf.WriteString(format)
-	_, _ = buf.WriteString(`","data":`)
-	_, _ = buf.Write(rawPayload)
-	_ = buf.WriteByte('}')
-	snapshotJSON := buf.Bytes()
+	// Wrap in format envelope to ensure we only store validated data.
+	envelope := TaskLogSnapshotEnvelope{
+		Format: format,
+		Data:   json.RawMessage(validatedData),
+	}
+	snapshotJSON, err := json.Marshal(envelope)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create snapshot envelope.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	// Upsert to database using agent's RBAC context.
 	err = api.Database.UpsertTaskSnapshot(ctx, database.UpsertTaskSnapshotParams{
