@@ -994,11 +994,13 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	}
 
 	// Validate format parameter (required).
-	format := r.URL.Query().Get("format")
-	if format == "" {
+	p := httpapi.NewQueryParamParser().RequiredNotEmpty("format")
+	format := p.String(r.URL.Query(), "", "format")
+	p.ErrorExcessParams(r.URL.Query())
+	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing required query parameter.",
-			Detail:  `The "format" query parameter is required.`,
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
 		})
 		return
 	}

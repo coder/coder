@@ -1793,7 +1793,10 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 
 		var errResp codersdk.Response
 		json.NewDecoder(res.Body).Decode(&errResp)
-		require.Contains(t, errResp.Message, "Missing required query parameter")
+		require.Contains(t, errResp.Message, "Invalid query parameters")
+		require.Len(t, errResp.Validations, 1)
+		require.Equal(t, "format", errResp.Validations[0].Field)
+		require.Contains(t, errResp.Validations[0].Detail, "required and cannot be empty")
 	})
 
 	t.Run("InvalidFormat", func(t *testing.T) {
