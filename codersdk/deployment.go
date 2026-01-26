@@ -3512,7 +3512,8 @@ Write out the current server config as YAML to stdout.`,
 		{
 			Name: "AI Bridge Send Actor Headers",
 			Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
-				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider.",
+				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. " +
+				"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
 			Flag:    "aibridge-send-actor-headers",
 			Env:     "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
 			Value:   &c.AI.BridgeConfig.SendActorHeaders,
