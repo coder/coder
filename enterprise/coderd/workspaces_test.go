@@ -4705,3 +4705,78 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		assert.Equal(t, "/emojis/1f60d.png", groupActor.AvatarURL)
 	})
 }
+
+//nolint:tparallel // Sub tests need to run sequentially.
+func TestWorkspaceAITask(t *testing.T) {
+	t.Parallel()
+
+	usage := coderdtest.NewUsageInserter()
+	owner, _, first := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			UsageInserter:            usage,
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				// The user should not use tasks
+				codersdk.FeatureManagedAgentLimit: 0,
+			},
+		},
+	})
+
+	client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID,
+		rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
+
+	graphWithTask := []*proto.Response{{
+		Type: &proto.Response_Graph{
+			Graph: &proto.GraphComplete{
+				Error:                 "",
+				Timings:               nil,
+				Resources:             nil,
+				Parameters:            nil,
+				ExternalAuthProviders: nil,
+				Presets:               nil,
+				HasAiTasks:            true,
+				AiTasks: []*proto.AITask{
+					{
+						Id:         "test",
+						SidebarApp: nil,
+						AppId:      "test",
+					},
+				},
+				HasExternalAgents: false,
+			},
+		},
+	}}
+	planWithTask := []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Plan:        []byte("{}"),
+				AiTaskCount: 1,
+			},
+		},
+	}}
+
+	t.Run("CreateWorkspaceWithTaskNormally", func(t *testing.T) {
+		// Creating a workspace that has agentic tasks, but is not launced via task
+		// should not count towards the usage.
+		t.Cleanup(usage.Reset)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionPlan:  planWithTask,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: graphWithTask,
+		})
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Len(t, usage.Events, 0)
+	})
+
+	// TODO: Create a test of a workspace that failed but has an ai task. See if the failed build
+	// counts toward usage.
+}
