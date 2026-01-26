@@ -960,7 +960,6 @@ func (api *API) authAndDoWithTaskAppClient(
 // @ID upload-task-log-snapshot
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Tasks
 // @Param task path string true "Task ID" format(uuid)
 // @Param format query string true "Snapshot format" enums(agentapi)

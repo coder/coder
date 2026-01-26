@@ -8457,7 +8457,6 @@
 					}
 				],
 				"consumes": ["application/json"],
-				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Upload task log snapshot",
 				"operationId": "upload-task-log-snapshot",
