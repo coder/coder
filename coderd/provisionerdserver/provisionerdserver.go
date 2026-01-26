@@ -2128,7 +2128,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		if hasAITask && workspaceBuild.Transition == database.WorkspaceTransitionStart {
+		if hasAITask &&
+			workspaceBuild.Transition == database.WorkspaceTransitionStart &&
+			job.JobStatus == database.ProvisionerJobStatusSucceeded {
 			// Insert usage event for managed agents.
 			usageInserter := s.UsageInserter.Load()
 			if usageInserter != nil {
