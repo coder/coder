@@ -612,7 +612,9 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	go httpapi.Heartbeat(ctx, conn)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	encoder := wsjson.NewEncoder[[]codersdk.WorkspaceAgentLog](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
@@ -1477,7 +1479,9 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	go httpapi.Heartbeat(ctx, conn)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
@@ -1688,7 +1692,7 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 // @Router /workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadataWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender)
+	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
 }
 
 func (api *API) watchWorkspaceAgentMetadata(
@@ -2287,7 +2291,9 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 		})
 	}()
 
-	go httpapi.Heartbeat(ctx, conn)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
 		ID:   peerID,

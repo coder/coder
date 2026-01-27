@@ -6,6 +6,7 @@
 #   - New PR opened: Initial documentation review
 #   - PR updated (synchronize): Re-review after changes
 #   - Label "doc-check" added: Manual trigger for review
+#   - PR marked ready for review: Review when draft is promoted
 #   - Workflow dispatch: Manual run with PR URL
 #
 # Note: This workflow requires access to secrets and will be skipped for:
@@ -20,6 +21,7 @@ on:
       - opened
       - synchronize
       - labeled
+      - ready_for_review
   workflow_dispatch:
     inputs:
       pr_url:
@@ -39,13 +41,14 @@ jobs:
     concurrency:
       group: doc-check-${{ github.event.pull_request.number || inputs.pr_url }}
       cancel-in-progress: true
-    # Run on: opened, synchronize, labeled (with doc-check label), or workflow_dispatch
+    # Run on: opened, synchronize, labeled (with doc-check label), ready_for_review, or workflow_dispatch
     # Skip draft PRs unless manually triggered
     if: |
       (
         github.event.action == 'opened' ||
         github.event.action == 'synchronize' ||
         github.event.label.name == 'doc-check' ||
+        github.event.action == 'ready_for_review' ||
         github.event_name == 'workflow_dispatch'
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
@@ -135,6 +138,9 @@ jobs:
               labeled)
                 echo "trigger_type=label_requested" >> "${GITHUB_OUTPUT}"
                 ;;
+              ready_for_review)
+                echo "trigger_type=ready_for_review" >> "${GITHUB_OUTPUT}"
+                ;;
               *)
                 echo "trigger_type=unknown" >> "${GITHUB_OUTPUT}"
                 ;;
@@ -164,6 +170,9 @@ jobs:
               ;;
             label_requested)
               CONTEXT="A documentation review was REQUESTED via label. Perform a thorough documentation review."
+              ;;
+            ready_for_review)
+              CONTEXT="This PR was marked READY FOR REVIEW (converted from draft). Perform a thorough documentation review."
               ;;
             manual)
               CONTEXT="This is a MANUAL review request. Perform a thorough documentation review."
@@ -212,7 +221,7 @@ jobs:
 
       - name: Checkout create-task-action
         if: steps.check-secrets.outputs.skip != 'true'
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
           path: ./.github/actions/create-task-action
@@ -235,7 +244,7 @@ jobs:
           coder-username: doc-check-bot
           github-token: ${{ github.token }}
           github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
-          comment-on-issue: true
+          comment-on-issue: false
 
       - name: Write Task Info
         if: steps.check-secrets.outputs.skip != 'true'

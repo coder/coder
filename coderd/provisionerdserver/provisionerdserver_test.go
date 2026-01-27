@@ -2875,10 +2875,41 @@ func TestCompleteJob(t *testing.T) {
 			sidebarAppID := uuid.New()
 			for _, tc := range []testcase{
 				{
-					name:       "has_ai_task is false by default",
+					name:       "has_ai_task is false if task_id is nil",
 					transition: database.WorkspaceTransitionStart,
 					input:      &proto.CompletedJob_WorkspaceBuild{
 						// No AiTasks defined.
+					},
+					isTask:           false,
+					expectHasAiTask:  false,
+					expectUsageEvent: false,
+				},
+				{
+					name:       "has_ai_task is false even if there are coder_ai_task resources, but no task_id",
+					transition: database.WorkspaceTransitionStart,
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks: []*sdkproto.AITask{
+							{
+								Id:    uuid.NewString(),
+								AppId: sidebarAppID.String(),
+							},
+						},
+						Resources: []*sdkproto.Resource{
+							{
+								Agents: []*sdkproto.Agent{
+									{
+										Id:   uuid.NewString(),
+										Name: "a",
+										Apps: []*sdkproto.App{
+											{
+												Id:   sidebarAppID.String(),
+												Slug: "test-app",
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 					isTask:           false,
 					expectHasAiTask:  false,
@@ -2961,15 +2992,17 @@ func TestCompleteJob(t *testing.T) {
 							{
 								Id: uuid.NewString(),
 								// Non-existing app ID would previously trigger a FK violation.
-								// Now it should just be ignored.
+								// Now it will trigger a warning instead in the provisioner logs.
 								AppId: sidebarAppID.String(),
 							},
 						},
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusInitializing,
-					expectHasAiTask:  false,
-					expectUsageEvent: false,
+					// You can still "sort of" use a task in this state, but as we don't have
+					// the correct app ID you won't be able to communicate with it via Coder.
+					expectHasAiTask:  true,
+					expectUsageEvent: true,
 				},
 				{
 					name:       "has_ai_task is set to true, but transition is not start",
@@ -3002,19 +3035,6 @@ func TestCompleteJob(t *testing.T) {
 					expectTaskStatus: database.TaskStatusPaused,
 					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
 					expectHasAiTask:  true,
-					expectUsageEvent: false,
-				},
-				{
-					name:       "current build does not have ai task but previous build did",
-					seedFunc:   seedPreviousWorkspaceStartWithAITask,
-					transition: database.WorkspaceTransitionStop,
-					input: &proto.CompletedJob_WorkspaceBuild{
-						AiTasks:   []*sdkproto.AITask{},
-						Resources: []*sdkproto.Resource{},
-					},
-					isTask:           true,
-					expectTaskStatus: database.TaskStatusPaused,
-					expectHasAiTask:  false, // We no longer inherit this from the previous build.
 					expectUsageEvent: false,
 				},
 			} {
@@ -4405,64 +4425,5 @@ func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]
 
 func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
 	f.collectedEvents = append(f.collectedEvents, event)
-	return nil
-}
-
-func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db database.Store) error {
-	t.Helper()
-	// If the below looks slightly convoluted, that's because it is.
-	// The workspace doesn't yet have a latest build, so querying all
-	// workspaces will fail.
-	tpls, err := db.GetTemplates(ctx)
-	if err != nil {
-		return xerrors.Errorf("seedFunc: get template: %w", err)
-	}
-	if len(tpls) != 1 {
-		return xerrors.Errorf("seedFunc: expected exactly one template, got %d", len(tpls))
-	}
-	ws, err := db.GetWorkspacesByTemplateID(ctx, tpls[0].ID)
-	if err != nil {
-		return xerrors.Errorf("seedFunc: get workspaces: %w", err)
-	}
-	if len(ws) != 1 {
-		return xerrors.Errorf("seedFunc: expected exactly one workspace, got %d", len(ws))
-	}
-	w := ws[0]
-	prevJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		OrganizationID: w.OrganizationID,
-		InitiatorID:    w.OwnerID,
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-	})
-	tvs, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
-		TemplateID: tpls[0].ID,
-	})
-	if err != nil {
-		return xerrors.Errorf("seedFunc: get template version: %w", err)
-	}
-	if len(tvs) != 1 {
-		return xerrors.Errorf("seedFunc: expected exactly one template version, got %d", len(tvs))
-	}
-	if tpls[0].ActiveVersionID == uuid.Nil {
-		return xerrors.Errorf("seedFunc: active version id is nil")
-	}
-	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		JobID: prevJob.ID,
-	})
-	agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: res.ID,
-	})
-	_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-		AgentID: agt.ID,
-	})
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		BuildNumber:       1,
-		HasAITask:         sql.NullBool{Valid: true, Bool: true},
-		ID:                w.ID,
-		InitiatorID:       w.OwnerID,
-		JobID:             prevJob.ID,
-		TemplateVersionID: tvs[0].ID,
-		Transition:        database.WorkspaceTransitionStart,
-		WorkspaceID:       w.ID,
-	})
 	return nil
 }

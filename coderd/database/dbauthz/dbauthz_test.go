@@ -2547,6 +2547,24 @@ func (s *MethodTestSuite) TestTasks() {
 		dbm.EXPECT().ListTasks(gomock.Any(), gomock.Any()).Return([]database.Task{t1, t2}, nil).AnyTimes()
 		check.Args(database.ListTasksParams{}).Asserts(t1, policy.ActionRead, t2, policy.ActionRead).Returns([]database.Task{t1, t2})
 	}))
+	s.Run("GetTaskSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		snapshot := testutil.Fake(s.T(), faker, database.TaskSnapshot{TaskID: task.ID})
+		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
+		dbm.EXPECT().GetTaskSnapshot(gomock.Any(), task.ID).Return(snapshot, nil).AnyTimes()
+		check.Args(task.ID).Asserts(task, policy.ActionRead, task, policy.ActionRead).Returns(snapshot)
+	}))
+	s.Run("UpsertTaskSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		arg := database.UpsertTaskSnapshotParams{
+			TaskID:               task.ID,
+			LogSnapshot:          []byte(`{"format":"agentapi","data":[]}`),
+			LogSnapshotCreatedAt: dbtime.Now(),
+		}
+		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
+		dbm.EXPECT().UpsertTaskSnapshot(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(task, policy.ActionRead, task, policy.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestProvisionerKeys() {
@@ -2742,28 +2760,8 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.DeleteAllTailnetClientSubscriptionsParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
-	}))
 	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteAllTailnetTunnelsParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
-	}))
-	s.Run("DeleteCoordinator", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
-	}))
-	s.Run("DeleteTailnetAgent", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.DeleteTailnetAgentParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).Errors(sql.ErrNoRows)
-	}))
-	s.Run("DeleteTailnetClient", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.DeleteTailnetClientParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).Errors(sql.ErrNoRows)
-	}))
-	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.DeleteTailnetClientSubscriptionParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
 	s.Run("DeleteTailnetPeer", s.Subtest(func(_ database.Store, check *expects) {
@@ -2773,18 +2771,6 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 	s.Run("DeleteTailnetTunnel", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetTunnelParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).Errors(sql.ErrNoRows)
-	}))
-	s.Run("GetAllTailnetAgents", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
-	}))
-	s.Run("GetTailnetAgents", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
-	}))
-	s.Run("GetTailnetClientsForAgent", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
 	s.Run("GetTailnetPeers", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
@@ -2809,21 +2795,6 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 	s.Run("GetAllTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
-	}))
-	s.Run("UpsertTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		check.Args(database.UpsertTailnetAgentParams{Node: json.RawMessage("{}")}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
-	}))
-	s.Run("UpsertTailnetClient", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		check.Args(database.UpsertTailnetClientParams{Node: json.RawMessage("{}")}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
-	}))
-	s.Run("UpsertTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		check.Args(database.UpsertTailnetClientSubscriptionParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
 	s.Run("UpsertTailnetCoordinator", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
