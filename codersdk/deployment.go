@@ -274,7 +274,6 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
-		FeatureBoundary:                   true,
 	}[n]
 }
 
@@ -308,7 +307,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 
 // IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
 func (n FeatureName) IsAIGovernanceAddon() bool {
-	return n == FeatureAIBridge
+	return n == FeatureAIBridge || n == FeatureBoundary
 }
 
 // IsAddon returns true if the feature is an addon feature.

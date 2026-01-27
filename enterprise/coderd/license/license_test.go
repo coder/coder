@@ -374,10 +374,11 @@ func TestEntitlements(t *testing.T) {
 				featureName == codersdk.FeatureHighAvailability ||
 				featureName == codersdk.FeatureMultipleExternalAuth ||
 				featureName == codersdk.FeatureManagedAgentLimit ||
-				featureName == codersdk.FeatureAIGovernanceUserLimit {
+				featureName == codersdk.FeatureAIGovernanceUserLimit ||
+				featureName == codersdk.FeatureBoundary {
 				// These fields don't generate warnings when not entitled unless
-				// a limit is breached, or in the case of AI Governance User Limit,
-				// it requires the AI Governance addon.
+				// a limit is breached, or in the case of AI Governance features,
+				// they require the AI Governance addon.
 				continue
 			}
 			niceName := featureName.Humanize()
@@ -516,6 +517,9 @@ func TestEntitlements(t *testing.T) {
 				// Enterprise licenses don't get any agents by default.
 				continue
 			}
+			if featureName.IsAddonFeature() {
+				continue
+			}
 			if slices.Contains(enterpriseFeatures, featureName) {
 				require.True(t, entitlements.Features[featureName].Enabled, featureName)
 				require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
@@ -575,6 +579,9 @@ func TestEntitlements(t *testing.T) {
 				require.WithinDuration(t, agentUsagePeriodEnd, agentEntitlement.UsagePeriod.End, time.Second)
 				continue
 			}
+			if featureName.IsAddonFeature() {
+				continue
+			}
 
 			if slices.Contains(enterpriseFeatures, featureName) {
 				require.True(t, entitlements.Features[featureName].Enabled, featureName)
@@ -626,6 +633,9 @@ func TestEntitlements(t *testing.T) {
 		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName.UsesLimit() {
+				continue
+			}
+			if featureName.IsAddonFeature() {
 				continue
 			}
 			if slices.Contains(enterpriseFeatures, featureName) {
@@ -689,6 +699,9 @@ func TestEntitlements(t *testing.T) {
 		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			if featureName.IsAddonFeature() {
 				continue
 			}
 			if slices.Contains(enterpriseFeatures, featureName) {
@@ -906,8 +919,8 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureAccessControl:              true,
 		codersdk.FeatureControlSharedPorts:         true,
 		codersdk.FeatureWorkspaceExternalAgent:     true,
-		// TODO: Remove once AI Bridge is enforced as an add-on license.
-		codersdk.FeatureAIBridge: true,
+		codersdk.FeatureAIBridge:                   true,
+		codersdk.FeatureBoundary:                   true,
 	}
 
 	legacyLicense := func() *coderdenttest.LicenseOptions {
@@ -1844,6 +1857,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
+		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
 		// AI Bridge should be enabled and entitled.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
@@ -1872,6 +1886,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon is absent")
 		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon is absent")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon is absent")
+		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled")
 	})
 
 	t.Run("AIGovernanceAddon respects grace period entitlement", func(t *testing.T) {
@@ -1905,6 +1923,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled during grace period")
 		// require.Equal(t, codersdk.EntitlementGracePeriod, aibridgeFeature.Entitlement, "AI Bridge should be in grace period")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.True(t, boundaryFeature.Enabled, "Boundary should be enabled during grace period")
+		require.Equal(t, codersdk.EntitlementGracePeriod, boundaryFeature.Entitlement, "Boundary should be in grace period")
 	})
 
 	t.Run("AIGovernanceAddon requires enablements to enable features", func(t *testing.T) {
@@ -1930,6 +1952,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled without enablements")
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should still be entitled")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled without enablements")
+		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should still be entitled")
 	})
 
 	t.Run("AIGovernanceAddon missing dependencies", func(t *testing.T) {
@@ -1963,6 +1989,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon validation fails")
 		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon validation fails")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon validation fails")
+		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should still be entitled")
 	})
 }
 
