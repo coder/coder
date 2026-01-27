@@ -1177,6 +1177,12 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		action = policy.ActionDelete
 	case database.WorkspaceTransitionStart:
 		action = policy.ActionWorkspaceStart
+		if b.workspace.DormantAt.Valid {
+			// Dormant workspaces can't be started directly; they are
+			// "woken" by unsetting dormancy, which makes the
+			// workspace.start permission apply.
+			action = policy.ActionUpdate
+		}
 	case database.WorkspaceTransitionStop:
 		action = policy.ActionWorkspaceStop
 	default:
