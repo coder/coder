@@ -1175,8 +1175,16 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 	switch b.trans {
 	case database.WorkspaceTransitionDelete:
 		action = policy.ActionDelete
-	case database.WorkspaceTransitionStart, database.WorkspaceTransitionStop:
-		action = policy.ActionUpdate
+	case database.WorkspaceTransitionStart:
+		action = policy.ActionWorkspaceStart
+		if b.workspace.DormantAt.Valid {
+			// Dormant workspaces can't be started directly; they are
+			// first "woken" by unsetting dormancy, which makes the
+			// workspace.start permission apply.
+			action = policy.ActionUpdate
+		}
+	case database.WorkspaceTransitionStop:
+		action = policy.ActionWorkspaceStop
 	default:
 		msg := fmt.Sprintf("Transition %q not supported.", b.trans)
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
