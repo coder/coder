@@ -1172,7 +1172,6 @@ func TestWorkspaceBuildWithTask(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withTask(database.Task{WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}}),
 		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
