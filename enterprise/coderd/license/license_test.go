@@ -1858,10 +1858,12 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
-		// AI Bridge should be enabled and entitled.
-		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
+		// AI Bridge should be enabled without warning when addon is present.
+		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
+		aiBridgeWarningMessage := "AI Bridge is now Generally Available in v2.30. In a future Coder version, your deployment will require the AI Governance Add-On to continue using this feature. Please reach out to your account team or sales@coder.com to learn more."
+		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage, "AI Bridge warning should not appear when AI Governance addon is present")
+
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
 
 		// TODO: Readd this test once Boundary is enforced as an add-on license.
