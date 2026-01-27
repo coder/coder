@@ -2309,19 +2309,17 @@ func TestCompleteJob(t *testing.T) {
 									Version: "1.0.0",
 									Source:  "github.com/example/example",
 								},
-							},
-							StopResources: []*sdkproto.Resource{{
-								Name:       "something2",
-								Type:       "aws_instance",
-								ModulePath: "module.test2",
-							}},
-							StopModules: []*sdkproto.Module{
 								{
 									Key:     "test2",
 									Version: "2.0.0",
 									Source:  "github.com/example2/example",
 								},
 							},
+							StopResources: []*sdkproto.Resource{{
+								Name:       "something2",
+								Type:       "aws_instance",
+								ModulePath: "module.test2",
+							}},
 							Plan: []byte("{}"),
 						},
 					},

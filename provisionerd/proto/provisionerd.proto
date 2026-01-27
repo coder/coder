@@ -91,7 +91,7 @@ message CompletedJob {
     repeated string external_auth_providers_names = 4;
     repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
     repeated provisioner.Module start_modules = 6;
-    repeated provisioner.Module stop_modules = 7;
+    reserved 7; // was stop_modules, which is always the same as start_modules
     repeated provisioner.Preset presets = 8;
     bytes plan = 9;
     bytes module_files = 10;
