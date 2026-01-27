@@ -405,6 +405,7 @@
   },
   "rate_limit": 0,
   "retention": 0,
+  "send_actor_headers": true,
   "structured_logging": true
 }
 ```
@@ -426,6 +427,7 @@
 | `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
 | `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
 | `retention`                         | integer                                                              | false    |              |                                                                                                                       |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                       |
 | `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
 
 ## codersdk.AIBridgeInterception
@@ -771,6 +773,7 @@
     },
     "rate_limit": 0,
     "retention": 0,
+    "send_actor_headers": true,
     "structured_logging": true
   }
 }
@@ -2695,6 +2698,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "rate_limit": 0,
         "retention": 0,
+        "send_actor_headers": true,
         "structured_logging": true
       }
     },
@@ -3248,6 +3252,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "rate_limit": 0,
       "retention": 0,
+      "send_actor_headers": true,
       "structured_logging": true
     }
   },

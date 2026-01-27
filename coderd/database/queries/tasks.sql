@@ -75,3 +75,22 @@ WHERE
 	id = @id::uuid
 	AND deleted_at IS NULL
 RETURNING *;
+
+-- name: UpsertTaskSnapshot :exec
+INSERT INTO
+	task_snapshots (task_id, log_snapshot, log_snapshot_created_at)
+VALUES
+	($1, $2, $3)
+ON CONFLICT
+	(task_id)
+DO UPDATE SET
+	log_snapshot = EXCLUDED.log_snapshot,
+	log_snapshot_created_at = EXCLUDED.log_snapshot_created_at;
+
+-- name: GetTaskSnapshot :one
+SELECT
+	*
+FROM
+	task_snapshots
+WHERE
+	task_id = $1;

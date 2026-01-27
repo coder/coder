@@ -987,7 +987,7 @@
 					]
 				},
 				{
-					"title": "AI Governance",
+					"title": "AI Governance Add-On",
 					"description": "Features around managing agents at scale",
 					"path": "./ai-coder/ai-governance.md",
 					"state": ["premium"],
@@ -1049,6 +1049,11 @@
 									"path": "./ai-coder/ai-bridge/reference.md"
 								}
 							]
+						},
+						{
+							"title": "Usage Data Reporting",
+							"description": "Configure AI usage data reporting",
+							"path": "./ai-coder/usage-data-reporting.md"
 						}
 					]
 				},
@@ -1343,6 +1348,11 @@
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"
+						},
+						{
+							"title": "boundary",
+							"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests",
+							"path": "reference/cli/boundary.md"
 						},
 						{
 							"title": "coder",

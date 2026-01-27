@@ -110,7 +110,6 @@ func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
 	if a == AddonAIGovernance {
 		requiredFeatures := []FeatureName{
 			FeatureAIGovernanceUserLimit,
-			FeatureManagedAgentLimit,
 		}
 
 		for _, featureName := range requiredFeatures {
@@ -275,6 +274,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
+		FeatureBoundary:                   true,
 	}[n]
 }
 
@@ -344,7 +344,8 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			return !f.Enterprise() || f.UsesLimit() || f.IsAddonFeature()
+			// TODO: In future release, restore the f.IsAddonFeature() check.
+			return !f.Enterprise() || f.UsesLimit()
 		})
 
 		return enterpriseFeatures
@@ -353,7 +354,8 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
-			return f.UsesLimit() || f.IsAddonFeature()
+			// TODO: In future release, restore the f.IsAddonFeature() check.
+			return f.UsesLimit()
 		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures
@@ -3634,6 +3636,18 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "structuredLogging",
 		},
 		{
+			Name: "AI Bridge Send Actor Headers",
+			Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
+				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. " +
+				"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+			Flag:    "aibridge-send-actor-headers",
+			Env:     "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
+			Value:   &c.AI.BridgeConfig.SendActorHeaders,
+			Default: "false",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "send_actor_headers",
+		},
+		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
 			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
 			Flag:        "aibridge-circuit-breaker-enabled",
@@ -3846,6 +3860,7 @@ type AIBridgeConfig struct {
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool            `json:"send_actor_headers" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`

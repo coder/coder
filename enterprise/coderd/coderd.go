@@ -769,7 +769,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureUserRoleManagement:         true,
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,
-				codersdk.FeatureAIBridge:                   true,
+				codersdk.FeatureAIBridge:                   api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 			})
 		if err != nil {
 			return codersdk.Entitlements{}, err

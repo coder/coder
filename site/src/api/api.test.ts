@@ -21,9 +21,9 @@ describe("api.ts", () => {
 				session_token: "abc_123_test",
 			};
 
-			jest
-				.spyOn(axiosInstance, "post")
-				.mockResolvedValueOnce({ data: loginResponse });
+			vi.spyOn(axiosInstance, "post").mockResolvedValueOnce({
+				data: loginResponse,
+			});
 
 			// when
 			const result = await API.login("test", "123");
@@ -41,7 +41,7 @@ describe("api.ts", () => {
 				message: "Validation failed",
 				errors: [{ field: "email", code: "email" }],
 			};
-			const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
 				return Promise.reject(expectedError);
 			});
 			axiosInstance.post = axiosMockPost;
@@ -57,7 +57,7 @@ describe("api.ts", () => {
 	describe("logout", () => {
 		it("should return without erroring", async () => {
 			// given
-			const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
 				return Promise.resolve();
 			});
 			axiosInstance.post = axiosMockPost;
@@ -76,7 +76,7 @@ describe("api.ts", () => {
 			const expectedError = {
 				message: "Failed to logout.",
 			};
-			const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
 				return Promise.reject(expectedError);
 			});
 
@@ -96,7 +96,7 @@ describe("api.ts", () => {
 			const apiKeyResponse: TypesGen.GenerateAPIKeyResponse = {
 				key: "abc_123_test",
 			};
-			const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
 				return Promise.resolve({ data: apiKeyResponse });
 			});
 
@@ -117,7 +117,7 @@ describe("api.ts", () => {
 			const expectedError = {
 				message: "No Cookie!",
 			};
-			const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+			const axiosMockPost = vi.fn().mockImplementationOnce(() => {
 				return Promise.reject(expectedError);
 			});
 
@@ -175,16 +175,16 @@ describe("api.ts", () => {
 	describe("update", () => {
 		describe("given a running workspace", () => {
 			it("stops with current version before starting with the latest version", async () => {
-				jest.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
 					transition: "stop",
 				});
-				jest.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
 					template_version_id: MockTemplateVersion2.id,
 					transition: "start",
 				});
-				jest.spyOn(API, "getTemplate").mockResolvedValueOnce({
+				vi.spyOn(API, "getTemplate").mockResolvedValueOnce({
 					...MockTemplate,
 					active_version_id: MockTemplateVersion2.id,
 				});
@@ -201,17 +201,15 @@ describe("api.ts", () => {
 			});
 
 			it("fails when having missing parameters", async () => {
-				jest
-					.spyOn(API, "postWorkspaceBuild")
-					.mockResolvedValue(MockWorkspaceBuild);
-				jest.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
-				jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
-				jest
-					.spyOn(API, "getTemplateVersionRichParameters")
-					.mockResolvedValue([
-						MockTemplateVersionParameter1,
-						{ ...MockTemplateVersionParameter2, mutable: false },
-					]);
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValue(
+					MockWorkspaceBuild,
+				);
+				vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
+				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
+					MockTemplateVersionParameter1,
+					{ ...MockTemplateVersionParameter2, mutable: false },
+				]);
 
 				let error = new Error();
 				try {
@@ -229,20 +227,20 @@ describe("api.ts", () => {
 			});
 
 			it("creates a build with no parameters if it is already filled", async () => {
-				jest.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
 					transition: "stop",
 				});
-				jest.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 					...MockWorkspaceBuild,
 					template_version_id: MockTemplateVersion2.id,
 					transition: "start",
 				});
-				jest.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
-				jest
-					.spyOn(API, "getWorkspaceBuildParameters")
-					.mockResolvedValue([MockWorkspaceBuildParameter1]);
-				jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
+				vi.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
+				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([
+					MockWorkspaceBuildParameter1,
+				]);
+				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
 					{
 						...MockTemplateVersionParameter1,
 						required: true,
@@ -263,10 +261,10 @@ describe("api.ts", () => {
 		});
 		describe("given a stopped workspace", () => {
 			it("creates a build with start and the latest template", async () => {
-				jest
-					.spyOn(API, "postWorkspaceBuild")
-					.mockResolvedValueOnce(MockWorkspaceBuild);
-				jest.spyOn(API, "getTemplate").mockResolvedValueOnce({
+				vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce(
+					MockWorkspaceBuild,
+				);
+				vi.spyOn(API, "getTemplate").mockResolvedValueOnce({
 					...MockTemplate,
 					active_version_id: MockTemplateVersion2.id,
 				});

@@ -28,7 +28,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 			<PopoverTrigger asChild>
 				<TopbarButton data-testid="workspace-share-button">
 					<Share2Icon />
-					Share Workspace
+					Share
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[580px] p-4">
@@ -42,6 +42,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 					updatingGroupId={sharing.updatingGroupId}
 					onUpdateGroup={sharing.updateGroup}
 					onRemoveGroup={sharing.removeGroup}
+					showRestartWarning={sharing.hasRemovedMember}
 					isCompact
 					addMemberForm={
 						<AddWorkspaceUserOrGroup
