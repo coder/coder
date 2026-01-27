@@ -324,11 +324,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 													key={preset.ID}
 													className="[&_span]:flex [&_span]:items-center [&_span]:gap-2"
 												>
-													<img
-														src={preset.Icon}
-														alt={preset.Name}
-														className="size-icon-sm flex-shrink-0"
-													/>
+													{preset.Icon && (
+														<img
+															src={preset.Icon}
+															alt={preset.Name}
+															className="size-icon-sm flex-shrink-0"
+														/>
+													)}
 													<span>
 														{preset.Name} {preset.Default && "(Default)"}
 													</span>
