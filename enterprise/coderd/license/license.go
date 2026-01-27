@@ -303,6 +303,7 @@ func LicensesEntitlements(
 		// Track explicit AI Bridge entitlement (add-on license). This is checked
 		// at the license level since AI Bridge may come from the FeatureSet
 		// (Premium) rather than being explicitly listed in claims.Features.
+		// Only having the AI Governance addon should suppress the soft warning.
 		if slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
 			hasExplicitAIBridgeEntitlement = true
 		}

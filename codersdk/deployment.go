@@ -308,7 +308,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 
 // IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
 func (n FeatureName) IsAIGovernanceAddon() bool {
-	return n == FeatureAIBridge || n == FeatureBoundary
+	return n == FeatureAIBridge
 }
 
 // IsAddon returns true if the feature is an addon feature.
