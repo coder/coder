@@ -28,11 +28,6 @@ func TestEntitlements(t *testing.T) {
 		all[n] = true
 	}
 
-	premium := make(map[codersdk.FeatureName]bool)
-	for _, n := range codersdk.FeatureSetPremium.Features() {
-		premium[n] = !n.IsAddonFeature()
-	}
-
 	empty := map[codersdk.FeatureName]bool{}
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -208,7 +203,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 
 		// Warning should be generated.
-		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, premium)
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -236,7 +231,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 
 		// Warning should be suppressed.
-		entitlements, err = license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, premium)
+		entitlements, err = license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -261,7 +256,6 @@ func TestEntitlements(t *testing.T) {
 				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 				GraceAt:    graceDate,
 				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
-				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 			}),
 			Exp: time.Now().AddDate(0, 0, 5),
 		})

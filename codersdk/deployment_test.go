@@ -627,7 +627,7 @@ func TestPremiumSuperSet(t *testing.T) {
 	// TODO: In future release, also exclude addon features (f.IsAddonFeature()).
 	expectedPremiumFeatures := []codersdk.FeatureName{}
 	for _, feature := range codersdk.FeatureNames {
-		if feature.UsesLimit() || feature.IsAddonFeature() {
+		if feature.UsesLimit() {
 			continue
 		}
 		expectedPremiumFeatures = append(expectedPremiumFeatures, feature)
