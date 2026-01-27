@@ -861,6 +861,7 @@ module "claude-code" {
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
+  model               = "opus"
   order               = 999
   claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
   agentapi_version    = "latest"
