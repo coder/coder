@@ -1,12 +1,14 @@
 package aibridgeproxyd
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -36,7 +38,13 @@ const (
 	// HeaderAIBridgeRequestID is the header used to correlate requests
 	// between aibridgeproxyd and aibridged.
 	HeaderAIBridgeRequestID = "X-AI-Bridge-Request-Id"
+	// ProxyAuthRealm is the realm used in Proxy-Authenticate challenges.
+	// The realm helps clients identify which credentials to use.
+	ProxyAuthRealm = `"Coder AI Bridge Proxy"`
 )
+
+// proxyAuthRequiredMsg is the response body for 407 responses.
+var proxyAuthRequiredMsg = []byte(http.StatusText(http.StatusProxyAuthRequired))
 
 // loadMitmOnce ensures the MITM certificate is loaded exactly once.
 // goproxy.GoproxyCa is a package-level global variable shared across all
@@ -424,7 +432,9 @@ func convertDomainsToHosts(domains []string, allowedPorts []string) ([]string, e
 // authMiddleware is a CONNECT middleware that extracts the Coder token from
 // the Proxy-Authorization header and stores it in a requestContext in ctx.UserData
 // for use by downstream handlers.
-// Requests without valid credentials are rejected.
+// Requests without valid credentials receive a 407 Proxy Authentication
+// Required response with a challenge header, allowing clients to retry with
+// credentials.
 //
 // Clients provide credentials by setting their HTTP Proxy as:
 //
@@ -445,12 +455,15 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 		slog.F("host", host),
 	)
 
-	// Reject requests without valid credentials.
+	// Reject requests for both missing and invalid credentials
 	if coderToken == "" {
 		hasAuth := proxyAuth != ""
 		logger.Warn(s.ctx, "rejecting CONNECT request",
 			slog.F("reason", map[bool]string{true: "invalid_credentials", false: "missing_credentials"}[hasAuth]),
 		)
+
+		// Send 407 challenge to allow clients to retry with credentials.
+		ctx.Resp = newProxyAuthRequiredResponse(ctx.Req) //nolint:bodyclose // Response body is written by goproxy to the client
 		return goproxy.RejectConnect, host
 	}
 
@@ -497,6 +510,27 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	}
 
 	return credentials[1]
+}
+
+// newProxyAuthRequiredResponse creates a 407 Proxy Authentication Required
+// response with the appropriate challenge header. This is used both during
+// CONNECT handling and for decrypted requests missing authentication.
+//
+// Note: based on github.com/elazarl/goproxy/ext/auth.BasicUnauthorized, inlined
+// here to avoid adding a dependency on the ext module.
+func newProxyAuthRequiredResponse(req *http.Request) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusProxyAuthRequired,
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Request:    req,
+		Header: http.Header{
+			"Proxy-Authenticate": []string{"Basic realm=" + ProxyAuthRealm},
+			"Proxy-Connection":   []string{"close"},
+		},
+		Body:          io.NopCloser(bytes.NewBuffer(proxyAuthRequiredMsg)),
+		ContentLength: int64(len(proxyAuthRequiredMsg)),
+	}
 }
 
 // defaultAIBridgeProvider maps the request host to the aibridge provider name.
@@ -563,9 +597,8 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// Reject unauthenticated requests to AI providers.
 	if reqCtx.CoderToken == "" {
 		logger.Warn(s.ctx, "rejecting unauthenticated request to AI provider")
-		resp := goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
-		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Bridge Proxy"`)
-		return req, resp
+		// Describe to the client how to authenticate with the proxy.
+		return req, newProxyAuthRequiredResponse(req)
 	}
 
 	// Store provider in context for response handler.
