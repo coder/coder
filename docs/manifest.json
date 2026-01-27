@@ -996,7 +996,7 @@
 							"title": "Agent Boundaries",
 							"description": "Understanding Agent Boundaries in Coder Tasks",
 							"path": "./ai-coder/boundary/agent-boundary.md",
-							"state": ["beta"],
+							"state": ["premium", "beta"],
 							"children": [
 								{
 									"title": "NS Jail",
