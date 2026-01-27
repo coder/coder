@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -266,6 +267,8 @@ type Options struct {
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
+	// BoundaryUsageTracker tracks boundary usage for telemetry.
+	BoundaryUsageTracker *boundaryusage.Tracker
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	NotificationsEnqueuer notifications.Enqueuer
 
@@ -1803,6 +1806,12 @@ func New(options *Options) *API {
 
 	api.RootHandler = r
 
+	if options.BoundaryUsageTracker == nil {
+		options.BoundaryUsageTracker = boundaryusage.NewTracker()
+	}
+	// Start the periodic flush of boundary usage stats to the database.
+	go api.runBoundaryUsageFlushLoop()
+
 	return api
 }
 
@@ -1957,6 +1966,25 @@ func (api *API) Close() error {
 	}
 
 	return nil
+}
+
+// runBoundaryUsageFlushLoop periodically flushes boundary usage stats to the
+// database until the API context is canceled.
+func (api *API) runBoundaryUsageFlushLoop() {
+	// Flush every minute to keep stats reasonably fresh for telemetry collection
+	// without excessive DB writes. For more explanation, see coderd/boundaryusage/doc.go.
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-api.ctx.Done():
+			return
+		case <-ticker.C:
+			if err := api.BoundaryUsageTracker.FlushToDB(api.ctx, api.Database, api.ID); err != nil {
+				api.Logger.Warn(api.ctx, "failed to flush boundary usage stats", slog.Error(err))
+			}
+		}
+	}
 }
 
 func compressHandler(h http.Handler) http.Handler {
