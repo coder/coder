@@ -786,7 +786,7 @@ func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
 	ctx := context.Background()
 
 	// Start transition: should be not permitted due to limit breach.
-	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, nil, database.WorkspaceTransitionStart)
+	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
 	require.NoError(t, err)
 	require.False(t, startResp.Permitted)
 	require.Contains(t, startResp.Message, "breached the managed agent limit")
