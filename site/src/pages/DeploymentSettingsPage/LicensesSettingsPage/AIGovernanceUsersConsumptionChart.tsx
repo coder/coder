@@ -96,7 +96,7 @@ export const AIGovernanceUsersConsumption: FC<
 								rel="noreferrer"
 							>
 								Tasks
-							</Link>
+							</Link>.
 						</p>
 					</CollapsibleContent>
 				</Collapsible>
