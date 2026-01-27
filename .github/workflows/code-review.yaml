@@ -54,8 +54,8 @@ jobs:
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
     env:
-      CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
-      CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+      CODER_URL: ${{ secrets.CODE_REVIEW_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.CODE_REVIEW_CODER_SESSION_TOKEN }}
     permissions:
       contents: read
       pull-requests: write
@@ -65,8 +65,8 @@ jobs:
       - name: Check if secrets are available
         id: check-secrets
         env:
-          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
-          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          CODER_URL: ${{ secrets.CODE_REVIEW_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.CODE_REVIEW_CODER_SESSION_TOKEN }}
         run: |
           if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
@@ -87,8 +87,8 @@ jobs:
         if: steps.check-secrets.outputs.skip != 'true'
         uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1
         with:
-          access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
-          coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          access_url: ${{ secrets.CODE_REVIEW_CODER_URL }}
+          coder_session_token: ${{ secrets.CODE_REVIEW_CODER_SESSION_TOKEN }}
 
       - name: Determine PR Context
         if: steps.check-secrets.outputs.skip != 'true'
@@ -232,8 +232,8 @@ jobs:
         id: create_task
         uses: ./.github/actions/create-task-action
         with:
-          coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
-          coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          coder-url: ${{ secrets.CODE_REVIEW_CODER_URL }}
+          coder-token: ${{ secrets.CODE_REVIEW_CODER_SESSION_TOKEN }}
           coder-organization: "default"
           coder-template-name: coder-workflow-bot
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
