@@ -488,7 +488,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
-		task, _, err := b.getWorkspaceTask()
+		task, err := b.getWorkspaceTask()
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
 		}
@@ -637,22 +637,22 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 
 // getWorkspaceTask returns the task associated with the workspace, if any.
 // If no task exists, it returns (nil, false, nil).
-func (b *Builder) getWorkspaceTask() (*database.Task, bool, error) {
+func (b *Builder) getWorkspaceTask() (*database.Task, error) {
 	if b.hasTask != nil {
-		return b.task, *b.hasTask, nil
+		return b.task, nil
 	}
 	t, err := b.store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			b.hasTask = ptr.Ref(false)
-			return nil, *b.hasTask, nil
+			return nil, nil
 		}
-		return nil, false, xerrors.Errorf("get task: %w", err)
+		return nil, xerrors.Errorf("get task: %w", err)
 	}
 
 	b.task = &t
 	b.hasTask = ptr.Ref(true)
-	return b.task, *b.hasTask, nil
+	return b.task, nil
 }
 
 func (b *Builder) getTemplateTerraformValues() (*database.TemplateVersionTerraformValue, error) {
@@ -1328,7 +1328,7 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	task, _, err := b.getWorkspaceTask()
+	task, err := b.getWorkspaceTask()
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch workspace task", err}
 	}
