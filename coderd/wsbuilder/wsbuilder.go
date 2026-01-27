@@ -85,13 +85,20 @@ type Builder struct {
 	templateVersionPresetParameterValues *[]database.TemplateVersionPresetParameter
 	parameterRender                      dynamicparameters.Renderer
 	workspaceTags                        *map[string]string
+	task                                 *database.Task
+	hasTask                              *bool // A workspace without a task will have a nil `task` and false `hasTask`.
 
+	// taskInitiated indicates if the workspace build originated from a task. This is
+	// not a perfect indicator, as a task workspace can be stopped/started from the
+	// normal api. To know for sure, if this boolean is false, a db query for a task
+	// by workspace id must be also be made.
+	taskInitiated                bool
 	prebuiltWorkspaceBuildStage  sdkproto.PrebuiltWorkspaceBuildStage
 	verifyNoLegacyParametersOnce bool
 }
 
 type UsageChecker interface {
-	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (UsageCheckResponse, error)
+	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (UsageCheckResponse, error)
 }
 
 type UsageCheckResponse struct {
@@ -103,7 +110,7 @@ type NoopUsageChecker struct{}
 
 var _ UsageChecker = NoopUsageChecker{}
 
-func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ database.WorkspaceTransition) (UsageCheckResponse, error) {
+func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (UsageCheckResponse, error) {
 	return UsageCheckResponse{
 		Permitted: true,
 	}, nil
@@ -211,6 +218,11 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 func (b Builder) MarkPrebuild() Builder {
 	// nolint: revive
 	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
+	return b
+}
+
+func (b Builder) MarkTaskInitiated() Builder {
+	b.taskInitiated = true
 	return b
 }
 
@@ -630,6 +642,26 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 		return uuid.Nil, xerrors.Errorf("get last build so we can get version: %w", err)
 	}
 	return bld.TemplateVersionID, nil
+}
+
+// getWorkspaceTask returns the task associated with the workspace, if any.
+// If no task exists, it returns (nil, false, nil).
+func (b *Builder) getWorkspaceTask() (*database.Task, bool, error) {
+	if b.hasTask != nil {
+		return b.task, *b.hasTask, nil
+	}
+	t, err := b.store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			b.hasTask = ptr.Ref(false)
+			return nil, *b.hasTask, nil
+		}
+		return nil, false, xerrors.Errorf("get task: %w", err)
+	}
+
+	b.task = &t
+	b.hasTask = ptr.Ref(true)
+	return b.task, *b.hasTask, nil
 }
 
 func (b *Builder) getTemplateTerraformValues() (*database.TemplateVersionTerraformValue, error) {
@@ -1305,7 +1337,18 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, b.trans)
+	task, hasTask, err := b.getWorkspaceTask()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "Failed to fetch workspace task", err}
+	}
+
+	if !hasTask && b.taskInitiated {
+		// This should never happen. It means this workspace build came from a task workspace, but no task exists.
+		// The task is supposed to exist before wsbuilder starts.task
+		return BuildError{http.StatusBadRequest, "Cannot initiate task workspace build for a workspace without a task", nil}
+	}
+
+	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, task, b.trans)
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to check build usage", err}
 	}

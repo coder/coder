@@ -136,6 +136,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
+		TaskInitiated:           true,
 	}
 
 	var owner workspaceOwner

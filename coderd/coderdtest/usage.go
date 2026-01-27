@@ -20,7 +20,7 @@ func NewUsageInserter() *UsageInserter {
 	}
 }
 
-func (u *UsageInserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.Store, event usagetypes.DiscreteEvent) error {
+func (u *UsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
 	u.Events = append(u.Events, event)
 	return nil
 }

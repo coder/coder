@@ -4720,7 +4720,7 @@ func TestWorkspaceAITask(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 				// The user should not use tasks
-				codersdk.FeatureManagedAgentLimit: 0,
+				codersdk.FeatureManagedAgentLimit: 20,
 			},
 		},
 	})
@@ -4773,8 +4773,35 @@ func TestWorkspaceAITask(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
 		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
-		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 		require.Len(t, usage.Events, 0)
+	})
+
+	t.Run("CreateTaskWorkspace", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		t.Cleanup(usage.Reset)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionPlan:  planWithTask,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: graphWithTask,
+		})
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		task, err := client.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Name:              "istask",
+		})
+		require.NoError(t, err)
+
+		wrk, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
+		require.Equal(t, codersdk.CancelWorkspaceBuildStatusRunning, build.Status)
+		require.Len(t, usage.Events, 1)
 	})
 
 	// TODO: Create a test of a workspace that failed but has an ai task. See if the failed build
