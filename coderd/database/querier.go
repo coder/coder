@@ -353,6 +353,7 @@ type sqlcQuerier interface {
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) (Task, error)
 	GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error)
+	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
 	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -772,6 +773,7 @@ type sqlcQuerier interface {
 	UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (TailnetCoordinator, error)
 	UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error)
 	UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error)
+	UpsertTaskSnapshot(ctx context.Context, arg UpsertTaskSnapshotParams) error
 	UpsertTaskWorkspaceApp(ctx context.Context, arg UpsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error)
 	UpsertTelemetryItem(ctx context.Context, arg UpsertTelemetryItemParams) error
 	// This query aggregates the workspace_agent_stats and workspace_app_stats data
