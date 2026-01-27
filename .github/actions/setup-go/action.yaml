@@ -4,7 +4,7 @@ description: |
 inputs:
   version:
     description: "The Go version to use."
-    default: "1.24.11"
+    default: "1.25.6"
   use-preinstalled-go:
     description: "Whether to use preinstalled Go."
     default: "false"
