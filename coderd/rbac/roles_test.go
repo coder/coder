@@ -302,9 +302,9 @@ func TestRolePermissions(t *testing.T) {
 				InOrg(orgID).
 				WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgAdmin, orgAdminBanWorkspace},
+				true: {owner, orgAdmin, orgAdminBanWorkspace},
 				false: {
-					owner, memberMe, setOtherOrg,
+					memberMe, setOtherOrg,
 					templateAdmin, userAdmin,
 					orgTemplateAdmin, orgUserAdmin, orgAuditor,
 				},

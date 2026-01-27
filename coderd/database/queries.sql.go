@@ -12634,22 +12634,6 @@ func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
 	return err
 }
 
-const deleteAllTailnetClientSubscriptions = `-- name: DeleteAllTailnetClientSubscriptions :exec
-DELETE
-FROM tailnet_client_subscriptions
-WHERE client_id = $1 and coordinator_id = $2
-`
-
-type DeleteAllTailnetClientSubscriptionsParams struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg DeleteAllTailnetClientSubscriptionsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteAllTailnetClientSubscriptions, arg.ClientID, arg.CoordinatorID)
-	return err
-}
-
 const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :exec
 DELETE
 FROM tailnet_tunnels
@@ -12663,82 +12647,6 @@ type DeleteAllTailnetTunnelsParams struct {
 
 func (q *sqlQuerier) DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error {
 	_, err := q.db.ExecContext(ctx, deleteAllTailnetTunnels, arg.CoordinatorID, arg.SrcID)
-	return err
-}
-
-const deleteCoordinator = `-- name: DeleteCoordinator :exec
-DELETE
-FROM tailnet_coordinators
-WHERE id = $1
-`
-
-func (q *sqlQuerier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteCoordinator, id)
-	return err
-}
-
-const deleteTailnetAgent = `-- name: DeleteTailnetAgent :one
-DELETE
-FROM tailnet_agents
-WHERE id = $1 and coordinator_id = $2
-RETURNING id, coordinator_id
-`
-
-type DeleteTailnetAgentParams struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-type DeleteTailnetAgentRow struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteTailnetAgent(ctx context.Context, arg DeleteTailnetAgentParams) (DeleteTailnetAgentRow, error) {
-	row := q.db.QueryRowContext(ctx, deleteTailnetAgent, arg.ID, arg.CoordinatorID)
-	var i DeleteTailnetAgentRow
-	err := row.Scan(&i.ID, &i.CoordinatorID)
-	return i, err
-}
-
-const deleteTailnetClient = `-- name: DeleteTailnetClient :one
-DELETE
-FROM tailnet_clients
-WHERE id = $1 and coordinator_id = $2
-RETURNING id, coordinator_id
-`
-
-type DeleteTailnetClientParams struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-type DeleteTailnetClientRow struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteTailnetClient(ctx context.Context, arg DeleteTailnetClientParams) (DeleteTailnetClientRow, error) {
-	row := q.db.QueryRowContext(ctx, deleteTailnetClient, arg.ID, arg.CoordinatorID)
-	var i DeleteTailnetClientRow
-	err := row.Scan(&i.ID, &i.CoordinatorID)
-	return i, err
-}
-
-const deleteTailnetClientSubscription = `-- name: DeleteTailnetClientSubscription :exec
-DELETE
-FROM tailnet_client_subscriptions
-WHERE client_id = $1 and agent_id = $2 and coordinator_id = $3
-`
-
-type DeleteTailnetClientSubscriptionParams struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) error {
-	_, err := q.db.ExecContext(ctx, deleteTailnetClientSubscription, arg.ClientID, arg.AgentID, arg.CoordinatorID)
 	return err
 }
 
@@ -12790,39 +12698,6 @@ func (q *sqlQuerier) DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetT
 	var i DeleteTailnetTunnelRow
 	err := row.Scan(&i.CoordinatorID, &i.SrcID, &i.DstID)
 	return i, err
-}
-
-const getAllTailnetAgents = `-- name: GetAllTailnetAgents :many
-SELECT id, coordinator_id, updated_at, node
-FROM tailnet_agents
-`
-
-func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error) {
-	rows, err := q.db.QueryContext(ctx, getAllTailnetAgents)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TailnetAgent
-	for rows.Next() {
-		var i TailnetAgent
-		if err := rows.Scan(
-			&i.ID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getAllTailnetCoordinators = `-- name: GetAllTailnetCoordinators :many
@@ -12905,78 +12780,6 @@ func (q *sqlQuerier) GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel,
 			&i.SrcID,
 			&i.DstID,
 			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTailnetAgents = `-- name: GetTailnetAgents :many
-SELECT id, coordinator_id, updated_at, node
-FROM tailnet_agents
-WHERE id = $1
-`
-
-func (q *sqlQuerier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetAgents, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TailnetAgent
-	for rows.Next() {
-		var i TailnetAgent
-		if err := rows.Scan(
-			&i.ID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTailnetClientsForAgent = `-- name: GetTailnetClientsForAgent :many
-SELECT id, coordinator_id, updated_at, node
-FROM tailnet_clients
-WHERE id IN (
-	SELECT tailnet_client_subscriptions.client_id
-	FROM tailnet_client_subscriptions
-	WHERE tailnet_client_subscriptions.agent_id = $1
-)
-`
-
-func (q *sqlQuerier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetClientsForAgent, agentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TailnetClient
-	for rows.Next() {
-		var i TailnetClient
-		if err := rows.Scan(
-			&i.ID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
 		); err != nil {
 			return nil, err
 		}
@@ -13130,109 +12933,6 @@ type UpdateTailnetPeerStatusByCoordinatorParams struct {
 
 func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error {
 	_, err := q.db.ExecContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
-	return err
-}
-
-const upsertTailnetAgent = `-- name: UpsertTailnetAgent :one
-INSERT INTO
-	tailnet_agents (
-	id,
-	coordinator_id,
-	node,
-	updated_at
-)
-VALUES
-	($1, $2, $3, now() at time zone 'utc')
-ON CONFLICT (id, coordinator_id)
-DO UPDATE SET
-	id = $1,
-	coordinator_id = $2,
-	node = $3,
-	updated_at = now() at time zone 'utc'
-RETURNING id, coordinator_id, updated_at, node
-`
-
-type UpsertTailnetAgentParams struct {
-	ID            uuid.UUID       `db:"id" json:"id"`
-	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	Node          json.RawMessage `db:"node" json:"node"`
-}
-
-func (q *sqlQuerier) UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error) {
-	row := q.db.QueryRowContext(ctx, upsertTailnetAgent, arg.ID, arg.CoordinatorID, arg.Node)
-	var i TailnetAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CoordinatorID,
-		&i.UpdatedAt,
-		&i.Node,
-	)
-	return i, err
-}
-
-const upsertTailnetClient = `-- name: UpsertTailnetClient :one
-INSERT INTO
-	tailnet_clients (
-	id,
-	coordinator_id,
-	node,
-	updated_at
-)
-VALUES
-	($1, $2, $3, now() at time zone 'utc')
-ON CONFLICT (id, coordinator_id)
-DO UPDATE SET
-	id = $1,
-	coordinator_id = $2,
-	node = $3,
-	updated_at = now() at time zone 'utc'
-RETURNING id, coordinator_id, updated_at, node
-`
-
-type UpsertTailnetClientParams struct {
-	ID            uuid.UUID       `db:"id" json:"id"`
-	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	Node          json.RawMessage `db:"node" json:"node"`
-}
-
-func (q *sqlQuerier) UpsertTailnetClient(ctx context.Context, arg UpsertTailnetClientParams) (TailnetClient, error) {
-	row := q.db.QueryRowContext(ctx, upsertTailnetClient, arg.ID, arg.CoordinatorID, arg.Node)
-	var i TailnetClient
-	err := row.Scan(
-		&i.ID,
-		&i.CoordinatorID,
-		&i.UpdatedAt,
-		&i.Node,
-	)
-	return i, err
-}
-
-const upsertTailnetClientSubscription = `-- name: UpsertTailnetClientSubscription :exec
-INSERT INTO
-	tailnet_client_subscriptions (
-	client_id,
-	coordinator_id,
-	agent_id,
-	updated_at
-)
-VALUES
-	($1, $2, $3, now() at time zone 'utc')
-ON CONFLICT (client_id, coordinator_id, agent_id)
-DO UPDATE SET
-	client_id = $1,
-	coordinator_id = $2,
-	agent_id = $3,
-	updated_at = now() at time zone 'utc'
-`
-
-type UpsertTailnetClientSubscriptionParams struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-}
-
-func (q *sqlQuerier) UpsertTailnetClientSubscription(ctx context.Context, arg UpsertTailnetClientSubscriptionParams) error {
-	_, err := q.db.ExecContext(ctx, upsertTailnetClientSubscription, arg.ClientID, arg.CoordinatorID, arg.AgentID)
 	return err
 }
 
@@ -13483,6 +13183,22 @@ func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.
 	return i, err
 }
 
+const getTaskSnapshot = `-- name: GetTaskSnapshot :one
+SELECT
+	task_id, log_snapshot, log_snapshot_created_at
+FROM
+	task_snapshots
+WHERE
+	task_id = $1
+`
+
+func (q *sqlQuerier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, getTaskSnapshot, taskID)
+	var i TaskSnapshot
+	err := row.Scan(&i.TaskID, &i.LogSnapshot, &i.LogSnapshotCreatedAt)
+	return i, err
+}
+
 const insertTask = `-- name: InsertTask :one
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, display_name, workspace_id, template_version_id, template_parameters, prompt, created_at)
@@ -13671,6 +13387,29 @@ func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWo
 		&i.DisplayName,
 	)
 	return i, err
+}
+
+const upsertTaskSnapshot = `-- name: UpsertTaskSnapshot :exec
+INSERT INTO
+	task_snapshots (task_id, log_snapshot, log_snapshot_created_at)
+VALUES
+	($1, $2, $3)
+ON CONFLICT
+	(task_id)
+DO UPDATE SET
+	log_snapshot = EXCLUDED.log_snapshot,
+	log_snapshot_created_at = EXCLUDED.log_snapshot_created_at
+`
+
+type UpsertTaskSnapshotParams struct {
+	TaskID               uuid.UUID       `db:"task_id" json:"task_id"`
+	LogSnapshot          json.RawMessage `db:"log_snapshot" json:"log_snapshot"`
+	LogSnapshotCreatedAt time.Time       `db:"log_snapshot_created_at" json:"log_snapshot_created_at"`
+}
+
+func (q *sqlQuerier) UpsertTaskSnapshot(ctx context.Context, arg UpsertTaskSnapshotParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTaskSnapshot, arg.TaskID, arg.LogSnapshot, arg.LogSnapshotCreatedAt)
+	return err
 }
 
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
@@ -17954,6 +17693,47 @@ func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg Update
 	return err
 }
 
+const batchUpdateWorkspaceAgentMetadata = `-- name: BatchUpdateWorkspaceAgentMetadata :exec
+WITH metadata AS (
+	SELECT
+		unnest($1::uuid[]) AS workspace_agent_id,
+		unnest($2::text[]) AS key,
+		unnest($3::text[]) AS value,
+		unnest($4::text[]) AS error,
+		unnest($5::timestamptz[]) AS collected_at
+)
+UPDATE
+	workspace_agent_metadata wam
+SET
+	value = m.value,
+	error = m.error,
+	collected_at = m.collected_at
+FROM
+	metadata m
+WHERE
+	wam.workspace_agent_id = m.workspace_agent_id
+	AND wam.key = m.key
+`
+
+type BatchUpdateWorkspaceAgentMetadataParams struct {
+	WorkspaceAgentID []uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Key              []string    `db:"key" json:"key"`
+	Value            []string    `db:"value" json:"value"`
+	Error            []string    `db:"error" json:"error"`
+	CollectedAt      []time.Time `db:"collected_at" json:"collected_at"`
+}
+
+func (q *sqlQuerier) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error {
+	_, err := q.db.ExecContext(ctx, batchUpdateWorkspaceAgentMetadata,
+		pq.Array(arg.WorkspaceAgentID),
+		pq.Array(arg.Key),
+		pq.Array(arg.Value),
+		pq.Array(arg.Error),
+		pq.Array(arg.CollectedAt),
+	)
+	return err
+}
+
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :execrows
 WITH
 	latest_builds AS (
@@ -18024,7 +17804,7 @@ func (q *sqlQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UU
 	return err
 }
 
-const getWorkspaceAgentAndLatestBuildByAuthToken = `-- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
+const getAuthenticatedWorkspaceAgentAndBuildByAuthToken = `-- name: GetAuthenticatedWorkspaceAgentAndBuildByAuthToken :one
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
@@ -18054,29 +17834,57 @@ WHERE
 	AND workspaces.deleted = FALSE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE
-	-- Filter out builds that are not the latest.
-	AND workspace_build_with_user.build_number = (
-		-- Select from workspace_builds as it's one less join compared
-		-- to workspace_build_with_user.
-		SELECT
-			MAX(build_number)
-		FROM
-			workspace_builds
-		WHERE
-			workspace_id = workspace_build_with_user.workspace_id
-	)
+	-- Filter out builds that are not the latest, with exception for shutdown case.
+	-- Use CASE for short-circuiting: check normal case first (most common), then shutdown case.
+	AND CASE
+		-- Normal case: Agent's build is the latest build.
+		WHEN workspace_build_with_user.build_number = (
+			SELECT
+				MAX(build_number)
+			FROM
+				workspace_builds
+			WHERE
+				workspace_id = workspace_build_with_user.workspace_id
+		) THEN TRUE
+		-- Shutdown case: Agent from previous START build during STOP build execution.
+		WHEN workspace_build_with_user.transition = 'start'
+			-- Agent's START build job succeeded.
+			AND (SELECT job_status FROM provisioner_jobs WHERE id = workspace_build_with_user.job_id) = 'succeeded'
+			-- Latest build is a STOP build whose job is still active,
+			-- and agent's build is immediately previous.
+			AND EXISTS (
+				SELECT 1
+				FROM workspace_builds latest
+				JOIN provisioner_jobs pj ON pj.id = latest.job_id
+				WHERE latest.workspace_id = workspace_build_with_user.workspace_id
+				AND latest.build_number = workspace_build_with_user.build_number + 1
+				AND latest.build_number = (
+					SELECT MAX(build_number)
+					FROM workspace_builds l2
+					WHERE l2.workspace_id = latest.workspace_id
+				)
+				AND latest.transition = 'stop'
+				AND pj.job_status IN ('pending', 'running')
+			) THEN TRUE
+		ELSE FALSE
+	END
 `
 
-type GetWorkspaceAgentAndLatestBuildByAuthTokenRow struct {
+type GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow struct {
 	WorkspaceTable WorkspaceTable `db:"workspace_table" json:"workspace_table"`
 	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
 	WorkspaceBuild WorkspaceBuild `db:"workspace_build" json:"workspace_build"`
 	TaskID         uuid.NullUUID  `db:"task_id" json:"task_id"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndLatestBuildByAuthToken, authToken)
-	var i GetWorkspaceAgentAndLatestBuildByAuthTokenRow
+// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
+// workspace agent and its associated build. During normal operation, this is
+// the latest build. During shutdown, this may be the previous START build while
+// the STOP build is executing, allowing shutdown scripts to authenticate (see
+// issue #19467).
+func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+	row := q.db.QueryRowContext(ctx, getAuthenticatedWorkspaceAgentAndBuildByAuthToken, authToken)
+	var i GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow
 	err := row.Scan(
 		&i.WorkspaceTable.ID,
 		&i.WorkspaceTable.CreatedAt,
@@ -18151,6 +17959,99 @@ func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Cont
 		&i.WorkspaceBuild.InitiatorByUsername,
 		&i.WorkspaceBuild.InitiatorByName,
 		&i.TaskID,
+	)
+	return i, err
+}
+
+const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one
+SELECT
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
+	users.username as owner_username
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	provisioner_jobs ON workspace_resources.job_id = provisioner_jobs.id
+JOIN
+	workspace_builds ON provisioner_jobs.id = workspace_builds.job_id
+JOIN
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+JOIN
+	users ON workspaces.owner_id = users.id
+WHERE
+	workspace_agents.id = $1
+	AND workspace_agents.deleted = FALSE
+	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
+	AND workspaces.deleted = FALSE
+	AND users.deleted = FALSE
+LIMIT 1
+`
+
+type GetWorkspaceAgentAndWorkspaceByIDRow struct {
+	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceTable WorkspaceTable `db:"workspace_table" json:"workspace_table"`
+	OwnerUsername  string         `db:"owner_username" json:"owner_username"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndWorkspaceByID, id)
+	var i GetWorkspaceAgentAndWorkspaceByIDRow
+	err := row.Scan(
+		&i.WorkspaceAgent.ID,
+		&i.WorkspaceAgent.CreatedAt,
+		&i.WorkspaceAgent.UpdatedAt,
+		&i.WorkspaceAgent.Name,
+		&i.WorkspaceAgent.FirstConnectedAt,
+		&i.WorkspaceAgent.LastConnectedAt,
+		&i.WorkspaceAgent.DisconnectedAt,
+		&i.WorkspaceAgent.ResourceID,
+		&i.WorkspaceAgent.AuthToken,
+		&i.WorkspaceAgent.AuthInstanceID,
+		&i.WorkspaceAgent.Architecture,
+		&i.WorkspaceAgent.EnvironmentVariables,
+		&i.WorkspaceAgent.OperatingSystem,
+		&i.WorkspaceAgent.InstanceMetadata,
+		&i.WorkspaceAgent.ResourceMetadata,
+		&i.WorkspaceAgent.Directory,
+		&i.WorkspaceAgent.Version,
+		&i.WorkspaceAgent.LastConnectedReplicaID,
+		&i.WorkspaceAgent.ConnectionTimeoutSeconds,
+		&i.WorkspaceAgent.TroubleshootingURL,
+		&i.WorkspaceAgent.MOTDFile,
+		&i.WorkspaceAgent.LifecycleState,
+		&i.WorkspaceAgent.ExpandedDirectory,
+		&i.WorkspaceAgent.LogsLength,
+		&i.WorkspaceAgent.LogsOverflowed,
+		&i.WorkspaceAgent.StartedAt,
+		&i.WorkspaceAgent.ReadyAt,
+		pq.Array(&i.WorkspaceAgent.Subsystems),
+		pq.Array(&i.WorkspaceAgent.DisplayApps),
+		&i.WorkspaceAgent.APIVersion,
+		&i.WorkspaceAgent.DisplayOrder,
+		&i.WorkspaceAgent.ParentID,
+		&i.WorkspaceAgent.APIKeyScope,
+		&i.WorkspaceAgent.Deleted,
+		&i.WorkspaceTable.ID,
+		&i.WorkspaceTable.CreatedAt,
+		&i.WorkspaceTable.UpdatedAt,
+		&i.WorkspaceTable.OwnerID,
+		&i.WorkspaceTable.OrganizationID,
+		&i.WorkspaceTable.TemplateID,
+		&i.WorkspaceTable.Deleted,
+		&i.WorkspaceTable.Name,
+		&i.WorkspaceTable.AutostartSchedule,
+		&i.WorkspaceTable.Ttl,
+		&i.WorkspaceTable.LastUsedAt,
+		&i.WorkspaceTable.DormantAt,
+		&i.WorkspaceTable.DeletingAt,
+		&i.WorkspaceTable.AutomaticUpdates,
+		&i.WorkspaceTable.Favorite,
+		&i.WorkspaceTable.NextStartAt,
+		&i.WorkspaceTable.GroupACL,
+		&i.WorkspaceTable.UserACL,
+		&i.OwnerUsername,
 	)
 	return i, err
 }

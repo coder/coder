@@ -9556,6 +9556,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/tasks/{task}/log-snapshot": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Upload task log snapshot",
+                "operationId": "upload-task-log-snapshot",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "agentapi"
+                        ],
+                        "type": "string",
+                        "description": "Snapshot format",
+                        "name": "format",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "description": "Raw snapshot payload (structure depends on format parameter)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}": {
             "get": {
                 "security": [
@@ -12018,6 +12069,9 @@ const docTemplate = `{
                 "access_key_secret": {
                     "type": "string"
                 },
+                "base_url": {
+                    "type": "string"
+                },
                 "model": {
                     "type": "string"
                 },
@@ -12038,6 +12092,22 @@ const docTemplate = `{
                 "bedrock": {
                     "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
                 },
+                "circuit_breaker_enabled": {
+                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
+                    "type": "boolean"
+                },
+                "circuit_breaker_failure_threshold": {
+                    "type": "integer"
+                },
+                "circuit_breaker_interval": {
+                    "type": "integer"
+                },
+                "circuit_breaker_max_requests": {
+                    "type": "integer"
+                },
+                "circuit_breaker_timeout": {
+                    "type": "integer"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -12055,6 +12125,9 @@ const docTemplate = `{
                 },
                 "retention": {
                     "type": "integer"
+                },
+                "send_actor_headers": {
+                    "type": "boolean"
                 },
                 "structured_logging": {
                     "type": "boolean"
@@ -12156,6 +12229,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "upstream_proxy": {
+                    "type": "string"
+                },
+                "upstream_proxy_ca": {
                     "type": "string"
                 }
             }

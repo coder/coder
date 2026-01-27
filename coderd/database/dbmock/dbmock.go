@@ -132,6 +132,20 @@ func (mr *MockStoreMockRecorder) ArchiveUnusedTemplateVersions(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveUnusedTemplateVersions", reflect.TypeOf((*MockStore)(nil).ArchiveUnusedTemplateVersions), ctx, arg)
 }
 
+// BatchUpdateWorkspaceAgentMetadata mocks base method.
+func (m *MockStore) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchUpdateWorkspaceAgentMetadata", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BatchUpdateWorkspaceAgentMetadata indicates an expected call of BatchUpdateWorkspaceAgentMetadata.
+func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceAgentMetadata(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceAgentMetadata), ctx, arg)
+}
+
 // BatchUpdateWorkspaceLastUsedAt mocks base method.
 func (m *MockStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
 	m.ctrl.T.Helper()
@@ -455,20 +469,6 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
 }
 
-// DeleteAllTailnetClientSubscriptions mocks base method.
-func (m *MockStore) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAllTailnetClientSubscriptions", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteAllTailnetClientSubscriptions indicates an expected call of DeleteAllTailnetClientSubscriptions.
-func (mr *MockStoreMockRecorder) DeleteAllTailnetClientSubscriptions(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllTailnetClientSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteAllTailnetClientSubscriptions), ctx, arg)
-}
-
 // DeleteAllTailnetTunnels mocks base method.
 func (m *MockStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
 	m.ctrl.T.Helper()
@@ -509,20 +509,6 @@ func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context,
 func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
-}
-
-// DeleteCoordinator mocks base method.
-func (m *MockStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCoordinator", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteCoordinator indicates an expected call of DeleteCoordinator.
-func (mr *MockStoreMockRecorder) DeleteCoordinator(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCoordinator", reflect.TypeOf((*MockStore)(nil).DeleteCoordinator), ctx, id)
 }
 
 // DeleteCryptoKey mocks base method.
@@ -908,50 +894,6 @@ func (m *MockStore) DeleteRuntimeConfig(ctx context.Context, key string) error {
 func (mr *MockStoreMockRecorder) DeleteRuntimeConfig(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRuntimeConfig", reflect.TypeOf((*MockStore)(nil).DeleteRuntimeConfig), ctx, key)
-}
-
-// DeleteTailnetAgent mocks base method.
-func (m *MockStore) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTailnetAgent", ctx, arg)
-	ret0, _ := ret[0].(database.DeleteTailnetAgentRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteTailnetAgent indicates an expected call of DeleteTailnetAgent.
-func (mr *MockStoreMockRecorder) DeleteTailnetAgent(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetAgent", reflect.TypeOf((*MockStore)(nil).DeleteTailnetAgent), ctx, arg)
-}
-
-// DeleteTailnetClient mocks base method.
-func (m *MockStore) DeleteTailnetClient(ctx context.Context, arg database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTailnetClient", ctx, arg)
-	ret0, _ := ret[0].(database.DeleteTailnetClientRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DeleteTailnetClient indicates an expected call of DeleteTailnetClient.
-func (mr *MockStoreMockRecorder) DeleteTailnetClient(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetClient", reflect.TypeOf((*MockStore)(nil).DeleteTailnetClient), ctx, arg)
-}
-
-// DeleteTailnetClientSubscription mocks base method.
-func (m *MockStore) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTailnetClientSubscription", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteTailnetClientSubscription indicates an expected call of DeleteTailnetClientSubscription.
-func (mr *MockStoreMockRecorder) DeleteTailnetClientSubscription(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetClientSubscription", reflect.TypeOf((*MockStore)(nil).DeleteTailnetClientSubscription), ctx, arg)
 }
 
 // DeleteTailnetPeer mocks base method.
@@ -1452,21 +1394,6 @@ func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
 }
 
-// GetAllTailnetAgents mocks base method.
-func (m *MockStore) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllTailnetAgents", ctx)
-	ret0, _ := ret[0].([]database.TailnetAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAllTailnetAgents indicates an expected call of GetAllTailnetAgents.
-func (mr *MockStoreMockRecorder) GetAllTailnetAgents(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetAgents", reflect.TypeOf((*MockStore)(nil).GetAllTailnetAgents), ctx)
-}
-
 // GetAllTailnetCoordinators mocks base method.
 func (m *MockStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	m.ctrl.T.Helper()
@@ -1570,6 +1497,21 @@ func (m *MockStore) GetAuditLogsOffset(ctx context.Context, arg database.GetAudi
 func (mr *MockStoreMockRecorder) GetAuditLogsOffset(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuditLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuditLogsOffset), ctx, arg)
+}
+
+// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken mocks base method.
+func (m *MockStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", ctx, authToken)
+	ret0, _ := ret[0].(database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken indicates an expected call of GetAuthenticatedWorkspaceAgentAndBuildByAuthToken.
+func (mr *MockStoreMockRecorder) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetAuthenticatedWorkspaceAgentAndBuildByAuthToken), ctx, authToken)
 }
 
 // GetAuthorizationUserRoles mocks base method.
@@ -3222,36 +3164,6 @@ func (mr *MockStoreMockRecorder) GetRuntimeConfig(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetRuntimeConfig), ctx, key)
 }
 
-// GetTailnetAgents mocks base method.
-func (m *MockStore) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTailnetAgents", ctx, id)
-	ret0, _ := ret[0].([]database.TailnetAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTailnetAgents indicates an expected call of GetTailnetAgents.
-func (mr *MockStoreMockRecorder) GetTailnetAgents(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetAgents", reflect.TypeOf((*MockStore)(nil).GetTailnetAgents), ctx, id)
-}
-
-// GetTailnetClientsForAgent mocks base method.
-func (m *MockStore) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]database.TailnetClient, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTailnetClientsForAgent", ctx, agentID)
-	ret0, _ := ret[0].([]database.TailnetClient)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTailnetClientsForAgent indicates an expected call of GetTailnetClientsForAgent.
-func (mr *MockStoreMockRecorder) GetTailnetClientsForAgent(ctx, agentID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetClientsForAgent", reflect.TypeOf((*MockStore)(nil).GetTailnetClientsForAgent), ctx, agentID)
-}
-
 // GetTailnetPeers mocks base method.
 func (m *MockStore) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {
 	m.ctrl.T.Helper()
@@ -3340,6 +3252,21 @@ func (m *MockStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.U
 func (mr *MockStoreMockRecorder) GetTaskByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetTaskByWorkspaceID), ctx, workspaceID)
+}
+
+// GetTaskSnapshot mocks base method.
+func (m *MockStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskSnapshot", ctx, taskID)
+	ret0, _ := ret[0].(database.TaskSnapshot)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTaskSnapshot indicates an expected call of GetTaskSnapshot.
+func (mr *MockStoreMockRecorder) GetTaskSnapshot(ctx, taskID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskSnapshot", reflect.TypeOf((*MockStore)(nil).GetTaskSnapshot), ctx, taskID)
 }
 
 // GetTelemetryItem mocks base method.
@@ -4122,19 +4049,19 @@ func (mr *MockStoreMockRecorder) GetWorkspaceACLByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceACLByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceACLByID), ctx, id)
 }
 
-// GetWorkspaceAgentAndLatestBuildByAuthToken mocks base method.
-func (m *MockStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
+// GetWorkspaceAgentAndWorkspaceByID mocks base method.
+func (m *MockStore) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentAndWorkspaceByIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentAndLatestBuildByAuthToken", ctx, authToken)
-	ret0, _ := ret[0].(database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentAndWorkspaceByID", ctx, id)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentAndWorkspaceByIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspaceAgentAndLatestBuildByAuthToken indicates an expected call of GetWorkspaceAgentAndLatestBuildByAuthToken.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken any) *gomock.Call {
+// GetWorkspaceAgentAndWorkspaceByID indicates an expected call of GetWorkspaceAgentAndWorkspaceByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentAndWorkspaceByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentAndLatestBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentAndLatestBuildByAuthToken), ctx, authToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentAndWorkspaceByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentAndWorkspaceByID), ctx, id)
 }
 
 // GetWorkspaceAgentByID mocks base method.
@@ -7860,50 +7787,6 @@ func (mr *MockStoreMockRecorder) UpsertRuntimeConfig(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRuntimeConfig", reflect.TypeOf((*MockStore)(nil).UpsertRuntimeConfig), ctx, arg)
 }
 
-// UpsertTailnetAgent mocks base method.
-func (m *MockStore) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTailnetAgent", ctx, arg)
-	ret0, _ := ret[0].(database.TailnetAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpsertTailnetAgent indicates an expected call of UpsertTailnetAgent.
-func (mr *MockStoreMockRecorder) UpsertTailnetAgent(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetAgent", reflect.TypeOf((*MockStore)(nil).UpsertTailnetAgent), ctx, arg)
-}
-
-// UpsertTailnetClient mocks base method.
-func (m *MockStore) UpsertTailnetClient(ctx context.Context, arg database.UpsertTailnetClientParams) (database.TailnetClient, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTailnetClient", ctx, arg)
-	ret0, _ := ret[0].(database.TailnetClient)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpsertTailnetClient indicates an expected call of UpsertTailnetClient.
-func (mr *MockStoreMockRecorder) UpsertTailnetClient(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetClient", reflect.TypeOf((*MockStore)(nil).UpsertTailnetClient), ctx, arg)
-}
-
-// UpsertTailnetClientSubscription mocks base method.
-func (m *MockStore) UpsertTailnetClientSubscription(ctx context.Context, arg database.UpsertTailnetClientSubscriptionParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTailnetClientSubscription", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertTailnetClientSubscription indicates an expected call of UpsertTailnetClientSubscription.
-func (mr *MockStoreMockRecorder) UpsertTailnetClientSubscription(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetClientSubscription", reflect.TypeOf((*MockStore)(nil).UpsertTailnetClientSubscription), ctx, arg)
-}
-
 // UpsertTailnetCoordinator mocks base method.
 func (m *MockStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {
 	m.ctrl.T.Helper()
@@ -7947,6 +7830,20 @@ func (m *MockStore) UpsertTailnetTunnel(ctx context.Context, arg database.Upsert
 func (mr *MockStoreMockRecorder) UpsertTailnetTunnel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetTunnel", reflect.TypeOf((*MockStore)(nil).UpsertTailnetTunnel), ctx, arg)
+}
+
+// UpsertTaskSnapshot mocks base method.
+func (m *MockStore) UpsertTaskSnapshot(ctx context.Context, arg database.UpsertTaskSnapshotParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTaskSnapshot", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertTaskSnapshot indicates an expected call of UpsertTaskSnapshot.
+func (mr *MockStoreMockRecorder) UpsertTaskSnapshot(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTaskSnapshot", reflect.TypeOf((*MockStore)(nil).UpsertTaskSnapshot), ctx, arg)
 }
 
 // UpsertTaskWorkspaceApp mocks base method.

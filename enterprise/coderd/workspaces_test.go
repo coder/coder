@@ -567,7 +567,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		}).Do()
 
 		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-		agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
+		agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
 		require.NoError(t, err)
 
 		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
@@ -1987,6 +1987,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
+			10,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2110,6 +2111,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
+			10,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2233,6 +2235,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
+			10,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2378,6 +2381,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
+			10,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2524,6 +2528,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			notificationsNoop,
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
+			10,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2783,7 +2788,7 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 
 			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
 			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
+			agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
 			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 				ID:             agent.WorkspaceAgent.ID,
@@ -2882,7 +2887,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
 	// nolint:gocritic
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-	agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
+	agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
 	require.NoError(t, err)
 	err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 		ID:             agent.WorkspaceAgent.ID,
@@ -2970,6 +2975,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		notifications.NewNoopEnqueuer(),
 		api.AGPL.BuildUsageChecker,
 		noop.NewTracerProvider(),
+		10,
 	)
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -3650,7 +3656,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 			},
 		})
 
-		workspaceOwnerClient, workspaceOwner := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
+		_, workspaceOwner := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
 
 		sharedWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        workspaceOwner.ID,
@@ -3670,7 +3676,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 		})
 		require.NoError(t, err, "create group")
 
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+		err = ownerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -3703,8 +3709,8 @@ func TestWorkspacesFiltering(t *testing.T) {
 				},
 			})
 
-			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
-			sharedWorkspace                      = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OwnerID:        workspaceOwner.ID,
 				OrganizationID: owner.OrganizationID,
 			}).Do().Workspace
@@ -3721,7 +3727,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 		})
 		require.NoError(t, err, "create group")
 
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+		err = ownerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -3756,8 +3762,8 @@ func TestWorkspacesFiltering(t *testing.T) {
 					},
 				},
 			})
-			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
-			sharedWorkspace                      = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OwnerID:        workspaceOwner.ID,
 				OrganizationID: owner.OrganizationID,
 			}).Do().Workspace
@@ -3773,7 +3779,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 		})
 		require.NoError(t, err, "create group")
 
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+		err = ownerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -3805,8 +3811,8 @@ func TestWorkspacesFiltering(t *testing.T) {
 					},
 				},
 			})
-			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
-			sharedWorkspace                      = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OwnerID:        workspaceOwner.ID,
 				OrganizationID: owner.OrganizationID,
 			}).Do().Workspace
@@ -3821,7 +3827,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 			Name: "wibble",
 		})
 		require.NoError(t, err, "create group")
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+		err = ownerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -3853,8 +3859,8 @@ func TestWorkspacesFiltering(t *testing.T) {
 					},
 				},
 			})
-			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
-			sharedWorkspace                      = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAuditor(owner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OwnerID:        workspaceOwner.ID,
 				OrganizationID: owner.OrganizationID,
 			}).Do().Workspace
@@ -3869,7 +3875,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 			Name: "wibble",
 		})
 		require.NoError(t, err, "create group")
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+		err = ownerClient.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -4457,7 +4463,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			Name: "wibble",
 		})
 		require.NoError(t, err)
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -4506,7 +4512,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			AddUsers: []string{toShareWithUser.ID.String()},
 		})
 		require.NoError(t, err)
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -4542,7 +4548,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 			},
 		})
 
-		workspaceOwnerClient, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        workspaceOwner.ID,
@@ -4570,7 +4576,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		require.NoError(t, err)
 
 		// Share workspace with user and group
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -4630,7 +4636,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 			},
 		})
 
-		workspaceOwnerClient, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, workspaceOwner := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        workspaceOwner.ID,
@@ -4658,7 +4664,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		require.NoError(t, err)
 
 		// Share workspace with user and group
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				sharedWithUser.ID.String(): codersdk.WorkspaceRoleUse,
 			},

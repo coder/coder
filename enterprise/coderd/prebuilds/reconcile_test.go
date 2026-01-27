@@ -3,6 +3,7 @@ package prebuilds_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -52,7 +53,15 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -95,7 +104,15 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -425,7 +442,15 @@ func (tc testCase) run(t *testing.T) {
 			pubSub = &brokenPublisher{Pubsub: pubSub}
 		}
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-		controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+		controller := prebuilds.NewStoreReconciler(
+			db, pubSub, cache, cfg, logger,
+			quartz.NewMock(t),
+			prometheus.NewRegistry(),
+			newNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
 
 		// Run the reconciliation multiple times to ensure idempotency
 		// 8 was arbitrary, but large enough to reasonably trust the result
@@ -494,7 +519,15 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -617,7 +650,15 @@ func TestPrebuildScheduling(t *testing.T) {
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				clock,
+				prometheus.NewRegistry(),
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			ownerID := uuid.New()
 			dbgen.User(t, db, database.User{
@@ -718,7 +759,15 @@ func TestInvalidPreset(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -780,7 +829,15 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		quartz.NewMock(t),
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -874,7 +931,15 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				clock,
+				registry,
+				fakeEnqueuer,
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1017,7 +1082,15 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				clock,
+				registry,
+				fakeEnqueuer,
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1211,7 +1284,15 @@ func TestRunLoop(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -1320,6 +1401,50 @@ func TestRunLoop(t *testing.T) {
 	reconciler.Stop(ctx, nil)
 }
 
+// TestReconcilerLifecycle tests that a StoreReconciler can be stopped and a new one
+// created to simulate the prebuilds feature being disabled and re-enabled.
+func TestReconcilerLifecycle(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+	db, ps := dbtestutil.NewDB(t)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+	}
+	registry := prometheus.NewRegistry()
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+	// Given: a running reconciler (simulating the prebuilds feature being enabled)
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		registry,
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
+
+	// When: the reconciler is stopped (simulating the prebuilds feature being disabled)
+	reconciler.Stop(ctx, xerrors.New("entitlements change"))
+
+	// Then: a new reconciler can be created without error
+	// (simulating the prebuilds feature being re-enabled)
+	reconciler = prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		registry,
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
+
+	// Gracefully stop the reconciliation loop
+	reconciler.Stop(ctx, nil)
+}
+
 func TestFailedBuildBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -1339,7 +1464,15 @@ func TestFailedBuildBackoff(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -1461,7 +1594,9 @@ func TestReconciliationLock(t *testing.T) {
 				quartz.NewMock(t),
 				prometheus.NewRegistry(),
 				newNoopEnqueuer(),
-				newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+				newNoopUsageCheckerPtr(), noop.NewTracerProvider(),
+				10,
+			)
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
 				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
@@ -1491,7 +1626,15 @@ func TestTrackResourceReplacement(t *testing.T) {
 	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+		clock,
+		registry,
+		fakeEnqueuer,
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// Given: a template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
@@ -1643,7 +1786,15 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+			controller := prebuilds.NewStoreReconciler(
+				db, pubSub, cache, cfg, logger,
+				clock,
+				registry,
+				fakeEnqueuer,
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
 
 			// Set up test environment with a template, version, and preset
 			ownerID := uuid.New()
@@ -2098,7 +2249,15 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				registry := prometheus.NewRegistry()
 				cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-				reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+				reconciler := prebuilds.NewStoreReconciler(
+					db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+					clock,
+					registry,
+					fakeEnqueuer,
+					newNoopUsageCheckerPtr(),
+					noop.NewTracerProvider(),
+					10,
+				)
 				owner := coderdtest.CreateFirstUser(t, client)
 
 				// Given: a template with a version containing a preset with 1 prebuild instance
@@ -2335,7 +2494,15 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		registry := prometheus.NewRegistry()
 		cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-		reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+		reconciler := prebuilds.NewStoreReconciler(
+			db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+			clock,
+			registry,
+			fakeEnqueuer,
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
 		owner := coderdtest.CreateFirstUser(t, client)
 
 		// Given: template A with 2 versions
@@ -2400,7 +2567,15 @@ func TestReconciliationStats(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, codersdk.PrebuildsConfig{}, logger,
+		clock,
+		registry,
+		fakeEnqueuer,
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 	owner := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2911,7 +3086,15 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr(), noop.NewTracerProvider())
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
 
 	// Setup a template with a preset that should create prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -2971,4 +3154,426 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 	require.NoError(t, err)
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
+}
+
+// BenchmarkReconcileAll_NoOps benchmarks the reconciliation loop with varying numbers
+// of presets of inactive versions that require no reconciliation actions.
+//
+// This validates the performance benefit of the CanSkipReconciliation optimization,
+// which avoids spawning goroutines for presets that don't need reconciliation actions.
+//
+//	go test -bench='^BenchmarkReconcileAll_NoOps$' -run=^$ -benchtime=5x -count=2 ./enterprise/coderd/prebuilds/
+func BenchmarkReconcileAll_NoOps(b *testing.B) {
+	benchCases := []struct {
+		name        string
+		presetCount int
+	}{
+		{"100_presets", 100},
+		{"1000_presets", 1000},
+		{"5000_presets", 5000},
+	}
+
+	for _, bc := range benchCases {
+		b.Run(bc.name, func(b *testing.B) {
+			// Setup
+			ctx := context.Background()
+			logger := slog.Make()
+			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(b, dbtestutil.WithLogger(logger))
+
+			// Database configuration set per replica (see cli/server.go).
+			// Default value for CODER_PG_CONN_MAX_OPEN is 10.
+			maxOpenConns := 10
+			sqlDB.SetMaxOpenConns(maxOpenConns)
+			sqlDB.SetMaxIdleConns(3)
+
+			clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
+			cfg := codersdk.PrebuildsConfig{
+				ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+			}
+			prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(
+				db, ps, cache, cfg, prebuildsLogger,
+				clock,
+				prometheus.NewRegistry(),
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				maxOpenConns,
+			)
+
+			org := dbgen.Organization(b, db, database.Organization{})
+			user := dbgen.User(b, db, database.User{})
+
+			for i := 0; i < bc.presetCount; i++ {
+				template := dbgen.Template(b, db, database.Template{
+					CreatedBy:      user.ID,
+					OrganizationID: org.ID,
+				})
+
+				oldTV := dbgen.TemplateVersion(b, db, database.TemplateVersion{
+					TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+					OrganizationID: org.ID,
+					CreatedBy:      user.ID,
+				})
+				dbgen.Preset(b, db, database.InsertPresetParams{
+					TemplateVersionID: oldTV.ID,
+					Name:              "default",
+					DesiredInstances:  sql.NullInt32{Int32: 2, Valid: true},
+				})
+
+				// Create new version without preset and make it active
+				newTV := dbgen.TemplateVersion(b, db, database.TemplateVersion{
+					TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+					OrganizationID: org.ID,
+					CreatedBy:      user.ID,
+				})
+				err := db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+					ID:              template.ID,
+					ActiveVersionID: newTV.ID,
+				})
+				require.NoError(b, err)
+			}
+
+			// Verify setup: all presets should be inactive with no work
+			// Get all presets from all templates
+			presets, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{})
+			require.NoError(b, err)
+			require.Len(b, presets, bc.presetCount)
+
+			// Should have no prebuilt workspaces
+			workspaces, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
+				OwnerID: database.PrebuildsSystemUserID,
+			})
+			require.NoError(b, err)
+			require.Empty(b, workspaces)
+
+			// Benchmark the reconciliation loop
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				stats, err := controller.ReconcileAll(ctx)
+				require.NoError(b, err)
+				_ = stats
+			}
+		})
+	}
+}
+
+// BenchmarkReconcileAll_ConnectionContention benchmarks the reconciliation loop with varying
+// levels of database connection contention.
+//
+// This measures reconciliation time under heavy database load, where each preset
+// needs to create multiple prebuilt workspaces.
+//
+//	go test -bench='^BenchmarkReconcileAll_ConnectionContention$' -run=^$ -benchtime=5x -count=2 ./enterprise/coderd/prebuilds/
+func BenchmarkReconcileAll_ConnectionContention(b *testing.B) {
+	benchCases := []struct {
+		name                     string
+		presetsForReconciliation int
+		desiredInstances         int32
+	}{
+		{"10_presets_5_instances", 10, 5},       // 50 creates
+		{"50_presets_5_instances", 50, 5},       // 250 creates
+		{"100_presets_5_instances", 100, 5},     // 500 creates
+		{"1000_presets_10_instances", 1000, 10}, // 10000 creates
+	}
+
+	for _, bc := range benchCases {
+		b.Run(bc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+
+				// Setup: Create a fresh database for each iteration because ReconcileAll
+				// creates prebuilds on the first run. Subsequent runs would see those
+				// prebuilds as "in progress" and skip creating new ones, making the
+				// benchmark results inconsistent.
+				ctx := context.Background()
+				logger := slog.Make()
+				db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(b, dbtestutil.WithLogger(logger))
+
+				// Database configuration set per replica (see cli/server.go).
+				// Default value for CODER_PG_CONN_MAX_OPEN is 10.
+				maxOpenConns := 10
+				sqlDB.SetMaxOpenConns(maxOpenConns)
+				sqlDB.SetMaxIdleConns(3)
+
+				clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
+				cfg := codersdk.PrebuildsConfig{
+					ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+				}
+				prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
+				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+				controller := prebuilds.NewStoreReconciler(
+					db, ps, cache, cfg, prebuildsLogger,
+					clock,
+					prometheus.NewRegistry(),
+					newNoopEnqueuer(),
+					newNoopUsageCheckerPtr(),
+					noop.NewTracerProvider(),
+					maxOpenConns,
+				)
+
+				// Create presets from active template versions that need reconciliation actions
+				org := dbgen.Organization(b, db, database.Organization{})
+				user := dbgen.User(b, db, database.User{})
+
+				for p := 0; p < bc.presetsForReconciliation; p++ {
+					template := dbgen.Template(b, db, database.Template{
+						CreatedBy:      user.ID,
+						OrganizationID: org.ID,
+					})
+
+					// Create a completed provisioner job for the template version.
+					// This is needed because workspace builds copy the StorageMethod and FileID
+					// from the template version's import job to know which Terraform files to use.
+					file := dbgen.File(b, db, database.File{
+						CreatedBy: user.ID,
+						Hash:      uuid.NewString(), // Generate unique hash for each file
+					})
+					templateVersionJob := dbgen.ProvisionerJob(b, db, ps, database.ProvisionerJob{
+						OrganizationID: org.ID,
+						InitiatorID:    user.ID,
+						FileID:         file.ID,
+						StorageMethod:  database.ProvisionerStorageMethodFile,
+						Type:           database.ProvisionerJobTypeTemplateVersionImport,
+						CompletedAt:    sql.NullTime{Time: clock.Now(), Valid: true},
+					})
+
+					tv := dbgen.TemplateVersion(b, db, database.TemplateVersion{
+						TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+						OrganizationID: org.ID,
+						CreatedBy:      user.ID,
+						JobID:          templateVersionJob.ID,
+					})
+
+					dbgen.Preset(b, db, database.InsertPresetParams{
+						TemplateVersionID: tv.ID,
+						Name:              "default",
+						DesiredInstances:  sql.NullInt32{Int32: bc.desiredInstances, Valid: true},
+					})
+
+					// Make this the active version
+					err := db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+						ID:              template.ID,
+						ActiveVersionID: tv.ID,
+					})
+					require.NoError(b, err)
+				}
+
+				// Verify setup: all presets should require reconciliation
+				// Get all presets from all templates
+				presets, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{})
+				require.NoError(b, err)
+				require.Len(b, presets, bc.presetsForReconciliation)
+
+				b.StartTimer()
+
+				// Measure reconciliation
+				_, err = controller.ReconcileAll(ctx)
+				require.NoError(b, err)
+
+				b.StopTimer()
+			}
+		})
+	}
+}
+
+// BenchmarkReconcileAll_Mix benchmarks reconciliation performance when there are
+// many total presets in the database, but only a small subset are active and need reconciliation.
+//
+// This validates that the reconciler efficiently filters to only active template versions and
+// doesn't slow down proportionally with the total number of inactive presets.
+//
+//	go test -bench='^BenchmarkReconcileAll_Mix$' -run=^$ -benchtime=5x -count=2 ./enterprise/coderd/prebuilds/
+func BenchmarkReconcileAll_Mix(b *testing.B) {
+	benchCases := []struct {
+		name                 string
+		inactivePresetsCount int   // Presets on inactive template versions (noise)
+		activePresetsCount   int   // Presets on active versions that need work
+		desiredInstances     int32 // Desired prebuilds per preset
+	}{
+		{"500_total_10_active", 490, 10, 2},   // 20 creates
+		{"1000_total_25_active", 975, 25, 2},  // 50 creates
+		{"5000_total_50_active", 4950, 50, 2}, // 100 creates
+	}
+
+	for _, bc := range benchCases {
+		b.Run(bc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+
+				// Setup: Create a fresh database for each iteration because ReconcileAll
+				// creates prebuilds on the first run. Subsequent runs would see those
+				// prebuilds as "in progress" and skip creating new ones, making the
+				// benchmark results inconsistent.
+				ctx := context.Background()
+				logger := slog.Make()
+				db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(b, dbtestutil.WithLogger(logger))
+
+				// Database configuration set per replica (see cli/server.go).
+				// Default value for CODER_PG_CONN_MAX_OPEN is 10.
+				maxOpenConns := 10
+				sqlDB.SetMaxOpenConns(maxOpenConns)
+				sqlDB.SetMaxIdleConns(3)
+
+				clock := quartz.NewMock(b).WithLogger(quartz.NoOpLogger)
+				cfg := codersdk.PrebuildsConfig{
+					ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+				}
+				prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
+				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+				controller := prebuilds.NewStoreReconciler(
+					db, ps, cache, cfg, prebuildsLogger,
+					clock,
+					prometheus.NewRegistry(),
+					newNoopEnqueuer(),
+					newNoopUsageCheckerPtr(),
+					noop.NewTracerProvider(),
+					maxOpenConns,
+				)
+
+				org := dbgen.Organization(b, db, database.Organization{})
+				user := dbgen.User(b, db, database.User{})
+
+				// Create inactive presets (noise that should be filtered out efficiently)
+				// These are on templates with inactive versions
+				for p := 0; p < bc.inactivePresetsCount; p++ {
+					template := dbgen.Template(b, db, database.Template{
+						CreatedBy:      user.ID,
+						OrganizationID: org.ID,
+					})
+
+					file := dbgen.File(b, db, database.File{
+						CreatedBy: user.ID,
+						Hash:      fmt.Sprintf("inactive-%d", p),
+					})
+
+					templateVersionJob := dbgen.ProvisionerJob(b, db, ps, database.ProvisionerJob{
+						OrganizationID: org.ID,
+						InitiatorID:    user.ID,
+						FileID:         file.ID,
+						StorageMethod:  database.ProvisionerStorageMethodFile,
+						Type:           database.ProvisionerJobTypeTemplateVersionImport,
+						CompletedAt:    sql.NullTime{Time: clock.Now(), Valid: true},
+					})
+
+					inactiveVersion := dbgen.TemplateVersion(b, db, database.TemplateVersion{
+						TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+						OrganizationID: org.ID,
+						CreatedBy:      user.ID,
+						JobID:          templateVersionJob.ID,
+						Name:           fmt.Sprintf("inactive-v%d", p),
+					})
+
+					// Create presets on this inactive version
+					dbgen.Preset(b, db, database.InsertPresetParams{
+						TemplateVersionID: inactiveVersion.ID,
+						Name:              "default",
+						DesiredInstances:  sql.NullInt32{Int32: 2, Valid: true},
+					})
+
+					// Create a newer active version (making the above version inactive)
+					newerFile := dbgen.File(b, db, database.File{
+						CreatedBy: user.ID,
+						Hash:      fmt.Sprintf("active-no-preset-%d", p),
+					})
+
+					newerJob := dbgen.ProvisionerJob(b, db, ps, database.ProvisionerJob{
+						OrganizationID: org.ID,
+						InitiatorID:    user.ID,
+						FileID:         newerFile.ID,
+						StorageMethod:  database.ProvisionerStorageMethodFile,
+						Type:           database.ProvisionerJobTypeTemplateVersionImport,
+						CompletedAt:    sql.NullTime{Time: clock.Now(), Valid: true},
+					})
+
+					activeVersion := dbgen.TemplateVersion(b, db, database.TemplateVersion{
+						TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+						OrganizationID: org.ID,
+						CreatedBy:      user.ID,
+						JobID:          newerJob.ID,
+						Name:           fmt.Sprintf("active-v%d", p),
+					})
+
+					// Make the newer version active (no presets = no reconciliation work)
+					err := db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+						ID:              template.ID,
+						ActiveVersionID: activeVersion.ID,
+					})
+					require.NoError(b, err)
+				}
+
+				// Create active presets that need reconciliation (missing prebuilds)
+				for p := 0; p < bc.activePresetsCount; p++ {
+					template := dbgen.Template(b, db, database.Template{
+						CreatedBy:      user.ID,
+						OrganizationID: org.ID,
+						Name:           fmt.Sprintf("needs-work-%d", p),
+					})
+
+					file := dbgen.File(b, db, database.File{
+						CreatedBy: user.ID,
+						Hash:      fmt.Sprintf("needs-work-%d", p),
+					})
+
+					// Create a completed provisioner job for the template version.
+					// This is needed because workspace builds copy the StorageMethod and FileID
+					// from the template version's import job to know which Terraform files to use.
+					templateVersionJob := dbgen.ProvisionerJob(b, db, ps, database.ProvisionerJob{
+						OrganizationID: org.ID,
+						InitiatorID:    user.ID,
+						FileID:         file.ID,
+						StorageMethod:  database.ProvisionerStorageMethodFile,
+						Type:           database.ProvisionerJobTypeTemplateVersionImport,
+						CompletedAt:    sql.NullTime{Time: clock.Now(), Valid: true},
+					})
+
+					tv := dbgen.TemplateVersion(b, db, database.TemplateVersion{
+						TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+						OrganizationID: org.ID,
+						CreatedBy:      user.ID,
+						JobID:          templateVersionJob.ID,
+					})
+
+					dbgen.Preset(b, db, database.InsertPresetParams{
+						TemplateVersionID: tv.ID,
+						Name:              "default",
+						DesiredInstances:  sql.NullInt32{Int32: bc.desiredInstances, Valid: true},
+					})
+
+					// Make this the active version
+					err := db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+						ID:              template.ID,
+						ActiveVersionID: tv.ID,
+					})
+					require.NoError(b, err)
+				}
+
+				// Verify setup
+				allPresets, err := db.GetTemplatePresetsWithPrebuilds(ctx, uuid.NullUUID{})
+				require.NoError(b, err)
+				totalCount := bc.inactivePresetsCount + bc.activePresetsCount
+				require.Len(b, allPresets, totalCount, "total preset count should match")
+
+				// Count how many are actually active
+				activeCount := 0
+				for _, preset := range allPresets {
+					presetTemplate, err := db.GetTemplateByID(ctx, preset.TemplateID)
+					require.NoError(b, err)
+					if presetTemplate.ActiveVersionID == preset.TemplateVersionID {
+						activeCount++
+					}
+				}
+				require.Equal(b, bc.activePresetsCount, activeCount, "active preset count should match")
+
+				b.StartTimer()
+
+				// Measure reconciliation: should only process the active presets
+				_, err = controller.ReconcileAll(ctx)
+				require.NoError(b, err)
+
+				b.StopTimer()
+			}
+		})
+	}
 }

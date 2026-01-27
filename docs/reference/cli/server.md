@@ -1742,6 +1742,16 @@ The base URL of the Anthropic API.
 
 The key to authenticate against the Anthropic API.
 
+### --aibridge-bedrock-base-url
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AIBRIDGE_BEDROCK_BASE_URL</code> |
+| YAML        | <code>aibridge.bedrock_base_url</code>        |
+
+The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
+
 ### --aibridge-bedrock-region
 
 |             |                                             |
@@ -1750,7 +1760,7 @@ The key to authenticate against the Anthropic API.
 | Environment | <code>$CODER_AIBRIDGE_BEDROCK_REGION</code> |
 | YAML        | <code>aibridge.bedrock_region</code>        |
 
-The AWS Bedrock API region.
+The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
 
 ### --aibridge-bedrock-access-key
 
@@ -1847,6 +1857,28 @@ Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
 
 Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
 
+### --aibridge-send-actor-headers
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_SEND_ACTOR_HEADERS</code> |
+| YAML        | <code>aibridge.send_actor_headers</code>        |
+| Default     | <code>false</code>                              |
+
+Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+
+### --aibridge-circuit-breaker-enabled
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED</code> |
+| YAML        | <code>aibridge.circuitBreakerEnabled</code>          |
+| Default     | <code>false</code>                                   |
+
+Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).
+
 ### --aibridge-proxy-enabled
 
 |             |                                            |
@@ -1888,6 +1920,26 @@ Path to the CA certificate file for AI Bridge Proxy.
 | YAML        | <code>aibridgeproxy.key_file</code>         |
 
 Path to the CA private key file for AI Bridge Proxy.
+
+### --aibridge-proxy-upstream
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy</code>   |
+
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+
+### --aibridge-proxy-upstream-ca
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM_CA</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
+
+Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
 
 ### --audit-logs-retention
 

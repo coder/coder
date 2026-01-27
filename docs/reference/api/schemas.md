@@ -357,6 +357,7 @@
 {
   "access_key": "string",
   "access_key_secret": "string",
+  "base_url": "string",
   "model": "string",
   "region": "string",
   "small_fast_model": "string"
@@ -369,6 +370,7 @@
 |---------------------|--------|----------|--------------|-------------|
 | `access_key`        | string | false    |              |             |
 | `access_key_secret` | string | false    |              |             |
+| `base_url`          | string | false    |              |             |
 | `model`             | string | false    |              |             |
 | `region`            | string | false    |              |             |
 | `small_fast_model`  | string | false    |              |             |
@@ -384,10 +386,16 @@
   "bedrock": {
     "access_key": "string",
     "access_key_secret": "string",
+    "base_url": "string",
     "model": "string",
     "region": "string",
     "small_fast_model": "string"
   },
+  "circuit_breaker_enabled": true,
+  "circuit_breaker_failure_threshold": 0,
+  "circuit_breaker_interval": 0,
+  "circuit_breaker_max_requests": 0,
+  "circuit_breaker_timeout": 0,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -397,23 +405,30 @@
   },
   "rate_limit": 0,
   "retention": 0,
+  "send_actor_headers": true,
   "structured_logging": true
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                                                 | Required | Restrictions | Description |
-|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
-| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
-| `enabled`                | boolean                                                              | false    |              |             |
-| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
-| `max_concurrency`        | integer                                                              | false    |              |             |
-| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
-| `rate_limit`             | integer                                                              | false    |              |             |
-| `retention`              | integer                                                              | false    |              |             |
-| `structured_logging`     | boolean                                                              | false    |              |             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              |                                                                                                                       |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                       |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                       |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
 
 ## codersdk.AIBridgeInterception
 
@@ -604,19 +619,23 @@
   ],
   "enabled": true,
   "key_file": "string",
-  "listen_addr": "string"
+  "listen_addr": "string",
+  "upstream_proxy": "string",
+  "upstream_proxy_ca": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type            | Required | Restrictions | Description |
-|--------------------|-----------------|----------|--------------|-------------|
-| `cert_file`        | string          | false    |              |             |
-| `domain_allowlist` | array of string | false    |              |             |
-| `enabled`          | boolean         | false    |              |             |
-| `key_file`         | string          | false    |              |             |
-| `listen_addr`      | string          | false    |              |             |
+| Name                | Type            | Required | Restrictions | Description |
+|---------------------|-----------------|----------|--------------|-------------|
+| `cert_file`         | string          | false    |              |             |
+| `domain_allowlist`  | array of string | false    |              |             |
+| `enabled`           | boolean         | false    |              |             |
+| `key_file`          | string          | false    |              |             |
+| `listen_addr`       | string          | false    |              |             |
+| `upstream_proxy`    | string          | false    |              |             |
+| `upstream_proxy_ca` | string          | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -723,7 +742,9 @@
     ],
     "enabled": true,
     "key_file": "string",
-    "listen_addr": "string"
+    "listen_addr": "string",
+    "upstream_proxy": "string",
+    "upstream_proxy_ca": "string"
   },
   "bridge": {
     "anthropic": {
@@ -733,10 +754,16 @@
     "bedrock": {
       "access_key": "string",
       "access_key_secret": "string",
+      "base_url": "string",
       "model": "string",
       "region": "string",
       "small_fast_model": "string"
     },
+    "circuit_breaker_enabled": true,
+    "circuit_breaker_failure_threshold": 0,
+    "circuit_breaker_interval": 0,
+    "circuit_breaker_max_requests": 0,
+    "circuit_breaker_timeout": 0,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -746,6 +773,7 @@
     },
     "rate_limit": 0,
     "retention": 0,
+    "send_actor_headers": true,
     "structured_logging": true
   }
 }
@@ -2639,7 +2667,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "enabled": true,
         "key_file": "string",
-        "listen_addr": "string"
+        "listen_addr": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
       },
       "bridge": {
         "anthropic": {
@@ -2649,10 +2679,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
+          "base_url": "string",
           "model": "string",
           "region": "string",
           "small_fast_model": "string"
         },
+        "circuit_breaker_enabled": true,
+        "circuit_breaker_failure_threshold": 0,
+        "circuit_breaker_interval": 0,
+        "circuit_breaker_max_requests": 0,
+        "circuit_breaker_timeout": 0,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -2662,6 +2698,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "rate_limit": 0,
         "retention": 0,
+        "send_actor_headers": true,
         "structured_logging": true
       }
     },
@@ -3184,7 +3221,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "enabled": true,
       "key_file": "string",
-      "listen_addr": "string"
+      "listen_addr": "string",
+      "upstream_proxy": "string",
+      "upstream_proxy_ca": "string"
     },
     "bridge": {
       "anthropic": {
@@ -3194,10 +3233,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "bedrock": {
         "access_key": "string",
         "access_key_secret": "string",
+        "base_url": "string",
         "model": "string",
         "region": "string",
         "small_fast_model": "string"
       },
+      "circuit_breaker_enabled": true,
+      "circuit_breaker_failure_threshold": 0,
+      "circuit_breaker_interval": 0,
+      "circuit_breaker_max_requests": 0,
+      "circuit_breaker_timeout": 0,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -3207,6 +3252,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "rate_limit": 0,
       "retention": 0,
+      "send_actor_headers": true,
       "structured_logging": true
     }
   },
