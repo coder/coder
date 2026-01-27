@@ -2056,13 +2056,11 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		var (
-			hasAITask    bool
 			unknownAppID string
 			taskAppID    uuid.NullUUID
 			taskAgentID  uuid.NullUUID
 		)
 		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
-			hasAITask = true
 			task := tasks[0]
 			if task == nil {
 				return xerrors.Errorf("update ai task: task is nil")
@@ -2078,7 +2076,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 			if !slices.Contains(appIDs, appID) {
 				unknownAppID = appID
-				hasAITask = false
 			} else {
 				// Only parse for valid app and agent to avoid fk violation.
 				id, err := uuid.Parse(appID)
@@ -2113,7 +2110,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				Level:     []database.LogLevel{database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn},
 				Stage:     []string{"Cleaning Up", "Cleaning Up", "Cleaning Up", "Cleaning Up"},
 				Output: []string{
-					fmt.Sprintf("Unknown ai_task_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", taskAppID.UUID.String()),
+					fmt.Sprintf("Unknown ai_task_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", unknownAppID),
 					"Template author: double-check the following:",
 					"  - You have associated the coder_ai_task with a valid coder_app in your template (ref: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/ai_task).",
 					"  - You have associated the coder_agent with at least one other compute resource. Agents with no other associated resources are not inserted into the database.",
@@ -2128,21 +2125,23 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		if hasAITask && workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			// Insert usage event for managed agents.
-			usageInserter := s.UsageInserter.Load()
-			if usageInserter != nil {
-				event := usagetypes.DCManagedAgentsV1{
-					Count: 1,
-				}
-				err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
-				if err != nil {
-					return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
+		var hasAITask bool
+		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
+			hasAITask = true
+			if workspaceBuild.Transition == database.WorkspaceTransitionStart {
+				// Insert usage event for managed agents.
+				usageInserter := s.UsageInserter.Load()
+				if usageInserter != nil {
+					event := usagetypes.DCManagedAgentsV1{
+						Count: 1,
+					}
+					err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
+					if err != nil {
+						return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
+					}
 				}
 			}
-		}
 
-		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
 			// Irrespective of whether the agent or sidebar app is present,
 			// perform the upsert to ensure a link between the task and
 			// workspace build. Linking the task to the build is typically
