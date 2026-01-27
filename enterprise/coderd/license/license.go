@@ -174,10 +174,6 @@ func LicensesEntitlements(
 	// suppress the soft warning for AI Bridge GA.
 	hasExplicitAIBridgeEntitlement := false
 
-	// Track if the AI Governance addon is valid. Boundary requires the addon
-	// to be enabled, while AI Bridge is allowed during the transition period.
-	hasValidAIGovernanceAddon := false
-
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
 		Features: map[codersdk.FeatureName]codersdk.Feature{
@@ -462,10 +458,6 @@ func LicensesEntitlements(
 				// Ignore the addon and don't add any features.
 				continue
 			}
-			// Track that the AI Governance addon is valid.
-			if addon == codersdk.AddonAIGovernance {
-				hasValidAIGovernanceAddon = true
-			}
 			for _, featureName := range addon.Features() {
 				if _, exists := addonFeatures[featureName]; !exists {
 					addonFeatures[featureName] = codersdk.Feature{
@@ -477,15 +469,6 @@ func LicensesEntitlements(
 		}
 		for featureName, feature := range addonFeatures {
 			entitlements.AddFeature(featureName, feature)
-		}
-	}
-
-	// If the AI Governance addon is not valid, disable Boundary.
-	// AI Bridge is kept enabled during the transition period.
-	if !hasValidAIGovernanceAddon {
-		if boundaryFeature, ok := entitlements.Features[codersdk.FeatureBoundary]; ok {
-			boundaryFeature.Enabled = false
-			entitlements.Features[codersdk.FeatureBoundary] = boundaryFeature
 		}
 	}
 
