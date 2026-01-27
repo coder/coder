@@ -34,11 +34,11 @@ RUN apt-get update && \
 	go env -w GOSUMDB=sum.golang.org && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
-	# swag for Swagger doc generation (version from go.mod tool directive)
+	# swag for Swagger doc generation
 	go install github.com/swaggo/swag/cmd/swag@v1.16.2 && \
 	# go-swagger tool to generate the go coder api client
 	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
-	# goimports for updating imports (version aligned with go.mod golang.org/x/tools)
+	# goimports for updating imports
 	go install golang.org/x/tools/cmd/goimports@v0.41.0 && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
