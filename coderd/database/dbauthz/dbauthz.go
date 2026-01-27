@@ -647,7 +647,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "boundary-usage-tracker"},
 				DisplayName: "Boundary Usage Tracker",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceBoundaryUsage.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceBoundaryUsage.Type: rbac.ResourceBoundaryUsage.AvailableActions(),
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
