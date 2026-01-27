@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/elazarl/goproxy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
