@@ -57,7 +57,7 @@ To prevent this, use immutable IDs:
 - `coder_workspace.me.owner_id`
 - `coder_workspace.me.id`
 
-You should also avoid using `coder_workspace.me.name` if your deployment allows workspace renaming via `allow-workspace-renames`.
+You should also avoid using `coder_workspace.me.name` if your deployment allows workspace renaming via `CODER_ALLOW_WORKSPACE_RENAMES` or `--allow-workspace-renames`.
 
 ```tf
 data "coder_workspace" "me" {
