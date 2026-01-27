@@ -1296,6 +1296,21 @@ func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceStats(ctx any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceStats), ctx)
 }
 
+// GetRunningWorkspaceCountByOwnerID mocks base method.
+func (m *MockStore) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (database.GetRunningWorkspaceCountByOwnerIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRunningWorkspaceCountByOwnerID", ctx, ownerID)
+	ret0, _ := ret[0].(database.GetRunningWorkspaceCountByOwnerIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRunningWorkspaceCountByOwnerID indicates an expected call of GetRunningWorkspaceCountByOwnerID.
+func (mr *MockStoreMockRecorder) GetRunningWorkspaceCountByOwnerID(ctx, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningWorkspaceCountByOwnerID", reflect.TypeOf((*MockStore)(nil).GetRunningWorkspaceCountByOwnerID), ctx, ownerID)
+}
+
 // GetEligibleProvisionerDaemonsByProvisionerJobIDs mocks base method.
 func (m *MockStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	m.ctrl.T.Helper()

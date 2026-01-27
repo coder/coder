@@ -15465,6 +15465,58 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 	return i, err
 }
 
+const getRunningWorkspaceCountByOwnerID = `-- name: GetRunningWorkspaceCountByOwnerID :one
+WITH workspaces_with_latest_build AS (
+	SELECT
+		workspaces.id,
+		workspaces.owner_id,
+		latest_build.transition,
+		latest_build.completed_at,
+		latest_build.canceled_at,
+		latest_build.error
+	FROM
+		workspaces
+	LEFT JOIN LATERAL (
+		SELECT
+			workspace_builds.transition,
+			provisioner_jobs.completed_at,
+			provisioner_jobs.canceled_at,
+			provisioner_jobs.error
+		FROM
+			workspace_builds
+		LEFT JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+		ORDER BY
+			workspace_builds.build_number DESC
+		LIMIT 1
+	) latest_build ON TRUE
+	WHERE
+		workspaces.deleted = false
+		AND workspaces.owner_id = $1
+)
+SELECT
+	COUNT(*)::bigint AS count
+FROM
+	workspaces_with_latest_build
+WHERE
+	transition = 'start'::workspace_transition
+	AND completed_at IS NOT NULL
+	AND canceled_at IS NULL
+	AND error IS NULL
+`
+
+type GetRunningWorkspaceCountByOwnerIDRow struct {
+	Count int64 `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (GetRunningWorkspaceCountByOwnerIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getRunningWorkspaceCountByOwnerID, ownerID)
+	var i GetRunningWorkspaceCountByOwnerIDRow
+	err := row.Scan(&i.Count)
+	return i, err
+}
+
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
 	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_email, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description

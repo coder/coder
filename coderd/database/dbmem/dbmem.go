@@ -2880,6 +2880,33 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
+func (q *FakeQuerier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (database.GetRunningWorkspaceCountByOwnerIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var count int64
+	for _, workspace := range q.workspaces {
+		if workspace.Deleted || workspace.OwnerID != ownerID {
+			continue
+		}
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+		if err != nil {
+			continue
+		}
+		if build.Transition != database.WorkspaceTransitionStart {
+			continue
+		}
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err != nil {
+			continue
+		}
+		if job.CompletedAt.Valid && !job.CanceledAt.Valid && !job.Error.Valid {
+			count++
+		}
+	}
+	return database.GetRunningWorkspaceCountByOwnerIDRow{Count: count}, nil
+}
+
 func (q *FakeQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(_ context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

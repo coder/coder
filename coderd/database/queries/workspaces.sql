@@ -597,6 +597,46 @@ SELECT
 	stopped_workspaces.count AS stopped_workspaces
 FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
 
+-- name: GetRunningWorkspaceCountByOwnerID :one
+WITH workspaces_with_latest_build AS (
+	SELECT
+		workspaces.id,
+		workspaces.owner_id,
+		latest_build.transition,
+		latest_build.completed_at,
+		latest_build.canceled_at,
+		latest_build.error
+	FROM
+		workspaces
+	LEFT JOIN LATERAL (
+		SELECT
+			workspace_builds.transition,
+			provisioner_jobs.completed_at,
+			provisioner_jobs.canceled_at,
+			provisioner_jobs.error
+		FROM
+			workspace_builds
+		LEFT JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+		ORDER BY
+			workspace_builds.build_number DESC
+		LIMIT 1
+	) latest_build ON TRUE
+	WHERE
+		workspaces.deleted = false
+		AND workspaces.owner_id = @owner_id
+)
+SELECT
+	COUNT(*)::bigint AS count
+FROM
+	workspaces_with_latest_build
+WHERE
+	transition = 'start'::workspace_transition
+	AND completed_at IS NOT NULL
+	AND canceled_at IS NULL
+	AND error IS NULL;
+
 -- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id,
