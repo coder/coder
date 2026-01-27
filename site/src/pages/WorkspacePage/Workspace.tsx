@@ -9,7 +9,7 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
-import { useAgentConnectionDelayBanner } from "hooks/useAgentConnectionDelayBanner";
+import { useWorkspaceReadyDelayAlert } from "hooks/useWorkspaceReadyDelayAlert";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -120,8 +120,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 
-	const { shouldShow: shouldShowAgentConnectionDelayBanner } =
-		useAgentConnectionDelayBanner(timings, workspaceRunning);
+	const { shouldShow: shouldShowWorkspaceReadyDelayAlert } =
+		useWorkspaceReadyDelayAlert(timings, workspaceRunning);
 
 	return (
 		<div
@@ -235,7 +235,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{shouldShowAgentConnectionDelayBanner && (
+					{shouldShowWorkspaceReadyDelayAlert && (
 						<Alert severity="info">
 							<AlertTitle>Workspace is still preparing</AlertTitle>
 							<AlertDetail>
