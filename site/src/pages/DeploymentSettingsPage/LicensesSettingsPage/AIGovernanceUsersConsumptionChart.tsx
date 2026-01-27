@@ -105,7 +105,7 @@ export const AIGovernanceUsersConsumption: FC<
 			<div className="px-6 py-12 border-0 border-t border-solid">
 				<div className="flex flex-col gap-4 text-center justify-center items-center">
 					<div className="flex flex-col gap-2 text-center justify-center items-center">
-						<div className="text-3xl font-bold">{limit?.toLocaleString()}</div>
+						<div className="text-3xl font-bold">{limit.toLocaleString()}</div>
 						<div className="text-sm text-content-secondary">Users Entitled</div>
 					</div>
 					<div className="text-sm text-content-secondary">
