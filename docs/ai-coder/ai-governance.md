@@ -25,23 +25,23 @@ If you already use other AI governance tools, such as third-party LLM gateways o
 
 Organizations adopting AI coding tools at scale often encounter operational and security challenges that traditional developer tooling doesn't address.
 
-### Lack of visibility into AI activity
+### Auditing AI activity across teams
 
 Without centralized monitoring, teams have no way to understand how AI tools are being used across the organization. AI Bridge provides audit trails of prompts, token usage, and tool invocations, giving administrators insight into AI adoption patterns and potential issues.
 
-### Uncontrolled agent actions
+### Restricting agent network and command access
 
 AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data. They can also execute destructive commands within a workspace. Agent Boundaries enforce process-level policies that restrict which domains agents can reach and what actions they can perform, preventing unintended data exposure and destructive operations like `rm -rf`.
 
-### Fragmented API key management
+### Centralizing API key management
 
 Managing individual API keys for AI providers across hundreds of developers creates security risks and administrative overhead. AI Bridge centralizes authentication so users authenticate through Coder, eliminating the need to distribute and rotate provider API keys.
 
-### No consistent tooling policies
+### Standardizing MCP tools and servers
 
 Different teams may use different MCP servers and tools with varying security postures. AI Bridge enables centralized MCP administration, allowing organizations to define approved tools and servers that all users can access.
 
-### Difficulty measuring AI ROI
+### Measuring AI adoption and spend
 
 Without usage data, it's hard to justify AI tooling investments or identify high-leverage use cases. AI Bridge captures metrics on token spend, adoption rates, and usage patterns to inform decisions about AI strategy.
 
