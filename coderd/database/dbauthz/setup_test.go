@@ -41,12 +41,6 @@ var skipMethods = map[string]string{
 	"Wrappers":       "Not relevant",
 	"AcquireLock":    "Not relevant",
 	"TryAcquireLock": "Not relevant",
-
-	// Boundary usage stats are internal telemetry operations with no RBAC.
-	"DeleteBoundaryUsageStatsByReplicaID": "No RBAC",
-	"GetBoundaryUsageSummary":             "No RBAC",
-	"ResetBoundaryUsageStats":             "No RBAC",
-	"UpsertBoundaryUsageStats":            "No RBAC",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.

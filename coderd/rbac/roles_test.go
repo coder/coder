@@ -1003,6 +1003,15 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:     "BoundaryUsage",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceBoundaryUsage,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.

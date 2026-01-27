@@ -636,6 +636,25 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	// Used by the boundary usage tracker to record telemetry statistics.
+	subjectBoundaryUsageTracker = rbac.Subject{
+		Type:         rbac.SubjectTypeBoundaryUsageTracker,
+		FriendlyName: "Boundary Usage Tracker",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "boundary-usage-tracker"},
+				DisplayName: "Boundary Usage Tracker",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceBoundaryUsage.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -734,6 +753,12 @@ func AsAIBridged(ctx context.Context) context.Context {
 // for dbpurge to delete old database records.
 func AsDBPurge(ctx context.Context) context.Context {
 	return As(ctx, subjectDBPurge)
+}
+
+// AsBoundaryUsageTracker returns a context with an actor that has permissions
+// required for the boundary usage tracker to record telemetry statistics.
+func AsBoundaryUsageTracker(ctx context.Context) context.Context {
+	return As(ctx, subjectBoundaryUsageTracker)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1666,7 +1691,9 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 }
 
 func (q *querier) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	// No authorization check: internal telemetry operation.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceBoundaryUsage); err != nil {
+		return err
+	}
 	return q.db.DeleteBoundaryUsageStatsByReplicaID(ctx, replicaID)
 }
 
@@ -2232,7 +2259,9 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetBoundaryUsageSummaryRow, error) {
-	// No authorization check: internal telemetry operation.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryUsage); err != nil {
+		return database.GetBoundaryUsageSummaryRow{}, err
+	}
 	return q.db.GetBoundaryUsageSummary(ctx, maxStalenessMs)
 }
 
@@ -4828,7 +4857,9 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 }
 
 func (q *querier) ResetBoundaryUsageStats(ctx context.Context) error {
-	// No authorization check: internal telemetry operation.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceBoundaryUsage); err != nil {
+		return err
+	}
 	return q.db.ResetBoundaryUsageStats(ctx)
 }
 
@@ -5924,7 +5955,9 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 }
 
 func (q *querier) UpsertBoundaryUsageStats(ctx context.Context, arg database.UpsertBoundaryUsageStatsParams) (bool, error) {
-	// No authorization check: internal telemetry operation.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceBoundaryUsage); err != nil {
+		return false, err
+	}
 	return q.db.UpsertBoundaryUsageStats(ctx, arg)
 }
 

@@ -189,6 +189,10 @@ export type APIKeyScope =
 	| "audit_log:*"
 	| "audit_log:create"
 	| "audit_log:read"
+	| "boundary_usage:*"
+	| "boundary_usage:delete"
+	| "boundary_usage:read"
+	| "boundary_usage:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
 	| "coder:application_connect"
@@ -387,6 +391,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"audit_log:*",
 	"audit_log:create",
 	"audit_log:read",
+	"boundary_usage:*",
+	"boundary_usage:delete",
+	"boundary_usage:read",
+	"boundary_usage:update",
 	"coder:all",
 	"coder:apikeys.manage_self",
 	"coder:application_connect",
@@ -4050,6 +4058,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "boundary_usage"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -4094,6 +4103,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"boundary_usage",
 	"connection_log",
 	"crypto_key",
 	"debug_info",

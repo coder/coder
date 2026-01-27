@@ -21,3 +21,9 @@ COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last upda
 ALTER TABLE telemetry_locks DROP CONSTRAINT telemetry_lock_event_type_constraint;
 ALTER TABLE telemetry_locks ADD CONSTRAINT telemetry_lock_event_type_constraint
     CHECK (event_type IN ('aibridge_interceptions_summary', 'boundary_usage_summary'));
+
+-- Add boundary_usage scopes for RBAC.
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'boundary_usage:*';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'boundary_usage:delete';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'boundary_usage:read';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'boundary_usage:update';

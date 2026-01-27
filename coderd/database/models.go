@@ -213,6 +213,10 @@ const (
 	ApiKeyScopeTask                                APIKeyScope = "task:*"
 	ApiKeyScopeWorkspaceShare                      APIKeyScope = "workspace:share"
 	ApiKeyScopeWorkspaceDormantShare               APIKeyScope = "workspace_dormant:share"
+	ApiKeyScopeBoundaryUsage                       APIKeyScope = "boundary_usage:*"
+	ApiKeyScopeBoundaryUsageDelete                 APIKeyScope = "boundary_usage:delete"
+	ApiKeyScopeBoundaryUsageRead                   APIKeyScope = "boundary_usage:read"
+	ApiKeyScopeBoundaryUsageUpdate                 APIKeyScope = "boundary_usage:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -445,7 +449,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeTaskDelete,
 		ApiKeyScopeTask,
 		ApiKeyScopeWorkspaceShare,
-		ApiKeyScopeWorkspaceDormantShare:
+		ApiKeyScopeWorkspaceDormantShare,
+		ApiKeyScopeBoundaryUsage,
+		ApiKeyScopeBoundaryUsageDelete,
+		ApiKeyScopeBoundaryUsageRead,
+		ApiKeyScopeBoundaryUsageUpdate:
 		return true
 	}
 	return false
@@ -647,6 +655,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeTask,
 		ApiKeyScopeWorkspaceShare,
 		ApiKeyScopeWorkspaceDormantShare,
+		ApiKeyScopeBoundaryUsage,
+		ApiKeyScopeBoundaryUsageDelete,
+		ApiKeyScopeBoundaryUsageRead,
+		ApiKeyScopeBoundaryUsageUpdate,
 	}
 }
 

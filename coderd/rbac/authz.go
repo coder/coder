@@ -80,6 +80,7 @@ const (
 	SubjectTypeUsagePublisher               SubjectType = "usage_publisher"
 	SubjectAibridged                        SubjectType = "aibridged"
 	SubjectTypeDBPurge                      SubjectType = "dbpurge"
+	SubjectTypeBoundaryUsageTracker         SubjectType = "boundary_usage_tracker"
 )
 
 const (
