@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -499,8 +498,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
+		task, _, err := b.getWorkspaceTask()
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
+		}
 		// If this is a task workspace, link it to the latest workspace build.
-		if task, err := store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID); err == nil {
+		if task != nil {
 			_, err = store.UpsertTaskWorkspaceApp(b.ctx, database.UpsertTaskWorkspaceAppParams{
 				TaskID:               task.ID,
 				WorkspaceBuildNumber: buildNum,
@@ -510,8 +513,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			if err != nil {
 				return BuildError{http.StatusInternalServerError, "upsert task workspace app", err}
 			}
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
