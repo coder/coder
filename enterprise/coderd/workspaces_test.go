@@ -4721,7 +4721,10 @@ func TestWorkspaceAITask(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 				// The user should not use tasks
 				codersdk.FeatureAIGovernanceUserLimit: 1000,
-				codersdk.FeatureManagedAgentLimit:     1000,
+				// TODO: This feels wrong, we should use a constant. But the constant is not
+				//   exported from the license package.
+				"managed_agent_limit_hard": 1000,
+				"managed_agent_limit_soft": 1000,
 			},
 			Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
 		},
@@ -4802,7 +4805,7 @@ func TestWorkspaceAITask(t *testing.T) {
 		require.NoError(t, err)
 
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
-		require.Equal(t, codersdk.CancelWorkspaceBuildStatusRunning, build.Status)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 		require.Len(t, usage.Events, 1)
 	})
 

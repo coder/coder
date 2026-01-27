@@ -272,8 +272,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		}
 	}
 
+	var usageInserter *atomic.Pointer[usage.Inserter]
 	if options.UsageInserter != nil {
-		options.UsageInserter = options.UsageInserter
+		usageInserter = &atomic.Pointer[usage.Inserter]{}
+		usageInserter.Store(&options.UsageInserter)
 	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
@@ -568,6 +570,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
+			UsageInserter:                  usageInserter,
 
 			Auditor:                            options.Auditor,
 			ConnectionLogger:                   options.ConnectionLogger,
