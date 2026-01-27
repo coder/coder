@@ -280,10 +280,10 @@ func makeProxyAuthHeader(token string) string {
 	return "Basic " + credentials
 }
 
-// sendCONNECT sends a raw CONNECT request to the proxy and returns the response.
+// sendConnect sends a raw CONNECT request to the proxy and returns the response.
 // This is needed to test proxy authentication challenges because Go's HTTP client
 // doesn't expose the response when CONNECT fails with a non-2xx status.
-func sendCONNECT(t *testing.T, proxyAddr, targetHost, proxyAuth string) *http.Response {
+func sendConnect(t *testing.T, proxyAddr, targetHost, proxyAuth string) *http.Response {
 	t.Helper()
 
 	conn, err := net.Dial("tcp", proxyAddr)
@@ -883,7 +883,7 @@ func TestProxy_Authentication(t *testing.T) {
 				// Verify the proxy returns a 407 challenge with Proxy-Authenticate header.
 				// A raw CONNECT request is sent because Go's HTTP client doesn't expose
 				// the response when CONNECT fails with a non-2xx status.
-				resp := sendCONNECT(t, srv.Addr(), targetURL.Host, tt.proxyAuth)
+				resp := sendConnect(t, srv.Addr(), targetURL.Host, tt.proxyAuth)
 				defer resp.Body.Close()
 
 				// Verify the status code indicates proxy authentication is required.
@@ -892,12 +892,12 @@ func TestProxy_Authentication(t *testing.T) {
 				// Verify the Proxy-Authenticate header is present and contains the
 				// expected realm. This header tells clients how to authenticate.
 				proxyAuthenticate := resp.Header.Get("Proxy-Authenticate")
-				require.Equal(t, `Basic realm="Coder AI Bridge Proxy"`, proxyAuthenticate)
+				require.Equal(t, "Basic realm="+aibridgeproxyd.ProxyAuthRealm, proxyAuthenticate)
 
 				// Verify the response body contains the expected error message.
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				require.Equal(t, "407 Proxy Authentication Required", string(body))
+				require.Equal(t, http.StatusText(http.StatusProxyAuthRequired), string(body))
 			}
 		})
 	}

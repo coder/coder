@@ -38,13 +38,13 @@ const (
 	// HeaderAIBridgeRequestID is the header used to correlate requests
 	// between aibridgeproxyd and aibridged.
 	HeaderAIBridgeRequestID = "X-AI-Bridge-Request-Id"
-	// proxyAuthRealm is the realm used in Proxy-Authenticate challenges.
+	// ProxyAuthRealm is the realm used in Proxy-Authenticate challenges.
 	// The realm helps clients identify which credentials to use.
-	proxyAuthRealm = `"Coder AI Bridge Proxy"`
+	ProxyAuthRealm = `"Coder AI Bridge Proxy"`
 )
 
 // proxyAuthRequiredMsg is the response body for 407 responses.
-var proxyAuthRequiredMsg = []byte("407 Proxy Authentication Required")
+var proxyAuthRequiredMsg = []byte(http.StatusText(http.StatusProxyAuthRequired))
 
 // loadMitmOnce ensures the MITM certificate is loaded exactly once.
 // goproxy.GoproxyCa is a package-level global variable shared across all
@@ -525,7 +525,7 @@ func newProxyAuthRequiredResponse(req *http.Request) *http.Response {
 		ProtoMinor: 1,
 		Request:    req,
 		Header: http.Header{
-			"Proxy-Authenticate": []string{"Basic realm=" + proxyAuthRealm},
+			"Proxy-Authenticate": []string{"Basic realm=" + ProxyAuthRealm},
 			"Proxy-Connection":   []string{"close"},
 		},
 		Body:          io.NopCloser(bytes.NewBuffer(proxyAuthRequiredMsg)),
