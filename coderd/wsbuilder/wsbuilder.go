@@ -645,6 +645,7 @@ func (b *Builder) getWorkspaceTask() (*database.Task, error) {
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			b.hasTask = ptr.Ref(false)
+			//nolint:nilnil // No task exists.
 			return nil, nil
 		}
 		return nil, xerrors.Errorf("get task: %w", err)
