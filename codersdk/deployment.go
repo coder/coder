@@ -274,6 +274,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
+		FeatureBoundary:                   true,
 	}[n]
 }
 
@@ -344,8 +345,7 @@ func (set FeatureSet) Features() []FeatureName {
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
 			// TODO: In future release, restore the f.IsAddonFeature() check.
-			// TODO: Remove the f == FeatureBoundary check once AI Bridge is enforced as an add-on license.
-			return !f.Enterprise() || f.UsesLimit() || f == FeatureBoundary
+			return !f.Enterprise() || f.UsesLimit()
 		})
 
 		return enterpriseFeatures
@@ -355,8 +355,7 @@ func (set FeatureSet) Features() []FeatureName {
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
 			// TODO: In future release, restore the f.IsAddonFeature() check.
-			// TODO: Remove the f == FeatureBoundary check once AI Bridge is enforced as an add-on license.
-			return f.UsesLimit() || f == FeatureBoundary
+			return f.UsesLimit()
 		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures

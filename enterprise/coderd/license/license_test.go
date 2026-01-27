@@ -1864,9 +1864,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
 
-		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
-		require.True(t, boundaryFeature.Enabled, "Boundary should be enabled when addon is present and enablements are set")
-		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled when addon is present")
+		// TODO: Readd this test once Boundary is enforced as an add-on license.
+		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		// require.True(t, boundaryFeature.Enabled, "Boundary should be enabled when addon is present and enablements are set")
+		// require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled when addon is present")
 	})
 
 	t.Run("AIGovernanceAddon not present disables AI governance features", func(t *testing.T) {
@@ -1893,9 +1894,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon is absent")
 		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon is absent")
 
-		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
-		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon is absent")
-		require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon is absent")
+		// TODO: Readd this test once Boundary is enforced as an add-on license.
+		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		// require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon is absent")
+		// require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon is absent")
 	})
 
 	t.Run("AIGovernanceAddon respects grace period entitlement", func(t *testing.T) {
@@ -1930,9 +1932,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled during grace period")
 		// require.Equal(t, codersdk.EntitlementGracePeriod, aibridgeFeature.Entitlement, "AI Bridge should be in grace period")
 
-		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
-		require.True(t, boundaryFeature.Enabled, "Boundary should be enabled during grace period")
-		require.Equal(t, codersdk.EntitlementGracePeriod, boundaryFeature.Entitlement, "Boundary should be in grace period")
+		// TODO: Readd this test once Boundary is enforced as an add-on license.
+		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		// require.True(t, boundaryFeature.Enabled, "Boundary should be enabled during grace period")
+		// require.Equal(t, codersdk.EntitlementGracePeriod, boundaryFeature.Entitlement, "Boundary should be in grace period")
 	})
 
 	t.Run("AIGovernanceAddon requires enablements to enable features", func(t *testing.T) {
@@ -1959,9 +1962,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled without enablements")
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should still be entitled")
 
-		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
-		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled without enablements")
-		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should still be entitled")
+		// TODO: Readd this test once Boundary is enforced as an add-on license.
+		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		// require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled without enablements")
+		// require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should still be entitled")
 	})
 
 	t.Run("AIGovernanceAddon missing dependencies", func(t *testing.T) {
@@ -1996,9 +2000,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon validation fails")
 		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon validation fails")
 
-		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
-		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon validation fails")
-		require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon validation fails")
+		// TODO: Readd this test once Boundary is enforced as an add-on license.
+		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		// require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon validation fails")
+		// require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon validation fails")
 	})
 }
 
