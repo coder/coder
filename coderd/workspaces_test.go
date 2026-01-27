@@ -5191,8 +5191,12 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Equal(t, cerr.Validations[0].Field, "user_roles")
 	})
 
+	//nolint:tparallel,paralleltest // Modifies package global rbac.workspaceACLDisabled.
 	t.Run("CannotChangeOwnRole", func(t *testing.T) {
-		t.Parallel()
+		// Save and restore the global to avoid affecting other tests.
+		prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
+		rbac.SetWorkspaceACLDisabled(false)
+		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
