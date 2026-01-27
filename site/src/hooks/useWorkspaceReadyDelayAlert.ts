@@ -4,17 +4,17 @@ import type {
 } from "api/typesGenerated";
 import { useEffect, useState } from "react";
 
-export type AgentConnectionDelayBannerState = {
+export type WorkspaceReadyDelayAlertState = {
 	shouldShow: boolean;
 };
 
 const DELAY_THRESHOLD_MS = 5_000;
 const INVALID_ENDED_AT = "0001-01-01T00:00:00Z";
 
-export const useAgentConnectionDelayBanner = (
+export const useWorkspaceReadyDelayAlert = (
 	timings: WorkspaceBuildTimings | undefined,
 	enabled: boolean,
-): AgentConnectionDelayBannerState => {
+): WorkspaceReadyDelayAlertState => {
 	const [shouldShow, setShouldShow] = useState(false);
 
 	useEffect(() => {
