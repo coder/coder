@@ -2356,7 +2356,7 @@ func TestCompleteJob(t *testing.T) {
 					Key:        "test2",
 					Version:    "2.0.0",
 					Source:     "github.com/example2/example",
-					Transition: database.WorkspaceTransitionStop,
+					Transition: database.WorkspaceTransitionStart,
 				}},
 			},
 			{
