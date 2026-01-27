@@ -1852,6 +1852,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// Enable AI governance features in enablements.
 		enablements := map[codersdk.FeatureName]bool{
 			codersdk.FeatureAIBridge: true,
+			codersdk.FeatureBoundary: true,
 		}
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, enablements)
 		require.NoError(t, err)
@@ -1862,6 +1863,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
+
+		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
+		require.True(t, boundaryFeature.Enabled, "Boundary should be enabled when addon is present and enablements are set")
+		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled when addon is present")
 	})
 
 	t.Run("AIGovernanceAddon not present disables AI governance features", func(t *testing.T) {
@@ -1876,6 +1881,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 
 		enablements := map[codersdk.FeatureName]bool{
 			codersdk.FeatureAIBridge: true,
+			codersdk.FeatureBoundary: true,
 		}
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, enablements)
 		require.NoError(t, err)
@@ -1889,7 +1895,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 
 		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
 		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon is absent")
-		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled")
+		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon is absent")
 	})
 
 	t.Run("AIGovernanceAddon respects grace period entitlement", func(t *testing.T) {
