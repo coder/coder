@@ -2875,10 +2875,40 @@ func TestCompleteJob(t *testing.T) {
 			sidebarAppID := uuid.New()
 			for _, tc := range []testcase{
 				{
-					name:       "has_ai_task is false by default",
+					name:       "has_ai_task is false if task_id is nil",
 					transition: database.WorkspaceTransitionStart,
 					input:      &proto.CompletedJob_WorkspaceBuild{
 						// No AiTasks defined.
+					},
+					isTask:           false,
+					expectHasAiTask:  false,
+					expectUsageEvent: false,
+				},
+				{
+					name:       "has_ai_task is false even if there are coder_ai_task resources, but no task_id",
+					transition: database.WorkspaceTransitionStart,
+					input: &proto.CompletedJob_WorkspaceBuild{AiTasks: []*sdkproto.AITask{
+						{
+							Id:    uuid.NewString(),
+							AppId: sidebarAppID.String(),
+						},
+					},
+						Resources: []*sdkproto.Resource{
+							{
+								Agents: []*sdkproto.Agent{
+									{
+										Id:   uuid.NewString(),
+										Name: "a",
+										Apps: []*sdkproto.App{
+											{
+												Id:   sidebarAppID.String(),
+												Slug: "test-app",
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 					isTask:           false,
 					expectHasAiTask:  false,
@@ -2961,15 +2991,17 @@ func TestCompleteJob(t *testing.T) {
 							{
 								Id: uuid.NewString(),
 								// Non-existing app ID would previously trigger a FK violation.
-								// Now it should just be ignored.
+								// Now it will trigger a warning instead in the provisioner logs.
 								AppId: sidebarAppID.String(),
 							},
 						},
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusInitializing,
-					expectHasAiTask:  false,
-					expectUsageEvent: false,
+					// You can still "sort of" use a task in this state, but as we don't have
+					// the correct app ID you won't be able to communicate with it via Coder.
+					expectHasAiTask:  true,
+					expectUsageEvent: true,
 				},
 				{
 					name:       "has_ai_task is set to true, but transition is not start",
@@ -3002,19 +3034,6 @@ func TestCompleteJob(t *testing.T) {
 					expectTaskStatus: database.TaskStatusPaused,
 					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
 					expectHasAiTask:  true,
-					expectUsageEvent: false,
-				},
-				{
-					name:       "current build does not have ai task but previous build did",
-					seedFunc:   seedPreviousWorkspaceStartWithAITask,
-					transition: database.WorkspaceTransitionStop,
-					input: &proto.CompletedJob_WorkspaceBuild{
-						AiTasks:   []*sdkproto.AITask{},
-						Resources: []*sdkproto.Resource{},
-					},
-					isTask:           true,
-					expectTaskStatus: database.TaskStatusPaused,
-					expectHasAiTask:  false, // We no longer inherit this from the previous build.
 					expectUsageEvent: false,
 				},
 			} {
