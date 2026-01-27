@@ -8,21 +8,11 @@ Coder’s AI Governance Add-On for Premium licenses includes a set of features t
 - [Boundaries](./boundary/agent-boundary.md): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
 - [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured): Additional allowance of Agent Workspace Builds for continued use of Coder Tasks.
 
-## GA status and availability
-
-Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are generally available as part of the AI Governance Add-On.
-
-If you’ve been experimenting with these features in earlier releases, you’ll see a notification banner in your deployment in v2.30. This banner is a reminder that these features have moved out of beta and are now included with the AI Governance Add-On.
-
-In v2.30, this notification is informational only. A future Coder release will require the add-on to continue using AI Bridge and Agent Boundaries.
-
-To learn more about enabling the AI Governance Add-On, pricing, or trial options, reach out to your [Coder account team](https://coder.com/contact/sales).
-
 ## Who should use the AI Governance Add-On
 
 The AI Governance Add-On is for teams that want to extend that platform to support AI-powered IDEs and coding agents in a controlled, observable way.
 
-It’s a good fit if you’re:
+It's a good fit if you're:
 
 - Rolling out AI-powered IDEs like Cursor and AI coding agents like Claude Code across teams
 - Looking to centrally observe, audit, and govern AI activity in Coder Workspaces
@@ -30,6 +20,40 @@ It’s a good fit if you’re:
 - Expanding the use of Coder Tasks for AI-driven background work
 
 If you already use other AI governance tools, such as third-party LLM gateways or vendor-managed policies, you can continue using them. Coder Workspaces can still serve as the backend for development environments and AI workflows, with or without the AI Governance Add-On.
+
+## Use cases for AI Governance
+
+Organizations adopting AI coding tools at scale often encounter operational and security challenges that traditional developer tooling doesn't address.
+
+### Lack of visibility into AI activity
+
+Without centralized monitoring, teams have no way to understand how AI tools are being used across the organization. AI Bridge provides audit trails of prompts, token usage, and tool invocations, giving administrators insight into AI adoption patterns and potential issues.
+
+### Uncontrolled network access from AI agents
+
+AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data. Agent Boundaries enforce process-level network policies that restrict which domains agents can reach, preventing unintended data exposure.
+
+### Fragmented API key management
+
+Managing individual API keys for AI providers across hundreds of developers creates security risks and administrative overhead. AI Bridge centralizes authentication so users authenticate through Coder, eliminating the need to distribute and rotate provider API keys.
+
+### No consistent tooling policies
+
+Different teams may use different MCP servers and tools with varying security postures. AI Bridge enables centralized MCP administration, allowing organizations to define approved tools and servers that all users can access.
+
+### Difficulty measuring AI ROI
+
+Without usage data, it's hard to justify AI tooling investments or identify high-leverage use cases. AI Bridge captures metrics on token spend, adoption rates, and usage patterns to inform decisions about AI strategy.
+
+## GA status and availability
+
+Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are generally available as part of the AI Governance Add-On.
+
+If you've been experimenting with these features in earlier releases, you'll see a notification banner in your deployment in v2.30. This banner is a reminder that these features have moved out of beta and are now included with the AI Governance Add-On.
+
+In v2.30, this notification is informational only. A future Coder release will require the add-on to continue using AI Bridge and Agent Boundaries.
+
+To learn more about enabling the AI Governance Add-On, pricing, or trial options, reach out to your [Coder account team](https://coder.com/contact/sales).
 
 ## How Coder Tasks usage is measured
 
