@@ -27,10 +27,12 @@
 //
 // Known Shortcomings:
 //
-//   - Ad-hoc boundary usage in a workspace is not accounted for
 //   - Unique workspace/user counts may be inflated when the same workspace or
 //     user connects through multiple replicas, as each replica tracks its own
 //     unique set
+//   - Ad-hoc boundary usage in a workspace may not be accounted for e.g. if
+//     the boundary command is invoked directly with the --log-proxy-socket-path
+//     flag set to something other than the Workspace agent server.
 //
 // Implementation:
 //
