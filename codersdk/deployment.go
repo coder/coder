@@ -344,7 +344,8 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			return !f.Enterprise() || f.UsesLimit() || f.IsAddonFeature()
+			// TODO: In future release, restore the f.IsAddonFeature() check.
+			return !f.Enterprise() || f.UsesLimit()
 		})
 
 		return enterpriseFeatures
@@ -353,7 +354,8 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
-			return f.UsesLimit() || f.IsAddonFeature()
+			// TODO: In future release, restore the f.IsAddonFeature() check.
+			return f.UsesLimit()
 		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures

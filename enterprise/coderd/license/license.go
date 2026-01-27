@@ -299,6 +299,14 @@ func LicensesEntitlements(
 			})
 		}
 
+		// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
+		// Track explicit AI Bridge entitlement (add-on license). This is checked
+		// at the license level since AI Bridge may come from the FeatureSet
+		// (Premium) rather than being explicitly listed in claims.Features.
+		if slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
+			hasExplicitAIBridgeEntitlement = true
+		}
+
 		// Add all features from the feature set.
 		for _, featureName := range claims.FeatureSet.Features() {
 			if _, ok := licenseForbiddenFeatures[featureName]; ok {
@@ -339,14 +347,6 @@ func LicensesEntitlements(
 			if featureValue < 0 {
 				// We currently don't use negative values for features.
 				continue
-			}
-
-			// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
-			// Track explicit AI Bridge entitlement (add-on license).
-			if featureName == codersdk.FeatureAIBridge &&
-				featureValue > 0 &&
-				slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
-				hasExplicitAIBridgeEntitlement = true
 			}
 
 			// Special handling for grouped (e.g. usage period) features.
