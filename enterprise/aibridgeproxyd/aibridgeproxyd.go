@@ -35,7 +35,7 @@ const (
 const (
 	// HeaderAIBridgeRequestID is the header used to correlate requests
 	// between aibridgeproxyd and aibridged.
-	HeaderAIBridgeRequestID = "X-Coder-AI-Bridge-Request-Id"
+	HeaderAIBridgeRequestID = "X-AI-Bridge-Request-Id"
 )
 
 // loadMitmOnce ensures the MITM certificate is loaded exactly once.
@@ -76,7 +76,7 @@ type requestContext struct {
 	CoderToken string
 	// RequestID is a unique identifier for this request.
 	// Set in handleRequest for MITM'd requests.
-	// Sent to aibridged via X-Coder-AI-Bridge-Request-Id header for cross-service correlation.
+	// Sent to aibridged via custom header for cross-service correlation.
 	RequestID uuid.UUID
 	// Provider is the aibridge provider name.
 	// Set in handleRequest when handling MITM requests for allowlisted domains.
@@ -433,6 +433,8 @@ func convertDomainsToHosts(domains []string, allowedPorts []string) ([]string, e
 // The token is extracted from the password field of basic auth.
 func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 	// Generate a unique connect session ID for this CONNECT request.
+	// A UUID is used instead of goproxy's ctx.Session because ctx.Session is an
+	// incrementing int64 that resets on process restart and is not globally unique.
 	connectSessionID := uuid.New()
 
 	proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
@@ -598,7 +600,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// which are forwarded to upstream providers.
 	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
 
-	// Set X-Coder-AI-Bridge-Request-Id header for cross-service log correlation.
+	// Set custom header for cross-service log correlation.
 	// This allows correlating aibridgeproxyd logs with aibridged logs.
 	req.Header.Set(HeaderAIBridgeRequestID, reqCtx.RequestID.String())
 
