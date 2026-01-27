@@ -117,7 +117,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							protocols and APIs may be supported as standards emerge. Learn
 							more in{" "}
 							<Link
-								href={docs("/docs/ai-coder/ai-governance")}
+								href={docs("/ai-coder/ai-governance")}
 								target="_blank"
 								rel="noreferrer"
 							>
