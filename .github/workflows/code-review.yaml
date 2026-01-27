@@ -180,7 +180,7 @@ jobs:
             \"event\": \"COMMENT\",
             \"commit_id\": \"[sha from gh api]\",
             \"body\": \"## Code Review\\n\\nReviewed [description]. Found X issues.\",
-            \"comments\": [{\"path\": \"file.go\", \"line\": 50, \"side\": \"RIGHT\", \"body\": \"Issue\\n\\n\\\`\\\`\\\`suggestion\\nfix\\n\\\`\\\`\\\`\"}]
+            \"comments\": [{\"path\": \"file.go\", \"line\": 50, \"side\": \"RIGHT\", \"body\": \"Issue\\n\\n\`\`\`suggestion\\nfix\\n\`\`\`\"}]
           }
           \`\`\`
 
