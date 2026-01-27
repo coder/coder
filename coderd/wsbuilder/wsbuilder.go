@@ -87,11 +87,6 @@ type Builder struct {
 	task                                 *database.Task
 	hasTask                              *bool // A workspace without a task will have a nil `task` and false `hasTask`.
 
-	// taskInitiated indicates if the workspace build originated from a task. This is
-	// not a perfect indicator, as a task workspace can be stopped/started from the
-	// normal api. To know for sure, if this boolean is false, a db query for a task
-	// by workspace id must be also be made.
-	taskInitiated                bool
 	prebuiltWorkspaceBuildStage  sdkproto.PrebuiltWorkspaceBuildStage
 	verifyNoLegacyParametersOnce bool
 }
@@ -217,11 +212,6 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 func (b Builder) MarkPrebuild() Builder {
 	// nolint: revive
 	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CREATE
-	return b
-}
-
-func (b Builder) MarkTaskInitiated() Builder {
-	b.taskInitiated = true
 	return b
 }
 
@@ -1338,15 +1328,9 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	task, hasTask, err := b.getWorkspaceTask()
+	task, _, err := b.getWorkspaceTask()
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch workspace task", err}
-	}
-
-	if !hasTask && b.taskInitiated {
-		// This should never happen. It means this workspace build came from a task workspace, but no task exists.
-		// The task is supposed to exist before wsbuilder starts.task
-		return BuildError{http.StatusBadRequest, "Cannot initiate task workspace build for a workspace without a task", nil}
 	}
 
 	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, task, b.trans)

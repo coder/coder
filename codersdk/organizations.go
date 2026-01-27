@@ -236,12 +236,6 @@ type CreateWorkspaceRequest struct {
 	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
 	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
-
-	// TaskInitiated is a field used internally based on which route is hit. It
-	// indicates whether the workspace creation was initiated by a task. A workspace
-	// with this set to false can still be a task workspace if created by a task but
-	// managed (start/stop/delete) through the regular api.
-	TaskInitiated bool `json:"-"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {

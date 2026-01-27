@@ -797,9 +797,6 @@ func createWorkspace(
 		if claimedWorkspace != nil {
 			builder = builder.MarkPrebuiltWorkspaceClaim()
 		}
-		if req.TaskInitiated {
-			builder = builder.MarkTaskInitiated()
-		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
