@@ -29,9 +29,9 @@ Organizations adopting AI coding tools at scale often encounter operational and 
 
 Without centralized monitoring, teams have no way to understand how AI tools are being used across the organization. AI Bridge provides audit trails of prompts, token usage, and tool invocations, giving administrators insight into AI adoption patterns and potential issues.
 
-### Uncontrolled network access from AI agents
+### Uncontrolled agent actions
 
-AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data. Agent Boundaries enforce process-level network policies that restrict which domains agents can reach, preventing unintended data exposure.
+AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data. They can also execute destructive commands within a workspace. Agent Boundaries enforce process-level policies that restrict which domains agents can reach and what actions they can perform, preventing unintended data exposure and destructive operations like `rm -rf`.
 
 ### Fragmented API key management
 
