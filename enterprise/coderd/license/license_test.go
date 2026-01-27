@@ -255,11 +255,11 @@ func TestEntitlements(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				// TODO: Remove explicit FeatureAIBridge once AI Bridge is enforced as an add-on license.
 				Features: license.Features{
-					codersdk.FeatureUserLimit: 100,
-					codersdk.FeatureAuditLog:  1,
+					codersdk.FeatureUserLimit:             100,
+					codersdk.FeatureAuditLog:              1,
 					codersdk.FeatureAIGovernanceUserLimit: 1000,
 					codersdk.FeatureManagedAgentLimit:     1000,
-					codersdk.FeatureAIBridge:  1, // Explicit AI Bridge to avoid soft warning
+					codersdk.FeatureAIBridge:              1, // Explicit AI Bridge to avoid soft warning
 				},
 
 				FeatureSet: codersdk.FeatureSetPremium,

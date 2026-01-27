@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"time"
 
@@ -342,7 +343,9 @@ func LicensesEntitlements(
 
 			// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
 			// Track explicit AI Bridge entitlement (add-on license).
-			if featureName == codersdk.FeatureAIBridge && featureValue > 0 {
+			if featureName == codersdk.FeatureAIBridge &&
+				featureValue > 0 &&
+				slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
 				hasExplicitAIBridgeEntitlement = true
 			}
 
