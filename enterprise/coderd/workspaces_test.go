@@ -4706,7 +4706,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 	})
 }
 
-//nolint:tparallel // Sub tests need to run sequentially.
+//nolint:tparallel,paralleltest // Sub tests need to run sequentially.
 func TestWorkspaceAITask(t *testing.T) {
 	t.Parallel()
 
