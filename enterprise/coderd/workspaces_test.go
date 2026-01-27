@@ -4716,18 +4716,11 @@ func TestWorkspaceAITask(t *testing.T) {
 			UsageInserter:            usage,
 			IncludeProvisionerDaemon: true,
 		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
+		LicenseOptions: (&coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
-				// The user should not use tasks
-				codersdk.FeatureAIGovernanceUserLimit: 1000,
-				// TODO: This feels wrong, we should use a constant. But the constant is not
-				//   exported from the license package.
-				"managed_agent_limit_hard": 1000,
-				"managed_agent_limit_soft": 1000,
 			},
-			Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
-		},
+		}).ManagedAgentLimit(10, 20),
 	})
 
 	client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID,
@@ -4807,8 +4800,26 @@ func TestWorkspaceAITask(t *testing.T) {
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 		require.Len(t, usage.Events, 1)
-	})
 
-	// TODO: Create a test of a workspace that failed but has an ai task. See if the failed build
-	// counts toward usage.
+		usage.Reset() // Clean slate for easy checks
+		// Stopping the workspace should not create additional usage.
+		build, err = client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: wrk.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+		require.Len(t, usage.Events, 0)
+
+		usage.Reset() // Clean slate for easy checks
+		// Starting the workspace manually **WILL** create usage, as it's
+		// still a task workspace.
+		build, err = client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: wrk.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+		require.Len(t, usage.Events, 1)
+	})
 }
