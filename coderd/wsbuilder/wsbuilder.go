@@ -636,7 +636,7 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 }
 
 // getWorkspaceTask returns the task associated with the workspace, if any.
-// If no task exists, it returns (nil, false, nil).
+// If no task exists, it returns (nil, nil).
 func (b *Builder) getWorkspaceTask() (*database.Task, error) {
 	if b.hasTask != nil {
 		return b.task, nil
