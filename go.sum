@@ -925,8 +925,8 @@ github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f h1:Y8xYupdHxryycyPlc9Y
 github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f/go.mod h1:HlzOvOjVBOfTGSRXRyY0OiCS/3J1akRGQQpRO/7zyF4=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225 h1:tRIViZ5JRmzdOEo5wUWngaGEFBG8OaE1o2GIHN5ujJ8=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225/go.mod h1:rNLVpYgEVeu1Zk29K64z6Od8RBP9DwqCu9OfCzh8MR4=
-github.com/coder/aibridge v0.3.1-0.20260127103959-040bf7606ebc h1:oTuOHM6dAcGHiqxjhPQo0Bit/Fz5UOqggIzV1bqNLYI=
-github.com/coder/aibridge v0.3.1-0.20260127103959-040bf7606ebc/go.mod h1:gYnF62CSS4XLUWSpw3WfKDeRxEHi+HYzc398wgZllzQ=
+github.com/coder/aibridge v0.3.1-0.20260127105430-cde4411c41ca h1:2b6RRLVSQ0z0FqQvlX/iDr057lLFB4DSbCtTkLd+6Ow=
+github.com/coder/aibridge v0.3.1-0.20260127105430-cde4411c41ca/go.mod h1:NzO3dgxVXosV3a405QdhfGjisGW44tffhYDVTiV9KJ8=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
 github.com/coder/boundary v0.6.0 h1:DfYVBIH8/6EBfg9I0qz7rX2jo+4blUx4P4amd13nib8=
