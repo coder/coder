@@ -999,6 +999,11 @@
 							"state": ["beta"],
 							"children": [
 								{
+									"title": "Version",
+									"description": "Version requirements and compatibility information",
+									"path": "./ai-coder/boundary/version.md"
+								},
+								{
 									"title": "nsjail",
 									"description": "Documentation for Namespace Jail",
 									"path": "./ai-coder/boundary/nsjail.md"

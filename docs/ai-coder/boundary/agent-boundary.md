@@ -21,6 +21,9 @@ The easiest way to use Agent Boundaries is through existing Coder modules, such 
 
 ## Configuration
 
+> [!NOTE]
+> For information about version requirements and compatibility, see the [Version Requirements](./version.md) documentation.
+
 Boundary is configured using a `config.yaml` file. This allows you to maintain allow lists and share detailed policies with teammates.
 
 In your Terraform module, enable Boundary with minimal configuration:
