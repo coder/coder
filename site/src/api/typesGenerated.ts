@@ -37,6 +37,7 @@ export interface AIBridgeConfig {
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
+	readonly send_actor_headers: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
 	 * provider rate limits (429, 503, 529 overloaded).
@@ -583,6 +584,11 @@ export interface AccessURLReport extends BaseReport {
 export interface AddLicenseRequest {
 	readonly license: string;
 }
+
+// From codersdk/deployment.go
+export type Addon = "ai_governance";
+
+export const Addons: Addon[] = ["ai_governance"];
 
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
@@ -2106,6 +2112,7 @@ export interface Feature {
 // From codersdk/deployment.go
 export type FeatureName =
 	| "aibridge"
+	| "ai_governance_user_limit"
 	| "access_control"
 	| "advanced_template_scheduling"
 	| "appearance"
@@ -2133,6 +2140,7 @@ export type FeatureName =
 
 export const FeatureNames: FeatureName[] = [
 	"aibridge",
+	"ai_governance_user_limit",
 	"access_control",
 	"advanced_template_scheduling",
 	"appearance",

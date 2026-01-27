@@ -120,10 +120,23 @@ Agent Boundaries stream audit logs to the Coder control plane, providing central
 visibility into HTTP requests made within workspaces—whether from AI agents or ad-hoc
 commands run with `boundary-run`.
 
+Audit logs are independent of application logs:
+
+- **Audit logs** record Boundary's policy decisions: whether each HTTP request was
+  allowed or denied based on the allowlist rules. These are always sent to the control
+  plane regardless of Boundary's configured log level.
+- **Application logs** are Boundary's operational logs written locally to the workspace.
+  These include startup messages, internal errors, and debugging information controlled
+  by the `log_level` setting.
+
+For example, if a request to `api.example.com` is allowed by Boundary but the remote
+server returns a 500 error, the audit log records `decision=allow` because Boundary
+permitted the request. The HTTP response status is not tracked in audit logs.
+
 > [!NOTE]
 > Requires Coder v2.30+ and Boundary v0.5.2+.
 
-### Log Contents
+### Audit Log Contents
 
 Each boundary audit log entry includes:
 
@@ -151,10 +164,3 @@ Example of an allowed request (assuming stderr):
 ```console
 2026-01-16 00:11:40.564 [info]  coderd.agentrpc: boundary_request owner=joe  workspace_name=some-task-c88d agent_name=dev  decision=allow  workspace_id=f2bd4e9f-7e27-49fc-961e-be4d1c2aa987  http_method=GET http_url=https://dev.coder.com  event_time=2026-01-16T00:11:39.388607657Z  matched_rule=domain=dev.coder.com request_id=9f30d667-1fc9-47ba-b9e5-8eac46e0abef trace=478b2b45577307c4fd1bcfc64fad6ffb span=9ece4bc70c311edb
 ```
-
-### Local Logs
-
-In addition to centralized audit logs, boundary writes local logs to the workspace
-filesystem at the path specified by `log_dir` in the configuration. These local logs
-provide immediate visibility within the workspace and can be useful for debugging
-during development.

@@ -200,6 +200,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         },
         "rate_limit": 0,
         "retention": 0,
+        "send_actor_headers": true,
         "structured_logging": true
       }
     },
