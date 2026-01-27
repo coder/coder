@@ -1049,7 +1049,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 		var calls int64
 		fakeUsageChecker := &fakeUsageChecker{
-			checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+			checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 				atomic.AddInt64(&calls, 1)
 				return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 			},
@@ -1126,7 +1126,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 			var calls int64
 			fakeUsageChecker := &fakeUsageChecker{
-				checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+				checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 					atomic.AddInt64(&calls, 1)
 					return c.response, c.responseErr
 				},
