@@ -29,6 +29,15 @@ spec:
       nodePort: {{ .Values.coder.service.httpsNodePort }}
       {{- end }}
     {{- end }}
+    {{- range .Values.coder.service.additionalPorts }}
+    - name: {{ .name | quote }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ .protocol }}
+      {{- if and (or (eq $.Values.coder.service.type "NodePort") (eq $.Values.coder.service.type "LoadBalancer")) .nodePort }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+    {{- end }}
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}
   loadBalancerIP: {{ . | quote }}
