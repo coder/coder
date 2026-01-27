@@ -969,6 +969,7 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 				policy.ActionDelete,
 				policy.ActionCreate,
 				policy.ActionUpdate,
+				policy.ActionWorkspaceStart,
 				policy.ActionWorkspaceStop,
 				policy.ActionCreateAgent,
 				policy.ActionDeleteAgent,
