@@ -37,7 +37,7 @@ jobs:
     name: Analyze PR for Documentation Updates Needed
     runs-on: ubuntu-latest
     concurrency:
-      group: doc-check-${{ github.event.pull_request.number || github.event.inputs.pr_url }}
+      group: doc-check-${{ github.event.pull_request.number || inputs.pr_url }}
       cancel-in-progress: true
     # Run on: opened, synchronize, labeled (with doc-check label), or workflow_dispatch
     # Skip draft PRs unless manually triggered
