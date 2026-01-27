@@ -999,17 +999,12 @@
 							"state": ["beta"],
 							"children": [
 								{
-									"title": "Version",
-									"description": "Version requirements and compatibility information",
-									"path": "./ai-coder/boundary/version.md"
-								},
-								{
-									"title": "nsjail",
+									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
 									"path": "./ai-coder/boundary/nsjail.md"
 								},
 								{
-									"title": "landjail",
+									"title": "LandJail",
 									"description": "Documentation for LandJail",
 									"path": "./ai-coder/boundary/landjail.md"
 								},
@@ -1017,6 +1012,11 @@
 									"title": "Rules Engine",
 									"description": "Documentation for the Boundary rules engine",
 									"path": "./ai-coder/boundary/rules-engine.md"
+								},
+								{
+									"title": "Version Compatibility",
+									"description": "Version requirements and compatibility information",
+									"path": "./ai-coder/boundary/version.md"
 								}
 							]
 						},
