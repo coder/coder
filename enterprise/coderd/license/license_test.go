@@ -1895,7 +1895,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 
 		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
 		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon is absent")
-		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon is absent")
+		require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon is absent")
 	})
 
 	t.Run("AIGovernanceAddon respects grace period entitlement", func(t *testing.T) {
@@ -1998,7 +1998,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 
 		boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
 		require.False(t, boundaryFeature.Enabled, "Boundary should not be enabled when addon validation fails")
-		require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should still be entitled")
+		require.Equal(t, codersdk.EntitlementNotEntitled, boundaryFeature.Entitlement, "Boundary should not be entitled when addon validation fails")
 	})
 }
 
