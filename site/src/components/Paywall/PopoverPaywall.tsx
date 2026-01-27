@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
+import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import { CircleCheckBigIcon } from "lucide-react";
@@ -35,30 +36,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
 					<h5 css={styles.title}>{message}</h5>
-					<span
-						css={[
-							{
-								fontSize: 10,
-								height: 24,
-								fontWeight: 600,
-								textTransform: "uppercase",
-								letterSpacing: "0.085em",
-								padding: "0 12px",
-								borderRadius: 9999,
-								display: "flex",
-								alignItems: "center",
-								width: "fit-content",
-								whiteSpace: "nowrap",
-							},
-							(theme) => ({
-								backgroundColor: theme.branding.premium.background,
-								border: `1px solid ${theme.branding.premium.border}`,
-								color: theme.branding.premium.text,
-							}),
-						]}
-					>
-						{badgeText}
-					</span>
+					<PremiumBadge>{badgeText}</PremiumBadge>
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
