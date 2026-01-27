@@ -167,6 +167,12 @@ func LicensesEntitlements(
 	keys map[string]ed25519.PublicKey,
 	featureArguments FeatureArguments,
 ) (codersdk.Entitlements, error) {
+	// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
+	// Track if AI Bridge was explicitly granted via license Features (add-on)
+	// vs inherited from FeatureSet (Premium). Only explicit grants should
+	// suppress the soft warning for AI Bridge GA.
+	hasExplicitAIBridgeEntitlement := false
+
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
 		Features: map[codersdk.FeatureName]codersdk.Feature{
@@ -332,6 +338,12 @@ func LicensesEntitlements(
 			if featureValue < 0 {
 				// We currently don't use negative values for features.
 				continue
+			}
+
+			// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
+			// Track explicit AI Bridge entitlement (add-on license).
+			if featureName == codersdk.FeatureAIBridge && featureValue > 0 {
+				hasExplicitAIBridgeEntitlement = true
 			}
 
 			// Special handling for grouped (e.g. usage period) features.
@@ -617,6 +629,17 @@ func LicensesEntitlements(
 					fmt.Sprintf("%s is enabled but your license for this feature is expired.", niceName))
 			default:
 			}
+		}
+
+		// TODO: Remove this soft warning block once AI Bridge is enforced as an add-on license.
+		// AI Bridge soft warning: Show warning when AI Bridge is enabled and
+		// entitled via Premium FeatureSet but not via explicit add-on license.
+		// This is a transitional warning as AI Bridge moves to GA and will
+		// require a separate add-on license in future versions.
+		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
+		if aiBridgeFeature.Enabled && aiBridgeFeature.Entitlement.Entitled() && !hasExplicitAIBridgeEntitlement {
+			entitlements.Warnings = append(entitlements.Warnings,
+				"AI Bridge is now Generally Available in v2.30. In a future Coder version, your deployment will require the AI Governance Add-On to continue using this feature. Please reach out to your account team or sales@coder.com to learn more.")
 		}
 	}
 
