@@ -61,7 +61,7 @@ To list shared workspaces:
 
 1. Add the users or groups that you want to share the workspace with. For each one, select a role.
 
-- `use` allows for connection via SSH and apps and the ability to view logs and stats.
-- `admin` allows for all of the above, as well the ability to start and stop the workspace, rename, update at any time, and invite others with the `use` or `admin` role.
+- `use` allows for connection via SSH and apps, the ability to start and stop the workspace, view logs and stats, and update on start when required.
+- `admin` allows for all of the above, as well as the ability to rename the workspace, update at any time, and invite others with the `use` role.
 - Neither role allows for the user to delete the workspace.
 - After removing a user/group, a workspace restart is required for the removal to take effect.
