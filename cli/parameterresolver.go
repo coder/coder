@@ -277,7 +277,6 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 		promptParameterOption, err := pr.isLastBuildParameterInvalidOption(tvp)
-
 		if err != nil {
 			return nil, err
 		}

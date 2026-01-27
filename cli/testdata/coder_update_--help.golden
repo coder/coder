@@ -41,5 +41,8 @@ OPTIONS:
           template. The file should be in YAML format, containing key-value
           pairs for the parameters.
 
+      --use-parameter-defaults bool, $CODER_WORKSPACE_USE_PARAMETER_DEFAULTS
+          Automatically accept parameter defaults when no value is provided.
+
 ———
 Run `coder --help` for a list of global options.

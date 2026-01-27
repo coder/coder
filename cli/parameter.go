@@ -101,12 +101,12 @@ func (wpf *workspaceParameterFlags) alwaysPrompt() serpent.Option {
 	}
 }
 
-func (wfp *workspaceParameterFlags) workspaceParameterDefaults() serpent.Option {
+func (wpf *workspaceParameterFlags) workspaceParameterDefaults() serpent.Option {
 	return serpent.Option{
 		Flag:        "use-parameter-defaults",
 		Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
 		Description: "Automatically accept parameter defaults when no value is provided.",
-		Value:       serpent.BoolOf(&wfp.useParameterDefaults),
+		Value:       serpent.BoolOf(&wpf.useParameterDefaults),
 	}
 }
 
