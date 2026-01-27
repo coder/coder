@@ -9,8 +9,9 @@ import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
+import { useWorkspaceReadyDelayAlert } from "hooks/useWorkspaceReadyDelayAlert";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
-import type { FC } from "react";
+import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -118,6 +119,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+
+	const { shouldShow: shouldShowWorkspaceReadyDelayAlert } =
+		useWorkspaceReadyDelayAlert(timings, workspaceRunning);
 
 	return (
 		<div
@@ -229,6 +233,15 @@ export const Workspace: FC<WorkspaceProps> = ({
 							}
 							tags={workspace.latest_build.job.tags}
 						/>
+					)}
+
+					{shouldShowWorkspaceReadyDelayAlert && (
+						<Alert severity="info">
+							<AlertTitle>Workspace is still preparing</AlertTitle>
+							<AlertDetail>
+								Due to high demand, preparation may take a few minutes.
+							</AlertDetail>
+						</Alert>
 					)}
 
 					{workspace.latest_build.job.error && (
