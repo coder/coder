@@ -48,6 +48,9 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 			CircuitBreaker:   cbConfig,
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}, getBedrockConfig(cfg.Bedrock)),
+		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			CircuitBreaker: cbConfig,
+		}),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
