@@ -8,6 +8,7 @@
 # Triggers:
 #   - New PR opened: Initial code review
 #   - Label "code-review" added: Re-run review on demand
+#   - PR marked ready for review: Review when draft is promoted
 #   - Workflow dispatch: Manual run with PR URL
 #
 # Note: This workflow requires access to secrets and will be skipped for:
@@ -21,6 +22,7 @@ on:
     types:
       - opened
       - labeled
+      - ready_for_review
   workflow_dispatch:
     inputs:
       pr_url:
@@ -37,10 +39,16 @@ jobs:
   code-review:
     name: AI Code Review
     runs-on: ubuntu-latest
+    concurrency:
+      group: code-review-${{ github.event.pull_request.number || inputs.pr_url }}
+      cancel-in-progress: true
+    # Run on: opened, labeled (with code-review label), ready_for_review, or workflow_dispatch
+    # Skip draft PRs unless manually triggered
     if: |
       (
         github.event.action == 'opened' ||
         github.event.label.name == 'code-review' ||
+        github.event.action == 'ready_for_review' ||
         github.event_name == 'workflow_dispatch'
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
@@ -65,10 +73,12 @@ jobs:
             echo "Secrets not available - skipping code-review."
             echo "This is expected for PRs where secrets are not available."
             echo "Maintainers can manually trigger via workflow_dispatch if needed."
-            echo "⚠️ Workflow skipped: Secrets not available" >> "${GITHUB_STEP_SUMMARY}"
-            echo "" >> "${GITHUB_STEP_SUMMARY}"
-            echo "This workflow requires secrets that are unavailable for this run." >> "${GITHUB_STEP_SUMMARY}"
-            echo "Maintainers can manually trigger via workflow_dispatch if needed." >> "${GITHUB_STEP_SUMMARY}"
+            {
+              echo "⚠️ Workflow skipped: Secrets not available"
+              echo ""
+              echo "This workflow requires secrets that are unavailable for this run."
+              echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            } >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
@@ -125,6 +135,9 @@ jobs:
               labeled)
                 echo "trigger_type=label_requested" >> "${GITHUB_OUTPUT}"
                 ;;
+              ready_for_review)
+                echo "trigger_type=ready_for_review" >> "${GITHUB_OUTPUT}"
+                ;;
               *)
                 echo "trigger_type=unknown" >> "${GITHUB_OUTPUT}"
                 ;;
@@ -151,6 +164,9 @@ jobs:
               ;;
             label_requested)
               CONTEXT="A code review was REQUESTED via label. Perform a thorough code review."
+              ;;
+            ready_for_review)
+              CONTEXT="This PR was marked READY FOR REVIEW. Perform a thorough code review."
               ;;
             manual)
               CONTEXT="This is a MANUAL review request. Perform a thorough code review."
