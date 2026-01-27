@@ -570,6 +570,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
+			withNoTask,
 			withInactiveVersionNoParams(),
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
@@ -605,6 +606,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
+			withNoTask,
 			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
@@ -1134,6 +1136,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 			mDB := expectDB(t,
 				withTemplate,
+				withNoTask,
 				withInactiveVersionNoParams(),
 			)
 			fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
