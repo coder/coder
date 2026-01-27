@@ -4720,8 +4720,10 @@ func TestWorkspaceAITask(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 				// The user should not use tasks
-				codersdk.FeatureManagedAgentLimit: 20,
+				codersdk.FeatureAIGovernanceUserLimit: 1000,
+				codersdk.FeatureManagedAgentLimit:     1000,
 			},
+			Addons: []codersdk.Addon{codersdk.AddonAIGovernance},
 		},
 	})
 
