@@ -253,9 +253,9 @@ func TestEntitlements(t *testing.T) {
 					codersdk.FeatureAIGovernanceUserLimit: 100,
 				},
 				FeatureSet: codersdk.FeatureSetPremium,
-				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 				GraceAt:    graceDate,
 				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
+				Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
 			}),
 			Exp: time.Now().AddDate(0, 0, 5),
 		})
@@ -839,7 +839,6 @@ func TestEntitlements(t *testing.T) {
 				codersdk.FeatureAIGovernanceUserLimit: 100,
 			},
 		}).
-			AIGovernanceAddon(1000).
 			UserLimit(100).
 			ManagedAgentLimit(100, 200)
 
