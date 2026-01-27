@@ -118,7 +118,7 @@ The choice of jail type depends on your security requirements, available Linux c
 
 Agent Boundaries stream audit logs to the Coder control plane, providing centralized
 visibility into HTTP requests made within workspaces—whether from AI agents or ad-hoc
-commands run with `boundary-run`.
+commands run with `boundary`.
 
 Audit logs are independent of application logs:
 
