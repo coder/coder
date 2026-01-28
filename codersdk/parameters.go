@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
@@ -67,6 +69,52 @@ type PreviewParameter struct {
 	PreviewParameterData
 	Value       NullHCLString        `json:"value"`
 	Diagnostics []FriendlyDiagnostic `json:"diagnostics"`
+}
+
+func (p PreviewParameter) TemplateVersionParameter() TemplateVersionParameter {
+	tp := TemplateVersionParameter{
+		Name:                 p.Name,
+		DisplayName:          p.DisplayName,
+		Description:          p.Description,
+		DescriptionPlaintext: p.Description,
+		Type:                 string(p.Type),
+		FormType:             string(p.FormType),
+		Mutable:              p.Mutable,
+		DefaultValue:         p.DefaultValue.Value,
+		Icon:                 p.Icon,
+		Options: slice.List(p.Options, func(o PreviewParameterOption) TemplateVersionParameterOption {
+			return o.TemplateVersionParameterOption()
+		}),
+		Required:  p.Required,
+		Ephemeral: p.Ephemeral,
+	}
+
+	if len(p.Validations) > 0 {
+		valid := p.Validations[0]
+		tp.ValidationError = valid.Error
+		if valid.Monotonic != nil {
+			tp.ValidationMonotonic = ValidationMonotonicOrder(*valid.Monotonic)
+		}
+		if valid.Regex != nil {
+			tp.ValidationRegex = *valid.Regex
+		}
+		if valid.Min != nil {
+			tp.ValidationMin = ptr.Ref(int32(*valid.Min))
+		}
+		if valid.Max != nil {
+			tp.ValidationMin = ptr.Ref(int32(*valid.Max))
+		}
+	}
+	return tp
+}
+
+func (o PreviewParameterOption) TemplateVersionParameterOption() TemplateVersionParameterOption {
+	return TemplateVersionParameterOption{
+		Name:        o.Name,
+		Description: o.Description,
+		Value:       o.Value.Value,
+		Icon:        o.Icon,
+	}
 }
 
 type PreviewParameterData struct {
