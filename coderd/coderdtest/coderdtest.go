@@ -83,6 +83,8 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -186,6 +188,7 @@ type Options struct {
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
+	UsageInserter             usage.Inserter
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -266,6 +269,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		}
 	}
 
+	var usageInserter *atomic.Pointer[usage.Inserter]
+	if options.UsageInserter != nil {
+		usageInserter = &atomic.Pointer[usage.Inserter]{}
+		usageInserter.Store(&options.UsageInserter)
+	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
@@ -559,6 +567,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
+			UsageInserter:                  usageInserter,
 
 			Auditor:                            options.Auditor,
 			ConnectionLogger:                   options.ConnectionLogger,
