@@ -1579,10 +1579,6 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
-func (q *querier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (database.GetRunningWorkspaceCountByOwnerIDRow, error) {
-	return q.db.GetRunningWorkspaceCountByOwnerID(ctx, ownerID)
-}
-
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIds)
 }
@@ -2056,6 +2052,10 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 		return nil, err
 	}
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
+}
+
+func (q *querier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	return q.db.GetRunningWorkspaceCountByOwnerID(ctx, ownerID)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {

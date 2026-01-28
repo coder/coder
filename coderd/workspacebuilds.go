@@ -332,7 +332,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if createBuild.Transition == codersdk.WorkspaceTransitionStart {
-		row, err := api.Database.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
+		count, err := api.Database.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
 		if err != nil {
 			api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -341,7 +341,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if row.Count >= maxRunningWorkspacesPerUser {
+		if count >= maxRunningWorkspacesPerUser {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "Running workspace limit reached (max 3 per user). Stop one or more workspaces to start another.",
 			})

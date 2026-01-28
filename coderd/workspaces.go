@@ -622,7 +622,7 @@ func createWorkspace(
 		return
 	}
 
-	row, err := api.Database.GetRunningWorkspaceCountByOwnerID(ctx, owner.ID)
+	count, err := api.Database.GetRunningWorkspaceCountByOwnerID(ctx, owner.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error checking running workspace limit.",
@@ -630,7 +630,7 @@ func createWorkspace(
 		})
 		return
 	}
-	if row.Count >= maxRunningWorkspacesPerUser {
+	if count >= maxRunningWorkspacesPerUser {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Running workspace limit reached (max 3 per user). Stop one or more workspaces to start another.",
 		})

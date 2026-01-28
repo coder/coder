@@ -598,16 +598,26 @@ SELECT
 FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
 
 -- name: GetRunningWorkspaceCountByOwnerID :one
-WITH workspaces_with_latest_build AS (
+WITH filtered_workspaces AS (
 	SELECT
-		workspaces.id,
-		workspaces.owner_id,
+		id,
+		owner_id
+	FROM
+		workspaces
+	WHERE
+		deleted = false
+		AND owner_id = @owner_id
+),
+workspaces_with_latest_build AS (
+	SELECT
+		fw.id,
+		fw.owner_id,
 		latest_build.transition,
 		latest_build.completed_at,
 		latest_build.canceled_at,
 		latest_build.error
 	FROM
-		workspaces
+		filtered_workspaces fw
 	LEFT JOIN LATERAL (
 		SELECT
 			workspace_builds.transition,
@@ -618,14 +628,11 @@ WITH workspaces_with_latest_build AS (
 			workspace_builds
 		LEFT JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
 		WHERE
-			workspace_builds.workspace_id = workspaces.id
+			workspace_builds.workspace_id = fw.id
 		ORDER BY
 			workspace_builds.build_number DESC
 		LIMIT 1
 	) latest_build ON TRUE
-	WHERE
-		workspaces.deleted = false
-		AND workspaces.owner_id = @owner_id
 )
 SELECT
 	COUNT(*)::bigint AS count

@@ -1740,6 +1740,11 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// No asserts here because SQLFilter.
 		check.Args(database.GetWorkspacesParams{}, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("GetRunningWorkspaceCountByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		// No asserts here because the dbauthz wrapper delegates directly.
+		check.Args(u.ID).Asserts()
+	}))
 	s.Run("GetWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})

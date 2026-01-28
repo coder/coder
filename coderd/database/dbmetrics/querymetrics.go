@@ -644,13 +644,6 @@ func (m queryMetricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (dat
 	return row, err
 }
 
-func (m queryMetricsStore) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (database.GetRunningWorkspaceCountByOwnerIDRow, error) {
-	start := time.Now()
-	row, err := m.s.GetRunningWorkspaceCountByOwnerID(ctx, ownerID)
-	m.queryLatencies.WithLabelValues("GetRunningWorkspaceCountByOwnerID").Observe(time.Since(start).Seconds())
-	return row, err
-}
-
 func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds)
@@ -1097,6 +1090,13 @@ func (m queryMetricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedA
 	replicas, err := m.s.GetReplicasUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("GetReplicasUpdatedAfter").Observe(time.Since(start).Seconds())
 	return replicas, err
+}
+
+func (m queryMetricsStore) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	start := time.Now()
+	count, err := m.s.GetRunningWorkspaceCountByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetRunningWorkspaceCountByOwnerID").Observe(time.Since(start).Seconds())
+	return count, err
 }
 
 func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
