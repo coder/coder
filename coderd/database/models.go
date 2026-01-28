@@ -4771,7 +4771,8 @@ type WorkspaceAgentDevcontainer struct {
 	// Path to devcontainer.json.
 	ConfigPath string `db:"config_path" json:"config_path"`
 	// The name of the Dev Container.
-	Name string `db:"name" json:"name"`
+	Name       string        `db:"name" json:"name"`
+	SubagentID uuid.NullUUID `db:"subagent_id" json:"subagent_id"`
 }
 
 type WorkspaceAgentLog struct {

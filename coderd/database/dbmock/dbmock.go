@@ -7321,6 +7321,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentConnectionByID(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentConnectionByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentConnectionByID), ctx, arg)
 }
 
+// UpdateWorkspaceAgentDisplayAppsByID mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg database.UpdateWorkspaceAgentDisplayAppsByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentDisplayAppsByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAgentDisplayAppsByID indicates an expected call of UpdateWorkspaceAgentDisplayAppsByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentDisplayAppsByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentDisplayAppsByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentDisplayAppsByID), ctx, arg)
+}
+
 // UpdateWorkspaceAgentLifecycleStateByID mocks base method.
 func (m *MockStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	m.ctrl.T.Helper()

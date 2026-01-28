@@ -420,10 +420,11 @@ func (s WorkspaceAgentDevcontainerStatus) Transitioning() bool {
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
-	ID              uuid.UUID `json:"id" format:"uuid"`
-	Name            string    `json:"name"`
-	WorkspaceFolder string    `json:"workspace_folder"`
-	ConfigPath      string    `json:"config_path,omitempty"`
+	ID              uuid.UUID     `json:"id" format:"uuid"`
+	Name            string        `json:"name"`
+	WorkspaceFolder string        `json:"workspace_folder"`
+	ConfigPath      string        `json:"config_path,omitempty"`
+	SubagentID      uuid.NullUUID `json:"subagent_id,omitempty" format:"uuid"`
 
 	// Additional runtime fields.
 	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
@@ -438,6 +439,7 @@ func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) boo
 	return d.ID == other.ID &&
 		d.Name == other.Name &&
 		d.WorkspaceFolder == other.WorkspaceFolder &&
+		d.SubagentID == other.SubagentID &&
 		d.Status == other.Status &&
 		d.Dirty == other.Dirty &&
 		(d.Container == nil && other.Container == nil ||

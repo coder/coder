@@ -1035,6 +1035,30 @@ func TestAPI(t *testing.T) {
 				wantStatus:      []int{http.StatusAccepted, http.StatusConflict},
 				wantBody:        []string{"Devcontainer recreation initiated", "is currently starting and cannot be restarted"},
 			},
+			{
+				name:           "Terraform-defined devcontainer cannot be rebuilt",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-terraform",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer1,
+						SubagentID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+					},
+				},
+				lister: &fakeContainerCLI{
+					containers: codersdk.WorkspaceAgentListContainersResponse{
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
+					},
+					arch: "<none>",
+				},
+				devcontainerCLI: &fakeDevcontainerCLI{},
+				wantStatus:      []int{http.StatusForbidden},
+				wantBody:        []string{"Cannot rebuild Terraform-defined devcontainer"},
+			},
 		}
 
 		for _, tt := range tests {

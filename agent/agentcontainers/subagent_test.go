@@ -306,3 +306,102 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 		}
 	})
 }
+
+func TestSubAgent_CloneConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CopiesIDFromDevcontainer", func(t *testing.T) {
+		t.Parallel()
+
+		subAgent := agentcontainers.SubAgent{
+			ID:              uuid.New(),
+			Name:            "original-name",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
+			Apps:            []agentcontainers.SubAgentApp{{Slug: "app1"}},
+		}
+		expectedID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			Name:       "devcontainer-name",
+			SubagentID: uuid.NullUUID{UUID: expectedID, Valid: true},
+		}
+
+		cloned := subAgent.CloneConfig(dc)
+
+		assert.Equal(t, expectedID, cloned.ID)
+		assert.Equal(t, dc.Name, cloned.Name)
+		assert.Equal(t, subAgent.Directory, cloned.Directory)
+		assert.Equal(t, uuid.Nil, cloned.AuthToken, "AuthToken should not be copied")
+	})
+
+	t.Run("HandlesNilSubagentID", func(t *testing.T) {
+		t.Parallel()
+
+		subAgent := agentcontainers.SubAgent{
+			ID:              uuid.New(),
+			Name:            "original-name",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		}
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			Name:       "devcontainer-name",
+			SubagentID: uuid.NullUUID{Valid: false},
+		}
+
+		cloned := subAgent.CloneConfig(dc)
+
+		assert.Equal(t, uuid.Nil, cloned.ID)
+	})
+}
+
+func TestSubAgent_EqualConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TrueWhenFieldsMatch", func(t *testing.T) {
+		t.Parallel()
+
+		a := agentcontainers.SubAgent{
+			ID:              uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			Name:            "test-agent",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
+			Apps:            []agentcontainers.SubAgentApp{{Slug: "app1"}},
+		}
+		// Different ID but same config fields.
+		b := agentcontainers.SubAgent{
+			ID:              uuid.MustParse("660e8400-e29b-41d4-a716-446655440000"),
+			Name:            "test-agent",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
+			Apps:            []agentcontainers.SubAgentApp{{Slug: "app1"}},
+		}
+
+		assert.True(t, a.EqualConfig(b), "EqualConfig compares config fields, not ID")
+	})
+
+	t.Run("FalseWhenFieldsDiffer", func(t *testing.T) {
+		t.Parallel()
+
+		a := agentcontainers.SubAgent{
+			Name:            "test-agent",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		}
+		b := agentcontainers.SubAgent{
+			Name:            "different-name",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		}
+
+		assert.False(t, a.EqualConfig(b))
+	})
+}
