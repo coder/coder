@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -85,13 +84,15 @@ type Builder struct {
 	templateVersionPresetParameterValues *[]database.TemplateVersionPresetParameter
 	parameterRender                      dynamicparameters.Renderer
 	workspaceTags                        *map[string]string
+	task                                 *database.Task
+	hasTask                              *bool // A workspace without a task will have a nil `task` and false `hasTask`.
 
 	prebuiltWorkspaceBuildStage  sdkproto.PrebuiltWorkspaceBuildStage
 	verifyNoLegacyParametersOnce bool
 }
 
 type UsageChecker interface {
-	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (UsageCheckResponse, error)
+	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (UsageCheckResponse, error)
 }
 
 type UsageCheckResponse struct {
@@ -103,7 +104,7 @@ type NoopUsageChecker struct{}
 
 var _ UsageChecker = NoopUsageChecker{}
 
-func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ database.WorkspaceTransition) (UsageCheckResponse, error) {
+func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (UsageCheckResponse, error) {
 	return UsageCheckResponse{
 		Permitted: true,
 	}, nil
@@ -487,8 +488,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
+		task, err := b.getWorkspaceTask()
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
+		}
 		// If this is a task workspace, link it to the latest workspace build.
-		if task, err := store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID); err == nil {
+		if task != nil {
 			_, err = store.UpsertTaskWorkspaceApp(b.ctx, database.UpsertTaskWorkspaceAppParams{
 				TaskID:               task.ID,
 				WorkspaceBuildNumber: buildNum,
@@ -498,8 +503,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			if err != nil {
 				return BuildError{http.StatusInternalServerError, "upsert task workspace app", err}
 			}
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
@@ -630,6 +633,27 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 		return uuid.Nil, xerrors.Errorf("get last build so we can get version: %w", err)
 	}
 	return bld.TemplateVersionID, nil
+}
+
+// getWorkspaceTask returns the task associated with the workspace, if any.
+// If no task exists, it returns (nil, nil).
+func (b *Builder) getWorkspaceTask() (*database.Task, error) {
+	if b.hasTask != nil {
+		return b.task, nil
+	}
+	t, err := b.store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			b.hasTask = ptr.Ref(false)
+			//nolint:nilnil // No task exists.
+			return nil, nil
+		}
+		return nil, xerrors.Errorf("get task: %w", err)
+	}
+
+	b.task = &t
+	b.hasTask = ptr.Ref(true)
+	return b.task, nil
 }
 
 func (b *Builder) getTemplateTerraformValues() (*database.TemplateVersionTerraformValue, error) {
@@ -1313,7 +1337,12 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, b.trans)
+	task, err := b.getWorkspaceTask()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "Failed to fetch workspace task", err}
+	}
+
+	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, task, b.trans)
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to check build usage", err}
 	}
