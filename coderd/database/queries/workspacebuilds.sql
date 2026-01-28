@@ -243,3 +243,18 @@ SET
 	has_external_agent = @has_external_agent,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
+
+-- name: GetWorkspaceBuildMetricsByAgentID :one
+-- Returns build metadata for e2e workspace build duration metrics.
+SELECT
+    wb.created_at,
+    wb.transition,
+    t.name AS template_name,
+    o.name AS organization_name
+FROM workspace_agents wa
+JOIN workspace_resources wr ON wa.resource_id = wr.id
+JOIN workspace_builds wb ON wr.job_id = wb.job_id
+JOIN workspaces w ON wb.workspace_id = w.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON t.organization_id = o.id
+WHERE wa.id = $1;

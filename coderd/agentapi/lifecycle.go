@@ -32,6 +32,10 @@ type LifecycleAPI struct {
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
+
+	// buildDurationEmitted tracks whether we've already emitted a build duration
+	// metric for this agent. We only emit once per agent connection.
+	buildDurationEmitted bool
 }
 
 func (a *LifecycleAPI) now() time.Time {
@@ -125,6 +129,18 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		}
 	}
 
+	// Emit build duration metric when agent transitions to a terminal startup state.
+	// We only emit once per agent connection to avoid duplicate metrics.
+	if !a.buildDurationEmitted {
+		switch lifecycleState {
+		case database.WorkspaceAgentLifecycleStateReady,
+			database.WorkspaceAgentLifecycleStateStartTimeout,
+			database.WorkspaceAgentLifecycleStateStartError:
+			a.emitBuildDurationMetric(ctx, workspaceAgent.ID, lifecycleState, readyAt.Time)
+			a.buildDurationEmitted = true
+		}
+	}
+
 	return req.Lifecycle, nil
 }
 
@@ -184,4 +200,40 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 	}
 
 	return req.Startup, nil
+}
+
+// emitBuildDurationMetric records the end-to-end workspace build duration
+// from build creation to agent ready.
+func (a *LifecycleAPI) emitBuildDurationMetric(
+	ctx context.Context,
+	agentID uuid.UUID,
+	lifecycleState database.WorkspaceAgentLifecycleState,
+	readyAt time.Time,
+) {
+	buildInfo, err := a.Database.GetWorkspaceBuildMetricsByAgentID(ctx, agentID)
+	if err != nil {
+		a.Log.Warn(ctx, "failed to get build info for metrics", slog.Error(err))
+		return
+	}
+
+	duration := readyAt.Sub(buildInfo.CreatedAt).Seconds()
+
+	var status string
+	switch lifecycleState {
+	case database.WorkspaceAgentLifecycleStateReady:
+		status = "success"
+	case database.WorkspaceAgentLifecycleStateStartTimeout:
+		status = "timeout"
+	case database.WorkspaceAgentLifecycleStateStartError:
+		status = "error"
+	default:
+		status = "unknown"
+	}
+
+	WorkspaceBuildDurationSeconds.WithLabelValues(
+		buildInfo.TemplateName,
+		buildInfo.OrganizationName,
+		string(buildInfo.Transition),
+		status,
+	).Observe(duration)
 }

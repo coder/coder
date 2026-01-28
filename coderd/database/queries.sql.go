@@ -21352,6 +21352,41 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 	return i, err
 }
 
+const getWorkspaceBuildMetricsByAgentID = `-- name: GetWorkspaceBuildMetricsByAgentID :one
+SELECT
+    wb.created_at,
+    wb.transition,
+    t.name AS template_name,
+    o.name AS organization_name
+FROM workspace_agents wa
+JOIN workspace_resources wr ON wa.resource_id = wr.id
+JOIN workspace_builds wb ON wr.job_id = wb.job_id
+JOIN workspaces w ON wb.workspace_id = w.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON t.organization_id = o.id
+WHERE wa.id = $1
+`
+
+type GetWorkspaceBuildMetricsByAgentIDRow struct {
+	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
+	Transition       WorkspaceTransition `db:"transition" json:"transition"`
+	TemplateName     string              `db:"template_name" json:"template_name"`
+	OrganizationName string              `db:"organization_name" json:"organization_name"`
+}
+
+// Returns build metadata for e2e workspace build duration metrics.
+func (q *sqlQuerier) GetWorkspaceBuildMetricsByAgentID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByAgentIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildMetricsByAgentID, id)
+	var i GetWorkspaceBuildMetricsByAgentIDRow
+	err := row.Scan(
+		&i.CreatedAt,
+		&i.Transition,
+		&i.TemplateName,
+		&i.OrganizationName,
+	)
+	return i, err
+}
+
 const getWorkspaceBuildStatsByTemplates = `-- name: GetWorkspaceBuildStatsByTemplates :many
 SELECT
     w.template_id,
