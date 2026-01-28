@@ -145,13 +145,7 @@ func workspaceAgent() *serpent.Command {
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
-				if exitCode != 0 {
-					logger.Warn(ctx, "reaper: child process exited with non-zero status",
-						slog.F("exit_code", exitCode),
-					)
-				} else {
-					logger.Info(ctx, "reaper: child process exited successfully")
-				}
+				logger.Info(ctx, "reaper child process exited", slog.F("exit_code", exitCode))
 				return ExitError(exitCode, nil)
 			}
 
