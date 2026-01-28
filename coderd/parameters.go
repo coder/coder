@@ -139,7 +139,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	go httpapi.Heartbeat(ctx, conn)
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	stream := wsjson.NewStream[codersdk.DynamicParametersRequest, codersdk.DynamicParametersResponse](
 		conn,

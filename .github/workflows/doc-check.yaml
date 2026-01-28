@@ -2,14 +2,26 @@
 # It creates a Coder Task that uses AI to analyze the PR changes,
 # search existing docs, and comment with recommendations.
 #
-# Triggered by: Adding the "doc-check" label to a PR, or manual dispatch.
+# Triggers:
+#   - New PR opened: Initial documentation review
+#   - PR updated (synchronize): Re-review after changes
+#   - Label "doc-check" added: Manual trigger for review
+#   - PR marked ready for review: Review when draft is promoted
+#   - Workflow dispatch: Manual run with PR URL
+#
+# Note: This workflow requires access to secrets and will be skipped for:
+#   - Any PR where secrets are not available
+# For these PRs, maintainers can manually trigger via workflow_dispatch.
 
 name: AI Documentation Check
 
 on:
   pull_request:
     types:
+      - opened
+      - synchronize
       - labeled
+      - ready_for_review
   workflow_dispatch:
     inputs:
       pr_url:
@@ -26,8 +38,16 @@ jobs:
   doc-check:
     name: Analyze PR for Documentation Updates Needed
     runs-on: ubuntu-latest
+    # Run on: opened, synchronize, labeled (with doc-check label), ready_for_review, or workflow_dispatch
+    # Skip draft PRs unless manually triggered
     if: |
-      (github.event.label.name == 'doc-check' || github.event_name == 'workflow_dispatch') &&
+      (
+        github.event.action == 'opened' ||
+        github.event.action == 'synchronize' ||
+        github.event.label.name == 'doc-check' ||
+        github.event.action == 'ready_for_review' ||
+        github.event_name == 'workflow_dispatch'
+      ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
     env:
@@ -39,120 +59,155 @@ jobs:
       actions: write
 
     steps:
+      - name: Check if secrets are available
+        id: check-secrets
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+        run: |
+          if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "Secrets not available - skipping doc-check."
+            echo "This is expected for PRs where secrets are not available."
+            echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            {
+              echo "⚠️ Workflow skipped: Secrets not available"
+              echo ""
+              echo "This workflow requires secrets that are unavailable for this run."
+              echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Setup Coder CLI
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1
+        with:
+          access_url: ${{ secrets.DOC_CHECK_CODER_URL }}
+          coder_session_token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+
       - name: Determine PR Context
+        if: steps.check-secrets.outputs.skip != 'true'
         id: determine-context
         env:
-          GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action }}
           GITHUB_EVENT_PR_HTML_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_EVENT_SENDER_ID: ${{ github.event.sender.id }}
-          GITHUB_EVENT_SENDER_LOGIN: ${{ github.event.sender.login }}
           INPUTS_PR_URL: ${{ inputs.pr_url }}
           INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
           echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
 
-          # For workflow_dispatch, use the provided PR URL
+          # Determine trigger type for task context
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
-              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+            echo "trigger_type=manual" >> "${GITHUB_OUTPUT}"
+            echo "Using PR URL: ${INPUTS_PR_URL}"
+
+            # Validate PR URL format
+            if [[ ! "${INPUTS_PR_URL}" =~ ^https://github\.com/[^/]+/[^/]+/pull/[0-9]+$ ]]; then
+              echo "::error::Invalid PR URL format: ${INPUTS_PR_URL}"
+              echo "::error::Expected format: https://github.com/owner/repo/pull/NUMBER"
               exit 1
             fi
-            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
-            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
-            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
 
-            echo "Using PR URL: ${INPUTS_PR_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
-
-            # Extract PR number from URL for later use
             PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            GITHUB_USER_ID=${GITHUB_EVENT_SENDER_ID}
-            echo "Using label adder: ${GITHUB_EVENT_SENDER_LOGIN} (ID: ${GITHUB_USER_ID})"
-            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
-            echo "github_username=${GITHUB_EVENT_SENDER_LOGIN}" >> "${GITHUB_OUTPUT}"
-
             echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
-            # Convert /pull/ to /issues/ for create-task-action compatibility
             ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
             echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            # Set trigger type based on action
+            case "${GITHUB_EVENT_ACTION}" in
+              opened)
+                echo "trigger_type=new_pr" >> "${GITHUB_OUTPUT}"
+                ;;
+              synchronize)
+                echo "trigger_type=pr_updated" >> "${GITHUB_OUTPUT}"
+                ;;
+              labeled)
+                echo "trigger_type=label_requested" >> "${GITHUB_OUTPUT}"
+                ;;
+              ready_for_review)
+                echo "trigger_type=ready_for_review" >> "${GITHUB_OUTPUT}"
+                ;;
+              *)
+                echo "trigger_type=unknown" >> "${GITHUB_OUTPUT}"
+                ;;
+            esac
 
           else
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
             exit 1
           fi
 
-      - name: Extract changed files and build prompt
+      - name: Build task prompt
+        if: steps.check-secrets.outputs.skip != 'true'
         id: extract-context
         env:
-          PR_URL: ${{ steps.determine-context.outputs.pr_url }}
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
-          GH_TOKEN: ${{ github.token }}
+          TRIGGER_TYPE: ${{ steps.determine-context.outputs.trigger_type }}
         run: |
-          echo "Analyzing PR #${PR_NUMBER}"
+          echo "Analyzing PR #${PR_NUMBER} (trigger: ${TRIGGER_TYPE})"
 
-          # Build task prompt - using unquoted heredoc so variables expand
-          TASK_PROMPT=$(cat <<EOF
-          Review PR #${PR_NUMBER} and determine if documentation needs updating or creating.
+          # Build context based on trigger type
+          case "${TRIGGER_TYPE}" in
+            new_pr)
+              CONTEXT="This is a NEW PR. Perform a thorough documentation review."
+              ;;
+            pr_updated)
+              CONTEXT="This PR was UPDATED with new commits. Only comment if the changes affect documentation needs or address previous feedback."
+              ;;
+            label_requested)
+              CONTEXT="A documentation review was REQUESTED via label. Perform a thorough documentation review."
+              ;;
+            ready_for_review)
+              CONTEXT="This PR was marked READY FOR REVIEW (converted from draft). Perform a thorough documentation review."
+              ;;
+            manual)
+              CONTEXT="This is a MANUAL review request. Perform a thorough documentation review."
+              ;;
+            *)
+              CONTEXT="Perform a thorough documentation review."
+              ;;
+          esac
 
-          PR URL: ${PR_URL}
+          # Build task prompt with PR-specific context
+          TASK_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
 
-          WORKFLOW:
-            1. Setup (repo is pre-cloned at ~/coder)
-               cd ~/coder
-               git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER}
-               git checkout pr-${PR_NUMBER}
+          ${CONTEXT}
 
-            2. Get PR info
-               Use GitHub MCP tools to get PR title, body, and diff
-               Or use: git diff main...pr-${PR_NUMBER}
+          Use \`gh\` to get PR details, diff, and all comments. Check for previous doc-check comments (from coder-doc-check) and only post a new comment if it adds value.
 
-            3. Understand Changes
-               Read the diff and identify what changed
-               Ask: Is this user-facing? Does it change behavior? Is it a new feature?
+          ## Comment format
 
-            4. Search for Related Docs
-               cat ~/coder/docs/manifest.json | jq '.routes[] | {title, path}' | head -50
-               grep -ri "relevant_term" ~/coder/docs/ --include="*.md"
+          Use this structure (only include relevant sections):
 
-            5. Decide
-               NEEDS DOCS if: New feature, API change, CLI change, behavior change, user-visible
-               NO DOCS if: Internal refactor, test-only, already documented, non-user-facing, dependency updates
-               FIRST check: Did this PR already update docs? If yes and complete, say "No Changes Needed"
+          \`\`\`
+          ## Documentation Check
 
-            6. Comment on the PR using this format
+          ### Previous Feedback
+          [For re-reviews only: Addressed | Partially addressed | Not yet addressed]
 
-          COMMENT FORMAT:
-          ## 📚 Documentation Check
+          ### Updates Needed
+          - [ ] \`docs/path/file.md\` - [what needs to change]
 
-          ### ✅ Updates Needed
-          - **[docs/path/file.md](github_link)** - Brief what needs changing
+          ### New Documentation Needed
+          - [ ] \`docs/suggested/path.md\` - [what should be documented]
 
-          ### 📝 New Docs Needed
-          - **docs/suggested/location.md** - What should be documented
-
-          ### ✨ No Changes Needed
-          [Reason: Documents already updated in PR | Internal changes only | Test-only | No user-facing impact]
+          ### No Changes Needed
+          [brief explanation - use this OR the above sections, not both]
 
           ---
-          *This comment was generated by an AI Agent through [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
-
-          DOCS STRUCTURE:
-            Read ~/coder/docs/manifest.json for the complete documentation structure.
-            Common areas include: reference/, admin/, user-guides/, ai-coder/, install/, tutorials/
-            But check manifest.json - it has everything.
-
-          EOF
-          )
+          *Automated review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
+          \`\`\`"
 
           # Output the prompt
           {
@@ -162,7 +217,8 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Checkout create-task-action
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
           path: ./.github/actions/create-task-action
@@ -171,22 +227,24 @@ jobs:
           repository: coder/create-task-action
 
       - name: Create Coder Task for Documentation Check
+        if: steps.check-secrets.outputs.skip != 'true'
         id: create_task
         uses: ./.github/actions/create-task-action
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
           coder-organization: "default"
-          coder-template-name: coder
+          coder-template-name: coder-workflow-bot
           coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
           coder-task-name-prefix: doc-check
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
-          github-user-id: ${{ steps.determine-context.outputs.github_user_id }}
+          coder-username: doc-check-bot
           github-token: ${{ github.token }}
           github-issue-url: ${{ steps.determine-context.outputs.pr_url }}
-          comment-on-issue: true
+          comment-on-issue: false
 
-      - name: Write outputs
+      - name: Write Task Info
+        if: steps.check-secrets.outputs.skip != 'true'
         env:
           TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
@@ -201,5 +259,140 @@ jobs:
             echo "**Task name:** ${TASK_NAME}"
             echo "**Task URL:** ${TASK_URL}"
             echo ""
-            echo "The Coder task is analyzing the PR changes and will comment with documentation recommendations."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Wait for Task Completion
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: wait_task
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "Waiting for task to complete..."
+          echo "Task name: ${TASK_NAME}"
+
+          if [[ -z "${TASK_NAME}" ]]; then
+            echo "::error::TASK_NAME is empty"
+            exit 1
+          fi
+
+          MAX_WAIT=600  # 10 minutes
+          WAITED=0
+          POLL_INTERVAL=3
+          LAST_STATUS=""
+
+          is_workspace_message() {
+            local msg="$1"
+            [[ -z "$msg" ]] && return 0  # Empty = treat as workspace/startup
+            [[ "$msg" =~ ^Workspace ]] && return 0
+            [[ "$msg" =~ ^Agent ]] && return 0
+            return 1
+          }
+
+          while [[ $WAITED -lt $MAX_WAIT ]]; do
+            # Get task status (|| true prevents set -e from exiting on non-zero)
+            RAW_OUTPUT=$(coder task status "${TASK_NAME}" -o json 2>&1) || true
+            STATUS_JSON=$(echo "$RAW_OUTPUT" | grep -v "^version mismatch\|^download v" || true)
+
+            # Debug: show first poll's raw output
+            if [[ $WAITED -eq 0 ]]; then
+              echo "Raw status output: ${RAW_OUTPUT:0:500}"
+            fi
+
+            if [[ -z "$STATUS_JSON" ]] || ! echo "$STATUS_JSON" | jq -e . >/dev/null 2>&1; then
+              if [[ "$LAST_STATUS" != "waiting" ]]; then
+                echo "[${WAITED}s] Waiting for task status..."
+                LAST_STATUS="waiting"
+              fi
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
+              continue
+            fi
+
+            TASK_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
+            TASK_MESSAGE=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
+            WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
+
+            # Build current status string for comparison
+            CURRENT_STATUS="${TASK_STATE}|${WORKSPACE_STATUS}|${TASK_MESSAGE}"
+
+            # Only log if status changed
+            if [[ "$CURRENT_STATUS" != "$LAST_STATUS" ]]; then
+              if [[ "$TASK_STATE" == "idle" ]] && is_workspace_message "$TASK_MESSAGE"; then
+                echo "[${WAITED}s] Workspace ready, waiting for Agent..."
+              else
+                echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
+              fi
+              LAST_STATUS="$CURRENT_STATUS"
+            fi
+
+            if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
+              echo "::error::Workspace failed: ${WORKSPACE_STATUS}"
+              exit 1
+            fi
+
+            if [[ "$TASK_STATE" == "idle" ]]; then
+              if ! is_workspace_message "$TASK_MESSAGE"; then
+                # Real completion message from Claude!
+                echo ""
+                echo "Task completed: ${TASK_MESSAGE}"
+                RESULT_URI=$(echo "$STATUS_JSON" | jq -r '.current_state.uri // ""')
+                echo "result_uri=${RESULT_URI}" >> "${GITHUB_OUTPUT}"
+                echo "task_message=${TASK_MESSAGE}" >> "${GITHUB_OUTPUT}"
+                break
+              fi
+            fi
+
+            sleep $POLL_INTERVAL
+            WAITED=$((WAITED + POLL_INTERVAL))
+          done
+
+          if [[ $WAITED -ge $MAX_WAIT ]]; then
+            echo "::error::Task monitoring timed out after ${MAX_WAIT}s"
+            exit 1
+          fi
+
+      - name: Fetch Task Logs
+        if: always() && steps.check-secrets.outputs.skip != 'true'
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::Task Conversation Log"
+          if [[ -n "${TASK_NAME}" ]]; then
+            coder task logs "${TASK_NAME}" 2>&1 || echo "Failed to fetch logs"
+          else
+            echo "No task name, skipping log fetch"
+          fi
+          echo "::endgroup::"
+
+      - name: Cleanup Task
+        if: always() && steps.check-secrets.outputs.skip != 'true'
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          if [[ -n "${TASK_NAME}" ]]; then
+            echo "Deleting task: ${TASK_NAME}"
+            coder task delete "${TASK_NAME}" -y 2>&1 || echo "Task deletion failed or already deleted"
+          else
+            echo "No task name, skipping cleanup"
+          fi
+
+      - name: Write Final Summary
+        if: always() && steps.check-secrets.outputs.skip != 'true'
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
+          RESULT_URI: ${{ steps.wait_task.outputs.result_uri }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+        run: |
+          {
+            echo ""
+            echo "---"
+            echo "### Result"
+            echo ""
+            echo "**Status:** ${TASK_MESSAGE:-Task completed}"
+            if [[ -n "${RESULT_URI}" ]]; then
+              echo "**Comment:** ${RESULT_URI}"
+            fi
+            echo ""
+            echo "Task \`${TASK_NAME}\` has been cleaned up."
           } >> "${GITHUB_STEP_SUMMARY}"

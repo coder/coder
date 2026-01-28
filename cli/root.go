@@ -151,7 +151,6 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
-		r.boundary(),
 	}
 }
 
@@ -331,6 +330,12 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 				if cmd.Name() == "server" {
 					// The server command is funky and has YAML-only options, e.g.
 					// support links.
+					return
+				}
+				if cmd.Name() == "boundary" {
+					// The boundary command is integrated from the boundary package
+					// and has YAML-only options (e.g., allowlist from config file)
+					// that don't have flags or env vars.
 					return
 				}
 				merr = errors.Join(

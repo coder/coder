@@ -1311,7 +1311,7 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 | YAML        | <code>allowWorkspaceRenames</code>          |
 | Default     | <code>false</code>                          |
 
-DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.
+Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
 
 ### --health-check-refresh
 
@@ -1856,6 +1856,17 @@ Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
 | Default     | <code>false</code>                              |
 
 Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
+
+### --aibridge-send-actor-headers
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_SEND_ACTOR_HEADERS</code> |
+| YAML        | <code>aibridge.send_actor_headers</code>        |
+| Default     | <code>false</code>                              |
+
+Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
 
 ### --aibridge-circuit-breaker-enabled
 

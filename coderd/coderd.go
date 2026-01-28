@@ -44,6 +44,7 @@ import (
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -240,6 +241,8 @@ type Options struct {
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
+
+	MetadataBatcherOptions []metadatabatcher.Option
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
 
@@ -786,6 +789,23 @@ func New(options *Options) *API {
 		AppStatBatchSize:       workspaceapps.DefaultStatsDBReporterBatchSize,
 		DisableDatabaseInserts: !options.DeploymentValues.StatsCollection.UsageStats.Enable.Value(),
 	})
+
+	// Initialize the metadata batcher for batching agent metadata updates.
+	batcherOpts := []metadatabatcher.Option{
+		metadatabatcher.WithLogger(options.Logger.Named("metadata_batcher")),
+	}
+	batcherOpts = append(batcherOpts, options.MetadataBatcherOptions...)
+	api.metadataBatcher, err = metadatabatcher.NewBatcher(
+		api.ctx,
+		options.PrometheusRegistry,
+		options.Database,
+		options.Pubsub,
+		batcherOpts...,
+	)
+	if err != nil {
+		api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
+	}
+
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
 		named := workspaceAppsLogger.Named("stats_collector")
@@ -1428,6 +1448,9 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
+				r.Route("/tasks/{task}", func(r chi.Router) {
+					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
+				})
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -1865,7 +1888,8 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter *workspacestats.Reporter
+	statsReporter   *workspacestats.Reporter
+	metadataBatcher *metadatabatcher.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
@@ -1917,6 +1941,9 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.statsReporter.Close()
+	if api.metadataBatcher != nil {
+		api.metadataBatcher.Close()
+	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()

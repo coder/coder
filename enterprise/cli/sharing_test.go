@@ -221,7 +221,7 @@ func TestSharingStatus(t *testing.T) {
 		group, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
 		require.NoError(t, err)
 
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleUse,
 			},
@@ -284,7 +284,7 @@ func TestSharingRemove(t *testing.T) {
 		require.NoError(t, err)
 
 		// Share the workspace with a user to later remove
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group1.ID.String(): codersdk.WorkspaceRoleUse,
 				group2.ID.String(): codersdk.WorkspaceRoleUse,
@@ -357,7 +357,7 @@ func TestSharingRemove(t *testing.T) {
 		require.NoError(t, err)
 
 		// Share the workspace with a user to later remove
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group1.ID.String(): codersdk.WorkspaceRoleUse,
 				group2.ID.String(): codersdk.WorkspaceRoleUse,

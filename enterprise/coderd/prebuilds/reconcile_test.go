@@ -1401,6 +1401,50 @@ func TestRunLoop(t *testing.T) {
 	reconciler.Stop(ctx, nil)
 }
 
+// TestReconcilerLifecycle tests that a StoreReconciler can be stopped and a new one
+// created to simulate the prebuilds feature being disabled and re-enabled.
+func TestReconcilerLifecycle(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+	db, ps := dbtestutil.NewDB(t)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+	}
+	registry := prometheus.NewRegistry()
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+	// Given: a running reconciler (simulating the prebuilds feature being enabled)
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		registry,
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
+
+	// When: the reconciler is stopped (simulating the prebuilds feature being disabled)
+	reconciler.Stop(ctx, xerrors.New("entitlements change"))
+
+	// Then: a new reconciler can be created without error
+	// (simulating the prebuilds feature being re-enabled)
+	reconciler = prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		quartz.NewMock(t),
+		registry,
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+	)
+
+	// Gracefully stop the reconciliation loop
+	reconciler.Stop(ctx, nil)
+}
+
 func TestFailedBuildBackoff(t *testing.T) {
 	t.Parallel()
 

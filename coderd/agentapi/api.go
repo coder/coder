@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/connectionlog"
@@ -65,10 +66,11 @@ type API struct {
 var _ agentproto.DRPCAgentServer = &API{}
 
 type Options struct {
-	AgentID        uuid.UUID
-	OwnerID        uuid.UUID
-	WorkspaceID    uuid.UUID
-	OrganizationID uuid.UUID
+	AgentID           uuid.UUID
+	OwnerID           uuid.UUID
+	WorkspaceID       uuid.UUID
+	OrganizationID    uuid.UUID
+	TemplateVersionID uuid.UUID
 
 	AuthenticatedCtx                  context.Context
 	Log                               slog.Logger
@@ -80,6 +82,7 @@ type Options struct {
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
+	MetadataBatcher                   *metadatabatcher.Batcher
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, userID uuid.UUID, event wspubsub.WorkspaceEvent)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
@@ -178,8 +181,8 @@ func New(opts Options, workspace database.Workspace) *API {
 		AgentFn:   api.agent,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
-		Pubsub:    opts.Pubsub,
 		Log:       opts.Log,
+		Batcher:   opts.MetadataBatcher,
 	}
 
 	api.LogsAPI = &LogsAPI{
@@ -221,8 +224,10 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
-		Log:         opts.Log,
-		WorkspaceID: opts.WorkspaceID,
+		Log:               opts.Log,
+		WorkspaceID:       opts.WorkspaceID,
+		TemplateID:        workspace.TemplateID,
+		TemplateVersionID: opts.TemplateVersionID,
 	}
 
 	// Start background cache refresh loop to handle workspace changes
