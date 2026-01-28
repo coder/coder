@@ -152,6 +152,7 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		TemplateVersionID:   version,
 		NewWorkspaceName:    workspace.Name,
 		LastBuildParameters: lastBuildParameters,
+		Owner:               workspace.OwnerID.String(),
 
 		PromptEphemeralParameters: parameterFlags.promptEphemeralParameters,
 		EphemeralParameters:       ephemeralParameters,
