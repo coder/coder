@@ -71,7 +71,7 @@ func TestCleanStaleSessions(t *testing.T) {
 		err = staleSession.CleanStaleSessions(ctx, slogtest.Make(t, &slogtest.Options{
 			IgnoreErrors: true,
 		}), failingFs, future)
-		require.Error(t, err)
+		require.ErrorContains(t, err, "constant failure")
 		require.True(t, called)
 	})
 
