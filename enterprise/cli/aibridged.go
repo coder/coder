@@ -21,30 +21,36 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
 	logger := coderAPI.Logger.Named("aibridged")
+	cfg := coderAPI.DeploymentValues.AI.BridgeConfig
 
 	// Build circuit breaker config if enabled.
 	var cbConfig *config.CircuitBreaker
-	if coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerEnabled.Value() {
+	if cfg.CircuitBreakerEnabled.Value() {
 		cbConfig = &config.CircuitBreaker{
-			FailureThreshold: uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
-			Interval:         coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerInterval.Value(),
-			Timeout:          coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerTimeout.Value(),
-			MaxRequests:      uint32(coderAPI.DeploymentValues.AI.BridgeConfig.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+			FailureThreshold: uint32(cfg.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+			Interval:         cfg.CircuitBreakerInterval.Value(),
+			Timeout:          cfg.CircuitBreakerTimeout.Value(),
+			MaxRequests:      uint32(cfg.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
 		}
 	}
 
 	// Setup supported providers with circuit breaker config.
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-			BaseURL:        coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
-			Key:            coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
-			CircuitBreaker: cbConfig,
+			BaseURL:          cfg.OpenAI.BaseURL.String(),
+			Key:              cfg.OpenAI.Key.String(),
+			CircuitBreaker:   cbConfig,
+			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}),
 		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
-			BaseURL:        coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
-			Key:            coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+			BaseURL:          cfg.Anthropic.BaseURL.String(),
+			Key:              cfg.Anthropic.Key.String(),
+			CircuitBreaker:   cbConfig,
+			SendActorHeaders: cfg.SendActorHeaders.Value(),
+		}, getBedrockConfig(cfg.Bedrock)),
+		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
 			CircuitBreaker: cbConfig,
-		}, getBedrockConfig(coderAPI.DeploymentValues.AI.BridgeConfig.Bedrock)),
+		}),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)

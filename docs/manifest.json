@@ -996,15 +996,15 @@
 							"title": "Agent Boundaries",
 							"description": "Understanding Agent Boundaries in Coder Tasks",
 							"path": "./ai-coder/boundary/agent-boundary.md",
-							"state": ["beta"],
+							"state": ["premium", "beta"],
 							"children": [
 								{
-									"title": "nsjail",
+									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
 									"path": "./ai-coder/boundary/nsjail.md"
 								},
 								{
-									"title": "landjail",
+									"title": "LandJail",
 									"description": "Documentation for LandJail",
 									"path": "./ai-coder/boundary/landjail.md"
 								},
@@ -1012,6 +1012,11 @@
 									"title": "Rules Engine",
 									"description": "Documentation for the Boundary rules engine",
 									"path": "./ai-coder/boundary/rules-engine.md"
+								},
+								{
+									"title": "Version Compatibility",
+									"description": "Version requirements and compatibility information",
+									"path": "./ai-coder/boundary/version.md"
 								}
 							]
 						},
@@ -1049,6 +1054,11 @@
 									"path": "./ai-coder/ai-bridge/reference.md"
 								}
 							]
+						},
+						{
+							"title": "Usage Data Reporting",
+							"description": "Configure AI usage data reporting",
+							"path": "./ai-coder/usage-data-reporting.md"
 						}
 					]
 				},
@@ -1343,6 +1353,11 @@
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"
+						},
+						{
+							"title": "boundary",
+							"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests",
+							"path": "reference/cli/boundary.md"
 						},
 						{
 							"title": "coder",

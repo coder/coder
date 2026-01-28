@@ -360,9 +360,7 @@ describe("WorkspacesPage", () => {
 });
 
 const getWorkspaceCheckbox = (workspace: Workspace) => {
-	return within(screen.getByTestId(`checkbox-${workspace.id}`)).getByRole(
-		"checkbox",
-	);
+	return screen.getByTestId(`checkbox-${workspace.id}`);
 };
 
 describe("WorkspaceApps filtering", () => {
