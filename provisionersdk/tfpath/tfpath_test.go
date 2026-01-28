@@ -16,7 +16,7 @@ import (
 func TestCleanStaleSessions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RemoveFailure", func(t *testing.T) {
+	t.Run("NonFatalRemoveFailure", func(t *testing.T) {
 		t.Parallel()
 		const parentDir = "parent"
 		// Verify RemoveAll failure is not fatal
@@ -42,6 +42,36 @@ func TestCleanStaleSessions(t *testing.T) {
 			IgnoreErrors: true,
 		}), failingFs, future)
 		require.NoError(t, err)
+		require.True(t, called)
+	})
+
+	t.Run("FatalRemoveFailure", func(t *testing.T) {
+		// If the stale directory is the same one we plan to use, that is
+		// an issue.
+		t.Parallel()
+		const parentDir = "parent"
+		// Verify RemoveAll failure is not fatal
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		called := false
+		mem := afero.NewMemMapFs()
+		staleSession := tfpath.Session(parentDir, "stale")
+		err := mem.MkdirAll(staleSession.WorkDirectory(), 0777)
+		require.NoError(t, err)
+
+		failingFs := &removeFailure{
+			Fs: mem,
+			removeAll: func(path string) error {
+				called = true
+				return xerrors.New("constant failure")
+			},
+		}
+
+		future := time.Now().Add(time.Hour * 24 * 120)
+		err = staleSession.CleanStaleSessions(ctx, slogtest.Make(t, &slogtest.Options{
+			IgnoreErrors: true,
+		}), failingFs, future)
+		require.Error(t, err)
 		require.True(t, called)
 	})
 
