@@ -156,19 +156,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	// This must happen before coderd initialization!
 	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
-	if options.Options.BoundaryUsageTracker == nil {
-		options.Options.BoundaryUsageTracker = boundaryusage.NewTracker()
-	}
 	api.AGPL = coderd.New(options.Options)
 	defer func() {
 		if err != nil {
 			_ = api.Close()
 		}
 	}()
-
-	// If there is no boundary usage nothing gets written to the database and
-	// nothing gets reported in telemetry, so we launch this unconditionally.
-	go options.Options.BoundaryUsageTracker.StartFlushLoop(ctx, options.Logger.Named("boundary_usage_tracker"), options.Database, api.AGPL.ID)
 
 	api.AGPL.Options.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
 		c, err := license.ParseClaims(rawJWT, Keys)
@@ -652,6 +645,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
 	}
 	go api.runEntitlementsLoop(ctx)
+
+	api.BoundaryUsageTracker = boundaryusage.NewTracker()
+	// If there is no boundary usage nothing gets written to the database and
+	// nothing gets reported in telemetry, so we launch this unconditionally.
+	go api.BoundaryUsageTracker.StartFlushLoop(ctx, options.Logger.Named("boundary_usage_tracker"), options.Database, api.AGPL.ID)
 
 	return api, nil
 }
