@@ -1809,8 +1809,7 @@ func New(options *Options) *API {
 	if options.BoundaryUsageTracker == nil {
 		options.BoundaryUsageTracker = boundaryusage.NewTracker()
 	}
-	// Start the periodic flush of boundary usage stats to the database.
-	go api.runBoundaryUsageFlushLoop()
+	go options.BoundaryUsageTracker.StartFlushLoop(ctx, options.Logger.Named("boundary_usage_tracker"), options.Database, api.ID)
 
 	return api
 }
@@ -1966,25 +1965,6 @@ func (api *API) Close() error {
 	}
 
 	return nil
-}
-
-// runBoundaryUsageFlushLoop periodically flushes boundary usage stats to the
-// database until the API context is canceled.
-func (api *API) runBoundaryUsageFlushLoop() {
-	// Flush every minute to keep stats reasonably fresh for telemetry collection
-	// without excessive DB writes. For more explanation, see coderd/boundaryusage/doc.go.
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-api.ctx.Done():
-			return
-		case <-ticker.C:
-			if err := api.BoundaryUsageTracker.FlushToDB(api.ctx, api.Database, api.ID); err != nil {
-				api.Logger.Warn(api.ctx, "failed to flush boundary usage stats", slog.Error(err))
-			}
-		}
-	}
 }
 
 func compressHandler(h http.Handler) http.Handler {

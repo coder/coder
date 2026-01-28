@@ -3,9 +3,11 @@ package boundaryusage
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
@@ -81,4 +83,23 @@ func (t *Tracker) FlushToDB(ctx context.Context, db database.Store, replicaID uu
 	}
 
 	return nil
+}
+
+// StartFlushLoop begins the periodic flush loop that writes accumulated stats
+// to the database. It blocks until the context is canceled. Flushes every
+// minute to keep stats reasonably fresh for telemetry collection (which runs
+// every 30 minutes by default) without excessive DB writes.
+func (t *Tracker) StartFlushLoop(ctx context.Context, log slog.Logger, db database.Store, replicaID uuid.UUID) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := t.FlushToDB(ctx, db, replicaID); err != nil {
+				log.Warn(ctx, "failed to flush boundary usage stats", slog.Error(err))
+			}
+		}
+	}
 }
