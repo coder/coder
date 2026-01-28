@@ -190,6 +190,8 @@ jobs:
 
           ## Comment format
 
+          Use this structure (only include relevant sections):
+
           \`\`\`
           ## Documentation Check
 
