@@ -5140,6 +5140,35 @@ export const MockInitializingTasks = [
 	},
 ] satisfies TypesGen.Task[];
 
+export const MockPausedTasks = [
+	{
+		...MockTask,
+		id: "paused-task-1",
+		name: "paused-task",
+		display_name: "Paused Task",
+		status: "paused",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "idle",
+			message: "Task is paused",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "error-task-1",
+		name: "error-task",
+		display_name: "Error Task",
+		status: "error",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "idle",
+			message: "Task encountered an error",
+			uri: "",
+		},
+	},
+] satisfies TypesGen.Task[];
+
 export const MockDisplayNameTasks = [
 	{
 		...MockTask,

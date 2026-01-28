@@ -1,7 +1,9 @@
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
+	MockPausedTasks,
 	MockSystemNotificationTemplates,
+	MockTask,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
@@ -279,6 +281,51 @@ export const InitializingTasks: Story = {
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],
 				data: MockInitializingTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+};
+
+export const PausedTasks: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockPausedTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+};
+
+export const ActiveTaskWithPauseButton: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [{ ...MockTask, status: "active" }],
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+};
+
+export const PausedTaskWithResumeButton: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [{ ...MockTask, status: "paused" }],
 			},
 			{
 				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
