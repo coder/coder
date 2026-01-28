@@ -25,7 +25,7 @@ func TestCleanStaleSessions(t *testing.T) {
 		called := false
 		mem := afero.NewMemMapFs()
 		staleSession := tfpath.Session(parentDir, "stale")
-		err := mem.MkdirAll(staleSession.WorkDirectory(), 0777)
+		err := mem.MkdirAll(staleSession.WorkDirectory(), 0o777)
 		require.NoError(t, err)
 
 		failingFs := &removeFailure{
@@ -56,7 +56,7 @@ func TestCleanStaleSessions(t *testing.T) {
 		called := false
 		mem := afero.NewMemMapFs()
 		staleSession := tfpath.Session(parentDir, "stale")
-		err := mem.MkdirAll(staleSession.WorkDirectory(), 0777)
+		err := mem.MkdirAll(staleSession.WorkDirectory(), 0o777)
 		require.NoError(t, err)
 
 		failingFs := &removeFailure{
