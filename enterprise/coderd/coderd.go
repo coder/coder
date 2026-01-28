@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/appearance"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -644,6 +645,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
 	}
 	go api.runEntitlementsLoop(ctx)
+
+	api.BoundaryUsageTracker = boundaryusage.NewTracker()
+	// If there is no boundary usage nothing gets written to the database and
+	// nothing gets reported in telemetry, so we launch this unconditionally.
+	go api.BoundaryUsageTracker.StartFlushLoop(ctx, options.Logger.Named("boundary_usage_tracker"), options.Database, api.AGPL.ID)
 
 	return api, nil
 }
