@@ -93,7 +93,7 @@ type Builder struct {
 }
 
 type UsageChecker interface {
-	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (UsageCheckResponse, error)
+	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (UsageCheckResponse, error)
 }
 
 type UsageCheckResponse struct {
@@ -105,7 +105,7 @@ type NoopUsageChecker struct{}
 
 var _ UsageChecker = NoopUsageChecker{}
 
-func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion) (UsageCheckResponse, error) {
+func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ database.WorkspaceTransition) (UsageCheckResponse, error) {
 	return UsageCheckResponse{
 		Permitted: true,
 	}, nil
@@ -1307,7 +1307,7 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion)
+	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, b.trans)
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to check build usage", err}
 	}
