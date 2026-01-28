@@ -534,6 +534,7 @@ func (api *API) enqueueAITaskStateNotification(
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
 // @Param no_compression query bool false "Disable compression for WebSocket connection"
+// @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.WorkspaceAgentLog
 // @Router /workspaceagents/{workspaceagent}/logs [get]
 func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
@@ -545,7 +546,29 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		follow        = r.URL.Query().Has("follow")
 		afterRaw      = r.URL.Query().Get("after")
 		noCompression = r.URL.Query().Has("no_compression")
+		format        = r.URL.Query().Get("format")
 	)
+
+	// Validate format parameter.
+	if format == "" {
+		format = "json"
+	}
+	if format != "json" && format != "text" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid format parameter.",
+			Detail:  "Allowed values are \"json\" and \"text\".",
+		})
+		return
+	}
+
+	// Text format is not supported with streaming.
+	if format == "text" && follow {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Text format is not supported with follow mode.",
+			Detail:  "Use format=json or omit the follow parameter.",
+		})
+		return
+	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -582,6 +605,28 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if !follow {
+		if format == "text" {
+			sids, err := api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{waws.WorkspaceAgent.ID})
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching workspace agent log sources.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			lsids := make(map[uuid.UUID]string)
+			for _, sid := range sids {
+				lsids[sid.ID] = sid.DisplayName
+			}
+			rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			rw.WriteHeader(http.StatusOK)
+			for _, log := range logs {
+				_, _ = rw.Write([]byte(db2sdk.WorkspaceAgentLog(log).Text(waws.WorkspaceAgent.Name, lsids[log.LogSourceID])))
+				_, _ = rw.Write([]byte("\n"))
+			}
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentLogs(logs))
 		return
 	}
@@ -2375,17 +2420,7 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.WorkspaceAgentLog {
 	sdk := make([]codersdk.WorkspaceAgentLog, 0, len(logs))
 	for _, logEntry := range logs {
-		sdk = append(sdk, convertWorkspaceAgentLog(logEntry))
+		sdk = append(sdk, db2sdk.WorkspaceAgentLog(logEntry))
 	}
 	return sdk
-}
-
-func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.WorkspaceAgentLog {
-	return codersdk.WorkspaceAgentLog{
-		ID:        logEntry.ID,
-		CreatedAt: logEntry.CreatedAt,
-		Output:    logEntry.Output,
-		Level:     codersdk.LogLevel(logEntry.Level),
-		SourceID:  logEntry.LogSourceID,
-	}
 }
