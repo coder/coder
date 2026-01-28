@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestAIBridgeListInterceptions(t *testing.T) {
@@ -51,6 +52,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("EmptyDB", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -71,6 +73,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -189,6 +192,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -304,6 +308,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("InflightInterceptions", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -337,6 +342,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("Authorized", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -381,6 +387,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("Filter", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -561,6 +568,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("FilterErrors", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -643,6 +651,7 @@ func TestAIBridgeRouting(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: dv,
@@ -703,6 +712,7 @@ func TestAIBridgeRateLimiting(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 	// Set a low rate limit for testing.
 	dv.AI.BridgeConfig.RateLimit = 2
 
@@ -758,6 +768,7 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 	// Set a low concurrency limit for testing.
 	dv.AI.BridgeConfig.MaxConcurrency = 1
 

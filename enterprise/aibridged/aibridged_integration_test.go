@@ -249,7 +249,7 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, "openai", intc0.Provider)
 	require.Equal(t, "gpt-4.1", intc0.Model)
 	require.True(t, intc0.EndedAt.Valid)
-	require.True(t, intc0.StartedAt.Before(intc0.EndedAt.Time))
+	require.False(t, intc0.EndedAt.Time.Before(intc0.StartedAt), "EndedAt should not be before StartedAt")
 	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
 
 	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)

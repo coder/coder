@@ -186,6 +186,7 @@ func TestAuthorization(t *testing.T) {
 				expected := proto.IsAuthorizedResponse{
 					OwnerId:  user.ID.String(),
 					ApiKeyId: keyID,
+					Username: user.Username,
 				}
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)

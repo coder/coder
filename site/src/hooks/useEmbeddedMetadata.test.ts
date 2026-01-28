@@ -190,7 +190,7 @@ describe(useEmbeddedMetadata.name, () => {
 		const cleanupTags = seedInitialMetadata(key);
 		const { result: reactResult, manager } = renderMetadataHook(key);
 
-		const nonReactSubscriber = jest.fn();
+		const nonReactSubscriber = vi.fn();
 		manager.subscribe(nonReactSubscriber);
 
 		const expectedUpdate1: RuntimeHtmlMetadata = {

@@ -32,14 +32,7 @@ module.exports = {
 				customExportConditions: [""],
 			},
 			testRegex: "(/__tests__/.*|(\\.|/)(jest))\\.tsx?$",
-			testPathIgnorePatterns: [
-				"/node_modules/",
-				"/e2e/",
-				// TODO: This test is timing out after upgrade a few Jest dependencies
-				// and I was not able to figure out why. When running it specifically, I
-				// can see many act warnings that may can help us to find the issue.
-				"/usePaginatedQuery.test.ts",
-			],
+			testPathIgnorePatterns: ["/node_modules/", "/e2e/"],
 			transformIgnorePatterns: [],
 			moduleDirectories: ["node_modules", "<rootDir>/src"],
 			moduleNameMapper: {

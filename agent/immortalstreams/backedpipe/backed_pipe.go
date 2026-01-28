@@ -81,6 +81,10 @@ type BackedPipe struct {
 	// Unified error handling with generation filtering
 	errChan chan ErrorEvent
 
+	// forceReconnectHook is a test hook invoked after ForceReconnect registers
+	// with the singleflight group.
+	forceReconnectHook func()
+
 	// singleflight group to dedupe concurrent ForceReconnect calls
 	sf singleflight.Group
 
@@ -324,6 +328,13 @@ func (bp *BackedPipe) handleConnectionError(errorEvt ErrorEvent) {
 	}
 }
 
+// SetForceReconnectHookForTests sets a hook invoked after ForceReconnect
+// registers with the singleflight group. It must be set before any
+// concurrent ForceReconnect calls.
+func (bp *BackedPipe) SetForceReconnectHookForTests(hook func()) {
+	bp.forceReconnectHook = hook
+}
+
 // ForceReconnect forces a reconnection attempt immediately.
 // This can be used to force a reconnection if a new connection is established.
 // It prevents duplicate reconnections when called concurrently.
@@ -331,7 +342,7 @@ func (bp *BackedPipe) ForceReconnect() error {
 	// Deduplicate concurrent ForceReconnect calls so only one reconnection
 	// attempt runs at a time from this API. Use the pipe's internal context
 	// to ensure Close() cancels any in-flight attempt.
-	_, err, _ := bp.sf.Do("force-reconnect", func() (interface{}, error) {
+	resultChan := bp.sf.DoChan("force-reconnect", func() (interface{}, error) {
 		bp.mu.Lock()
 		defer bp.mu.Unlock()
 
@@ -346,5 +357,11 @@ func (bp *BackedPipe) ForceReconnect() error {
 
 		return nil, bp.reconnectLocked()
 	})
-	return err
+
+	if hook := bp.forceReconnectHook; hook != nil {
+		hook()
+	}
+
+	result := <-resultChan
+	return result.Err
 }

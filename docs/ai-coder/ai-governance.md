@@ -33,7 +33,7 @@ If you already use other AI governance tools, such as third-party LLM gateways o
 
 ## How Coder Tasks usage is measured
 
-The usage metric used to measure Coder Tasks consumption is called **Agent Workspace Builds.**
+The usage metric used to measure Coder Tasks consumption is called **Agent Workspace Builds** (prev. "managed agents").
 
 An Agent Workspace Build is counted each time a workspace is started specifically for a coding agent to independently work on a Coder Task. Most of the work in this workspace is performed by the agent, not a human developer. Each Coder Task starts its own workspace, and the usage meter counts one Agent Workspace Build.
 
@@ -56,4 +56,6 @@ In the future, additional capabilities for managing agents (beyond Coder Tasks) 
 
 Without proper controls and sandboxing, it is not recommended to open up Coder Tasks to a large audience in the enterprise. Coder Premium deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept use and basic workflows.
 
-Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of Agent Workspace Builds for automated workflows, along with limits that scale proportionately with user count. If you are approaching your deployment-wide limits, [contact us](https://coder.com/contact) to discuss your use case with our team.
+Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of Agent Workspace Builds for automated workflows, along with limits that scale proportionately with user count. Usage counts are measured and sent to Coder via [usage data reporting](./usage-data-reporting.md). Coder Tasks or other AI features do not break when you run over the limit.
+
+If you are approaching your deployment-wide limits, [contact us](https://coder.com/contact) to discuss your use case with our team.

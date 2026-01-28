@@ -623,7 +623,7 @@ func TestManagedAgentLimit(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	cli, _ := coderdenttest.New(t, &coderdenttest.Options{
+	cli, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
@@ -708,15 +708,25 @@ func TestManagedAgentLimit(t *testing.T) {
 	noAiTemplate := coderdtest.CreateTemplate(t, cli, uuid.Nil, noAiVersion.ID)
 
 	// Create one AI workspace, which should succeed.
-	workspace := coderdtest.CreateWorkspace(t, cli, aiTemplate.ID)
+	task, err := cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
+		Name:                    namesgenerator.UniqueNameWith("-"),
+		TemplateVersionID:       aiTemplate.ActiveVersionID,
+		TemplateVersionPresetID: uuid.Nil,
+		Input:                   "hi",
+		DisplayName:             namesgenerator.UniqueName(),
+	})
+	require.NoError(t, err, "creating task for AI workspace must succeed")
+	workspace, err := cli.Workspace(ctx, task.WorkspaceID.UUID)
+	require.NoError(t, err, "fetching AI workspace must succeed")
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 
-	// Create a second AI workspace, which should fail. This needs to be done
-	// manually because coderdtest.CreateWorkspace expects it to succeed.
-	_, err = cli.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{ //nolint:gocritic // owners must still be subject to the limit
-		TemplateID:       aiTemplate.ID,
-		Name:             coderdtest.RandomUsername(t),
-		AutomaticUpdates: codersdk.AutomaticUpdatesNever,
+	// Create a second AI workspace, which should fail.
+	_, err = cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
+		Name:                    namesgenerator.UniqueNameWith("-"),
+		TemplateVersionID:       aiTemplate.ActiveVersionID,
+		TemplateVersionPresetID: uuid.Nil,
+		Input:                   "hi",
+		DisplayName:             namesgenerator.UniqueName(),
 	})
 	require.ErrorContains(t, err, "You have breached the managed agent limit in your license")
 
@@ -762,6 +772,10 @@ func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
 		HasExternalAgent: sql.NullBool{Valid: true, Bool: false},
 	}
 
+	task := &database.Task{
+		TemplateVersionID: tv.ID,
+	}
+
 	// Mock DB: expect exactly one count call for the "start" transition.
 	mDB := dbmock.NewMockStore(ctrl)
 	mDB.EXPECT().
@@ -772,18 +786,18 @@ func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
 	ctx := context.Background()
 
 	// Start transition: should be not permitted due to limit breach.
-	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionStart)
+	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
 	require.NoError(t, err)
 	require.False(t, startResp.Permitted)
 	require.Contains(t, startResp.Message, "breached the managed agent limit")
 
 	// Stop transition: should be permitted and must not trigger additional DB calls.
-	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionStop)
+	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStop)
 	require.NoError(t, err)
 	require.True(t, stopResp.Permitted)
 
 	// Delete transition: should be permitted and must not trigger additional DB calls.
-	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionDelete)
+	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionDelete)
 	require.NoError(t, err)
 	require.True(t, deleteResp.Permitted)
 }

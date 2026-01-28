@@ -302,9 +302,9 @@ func TestRolePermissions(t *testing.T) {
 				InOrg(orgID).
 				WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgAdmin, orgAdminBanWorkspace},
+				true: {owner, orgAdmin, orgAdminBanWorkspace},
 				false: {
-					owner, memberMe, setOtherOrg,
+					memberMe, setOtherOrg,
 					templateAdmin, userAdmin,
 					orgTemplateAdmin, orgUserAdmin, orgAuditor,
 				},
@@ -1001,6 +1001,14 @@ func TestRolePermissions(t *testing.T) {
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
+			},
+		},
+		{
+			Name:     "BoundaryUsage",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceBoundaryUsage,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				false: {owner, setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
 			},
 		},
 	}

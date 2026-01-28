@@ -1,5 +1,5 @@
 # 1.86.0
-FROM rust:slim@sha256:bf3368a992915f128293ac76917ab6e561e4dda883273c8f5c9f6f8ea37a378e AS rust-utils
+FROM rust:slim@sha256:df6ca8f96d338697ccdbe3ccac57a85d2172e03a2429c2d243e74f3bb83ba2f5 AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
@@ -11,8 +11,8 @@ RUN cargo install jj-cli typos-cli watchexec-cli
 FROM ubuntu:jammy@sha256:c7eb020043d8fc2ae0793fb35a37bff1cf33f156d4d4b12ccc7f3ef8706c38b1 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.11
-ARG GO_CHECKSUM="bceca00afaac856bc48b4cc33db7cd9eb383c81811379faed3bdbc80edb0af65"
+ARG GO_VERSION=1.25.6
+ARG GO_CHECKSUM="f022b6aad78e362bcba9b0b94d09ad58c5a70c6ba3b7582905fababf5fe0181a"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -35,11 +35,11 @@ RUN apt-get update && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
 	# swag for Swagger doc generation
-	go install github.com/swaggo/swag/cmd/swag@v1.7.4 && \
+	go install github.com/swaggo/swag/cmd/swag@v1.16.2 && \
 	# go-swagger tool to generate the go coder api client
 	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
 	# goimports for updating imports
-	go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
+	go install golang.org/x/tools/cmd/goimports@v0.41.0 && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
 	# drpc support for v2
@@ -49,8 +49,8 @@ RUN apt-get update && \
 	# goreleaser for compiling v2 binaries
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	# Install the latest version of gopls for editors that support
-	# the language server protocol
-	go install golang.org/x/tools/gopls@v0.18.1 && \
+	# the language server protocol (v0.21.0+ required for Go 1.25)
+	go install golang.org/x/tools/gopls@v0.21.0 && \
 	# gotestsum makes test output more readable
 	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
@@ -62,8 +62,6 @@ RUN apt-get update && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	# (CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0) && \
-	#
 	# Switched to coder/sqlc fork to fix ambiguous column bug, see:
 	# - https://github.com/coder/sqlc/pull/1
 	# - https://github.com/sqlc-dev/sqlc/pull/4159
@@ -77,14 +75,16 @@ RUN apt-get update && \
 	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
 	# go-releaser for building 'fat binaries' that work cross-platform
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
-	go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0 && \
+	# shfmt for shell script formatting
+	go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0 && \
 	# nfpm is used with `make build` to make release packages
 	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.5.0 && \
+	# mockgen for generating mocks (v0.6.0+ required for Go 1.25)
+	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \

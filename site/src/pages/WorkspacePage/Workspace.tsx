@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import type { WorkspaceAgentStatus } from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { Link } from "components/Link/Link";
@@ -20,7 +21,6 @@ import {
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { NotificationActionButton } from "./WorkspaceNotifications/Notifications";
 import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
@@ -101,7 +101,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 	const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
-	const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
@@ -203,34 +202,10 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{!workspace.health.healthy && (
-							<Alert severity="warning" prominent>
-								<AlertTitle>Workspace is unhealthy</AlertTitle>
-								<AlertDetail>
-									<p>
-										Your workspace is running but{" "}
-										{workspace.health.failing_agents.length > 1
-											? `${workspace.health.failing_agents.length} agents are unhealthy`
-											: "1 agent is unhealthy"}
-										.{" "}
-										{troubleshootingURL && (
-											<Link href={troubleshootingURL} target="_blank">
-												View docs to troubleshoot
-											</Link>
-										)}
-									</p>
-									{hasActions && (
-										<div className="flex items-center gap-2">
-											{permissions.updateWorkspace && (
-												<NotificationActionButton
-													onClick={() => handleRestart()}
-												>
-													Restart
-												</NotificationActionButton>
-											)}
-										</div>
-									)}
-								</AlertDetail>
-							</Alert>
+							<UnhealthyWorkspaceAlert
+								workspace={workspace}
+								troubleshootingURL={troubleshootingURL}
+							/>
 						)}
 
 						{transitionStats !== undefined && (
@@ -287,6 +262,65 @@ export const Workspace: FC<WorkspaceProps> = ({
 				</div>
 			</div>
 		</div>
+	);
+};
+
+interface UnhealthyWorkspaceAlertProps {
+	workspace: TypesGen.Workspace;
+	troubleshootingURL: string | undefined;
+}
+
+const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
+	workspace,
+	troubleshootingURL,
+}) => {
+	const failingAgentCount = workspace.health.failing_agents.length;
+	const failureSet = new Set<WorkspaceAgentStatus>();
+
+	workspace.latest_build.resources.forEach((resource) => {
+		resource.agents?.forEach((agent) => {
+			failureSet.add(agent.status);
+		});
+	});
+
+	var title = "Workspace agents are not connected";
+	var message =
+		"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
+
+	// Disconnected is a more serious failure than timeout, so we can
+	// prioritize handling it first.
+	if (failureSet.has("disconnected")) {
+		title = "Workspace agents have disconnected";
+		message =
+			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
+	} else if (failureSet.has("timeout")) {
+		// Handle timeout case
+		title = "Your workspace is starting, but the agent has not yet connected.";
+		message =
+			"The agent is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the agent does not connect, restarting the workspace can be used to try again.";
+	}
+
+	return (
+		<Alert severity="warning" prominent>
+			<AlertTitle>{title}</AlertTitle>
+			<AlertDetail>
+				<p>
+					Your workspace is running but{" "}
+					{failingAgentCount > 1
+						? `${failingAgentCount} agents have not connected yet.`
+						: "the agent has not connected yet."}
+					.{" "}
+				</p>
+				<p>{message}</p>
+				<p>
+					{troubleshootingURL && (
+						<Link href={troubleshootingURL} target="_blank">
+							View docs to troubleshoot
+						</Link>
+					)}
+				</p>
+			</AlertDetail>
+		</Alert>
 	);
 };
 

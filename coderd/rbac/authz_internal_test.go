@@ -496,33 +496,32 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 	}
 
-	siteAdminWorkspaceActions := slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionShare)
 	testAuthorize(t, "SiteAdmin", user, []authTestCase{
 		// Similar to an orphaned user, but has site level perms
 		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: true},
 
 		// Org + me
-		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: siteAdminWorkspaceActions, allow: true},
-		{resource: ResourceWorkspace.InOrg(defOrg), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(defOrg), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
-		{resource: ResourceWorkspace.All(), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		// Other org + me
-		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), actions: siteAdminWorkspaceActions, allow: true},
-		{resource: ResourceWorkspace.InOrg(unusedID), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		// Other org + other user
-		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
-		{resource: ResourceWorkspace.WithOwner("not-me"), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		// Other org + other use
-		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: siteAdminWorkspaceActions, allow: true},
-		{resource: ResourceWorkspace.InOrg(unusedID), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
-		{resource: ResourceWorkspace.WithOwner("not-me"), actions: siteAdminWorkspaceActions, allow: true},
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
 	})
 
 	user = Subject{
@@ -757,7 +756,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	testAuthorize(t, "AdminAlwaysAllow", user,
 		cases(func(c authTestCase) authTestCase {
-			c.actions = slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionShare)
+			c.actions = ResourceWorkspace.AvailableActions()
 			c.allow = true
 			return c
 		}, []authTestCase{

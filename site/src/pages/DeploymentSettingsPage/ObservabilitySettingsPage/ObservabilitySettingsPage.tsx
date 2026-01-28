@@ -17,7 +17,6 @@ const ObservabilitySettingsPage: FC = () => {
 			<ObservabilitySettingsPageView
 				options={deploymentConfig.options}
 				featureAuditLogEnabled={entitlements.features.audit_log.enabled}
-				featureAIBridgeEnabled={entitlements.features.aibridge.enabled}
 				isPremium={hasPremiumLicense}
 			/>
 		</>

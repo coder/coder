@@ -142,6 +142,27 @@ WHERE
 	wam.workspace_agent_id = $1
 	AND wam.key = m.key;
 
+-- name: BatchUpdateWorkspaceAgentMetadata :exec
+WITH metadata AS (
+	SELECT
+		unnest(sqlc.arg('workspace_agent_id')::uuid[]) AS workspace_agent_id,
+		unnest(sqlc.arg('key')::text[]) AS key,
+		unnest(sqlc.arg('value')::text[]) AS value,
+		unnest(sqlc.arg('error')::text[]) AS error,
+		unnest(sqlc.arg('collected_at')::timestamptz[]) AS collected_at
+)
+UPDATE
+	workspace_agent_metadata wam
+SET
+	value = m.value,
+	error = m.error,
+	collected_at = m.collected_at
+FROM
+	metadata m
+WHERE
+	wam.workspace_agent_id = m.workspace_agent_id
+	AND wam.key = m.key;
+
 -- name: GetWorkspaceAgentMetadata :many
 SELECT
 	*
@@ -281,7 +302,12 @@ WHERE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE;
 
--- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
+-- GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
+-- workspace agent and its associated build. During normal operation, this is
+-- the latest build. During shutdown, this may be the previous START build while
+-- the STOP build is executing, allowing shutdown scripts to authenticate (see
+-- issue #19467).
+-- name: GetAuthenticatedWorkspaceAgentAndBuildByAuthToken :one
 SELECT
 	sqlc.embed(workspaces),
 	sqlc.embed(workspace_agents),
@@ -311,17 +337,40 @@ WHERE
 	AND workspaces.deleted = FALSE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE
-	-- Filter out builds that are not the latest.
-	AND workspace_build_with_user.build_number = (
-		-- Select from workspace_builds as it's one less join compared
-		-- to workspace_build_with_user.
-		SELECT
-			MAX(build_number)
-		FROM
-			workspace_builds
-		WHERE
-			workspace_id = workspace_build_with_user.workspace_id
-	)
+	-- Filter out builds that are not the latest, with exception for shutdown case.
+	-- Use CASE for short-circuiting: check normal case first (most common), then shutdown case.
+	AND CASE
+		-- Normal case: Agent's build is the latest build.
+		WHEN workspace_build_with_user.build_number = (
+			SELECT
+				MAX(build_number)
+			FROM
+				workspace_builds
+			WHERE
+				workspace_id = workspace_build_with_user.workspace_id
+		) THEN TRUE
+		-- Shutdown case: Agent from previous START build during STOP build execution.
+		WHEN workspace_build_with_user.transition = 'start'
+			-- Agent's START build job succeeded.
+			AND (SELECT job_status FROM provisioner_jobs WHERE id = workspace_build_with_user.job_id) = 'succeeded'
+			-- Latest build is a STOP build whose job is still active,
+			-- and agent's build is immediately previous.
+			AND EXISTS (
+				SELECT 1
+				FROM workspace_builds latest
+				JOIN provisioner_jobs pj ON pj.id = latest.job_id
+				WHERE latest.workspace_id = workspace_build_with_user.workspace_id
+				AND latest.build_number = workspace_build_with_user.build_number + 1
+				AND latest.build_number = (
+					SELECT MAX(build_number)
+					FROM workspace_builds l2
+					WHERE l2.workspace_id = latest.workspace_id
+				)
+				AND latest.transition = 'stop'
+				AND pj.job_status IN ('pending', 'running')
+			) THEN TRUE
+		ELSE FALSE
+	END
 ;
 
 -- name: InsertWorkspaceAgentScriptTimings :one

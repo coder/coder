@@ -742,11 +742,14 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 
 	const numConcurrent = 3
 	startSignals := make([]chan struct{}, numConcurrent)
-	startedSignals := make([]chan struct{}, numConcurrent)
 	for i := range startSignals {
 		startSignals[i] = make(chan struct{})
-		startedSignals[i] = make(chan struct{})
 	}
+
+	enteredSignals := make(chan struct{}, numConcurrent)
+	bp.SetForceReconnectHookForTests(func() {
+		enteredSignals <- struct{}{}
+	})
 
 	errors := make([]error, numConcurrent)
 	var wg sync.WaitGroup
@@ -758,15 +761,12 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 			defer wg.Done()
 			// Wait for the signal to start
 			<-startSignals[idx]
-			// Signal that we're about to call ForceReconnect
-			close(startedSignals[idx])
 			errors[idx] = bp.ForceReconnect()
 		}(i)
 	}
 
 	// Start the first ForceReconnect and wait for it to block
 	close(startSignals[0])
-	<-startedSignals[0]
 
 	// Wait for the first reconnect to actually start and block
 	testutil.RequireReceive(testCtx, t, blockedChan)
@@ -777,9 +777,9 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 		close(startSignals[i])
 	}
 
-	// Wait for all additional goroutines to have started their calls
-	for i := 1; i < numConcurrent; i++ {
-		<-startedSignals[i]
+	// Wait for all ForceReconnect calls to join the singleflight operation.
+	for i := 0; i < numConcurrent; i++ {
+		testutil.RequireReceive(testCtx, t, enteredSignals)
 	}
 
 	// At this point, one reconnect has started and is blocked,

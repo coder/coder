@@ -1,0 +1,57 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder boundary [flags] [args...]
+
+  Network isolation tool for monitoring and restricting HTTP/HTTPS requests
+
+  boundary creates an isolated network environment for target processes,
+  intercepting HTTP/HTTPS traffic through a transparent proxy that enforces
+  user-defined allow rules.
+
+OPTIONS:
+      --allow string, $BOUNDARY_ALLOW
+          Allow rule (repeatable). These are merged with allowlist from config
+          file. Format: "pattern" or "METHOD[,METHOD] pattern".
+
+       string-array
+          Allowlist rules from config file (YAML only).
+
+      --config yaml-config-path, $BOUNDARY_CONFIG
+          Path to YAML config file.
+
+      --configure-dns-for-local-stub-resolver bool, $BOUNDARY_CONFIGURE_DNS_FOR_LOCAL_STUB_RESOLVER
+          Configure DNS for local stub resolver (e.g., systemd-resolved). Only
+          needed when /etc/resolv.conf contains nameserver 127.0.0.53.
+
+      --disable-audit-logs bool, $DISABLE_AUDIT_LOGS
+          Disable sending of audit logs to the workspace agent when set to true.
+
+      --jail-type string, $BOUNDARY_JAIL_TYPE (default: nsjail)
+          Jail type to use for network isolation. Options: nsjail (default),
+          landjail.
+
+      --log-dir string, $BOUNDARY_LOG_DIR
+          Set a directory to write logs to rather than stderr.
+
+      --log-level string, $BOUNDARY_LOG_LEVEL (default: warn)
+          Set log level (error, warn, info, debug).
+
+      --log-proxy-socket-path string, $CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH (default: /tmp/boundary-audit.sock)
+          Path to the socket where the boundary log proxy server listens for
+          audit logs.
+
+      --pprof bool, $BOUNDARY_PPROF
+          Enable pprof profiling server.
+
+      --pprof-port int, $BOUNDARY_PPROF_PORT (default: 6060)
+          Set port for pprof profiling server.
+
+      --proxy-port int, $PROXY_PORT (default: 8080)
+          Set a port for HTTP proxy.
+
+      --version bool
+          Print version information and exit.
+
+———
+Run `coder --help` for a list of global options.

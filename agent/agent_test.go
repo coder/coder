@@ -121,7 +121,8 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// NOTE: These tests only work when your default shell is bash for some reason.
+// NOTE(Cian): I noticed that these tests would fail when my default shell was zsh.
+//             Writing "exit 0" to stdin before closing fixed the issue for me.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
@@ -148,16 +149,37 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			require.NoError(t, err)
 
 			var s *proto.Stats
+			// We are looking for four different stats to be reported. They might not all
+			// arrive at the same time, so we loop until we've seen them all.
+			var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen bool
 			require.Eventuallyf(t, func() bool {
 				var ok bool
 				s, ok = <-stats
-				return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountSsh == 1
+				if !ok {
+					return false
+				}
+				if s.ConnectionCount > 0 {
+					connectionCountSeen = true
+				}
+				if s.RxBytes > 0 {
+					rxBytesSeen = true
+				}
+				if s.TxBytes > 0 {
+					txBytesSeen = true
+				}
+				if s.SessionCountSsh == 1 {
+					sessionCountSSHSeen = true
+				}
+				return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
 			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw stats: %+v", s,
+				"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountSsh: %t",
+				s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen,
 			)
+			_, err = stdin.Write([]byte("exit 0\n"))
+			require.NoError(t, err, "writing exit to stdin")
 			_ = stdin.Close()
 			err = session.Wait()
-			require.NoError(t, err)
+			require.NoError(t, err, "waiting for session to exit")
 		})
 	}
 }
@@ -183,12 +205,31 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	require.NoError(t, err)
 
 	var s *proto.Stats
+	// We are looking for four different stats to be reported. They might not all
+	// arrive at the same time, so we loop until we've seen them all.
+	var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen bool
 	require.Eventuallyf(t, func() bool {
 		var ok bool
 		s, ok = <-stats
-		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 && s.SessionCountReconnectingPty == 1
+		if !ok {
+			return false
+		}
+		if s.ConnectionCount > 0 {
+			connectionCountSeen = true
+		}
+		if s.RxBytes > 0 {
+			rxBytesSeen = true
+		}
+		if s.TxBytes > 0 {
+			txBytesSeen = true
+		}
+		if s.SessionCountReconnectingPty == 1 {
+			sessionCountReconnectingPTYSeen = true
+		}
+		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountReconnectingPTYSeen
 	}, testutil.WaitLong, testutil.IntervalFast,
-		"never saw stats: %+v", s,
+		"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountReconnectingPTY: %t",
+		s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen,
 	)
 }
 
@@ -218,9 +259,10 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, strings.TrimSpace(string(output)))
 	})
+
 	t.Run("TracksVSCode", func(t *testing.T) {
 		t.Parallel()
-		if runtime.GOOS == "window" {
+		if runtime.GOOS == "windows" {
 			t.Skip("Sleeping for infinity doesn't work on Windows")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -252,7 +294,9 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats",
 		)
-		// The shell will automatically exit if there is no stdin!
+
+		_, err = stdin.Write([]byte("exit 0\n"))
+		require.NoError(t, err, "writing exit to stdin")
 		_ = stdin.Close()
 		err = session.Wait()
 		require.NoError(t, err)
@@ -3633,9 +3677,11 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		}
 	}
 
+	_, err = stdin.Write([]byte("exit 0\n"))
+	require.NoError(t, err, "writing exit to stdin")
 	_ = stdin.Close()
 	err = session.Wait()
-	require.NoError(t, err)
+	require.NoError(t, err, "waiting for session to exit")
 }
 
 // echoOnce accepts a single connection, reads 4 bytes and echos them back

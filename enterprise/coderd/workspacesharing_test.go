@@ -194,7 +194,9 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 			require.Equal(t, "Workspace sharing is disabled for this organization.", apiErr.Message)
 		}
 
-		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+		// Despite the site-wide workspace.share permission for the owner,
+		// the endpoint should return an authz error.
+		err = client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				uuid.NewString(): codersdk.WorkspaceRoleUse,
 			},

@@ -15,6 +15,8 @@ USAGE:
 
 SUBCOMMANDS:
     aibridge               Manage AI Bridge.
+    boundary               Network isolation tool for monitoring and restricting
+                           HTTP/HTTPS requests
     external-workspaces    Create or manage external workspaces
     features               List Enterprise features
     groups                 Manage groups
