@@ -12,6 +12,7 @@ import {
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
 import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { Stack } from "components/Stack/Stack";
 import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -130,7 +131,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 				</Cond>
 
 				<Cond>
-					<Paywall
+					<PaywallPremium
 						message="Audit logs"
 						description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
 						documentationLink={docs("/admin/security/audit-logs")}

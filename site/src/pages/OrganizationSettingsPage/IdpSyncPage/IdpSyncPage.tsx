@@ -13,6 +13,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -130,7 +131,7 @@ const IdpSyncPage: FC = () => {
 				</header>
 				<ChooseOne>
 					<Cond condition={!isIdpSyncEnabled}>
-						<Paywall
+						<PaywallPremium
 							message="IdP Sync"
 							description="Configure group and role mappings to manage permissions outside of Coder. You need a Premium license to use this feature."
 							documentationLink={docs("/admin/users/idp-sync")}

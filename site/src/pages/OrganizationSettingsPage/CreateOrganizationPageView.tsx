@@ -7,6 +7,7 @@ import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { IconField } from "components/IconField/IconField";
 import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import { Spinner } from "components/Spinner/Spinner";
 import {
@@ -115,7 +116,7 @@ export const CreateOrganizationPageView: FC<
 				<ChooseOne>
 					<Cond condition={!isEntitled}>
 						<div className="min-w-fit mx-auto">
-							<Paywall
+							<PaywallPremium
 								message="Organizations"
 								description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
 								documentationLink={docs("/admin/users/organizations")}

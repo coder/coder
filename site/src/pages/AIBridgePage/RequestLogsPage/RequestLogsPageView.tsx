@@ -3,8 +3,7 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { aiBridgePaywallConfig } from "components/Paywall/AIBridgePaywallConfig";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
 import {
 	Table,
 	TableBody,
@@ -15,6 +14,7 @@ import {
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ComponentProps, FC } from "react";
+import { docs } from "utils/docs";
 import { RequestLogsFilter } from "./filter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
@@ -34,7 +34,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	filterProps,
 }) => {
 	if (!isRequestLogsVisible) {
-		return <Paywall {...aiBridgePaywallConfig} />;
+		return <PaywallAIGovernance />;
 	}
 
 	return (

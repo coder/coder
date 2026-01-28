@@ -11,6 +11,7 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { Stack } from "components/Stack/Stack";
 import {
 	Table,
@@ -52,7 +53,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	return (
 		<Stack spacing={4}>
 			{!isCustomRolesEnabled && (
-				<Paywall
+				<PaywallPremium
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
 					documentationLink={docs("/admin/users/groups-roles")}
