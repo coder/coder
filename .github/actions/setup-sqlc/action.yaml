@@ -14,4 +14,4 @@ runs:
       # - https://github.com/sqlc-dev/sqlc/pull/4159
       shell: bash
       run: |
-        CGO_ENABLED=1 go install github.com/coder/sqlc/cmd/sqlc@aab4e865a51df0c43e1839f81a9d349b41d14f05
+        ./.github/scripts/retry.sh 3 env CGO_ENABLED=1 go install github.com/coder/sqlc/cmd/sqlc@aab4e865a51df0c43e1839f81a9d349b41d14f05
