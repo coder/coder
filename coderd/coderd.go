@@ -1806,11 +1806,6 @@ func New(options *Options) *API {
 
 	api.RootHandler = r
 
-	if options.BoundaryUsageTracker == nil {
-		options.BoundaryUsageTracker = boundaryusage.NewTracker()
-	}
-	go options.BoundaryUsageTracker.StartFlushLoop(ctx, options.Logger.Named("boundary_usage_tracker"), options.Database, api.ID)
-
 	return api
 }
 
