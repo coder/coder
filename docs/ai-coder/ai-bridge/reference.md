@@ -20,11 +20,12 @@ Where relevant, both streaming and non-streaming requests are supported.
 #### Intercepted
 
 - [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat/create)
+- [`/v1/responses`](https://platform.openai.com/docs/api-reference/responses/create) (create)
 
 #### Passthrough
 
 - [`/v1/models(/*)`](https://platform.openai.com/docs/api-reference/models/list)
-- [`/v1/responses`](https://platform.openai.com/docs/api-reference/responses/create) _(Interception support coming in **Beta**)_
+- [`/v1/responses/*`](https://platform.openai.com/docs/api-reference/responses/create) (other endpoints than create)
 
 ### Anthropic
 
