@@ -144,6 +144,54 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get organization member
+// @ID get-organization-member
+// @Security CoderSessionToken
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.OrganizationMemberWithUserData
+// @Produce json
+// @Router /organizations/{organization}/members/{user} [get]
+func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+		member       = httpmw.OrganizationMemberParam(r)
+	)
+
+	// This is unfortunate to fetch like this, but we need the user table data.
+	// The listing route uses this data format, so it is just easier to reuse the
+	// list query.
+	rows, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: organization.ID,
+		UserID:         member.UserID,
+		IncludeSystem:  false,
+		GithubUserID:   0,
+	})
+	if httpapi.Is404Error(err) || len(rows) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if len(resp) != 1 {
+		httpapi.InternalServerError(rw, xerrors.Errorf("unexpected organization members, something went wrong"))
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
+
 // @Deprecated use /organizations/{organization}/paginated-members [get]
 // @Summary List organization members
 // @ID list-organization-members
