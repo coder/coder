@@ -141,7 +141,9 @@ func TestGitSSH(t *testing.T) {
 			"-o", "IdentitiesOnly=yes",
 			"127.0.0.1",
 		)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		// This occasionally times out at 15s on Windows CI runners. Use a
+		// longer timeout to reduce flakes.
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
@@ -205,7 +207,9 @@ func TestGitSSH(t *testing.T) {
 		inv, _ := clitest.New(t, cmdArgs...)
 		inv.Stdout = pty.Output()
 		inv.Stderr = pty.Output()
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		// This occasionally times out at 15s on Windows CI runners. Use a
+		// longer timeout to reduce flakes.
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {
@@ -223,7 +227,9 @@ func TestGitSSH(t *testing.T) {
 		inv, _ = clitest.New(t, cmdArgs...)
 		inv.Stdout = pty.Output()
 		inv.Stderr = pty.Output()
-		ctx = testutil.Context(t, testutil.WaitMedium) // Reset context for second cmd test.
+		// This occasionally times out at 15s on Windows CI runners. Use a
+		// longer timeout to reduce flakes.
+		ctx = testutil.Context(t, testutil.WaitSuperLong) // Reset context for second cmd test.
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {

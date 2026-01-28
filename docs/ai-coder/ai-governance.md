@@ -33,7 +33,7 @@ If you already use other AI governance tools, such as third-party LLM gateways o
 
 ## How Coder Tasks usage is measured
 
-The usage metric used to measure Coder Tasks consumption is called **Agent Workspace Builds.**
+The usage metric used to measure Coder Tasks consumption is called **Agent Workspace Builds** (prev. "managed agents").
 
 An Agent Workspace Build is counted each time a workspace is started specifically for a coding agent to independently work on a Coder Task. Most of the work in this workspace is performed by the agent, not a human developer. Each Coder Task starts its own workspace, and the usage meter counts one Agent Workspace Build.
 

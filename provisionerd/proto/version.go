@@ -71,9 +71,12 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added `FailedFile` type for file upload failures.
 //   - Add `DownloadFile` capability for provisioner daemons to fetch files from coderd.
 //   - Moved type `UploadFileRequest` -> `provisioner.FileUpload`
+//
+// API v1.15:
+//   - Removed `stop_modules` from CompleteJob. Was a duplicate of start_modules
 const (
 	CurrentMajor = 1
-	CurrentMinor = 14
+	CurrentMinor = 15
 )
 
 // CurrentVersion is the current provisionerd API version.

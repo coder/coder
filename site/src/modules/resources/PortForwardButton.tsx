@@ -525,7 +525,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											</Select>
 										</FormControl>
 										<Button
-											size="sm"
+											size="icon"
 											variant="subtle"
 											onClick={async () => {
 												await deleteSharedPortMutation.mutateAsync({

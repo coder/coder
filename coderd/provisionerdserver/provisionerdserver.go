@@ -1652,7 +1652,6 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		// Process modules
 		for transition, modules := range map[database.WorkspaceTransition][]*sdkproto.Module{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartModules,
-			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopModules,
 		} {
 			for _, module := range modules {
 				s.Logger.Info(ctx, "inserting template import job module",

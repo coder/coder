@@ -720,7 +720,7 @@ func TestManagedAgentLimit(t *testing.T) {
 	require.NoError(t, err, "fetching AI workspace must succeed")
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 
-	// Create a second AI workspace, which should fail.
+	// Create a second AI task, which should fail due to breaching the limit.
 	_, err = cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
 		Name:                    namesgenerator.UniqueNameWith("-"),
 		TemplateVersionID:       aiTemplate.ActiveVersionID,
@@ -730,7 +730,11 @@ func TestManagedAgentLimit(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "You have breached the managed agent limit in your license")
 
-	// Create a third non-AI workspace, which should succeed.
+	// Create a third workspace using the same template, which should succeed.
+	workspace = coderdtest.CreateWorkspace(t, cli, aiTemplate.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
+
+	// Create a fourth non-AI workspace, which should also succeed.
 	workspace = coderdtest.CreateWorkspace(t, cli, noAiTemplate.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 }
@@ -772,6 +776,10 @@ func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
 		HasExternalAgent: sql.NullBool{Valid: true, Bool: false},
 	}
 
+	task := &database.Task{
+		TemplateVersionID: tv.ID,
+	}
+
 	// Mock DB: expect exactly one count call for the "start" transition.
 	mDB := dbmock.NewMockStore(ctrl)
 	mDB.EXPECT().
@@ -782,18 +790,18 @@ func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
 	ctx := context.Background()
 
 	// Start transition: should be not permitted due to limit breach.
-	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionStart)
+	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
 	require.NoError(t, err)
 	require.False(t, startResp.Permitted)
 	require.Contains(t, startResp.Message, "breached the managed agent limit")
 
 	// Stop transition: should be permitted and must not trigger additional DB calls.
-	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionStop)
+	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStop)
 	require.NoError(t, err)
 	require.True(t, stopResp.Permitted)
 
 	// Delete transition: should be permitted and must not trigger additional DB calls.
-	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, database.WorkspaceTransitionDelete)
+	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionDelete)
 	require.NoError(t, err)
 	require.True(t, deleteResp.Permitted)
 }

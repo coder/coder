@@ -236,7 +236,22 @@ func (l Layout) CleanStaleSessions(ctx context.Context, logger slog.Logger, fs a
 			logger.Info(ctx, "remove stale session directory", slog.F("session_path", sessionDirPath))
 			err = fs.RemoveAll(sessionDirPath)
 			if err != nil {
-				return xerrors.Errorf("can't remove %q directory: %w", sessionDirPath, err)
+				// This should not be a fatal error. If it is, the provisioner would be rendered
+				// non-functional until this directory is cleaned up. Ideally there would be a
+				// way to escalate this to an operator alert in Coder. Until then, the best we
+				// can do is log it on every cleanup attempt (every build). Eventually the disk
+				// usage will be noticeable, and hopefully these logs are noticed.
+				logger.Error(ctx, "failed to remove stale session directory",
+					slog.F("directory", sessionDirPath),
+					slog.Error(err),
+				)
+
+				if l.WorkDirectory() == sessionDirPath {
+					// This should never happen because sessions are uuid's. But if that logic ever
+					// changes, this would be a bad state to be in. The directory that the
+					// provisioner is going to use cannot be stale.
+					return xerrors.Errorf("remove %q directory, will not work inside a stale directory: %w", sessionDirPath, err)
+				}
 			}
 		}
 	}
