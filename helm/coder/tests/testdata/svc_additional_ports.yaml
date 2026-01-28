@@ -1,0 +1,19 @@
+coder:
+  image:
+    tag: latest
+
+  service:
+    type: NodePort
+    httpNodePort: 30080
+    httpsNodePort: 30043
+    additionalPorts:
+      - name: "coder-custom"
+        port: 8081
+        targetPort: 8081
+        protocol: TCP
+        nodePort: 30081
+      - name: "coder-custom-tls"
+        port: 8444
+        targetPort: 8444
+        protocol: TCP
+        nodePort: 30444
