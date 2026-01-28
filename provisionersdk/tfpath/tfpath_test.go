@@ -74,7 +74,6 @@ func TestCleanStaleSessions(t *testing.T) {
 		require.ErrorContains(t, err, "constant failure")
 		require.True(t, called)
 	})
-
 }
 
 type removeFailure struct {
