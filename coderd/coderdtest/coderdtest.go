@@ -55,6 +55,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
@@ -69,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -81,6 +83,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -131,7 +134,7 @@ type Options struct {
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 	ConnectionLogger               connectionlog.ConnectionLogger
 
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
+	HealthcheckFunc    func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -170,8 +173,9 @@ type Options struct {
 	SwaggerEndpoint bool
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
-	Logger       *slog.Logger
-	StatsBatcher workspacestats.Batcher
+	Logger                 *slog.Logger
+	StatsBatcher           workspacestats.Batcher
+	MetadataBatcherOptions []metadatabatcher.Option
 
 	WebpushDispatcher                  webpush.Dispatcher
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
@@ -187,6 +191,7 @@ type Options struct {
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
+	UsageInserter             usage.Inserter
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -267,6 +272,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		}
 	}
 
+	var usageInserter *atomic.Pointer[usage.Inserter]
+	if options.UsageInserter != nil {
+		usageInserter = &atomic.Pointer[usage.Inserter]{}
+		usageInserter.Store(&options.UsageInserter)
+	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
@@ -560,6 +570,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
+			UsageInserter:                  usageInserter,
 
 			Auditor:                            options.Auditor,
 			ConnectionLogger:                   options.ConnectionLogger,
@@ -597,6 +608,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckTimeout:                 options.HealthcheckTimeout,
 			HealthcheckRefresh:                 options.HealthcheckRefresh,
 			StatsBatcher:                       options.StatsBatcher,
+			MetadataBatcherOptions:             options.MetadataBatcherOptions,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,

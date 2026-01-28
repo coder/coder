@@ -239,7 +239,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 										to={`/@${task.owner_name}/${task.workspace_name}/settings/sharing`}
 									>
 										<Share2Icon />
-										Share workspace
+										Share
 									</RouterLink>
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />

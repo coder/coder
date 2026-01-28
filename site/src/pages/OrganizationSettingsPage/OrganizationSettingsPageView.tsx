@@ -6,6 +6,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	FormFields,
@@ -28,6 +29,7 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
@@ -47,11 +49,22 @@ interface OrganizationSettingsPageViewProps {
 	error: unknown;
 	onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 	onDeleteOrganization: () => void;
+	workspaceSharingEnabled?: boolean;
+	onToggleWorkspaceSharing?: (enabled: boolean) => void;
+	isTogglingWorkspaceSharing?: boolean;
 }
 
 export const OrganizationSettingsPageView: FC<
 	OrganizationSettingsPageViewProps
-> = ({ organization, error, onSubmit, onDeleteOrganization }) => {
+> = ({
+	organization,
+	error,
+	onSubmit,
+	onDeleteOrganization,
+	workspaceSharingEnabled = true,
+	onToggleWorkspaceSharing,
+	isTogglingWorkspaceSharing,
+}) => {
 	const form = useFormik<UpdateOrganizationRequest>({
 		initialValues: {
 			name: organization.name,
@@ -66,6 +79,8 @@ export const OrganizationSettingsPageView: FC<
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [isDisableSharingDialogOpen, setIsDisableSharingDialogOpen] =
+		useState(false);
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
@@ -129,21 +144,59 @@ export const OrganizationSettingsPageView: FC<
 				</FormFooter>
 			</HorizontalForm>
 
+			{onToggleWorkspaceSharing && (
+				<HorizontalContainer className="mt-12">
+					<HorizontalSection
+						title="Workspace Sharing"
+						description="Control whether workspace owners can share their workspaces."
+					>
+						<div className="flex items-start gap-3">
+							<Checkbox
+								id="workspace-sharing"
+								checked={workspaceSharingEnabled}
+								disabled={isTogglingWorkspaceSharing}
+								onCheckedChange={(checked) => {
+									if (checked) {
+										onToggleWorkspaceSharing(true);
+									} else {
+										setIsDisableSharingDialogOpen(true);
+									}
+								}}
+							/>
+							<div className="flex flex-col">
+								<label
+									htmlFor="workspace-sharing"
+									className="text-sm font-medium cursor-pointer leading-none"
+								>
+									Allow workspace sharing
+								</label>
+								<p className="text-sm font-medium text-content-secondary mt-2">
+									When enabled, workspace owners can share their workspaces with
+									other users in this organization.
+								</p>
+							</div>
+						</div>
+					</HorizontalSection>
+				</HorizontalContainer>
+			)}
+
 			{!organization.is_default && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
-						title="Settings"
-						description="Change or delete your organization."
+						title="Delete Organization"
+						description="Delete your organization permanently."
 					>
-						<div className="flex bg-surface-orange items-center justify-between border border-solid border-orange-600 rounded-md p-3 pl-4 gap-2 flex-grow">
-							<span>Deleting an organization is irreversible.</span>
-							<Button
-								variant="destructive"
-								onClick={() => setIsDeleting(true)}
-								className="min-w-fit"
-							>
-								Delete this organization
-							</Button>
+						<div className="flex flex-col gap-4 flex-grow">
+							<div className="flex bg-surface-orange items-center justify-between border border-solid border-orange-600 rounded-md p-3 pl-4 gap-2">
+								<span>Deleting an organization is irreversible.</span>
+								<Button
+									variant="destructive"
+									onClick={() => setIsDeleting(true)}
+									className="min-w-fit"
+								>
+									Delete this organization
+								</Button>
+							</div>
 						</div>
 					</HorizontalSection>
 				</HorizontalContainer>
@@ -158,6 +211,17 @@ export const OrganizationSettingsPageView: FC<
 				onCancel={() => setIsDeleting(false)}
 				entity="organization"
 				name={organization.name}
+			/>
+
+			<DisableWorkspaceSharingDialog
+				isOpen={isDisableSharingDialogOpen}
+				organizationId={organization.id}
+				onConfirm={async () => {
+					await onToggleWorkspaceSharing?.(false);
+					setIsDisableSharingDialogOpen(false);
+				}}
+				onCancel={() => setIsDisableSharingDialogOpen(false)}
+				isLoading={isTogglingWorkspaceSharing}
 			/>
 		</div>
 	);

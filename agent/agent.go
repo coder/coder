@@ -40,6 +40,7 @@ import (
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -295,6 +296,8 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
+	filesAPI *agentfiles.API
+
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
@@ -364,6 +367,8 @@ func (a *agent) init() {
 	containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
 
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -877,12 +882,16 @@ const (
 )
 
 func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
-	// Remove the port from the IP because ports are not supported in coderd.
-	if host, _, err := net.SplitHostPort(ip); err != nil {
-		a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
-	} else {
-		// Best effort.
-		ip = host
+	// A blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
+	// still report it, and the recipient can handle a blank IP.
+	if ip != "" {
+		// Remove the port from the IP because ports are not supported in coderd.
+		if host, _, err := net.SplitHostPort(ip); err != nil {
+			a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
+		} else {
+			// Best effort.
+			ip = host
+		}
 	}
 
 	// If the IP is "localhost" (which it can be in some cases), set it to

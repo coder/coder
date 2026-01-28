@@ -13,19 +13,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type workspaceAgentParamContextKey struct{}
+type workspaceAgentAndWorkspaceParamContextKey struct{}
 
-// WorkspaceAgentParam returns the workspace agent from the ExtractWorkspaceAgentParam handler.
-func WorkspaceAgentParam(r *http.Request) database.WorkspaceAgent {
-	user, ok := r.Context().Value(workspaceAgentParamContextKey{}).(database.WorkspaceAgent)
+// WorkspaceAgentAndWorkspaceParam returns the workspace agent and its associated workspace from the ExtractWorkspaceAgentParam handler.
+func WorkspaceAgentAndWorkspaceParam(r *http.Request) database.GetWorkspaceAgentAndWorkspaceByIDRow {
+	aw, ok := r.Context().Value(workspaceAgentAndWorkspaceParamContextKey{}).(database.GetWorkspaceAgentAndWorkspaceByIDRow)
 	if !ok {
 		panic("developer error: agent middleware not provided")
 	}
-	return user
+	return aw
 }
 
-// ExtractWorkspaceAgentParam grabs a workspace agent from the "workspaceagent" URL parameter.
-func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handler {
+// ExtractWorkspaceAgentAndWorkspaceParam grabs a workspace agent and its associated workspace from the "workspaceagent" URL parameter.
+func ExtractWorkspaceAgentAndWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -34,60 +34,21 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 				return
 			}
 
-			agent, err := db.GetWorkspaceAgentByID(ctx, agentUUID)
+			agentWithWorkspace, err := db.GetWorkspaceAgentAndWorkspaceByID(ctx, agentUUID)
 			if httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 					Message: "Agent doesn't exist with that id, or you do not have access to it.",
 				})
 				return
 			}
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace agent.",
-					Detail:  err.Error(),
-				})
-				return
-			}
 
-			resource, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace resource.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			job, err := db.GetProvisionerJobByID(ctx, resource.JobID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching provisioner job.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Workspace agents can only be fetched for builds.",
-				})
-				return
-			}
-			build, err := db.GetWorkspaceBuildByJobID(ctx, job.ID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace build.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			ctx = context.WithValue(ctx, workspaceAgentParamContextKey{}, agent)
-			chi.RouteContext(ctx).URLParams.Add("workspace", build.WorkspaceID.String())
+			ctx = context.WithValue(ctx, workspaceAgentAndWorkspaceParamContextKey{}, agentWithWorkspace)
+			chi.RouteContext(ctx).URLParams.Add("workspace", agentWithWorkspace.WorkspaceTable.ID.String())
 
 			if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
 				rlogger.WithFields(
-					slog.F("workspace_name", resource.Name),
-					slog.F("agent_name", agent.Name),
+					slog.F("workspace_name", agentWithWorkspace.WorkspaceTable.Name),
+					slog.F("agent_name", agentWithWorkspace.WorkspaceAgent.Name),
 				)
 			}
 

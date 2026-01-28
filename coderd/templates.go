@@ -101,6 +101,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		Deleted:   true,
 		UpdatedAt: dbtime.Now(),
 	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting template.",

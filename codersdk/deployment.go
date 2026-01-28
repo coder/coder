@@ -57,6 +57,111 @@ func (e Entitlement) Weight() int {
 	}
 }
 
+// Addon represents a grouping of features used for additional license SKUs.
+// It is complementary to FeatureSet and similar in implementation, allowing
+// features to be grouped together dynamically. Unlike FeatureSet, licenses
+// can have multiple addons. This also means that entitlements don't require
+// reissuing when new features are added to an addon.
+type Addon string
+
+const (
+	AddonAIGovernance Addon = "ai_governance"
+)
+
+var (
+	// AddonsNames must be kept in-sync with the Addon enum above.
+	AddonsNames = []Addon{
+		AddonAIGovernance,
+	}
+
+	// AddonsMap is a map of all addon names for quick lookups.
+	AddonsMap = func() map[Addon]struct{} {
+		addonsMap := make(map[Addon]struct{}, len(AddonsNames))
+		for _, addon := range AddonsNames {
+			addonsMap[addon] = struct{}{}
+		}
+		return addonsMap
+	}()
+)
+
+// Features returns all the features that are part of the addon.
+func (a Addon) Features() []FeatureName {
+	switch a {
+	case AddonAIGovernance:
+		// Return all AI governance features.
+		var features []FeatureName
+		for _, featureName := range FeatureNames {
+			if featureName.IsAIGovernanceAddon() {
+				features = append(features, featureName)
+			}
+		}
+		return features
+	default:
+		return nil
+	}
+}
+
+// ValidateDependencies validates the dependencies of the addon
+// and returns a list of errors for the missing dependencies.
+func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
+	errors := []string{}
+
+	// Candidate for a switch statement once we have more addons.
+	if a == AddonAIGovernance {
+		requiredFeatures := []FeatureName{
+			FeatureAIGovernanceUserLimit,
+		}
+
+		for _, featureName := range requiredFeatures {
+			feature, ok := features[featureName]
+			if !ok {
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						featureName.Humanize(),
+						a.Humanize(),
+					),
+				)
+				continue
+			}
+			// For limit features, check if the Limit is set (not nil).
+			// For usage period features, check if the Limit is set.
+			if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
+				if feature.Limit == nil {
+					errors = append(errors,
+						fmt.Sprintf(
+							"Feature %s must be set when using the %s addon.",
+							featureName.Humanize(),
+							a.Humanize(),
+						),
+					)
+				}
+			} else if feature.Entitlement == EntitlementNotEntitled {
+				// For non-limit features, check if the feature is entitled.
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						featureName.Humanize(),
+						a.Humanize(),
+					),
+				)
+			}
+		}
+	}
+
+	return errors
+}
+
+// Humanize returns the addon name in a human-readable format.
+func (a Addon) Humanize() string {
+	switch a {
+	case AddonAIGovernance:
+		return "AI Governance"
+	default:
+		return strings.Title(strings.ReplaceAll(string(a), "_", " "))
+	}
+}
+
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
@@ -90,6 +195,8 @@ const (
 	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
+	FeatureBoundary               FeatureName = "boundary"
+	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 )
 
 var (
@@ -119,6 +226,8 @@ var (
 		FeatureManagedAgentLimit,
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
+		FeatureBoundary,
+		FeatureAIGovernanceUserLimit,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -140,6 +249,8 @@ func (n FeatureName) Humanize() string {
 		return "SCIM"
 	case FeatureAIBridge:
 		return "AI Bridge"
+	case FeatureAIGovernanceUserLimit:
+		return "AI Governance User Limit"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -163,6 +274,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
+		FeatureBoundary:                   true,
 	}[n]
 }
 
@@ -181,8 +293,9 @@ func (n FeatureName) Enterprise() bool {
 // be included in any feature sets (as they are not boolean features).
 func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
-		FeatureUserLimit:         true,
-		FeatureManagedAgentLimit: true,
+		FeatureUserLimit:             true,
+		FeatureManagedAgentLimit:     true,
+		FeatureAIGovernanceUserLimit: true,
 	}[n]
 }
 
@@ -191,6 +304,20 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	return map[FeatureName]bool{
 		FeatureManagedAgentLimit: true,
 	}[n]
+}
+
+// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+func (n FeatureName) IsAIGovernanceAddon() bool {
+	return n == FeatureAIBridge || n == FeatureBoundary
+}
+
+// IsAddon returns true if the feature is an addon feature.
+func (n FeatureName) IsAddonFeature() bool {
+	features := []FeatureName{}
+	for addon := range AddonsMap {
+		features = append(features, addon.Features()...)
+	}
+	return slices.Contains(features, n)
 }
 
 // FeatureSet represents a grouping of features. Rather than manually
@@ -217,6 +344,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
+			// TODO: In future release, restore the f.IsAddonFeature() check.
 			return !f.Enterprise() || f.UsesLimit()
 		})
 
@@ -226,6 +354,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
+			// TODO: In future release, restore the f.IsAddonFeature() check.
 			return f.UsesLimit()
 		})
 		// FeatureSetPremium is just all features.
@@ -2966,13 +3095,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "webTerminalRenderer",
 		},
 		{
-			Name:        "Allow Workspace Renames",
-			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.",
-			Flag:        "allow-workspace-renames",
-			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
-			Default:     "false",
-			Value:       &c.AllowWorkspaceRenames,
-			YAML:        "allowWorkspaceRenames",
+			Name: "Allow Workspace Renames",
+			Description: "Allow users to rename their workspaces. " +
+				"WARNING: Renaming a workspace can cause Terraform resources that depend on the " +
+				"workspace name to be destroyed and recreated, potentially causing data loss. " +
+				"Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.",
+			Flag:    "allow-workspace-renames",
+			Env:     "CODER_ALLOW_WORKSPACE_RENAMES",
+			Default: "false",
+			Value:   &c.AllowWorkspaceRenames,
+			YAML:    "allowWorkspaceRenames",
 		},
 		// Healthcheck Options
 		{
@@ -3394,14 +3526,26 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AI Bridge Bedrock Region",
-			Description: "The AWS Bedrock API region.",
-			Flag:        "aibridge-bedrock-region",
-			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:       &c.AI.BridgeConfig.Bedrock.Region,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_region",
+			Name: "AI Bridge Bedrock Base URL",
+			Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
+				"over CODER_AIBRIDGE_BEDROCK_REGION.",
+			Flag:    "aibridge-bedrock-base-url",
+			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
+			Value:   &c.AI.BridgeConfig.Bedrock.BaseURL,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_base_url",
+		},
+		{
+			Name: "AI Bridge Bedrock Region",
+			Description: "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
+				"'https://bedrock-runtime.<region>.amazonaws.com'.",
+			Flag:    "aibridge-bedrock-region",
+			Env:     "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:   &c.AI.BridgeConfig.Bedrock.Region,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_region",
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key",
@@ -3494,6 +3638,84 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "structuredLogging",
 		},
+		{
+			Name: "AI Bridge Send Actor Headers",
+			Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
+				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. " +
+				"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+			Flag:    "aibridge-send-actor-headers",
+			Env:     "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
+			Value:   &c.AI.BridgeConfig.SendActorHeaders,
+			Default: "false",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "send_actor_headers",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Enabled",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Flag:        "aibridge-circuit-breaker-enabled",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerEnabled",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Failure Threshold",
+			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+			Flag:        "aibridge-circuit-breaker-failure-threshold",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "5",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerFailureThreshold",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Interval",
+			Description: "Cyclic period of the closed state for clearing internal failure counts.",
+			Flag:        "aibridge-circuit-breaker-interval",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
+			Default:     "10s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerInterval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Timeout",
+			Description: "How long the circuit breaker stays open before transitioning to half-open state.",
+			Flag:        "aibridge-circuit-breaker-timeout",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerTimeout,
+			Default:     "30s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuitBreakerTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Max Requests",
+			Description: "Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
+			Flag:        "aibridge-circuit-breaker-max-requests",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "3",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuitBreakerMaxRequests",
+		},
 
 		// AI Bridge Proxy Options
 		{
@@ -3538,14 +3760,34 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption.",
+			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption. Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com.",
 			Flag:        "aibridge-proxy-domain-allowlist",
 			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
 			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default:     "api.anthropic.com,api.openai.com",
+			Default:     "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com",
 			Hidden:      true,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "domain_allowlist",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy",
+			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Flag:        "aibridge-proxy-upstream",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy CA",
+			Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+			Flag:        "aibridge-proxy-upstream-ca",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM_CA",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy_ca",
 		},
 
 		// Retention settings
@@ -3621,6 +3863,14 @@ type AIBridgeConfig struct {
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool            `json:"send_actor_headers" typescript:",notnull"`
+	// Circuit breaker protects against cascading failures from upstream AI
+	// provider rate limits (429, 503, 529 overloaded).
+	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
+	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
+	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
+	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
+	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3634,6 +3884,7 @@ type AIBridgeAnthropicConfig struct {
 }
 
 type AIBridgeBedrockConfig struct {
+	BaseURL         serpent.String `json:"base_url" typescript:",notnull"`
 	Region          serpent.String `json:"region" typescript:",notnull"`
 	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
 	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
@@ -3647,6 +3898,8 @@ type AIBridgeProxyConfig struct {
 	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
 	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
 	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
 type AIConfig struct {

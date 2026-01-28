@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -24,7 +25,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -41,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	strutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -60,10 +62,9 @@ import (
 // @Success 200 {object} codersdk.WorkspaceAgent
 // @Router /workspaceagents/{workspaceagent} [get]
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-
 	var (
+		ctx        = r.Context()
+		waws       = httpmw.WorkspaceAgentAndWorkspaceParam(r)
 		dbApps     []database.WorkspaceApp
 		scripts    []database.WorkspaceAgentScript
 		logSources []database.WorkspaceAgentLogSource
@@ -71,17 +72,17 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
-		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, waws.WorkspaceAgent.ID)
 		return err
 	})
 	eg.Go(func() (err error) {
 		//nolint:gocritic // TODO: can we make this not require system restricted?
-		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
+		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{waws.WorkspaceAgent.ID})
 		return err
 	})
 	eg.Go(func() (err error) {
 		//nolint:gocritic // TODO: can we make this not require system restricted?
-		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
+		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{waws.WorkspaceAgent.ID})
 		return err
 	})
 	err := eg.Wait()
@@ -111,41 +112,8 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resource.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace owner.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, db2sdk.Apps(dbApps, statuses, workspaceAgent, owner.Username, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -430,6 +398,31 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// Notify on state change to Working/Idle for AI tasks
 	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace, workspaceAgent)
 
+	// Bump deadline when agent reports working or transitions away from working.
+	// This prevents auto-pause during active work and gives users time to interact
+	// after work completes.
+	shouldBump := false
+	newState := database.WorkspaceAppStatusState(req.State)
+
+	// Bump if reporting working state.
+	if newState == database.WorkspaceAppStatusStateWorking {
+		shouldBump = true
+	}
+
+	// Bump if transitioning away from working state.
+	if latestAppStatus.ID != uuid.Nil {
+		prevState := latestAppStatus.State
+		if prevState == database.WorkspaceAppStatusStateWorking {
+			shouldBump = true
+		}
+	}
+	if shouldBump {
+		// We pass time.Time{} for nextAutostart since we don't have access to
+		// TemplateScheduleStore here. The activity bump logic handles this by
+		// defaulting to the template's activity_bump duration (typically 1 hour).
+		workspacestats.ActivityBumpWorkspace(ctx, api.Logger, api.Database, workspace.ID, time.Time{})
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
@@ -546,12 +539,12 @@ func (api *API) enqueueAITaskStateNotification(
 func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	// This mostly copies how provisioner job logs are streamed!
 	var (
-		ctx            = r.Context()
-		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
-		follow         = r.URL.Query().Has("follow")
-		afterRaw       = r.URL.Query().Get("after")
-		noCompression  = r.URL.Query().Has("no_compression")
+		ctx           = r.Context()
+		waws          = httpmw.WorkspaceAgentAndWorkspaceParam(r)
+		logger        = api.Logger.With(slog.F("workspace_agent_id", waws.WorkspaceAgent.ID))
+		follow        = r.URL.Query().Has("follow")
+		afterRaw      = r.URL.Query().Get("after")
+		noCompression = r.URL.Query().Has("no_compression")
 	)
 
 	var after int64
@@ -571,7 +564,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-		AgentID:      workspaceAgent.ID,
+		AgentID:      waws.WorkspaceAgent.ID,
 		CreatedAfter: after,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -590,15 +583,6 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 	if !follow {
 		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentLogs(logs))
-		return
-	}
-
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace by agent id.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 
@@ -628,7 +612,9 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	go httpapi.Heartbeat(ctx, conn)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	encoder := wsjson.NewEncoder[[]codersdk.WorkspaceAgentLog](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
@@ -650,13 +636,13 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	notifyCh <- struct{}{}
 
 	// Subscribe to workspace to detect new builds.
-	closeSubscribeWorkspace, err := api.Pubsub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+	closeSubscribeWorkspace, err := api.Pubsub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(waws.WorkspaceTable.OwnerID),
 		wspubsub.HandleWorkspaceEvent(
 			func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
 				if err != nil {
 					return
 				}
-				if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+				if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == waws.WorkspaceTable.ID {
 					select {
 					case workspaceNotifyCh <- struct{}{}:
 					default:
@@ -672,7 +658,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer closeSubscribeWorkspace()
 	// Subscribe early to prevent missing log events.
-	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.LogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
+	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.LogsNotifyChannel(waws.WorkspaceAgent.ID), func(_ context.Context, _ []byte) {
 		// The message is not important, we're tracking lastSentLogID manually.
 		select {
 		case notifyCh <- struct{}{}:
@@ -726,7 +712,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 				t.Reset(recheckInterval)
 			}
 
-			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, waws.WorkspaceTable.ID)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				if xerrors.Is(err, context.Canceled) {
 					return
@@ -736,7 +722,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			}
 			// If the agent is no longer in the latest build, we can stop after
 			// checking once.
-			keepGoing = slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.ID == workspaceAgent.ID })
+			keepGoing = slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.ID == waws.WorkspaceAgent.ID })
 
 			logger.Debug(
 				ctx,
@@ -753,7 +739,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-				AgentID:      workspaceAgent.ID,
+				AgentID:      waws.WorkspaceAgent.ID,
 				CreatedAfter: lastSentLogID,
 			})
 			if err != nil {
@@ -816,7 +802,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 // @Router /workspaceagents/{workspaceagent}/listening-ports [get]
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 
 	// If the agent is unreachable, the request will hang. Assume that if we
 	// don't get a response after 30s that the agent is unreachable.
@@ -824,7 +810,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	defer cancel()
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -841,7 +827,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	agentConn, release, err := api.agentProvider.AgentConn(ctx, workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, waws.WorkspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -861,7 +847,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	}
 
 	// Get a list of ports that are in-use by applications.
-	apps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+	apps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, waws.WorkspaceAgent.ID)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		apps = []database.WorkspaceApp{}
 		err = nil
@@ -926,9 +912,9 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // @Router /workspaceagents/{workspaceagent}/containers/watch [get]
 func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx            = r.Context()
-		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		logger         = api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
+		ctx    = r.Context()
+		waws   = httpmw.WorkspaceAgentAndWorkspaceParam(r)
+		logger = api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", waws.WorkspaceAgent.ID))
 	)
 
 	// If the agent is unreachable, the request will hang. Assume that if we
@@ -938,7 +924,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		workspaceAgent,
+		waws.WorkspaceAgent,
 		nil,
 		nil,
 		nil,
@@ -959,7 +945,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, waws.WorkspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -1034,7 +1020,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 // @Router /workspaceagents/{workspaceagent}/containers [get]
 func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 
 	labelParam, ok := r.URL.Query()["label"]
 	if !ok {
@@ -1060,7 +1046,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		workspaceAgent,
+		waws.WorkspaceAgent,
 		nil,
 		nil,
 		nil,
@@ -1081,7 +1067,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	agentConn, release, err := api.agentProvider.AgentConn(ctx, workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, waws.WorkspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -1131,10 +1117,9 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 // @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer} [delete]
 func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	workspace := httpmw.WorkspaceParam(r)
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 
-	if !api.Authorize(r, policy.ActionUpdate, workspace) {
+	if !api.Authorize(r, policy.ActionUpdate, waws.WorkspaceTable) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -1153,7 +1138,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		workspaceAgent,
+		waws.WorkspaceAgent,
 		nil,
 		nil,
 		nil,
@@ -1178,7 +1163,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 	// don't get a response after 30s that the agent is unreachable.
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, waws.WorkspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -1222,7 +1207,7 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 // @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate [post]
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 
 	devcontainer := chi.URLParam(r, "devcontainer")
 	if devcontainer == "" {
@@ -1238,7 +1223,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		workspaceAgent,
+		waws.WorkspaceAgent,
 		nil,
 		nil,
 		nil,
@@ -1263,7 +1248,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	// don't get a response after 30s that the agent is unreachable.
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, waws.WorkspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(dialCtx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -1441,8 +1426,8 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 
 	// This route accepts user API key auth and workspace proxy auth. The moon actor has
 	// full permissions so should be able to pass this authz check.
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, policy.ActionSSH, workspace) {
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+	if !api.Authorize(r, policy.ActionSSH, waws) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1482,7 +1467,6 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -1495,14 +1479,16 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	go httpapi.Heartbeat(ctx, conn)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
 		ID:   peerID,
 		Auth: tailnet.ClientCoordinateeAuth{
-			AgentID: workspaceAgent.ID,
+			AgentID: waws.WorkspaceAgent.ID,
 		},
 	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
@@ -1647,7 +1633,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
 // It means that they may not have an agent or workspace assigned (dry-run job).
 func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
-	return db2sdk.Apps(dbApps, []database.WorkspaceAppStatus{}, database.WorkspaceAgent{}, "", database.Workspace{})
+	return db2sdk.Apps(dbApps, []database.WorkspaceAppStatus{}, database.WorkspaceAgent{}, "", database.WorkspaceTable{})
 }
 
 func convertLogSources(dbLogSources []database.WorkspaceAgentLogSource) []codersdk.WorkspaceAgentLogSource {
@@ -1706,7 +1692,7 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 // @Router /workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadataWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender)
+	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
 }
 
 func (api *API) watchWorkspaceAgentMetadata(
@@ -1719,46 +1705,68 @@ func (api *API) watchWorkspaceAgentMetadata(
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+	agentIDEncoded := make([]byte, metadatabatcher.UUIDBase64Size)
+	err := metadatabatcher.EncodeAgentID(waws.WorkspaceAgent.ID, agentIDEncoded)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	log := api.Logger.Named("workspace_metadata_watcher").With(
-		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("workspace_agent_id", waws.WorkspaceAgent.ID),
+		slog.F("workspace_id", waws.WorkspaceTable.ID),
 	)
 
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
-	update := make(chan agentapi.WorkspaceAgentMetadataChannelPayload, 1)
-	cancelSub, err := api.Pubsub.Subscribe(agentapi.WatchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, byt []byte) {
+	// The channel carries no data - it's just a signal to fetch all metadata.
+	update := make(chan struct{}, 1)
+
+	// Subscribe to the global batched metadata channel.
+	// The batcher publishes only to this channel to achieve O(1) NOTIFY scaling.
+	cancelBatchSub, err := api.Pubsub.Subscribe(metadatabatcher.MetadataBatchPubsubChannel, func(_ context.Context, byt []byte) {
 		if ctx.Err() != nil {
 			return
 		}
 
-		var payload agentapi.WorkspaceAgentMetadataChannelPayload
-		err := json.Unmarshal(byt, &payload)
-		if err != nil {
-			log.Error(ctx, "failed to unmarshal pubsub message", slog.Error(err))
+		if len(byt)%metadatabatcher.UUIDBase64Size != 0 {
+			log.Error(ctx, "invalid batched pubsub message, pubsub message length was not a multiple of encoded agent UUID length", slog.Error(err))
 			return
 		}
 
-		log.Debug(ctx, "received metadata update", slog.F("payload", payload))
+		// Compare each encoded agentID to our encoded agent ID.
+		for i := 0; i < len(byt); i += metadatabatcher.UUIDBase64Size {
+			if !bytes.Equal(byt[i:i+metadatabatcher.UUIDBase64Size], agentIDEncoded) {
+				continue
+			}
 
-		select {
-		case prev := <-update:
-			payload.Keys = appendUnique(prev.Keys, payload.Keys)
-		default:
+			log.Debug(ctx, "received metadata update from batch channel",
+				slog.F("agent_id", waws.WorkspaceAgent.ID),
+				slog.F("batch_size", len(byt)/metadatabatcher.UUIDBase64Size),
+			)
+
+			// Signal to re-fetch all metadata for this agent.
+			// Batch notifications don't include which keys changed, so we
+			// always fetch all keys for this agent.
+			// Attempt to read from the channel first so that we do not block on the write.
+			select {
+			case <-update:
+			default:
+			}
+			update <- struct{}{}
+			break
 		}
-		// This can never block since we pop and merge beforehand.
-		update <- payload
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	defer cancelSub()
+	defer cancelBatchSub()
 
 	// We always use the original Request context because it contains
 	// the RBAC actor.
 	initialMD, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
-		WorkspaceAgentID: workspaceAgent.ID,
+		WorkspaceAgentID: waws.WorkspaceAgent.ID,
 		Keys:             nil,
 	})
 	if err != nil {
@@ -1837,10 +1845,11 @@ func (api *API) watchWorkspaceAgentMetadata(
 			select {
 			case <-ctx.Done():
 				return
-			case payload := <-update:
+			case <-update:
+				// Batch notification received - fetch all metadata for this agent.
 				md, err := api.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
-					WorkspaceAgentID: workspaceAgent.ID,
-					Keys:             payload.Keys,
+					WorkspaceAgentID: waws.WorkspaceAgent.ID,
+					Keys:             nil, // nil means fetch all keys
 				})
 				if err != nil {
 					if !database.IsQueryCanceledError(err) {
@@ -1861,9 +1870,7 @@ func (api *API) watchWorkspaceAgentMetadata(
 				// We want to block here to avoid constantly pinging the
 				// database when the metadata isn't being processed.
 				case fetchedMetadata <- md:
-					log.Debug(ctx, "fetched metadata update for keys",
-						slog.F("keys", payload.Keys),
-						slog.F("num", len(md)))
+					log.Debug(ctx, "fetched all metadata after batch update", slog.F("num", len(md)))
 				}
 			}
 		}
@@ -1897,21 +1904,6 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 		sendMetadata()
 	}
-}
-
-// appendUnique is like append and adds elements from src to dst,
-// skipping any elements that already exist in dst.
-func appendUnique[T comparable](dst, src []T) []T {
-	exists := make(map[T]struct{}, len(dst))
-	for _, key := range dst {
-		exists[key] = struct{}{}
-	}
-	for _, key := range src {
-		if _, ok := exists[key]; !ok {
-			dst = append(dst, key)
-		}
-	}
-	return dst
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
@@ -2299,7 +2291,9 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 		})
 	}()
 
-	go httpapi.Heartbeat(ctx, conn)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
 		ID:   peerID,

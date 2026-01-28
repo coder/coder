@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -425,6 +426,174 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	tests := []struct {
+		name       string
+		prevState  *codersdk.WorkspaceAppStatusState // nil means no previous state
+		newState   codersdk.WorkspaceAppStatusState
+		shouldBump bool
+	}{
+		{
+			name:       "FirstStatusBumps",
+			prevState:  nil,
+			newState:   codersdk.WorkspaceAppStatusStateWorking,
+			shouldBump: true,
+		},
+		{
+			name:       "WorkingToIdleBumps",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: true,
+		},
+		{
+			name:       "WorkingToCompleteBumps",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			newState:   codersdk.WorkspaceAppStatusStateComplete,
+			shouldBump: true,
+		},
+		{
+			name:       "CompleteToIdleNoBump",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: false,
+		},
+		{
+			name:       "CompleteToCompleteNoBump",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			newState:   codersdk.WorkspaceAppStatusStateComplete,
+			shouldBump: false,
+		},
+		{
+			name:       "FailureToIdleNoBump",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: false,
+		},
+		{
+			name:       "FailureToFailureNoBump",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			newState:   codersdk.WorkspaceAppStatusStateFailure,
+			shouldBump: false,
+		},
+		{
+			name:       "CompleteToWorkingBumps",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			newState:   codersdk.WorkspaceAppStatusStateWorking,
+			shouldBump: true,
+		},
+		{
+			name:       "FailureToCompleteNoBump",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			newState:   codersdk.WorkspaceAppStatusStateComplete,
+			shouldBump: false,
+		},
+		{
+			name:       "WorkingToFailureBumps",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			newState:   codersdk.WorkspaceAppStatusStateFailure,
+			shouldBump: true,
+		},
+		{
+			name:       "IdleToIdleNoBump",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			newState:   codersdk.WorkspaceAppStatusStateIdle,
+			shouldBump: false,
+		},
+		{
+			name:       "IdleToWorkingBumps",
+			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			newState:   codersdk.WorkspaceAppStatusStateWorking,
+			shouldBump: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create workspace with agent and app.
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+				a[0].Apps = []*proto.App{{Slug: "test-app"}}
+				return a
+			}).Do()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			// Configure template with activity_bump to enable deadline bumping.
+			_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
+				ActivityBumpMillis: time.Hour.Milliseconds(),
+			})
+			require.NoError(t, err)
+
+			// Set the workspace build deadline to the past to ensure the 5%
+			// threshold is met for activity bumping.
+			pastDeadline := dbtime.Now().Add(-30 * time.Minute)
+			err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          r.Build.ID,
+				UpdatedAt:   dbtime.Now(),
+				Deadline:    pastDeadline,
+				MaxDeadline: time.Time{},
+			})
+			require.NoError(t, err)
+
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+			// If there's a previous state, report it first.
+			if tt.prevState != nil {
+				err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+					AppSlug: "test-app",
+					State:   *tt.prevState,
+					Message: "previous state",
+				})
+				require.NoError(t, err)
+
+				// Reset deadline to past again to meet 5% threshold for next bump.
+				err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID:          r.Build.ID,
+					UpdatedAt:   dbtime.Now(),
+					Deadline:    pastDeadline,
+					MaxDeadline: time.Time{},
+				})
+				require.NoError(t, err)
+			}
+
+			// Get the deadline before the new status report.
+			beforeBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), r.Build.ID)
+			require.NoError(t, err)
+			beforeDeadline := beforeBuild.Deadline
+
+			// Report the new state.
+			err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+				AppSlug: "test-app",
+				State:   tt.newState,
+				Message: "new state",
+			})
+			require.NoError(t, err)
+
+			// Check if deadline changed.
+			afterBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), r.Build.ID)
+			require.NoError(t, err)
+			afterDeadline := afterBuild.Deadline
+
+			didBump := afterDeadline.After(beforeDeadline)
+			if tt.shouldBump {
+				require.True(t, didBump, "wanted deadline to bump but it didn't")
+			} else {
+				require.False(t, didBump, "wanted deadline not to bump but it did")
+			}
+		})
+	}
+}
+
 func TestWorkspaceAgentConnectRPC(t *testing.T) {
 	t.Parallel()
 
@@ -623,7 +792,7 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	agentToken, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
-	ao, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
 	require.NoError(t, err)
 
 	//nolint: bodyclose // closed by ReadBodyAsError
@@ -713,7 +882,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
+		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -785,7 +954,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
+		agentAndBuild, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -1937,7 +2106,11 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 func TestWorkspaceAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		MetadataBatcherOptions: []metadatabatcher.Option{
+			metadatabatcher.WithInterval(100 * time.Millisecond),
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
@@ -2064,7 +2237,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	update = recvUpdate()
 	require.Len(t, update, 3)
-	check(wantMetadata1, update[0], false)
+	check(wantMetadata1, update[0], true)
 	// The second metadata result is not yet posted.
 	require.Zero(t, update[1].Result.CollectedAt)
 

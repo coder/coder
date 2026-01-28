@@ -1,4 +1,3 @@
-import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
 import { apiKey } from "api/queries/users";
@@ -19,6 +18,7 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
@@ -53,7 +53,6 @@ import {
 	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
-	SquareIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
@@ -118,14 +117,16 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/3">
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-5">
 							{canCheckWorkspaces && (
 								<Checkbox
-									className="-my-[9px]"
 									disabled={!workspaces || workspaces.length === 0}
-									checked={checkedWorkspaces.length === workspaces?.length}
-									size="xsmall"
-									onChange={(_, checked) => {
+									checked={
+										workspaces &&
+										workspaces.length > 0 &&
+										checkedWorkspaces.length === workspaces.length
+									}
+									onCheckedChange={(checked) => {
 										if (!workspaces) {
 											return;
 										}
@@ -136,6 +137,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											onCheckChange(workspaces);
 										}
 									}}
+									aria-label="Select all workspaces"
 								/>
 							)}
 							Name
@@ -174,18 +176,17 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							checked={checked}
 						>
 							<TableCell>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-5">
 									{canCheckWorkspaces && (
 										<Checkbox
 											data-testid={`checkbox-${workspace.id}`}
-											size="xsmall"
 											disabled={cantBeChecked(workspace)}
 											checked={checked}
 											onClick={(e) => {
 												e.stopPropagation();
 											}}
-											onChange={(e) => {
-												if (e.currentTarget.checked) {
+											onCheckedChange={(checked) => {
+												if (checked) {
 													onCheckChange([...checkedWorkspaces, workspace]);
 												} else {
 													onCheckChange(
@@ -195,6 +196,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													);
 												}
 											}}
+											aria-label={`Select workspace ${workspace.name}`}
 										/>
 									)}
 									<AvatarData
@@ -340,8 +342,8 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell className="w-2/6">
-					<div className="flex items-center gap-2">
-						{canCheckWorkspaces && <Checkbox size="small" disabled />}
+					<div className="flex items-center gap-5">
+						{canCheckWorkspaces && <Checkbox disabled />}
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>
@@ -485,16 +487,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					</PrimaryAction>
 				)}
 
-				{abilities.actions.includes("stop") && (
-					<PrimaryAction
-						onClick={() => setIsStopConfirmOpen(true)}
-						isLoading={stopWorkspaceMutation.isPending}
-						label="Stop workspace"
-					>
-						<SquareIcon />
-					</PrimaryAction>
-				)}
-
 				{abilities.actions.includes("updateAndStart") && (
 					<>
 						<PrimaryAction
@@ -570,6 +562,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				<WorkspaceMoreActions
 					workspace={workspace}
 					disabled={!abilities.canAcceptJobs}
+					onStop={
+						abilities.actions.includes("stop")
+							? () => setIsStopConfirmOpen(true)
+							: undefined
+					}
+					isStopping={stopWorkspaceMutation.isPending}
 				/>
 			</div>
 

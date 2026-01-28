@@ -204,7 +204,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'task:delete',
     'task:*',
     'workspace:share',
-    'workspace_dormant:share'
+    'workspace_dormant:share',
+    'boundary_usage:*',
+    'boundary_usage:delete',
+    'boundary_usage:read',
+    'boundary_usage:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -248,7 +252,10 @@ CREATE TYPE build_reason AS ENUM (
     'cli',
     'ssh_connection',
     'vscode_connection',
-    'jetbrains_connection'
+    'jetbrains_connection',
+    'task_auto_pause',
+    'task_manual_pause',
+    'task_resume'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -968,80 +975,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_agent_update', OLD.id::text);
-		RETURN NULL;
-	END IF;
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_agent_update', NEW.id::text);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_client_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-	var_client_id uuid;
-	var_coordinator_id uuid;
-	var_agent_ids uuid[];
-	var_agent_id uuid;
-BEGIN
-	IF (NEW.id IS NOT NULL) THEN
-		var_client_id = NEW.id;
-		var_coordinator_id = NEW.coordinator_id;
-	ELSIF (OLD.id IS NOT NULL) THEN
-		var_client_id = OLD.id;
-		var_coordinator_id = OLD.coordinator_id;
-	END IF;
-
-	-- Read all agents the client is subscribed to, so we can notify them.
-	SELECT
-		array_agg(agent_id)
-	INTO
-		var_agent_ids
-	FROM
-		tailnet_client_subscriptions subs
-	WHERE
-		subs.client_id = NEW.id AND
-		subs.coordinator_id = NEW.coordinator_id;
-
-	-- No agents to notify
-	if (var_agent_ids IS NULL) THEN
-		return NULL;
-	END IF;
-
-	-- pg_notify is limited to 8k bytes, which is approximately 221 UUIDs.
-	-- Instead of sending all agent ids in a single update, send one for each
-	-- agent id to prevent overflow.
-	FOREACH var_agent_id IN ARRAY var_agent_ids
-	LOOP
-		PERFORM pg_notify('tailnet_client_update', var_client_id || ',' || var_agent_id);
-	END LOOP;
-
-	return NULL;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_client_subscription_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', NEW.client_id || ',' || NEW.agent_id);
-		RETURN NULL;
-	ELSIF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', OLD.client_id || ',' || OLD.agent_id);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
 CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1181,6 +1114,32 @@ CREATE TABLE audit_logs (
     request_id uuid NOT NULL,
     resource_icon text NOT NULL
 );
+
+CREATE TABLE boundary_usage_stats (
+    replica_id uuid NOT NULL,
+    unique_workspaces_count bigint DEFAULT 0 NOT NULL,
+    unique_users_count bigint DEFAULT 0 NOT NULL,
+    allowed_requests bigint DEFAULT 0 NOT NULL,
+    denied_requests bigint DEFAULT 0 NOT NULL,
+    window_start timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE boundary_usage_stats IS 'Per-replica boundary usage statistics for telemetry aggregation.';
+
+COMMENT ON COLUMN boundary_usage_stats.replica_id IS 'The unique identifier of the replica reporting stats.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_workspaces_count IS 'Count of unique workspaces that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_users_count IS 'Count of unique users that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.allowed_requests IS 'Total allowed requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
+
+COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
@@ -1803,35 +1762,14 @@ CREATE TABLE site_configs (
     value text NOT NULL
 );
 
-CREATE TABLE tailnet_agents (
-    id uuid NOT NULL,
-    coordinator_id uuid NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    node jsonb NOT NULL
-);
-
-CREATE TABLE tailnet_client_subscriptions (
-    client_id uuid NOT NULL,
-    coordinator_id uuid NOT NULL,
-    agent_id uuid NOT NULL,
-    updated_at timestamp with time zone NOT NULL
-);
-
-CREATE TABLE tailnet_clients (
-    id uuid NOT NULL,
-    coordinator_id uuid NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    node jsonb NOT NULL
-);
-
-CREATE TABLE tailnet_coordinators (
+CREATE UNLOGGED TABLE tailnet_coordinators (
     id uuid NOT NULL,
     heartbeat_at timestamp with time zone NOT NULL
 );
 
 COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
 
-CREATE TABLE tailnet_peers (
+CREATE UNLOGGED TABLE tailnet_peers (
     id uuid NOT NULL,
     coordinator_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -1839,12 +1777,26 @@ CREATE TABLE tailnet_peers (
     status tailnet_status DEFAULT 'ok'::tailnet_status NOT NULL
 );
 
-CREATE TABLE tailnet_tunnels (
+CREATE UNLOGGED TABLE tailnet_tunnels (
     coordinator_id uuid NOT NULL,
     src_id uuid NOT NULL,
     dst_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL
 );
+
+CREATE TABLE task_snapshots (
+    task_id uuid NOT NULL,
+    log_snapshot jsonb NOT NULL,
+    log_snapshot_created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE task_snapshots IS 'Stores snapshots of task state when paused, currently limited to conversation history.';
+
+COMMENT ON COLUMN task_snapshots.task_id IS 'The task this snapshot belongs to.';
+
+COMMENT ON COLUMN task_snapshots.log_snapshot IS 'Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.';
+
+COMMENT ON COLUMN task_snapshots.log_snapshot_created_at IS 'When this log snapshot was captured.';
 
 CREATE TABLE task_workspace_apps (
     task_id uuid NOT NULL,
@@ -2080,7 +2032,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -3019,6 +2971,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY boundary_usage_stats
+    ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
+
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
 
@@ -3139,15 +3094,6 @@ ALTER TABLE ONLY provisioner_keys
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
-ALTER TABLE ONLY tailnet_agents
-    ADD CONSTRAINT tailnet_agents_pkey PRIMARY KEY (id, coordinator_id);
-
-ALTER TABLE ONLY tailnet_client_subscriptions
-    ADD CONSTRAINT tailnet_client_subscriptions_pkey PRIMARY KEY (client_id, coordinator_id, agent_id);
-
-ALTER TABLE ONLY tailnet_clients
-    ADD CONSTRAINT tailnet_clients_pkey PRIMARY KEY (id, coordinator_id);
-
 ALTER TABLE ONLY tailnet_coordinators
     ADD CONSTRAINT tailnet_coordinators_pkey PRIMARY KEY (id);
 
@@ -3156,6 +3102,9 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
+
+ALTER TABLE ONLY task_snapshots
+    ADD CONSTRAINT task_snapshots_pkey PRIMARY KEY (task_id);
 
 ALTER TABLE ONLY task_workspace_apps
     ADD CONSTRAINT task_workspace_apps_pkey PRIMARY KEY (task_id, workspace_build_number);
@@ -3384,10 +3333,6 @@ COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique pro
 
 CREATE INDEX idx_provisioner_jobs_status ON provisioner_jobs USING btree (job_status);
 
-CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
-
-CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
-
 CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
 
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
@@ -3562,12 +3507,6 @@ CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_ro
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
-CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
-
-CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_change();
-
-CREATE TRIGGER tailnet_notify_client_subscription_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_client_subscriptions FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_subscription_change();
-
 CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
 
 CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
@@ -3705,20 +3644,14 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY provisioner_keys
     ADD CONSTRAINT provisioner_keys_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY tailnet_agents
-    ADD CONSTRAINT tailnet_agents_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tailnet_client_subscriptions
-    ADD CONSTRAINT tailnet_client_subscriptions_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tailnet_clients
-    ADD CONSTRAINT tailnet_clients_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY tailnet_peers
     ADD CONSTRAINT tailnet_peers_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY task_snapshots
+    ADD CONSTRAINT task_snapshots_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY task_workspace_apps
     ADD CONSTRAINT task_workspace_apps_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;

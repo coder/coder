@@ -73,6 +73,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Moved type `UploadFileRequest` -> `provisioner.FileUpload`
 //
 // API v1.15:
+//   - Removed `stop_modules` from CompleteJob. Was a duplicate of start_modules
 //   - Add `id`, `subagent_id`, `apps`, `scripts` and `envs` to `provisioner.Devcontainer`
 const (
 	CurrentMajor = 1

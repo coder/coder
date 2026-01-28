@@ -9556,6 +9556,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/tasks/{task}/log-snapshot": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Upload task log snapshot",
+                "operationId": "upload-task-log-snapshot",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "agentapi"
+                        ],
+                        "type": "string",
+                        "description": "Snapshot format",
+                        "name": "format",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "description": "Raw snapshot payload (structure depends on format parameter)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}": {
             "get": {
                 "security": [
@@ -12018,6 +12069,9 @@ const docTemplate = `{
                 "access_key_secret": {
                     "type": "string"
                 },
+                "base_url": {
+                    "type": "string"
+                },
                 "model": {
                     "type": "string"
                 },
@@ -12038,6 +12092,22 @@ const docTemplate = `{
                 "bedrock": {
                     "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
                 },
+                "circuit_breaker_enabled": {
+                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
+                    "type": "boolean"
+                },
+                "circuit_breaker_failure_threshold": {
+                    "type": "integer"
+                },
+                "circuit_breaker_interval": {
+                    "type": "integer"
+                },
+                "circuit_breaker_max_requests": {
+                    "type": "integer"
+                },
+                "circuit_breaker_timeout": {
+                    "type": "integer"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -12055,6 +12125,9 @@ const docTemplate = `{
                 },
                 "retention": {
                     "type": "integer"
+                },
+                "send_actor_headers": {
+                    "type": "boolean"
                 },
                 "structured_logging": {
                     "type": "boolean"
@@ -12156,6 +12229,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "upstream_proxy": {
+                    "type": "string"
+                },
+                "upstream_proxy_ca": {
                     "type": "string"
                 }
             }
@@ -12388,6 +12467,10 @@ const docTemplate = `{
                 "audit_log:*",
                 "audit_log:create",
                 "audit_log:read",
+                "boundary_usage:*",
+                "boundary_usage:delete",
+                "boundary_usage:read",
+                "boundary_usage:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -12586,6 +12669,10 @@ const docTemplate = `{
                 "APIKeyScopeAuditLogAll",
                 "APIKeyScopeAuditLogCreate",
                 "APIKeyScopeAuditLogRead",
+                "APIKeyScopeBoundaryUsageAll",
+                "APIKeyScopeBoundaryUsageDelete",
+                "APIKeyScopeBoundaryUsageRead",
+                "APIKeyScopeBoundaryUsageUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -17661,6 +17748,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "boundary_usage",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -17705,6 +17793,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceBoundaryUsage",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",

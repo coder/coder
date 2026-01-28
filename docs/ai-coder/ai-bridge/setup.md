@@ -58,6 +58,11 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
 - `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
 - `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
 
+> [!NOTE]
+> `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base-url` may be used instead of `CODER_AIBRIDGE_BEDROCK_REGION`/`--aibridge-bedrock-region`
+if you would like to specify a URL which does not follow the form of `https://bedrock-runtime.<region>.amazonaws.com` - for example if using a
+proxy between AI Bridge and AWS Bedrock.
+
 #### Obtaining Bedrock credentials
 
 1. **Choose a region** where you want to use Bedrock.
