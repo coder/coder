@@ -575,8 +575,10 @@ userQuietHoursSchedule:
   # change their quiet hours schedule and the site default is always used.
   # (default: true, type: bool)
   allowCustomQuietHours: true
-# DEPRECATED: Allow users to rename their workspaces. Use only for temporary
-# compatibility reasons, this will be removed in a future release.
+# Allow users to rename their workspaces. WARNING: Renaming a workspace can cause
+# Terraform resources that depend on the workspace name to be destroyed and
+# recreated, potentially causing data loss. Only enable this if your templates do
+# not use workspace names in resource identifiers, or if you understand the risks.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
 # Configure how emails are sent.
@@ -782,6 +784,13 @@ aibridge:
   # these records to external SIEM or observability systems.
   # (default: false, type: bool)
   structuredLogging: false
+  # Once enabled, extra headers will be added to upstream requests to identify the
+  # user (actor) making requests to AI Bridge. This is only needed if you are using
+  # a proxy between AI Bridge and an upstream AI provider. This will send
+  # X-Ai-Bridge-Actor-Id (the ID of the user making the request) and
+  # X-Ai-Bridge-Actor-Metadata-Username (their username).
+  # (default: false, type: bool)
+  send_actor_headers: false
   # Enable the circuit breaker to protect against cascading failures from upstream
   # AI provider rate limits (429, 503, 529 overloaded).
   # (default: false, type: bool)
@@ -813,13 +822,16 @@ aibridgeproxy:
   # Path to the CA private key file for AI Bridge Proxy.
   # (default: <unset>, type: string)
   key_file: ""
-  # Comma-separated list of domains for which HTTPS traffic will be decrypted and
-  # routed through AI Bridge. Requests to other domains will be tunneled directly
-  # without decryption.
-  # (default: api.anthropic.com,api.openai.com, type: string-array)
+  # Comma-separated list of AI provider domains for which HTTPS traffic will be
+  # decrypted and routed through AI Bridge. Requests to other domains will be
+  # tunneled directly without decryption. Supported domains: api.anthropic.com,
+  # api.openai.com, api.individual.githubcopilot.com.
+  # (default: api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,
+  # type: string-array)
   domain_allowlist:
     - api.anthropic.com
     - api.openai.com
+    - api.individual.githubcopilot.com
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
   # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
   # (default: <unset>, type: string)

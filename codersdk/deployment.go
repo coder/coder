@@ -57,6 +57,111 @@ func (e Entitlement) Weight() int {
 	}
 }
 
+// Addon represents a grouping of features used for additional license SKUs.
+// It is complementary to FeatureSet and similar in implementation, allowing
+// features to be grouped together dynamically. Unlike FeatureSet, licenses
+// can have multiple addons. This also means that entitlements don't require
+// reissuing when new features are added to an addon.
+type Addon string
+
+const (
+	AddonAIGovernance Addon = "ai_governance"
+)
+
+var (
+	// AddonsNames must be kept in-sync with the Addon enum above.
+	AddonsNames = []Addon{
+		AddonAIGovernance,
+	}
+
+	// AddonsMap is a map of all addon names for quick lookups.
+	AddonsMap = func() map[Addon]struct{} {
+		addonsMap := make(map[Addon]struct{}, len(AddonsNames))
+		for _, addon := range AddonsNames {
+			addonsMap[addon] = struct{}{}
+		}
+		return addonsMap
+	}()
+)
+
+// Features returns all the features that are part of the addon.
+func (a Addon) Features() []FeatureName {
+	switch a {
+	case AddonAIGovernance:
+		// Return all AI governance features.
+		var features []FeatureName
+		for _, featureName := range FeatureNames {
+			if featureName.IsAIGovernanceAddon() {
+				features = append(features, featureName)
+			}
+		}
+		return features
+	default:
+		return nil
+	}
+}
+
+// ValidateDependencies validates the dependencies of the addon
+// and returns a list of errors for the missing dependencies.
+func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
+	errors := []string{}
+
+	// Candidate for a switch statement once we have more addons.
+	if a == AddonAIGovernance {
+		requiredFeatures := []FeatureName{
+			FeatureAIGovernanceUserLimit,
+		}
+
+		for _, featureName := range requiredFeatures {
+			feature, ok := features[featureName]
+			if !ok {
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						featureName.Humanize(),
+						a.Humanize(),
+					),
+				)
+				continue
+			}
+			// For limit features, check if the Limit is set (not nil).
+			// For usage period features, check if the Limit is set.
+			if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
+				if feature.Limit == nil {
+					errors = append(errors,
+						fmt.Sprintf(
+							"Feature %s must be set when using the %s addon.",
+							featureName.Humanize(),
+							a.Humanize(),
+						),
+					)
+				}
+			} else if feature.Entitlement == EntitlementNotEntitled {
+				// For non-limit features, check if the feature is entitled.
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						featureName.Humanize(),
+						a.Humanize(),
+					),
+				)
+			}
+		}
+	}
+
+	return errors
+}
+
+// Humanize returns the addon name in a human-readable format.
+func (a Addon) Humanize() string {
+	switch a {
+	case AddonAIGovernance:
+		return "AI Governance"
+	default:
+		return strings.Title(strings.ReplaceAll(string(a), "_", " "))
+	}
+}
+
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
@@ -91,6 +196,7 @@ const (
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
 	FeatureBoundary               FeatureName = "boundary"
+	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 )
 
 var (
@@ -121,6 +227,7 @@ var (
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
 		FeatureBoundary,
+		FeatureAIGovernanceUserLimit,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -142,6 +249,8 @@ func (n FeatureName) Humanize() string {
 		return "SCIM"
 	case FeatureAIBridge:
 		return "AI Bridge"
+	case FeatureAIGovernanceUserLimit:
+		return "AI Governance User Limit"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -184,8 +293,9 @@ func (n FeatureName) Enterprise() bool {
 // be included in any feature sets (as they are not boolean features).
 func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
-		FeatureUserLimit:         true,
-		FeatureManagedAgentLimit: true,
+		FeatureUserLimit:             true,
+		FeatureManagedAgentLimit:     true,
+		FeatureAIGovernanceUserLimit: true,
 	}[n]
 }
 
@@ -194,6 +304,20 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	return map[FeatureName]bool{
 		FeatureManagedAgentLimit: true,
 	}[n]
+}
+
+// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+func (n FeatureName) IsAIGovernanceAddon() bool {
+	return n == FeatureAIBridge || n == FeatureBoundary
+}
+
+// IsAddon returns true if the feature is an addon feature.
+func (n FeatureName) IsAddonFeature() bool {
+	features := []FeatureName{}
+	for addon := range AddonsMap {
+		features = append(features, addon.Features()...)
+	}
+	return slices.Contains(features, n)
 }
 
 // FeatureSet represents a grouping of features. Rather than manually
@@ -220,6 +344,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
+			// TODO: In future release, restore the f.IsAddonFeature() check.
 			return !f.Enterprise() || f.UsesLimit()
 		})
 
@@ -229,6 +354,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
+			// TODO: In future release, restore the f.IsAddonFeature() check.
 			return f.UsesLimit()
 		})
 		// FeatureSetPremium is just all features.
@@ -2969,13 +3095,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "webTerminalRenderer",
 		},
 		{
-			Name:        "Allow Workspace Renames",
-			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.",
-			Flag:        "allow-workspace-renames",
-			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
-			Default:     "false",
-			Value:       &c.AllowWorkspaceRenames,
-			YAML:        "allowWorkspaceRenames",
+			Name: "Allow Workspace Renames",
+			Description: "Allow users to rename their workspaces. " +
+				"WARNING: Renaming a workspace can cause Terraform resources that depend on the " +
+				"workspace name to be destroyed and recreated, potentially causing data loss. " +
+				"Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.",
+			Flag:    "allow-workspace-renames",
+			Env:     "CODER_ALLOW_WORKSPACE_RENAMES",
+			Default: "false",
+			Value:   &c.AllowWorkspaceRenames,
+			YAML:    "allowWorkspaceRenames",
 		},
 		// Healthcheck Options
 		{
@@ -3510,6 +3639,18 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "structuredLogging",
 		},
 		{
+			Name: "AI Bridge Send Actor Headers",
+			Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
+				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. " +
+				"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+			Flag:    "aibridge-send-actor-headers",
+			Env:     "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
+			Value:   &c.AI.BridgeConfig.SendActorHeaders,
+			Default: "false",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "send_actor_headers",
+		},
+		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
 			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
 			Flag:        "aibridge-circuit-breaker-enabled",
@@ -3619,11 +3760,11 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption.",
+			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption. Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com.",
 			Flag:        "aibridge-proxy-domain-allowlist",
 			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
 			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default:     "api.anthropic.com,api.openai.com",
+			Default:     "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com",
 			Hidden:      true,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "domain_allowlist",
@@ -3722,6 +3863,7 @@ type AIBridgeConfig struct {
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool            `json:"send_actor_headers" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`

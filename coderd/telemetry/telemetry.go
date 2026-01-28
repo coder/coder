@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -759,6 +760,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot.AIBridgeInterceptionsSummaries = summaries
 		return nil
 	})
+	eg.Go(func() error {
+		summary, err := r.collectBoundaryUsageSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("collect boundary usage summary: %w", err)
+		}
+		// Only send a summary if there was actual usage.
+		if summary != nil && summary.UniqueUsers > 0 {
+			snapshot.BoundaryUsageSummary = summary
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -835,6 +847,51 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 	}
 
 	return summaries, eg.Wait()
+}
+
+// collectBoundaryUsageSummary collects boundary usage statistics from all
+// replicas and resets the stats for the next telemetry period. Returns nil if
+// another replica has already collected for this period.
+func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*BoundaryUsageSummary, error) {
+	// Use twice the snapshot frequency as the staleness limit to ensure we
+	// capture data from replicas that may have slightly different flush times.
+	maxStaleness := r.options.SnapshotFrequency * 2
+	//nolint:gocritic // This is the actual collection of boundary usage tracking.
+	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
+
+	// Claim the telemetry lock for this period. Use snapshot frequency so each
+	// telemetry snapshot period gets exactly one collection.
+	now := dbtime.Time(r.options.Clock.Now()).UTC()
+	periodEndingAt := now.Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "boundary_usage_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "boundary usage telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // This is simple to handle when dealing with telemetry.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert boundary usage telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	summary, err := r.options.Database.GetBoundaryUsageSummary(boundaryCtx, maxStaleness.Milliseconds())
+	if err != nil {
+		return nil, xerrors.Errorf("get boundary usage summary: %w", err)
+	}
+
+	// Reset stats after capturing the summary. This deletes all rows so each
+	// replica will detect a new period on their next flush.
+	if err := r.options.Database.ResetBoundaryUsageStats(boundaryCtx); err != nil {
+		return nil, xerrors.Errorf("reset boundary usage stats: %w", err)
+	}
+
+	return &BoundaryUsageSummary{
+		UniqueWorkspaces: summary.UniqueWorkspaces,
+		UniqueUsers:      summary.UniqueUsers,
+		AllowedRequests:  summary.AllowedRequests,
+		DeniedRequests:   summary.DeniedRequests,
+	}, nil
 }
 
 // ConvertAPIKey anonymizes an API key.
@@ -1309,6 +1366,7 @@ type Snapshot struct {
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
+	BoundaryUsageSummary                 *BoundaryUsageSummary                 `json:"boundary_usage_summary"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1993,6 +2051,15 @@ type AIBridgeInterceptionsSummary struct {
 
 	ToolCallsCount             AIBridgeInterceptionsSummaryToolCallsCount `json:"tool_calls_count"`
 	InjectedToolCallErrorCount int64                                      `json:"injected_tool_call_error_count"`
+}
+
+// BoundaryUsageSummary contains aggregated boundary usage statistics across all
+// replicas for the telemetry period.
+type BoundaryUsageSummary struct {
+	UniqueWorkspaces int64 `json:"unique_workspaces"`
+	UniqueUsers      int64 `json:"unique_users"`
+	AllowedRequests  int64 `json:"allowed_requests"`
+	DeniedRequests   int64 `json:"denied_requests"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {
