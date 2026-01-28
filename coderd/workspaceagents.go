@@ -534,6 +534,7 @@ func (api *API) enqueueAITaskStateNotification(
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
 // @Param no_compression query bool false "Disable compression for WebSocket connection"
+// @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.WorkspaceAgentLog
 // @Router /workspaceagents/{workspaceagent}/logs [get]
 func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
@@ -545,7 +546,29 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		follow        = r.URL.Query().Has("follow")
 		afterRaw      = r.URL.Query().Get("after")
 		noCompression = r.URL.Query().Has("no_compression")
+		format        = r.URL.Query().Get("format")
 	)
+
+	// Validate format parameter.
+	if format == "" {
+		format = "json"
+	}
+	if format != "json" && format != "text" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid format parameter.",
+			Detail:  "Allowed values are \"json\" and \"text\".",
+		})
+		return
+	}
+
+	// Text format is not supported with streaming.
+	if format == "text" && follow {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Text format is not supported with follow mode.",
+			Detail:  "Use format=json or omit the follow parameter.",
+		})
+		return
+	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -582,6 +605,12 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if !follow {
+		if format == "text" {
+			rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			rw.WriteHeader(http.StatusOK)
+			_, _ = rw.Write([]byte(FormatWorkspaceAgentLogsAsText(logs)))
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentLogs(logs))
 		return
 	}
