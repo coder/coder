@@ -127,6 +127,17 @@ export const PaywallFeatures: FC<React.ComponentProps<"ul">> = ({
 	className,
 	...props
 }) => {
+	const defaultFeatures: Array<{
+		text: string;
+		link?: { href: string; text: string };
+	}> = [
+		{ text: "High availability & workspace proxies" },
+		{ text: "Multi-org & role-based access control" },
+		{ text: "24x7 global support with SLA" },
+		{ text: "Unlimited Git & external auth integrations" },
+	];
+
+	const displayFeatures = features ?? defaultFeatures;
 	return (
 		<ul
 			className={cn("list-none m-0 px-6 text-sm font-medium", className)}
