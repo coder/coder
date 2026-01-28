@@ -719,6 +719,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 				Action:            WorkspaceCreate,
 				TemplateVersionID: tpl.ActiveVersionID,
 				NewWorkspaceName:  "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+				Owner:             codersdk.Me,
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
@@ -1065,6 +1066,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
 				TemplateVersionID: tpl.ActiveVersionID,
+				Owner:             codersdk.Me,
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
@@ -1786,6 +1788,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
 				TemplateVersionID: tpl.ActiveVersionID,
+				Owner:             codersdk.Me,
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,

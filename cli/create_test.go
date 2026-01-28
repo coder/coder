@@ -24,6 +24,159 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestCreateDynamic(t *testing.T) {
+	t.Parallel()
+
+	// Terraform template with conditional parameters.
+	// The "region" parameter only appears when "enable_region" is true.
+	const conditionalParamTF = `
+		terraform {
+		  required_providers {
+		    coder = {
+		      source = "coder/coder"
+		    }
+		  }
+		}
+		data "coder_workspace_owner" "me" {}
+		data "coder_parameter" "enable_region" {
+		  name         = "enable_region"
+		  order        = 1
+		  type         = "bool"
+		  default      = "false"
+		}
+		data "coder_parameter" "region" {
+		  name         = "region"
+		  count        = data.coder_parameter.enable_region.value == "true" ? 1 : 0
+		  order        = 2
+		  type         = "string"
+		  # No default - this makes it required when it appears
+		}
+	`
+
+	// Test conditional parameters: a parameter that only appears when another
+	// parameter has a certain value.
+	t.Run("ConditionalParam", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, owner)
+		member, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: conditionalParamTF,
+		})
+
+		// Test 1: Create without enabling region - region param should not exist
+		args := []string{
+			"create", "ws-no-region",
+			"--template", template.Name,
+			"--parameter", "enable_region=false",
+			"-y",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		pty.ExpectMatch("has been created")
+
+		err := <-doneChan
+		require.NoError(t, err)
+
+		// Verify workspace created with only enable_region parameter
+		ws, err := member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-no-region", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err := member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1, "expected only enable_region parameter when enable_region=false")
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "enable_region", Value: "false"})
+
+		// Test 2: Create with region enabled - region param should exist
+		args = []string{
+			"create", "ws-with-region",
+			"--template", template.Name,
+			"--parameter", "enable_region=true",
+			"--parameter", "region=us-east",
+			"-y",
+		}
+		inv, root = clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		pty = ptytest.New(t).Attach(inv)
+
+		doneChan = make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		pty.ExpectMatch("has been created")
+
+		err = <-doneChan
+		require.NoError(t, err)
+
+		// Verify workspace created with both parameters
+		ws, err = member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-with-region", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err = member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 2, "expected both enable_region and region parameters when enable_region=true")
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "enable_region", Value: "true"})
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "us-east"})
+	})
+
+	// Test that the CLI prompts for missing conditional parameters.
+	// When enable_region=true, the region parameter becomes required and CLI should prompt.
+	t.Run("PromptForConditionalParam", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, owner)
+		member, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: conditionalParamTF,
+		})
+
+		// Only provide enable_region=true, don't provide region - CLI should prompt for it
+		args := []string{
+			"create", "ws-prompted",
+			"--template", template.Name,
+			"--parameter", "enable_region=true",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		// CLI should prompt for the region parameter since enable_region=true
+		pty.ExpectMatch("region")
+		pty.WriteLine("eu-west")
+
+		// Confirm creation
+		pty.ExpectMatch("Confirm create?")
+		pty.WriteLine("yes")
+
+		pty.ExpectMatch("has been created")
+
+		err := <-doneChan
+		require.NoError(t, err)
+
+		// Verify workspace created with both parameters
+		ws, err := member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-prompted", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err := member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 2, "expected both enable_region and region parameters")
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "enable_region", Value: "true"})
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "eu-west"})
+	})
+}
+
 func TestCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
