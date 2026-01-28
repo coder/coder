@@ -29,6 +29,28 @@ func TestAddMember(t *testing.T) {
 		// nolint:gocritic // must be an owner to see the user
 		_, err := owner.PostOrganizationMember(ctx, first.OrganizationID, user.Username)
 		require.ErrorContains(t, err, "already an organization member")
+
+		org, err := owner.Organization(ctx, first.OrganizationID)
+		require.NoError(t, err)
+
+		member, err := owner.OrganizationMember(ctx, org.Name, user.Username)
+		require.NoError(t, err)
+		require.Equal(t, member.UserID, user.ID)
+	})
+}
+
+func TestGetMember(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Me", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		member, err := owner.OrganizationMember(ctx, first.OrganizationID.String(), codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, member.UserID, first.UserID)
 	})
 }
 
