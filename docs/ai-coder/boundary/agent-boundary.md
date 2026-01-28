@@ -21,6 +21,9 @@ The easiest way to use Agent Boundaries is through existing Coder modules, such 
 
 ## Configuration
 
+> [!NOTE]
+> For information about version requirements and compatibility, see the [Version Requirements](./version.md) documentation.
+
 Boundary is configured using a `config.yaml` file. This allows you to maintain allow lists and share detailed policies with teammates.
 
 In your Terraform module, enable Boundary with minimal configuration:
@@ -28,9 +31,8 @@ In your Terraform module, enable Boundary with minimal configuration:
 ```tf
 module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.3.0"
+  version             = "4.7.0"
   enable_boundary     = true
-  boundary_version    = "v0.5.2"
 }
 ```
 
@@ -118,7 +120,7 @@ The choice of jail type depends on your security requirements, available Linux c
 
 Agent Boundaries stream audit logs to the Coder control plane, providing centralized
 visibility into HTTP requests made within workspaces—whether from AI agents or ad-hoc
-commands run with `boundary-run`.
+commands run with `boundary`.
 
 Audit logs are independent of application logs:
 

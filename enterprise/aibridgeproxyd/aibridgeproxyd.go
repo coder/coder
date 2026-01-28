@@ -32,6 +32,7 @@ import (
 const (
 	HostAnthropic = "api.anthropic.com"
 	HostOpenAI    = "api.openai.com"
+	HostCopilot   = "api.individual.githubcopilot.com"
 )
 
 const (
@@ -543,6 +544,8 @@ func defaultAIBridgeProvider(host string) string {
 		return aibridge.ProviderAnthropic
 	case HostOpenAI:
 		return aibridge.ProviderOpenAI
+	case HostCopilot:
+		return aibridge.ProviderCopilot
 	default:
 		return ""
 	}

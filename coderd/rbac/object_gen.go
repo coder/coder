@@ -63,6 +63,15 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceBoundaryUsage
+	// Valid Actions
+	//  - "ActionDelete" :: delete boundary usage statistics
+	//  - "ActionRead" :: read boundary usage statistics
+	//  - "ActionUpdate" :: upsert boundary usage statistics
+	ResourceBoundaryUsage = Object{
+		Type: "boundary_usage",
+	}
+
 	// ResourceConnectionLog
 	// Valid Actions
 	//  - "ActionRead" :: read connection logs
@@ -417,6 +426,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceBoundaryUsage,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

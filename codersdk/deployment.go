@@ -3095,13 +3095,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "webTerminalRenderer",
 		},
 		{
-			Name:        "Allow Workspace Renames",
-			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.",
-			Flag:        "allow-workspace-renames",
-			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
-			Default:     "false",
-			Value:       &c.AllowWorkspaceRenames,
-			YAML:        "allowWorkspaceRenames",
+			Name: "Allow Workspace Renames",
+			Description: "Allow users to rename their workspaces. " +
+				"WARNING: Renaming a workspace can cause Terraform resources that depend on the " +
+				"workspace name to be destroyed and recreated, potentially causing data loss. " +
+				"Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.",
+			Flag:    "allow-workspace-renames",
+			Env:     "CODER_ALLOW_WORKSPACE_RENAMES",
+			Default: "false",
+			Value:   &c.AllowWorkspaceRenames,
+			YAML:    "allowWorkspaceRenames",
 		},
 		// Healthcheck Options
 		{
@@ -3757,11 +3760,11 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption.",
+			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption. Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com.",
 			Flag:        "aibridge-proxy-domain-allowlist",
 			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
 			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default:     "api.anthropic.com,api.openai.com",
+			Default:     "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com",
 			Hidden:      true,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "domain_allowlist",

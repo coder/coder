@@ -159,7 +159,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 					disabled={isLoading}
 					title="Available roles"
 				>
-					<div className="flex flex-col gap-4 p-6 w-96">
+					<div className="flex flex-col gap-4 p-6 w-full">
 						{filteredRoles.map((role) => (
 							<Option
 								key={role.name}
@@ -186,7 +186,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 						)}
 					</div>
 				</fieldset>
-				<div className="p-6 border-t-1 border-solid border-border text-sm">
+				<div className="p-6 border-0 border-t border-solid border-border text-sm">
 					<div className="flex gap-4">
 						<UserIcon />
 						<div className="flex flex-col">
