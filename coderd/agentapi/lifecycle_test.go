@@ -105,6 +105,12 @@ func TestUpdateLifecycle(t *testing.T) {
 				Valid: true,
 			},
 		}).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByAgentID(gomock.Any(), agentStarting.ID).Return(database.GetWorkspaceBuildMetricsByAgentIDRow{
+			CreatedAt:        someTime,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+		}, nil)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -147,6 +153,12 @@ func TestUpdateLifecycle(t *testing.T) {
 				Valid: true,
 			},
 		}).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByAgentID(gomock.Any(), agentCreated.ID).Return(database.GetWorkspaceBuildMetricsByAgentIDRow{
+			CreatedAt:        someTime,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+		}, nil)
 
 		publishCalled := false
 		api := &agentapi.LifecycleAPI{
@@ -194,6 +206,12 @@ func TestUpdateLifecycle(t *testing.T) {
 				Valid: true,
 			},
 		})
+		dbM.EXPECT().GetWorkspaceBuildMetricsByAgentID(gomock.Any(), agentCreated.ID).Return(database.GetWorkspaceBuildMetricsByAgentIDRow{
+			CreatedAt:        someTime,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+		}, nil)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -276,6 +294,16 @@ func TestUpdateLifecycle(t *testing.T) {
 				StartedAt:      expectedStartedAt,
 				ReadyAt:        expectedReadyAt,
 			}).Times(1).Return(nil)
+
+			// The first ready state triggers the build duration metric query.
+			if state == agentproto.Lifecycle_READY || state == agentproto.Lifecycle_START_TIMEOUT || state == agentproto.Lifecycle_START_ERROR {
+				dbM.EXPECT().GetWorkspaceBuildMetricsByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceBuildMetricsByAgentIDRow{
+					CreatedAt:        someTime,
+					Transition:       database.WorkspaceTransitionStart,
+					TemplateName:     "test-template",
+					OrganizationName: "test-org",
+				}, nil).MaxTimes(1)
+			}
 
 			resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
 				Lifecycle: lifecycle,
