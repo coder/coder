@@ -2932,7 +2932,7 @@ func TestCompleteJob(t *testing.T) {
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusInitializing,
 					expectHasAiTask:  false,
-					expectUsageEvent: false,
+					expectUsageEvent: true,
 				},
 				{
 					name:       "has_ai_task is set to true, but transition is not start",

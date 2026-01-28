@@ -974,7 +974,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 var _ wsbuilder.UsageChecker = &API{}
 
-func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
 	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
@@ -987,7 +987,7 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 		}
 	}
 
-	resp, err := api.checkAIBuildUsage(ctx, store, templateVersion, transition)
+	resp, err := api.checkAIBuildUsage(ctx, store, task, transition)
 	if err != nil {
 		return wsbuilder.UsageCheckResponse{}, err
 	}
@@ -1000,14 +1000,14 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 
 // checkAIBuildUsage validates AI-related usage constraints. It is a no-op
 // unless the transition is "start" and the template version has an AI task.
-func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 	// Only check AI usage rules for start transitions.
 	if transition != database.WorkspaceTransitionStart {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
 
 	// If the template version doesn't have an AI task, we don't need to check usage.
-	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
+	if task == nil {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
 
