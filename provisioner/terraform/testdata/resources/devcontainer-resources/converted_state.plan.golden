@@ -1,0 +1,68 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "devcontainers": [
+            {
+              "workspace_folder": "/workspace",
+              "name": "dev",
+              "apps": [
+                {
+                  "slug": "devcontainer-app",
+                  "display_name": "devcontainer-app",
+                  "open_in": 1,
+                  "id": "a917a82a-fc11-9d2e-5431-cdbb8925e507"
+                }
+              ],
+              "scripts": [
+                {
+                  "display_name": "Devcontainer Script",
+                  "script": "echo devcontainer",
+                  "run_on_start": true
+                }
+              ],
+              "envs": [
+                {
+                  "name": "DEVCONTAINER_ENV",
+                  "value": "devcontainer-value"
+                }
+              ]
+            }
+          ],
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "devcontainer-env",
+      "type": "coder_env"
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}
