@@ -116,7 +116,10 @@ export const PaywallStack: FC<React.ComponentProps<"div">> = ({
 	...props
 }) => {
 	return (
-		<div className={cn("flex flex-col gap-6", className)} {...props}>
+		<div
+			className={cn("flex flex-col items-start gap-6", className)}
+			{...props}
+		>
 			{children}
 		</div>
 	);
@@ -159,13 +162,17 @@ export const PaywallCTA: FC<React.ComponentProps<"a">> = ({
 	...props
 }) => {
 	return (
-		<div className="px-7">
-			<Button asChild>
-				<a href={href} target={target} rel={rel} {...props}>
-					{children}
-				</a>
-			</Button>
-		</div>
+		<Button asChild>
+			<a
+				href={href}
+				target={target}
+				rel={rel}
+				className={cn("mx-7", className)}
+				{...props}
+			>
+				{children}
+			</a>
+		</Button>
 	);
 };
 
