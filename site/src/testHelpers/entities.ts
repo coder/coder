@@ -5172,6 +5172,37 @@ export const MockDisplayNameTasks = [
 	},
 ] satisfies TypesGen.Task[];
 
+export const MockTaskLogs: TypesGen.TaskLogsResponse = {
+	logs: [
+		{
+			id: 1,
+			content: "What's the latest GH issue?",
+			type: "input",
+			time: "2024-01-01T12:00:00Z",
+		},
+		{
+			id: 2,
+			content:
+				"I'll fetch that for you...\nThe latest issue is #21309: Feature: Improve database migration handling.",
+			type: "output",
+			time: "2024-01-01T12:00:05Z",
+		},
+		{
+			id: 3,
+			content: "Can you summarize the discussion?",
+			type: "input",
+			time: "2024-01-01T12:00:30Z",
+		},
+		{
+			id: 4,
+			content:
+				"The discussion focuses on optimizing migration performance for large tables.",
+			type: "output",
+			time: "2024-01-01T12:00:35Z",
+		},
+	],
+};
+
 export const MockInterception: TypesGen.AIBridgeInterception = {
 	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
 	initiator: {

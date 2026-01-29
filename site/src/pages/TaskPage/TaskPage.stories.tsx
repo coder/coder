@@ -5,6 +5,7 @@ import {
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
 	MockTask,
+	MockTaskLogs,
 	MockTasks,
 	MockUserOwner,
 	MockWorkspace,
@@ -149,6 +150,7 @@ export const FailedBuild: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockFailedWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogs);
 	},
 };
 
@@ -158,6 +160,7 @@ export const TerminatedBuild: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogs);
 	},
 };
 
@@ -168,6 +171,37 @@ export const TerminatedBuildWithStatus: Story = {
 			...MockStoppedWorkspace,
 			latest_app_status: MockWorkspaceAppStatus,
 		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogs);
+	},
+};
+
+export const TerminatedBuildEmptyLogs: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({ logs: [] });
+	},
+};
+
+export const TerminatedBuildLogsError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockRejectedValue(new Error("Failed to fetch"));
+	},
+};
+
+export const FailedBuildEmptyLogs: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockFailedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({ logs: [] });
 	},
 };
 
@@ -177,6 +211,8 @@ export const DeletedWorkspace: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockDeletedWorkspace,
 		);
+		// No log snapshot shown for deleted workspaces, but mock anyway
+		spyOn(API, "getTaskLogs").mockResolvedValue({ logs: [] });
 	},
 };
 
@@ -405,6 +441,9 @@ export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
 
 export const OutdatedWorkspace: Story = {
 	// Given: an 'outdated' workspace (that is, the latest build does not use template's active version)
+	beforeEach: () => {
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogs);
+	},
 	parameters: {
 		queries: [
 			{
@@ -497,6 +536,7 @@ export const WorkspaceStarting: Story = {
 		spyOn(API, "startWorkspace").mockResolvedValue(
 			MockStartingWorkspace.latest_build,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogs);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -514,10 +554,10 @@ export const WorkspaceStarting: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const restartButton = await canvas.findByText("Restart");
+		expect(restartButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(restartButton);
 
 		await waitFor(async () => {
 			expect(API.startWorkspace).toBeCalled();
@@ -535,6 +575,7 @@ export const WorkspaceStartFailure: Story = {
 		spyOn(API, "startWorkspace").mockRejectedValue(
 			new Error("Some unexpected error"),
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogs);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -552,10 +593,10 @@ export const WorkspaceStartFailure: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const restartButton = await canvas.findByText("Restart");
+		expect(restartButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(restartButton);
 
 		await waitFor(async () => {
 			const errorMessage = await canvas.findByText("Some unexpected error");
@@ -577,6 +618,7 @@ export const WorkspaceStartFailureWithDialog: Story = {
 			}),
 			code: "ERR_BAD_REQUEST",
 		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogs);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -594,10 +636,10 @@ export const WorkspaceStartFailureWithDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const restartButton = await canvas.findByText("Restart");
+		expect(restartButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(restartButton);
 
 		await waitFor(async () => {
 			const body = within(canvasElement.ownerDocument.body);
