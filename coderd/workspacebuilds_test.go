@@ -1092,6 +1092,83 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	require.Fail(t, "example message never happened")
 }
 
+func TestWorkspaceBuildLogsFormat(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Log{
+				Log: &proto.Log{
+					Level:  proto.LogLevel_INFO,
+					Output: "test log output",
+				},
+			},
+		}, {
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
+					Resources: []*proto.Resource{{
+						Name: "some",
+						Type: "example",
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Default format should return JSON.
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", workspace.LatestBuild.ID),
+			nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Contains(t, res.Header.Get("Content-Type"), "application/json")
+	})
+
+	t.Run("Text", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/workspacebuilds/%s/logs?format=text", workspace.LatestBuild.ID),
+			nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Contains(t, res.Header.Get("Content-Type"), "text/plain")
+	})
+
+	t.Run("InvalidFormat", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/workspacebuilds/%s/logs?format=invalid", workspace.LatestBuild.ID),
+			nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("TextWithFollowFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/workspacebuilds/%s/logs?format=text&follow", workspace.LatestBuild.ID),
+			nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+}
+
 func TestWorkspaceBuildState(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
