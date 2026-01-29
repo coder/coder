@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,8 +28,9 @@ func TestGetModulesArchive(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
-		archive, err := GetModulesArchive(os.DirFS(filepath.Join("testdata", "modules-source-caching")))
+		archive, skipped, err := GetModulesArchive(os.DirFS(filepath.Join("testdata", "modules-source-caching")))
 		require.NoError(t, err)
+		require.Len(t, skipped, 0)
 
 		// Check that all of the files it should contain are correct
 		b := bytes.NewBuffer(archive)
@@ -70,8 +73,70 @@ func TestGetModulesArchive(t *testing.T) {
 		root := afero.NewMemMapFs()
 		afero.WriteFile(root, ".terraform/modules/modules.json", []byte(`{"Modules":[{"Key":"","Source":"","Dir":"."}]}`), 0o644)
 
-		archive, err := GetModulesArchive(afero.NewIOFS(root))
+		archive, skipped, err := GetModulesArchive(afero.NewIOFS(root))
 		require.NoError(t, err)
+		require.Len(t, skipped, 0)
 		require.Equal(t, []byte{}, archive)
 	})
+
+	t.Run("ModulesTooLarge", func(t *testing.T) {
+		t.Parallel()
+
+		memFS := moduleArchiveFS(t, map[string]moduleDef{
+			"small": {
+				payload: []byte("small module content"),
+			},
+			"large": {
+				payload: bytes.Repeat([]byte("A"), 10000),
+			},
+		})
+		archive, skipped, err := GetModulesArchiveWithLimit(memFS, 5000)
+		require.NoError(t, err)
+		require.Len(t, skipped, 1)
+		require.Equal(t, skipped[0], "large:large")
+
+		fmt.Println(archive)
+	})
+}
+
+type moduleDef struct {
+	payload []byte
+}
+
+func moduleArchiveFS(t *testing.T, defs map[string]moduleDef) fs.FS {
+	memFS := afero.NewMemMapFs()
+	modRoot := ".terraform/modules"
+	err := memFS.MkdirAll(modRoot, 0o755)
+	require.NoError(t, err)
+
+	mods := []*module{}
+	for name, def := range defs {
+		modDir := filepath.Join(modRoot, name)
+		err = memFS.Mkdir(modDir, 0o755)
+		require.NoError(t, err)
+
+		f, err := memFS.Create(filepath.Join(modDir, "payload"))
+		require.NoError(t, err)
+		_, err = f.Write(def.payload)
+		require.NoError(t, err)
+		f.Close()
+
+		mods = append(mods, &module{
+			Source:  name,
+			Version: "v0.1.0",
+			Key:     name,
+			Dir:     modDir,
+		})
+	}
+
+	data, _ := json.Marshal(modulesFile{
+		Modules: mods,
+	})
+	jm, err := memFS.Create(filepath.Join(modRoot, "modules.json"))
+	require.NoError(t, err)
+	_, err = jm.Write(data)
+	require.NoError(t, err)
+	jm.Close()
+
+	return afero.NewIOFS(memFS)
 }
