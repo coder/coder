@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -39,13 +41,16 @@ import (
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 
+	agplcoderd "github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -621,7 +626,7 @@ func TestManagedAgentLimit(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	cli, _ := coderdenttest.New(t, &coderdenttest.Options{
+	cli, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
@@ -635,18 +640,18 @@ func TestManagedAgentLimit(t *testing.T) {
 	})
 
 	// Get entitlements to check that the license is a-ok.
-	entitlements, err := cli.Entitlements(ctx) //nolint:gocritic // we're not testing authz on the entitlements endpoint, so using owner is fine
+	sdkEntitlements, err := cli.Entitlements(ctx) //nolint:gocritic // we're not testing authz on the entitlements endpoint, so using owner is fine
 	require.NoError(t, err)
-	require.True(t, entitlements.HasLicense)
-	agentLimit := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+	require.True(t, sdkEntitlements.HasLicense)
+	agentLimit := sdkEntitlements.Features[codersdk.FeatureManagedAgentLimit]
 	require.True(t, agentLimit.Enabled)
 	require.NotNil(t, agentLimit.Limit)
 	require.EqualValues(t, 1, *agentLimit.Limit)
 	require.NotNil(t, agentLimit.SoftLimit)
 	require.EqualValues(t, 1, *agentLimit.SoftLimit)
-	require.Empty(t, entitlements.Errors)
+	require.Empty(t, sdkEntitlements.Errors)
 	// There should be a warning since we're really close to our agent limit.
-	require.Equal(t, entitlements.Warnings[0], "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
+	require.Equal(t, sdkEntitlements.Warnings[0], "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
 
 	// Create a fake provision response that claims there are agents in the
 	// template and every built workspace.
@@ -706,21 +711,98 @@ func TestManagedAgentLimit(t *testing.T) {
 	noAiTemplate := coderdtest.CreateTemplate(t, cli, uuid.Nil, noAiVersion.ID)
 
 	// Create one AI workspace, which should succeed.
-	workspace := coderdtest.CreateWorkspace(t, cli, aiTemplate.ID)
+	task, err := cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
+		Name:                    "workspace-1",
+		TemplateVersionID:       aiTemplate.ActiveVersionID,
+		TemplateVersionPresetID: uuid.Nil,
+		Input:                   "hi",
+		DisplayName:             "cool task 1",
+	})
+	require.NoError(t, err, "creating task for AI workspace must succeed")
+	workspace, err := cli.Workspace(ctx, task.WorkspaceID.UUID)
+	require.NoError(t, err, "fetching AI workspace must succeed")
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 
-	// Create a second AI workspace, which should fail. This needs to be done
-	// manually because coderdtest.CreateWorkspace expects it to succeed.
-	_, err = cli.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{ //nolint:gocritic // owners must still be subject to the limit
-		TemplateID:       aiTemplate.ID,
-		Name:             coderdtest.RandomUsername(t),
-		AutomaticUpdates: codersdk.AutomaticUpdatesNever,
+	// Create a second AI workspace, which should fail.
+	_, err = cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
+		Name:                    "workspace-2",
+		TemplateVersionID:       aiTemplate.ActiveVersionID,
+		TemplateVersionPresetID: uuid.Nil,
+		Input:                   "hi",
+		DisplayName:             "bad task 2",
 	})
 	require.ErrorContains(t, err, "You have breached the managed agent limit in your license")
 
 	// Create a third non-AI workspace, which should succeed.
 	workspace = coderdtest.CreateWorkspace(t, cli, noAiTemplate.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
+}
+
+func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Prepare entitlements with a managed agent limit to enforce.
+	entSet := entitlements.New()
+	entSet.Modify(func(e *codersdk.Entitlements) {
+		e.HasLicense = true
+		limit := int64(1)
+		issuedAt := time.Now().Add(-2 * time.Hour)
+		start := time.Now().Add(-time.Hour)
+		end := time.Now().Add(time.Hour)
+		e.Features[codersdk.FeatureManagedAgentLimit] = codersdk.Feature{
+			Enabled:     true,
+			Limit:       &limit,
+			UsagePeriod: &codersdk.UsagePeriod{IssuedAt: issuedAt, Start: start, End: end},
+		}
+	})
+
+	// Enterprise API instance with entitlements injected.
+	agpl := &agplcoderd.API{
+		Options: &agplcoderd.Options{
+			Entitlements: entSet,
+		},
+	}
+	eapi := &coderd.API{
+		AGPL:    agpl,
+		Options: &coderd.Options{Options: agpl.Options},
+	}
+
+	// Template version that has an AI task.
+	tv := &database.TemplateVersion{
+		HasAITask:        sql.NullBool{Valid: true, Bool: true},
+		HasExternalAgent: sql.NullBool{Valid: true, Bool: false},
+	}
+
+	task := &database.Task{
+		TemplateVersionID: tv.ID,
+	}
+
+	// Mock DB: expect exactly one count call for the "start" transition.
+	mDB := dbmock.NewMockStore(ctrl)
+	mDB.EXPECT().
+		GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+		Times(1).
+		Return(int64(1), nil) // equal to limit -> should breach
+
+	ctx := context.Background()
+
+	// Start transition: should be not permitted due to limit breach.
+	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
+	require.NoError(t, err)
+	require.False(t, startResp.Permitted)
+	require.Contains(t, startResp.Message, "breached the managed agent limit")
+
+	// Stop transition: should be permitted and must not trigger additional DB calls.
+	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStop)
+	require.NoError(t, err)
+	require.True(t, stopResp.Permitted)
+
+	// Delete transition: should be permitted and must not trigger additional DB calls.
+	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionDelete)
+	require.NoError(t, err)
+	require.True(t, deleteResp.Permitted)
 }
 
 // testDBAuthzRole returns a context with a subject that has a role
