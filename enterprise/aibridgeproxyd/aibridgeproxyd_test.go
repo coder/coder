@@ -103,7 +103,7 @@ func generateSharedTestCA() (certFile, keyFile string, err error) {
 
 type testProxyConfig struct {
 	listenAddr               string
-	coderAccessURL           string
+	aibridgeHandler          http.Handler
 	allowedPorts             []string
 	certStore                *aibridgeproxyd.CertCache
 	domainAllowlist          []string
@@ -120,9 +120,9 @@ func withAllowedPorts(ports ...string) testProxyOption {
 	}
 }
 
-func withCoderAccessURL(coderAccessURL string) testProxyOption {
+func withAIBridgeHandler(handler http.Handler) testProxyOption {
 	return func(cfg *testProxyConfig) {
-		cfg.coderAccessURL = coderAccessURL
+		cfg.aibridgeHandler = handler
 	}
 }
 
@@ -162,9 +162,14 @@ func withUpstreamProxyCA(upstreamProxyCA string) testProxyOption {
 func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server {
 	t.Helper()
 
+	// Create a default test handler that returns 200 OK.
+	defaultHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})
+
 	cfg := &testProxyConfig{
 		listenAddr:      "127.0.0.1:0",
-		coderAccessURL:  "http://localhost:3000",
+		aibridgeHandler: defaultHandler,
 		domainAllowlist: []string{"127.0.0.1", "localhost"},
 		aibridgeProviderFromHost: func(host string) string {
 			return "test-provider"
@@ -179,7 +184,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 
 	aibridgeOpts := aibridgeproxyd.Options{
 		ListenAddr:               cfg.listenAddr,
-		CoderAccessURL:           cfg.coderAccessURL,
+		AIBridgeHandler:          cfg.aibridgeHandler,
 		CertFile:                 certFile,
 		KeyFile:                  keyFile,
 		AllowedPorts:             cfg.allowedPorts,
@@ -319,6 +324,10 @@ func sendConnect(t *testing.T, proxyAddr, targetHost, proxyAuth string) *http.Re
 func TestNew(t *testing.T) {
 	t.Parallel()
 
+	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})
+
 	t.Run("MissingListenAddr", func(t *testing.T) {
 		t.Parallel()
 
@@ -326,7 +335,7 @@ func TestNew(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			CoderAccessURL:  "http://localhost:3000",
+			AIBridgeHandler: testHandler,
 			CertFile:        certFile,
 			KeyFile:         keyFile,
 			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
@@ -343,7 +352,7 @@ func TestNew(t *testing.T) {
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "",
-			CoderAccessURL:  "http://localhost:3000",
+			AIBridgeHandler: testHandler,
 			CertFile:        certFile,
 			KeyFile:         keyFile,
 			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
@@ -352,7 +361,7 @@ func TestNew(t *testing.T) {
 		require.Contains(t, err.Error(), "listen address is required")
 	})
 
-	t.Run("MissingCoderAccessURL", func(t *testing.T) {
+	t.Run("MissingAIBridgeHandler", func(t *testing.T) {
 		t.Parallel()
 
 		certFile, keyFile := getSharedTestCA(t)
@@ -365,7 +374,7 @@ func TestNew(t *testing.T) {
 			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "coder access URL is required")
+		require.Contains(t, err.Error(), "AIBridgeHandler is required")
 	})
 
 	t.Run("EmptyCoderAccessURL", func(t *testing.T) {

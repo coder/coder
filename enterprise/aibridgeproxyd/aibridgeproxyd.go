@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -54,6 +55,59 @@ var proxyAuthRequiredMsg = []byte(http.StatusText(http.StatusProxyAuthRequired))
 // to GoproxyCa. In production, only one server runs, so this has no impact.
 var loadMitmOnce sync.Once
 
+// pipeListener is a net.Listener that creates in-memory pipe connections on demand.
+// Used for serving HTTP handlers over in-memory pipes without network overhead.
+type pipeListener struct {
+	connCh chan net.Conn
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newPipeListener() *pipeListener {
+	return &pipeListener{
+		connCh: make(chan net.Conn),
+		closed: make(chan struct{}),
+	}
+}
+
+// Dial creates a new pipe connection and returns the client side.
+// The server side is sent to Accept() to be handled by the HTTP server.
+func (l *pipeListener) Dial() (net.Conn, error) {
+	clientConn, serverConn := net.Pipe()
+
+	select {
+	case l.connCh <- serverConn:
+		return clientConn, nil
+	case <-l.closed:
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+		return nil, net.ErrClosed
+	}
+}
+
+// Accept returns the next incoming connection (server side of pipe).
+func (l *pipeListener) Accept() (net.Conn, error) {
+	select {
+	case conn := <-l.connCh:
+		return conn, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+// Close closes the listener.
+func (l *pipeListener) Close() error {
+	l.once.Do(func() {
+		close(l.closed)
+	})
+	return nil
+}
+
+// Addr returns a dummy address.
+func (l *pipeListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+}
+
 // Server is the AI MITM (Man-in-the-Middle) proxy server.
 // It is responsible for:
 //   - intercepting HTTPS requests to AI providers
@@ -65,7 +119,8 @@ type Server struct {
 	proxy                    *goproxy.ProxyHttpServer
 	httpServer               *http.Server
 	listener                 net.Listener
-	coderAccessURL           *url.URL
+	aibridgeListener         *pipeListener
+	aibridgeHTTPServer       *http.Server
 	aibridgeProviderFromHost func(host string) string
 	// caCert is the PEM-encoded CA certificate loaded during initialization.
 	// This is served to clients who need to trust the proxy.
@@ -96,9 +151,9 @@ type requestContext struct {
 type Options struct {
 	// ListenAddr is the address the proxy server will listen on.
 	ListenAddr string
-	// CoderAccessURL is the URL of the Coder deployment where aibridged is running.
-	// Requests to supported AI providers are forwarded here.
-	CoderAccessURL string
+	// AIBridgeHandler is the HTTP handler for AI Bridge requests.
+	// Requests are routed directly to this handler via in-memory HTTP calls.
+	AIBridgeHandler http.Handler
 	// CertFile is the path to the CA certificate file used for MITM.
 	CertFile string
 	// KeyFile is the path to the CA private key file used for MITM.
@@ -135,12 +190,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.New("listen address is required")
 	}
 
-	if strings.TrimSpace(opts.CoderAccessURL) == "" {
-		return nil, xerrors.New("coder access URL is required")
-	}
-	coderAccessURL, err := url.Parse(opts.CoderAccessURL)
-	if err != nil {
-		return nil, xerrors.Errorf("invalid coder access URL %q: %w", opts.CoderAccessURL, err)
+	if opts.AIBridgeHandler == nil {
+		return nil, xerrors.New("AIBridgeHandler is required")
 	}
 
 	if opts.CertFile == "" || opts.KeyFile == "" {
@@ -193,33 +244,42 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	// Always set secure TLS defaults, overriding goproxy's default.
-	// This ensures secure TLS connections for:
-	// - HTTPS upstream proxy connections
-	// - MITM'd requests if aibridge uses HTTPS
+	// This ensures secure TLS connections for HTTPS upstream proxy connections.
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
 	}
 
+	// Create persistent in-memory server for aibridge requests.
+	// This server handles all aibridge requests via in-memory pipes.
+	aibridgeListener := newPipeListener()
+
+	// Configure transport with custom DialContext for in-memory aibridge routing.
+	// This transport is ONLY used for MITM'd requests to allowlisted domains.
+	// Non-allowlisted domains are tunneled via ConnectDial and never use this transport.
+	proxy.Tr = &http.Transport{
+		DialContext: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+			// Route requests to aibridge.internal through in-memory handler.
+			if strings.Contains(addr, "aibridge.internal") {
+				return aibridgeListener.Dial()
+			}
+
+			// If we reach here, something is wrong. Only MITM'd aibridge requests
+			// should use this transport. Non-allowlisted domains should be tunneled
+			// via ConnectDial (for HTTPS/CONNECT) and not reach this point.
+			// Direct HTTP requests (non-CONNECT) are not supported by aibridgeproxyd.
+			return nil, xerrors.Errorf("aibridgeproxyd does not support proxying requests to %s (only MITM'd AI provider requests are supported)", addr)
+		},
+	}
+
 	// Configure upstream proxy for tunneled (non-allowlisted) requests.
 	// This only affects CONNECT requests to domains not in the allowlist.
-	// MITM'd requests (allowlisted domains) are handled by aiproxy and forwarded
-	// to aibridge directly, not through the upstream proxy. AI Bridge respects
-	// proxy environment variables if set, so the upstream proxy is used at that
-	// layer instead.
+	// MITM'd requests (allowlisted domains) are handled by aibridge directly
+	// via in-memory handler, not through the upstream proxy.
 	if opts.UpstreamProxy != "" {
 		upstreamURL, err := url.Parse(opts.UpstreamProxy)
 		if err != nil {
 			return nil, xerrors.Errorf("invalid upstream proxy URL %q: %w", opts.UpstreamProxy, err)
-		}
-
-		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
-		// not through any upstream proxy.
-		proxy.Tr = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    rootCAs,
-			},
 		}
 
 		// Add custom CA certificate if provided (for corporate proxies with private CAs).
@@ -242,19 +302,36 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		}
 
 		// Configure tunneled CONNECT requests to go through upstream proxy.
-		// This only affects non-allowlisted domains; allowlisted domains are
-		// MITM'd and forwarded to aibridge.
 		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
+	} else {
+		// No upstream proxy - use direct dialing for tunneled CONNECT requests.
+		// This ensures tunneled requests don't go through proxy.Tr.
+		proxy.ConnectDial = func(network, addr string) (net.Conn, error) {
+			dialer := &net.Dialer{}
+			return dialer.Dial(network, addr)
+		}
 	}
 
 	srv := &Server{
 		ctx:                      ctx,
 		logger:                   logger,
 		proxy:                    proxy,
-		coderAccessURL:           coderAccessURL,
+		aibridgeListener:         aibridgeListener,
 		aibridgeProviderFromHost: aibridgeProviderFromHost,
 		caCert:                   certPEM,
 	}
+
+	// Start persistent HTTP server for aibridge requests.
+	// Wrap the handler with StripPrefix since it expects paths without /api/v2/aibridge.
+	srv.aibridgeHTTPServer = &http.Server{
+		Handler: http.StripPrefix("/api/v2/aibridge", opts.AIBridgeHandler),
+	}
+	go func() {
+		logger.Debug(ctx, "starting in-memory aibridge HTTP server")
+		if err := srv.aibridgeHTTPServer.Serve(aibridgeListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error(ctx, "aibridge HTTP server error", slog.Error(err))
+		}
+	}()
 
 	// Reject CONNECT requests to non-standard ports.
 	proxy.OnRequest().HandleConnectFunc(srv.portMiddleware(allowedPorts))
@@ -290,7 +367,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	logger.Info(ctx, "aibridgeproxyd configured",
 		slog.F("listen_addr", listener.Addr().String()),
-		slog.F("coder_access_url", coderAccessURL.String()),
 		slog.F("domain_allowlist", mitmHosts),
 		slog.F("upstream_proxy", opts.UpstreamProxy),
 	)
@@ -316,13 +392,28 @@ func (s *Server) Addr() string {
 
 // Close gracefully shuts down the proxy server.
 func (s *Server) Close() error {
-	if s.httpServer == nil {
-		return nil
-	}
 	s.logger.Info(s.ctx, "closing aibridgeproxyd server")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return s.httpServer.Shutdown(ctx)
+
+	// Close aibridge listener first to stop accepting new connections.
+	if s.aibridgeListener != nil {
+		_ = s.aibridgeListener.Close()
+	}
+
+	// Shutdown aibridge HTTP server.
+	if s.aibridgeHTTPServer != nil {
+		if err := s.aibridgeHTTPServer.Shutdown(ctx); err != nil {
+			s.logger.Warn(s.ctx, "error shutting down aibridge HTTP server", slog.Error(err))
+		}
+	}
+
+	// Shutdown main proxy HTTP server.
+	if s.httpServer != nil {
+		return s.httpServer.Shutdown(ctx)
+	}
+
+	return nil
 }
 
 // loadMitmCertificate loads the CA certificate and private key for MITM proxying.
@@ -566,8 +657,7 @@ func defaultAIBridgeProvider(host string) string {
 }
 
 // handleRequest intercepts HTTP requests after MITM decryption.
-//   - Requests to known AI providers are rewritten to aibridged, with the Coder token
-//     (from ctx.UserData, set during CONNECT) set in the X-Coder-Token header.
+//   - Requests to known AI providers are rewritten to aibridge paths with authentication.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -620,29 +710,14 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, newProxyAuthRequiredResponse(req)
 	}
 
-	// Rewrite the request to point to aibridged.
-	if s.coderAccessURL == nil || s.coderAccessURL.String() == "" {
-		logger.Error(s.ctx, "coderAccessURL is not configured")
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
-	}
-
-	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), "api/v2/aibridge", reqCtx.Provider, originalPath)
-	if err != nil {
-		logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Bridge URL")
-	}
-
-	aiBridgeParsedURL, err := url.Parse(aiBridgeURL)
-	if err != nil {
-		logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Bridge URL")
-	}
-
+	// Rewrite the request to point to aibridge via in-memory routing.
+	// The custom DialContext will intercept connections to aibridge.internal
+	// and route them through in-memory pipes to the handler.
+	req.URL.Scheme = "http"
+	req.URL.Host = "aibridge.internal"
+	req.URL.Path = path.Join("/api/v2/aibridge", reqCtx.Provider, originalPath)
 	// Preserve query parameters from the original request.
-	// Both URL and Host must be set for the request to be properly routed.
-	aiBridgeParsedURL.RawQuery = req.URL.RawQuery
-	req.URL = aiBridgeParsedURL
-	req.Host = aiBridgeParsedURL.Host
+	// req.URL.RawQuery already contains the original query parameters.
 
 	// Set X-Coder-Token header for aibridged authentication.
 	// Using a separate header preserves the original request headers,
@@ -653,10 +728,12 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// This allows correlating aibridgeproxyd logs with aibridged logs.
 	req.Header.Set(HeaderAIBridgeRequestID, reqCtx.RequestID.String())
 
-	logger.Info(s.ctx, "routing MITM request to aibridged",
-		slog.F("aibridged_url", aiBridgeParsedURL.String()),
+	logger.Info(s.ctx, "routing request to aibridge handler",
+		slog.F("aibridge_path", req.URL.Path),
 	)
 
+	// Return nil response - let goproxy's transport make the call.
+	// The response will be received in handleResponse.
 	return req, nil
 }
 
