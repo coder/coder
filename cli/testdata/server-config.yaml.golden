@@ -417,6 +417,11 @@ oidc:
   # an insecure OIDC configuration. It is not recommended to use this flag.
   # (default: <unset>, type: bool)
   dangerousSkipIssuerChecks: false
+  # Optional override of the default redirect url which uses the deployment's access
+  # url. Useful in situations where a deployment has more than 1 domain. Using this
+  # setting can also break OIDC, so use with caution.
+  # (default: <unset>, type: url)
+  oidc-redirect-url:
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
