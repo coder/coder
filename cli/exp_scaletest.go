@@ -246,7 +246,7 @@ func (s *scaletestStrategyFlags) attach(opts *serpent.OptionSet) {
 }
 
 func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
-	return s.timeoutFlags.wrapStrategy(s.concurrencyFlags.toStrategy())
+	return s.wrapStrategy(s.concurrencyFlags.toStrategy())
 }
 
 type scaleTestOutputFormat string
@@ -1542,10 +1542,10 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 				return err
 			}
 
-			if !(interval > 0) {
+			if interval <= 0 {
 				return xerrors.Errorf("--interval must be greater than zero")
 			}
-			if !(jitter < interval) {
+			if jitter >= interval {
 				return xerrors.Errorf("--jitter must be less than --interval")
 			}
 			targetUserStart, targetUserEnd, err := parseTargetRange("users", targetUsers)

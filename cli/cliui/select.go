@@ -491,11 +491,6 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case tea.KeySpace:
 			options := m.filteredOptions()
-
-			if m.enableCustomInput && m.cursor == len(options) {
-				return m, nil
-			}
-
 			if len(options) != 0 {
 				options[m.cursor].chosen = !options[m.cursor].chosen
 			}

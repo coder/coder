@@ -93,6 +93,7 @@ func TestBuilder(t *testing.T) {
 		t.Parallel()
 
 		t.Run("Defaults", func(t *testing.T) {
+			t.Parallel()
 			stdoutPath := filepath.Join(t.TempDir(), "stdout")
 			stderrPath := filepath.Join(t.TempDir(), "stderr")
 
@@ -121,6 +122,7 @@ func TestBuilder(t *testing.T) {
 		})
 
 		t.Run("Override", func(t *testing.T) {
+			t.Parallel()
 			tempFile := filepath.Join(t.TempDir(), "test.log")
 			tempJSON := filepath.Join(t.TempDir(), "test.json")
 			dv := &codersdk.DeploymentValues{
