@@ -16,6 +16,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// testMaxStalenessMs is the maximum staleness in milliseconds for boundary
+// usage stats queries in tests.
+const testMaxStalenessMs = 60000
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
@@ -45,7 +49,7 @@ func TestTracker_Track_Single(t *testing.T) {
 
 	// Verify the data was written correctly.
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), summary.UniqueWorkspaces)
 	require.Equal(t, int64(1), summary.UniqueUsers)
@@ -73,7 +77,7 @@ func TestTracker_Track_DuplicateWorkspaceUser(t *testing.T) {
 	require.NoError(t, err)
 
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), summary.UniqueWorkspaces, "should be 1 unique workspace")
 	require.Equal(t, int64(1), summary.UniqueUsers, "should be 1 unique user")
@@ -102,7 +106,7 @@ func TestTracker_Track_MultipleWorkspacesUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(3), summary.UniqueWorkspaces)
 	require.Equal(t, int64(2), summary.UniqueUsers)
@@ -140,7 +144,7 @@ func TestTracker_Track_Concurrent(t *testing.T) {
 	require.NoError(t, err)
 
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(numGoroutines), summary.UniqueWorkspaces)
 	require.Equal(t, int64(numGoroutines), summary.UniqueUsers)
@@ -180,7 +184,7 @@ func TestTracker_FlushToDB_Accumulates(t *testing.T) {
 	require.NoError(t, err)
 
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), summary.UniqueWorkspaces)
 	require.Equal(t, int64(1), summary.UniqueUsers)
@@ -220,7 +224,7 @@ func TestTracker_FlushToDB_NewPeriod(t *testing.T) {
 	require.NoError(t, err)
 
 	// The summary should only contain the new data after reset.
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), summary.UniqueWorkspaces, "should only count new workspace")
 	require.Equal(t, int64(1), summary.UniqueUsers, "should only count new user")
@@ -242,7 +246,7 @@ func TestTracker_FlushToDB_NoActivity(t *testing.T) {
 
 	// Verify nothing was written to DB.
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), summary.UniqueWorkspaces)
 	require.Equal(t, int64(0), summary.AllowedRequests)
@@ -297,7 +301,7 @@ func TestUpsertBoundaryUsageStats_Update(t *testing.T) {
 	require.False(t, newPeriod, "should return false for update")
 
 	// Verify the update took effect.
-	summary, err := db.GetBoundaryUsageSummary(ctx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(ctx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(8), summary.UniqueWorkspaces)
 	require.Equal(t, int64(5), summary.UniqueUsers)
@@ -343,7 +347,7 @@ func TestGetBoundaryUsageSummary_MultipleReplicas(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	summary, err := db.GetBoundaryUsageSummary(ctx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(ctx, testMaxStalenessMs)
 	require.NoError(t, err)
 
 	// Verify aggregation (SUM of all replicas).
@@ -359,7 +363,7 @@ func TestGetBoundaryUsageSummary_Empty(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	ctx := dbauthz.AsBoundaryUsageTracker(context.Background())
 
-	summary, err := db.GetBoundaryUsageSummary(ctx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(ctx, testMaxStalenessMs)
 	require.NoError(t, err)
 
 	// COALESCE should return 0 for all columns.
@@ -388,7 +392,7 @@ func TestResetBoundaryUsageStats(t *testing.T) {
 	}
 
 	// Verify data exists.
-	summary, err := db.GetBoundaryUsageSummary(ctx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(ctx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Greater(t, summary.AllowedRequests, int64(0))
 
@@ -397,7 +401,7 @@ func TestResetBoundaryUsageStats(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify all data is gone.
-	summary, err = db.GetBoundaryUsageSummary(ctx, 60000)
+	summary, err = db.GetBoundaryUsageSummary(ctx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), summary.UniqueWorkspaces)
 	require.Equal(t, int64(0), summary.AllowedRequests)
@@ -436,7 +440,7 @@ func TestDeleteBoundaryUsageStatsByReplicaID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify only replica2's stats remain.
-	summary, err := db.GetBoundaryUsageSummary(ctx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(ctx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(20), summary.UniqueWorkspaces)
 	require.Equal(t, int64(200), summary.AllowedRequests)
@@ -474,7 +478,7 @@ func TestTracker_TelemetryCycle(t *testing.T) {
 	require.NoError(t, tracker3.FlushToDB(ctx, db, replica3))
 
 	// Telemetry aggregates.
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 
 	// Verify aggregation.
@@ -491,7 +495,7 @@ func TestTracker_TelemetryCycle(t *testing.T) {
 	require.NoError(t, tracker1.FlushToDB(ctx, db, replica1))
 
 	// Verify trackers reset their in-memory state.
-	summary, err = db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err = db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), summary.UniqueWorkspaces)
 	require.Equal(t, int64(1), summary.AllowedRequests)
@@ -535,7 +539,7 @@ func TestTracker_ConcurrentFlushAndTrack(t *testing.T) {
 
 	// Verify stats are non-negative.
 	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, testMaxStalenessMs)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, summary.AllowedRequests, int64(0))
 	require.GreaterOrEqual(t, summary.DeniedRequests, int64(0))

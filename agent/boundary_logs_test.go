@@ -19,6 +19,9 @@ import (
 	"github.com/coder/coder/v2/agent/boundarylogproxy/codec"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -64,9 +67,12 @@ func sendBoundaryLogsRequest(t *testing.T, conn net.Conn, req *agentproto.Report
 
 // TestBoundaryLogs_EndToEnd is an end-to-end test that sends a protobuf
 // message over the agent's unix socket (as boundary would) and verifies
-// it is ultimately logged by coderd with the correct structured fields.
+// it is ultimately logged by coderd with the correct structured fields
+// and that usage statistics are tracked properly.
 func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
 	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
@@ -74,17 +80,24 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	err := srv.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	const maxStalenessMs = 60000
 
 	sink := &logSink{}
 	logger := slog.Make(sink)
 	workspaceID := uuid.New()
+	ownerID := uuid.New()
 	templateID := uuid.New()
 	templateVersionID := uuid.New()
+	replicaID := uuid.New()
+	tracker := boundaryusage.NewTracker()
+
 	reporter := &agentapi.BoundaryLogsAPI{
-		Log:               logger,
-		WorkspaceID:       workspaceID,
-		TemplateID:        templateID,
-		TemplateVersionID: templateVersionID,
+		Log:                  logger,
+		WorkspaceID:          workspaceID,
+		OwnerID:              ownerID,
+		TemplateID:           templateID,
+		TemplateVersionID:    templateVersionID,
+		BoundaryUsageTracker: tracker,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -169,4 +182,19 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 
 	cancel()
 	<-forwarderDone
+
+	// Verify usage tracking: flush tracker to database and check counts.
+	// Use a fresh context since the forwarder context has been canceled.
+	dbCtx := testutil.Context(t, testutil.WaitShort)
+	err = tracker.FlushToDB(dbCtx, db, replicaID)
+	require.NoError(t, err)
+
+	boundaryCtx := dbauthz.AsBoundaryUsageTracker(dbCtx)
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, maxStalenessMs)
+	require.NoError(t, err)
+
+	require.Equal(t, int64(1), summary.UniqueWorkspaces)
+	require.Equal(t, int64(1), summary.UniqueUsers)
+	require.Equal(t, int64(1), summary.AllowedRequests)
+	require.Equal(t, int64(1), summary.DeniedRequests)
 }

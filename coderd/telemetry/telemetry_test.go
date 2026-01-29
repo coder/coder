@@ -17,8 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -968,5 +972,72 @@ func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
 		// The second snapshot should have nil because another "replica" already
 		// claimed the lock for this period.
 		require.Nil(t, snapshot2.BoundaryUsageSummary)
+	})
+
+	t.Run("WithBoundaryLogsAPI", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a tracker and BoundaryLogsAPI to simulate the full production
+		// path: Agent -> ReportBoundaryLogs -> Tracker -> DB -> Telemetry.
+		tracker := boundaryusage.NewTracker()
+		replicaID := uuid.New()
+
+		workspace1, workspace2 := uuid.New(), uuid.New()
+		owner1, owner2 := uuid.New(), uuid.New()
+
+		api1 := &agentapi.BoundaryLogsAPI{
+			Log:                  slogtest.Make(t, nil),
+			WorkspaceID:          workspace1,
+			OwnerID:              owner1,
+			TemplateID:           uuid.New(),
+			TemplateVersionID:    uuid.New(),
+			BoundaryUsageTracker: tracker,
+		}
+
+		api2 := &agentapi.BoundaryLogsAPI{
+			Log:                  slogtest.Make(t, nil),
+			WorkspaceID:          workspace2,
+			OwnerID:              owner2,
+			TemplateID:           uuid.New(),
+			TemplateVersionID:    uuid.New(),
+			BoundaryUsageTracker: tracker,
+		}
+
+		// Simulate boundary logs from workspace 1: 1 allowed, 2 denied.
+		req1 := &agentproto.ReportBoundaryLogsRequest{
+			Logs: []*agentproto.BoundaryLog{
+				{Allowed: true, Time: timestamppb.Now(), Resource: &agentproto.BoundaryLog_HttpRequest_{HttpRequest: &agentproto.BoundaryLog_HttpRequest{Method: "GET", Url: "https://a.com"}}},
+				{Allowed: false, Time: timestamppb.Now(), Resource: &agentproto.BoundaryLog_HttpRequest_{HttpRequest: &agentproto.BoundaryLog_HttpRequest{Method: "GET", Url: "https://blocked1.com"}}},
+				{Allowed: false, Time: timestamppb.Now(), Resource: &agentproto.BoundaryLog_HttpRequest_{HttpRequest: &agentproto.BoundaryLog_HttpRequest{Method: "GET", Url: "https://blocked2.com"}}},
+			},
+		}
+		_, err := api1.ReportBoundaryLogs(ctx, req1)
+		require.NoError(t, err)
+
+		// Simulate boundary logs from workspace 2: 3 allowed, 1 denied.
+		req2 := &agentproto.ReportBoundaryLogsRequest{
+			Logs: []*agentproto.BoundaryLog{
+				{Allowed: true, Time: timestamppb.Now(), Resource: &agentproto.BoundaryLog_HttpRequest_{HttpRequest: &agentproto.BoundaryLog_HttpRequest{Method: "GET", Url: "https://f.com"}}},
+				{Allowed: true, Time: timestamppb.Now(), Resource: &agentproto.BoundaryLog_HttpRequest_{HttpRequest: &agentproto.BoundaryLog_HttpRequest{Method: "GET", Url: "https://g.com"}}},
+				{Allowed: true, Time: timestamppb.Now(), Resource: &agentproto.BoundaryLog_HttpRequest_{HttpRequest: &agentproto.BoundaryLog_HttpRequest{Method: "GET", Url: "https://h.com"}}},
+				{Allowed: false, Time: timestamppb.Now(), Resource: &agentproto.BoundaryLog_HttpRequest_{HttpRequest: &agentproto.BoundaryLog_HttpRequest{Method: "GET", Url: "https://blocked3.com"}}},
+			},
+		}
+		_, err = api2.ReportBoundaryLogs(ctx, req2)
+		require.NoError(t, err)
+
+		err = tracker.FlushToDB(ctx, db, replicaID)
+		require.NoError(t, err)
+
+		_, snapshot := collectSnapshot(ctx, t, db, nil)
+
+		require.NotNil(t, snapshot.BoundaryUsageSummary)
+		require.Equal(t, int64(2), snapshot.BoundaryUsageSummary.UniqueWorkspaces)
+		require.Equal(t, int64(2), snapshot.BoundaryUsageSummary.UniqueUsers)
+		require.Equal(t, int64(1+3), snapshot.BoundaryUsageSummary.AllowedRequests)
+		require.Equal(t, int64(2+1), snapshot.BoundaryUsageSummary.DeniedRequests)
 	})
 }
