@@ -10,12 +10,18 @@ interface PopoverPaywallProps {
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
+	badgeText?: string;
+	ctaText?: string;
+	ctaLink?: string;
 }
 
 export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 	message,
 	description,
 	documentationLink,
+	badgeText = "Premium",
+	ctaText = "Learn about Premium",
+	ctaLink = "https://coder.com/pricing#compare-plans",
 }) => {
 	return (
 		<div
@@ -30,7 +36,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
 					<h5 css={styles.title}>{message}</h5>
-					<PremiumBadge />
+					<PremiumBadge>{badgeText}</PremiumBadge>
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
@@ -61,12 +67,8 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 				</ul>
 				<div css={styles.learnButton}>
 					<Button asChild>
-						<a
-							href="https://coder.com/pricing#compare-plans"
-							target="_blank"
-							rel="noreferrer"
-						>
-							Learn about Premium
+						<a href={ctaLink} target="_blank" rel="noreferrer">
+							{ctaText}
 						</a>
 					</Button>
 				</div>
