@@ -175,7 +175,7 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
+	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
 	}
@@ -262,8 +262,8 @@ func (c *agentConn) Speedtest(ctx context.Context, direction speedtest.Direction
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	c.Conn.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSpeedtest)
-	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSpeedtest)
+	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -292,9 +292,9 @@ func (c *agentConn) DialContext(ctx context.Context, network string, addr string
 
 	switch network {
 	case "tcp":
-		return c.Conn.DialContextTCP(ctx, ipp)
+		return c.DialContextTCP(ctx, ipp)
 	case "udp":
-		return c.Conn.DialContextUDP(ctx, ipp)
+		return c.DialContextUDP(ctx, ipp)
 	default:
 		return nil, xerrors.Errorf("unknown network %q", network)
 	}
@@ -699,7 +699,7 @@ func (c *agentConn) apiClient() *http.Client {
 					return nil, xerrors.Errorf("parse host addr: %w", err)
 				}
 
-				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
+				conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}

@@ -234,8 +234,8 @@ func Test_readBodyAsError(t *testing.T) {
 				sdkErr := assertSDKError(t, err)
 
 				assert.Equal(t, simpleResponse, sdkErr.Response)
-				assert.ErrorContains(t, err, sdkErr.Response.Message)
-				assert.ErrorContains(t, err, sdkErr.Response.Detail)
+				assert.ErrorContains(t, err, sdkErr.Message)
+				assert.ErrorContains(t, err, sdkErr.Detail)
 
 				assert.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 				assert.ErrorContains(t, err, strconv.Itoa(sdkErr.StatusCode()))
@@ -281,8 +281,8 @@ func Test_readBodyAsError(t *testing.T) {
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
-				assert.Contains(t, sdkErr.Response.Message, "unexpected non-JSON response")
-				assert.Equal(t, "hello world", sdkErr.Response.Detail)
+				assert.Contains(t, sdkErr.Message, "unexpected non-JSON response")
+				assert.Equal(t, "hello world", sdkErr.Detail)
 			},
 		},
 		{
@@ -292,10 +292,10 @@ func Test_readBodyAsError(t *testing.T) {
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
-				assert.Contains(t, sdkErr.Response.Message, "unexpected non-JSON response")
+				assert.Contains(t, sdkErr.Message, "unexpected non-JSON response")
 
 				expected := longResponse[0:2048] + "..."
-				assert.Equal(t, expected, sdkErr.Response.Detail)
+				assert.Equal(t, expected, sdkErr.Detail)
 			},
 		},
 		{
@@ -305,7 +305,7 @@ func Test_readBodyAsError(t *testing.T) {
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
-				assert.Contains(t, sdkErr.Response.Message, "empty response body")
+				assert.Contains(t, sdkErr.Message, "empty response body")
 			},
 		},
 		{
@@ -315,9 +315,9 @@ func Test_readBodyAsError(t *testing.T) {
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
-				assert.Contains(t, sdkErr.Response.Message, "unexpected status code")
-				assert.Contains(t, sdkErr.Response.Message, "has no message")
-				assert.Equal(t, unexpectedJSON, sdkErr.Response.Detail)
+				assert.Contains(t, sdkErr.Message, "unexpected status code")
+				assert.Contains(t, sdkErr.Message, "has no message")
+				assert.Equal(t, unexpectedJSON, sdkErr.Detail)
 			},
 		},
 		{

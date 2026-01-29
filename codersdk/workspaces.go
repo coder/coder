@@ -184,7 +184,7 @@ func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest
 	res, err := c.Request(
 		ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
-		nil, req.Pagination.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
+		nil, req.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
 	)
 	if err != nil {
 		return nil, err

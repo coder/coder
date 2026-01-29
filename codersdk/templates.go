@@ -422,7 +422,7 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 	if req.IncludeArchived {
 		u += "?include_archived=true"
 	}
-	res, err := c.Request(ctx, http.MethodGet, u, nil, req.Pagination.asRequestOption())
+	res, err := c.Request(ctx, http.MethodGet, u, nil, req.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

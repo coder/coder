@@ -99,7 +99,7 @@ type ConnectionLogResponse struct {
 }
 
 func (c *Client) ConnectionLogs(ctx context.Context, req ConnectionLogsRequest) (ConnectionLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil, req.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {
