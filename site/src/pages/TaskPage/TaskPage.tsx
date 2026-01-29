@@ -48,6 +48,7 @@ import {
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
+import { TaskLogSnapshot } from "./TaskLogSnapshot";
 import { TaskTopbar } from "./TaskTopbar";
 
 const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
@@ -135,29 +136,36 @@ const TaskPage = () => {
 			/>
 		);
 	} else if (workspace.latest_build.status === "failed") {
+		const buildLogsUrl = `/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`;
 		content = (
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Task build failed
-					</h3>
-					<span className="text-content-secondary text-sm">
-						Please check the logs for more details.
-					</span>
-					<Button size="sm" variant="outline" asChild className="mt-4">
-						<RouterLink
-							to={`/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`}
-						>
-							View logs
-						</RouterLink>
-					</Button>
+			<Margins>
+				<div className="w-full min-h-80 flex items-center justify-center">
+					<div className="flex flex-col items-center">
+						<h3 className="m-0 font-medium text-content-primary text-base">
+							Task build failed
+						</h3>
+						<span className="text-content-secondary text-sm">
+							Please check the logs for more details.
+						</span>
+						<Button size="sm" variant="outline" asChild className="mt-4">
+							<RouterLink to={buildLogsUrl}>View full logs</RouterLink>
+						</Button>
+					</div>
 				</div>
-			</div>
+				<TaskLogSnapshot
+					username={username}
+					taskId={taskId}
+					actionLabel="View full logs"
+					actionHref={buildLogsUrl}
+				/>
+			</Margins>
 		);
 	} else if (workspace.latest_build.status !== "running") {
 		content = (
 			<WorkspaceNotRunning
 				workspace={workspace}
+				username={username}
+				taskId={taskId}
 				onEditPrompt={() => setIsModifyDialogOpen(true)}
 			/>
 		);
@@ -221,11 +229,15 @@ export default TaskPage;
 
 type WorkspaceNotRunningProps = {
 	workspace: Workspace;
+	username: string;
+	taskId: string;
 	onEditPrompt: () => void;
 };
 
 const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 	workspace,
+	username,
+	taskId,
 	onEditPrompt,
 }) => {
 	const queryClient = useQueryClient();
@@ -254,33 +266,38 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 
 	const deleted = workspace.latest_build?.transition === ("delete" as const);
 
-	return deleted ? (
-		<Margins>
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Task workspace was deleted.
-					</h3>
-					<span className="text-content-secondary text-sm">
-						This task cannot be resumed. Delete this task and create a new one.
-					</span>
-					<Button size="sm" variant="outline" asChild className="mt-4">
-						<RouterLink to="/tasks" data-testid="task-create-new">
-							Create a new task
-						</RouterLink>
-					</Button>
+	if (deleted) {
+		return (
+			<Margins>
+				<div className="w-full min-h-80 flex items-center justify-center">
+					<div className="flex flex-col items-center">
+						<h3 className="m-0 font-medium text-content-primary text-base">
+							Task workspace was deleted.
+						</h3>
+						<span className="text-content-secondary text-sm">
+							This task cannot be resumed. Delete this task and create a new
+							one.
+						</span>
+						<Button size="sm" variant="outline" asChild className="mt-4">
+							<RouterLink to="/tasks" data-testid="task-create-new">
+								Create a new task
+							</RouterLink>
+						</Button>
+					</div>
 				</div>
-			</div>
-		</Margins>
-	) : (
+			</Margins>
+		);
+	}
+
+	return (
 		<Margins>
 			<div className="w-full min-h-80 flex items-center justify-center">
 				<div className="flex flex-col items-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">
-						Workspace is not running
+						Task paused
 					</h3>
 					<span className="text-content-secondary text-sm">
-						Apps and previous statuses are not available
+						Your task timed out. Restart it to continue.
 					</span>
 					{workspace.outdated && (
 						<div
@@ -304,15 +321,19 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
 							}}
 						>
 							<Spinner loading={isWaitingForStart} />
-							Start workspace
+							Restart
 						</Button>
 						<Button size="sm" onClick={onEditPrompt} variant="outline">
-							Edit Prompt
+							Edit prompt
 						</Button>
 					</div>
 				</div>
 			</div>
-
+			<TaskLogSnapshot
+				username={username}
+				taskId={taskId}
+				actionLabel="Restart to view full logs"
+			/>
 			<WorkspaceErrorDialog
 				open={apiError !== undefined}
 				error={apiError}

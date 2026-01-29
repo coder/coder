@@ -2796,6 +2796,16 @@ class ApiMethods {
 		});
 	};
 
+	getTaskLogs = async (
+		user: string,
+		taskId: string,
+	): Promise<TypesGen.TaskLogsResponse> => {
+		const response = await this.axios.get<TypesGen.TaskLogsResponse>(
+			`/api/v2/tasks/${user}/${taskId}/logs`,
+		);
+		return response.data;
+	};
+
 	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(
 			"/api/v2/aibridge/interceptions",
