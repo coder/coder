@@ -295,7 +295,7 @@ func handshake(
 	writeOK := false
 	theirHeader := ""
 	readOK := false
-	for !(readOK && writeOK) {
+	for !readOK || !writeOK {
 		select {
 		case <-ctx.Done():
 			_ = conn.Close() // ensure our read/write goroutines get a chance to clean up
