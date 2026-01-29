@@ -197,10 +197,4 @@ const styles = {
 		backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.premium.background})`,
 		border: `1px solid ${theme.branding.premium.border}`,
 	}),
-	feature: {
-		display: "flex",
-		alignItems: "center",
-		padding: 3,
-		gap: 8,
-	},
 } satisfies Record<string, Interpolation<Theme>>;
