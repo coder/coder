@@ -54,10 +54,10 @@ func formatDiagnostics(baseDir string, diags tfconfig.Diagnostics) string {
 	for _, d := range diags {
 		// Convert severity.
 		severity := "UNKNOWN SEVERITY"
-		switch {
-		case d.Severity == tfconfig.DiagError:
+		switch d.Severity {
+		case tfconfig.DiagError:
 			severity = "ERROR"
-		case d.Severity == tfconfig.DiagWarning:
+		case tfconfig.DiagWarning:
 			severity = "WARN"
 		}
 
