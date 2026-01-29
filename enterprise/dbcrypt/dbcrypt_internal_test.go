@@ -384,6 +384,7 @@ func TestExternalAuthLinks(t *testing.T) {
 		})
 
 		t.Run("DecryptErr", func(t *testing.T) {
+			t.Parallel()
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, db, database.User{})
 			link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
