@@ -1,278 +1,231 @@
-# See https://golangci-lint.run/usage/configuration/
-# Over time we should try tightening some of these.
-
-linters-settings:
-  dupl:
-    # goal: 100
-    threshold: 412
-
-  exhaustruct:
-    include:
-      # Gradually extend to cover more of the codebase.
-      - 'httpmw\.\w+'
-      # We want to enforce all values are specified when inserting or updating
-      # a database row. Ref: #9936
-      - 'github.com/coder/coder/v2/coderd/database\.[^G][^e][^t]\w+Params'
-  gocognit:
-    min-complexity: 300
-
-  goconst:
-    min-len: 4 # Min length of string consts (def 3).
-    min-occurrences: 3 # Min number of const occurrences (def 3).
-
-  gocritic:
-    enabled-checks:
-      # - appendAssign
-      # - appendCombine
-      # - assignOp
-      # - badCall
-      - badLock
-      - badRegexp
-      - boolExprSimplify
-      # - builtinShadow
-      - builtinShadowDecl
-      # - commentedOutCode
-      - commentedOutImport
-      - deferUnlambda
-      # - deprecatedComment
-      # - docStub
-      - dupImport
-      # - elseif
-      - emptyFallthrough
-      # - emptyStringTest
-      # - equalFold
-      # - evalOrder
-      # - exitAfterDefer
-      # - exposedSyncMutex
-      # - filepathJoin
-      - hexLiteral
-      # - httpNoBody
-      # - hugeParam
-      # - ifElseChain
-      # - importShadow
-      - indexAlloc
-      - initClause
-      - methodExprCall
-      # - nestingReduce
-      - nilValReturn
-      # - octalLiteral
-      # - paramTypeCombine
-      # - preferStringWriter
-      # - preferWriteByte
-      # - ptrToRefParam
-      # - rangeExprCopy
-      # - rangeValCopy
-      - regexpPattern
-      # - regexpSimplify
-      - ruleguard
-      # - sloppyReassign
-      - sortSlice
-      - sprintfQuotedString
-      - sqlQuery
-      # - stringConcatSimplify
-      # - stringXbytes
-      # - suspiciousSorting
-      - truncateCmp
-      - typeAssertChain
-      # - typeDefFirst
-      # - typeUnparen
-      # - unlabelStmt
-      # - unlambda
-      # - unnamedResult
-      # - unnecessaryBlock
-      # - unnecessaryDefer
-      # - unslice
-      - weakCond
-      # - whyNoLint
-      # - wrapperFunc
-      # - yodaStyleExpr
-    settings:
-      ruleguard:
-        failOn: all
-        rules: "${configDir}/scripts/rules.go"
-
-  staticcheck:
-    # https://staticcheck.io/docs/options#checks
-    # We disable SA1019 because it gets angry about our usage of xerrors. We
-    # intentionally xerrors because stack frame support didn't make it into the
-    # stdlib port.
-    checks: ["all", "-SA1019"]
-
-  goimports:
-    local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder
-
-  importas:
-    no-unaliased: true
-
-  misspell:
-    locale: US
-    ignore-words:
-      - trialer
-
-  nestif:
-    # goal: 10
-    min-complexity: 20
-
-  revive:
-    # see https://github.com/mgechev/revive#available-rules for details.
-    ignore-generated-header: true
-    severity: warning
-    rules:
-      - name: atomic
-      - name: bare-return
-      - name: blank-imports
-      - name: bool-literal-in-expr
-      - name: call-to-gc
-      - name: confusing-naming
-      - name: confusing-results
-      - name: constant-logical-expr
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: deep-exit
-      - name: defer
-      - name: dot-imports
-      - name: duplicated-imports
-      - name: early-return
-      - name: empty-block
-      - name: empty-lines
-      - name: error-naming
-      - name: error-return
-      - name: error-strings
-      - name: errorf
-      - name: exported
-      - name: flag-parameter
-      - name: get-return
-      - name: identical-branches
-      - name: if-return
-      - name: import-shadowing
-      - name: increment-decrement
-      - name: indent-error-flow
-      # - name: modifies-parameter
-      - name: modifies-value-receiver
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: redefines-builtin-id
-      - name: string-of-int
-      - name: struct-tag
-      - name: superfluous-else
-      - name: time-naming
-      - name: unconditional-recursion
-      - name: unexported-naming
-      - name: unexported-return
-      - name: unhandled-error
-      - name: unnecessary-stmt
-      - name: unreachable-code
-      - name: unused-parameter
-        exclude: "**/*_test.go"
-      - name: unused-receiver
-      - name: var-declaration
-      - name: var-naming
-      - name: waitgroup-by-value
-  usetesting:
-    # Only os-setenv is enabled because we migrated to usetesting from another linter that
-    # only covered os-setenv.
-    os-setenv: true
-    os-create-temp: false
-    os-mkdir-temp: false
-    os-temp-dir: false
-    os-chdir: false
-    context-background: false
-    context-todo: false
-
-  # irrelevant as of Go v1.22: https://go.dev/blog/loopvar-preview
-  govet:
-    disable:
-      - loopclosure
-  gosec:
-    excludes:
-      # Implicit memory aliasing of items from a range statement (irrelevant as of Go v1.22)
-      - G601
-
-issues:
-  exclude-dirs:
-    - node_modules
-    - .git
-
-  exclude-files:
-    - scripts/rules.go
-
-  # Rules listed here: https://github.com/securego/gosec#available-rules
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        # We use assertions rather than explicitly checking errors in tests
-        - errcheck
-        - forcetypeassert
-        - exhaustruct # This is unhelpful in tests.
-    - path: scripts/*
-      linters:
-        - exhaustruct
-    - path: scripts/rules.go
-      linters:
-        - ALL
-
-  fix: true
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
-run:
-  timeout: 10m
-
-# Over time, add more and more linters from
-# https://golangci-lint.run/usage/linters/ as the code improves.
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - asciicheck
     - bidichk
     - bodyclose
     - dogsled
+    - dupl
     - errcheck
     - errname
     - errorlint
     - exhaustruct
     - forcetypeassert
-    - gocritic
-    # gocyclo is may be useful in the future when we start caring
-    # about testing complexity, but for the time being we should
-    # create a good culture around cognitive complexity.
-    # - gocyclo
     - gocognit
-    - nestif
-    - goimports
+    - gocritic
     - gomodguard
     - gosec
-    - gosimple
     - govet
     - importas
     - ineffassign
     - makezero
     - misspell
+    - nestif
     - nilnil
     - noctx
     - paralleltest
     - revive
-
-    # These don't work until the following issue is solved.
-    # https://github.com/golangci/golangci-lint/issues/2649
-    # - rowserrcheck
-    # - sqlclosecheck
-    # - structcheck
-    # - wastedassign
-
     - staticcheck
-    # In Go, it's possible for a package to test it's internal functionality
-    # without testing any exported functions. This is enabled to promote
-    # decomposing a package before testing it's internals. A function caller
-    # should be able to test most of the functionality from exported functions.
-    #
-    # There are edge-cases to this rule, but they should be carefully considered
-    # to avoid structural inconsistency.
     - testpackage
     - tparallel
-    - typecheck
     - unconvert
     - unused
     - usetesting
-    - dupl
+  settings:
+    dupl:
+      threshold: 412
+    exhaustruct:
+      include:
+        - httpmw\.\w+
+        - github.com/coder/coder/v2/coderd/database\.[^G][^e][^t]\w+Params
+    gocognit:
+      min-complexity: 300
+    goconst:
+      min-len: 4
+      min-occurrences: 3
+    gocritic:
+      disable-all: true
+      enabled-checks:
+        - badLock
+        - badRegexp
+        - boolExprSimplify
+        - builtinShadowDecl
+        - commentedOutImport
+        - deferUnlambda
+        - dupImport
+        - emptyFallthrough
+        - hexLiteral
+        - indexAlloc
+        - initClause
+        - methodExprCall
+        - nilValReturn
+        - regexpPattern
+        - ruleguard
+        - sortSlice
+        - sprintfQuotedString
+        - sqlQuery
+        - truncateCmp
+        - typeAssertChain
+        - weakCond
+      settings:
+        ruleguard:
+          failOn: all
+          rules: ${base-path}/scripts/rules.go
+    gosec:
+      excludes:
+        - G601
+    govet:
+      disable:
+        - loopclosure
+    importas:
+      no-unaliased: true
+    misspell:
+      locale: US
+      ignore-rules:
+        - trialer
+    nestif:
+      min-complexity: 20
+    revive:
+      severity: warning
+      rules:
+        - name: atomic
+        - name: bare-return
+        - name: blank-imports
+        - name: bool-literal-in-expr
+        - name: call-to-gc
+        - name: confusing-naming
+        - name: confusing-results
+        - name: constant-logical-expr
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: deep-exit
+        - name: defer
+        - name: dot-imports
+        - name: duplicated-imports
+        - name: early-return
+        - name: empty-block
+        - name: empty-lines
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: exported
+        - name: flag-parameter
+        - name: get-return
+        - name: identical-branches
+        - name: if-return
+        - name: import-shadowing
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: modifies-value-receiver
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: string-of-int
+        - name: struct-tag
+          arguments:
+            - "!validate"
+        - name: superfluous-else
+        - name: time-naming
+        - name: unconditional-recursion
+        - name: unexported-naming
+        - name: unexported-return
+        - name: unhandled-error
+        - name: unnecessary-stmt
+        - name: unreachable-code
+        - name: unused-parameter
+          exclude:
+            - '**/*_test.go'
+        - name: unused-receiver
+        - name: var-declaration
+        - name: var-naming
+        - name: waitgroup-by-value
+    staticcheck:
+      checks:
+        - all
+        - -SA1019
+    usetesting:
+      context-background: false
+      context-todo: false
+      os-chdir: false
+      os-mkdir-temp: false
+      os-setenv: true
+      os-temp-dir: false
+      os-create-temp: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - exhaustruct
+          - forcetypeassert
+          - noctx
+        path: _test\.go
+      - linters:
+          - noctx
+        path: (dbtestutil|coderdtest|apptest|scaletest|testutil|smtptest)/
+      - linters:
+          - noctx
+        path: tailnet/test/
+      - linters:
+          - noctx
+        path: ^scripts/
+      # noctx expanded to check net.Listen, net.Dial, exec.Command, crypto/tls in v2.
+      # These are too strict for our codebase - many uses are in initialization code
+      # where context isn't meaningful. We keep the http.NewRequest checks.
+      - linters:
+          - noctx
+        text: "net\\.(Listen|Dial|DialTimeout) must not be called"
+      - linters:
+          - noctx
+        text: "os/exec\\.Command must not be called"
+      - linters:
+          - noctx
+        text: "crypto/tls\\.(Dial|DialWithDialer|Handshake) must not be called"
+      - linters:
+          - noctx
+        text: "\\*database/sql\\.(DB|Tx).*must not be called"
+      - linters:
+          - exhaustruct
+        path: scripts/*
+      - linters:
+          - ALL
+        path: scripts/rules.go
+    paths:
+      - scripts/rules.go
+      - node_modules
+      - .git
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  fix: true
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - coder.com
+        - cdr.dev
+        - go.coder.com
+        - github.com/cdr
+        - github.com/coder
+  exclusions:
+    generated: lax
+    paths:
+      - scripts/rules.go
+      - node_modules
+      - .git
+      - third_party$
+      - builtin$
+      - examples$
