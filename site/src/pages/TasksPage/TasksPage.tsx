@@ -155,7 +155,7 @@ const TasksPage: FC = () => {
 							}}
 						>
 							Your notifications for tasks status changes are disabled. Go to{" "}
-							<Link href="/settings/notifications">Account Settings</Link> to
+							<Link href="/settings/notifications">Account settings</Link> to
 							change it.
 						</Alert>
 					</div>

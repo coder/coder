@@ -23,7 +23,7 @@ import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
 
 const Language = {
-	title: "Connection Log",
+	title: "Connection log",
 	subtitle: "View workspace connection events.",
 };
 

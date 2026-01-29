@@ -99,14 +99,14 @@ const OrganizationProvisionerJobsPageView: FC<
 		<div className="w-full max-w-screen-2xl pb-10">
 			<title>
 				{pageTitle(
-					"Provisioner Jobs",
+					"Provisioner jobs",
 					organization.display_name || organization.name,
 				)}
 			</title>
 
 			<section>
 				<SettingsHeader>
-					<SettingsHeaderTitle>Provisioner Jobs</SettingsHeaderTitle>
+					<SettingsHeaderTitle>Provisioner jobs</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Provisioner Jobs are the individual tasks assigned to Provisioners
 						when the workspaces are being built.{" "}

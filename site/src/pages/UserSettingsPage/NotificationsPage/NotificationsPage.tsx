@@ -259,14 +259,14 @@ function canSeeNotificationGroup(
 	group: string,
 	permissions: Permissions,
 ): boolean {
-	switch (group) {
-		case "Template Events":
+	switch (group.toLowerCase()) {
+		case "template events":
 			return permissions.createTemplates;
-		case "User Events":
+		case "user events":
 			return permissions.createUser;
-		case "Workspace Events":
-		case "Task Events":
-		case "Custom Events":
+		case "workspace events":
+		case "task events":
+		case "custom events":
 			return true;
 		default:
 			return false;

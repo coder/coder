@@ -179,7 +179,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 										</span>
 									</Badge>
 								</TooltipTrigger>
-								<TooltipContent>{inputTokens} Input Tokens</TooltipContent>
+								<TooltipContent>{inputTokens} Input tokens</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
 						<TooltipProvider>
@@ -192,7 +192,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 										</span>
 									</Badge>
 								</TooltipTrigger>
-								<TooltipContent>{outputTokens} Output Tokens</TooltipContent>
+								<TooltipContent>{outputTokens} Output tokens</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
 					</div>
@@ -348,7 +348,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 							{interception.tool_usages.length > 0 && (
 								<div className="flex flex-col gap-2">
-									<div>Tool Usages</div>
+									<div>Tool usages</div>
 									<div
 										className="bg-surface-secondary rounded-md p-4"
 										data-chromatic="ignore"
@@ -383,7 +383,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 							{tokenUsagesMetadata !== null && (
 								<div className="flex flex-col gap-2">
-									<div>Token Usage Metadata</div>
+									<div>Token usage metadata</div>
 									<div className="bg-surface-secondary rounded-md p-4">
 										<pre>{JSON.stringify(tokenUsagesMetadata, null, 2)}</pre>
 									</div>

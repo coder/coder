@@ -67,7 +67,7 @@ const DevcontainerDeleteDialog: FC<DevcontainerDeleteDialogProps> = ({
 		<ConfirmDialog
 			type="delete"
 			open={isOpen}
-			title="Delete Dev Container"
+			title="Delete dev container"
 			onConfirm={onConfirm}
 			onClose={onCancel}
 			description={

@@ -47,7 +47,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
-				<SettingsHeaderTitle>Provisioner Keys</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Provisioner keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Manage provisioner keys used to authenticate provisioner instances.{" "}
 					<Link href={docs("/admin/provisioners")}>View docs</Link>
@@ -66,7 +66,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 						<TableRow>
 							<TableHead>Name</TableHead>
 							<TableHead>Tags</TableHead>
-							<TableHead>Active Provisioners</TableHead>
+							<TableHead>Active provisioners</TableHead>
 							<TableHead>Created</TableHead>
 						</TableRow>
 					</TableHeader>

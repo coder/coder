@@ -52,7 +52,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 							<TableHead>Initiator</TableHead>
 							<TableHead>Tokens</TableHead>
 							<TableHead>Model</TableHead>
-							<TableHead>Tool Calls</TableHead>
+							<TableHead>Tool calls</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>

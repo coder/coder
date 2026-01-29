@@ -30,7 +30,7 @@ const OAuth2ProviderPage: FC = () => {
 			/>
 			{appToRevoke !== undefined && (
 				<DeleteDialog
-					title="Revoke Application"
+					title="Revoke application"
 					verb="Revoking"
 					info={`This will invalidate any tokens created by the OAuth2 application "${appToRevoke.name}".`}
 					label="Name of the application to revoke"

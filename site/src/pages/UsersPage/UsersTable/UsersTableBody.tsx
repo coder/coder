@@ -281,7 +281,7 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 				<ShieldIcon css={styles.icon} />
 			) : (
 				<img
-					alt="Open ID Connect icon"
+					alt="Open ID connect icon"
 					src={authMethods.oidc.iconUrl}
 					css={styles.icon}
 				/>

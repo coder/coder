@@ -110,7 +110,7 @@ const GroupPage: FC = () => {
 			>
 				<SettingsHeader>
 					<SettingsHeaderTitle>
-						{groupData?.display_name || groupData?.name || "Unknown Group"}
+						{groupData?.display_name || groupData?.name || "Unknown group"}
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Manage members for this group.

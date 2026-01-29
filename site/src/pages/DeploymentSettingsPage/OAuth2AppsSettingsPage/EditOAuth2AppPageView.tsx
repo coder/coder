@@ -239,7 +239,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-[80%]">Secret</TableHead>
-						<TableHead className="w-[20%]">Last Used</TableHead>
+						<TableHead className="w-[20%]">Last used</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>

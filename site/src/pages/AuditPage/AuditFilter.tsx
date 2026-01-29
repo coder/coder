@@ -138,15 +138,15 @@ export const useResourceTypeFilterMenu = ({
 		}
 
 		if (type === "git_ssh_key") {
-			label = "Git SSH Key";
+			label = "Git SSH key";
 		}
 
 		if (type === "template_version") {
-			label = "Template Version";
+			label = "Template version";
 		}
 
 		if (type === "workspace_build") {
-			label = "Workspace Build";
+			label = "Workspace build";
 		}
 
 		return {

@@ -56,7 +56,7 @@ const AccessURLPage = () => {
 					<GridDataLabel>Reachable</GridDataLabel>
 					<GridDataValue>{accessUrl.reachable ? "Yes" : "No"}</GridDataValue>
 
-					<GridDataLabel>Status Code</GridDataLabel>
+					<GridDataLabel>Status code</GridDataLabel>
 					<GridDataValue>{accessUrl.status_code}</GridDataValue>
 				</GridData>
 			</Main>

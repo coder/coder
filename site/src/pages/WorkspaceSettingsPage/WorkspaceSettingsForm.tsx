@@ -64,7 +64,7 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 	return (
 		<HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
 			<FormSection
-				title="Workspace Name"
+				title="Workspace name"
 				description="Update the name of your workspace."
 			>
 				<FormFields>
@@ -86,14 +86,14 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 				</FormFields>
 			</FormSection>
 			<FormSection
-				title="Automatic Updates"
+				title="Automatic updates"
 				description="Configure your workspace to automatically update when started."
 			>
 				<FormFields>
 					<TextField
 						{...getFieldHelpers("automatic_updates")}
 						id="automatic_updates"
-						label="Update Policy"
+						label="Update policy"
 						value={
 							workspace.template_require_active_version
 								? "always"

@@ -12,7 +12,7 @@ import { Pill } from "components/Pill/Pill";
 import { type FC, useState } from "react";
 
 const Language = {
-	licenseIssue: "License Issue",
+	licenseIssue: "License issue",
 	licenseIssues: (num: number): string => `${num} License Issues`,
 	upgrade: "Contact sales@coder.com.",
 	exception: "Contact sales@coder.com if you need an exception.",

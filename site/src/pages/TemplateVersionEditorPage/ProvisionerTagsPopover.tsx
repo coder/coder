@@ -50,7 +50,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 						classes={{
 							root: "flex flex-col gap-4",
 						}}
-						title="Provisioner Tags"
+						title="Provisioner tags"
 						description={
 							<>
 								Tags are a way to control which provisioner daemons complete

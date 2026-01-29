@@ -57,9 +57,9 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 					<TableRow>
 						<TableHead className="w-1/5">ID</TableHead>
 						<TableHead className="w-1/5">Name</TableHead>
-						<TableHead className="w-1/5">Last Used</TableHead>
-						<TableHead className="w-1/5">Expires At</TableHead>
-						<TableHead className="w-1/5">Created At</TableHead>
+						<TableHead className="w-1/5">Last used</TableHead>
+						<TableHead className="w-1/5">Expires at</TableHead>
+						<TableHead className="w-1/5">Created at</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>

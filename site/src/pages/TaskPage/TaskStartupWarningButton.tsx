@@ -93,7 +93,7 @@ const StartupWarningButtonBase: FC<StartupWarningButtonBaseProps> = ({
 const ErrorScriptButton: FC = () => {
 	return (
 		<StartupWarningButtonBase
-			label="Startup Error"
+			label="Startup error"
 			errorMessage="startup script has exited with an error"
 		/>
 	);
@@ -102,7 +102,7 @@ const ErrorScriptButton: FC = () => {
 const TimeoutScriptButton: FC = () => {
 	return (
 		<StartupWarningButtonBase
-			label="Startup Timeout"
+			label="Startup timeout"
 			errorMessage="startup script has timed out"
 		/>
 	);

@@ -17,9 +17,9 @@ interface SecurityFormValues {
 }
 
 export const Language = {
-	oldPasswordLabel: "Old Password",
-	newPasswordLabel: "New Password",
-	confirmPasswordLabel: "Confirm Password",
+	oldPasswordLabel: "Old password",
+	newPasswordLabel: "New password",
+	confirmPasswordLabel: "Confirm password",
 	oldPasswordRequired: "Old password is required",
 	newPasswordRequired: "New password is required",
 	confirmPasswordRequired: "Password confirmation is required",
