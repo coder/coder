@@ -273,6 +273,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	// TODO: support "me" by passing in the actorID
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
+	filter.Healthy = parser.NullableBoolean(values, sql.NullBool{}, "healthy")
 
 	type paramMatch struct {
 		name  string
