@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -136,9 +135,8 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 			continue
 		}
 
-		r := lw.Remaining()
-		fmt.Println(r)
-		if it.EstimatedSize > lw.Remaining() {
+		// Leave 1024 bytes for the footer
+		if it.EstimatedSize > lw.Remaining()-1024 {
 			skippedModules = append(skippedModules, fmt.Sprintf("%s:%s", it.Key, it.Source))
 			continue
 		}
