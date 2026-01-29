@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -70,6 +71,8 @@ type Server struct {
 	// caCert is the PEM-encoded CA certificate loaded during initialization.
 	// This is served to clients who need to trust the proxy.
 	caCert []byte
+	// Metrics is the Prometheus metrics for the proxy. If nil, metrics are disabled.
+	metrics *Metrics
 }
 
 // requestContext holds metadata propagated through the proxy request/response chain.
@@ -126,6 +129,9 @@ type Options struct {
 	// proxies with certificates not trusted by the system. If empty, the system
 	// certificate pool is used.
 	UpstreamProxyCA string
+	// Metrics is the prometheus metrics instance for recording proxy metrics.
+	// If nil, metrics will not be recorded.
+	Metrics *Metrics
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -254,6 +260,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		coderAccessURL:           coderAccessURL,
 		aibridgeProviderFromHost: aibridgeProviderFromHost,
 		caCert:                   certPEM,
+		metrics:                  opts.Metrics,
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -268,6 +275,11 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		// Extract Coder token from proxy authentication to forward to aibridged.
 		srv.authMiddleware,
 	)
+
+	// Tunnel CONNECT requests for non-allowlisted domains directly to their destination.
+	// goproxy calls handlers in registration order: this must come after the MITM handler
+	// so it only handles requests that weren't matched by the allowlist.
+	proxy.OnRequest().HandleConnectFunc(srv.tunneledMiddleware)
 
 	// Handle decrypted requests: route to aibridged for known AI providers, or tunnel to original destination.
 	proxy.OnRequest().DoFunc(srv.handleRequest)
@@ -320,6 +332,12 @@ func (s *Server) Close() error {
 		return nil
 	}
 	s.logger.Info(s.ctx, "closing aibridgeproxyd server")
+
+	// Unregister metrics to clean up Prometheus registry.
+	if s.metrics != nil {
+		s.metrics.Unregister()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return s.httpServer.Shutdown(ctx)
@@ -478,6 +496,11 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 
 	logger.Debug(s.ctx, "request CONNECT authenticated")
 
+	// Record successful MITM CONNECT session establishment.
+	if s.metrics != nil {
+		s.metrics.ConnectSessionsTotal.WithLabelValues(RequestTypeMITM).Inc()
+	}
+
 	return goproxy.MitmConnect, host
 }
 
@@ -551,6 +574,20 @@ func defaultAIBridgeProvider(host string) string {
 	}
 }
 
+// tunneledMiddleware is a CONNECT middleware that handles tunneled (non-allowlisted)
+// connections. These connections are not MITM'd and are tunneled directly to their
+// destination. This middleware records metrics for tunneled CONNECT sessions.
+func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	// Record tunneled CONNECT session establishment.
+	if s.metrics != nil {
+		s.metrics.ConnectSessionsTotal.WithLabelValues(RequestTypeTunneled).Inc()
+	}
+
+	// Return OkConnect to allow the tunnel to be established.
+	// goproxy will create a tunnel between the client and the destination.
+	return goproxy.OkConnect, host
+}
+
 // handleRequest intercepts HTTP requests after MITM decryption.
 //   - Requests to known AI providers are rewritten to aibridged, with the Coder token
 //     (from ctx.UserData, set during CONNECT) set in the X-Coder-Token header.
@@ -566,6 +603,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
 		)
+
 		resp := goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
 		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Bridge Proxy"`)
 		return req, resp
@@ -644,6 +682,12 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		slog.F("aibridged_url", aiBridgeParsedURL.String()),
 	)
 
+	// Record MITM request handling.
+	if s.metrics != nil {
+		s.metrics.MITMRequestsTotal.WithLabelValues(reqCtx.Provider).Inc()
+		s.metrics.InflightMITMRequests.WithLabelValues(reqCtx.Provider).Inc()
+	}
+
 	return req, nil
 }
 
@@ -665,12 +709,29 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 		provider = reqCtx.Provider
 	}
 
-	s.logger.Debug(s.ctx, "received response from aibridged",
+	logger := s.logger.With(
 		slog.F("connect_id", connectSessionID.String()),
 		slog.F("request_id", requestID.String()),
-		slog.F("status", resp.StatusCode),
 		slog.F("provider", provider),
+		slog.F("status", resp.StatusCode),
 	)
+
+	switch {
+	case resp.StatusCode >= http.StatusInternalServerError:
+		logger.Error(s.ctx, "received error response from aibridged")
+	case resp.StatusCode >= http.StatusBadRequest:
+		logger.Warn(s.ctx, "received error response from aibridged")
+	default:
+		logger.Debug(s.ctx, "received response from aibridged")
+	}
+
+	if s.metrics != nil && provider != "" {
+		// Decrement inflight requests gauge now that the request is complete.
+		s.metrics.InflightMITMRequests.WithLabelValues(provider).Dec()
+
+		// Record response by status code.
+		s.metrics.MITMResponsesTotal.WithLabelValues(strconv.Itoa(resp.StatusCode), provider).Inc()
+	}
 
 	return resp
 }
