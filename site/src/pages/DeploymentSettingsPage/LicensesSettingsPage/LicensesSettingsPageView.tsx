@@ -21,6 +21,7 @@ import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router";
+import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
@@ -37,6 +38,7 @@ type Props = {
 	refreshEntitlements: () => void;
 	activeUsers: UserStatusChangeCount[] | undefined;
 	managedAgentFeature?: Feature;
+	aiGovernanceUserFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -51,6 +53,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	refreshEntitlements,
 	activeUsers,
 	managedAgentFeature,
+	aiGovernanceUserFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -164,7 +167,14 @@ const LicensesSettingsPageView: FC<Props> = ({
 				)}
 
 				{licenses && licenses.length > 0 && (
-					<ManagedAgentsConsumption managedAgentFeature={managedAgentFeature} />
+					<>
+						<ManagedAgentsConsumption
+							managedAgentFeature={managedAgentFeature}
+						/>
+						<AIGovernanceUsersConsumption
+							aiGovernanceUserFeature={aiGovernanceUserFeature}
+						/>
+					</>
 				)}
 			</div>
 		</>
