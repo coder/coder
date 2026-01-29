@@ -367,7 +367,9 @@ func TestStartAutoUpdate(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-			version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+			version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.Name = "v1"
+			})
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 			workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -379,6 +381,7 @@ func TestStartAutoUpdate(t *testing.T) {
 				coderdtest.MustTransitionWorkspace(t, member, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 			}
 			version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(stringRichParameters), func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.Name = "v2"
 				ctvr.TemplateID = template.ID
 			})
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
