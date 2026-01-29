@@ -8485,7 +8485,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 
 // Our `InsertWorkspaceAgentDevcontainers` query should ideally be `[]uuid.NullUUID` but unfortunately
 // sqlc infers it as `[]uuid.UUID`. To ensure we don't insert a `uuid.Nil`, the query inserts NULL when
-// passed with `uuid.Nil`. This test ensures we keep this behaviour without regression.
+// passed with `uuid.Nil`. This test ensures we keep this behavior without regression.
 func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	t.Parallel()
 
