@@ -266,7 +266,7 @@ export const createTemplate = async (
 
 	// If the organization picker is present on the page, select the default
 	// organization.
-	const orgPicker = page.getByLabel("Belongs to *");
+	const orgPicker = page.getByTestId("organization-autocomplete");
 	const organizationsEnabled = await orgPicker.isVisible();
 	if (organizationsEnabled) {
 		if (orgName !== defaultOrganizationName) {
@@ -1233,7 +1233,7 @@ export async function createUser(
 
 	// If the organization picker is present on the page, select the default
 	// organization.
-	const orgPicker = page.getByLabel("Organization *");
+	const orgPicker = page.getByTestId("organization-autocomplete");
 	const organizationsEnabled = await orgPicker.isVisible();
 	if (organizationsEnabled) {
 		// The organization picker will be disabled if there is only one option.
