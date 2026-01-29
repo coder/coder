@@ -43,6 +43,8 @@ const (
 	// VersionHeader is sent in every telemetry request to
 	// report the semantic version of Coder.
 	VersionHeader = "X-Coder-Version"
+
+	DefaultSnapshotFrequency = 30 * time.Minute
 )
 
 type Options struct {
@@ -71,8 +73,7 @@ func New(options Options) (Reporter, error) {
 		options.Clock = quartz.NewReal()
 	}
 	if options.SnapshotFrequency == 0 {
-		// Report once every 30mins by default!
-		options.SnapshotFrequency = 30 * time.Minute
+		options.SnapshotFrequency = DefaultSnapshotFrequency
 	}
 	snapshotURL, err := options.URL.Parse("/snapshot")
 	if err != nil {
@@ -881,16 +882,20 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 	}
 
 	// Reset stats after capturing the summary. This deletes all rows so each
-	// replica will detect a new period on their next flush.
+	// replica will detect a new period on their next flush. Note: there is a
+	// known race condition here that may result in a small telemetry inaccuracy
+	// with multiple replicas (https://github.com/coder/coder/issues/21770).
 	if err := r.options.Database.ResetBoundaryUsageStats(boundaryCtx); err != nil {
 		return nil, xerrors.Errorf("reset boundary usage stats: %w", err)
 	}
 
 	return &BoundaryUsageSummary{
-		UniqueWorkspaces: summary.UniqueWorkspaces,
-		UniqueUsers:      summary.UniqueUsers,
-		AllowedRequests:  summary.AllowedRequests,
-		DeniedRequests:   summary.DeniedRequests,
+		UniqueWorkspaces:           summary.UniqueWorkspaces,
+		UniqueUsers:                summary.UniqueUsers,
+		AllowedRequests:            summary.AllowedRequests,
+		DeniedRequests:             summary.DeniedRequests,
+		PeriodStart:                now.Add(-r.options.SnapshotFrequency),
+		PeriodDurationMilliseconds: r.options.SnapshotFrequency.Milliseconds(),
 	}, nil
 }
 
@@ -2054,12 +2059,29 @@ type AIBridgeInterceptionsSummary struct {
 }
 
 // BoundaryUsageSummary contains aggregated boundary usage statistics across all
-// replicas for the telemetry period.
+// replicas for the telemetry period. See the boundaryusage package documentation
+// for the full tracking architecture.
 type BoundaryUsageSummary struct {
 	UniqueWorkspaces int64 `json:"unique_workspaces"`
 	UniqueUsers      int64 `json:"unique_users"`
 	AllowedRequests  int64 `json:"allowed_requests"`
 	DeniedRequests   int64 `json:"denied_requests"`
+
+	// PeriodStart and PeriodDurationMilliseconds describe the approximate collection
+	// window. The actual data may not align *exactly* to these boundaries because:
+	//
+	//   - Each replica flushes to the database independently on its own schedule
+	//   - The summary captures "data flushed since last reset" rather than "usage
+	//     during exactly the stated interval"
+	//   - Unflushed in-memory data at snapshot time rolls into the next period
+	//
+	// This is adequate for our purposes of gathering general usage and trends.
+	//
+	// PeriodStart is the approximate start of the collection period.
+	PeriodStart time.Time `json:"period_start"`
+	// PeriodDurationMilliseconds is the expected duration of the collection
+	// period (the telemetry snapshot frequency).
+	PeriodDurationMilliseconds int64 `json:"period_duration_ms"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {
