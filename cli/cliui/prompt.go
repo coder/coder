@@ -228,19 +228,19 @@ func readSecretInput(f *os.File, w io.Writer) (string, error) {
 			return "", err
 		}
 
-		switch {
-		case r == '\r' || r == '\n':
+		switch r {
+		case '\r', '\n':
 			// Finish on Enter
 			if _, err := fmt.Fprint(w, "\r\n"); err != nil {
 				return "", err
 			}
 			return string(runes), nil
 
-		case r == 3:
+		case 3:
 			// Ctrl+C
 			return "", ErrCanceled
 
-		case r == 127 || r == '\b':
+		case 127, '\b':
 			// Backspace/Delete: remove last rune
 			if len(runes) > 0 {
 				// Erase the last '*' on the screen

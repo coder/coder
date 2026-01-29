@@ -27,7 +27,7 @@ func (RootCmd) errorExample() *serpent.Command {
 	recorder.WriteHeader(http.StatusBadRequest)
 	resp := recorder.Result()
 	_ = resp.Body.Close()
-	resp.Request, _ = http.NewRequest(http.MethodPost, "http://example.com", nil)
+	resp.Request, _ = http.NewRequest(http.MethodPost, "http://example.com", nil) //nolint:noctx // Example code, context not meaningful
 	apiError := codersdk.ReadBodyAsError(resp)
 	//nolint:errorlint,forcetypeassert
 	apiError.(*codersdk.Error).Response = codersdk.Response{

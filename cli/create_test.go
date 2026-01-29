@@ -432,7 +432,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				removeTmpDirUntilSuccessAfterTest(t, tempDir)
 				parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 				for _, param := range params {
-					_, err := parameterFile.WriteString(fmt.Sprintf("%s: %s\n", param.name, param.value))
+					_, err := fmt.Fprintf(parameterFile, "%s: %s\n", param.name, param.value)
 					require.NoError(t, err)
 				}
 
@@ -1590,6 +1590,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		t.Run("Prompt", func(t *testing.T) {
+			t.Parallel()
 			inv, root := clitest.New(t, "create", "my-workspace-1", "--template", template.Name)
 			clitest.SetupConfig(t, member, root)
 			pty := ptytest.New(t).Attach(inv)

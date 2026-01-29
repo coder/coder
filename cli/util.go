@@ -27,7 +27,7 @@ var (
 func userSetOption(inv *serpent.Invocation, flagName string) bool {
 	for _, opt := range inv.Command.Options {
 		if opt.Name == flagName {
-			return !(opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault)
+			return opt.ValueSource != serpent.ValueSourceNone && opt.ValueSource != serpent.ValueSourceDefault
 		}
 	}
 	return false

@@ -718,20 +718,20 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	for _, tool := range toolsdk.All {
 		// Skip if not allowed.
 		if len(allowedTools) > 0 && !slices.ContainsFunc(allowedTools, func(t string) bool {
-			return t == tool.Tool.Name
+			return t == tool.Name
 		}) {
 			continue
 		}
 
 		// Skip user-dependent tools if no authenticated user client.
 		if !tool.UserClientOptional && s.client == nil {
-			cliui.Warnf(inv.Stderr, "Tool %q requires authentication and will not be available", tool.Tool.Name)
+			cliui.Warnf(inv.Stderr, "Tool %q requires authentication and will not be available", tool.Name)
 			continue
 		}
 
 		// Skip the coder_report_task tool if there is no agent client or slug.
-		if tool.Tool.Name == "coder_report_task" && (s.agentClient == nil || s.appStatusSlug == "") {
-			cliui.Warnf(inv.Stderr, "Tool %q requires the task reporter and will not be available", tool.Tool.Name)
+		if tool.Name == "coder_report_task" && (s.agentClient == nil || s.appStatusSlug == "") {
+			cliui.Warnf(inv.Stderr, "Tool %q requires the task reporter and will not be available", tool.Name)
 			continue
 		}
 
@@ -979,7 +979,7 @@ func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool 
 	}
 	return server.ServerTool{
 		Tool: mcp.Tool{
-			Name:        sdkTool.Tool.Name,
+			Name:        sdkTool.Name,
 			Description: sdkTool.Description,
 			InputSchema: mcp.ToolInputSchema{
 				Type:       "object", // Default of mcp.NewTool()

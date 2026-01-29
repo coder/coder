@@ -775,15 +775,15 @@ aibridge:
   # Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
   # (unlimited).
   # (default: 0, type: int)
-  max_concurrency: 0
+  maxConcurrency: 0
   # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
   # (unlimited).
   # (default: 0, type: int)
-  rate_limit: 0
+  rateLimit: 0
   # Emit structured logs for AI Bridge interception records. Use this for exporting
   # these records to external SIEM or observability systems.
   # (default: false, type: bool)
-  structured_logging: false
+  structuredLogging: false
   # Once enabled, extra headers will be added to upstream requests to identify the
   # user (actor) making requests to AI Bridge. This is only needed if you are using
   # a proxy between AI Bridge and an upstream AI provider. This will send
@@ -794,20 +794,20 @@ aibridge:
   # Enable the circuit breaker to protect against cascading failures from upstream
   # AI provider rate limits (429, 503, 529 overloaded).
   # (default: false, type: bool)
-  circuit_breaker_enabled: false
+  circuitBreakerEnabled: false
   # Number of consecutive failures that triggers the circuit breaker to open.
   # (default: 5, type: int)
-  circuit_breaker_failure_threshold: 5
+  circuitBreakerFailureThreshold: 5
   # Cyclic period of the closed state for clearing internal failure counts.
   # (default: 10s, type: duration)
-  circuit_breaker_interval: 10s
+  circuitBreakerInterval: 10s
   # How long the circuit breaker stays open before transitioning to half-open state.
   # (default: 30s, type: duration)
-  circuit_breaker_timeout: 30s
+  circuitBreakerTimeout: 30s
   # Maximum number of requests allowed in half-open state before deciding to close
   # or re-open the circuit.
   # (default: 3, type: int)
-  circuit_breaker_max_requests: 3
+  circuitBreakerMaxRequests: 3
 aibridgeproxy:
   # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
   # requests.

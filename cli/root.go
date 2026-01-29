@@ -1315,7 +1315,7 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 	if opts.Verbose {
 		// If all these fields are empty, then do not print this information.
 		// This can occur if the error is being used outside the api.
-		if !(err.Method() == "" && err.URL() == "" && err.StatusCode() == 0) {
+		if err.Method() != "" || err.URL() != "" || err.StatusCode() != 0 {
 			_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
 			_, _ = str.WriteString("\n")
 		}

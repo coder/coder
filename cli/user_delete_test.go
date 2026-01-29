@@ -140,6 +140,7 @@ func TestUserDelete(t *testing.T) {
 	t.Run("DeleteSelf", func(t *testing.T) {
 		t.Parallel()
 		t.Run("Owner", func(t *testing.T) {
+			t.Parallel()
 			client := coderdtest.New(t, nil)
 			_ = coderdtest.CreateFirstUser(t, client)
 			inv, root := clitest.New(t, "users", "delete", "me")
@@ -149,6 +150,7 @@ func TestUserDelete(t *testing.T) {
 			require.ErrorContains(t, inv.Run(), "You cannot delete yourself!")
 		})
 		t.Run("UserAdmin", func(t *testing.T) {
+			t.Parallel()
 			client := coderdtest.New(t, nil)
 			owner := coderdtest.CreateFirstUser(t, client)
 			userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
