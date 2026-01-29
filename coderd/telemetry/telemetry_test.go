@@ -880,6 +880,8 @@ func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
 		require.Equal(t, int64(2), snapshot.BoundaryUsageSummary.UniqueUsers)
 		require.Equal(t, int64(10+5+3), snapshot.BoundaryUsageSummary.AllowedRequests)
 		require.Equal(t, int64(2+1+0), snapshot.BoundaryUsageSummary.DeniedRequests)
+		require.Equal(t, clock.Now().Add(-telemetry.DefaultSnapshotFrequency), snapshot.BoundaryUsageSummary.PeriodStart)
+		require.Equal(t, int64(telemetry.DefaultSnapshotFrequency/time.Millisecond), snapshot.BoundaryUsageSummary.PeriodDurationMilliseconds)
 	})
 
 	t.Run("ResetAfterCollection", func(t *testing.T) {
