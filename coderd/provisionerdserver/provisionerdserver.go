@@ -2110,20 +2110,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			taskAppID = uuid.NullUUID{}
 		}
 
-		if hasAITask && workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			// Insert usage event for managed agents.
-			usageInserter := s.UsageInserter.Load()
-			if usageInserter != nil {
-				event := usagetypes.DCManagedAgentsV1{
-					Count: 1,
-				}
-				err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
-				if err != nil {
-					return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
-				}
-			}
-		}
-
 		hasExternalAgent := false
 		for _, resource := range jobType.WorkspaceBuild.Resources {
 			if resource.Type == "coder_external_agent" {
@@ -2133,6 +2119,19 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
+			if workspaceBuild.Transition == database.WorkspaceTransitionStart {
+				// Insert usage event for managed agents.
+				usageInserter := s.UsageInserter.Load()
+				if usageInserter != nil {
+					event := usagetypes.DCManagedAgentsV1{
+						Count: 1,
+					}
+					err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
+					if err != nil {
+						return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
+					}
+				}
+			}
 			// Irrespective of whether the agent or sidebar app is present,
 			// perform the upsert to ensure a link between the task and
 			// workspace build. Linking the task to the build is typically
