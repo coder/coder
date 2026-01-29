@@ -92,6 +92,15 @@ Specify the source workspace name to copy parameters from.
 
 Automatically accept parameter defaults when no value is provided.
 
+### --non-interactive
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_NON_INTERACTIVE</code> |
+
+Automatically accept all defaults and error when there is no default for a required input.
+
 ### -y, --yes
 
 |      |                   |

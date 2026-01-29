@@ -297,6 +297,117 @@ func TestCreate(t *testing.T) {
 			assert.Nil(t, ws.AutostartSchedule, "expected workspace autostart schedule to be nil")
 		}
 	})
+
+	tests := []struct {
+		// name is the name of the test.
+		name string
+		// setup runs before the command is started and returns arguments that
+		// will be appended to the create command.
+		setup func(client *codersdk.Client, owner codersdk.CreateFirstUserResponse) []string
+		// handlePty optionally runs after the command is started.  It should handle
+		// all expected prompts from the pty.
+		handlePty func(ctx context.Context, pty *ptytest.PTY)
+		// errors contains expected errors.  The workspace will not be verified if
+		// errors are expected.
+		errors []string
+	}{
+		{
+			name: "NoWorkspaceNameNonInteractive",
+			setup: func(_ *codersdk.Client, _ codersdk.CreateFirstUserResponse) []string {
+				return []string{"--non-interactive"}
+			},
+			errors: []string{
+				"workspace name must be provided",
+			},
+		},
+		{
+			name: "OneTemplateNonInteractive",
+			setup: func(_ *codersdk.Client, _ codersdk.CreateFirstUserResponse) []string {
+				return []string{"my-workspace", "--non-interactive"}
+			},
+			handlePty: func(ctx context.Context, pty *ptytest.PTY) {
+				pty.ExpectMatchContext(ctx, "Using the only available template")
+			},
+		},
+		{
+			name: "MultipleTemplatesNonInteractive",
+			setup: func(client *codersdk.Client, owner codersdk.CreateFirstUserResponse) []string {
+				version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+				return []string{"my-workspace", "--non-interactive"}
+			},
+			errors: []string{
+				"multiple templates available; use --template to specify which to use",
+			},
+		},
+		{
+			name: "MultipleTemplatesInteractive",
+			setup: func(client *codersdk.Client, owner codersdk.CreateFirstUserResponse) []string {
+				version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+				return []string{"my-workspace", "--yes"}
+			},
+			handlePty: func(ctx context.Context, pty *ptytest.PTY) {
+				pty.ExpectMatchContext(ctx, "Select a template below")
+				pty.WriteLine("") // Select whatever is first.
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Set up the template.
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+			// Run the command, after running any additional test setup.
+			args := []string{"create"}
+			if tt.setup != nil {
+				args = append(args, tt.setup(client, owner)...)
+			}
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, member, root)
+			doneChan := make(chan error)
+			pty := ptytest.New(t).Attach(inv)
+			go func() {
+				doneChan <- inv.Run()
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			// The test may do something with the pty.
+			if tt.handlePty != nil {
+				tt.handlePty(ctx, pty)
+			}
+
+			// Wait for the command to exit.
+			err := <-doneChan
+
+			if len(tt.errors) > 0 {
+				require.Error(t, err)
+				for _, errstr := range tt.errors {
+					require.ErrorContains(t, err, errstr)
+				}
+			} else {
+				require.NoError(t, err)
+
+				// Verify the workspace was created.
+				workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Name: "my-workspace"})
+				require.NoError(t, err, "expected to find created workspace")
+				require.Len(t, workspaces.Workspaces, 1)
+			}
+		})
+	}
 }
 
 func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.Preset) *echo.Responses {
@@ -319,10 +430,11 @@ func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.P
 }
 
 type param struct {
-	name    string
-	ptype   string
-	value   string
-	mutable bool
+	name     string
+	ptype    string
+	value    string
+	mutable  bool
+	required bool
 }
 
 func TestCreateWithRichParameters(t *testing.T) {
@@ -369,7 +481,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// setup runs before the command is started and return arguments that will
+		// setup runs before the command is started and returns arguments that will
 		// be appended to the create command.
 		setup func() []string
 		// handlePty optionally runs after the command is started.  It should handle
@@ -538,7 +650,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Simply accept the defaults.
 				for _, param := range params {
 					pty.ExpectMatch(param.name)
-					pty.ExpectMatch(`Enter a value (default: "` + param.value + `")`)
+					pty.ExpectMatch(fmt.Sprintf("Enter a value (default: %q)", param.value))
 					pty.WriteLine("")
 				}
 				// Confirm the creation.
@@ -555,11 +667,24 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(pty *ptytest.PTY) {
 				// Default values should get printed.
 				for _, param := range params {
-					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+					pty.ExpectMatch(fmt.Sprintf("%q: '%s'", param.name, param.value))
 				}
 				// No prompts, we only need to confirm.
 				pty.ExpectMatch("Confirm create?")
 				pty.WriteLine("yes")
+			},
+			withDefaults: true,
+		},
+		{
+			name: "ValuesFromTemplateDefaultsNonInteractive",
+			setup: func() []string {
+				return []string{"--non-interactive"}
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				// Default values should get printed.
+				for _, param := range params {
+					pty.ExpectMatch(fmt.Sprintf("%q: '%s'", param.name, param.value))
+				}
 			},
 			withDefaults: true,
 		},
@@ -576,11 +701,43 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(pty *ptytest.PTY) {
 				// Default values should get printed.
 				for _, param := range params {
-					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+					pty.ExpectMatch(fmt.Sprintf("%q: '%s'", param.name, param.value))
 				}
 				// No prompts, we only need to confirm.
 				pty.ExpectMatch("Confirm create?")
 				pty.WriteLine("yes")
+			},
+		},
+		{
+			name: "ValuesFromDefaultFlagsNonInteractive",
+			setup: func() []string {
+				// Provide the defaults on the command line.
+				args := []string{"--non-interactive"}
+				for _, param := range params {
+					args = append(args, "--parameter-default", fmt.Sprintf("%s=%s", param.name, param.value))
+				}
+				return args
+			},
+			handlePty: func(pty *ptytest.PTY) {
+				// Default values should get printed.
+				for _, param := range params {
+					pty.ExpectMatch(fmt.Sprintf("%q: '%s'", param.name, param.value))
+				}
+			},
+		},
+		{
+			name: "ValuesMissingNonInteractive",
+			setup: func() []string {
+				return []string{"--non-interactive"}
+			},
+			inputParameters: []param{
+				{
+					name:     "required_param",
+					required: true,
+				},
+			},
+			errors: []string{
+				"parameter \"required_param\" is required and has no default value",
 			},
 		},
 		{
@@ -671,6 +828,7 @@ cli_param: from file`)
 					Name:         param.name,
 					Type:         param.ptype,
 					Mutable:      param.mutable,
+					Required:     param.required,
 					DefaultValue: defaultValue,
 					Order:        int32(i), //nolint:gosec
 				})
@@ -721,7 +879,7 @@ cli_param: from file`)
 			if len(tt.errors) > 0 {
 				require.Error(t, err)
 				for _, errstr := range tt.errors {
-					assert.ErrorContains(t, err, errstr)
+					require.ErrorContains(t, err, errstr)
 				}
 			} else {
 				require.NoError(t, err)
@@ -1024,6 +1182,68 @@ func TestCreateWithPreset(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, buildParameters, 2)
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	t.Run("NoDefaultPresetNonInteractive", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template and a template version with a preset but no default.
+		preset := proto.Preset{
+			Name:        "preset-test",
+			Description: "Preset Test.",
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command without specifying a preset
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name,
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue),
+			"--non-interactive")
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// Should not prompt the user for the preset.
+		pty.ExpectMatchContext(ctx, "No preset applied")
+
+		<-doneChan
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 1)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Name: workspaceName})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: create a workspace using the expected template version and no preset
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Nil(t, workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: firstOptionalParameterValue})
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
 	})
 
