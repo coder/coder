@@ -13362,20 +13362,27 @@ func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (Task
 const listTasks = `-- name: ListTasks :many
 SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status tws
 WHERE tws.deleted_at IS NULL
-AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
-AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
-AND CASE WHEN $3::text != '' THEN tws.status = $3::task_status ELSE TRUE END
+AND CASE WHEN $1::timestamptz IS NOT NULL THEN tws.created_at > $1::timestamptz ELSE TRUE END
+AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $2::UUID ELSE TRUE END
+AND CASE WHEN $3::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $3::UUID ELSE TRUE END
+AND CASE WHEN $4::text != '' THEN tws.status = $4::task_status ELSE TRUE END
 ORDER BY tws.created_at DESC
 `
 
 type ListTasksParams struct {
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Status         string    `db:"status" json:"status"`
+	CreatedAfter   sql.NullTime `db:"created_after" json:"created_after"`
+	OwnerID        uuid.UUID    `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
+	Status         string       `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID, arg.Status)
+	rows, err := q.db.QueryContext(ctx, listTasks,
+		arg.CreatedAfter,
+		arg.OwnerID,
+		arg.OrganizationID,
+		arg.Status,
+	)
 	if err != nil {
 		return nil, err
 	}

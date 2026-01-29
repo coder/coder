@@ -154,6 +154,15 @@ func TestTelemetry(t *testing.T) {
 			JobID:             taskJob.ID,
 			HasAITask:         sql.NullBool{Valid: true, Bool: true},
 		})
+		// Create an old task that should be filtered out by created_after.
+		_ = dbgen.Task(t, db, database.TaskTable{
+			OwnerID:            user.ID,
+			OrganizationID:     org.ID,
+			TemplateVersionID:  taskTV.ID,
+			Prompt:             "old task prompt",
+			TemplateParameters: json.RawMessage(`{"old": "task"}`),
+			CreatedAt:          now.Add(-2 * time.Hour),
+		})
 		task := dbgen.Task(t, db, database.TaskTable{
 			OwnerID:            user.ID,
 			OrganizationID:     org.ID,
