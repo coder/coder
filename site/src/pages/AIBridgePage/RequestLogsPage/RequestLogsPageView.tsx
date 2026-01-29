@@ -3,8 +3,7 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { aiBridgePaywallConfig } from "components/Paywall/AIBridgePaywallConfig";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
 import {
 	Table,
 	TableBody,
@@ -34,7 +33,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	filterProps,
 }) => {
 	if (!isRequestLogsVisible) {
-		return <Paywall {...aiBridgePaywallConfig} />;
+		return <PaywallAIGovernance />;
 	}
 
 	return (

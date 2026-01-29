@@ -1,6 +1,6 @@
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -28,7 +28,7 @@ const TemplatePermissionsPage: FC = () => {
 			<title>{pageTitle(template.name, "Permissions")}</title>
 
 			{!isTemplateRBACEnabled ? (
-				<Paywall
+				<PaywallPremium
 					message="Template permissions"
 					description="Control access of templates for users and groups to templates. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/templates/template-permissions")}

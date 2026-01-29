@@ -8,7 +8,7 @@ import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import {
 	Table,
 	TableBody,
@@ -44,7 +44,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	return (
 		<ChooseOne>
 			<Cond condition={!groupsEnabled}>
-				<Paywall
+				<PaywallPremium
 					message="Groups"
 					description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/users/groups-roles")}

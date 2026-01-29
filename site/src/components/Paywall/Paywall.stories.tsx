@@ -1,5 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Paywall } from "./Paywall";
+import { PremiumBadge } from "components/Badges/Badges";
+import {
+	Paywall,
+	PaywallContent,
+	PaywallCTA,
+	PaywallDescription,
+	PaywallFeature,
+	PaywallFeatures,
+	PaywallHeading,
+	PaywallSeparator,
+	PaywallStack,
+	PaywallTitle,
+} from "./Paywall";
 
 const meta: Meta<typeof Paywall> = {
 	title: "components/Paywall",
@@ -9,10 +21,40 @@ const meta: Meta<typeof Paywall> = {
 export default meta;
 type Story = StoryObj<typeof Paywall>;
 
-export const Premium: Story = {
+export const Default: Story = {
 	args: {
-		message: "Black Lotus",
-		description:
-			"Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
+		children: (
+			<>
+				<PaywallContent>
+					<PaywallHeading>
+						<PaywallTitle>Black Lotus</PaywallTitle>
+						<PremiumBadge />
+					</PaywallHeading>
+					<PaywallDescription>
+						Adds 3 mana of any single color of your choice to your mana pool,
+						then is discarded. Tapping this artifact can be played as an
+						interrupt.
+					</PaywallDescription>
+				</PaywallContent>
+				<PaywallSeparator />
+				<PaywallStack>
+					<PaywallFeatures>
+						<PaywallFeature>
+							High availability & workspace proxies
+						</PaywallFeature>
+						<PaywallFeature>
+							Multi-org & role-based access control
+						</PaywallFeature>
+						<PaywallFeature>24x7 global support with SLA</PaywallFeature>
+						<PaywallFeature>
+							Unlimited Git & external auth integrations
+						</PaywallFeature>
+					</PaywallFeatures>
+					<PaywallCTA href="https://coder.com/pricing#compare-plans">
+						Learn about Premium
+					</PaywallCTA>
+				</PaywallStack>
+			</>
+		),
 	},
 };
