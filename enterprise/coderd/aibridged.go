@@ -26,7 +26,7 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 		panic("aibridged cannot be nil")
 	}
 
-	api.aibridgedHandler = srv
+	api.AibridgedHandler = srv
 }
 
 // CreateInMemoryAIBridgeServer creates a [aibridged.DRPCServer] and returns a

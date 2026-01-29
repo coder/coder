@@ -706,7 +706,7 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	aibridgedHandler      http.Handler
+	AibridgedHandler      http.Handler
 	aibridgeproxydHandler http.Handler
 }
 
