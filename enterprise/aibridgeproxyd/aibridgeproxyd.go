@@ -8,13 +8,13 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -93,9 +93,6 @@ type requestContext struct {
 	// Set in handleRequest for MITM'd requests.
 	// Sent to aibridged via custom header for cross-service correlation.
 	RequestID uuid.UUID
-	// RequestStartTime is the time when the MITM request processing started.
-	// Set in handleRequest for measuring request duration.
-	RequestStartTime time.Time
 }
 
 // Options configures the AI Bridge Proxy server.
@@ -661,9 +658,6 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, newProxyAuthRequiredResponse(req)
 	}
 
-	// Record the start time for request duration tracking.
-	reqCtx.RequestStartTime = time.Now()
-
 	// Rewrite the request to point to aibridged.
 	if s.coderAccessURL == nil || s.coderAccessURL.String() == "" {
 		logger.Error(s.ctx, "coderAccessURL is not configured")
@@ -748,17 +742,8 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 		// Decrement inflight requests gauge now that the request is complete.
 		s.metrics.InflightMITMRequests.WithLabelValues(provider).Dec()
 
-		// Record request duration.
-		if reqCtx != nil && !reqCtx.RequestStartTime.IsZero() {
-			duration := time.Since(reqCtx.RequestStartTime).Seconds()
-			s.metrics.MITMRequestDuration.WithLabelValues(provider).Observe(duration)
-		}
-
-		// Record response by status code class (2XX, 3XX, 4XX, 5XX).
-		if resp.StatusCode >= http.StatusOK {
-			statusClass := fmt.Sprintf("%dXX", resp.StatusCode/100)
-			s.metrics.MITMResponsesTotal.WithLabelValues(statusClass, provider).Inc()
-		}
+		// Record response by status code.
+		s.metrics.MITMResponsesTotal.WithLabelValues(strconv.Itoa(resp.StatusCode), provider).Inc()
 	}
 
 	return resp

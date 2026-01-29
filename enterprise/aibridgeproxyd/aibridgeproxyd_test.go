@@ -32,7 +32,6 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
-	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1134,7 +1133,7 @@ func TestProxy_MITM(t *testing.T) {
 				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeMITM))
 				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_requests_total", tt.provider))
 				require.False(t, testutil.PromGaugeGathered(t, gatheredMetrics, "inflight_mitm_requests", tt.provider))
-				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_responses_total", "2XX", tt.provider))
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_responses_total", "200", tt.provider))
 			} else {
 				// Verify the request was routed to aibridged correctly.
 				require.Equal(t, "hello from aibridged", string(body))
@@ -1148,12 +1147,7 @@ func TestProxy_MITM(t *testing.T) {
 				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "connect_sessions_total", aibridgeproxyd.RequestTypeMITM))
 				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "mitm_requests_total", tt.provider))
 				require.True(t, testutil.PromGaugeHasValue(t, gatheredMetrics, 0, "inflight_mitm_requests", tt.provider))
-				requestDurationHistogram := promhelp.HistogramValue(t, reg, "mitm_request_duration_seconds", prometheus.Labels{
-					"provider": tt.provider,
-				})
-				require.NotNil(t, requestDurationHistogram)
-				require.Equal(t, uint64(1), requestDurationHistogram.GetSampleCount(), "should have exactly one sample")
-				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "mitm_responses_total", "2XX", tt.provider))
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "mitm_responses_total", "200", tt.provider))
 
 				// Verify tunneled counter was not set.
 				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
