@@ -4,7 +4,7 @@ import { PaywallPremium } from "./PaywallPremium";
 interface PopoverPaywallProps {
 	message: string;
 	description?: ReactNode;
-	documentationLink?: string;
+	documentationLink: string;
 }
 
 export const PopoverPaywall: FC<PopoverPaywallProps> = ({
@@ -16,7 +16,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 		<PaywallPremium
 			message={message}
 			description={description}
-			documentationLink={documentationLink ?? ""}
+			documentationLink={documentationLink}
 			compact={true}
 		/>
 	);
