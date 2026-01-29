@@ -187,7 +187,7 @@ func TestTemplates(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// OK
-		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
+		var level = codersdk.WorkspaceAgentPortShareLevelPublic
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})

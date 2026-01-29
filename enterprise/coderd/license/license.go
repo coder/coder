@@ -766,7 +766,7 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 		}
 
 		yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
-		if claims.LicenseExpires == nil || claims.LicenseExpires.Time.After(yearsHardLimit) {
+		if claims.LicenseExpires == nil || claims.LicenseExpires.After(yearsHardLimit) {
 			return nil, ErrMissingLicenseExpires
 		}
 		if claims.ExpiresAt == nil {

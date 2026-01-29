@@ -815,7 +815,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Message, "Invalid URL")
 	})
 
 	t.Run("BadURL", func(t *testing.T) {
@@ -834,8 +834,8 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
-		require.Contains(t, sdkErr.Response.Detail, "scheme")
+		require.Contains(t, sdkErr.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Detail, "scheme")
 	})
 
 	t.Run("BadURLPath", func(t *testing.T) {
@@ -854,8 +854,8 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
-		require.Contains(t, sdkErr.Response.Detail, "The provided URL is not a valid reconnecting PTY endpoint URL")
+		require.Contains(t, sdkErr.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Detail, "The provided URL is not a valid reconnecting PTY endpoint URL")
 	})
 
 	t.Run("BadHostname", func(t *testing.T) {
@@ -874,7 +874,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid hostname in URL")
+		require.Contains(t, sdkErr.Message, "Invalid hostname in URL")
 	})
 
 	t.Run("NoToken", func(t *testing.T) {

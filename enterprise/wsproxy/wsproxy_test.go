@@ -90,7 +90,7 @@ func TestDERPOnly(t *testing.T) {
 	regions, err := client.Regions(ctx)
 	require.NoError(t, err)
 	require.Len(t, regions, 1)
-	require.Equal(t, api.Options.AccessURL.String(), regions[0].PathAppURL)
+	require.Equal(t, api.AccessURL.String(), regions[0].PathAppURL)
 }
 
 func TestDERP(t *testing.T) {

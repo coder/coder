@@ -1022,7 +1022,7 @@ func TestGroups(t *testing.T) {
 			if g.ID == everyoneGroup.ID || g.ID == group2.ID {
 				// Only expect the 1 member, themselves.
 				require.Len(t, g.Members, 1)
-				require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
+				require.Equal(t, user5.ID, g.Members[0].ID)
 				continue
 			}
 
