@@ -831,7 +831,6 @@ Later in 2025, more registry modules will be converted to Dynamic Parameters to 
 
 In the meantime, you can safely convert existing templates and build new parameters on top of the functionality provided in the registry.
 
-
 ### "Module not loaded" errors when using Dynamic Parameters
 
 One possible cause is exceeding the size limit for module archiving. If your template uses modules that exceed the limit, you may see warnings in the provisioner logs:
