@@ -211,7 +211,7 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 // directory to a tar archive.
 func estimateModuleSize(root fs.FS, moduleDir string) (int64, error) {
 	size := int64(0)
-	err := fs.WalkDir(root, moduleDir, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(root, moduleDir, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
