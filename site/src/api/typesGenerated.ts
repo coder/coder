@@ -5008,10 +5008,15 @@ export const TaskLogTypes: TaskLogType[] = ["input", "output"];
 
 // From codersdk/aitasks.go
 /**
- * TaskLogsResponse contains the logs for a task.
+ * TaskLogsResponse contains task logs and metadata. When snapshot is false,
+ * logs are fetched live from the task app. When snapshot is true, logs are
+ * fetched from a stored snapshot captured during pause.
  */
 export interface TaskLogsResponse {
+	readonly count: number;
 	readonly logs: readonly TaskLogEntry[];
+	readonly snapshot?: boolean;
+	readonly snapshot_at?: string;
 }
 
 // From codersdk/aitasks.go

@@ -7795,6 +7795,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
+  "count": 0,
   "logs": [
     {
       "content": "string",
@@ -7802,15 +7803,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "time": "2019-08-24T14:15:22Z",
       "type": "input"
     }
-  ]
+  ],
+  "snapshot": true,
+  "snapshot_at": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type                                                    | Required | Restrictions | Description |
-|--------|---------------------------------------------------------|----------|--------------|-------------|
-| `logs` | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
+| Name          | Type                                                    | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------|----------|--------------|-------------|
+| `count`       | integer                                                 | false    |              |             |
+| `logs`        | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
+| `snapshot`    | boolean                                                 | false    |              |             |
+| `snapshot_at` | string                                                  | false    |              |             |
 
 ## codersdk.TaskSendRequest
 
