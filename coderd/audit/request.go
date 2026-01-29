@@ -92,7 +92,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.GitSSHKey:
 		return typed.PublicKey
 	case database.AuditableGroup:
-		return typed.Group.Name
+		return typed.Name
 	case database.APIKey:
 		if typed.TokenName != "nil" {
 			return typed.TokenName
@@ -157,7 +157,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.GitSSHKey:
 		return typed.UserID
 	case database.AuditableGroup:
-		return typed.Group.ID
+		return typed.ID
 	case database.APIKey:
 		return typed.UserID
 	case database.License:

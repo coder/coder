@@ -1840,7 +1840,7 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 
 func (api *API) classicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, file database.File) (map[string]string, bool) {
 	// Try to parse template tags from the given file.
-	tempDir, err := os.MkdirTemp(api.Options.CacheDir, "tfparse-*")
+	tempDir, err := os.MkdirTemp(api.CacheDir, "tfparse-*")
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error checking workspace tags",

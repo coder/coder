@@ -376,7 +376,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		}
 		// Some tests run WorkspaceAgentScriptTiming in a loop and run into
 		// a unique violation - 2 rows get the same started_at value.
-		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt == time.Time{}) {
+		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt.Equal(time.Time{})) {
 			// Wait 1 millisecond so dbtime.Now() changes
 			time.Sleep(time.Millisecond * 1)
 			continue
@@ -742,11 +742,8 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 	require.NotEqual(t, member.UserID, uuid.Nil, "A user id is required to use 'dbgen.GroupMember', use 'dbgen.User'.")
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
 
-	//nolint:gosimple
-	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
-		UserID:  member.UserID,
-		GroupID: member.GroupID,
-	})
+	//nolint:staticcheck
+	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams(member))
 	require.NoError(t, err, "insert group member")
 
 	user, err := db.GetUserByID(genCtx, member.UserID)

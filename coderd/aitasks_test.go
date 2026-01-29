@@ -553,7 +553,7 @@ func TestTasks(t *testing.T) {
 
 			statusResponse = agentapisdk.StatusStable
 
-			//nolint:tparallel // Not intended to run in parallel.
+			//nolint:paralleltest,tparallel // Not intended to run in parallel.
 			t.Run("SendOK", func(t *testing.T) {
 				err = client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "Hello, Agent!",
@@ -561,7 +561,7 @@ func TestTasks(t *testing.T) {
 				require.NoError(t, err, "wanted no error due to healthy sidebar app and stable status")
 			})
 
-			//nolint:tparallel // Not intended to run in parallel.
+			//nolint:paralleltest,tparallel // Not intended to run in parallel.
 			t.Run("MissingContent", func(t *testing.T) {
 				err = client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "",
@@ -691,7 +691,7 @@ func TestTasks(t *testing.T) {
 		task, err = client.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 
-		//nolint:tparallel // Not intended to run in parallel.
+		//nolint:paralleltest,tparallel // Not intended to run in parallel.
 		t.Run("OK", func(t *testing.T) {
 			// Fetch logs.
 			resp, err := client.TaskLogs(ctx, "me", task.ID)
@@ -710,7 +710,7 @@ func TestTasks(t *testing.T) {
 			assert.Equal(t, "What would you like to work on today?", resp.Logs[2].Content)
 		})
 
-		//nolint:tparallel // Not intended to run in parallel.
+		//nolint:paralleltest,tparallel // Not intended to run in parallel.
 		t.Run("UpstreamError", func(t *testing.T) {
 			shouldReturnError = true
 			t.Cleanup(func() { shouldReturnError = false })
@@ -1588,10 +1588,11 @@ func TestTasksNotification(t *testing.T) {
 					startedAt sql.NullTime
 					readyAt   sql.NullTime
 				)
-				if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateReady {
+				switch tc.agentLifecycle {
+				case database.WorkspaceAgentLifecycleStateReady:
 					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
 					readyAt = sql.NullTime{Time: clock.Now(), Valid: true}
-				} else if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateStarting {
+				case database.WorkspaceAgentLifecycleStateStarting:
 					startedAt = sql.NullTime{Time: clock.Now(), Valid: true}
 				}
 

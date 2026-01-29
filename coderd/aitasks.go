@@ -348,12 +348,12 @@ func deriveTaskCurrentState(
 			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
 			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
 		case taskAgentLifecycle != nil:
-			switch {
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
+			switch *taskAgentLifecycle {
+			case codersdk.WorkspaceAgentLifecycleCreated:
 				message = "Agent is connecting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
+			case codersdk.WorkspaceAgentLifecycleStarting:
 				message = "Agent is starting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+			case codersdk.WorkspaceAgentLifecycleReady:
 				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
 					message = "App is initializing"
 				} else {
@@ -550,7 +550,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
