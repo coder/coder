@@ -159,6 +159,7 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		RichParameters:            cliRichParameters,
 		RichParameterFile:         parameterFlags.richParameterFile,
 		RichParameterDefaults:     cliRichParameterDefaults,
+		UseParameterDefaults:      parameterFlags.useParameterDefaults,
 	})
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, err
