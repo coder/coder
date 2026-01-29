@@ -395,6 +395,18 @@ jobs:
         id: go-paths
         uses: ./.github/actions/setup-go-paths
 
+      # macOS default bash and coreutils are too old for our scripts
+      # (lib.sh requires bash 4+, GNU getopt, make 4+).
+      - name: Setup GNU tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash gnu-getopt make
+          {
+            echo "$(brew --prefix bash)/bin"
+            echo "$(brew --prefix gnu-getopt)/bin"
+            echo "$(brew --prefix make)/libexec/gnubin"
+          } >> "$GITHUB_PATH"
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
