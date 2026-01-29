@@ -25,12 +25,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -110,6 +112,7 @@ type testProxyConfig struct {
 	aibridgeProviderFromHost func(string) string
 	upstreamProxy            string
 	upstreamProxyCA          string
+	metrics                  *aibridgeproxyd.Metrics
 }
 
 type testProxyOption func(*testProxyConfig)
@@ -156,6 +159,12 @@ func withUpstreamProxyCA(upstreamProxyCA string) testProxyOption {
 	}
 }
 
+func withMetrics(metrics *aibridgeproxyd.Metrics) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.metrics = metrics
+	}
+}
+
 // newTestProxy creates a new AI Bridge Proxy server for testing.
 // It uses the shared test CA and registers cleanup automatically.
 // It waits for the proxy server to be ready before returning.
@@ -187,6 +196,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		AIBridgeProviderFromHost: cfg.aibridgeProviderFromHost,
 		UpstreamProxy:            cfg.upstreamProxy,
 		UpstreamProxyCA:          cfg.upstreamProxyCA,
+		Metrics:                  cfg.metrics,
 	}
 	if cfg.certStore != nil {
 		aibridgeOpts.CertStore = cfg.certStore
@@ -623,29 +633,89 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, srv)
 	})
+
+	t.Run("SuccessWithMetrics", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		// Create metrics instance to verify it can be passed and stored.
+		reg := prometheus.NewRegistry()
+		metrics := aibridgeproxyd.NewMetrics(reg)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			Metrics:         metrics,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
 }
 
 func TestClose(t *testing.T) {
 	t.Parallel()
 
-	certFile, keyFile := getSharedTestCA(t)
-	logger := slogtest.Make(t, nil)
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 
-	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-		ListenAddr:      "127.0.0.1:0",
-		CoderAccessURL:  "http://localhost:3000",
-		CertFile:        certFile,
-		KeyFile:         keyFile,
-		DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.NoError(t, err)
+
+		err = srv.Close()
+		require.NoError(t, err)
+
+		// Calling Close again should not error.
+		err = srv.Close()
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
 
-	err = srv.Close()
-	require.NoError(t, err)
+	t.Run("WithMetrics", func(t *testing.T) {
+		t.Parallel()
 
-	// Calling Close again should not error
-	err = srv.Close()
-	require.NoError(t, err)
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		// Create metrics instance to verify Close() properly unregisters them.
+		reg := prometheus.NewRegistry()
+		metrics := aibridgeproxyd.NewMetrics(reg)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			Metrics:         metrics,
+		})
+		require.NoError(t, err)
+
+		err = srv.Close()
+		require.NoError(t, err)
+
+		// Verify metrics were unregistered by attempting to register new metrics
+		// with the same registry. This should succeed if the old metrics were
+		// properly unregistered.
+		newMetrics := aibridgeproxyd.NewMetrics(reg)
+		require.NotNil(t, newMetrics, "should be able to create new metrics after Close() unregisters old ones")
+
+		// Calling Close again should not error.
+		err = srv.Close()
+		require.NoError(t, err)
+	})
 }
 
 func TestProxy_CertCaching(t *testing.T) {
@@ -913,6 +983,7 @@ func TestProxy_MITM(t *testing.T) {
 		buildTargetURL  func(tunneledURL *url.URL) (string, error)
 		tunneled        bool
 		expectedPath    string
+		provider        string
 	}{
 		{
 			name:            "MitmdAnthropic",
@@ -922,6 +993,7 @@ func TestProxy_MITM(t *testing.T) {
 				return "https://api.anthropic.com/v1/messages", nil
 			},
 			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			provider:     "anthropic",
 		},
 		{
 			name:            "MitmdAnthropicNonDefaultPort",
@@ -931,6 +1003,7 @@ func TestProxy_MITM(t *testing.T) {
 				return "https://api.anthropic.com:8443/v1/messages", nil
 			},
 			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			provider:     "anthropic",
 		},
 		{
 			name:            "MitmdOpenAI",
@@ -940,6 +1013,7 @@ func TestProxy_MITM(t *testing.T) {
 				return "https://api.openai.com/v1/chat/completions", nil
 			},
 			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			provider:     "openai",
 		},
 		{
 			name:            "MitmdOpenAINonDefaultPort",
@@ -949,6 +1023,7 @@ func TestProxy_MITM(t *testing.T) {
 				return "https://api.openai.com:8443/v1/chat/completions", nil
 			},
 			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			provider:     "openai",
 		},
 		{
 			name:            "TunneledUnknownHost",
@@ -964,6 +1039,10 @@ func TestProxy_MITM(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Create metrics for verification.
+			reg := prometheus.NewRegistry()
+			metrics := aibridgeproxyd.NewMetrics(reg)
 
 			// Track what aibridged receives.
 			var receivedPath, receivedCoderToken, receivedRequestID string
@@ -1003,6 +1082,7 @@ func TestProxy_MITM(t *testing.T) {
 				withDomainAllowlist(domainAllowlist...),
 				// Use default provider mapping to test real AI provider routing.
 				withAIBridgeProviderFromHost(nil),
+				withMetrics(metrics),
 			)
 
 			// Build the target URL:
@@ -1036,12 +1116,25 @@ func TestProxy_MITM(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
+			// Gather metrics for verification.
+			gatheredMetrics, err := reg.Gather()
+			require.NoError(t, err)
+
 			if tt.tunneled {
 				// Verify request went to target server, not aibridged.
 				require.Equal(t, "hello from tunneled", string(body))
 				require.Empty(t, receivedPath, "aibridged should not receive tunneled requests")
 				require.Empty(t, receivedCoderToken, "tunneled requests are not authenticated by the proxy")
 				require.Empty(t, receivedRequestID, "tunneled requests should not have request ID header")
+
+				// Verify metrics for tunneled requests.
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
+
+				// Verify MITM-specific metrics were not set.
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeMITM))
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_requests_total", tt.provider))
+				require.False(t, testutil.PromGaugeGathered(t, gatheredMetrics, "inflight_mitm_requests", tt.provider))
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_responses_total", "2XX", tt.provider))
 			} else {
 				// Verify the request was routed to aibridged correctly.
 				require.Equal(t, "hello from aibridged", string(body))
@@ -1050,6 +1143,20 @@ func TestProxy_MITM(t *testing.T) {
 				require.NotEmpty(t, receivedRequestID, "MITM'd requests must include request ID header")
 				_, err := uuid.Parse(receivedRequestID)
 				require.NoError(t, err, "request ID must be a valid UUID")
+
+				// Verify metrics for MITM requests.
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "connect_sessions_total", aibridgeproxyd.RequestTypeMITM))
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "mitm_requests_total", tt.provider))
+				require.True(t, testutil.PromGaugeHasValue(t, gatheredMetrics, 0, "inflight_mitm_requests", tt.provider))
+				requestDurationHistogram := promhelp.HistogramValue(t, reg, "mitm_request_duration_seconds", prometheus.Labels{
+					"provider": tt.provider,
+				})
+				require.NotNil(t, requestDurationHistogram)
+				require.Equal(t, uint64(1), requestDurationHistogram.GetSampleCount(), "should have exactly one sample")
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "mitm_responses_total", "2XX", tt.provider))
+
+				// Verify tunneled counter was not set.
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
 			}
 		})
 	}
