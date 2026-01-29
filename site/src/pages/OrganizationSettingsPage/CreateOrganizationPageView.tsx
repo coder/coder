@@ -6,7 +6,6 @@ import { Badges, PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { IconField } from "components/IconField/IconField";
-import { Paywall } from "components/Paywall/Paywall";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import { Spinner } from "components/Spinner/Spinner";

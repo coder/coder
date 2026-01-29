@@ -10,7 +10,6 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Paywall } from "components/Paywall/Paywall";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { Stack } from "components/Stack/Stack";
 import {

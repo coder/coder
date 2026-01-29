@@ -8,7 +8,6 @@ import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Paywall } from "components/Paywall/Paywall";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import {
 	Table,

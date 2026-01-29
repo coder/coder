@@ -11,7 +11,6 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { Paywall } from "components/Paywall/Paywall";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { Stack } from "components/Stack/Stack";
 import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
