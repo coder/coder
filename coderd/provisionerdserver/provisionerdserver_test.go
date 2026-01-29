@@ -4153,12 +4153,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 						}
 					}
 					require.NotEqual(t, uuid.Nil, parentAgent.ID)
-
 					require.Len(t, subAgents, tt.expectSubAgentCount, "expected %d subagents", tt.expectSubAgentCount)
 
-					if tt.check != nil {
-						tt.check(t, db, parentAgent, subAgents, useProtoIDs)
-					}
+					tt.check(t, db, parentAgent, subAgents, useProtoIDs)
 				})
 			}
 		}
