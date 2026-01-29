@@ -53,6 +53,7 @@ const CreateWorkspacePage: FC = () => {
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 	const initialParamsSentRef = useRef(false);
+	const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -147,8 +148,14 @@ const CreateWorkspacePage: FC = () => {
 	});
 
 	// Initialize the WebSocket connection when there is a valid template version ID
+	// The reconnectTrigger dependency is used to force a reconnection when the
+	// page regains focus after a websocket error.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reconnectTrigger is intentionally used to trigger reconnection
 	useEffect(() => {
 		if (!realizedVersionId) return;
+
+		// Reset initial params sent flag on reconnect
+		initialParamsSentRef.current = false;
 
 		const socket = API.templateVersionDynamicParameters(
 			realizedVersionId,
@@ -165,7 +172,7 @@ const CreateWorkspacePage: FC = () => {
 						setWsError(
 							new DetailedError(
 								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
+								"The connection will automatically reconnect when you focus this page.",
 							),
 						);
 					}
@@ -174,11 +181,33 @@ const CreateWorkspacePage: FC = () => {
 		);
 
 		ws.current = socket;
+		setWsError(null);
 
 		return () => {
 			socket.close();
 		};
-	}, [realizedVersionId, onMessage, defaultOwner.id]);
+	}, [realizedVersionId, onMessage, defaultOwner.id, reconnectTrigger]);
+
+	// Auto-reconnect websocket when page receives focus
+	useEffect(() => {
+		const handleVisibilityChange = () => {
+			if (
+				!document.hidden &&
+				wsError &&
+				realizedVersionId &&
+				ws.current?.readyState !== WebSocket.OPEN
+			) {
+				// Trigger a reconnect by incrementing the trigger
+				setReconnectTrigger((prev) => prev + 1);
+			}
+		};
+
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+
+		return () => {
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
+		};
+	}, [wsError, realizedVersionId]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
