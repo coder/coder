@@ -16185,6 +16185,7 @@
 			"type": "string",
 			"enum": [
 				"*",
+				"aibridge",
 				"aibridge_interception",
 				"api_key",
 				"assign_org_role",
@@ -16230,6 +16231,7 @@
 			],
 			"x-enum-varnames": [
 				"ResourceWildcard",
+				"ResourceAibridge",
 				"ResourceAibridgeInterception",
 				"ResourceApiKey",
 				"ResourceAssignOrgRole",

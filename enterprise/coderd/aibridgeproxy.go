@@ -6,6 +6,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -27,6 +29,11 @@ func aibridgeproxyHandler(api *API, middlewares ...func(http.Handler) http.Handl
 		r.Use(middlewares...)
 
 		r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+			if !api.Authorize(r, policy.ActionUse, rbac.ResourceAibridge) {
+				httpapi.Forbidden(rw)
+				return
+			}
+
 			// Check if the proxy is enabled.
 			if !api.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
 				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
