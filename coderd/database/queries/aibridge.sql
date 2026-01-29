@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at
+	id, api_key_id, initiator_id, provider, model, metadata, started_at, client
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at
+	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client
 )
 RETURNING *;
 
@@ -115,6 +115,11 @@ WHERE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
 		ELSE true
 	END
+	-- Filter client
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'unknown') = @client::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
 	-- @authorize_filter
 ;
@@ -152,6 +157,11 @@ WHERE
 	-- Filter model
 	AND CASE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
+		ELSE true
+	END
+	-- Filter client
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'unknown') = @client::text
 		ELSE true
 	END
 	-- Cursor pagination
@@ -219,8 +229,7 @@ SELECT
     DISTINCT ON (provider, model, client)
     provider,
     model,
-    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-    'unknown' AS client
+    COALESCE(client, 'unknown') AS client
 FROM
     aibridge_interceptions
 WHERE
@@ -242,8 +251,7 @@ WITH interceptions_in_range AS (
     WHERE
         provider = @provider::text
         AND model = @model::text
-        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-        AND 'unknown' = @client::text
+        AND COALESCE(client, 'unknown') = @client::text
         AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
         AND ended_at >= @ended_at_after::timestamptz
         AND ended_at < @ended_at_before::timestamptz
