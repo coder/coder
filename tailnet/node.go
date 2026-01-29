@@ -49,7 +49,7 @@ func (u *nodeUpdater) updateLoop() {
 		u.Broadcast()
 	}()
 	for {
-		for !(u.closing || u.dirty) {
+		for !u.closing && !u.dirty {
 			u.phase = idle
 			u.Wait()
 		}
