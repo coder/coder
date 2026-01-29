@@ -382,6 +382,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create aibridge interceptions & related records",
 		},
 	},
+	"aibridge": {
+		Actions: map[Action]ActionDefinition{
+			ActionUse: "use AI Bridge LLM endpoints",
+		},
+	},
 	"boundary_usage": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   "read boundary usage statistics",

@@ -1020,6 +1020,15 @@ func TestRolePermissions(t *testing.T) {
 				false: {owner, setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
 			},
 		},
+		{
+			Name:     "AIBridge",
+			Actions:  []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceAibridge,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.
@@ -1160,6 +1169,8 @@ func TestListRoles(t *testing.T) {
 		"auditor",
 		"template-admin",
 		"user-admin",
+		"aibridge-user",
+		"aibridge-auditor",
 	},
 		siteRoleNames)
 

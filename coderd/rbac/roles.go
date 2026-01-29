@@ -35,6 +35,10 @@ const (
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
 
 	prebuildsOrchestrator string = "prebuilds-orchestrator"
+
+	// AI Bridge roles for granular access control.
+	aibridgeUser    string = "aibridge-user"
+	aibridgeAuditor string = "aibridge-auditor"
 )
 
 func init() {
@@ -137,10 +141,12 @@ func CustomSiteRole() RoleIdentifier { return RoleIdentifier{Name: customSiteRol
 func CustomOrganizationRole(orgID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: customOrganizationRole, OrganizationID: orgID}
 }
-func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAdmin} }
-func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
-func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
-func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
+func RoleTemplateAdmin() RoleIdentifier   { return RoleIdentifier{Name: templateAdmin} }
+func RoleUserAdmin() RoleIdentifier       { return RoleIdentifier{Name: userAdmin} }
+func RoleMember() RoleIdentifier          { return RoleIdentifier{Name: member} }
+func RoleAuditor() RoleIdentifier         { return RoleIdentifier{Name: auditor} }
+func RoleAibridgeUser() RoleIdentifier    { return RoleIdentifier{Name: aibridgeUser} }
+func RoleAibridgeAuditor() RoleIdentifier { return RoleIdentifier{Name: aibridgeAuditor} }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -345,6 +351,26 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
 
+	aibridgeUserRole := Role{
+		Identifier:  RoleAibridgeUser(),
+		DisplayName: "AI Bridge User",
+		Site: Permissions(map[string][]policy.Action{
+			ResourceAibridge.Type: {policy.ActionUse},
+		}),
+		User:    []Permission{},
+		ByOrgID: map[string]OrgPermissions{},
+	}.withCachedRegoValue()
+
+	aibridgeAuditorRole := Role{
+		Identifier:  RoleAibridgeAuditor(),
+		DisplayName: "AI Bridge Auditor",
+		Site: Permissions(map[string][]policy.Action{
+			ResourceAibridgeInterception.Type: {policy.ActionRead},
+		}),
+		User:    []Permission{},
+		ByOrgID: map[string]OrgPermissions{},
+	}.withCachedRegoValue()
+
 	templateAdminRole := Role{
 		Identifier:  RoleTemplateAdmin(),
 		DisplayName: "Template Admin",
@@ -416,6 +442,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
+		},
+
+		aibridgeUser: func(_ uuid.UUID) Role {
+			return aibridgeUserRole
+		},
+
+		aibridgeAuditor: func(_ uuid.UUID) Role {
+			return aibridgeAuditorRole
 		},
 
 		// orgAdmin returns a role with all actions allows in a given

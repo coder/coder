@@ -7,6 +7,7 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
+	ScopeAibridgeUse                         ScopeName = "aibridge:use"
 	ScopeAibridgeInterceptionCreate          ScopeName = "aibridge_interception:create"
 	ScopeAibridgeInterceptionRead            ScopeName = "aibridge_interception:read"
 	ScopeAibridgeInterceptionUpdate          ScopeName = "aibridge_interception:update"
@@ -167,6 +168,7 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAibridgeUse,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
@@ -328,6 +330,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAibridgeUse,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
