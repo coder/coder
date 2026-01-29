@@ -277,7 +277,7 @@ func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
 		return nil, err
 	}
 
-	var unmetDependencies []Dependency = slice.Filter(allDependencies, func(dependency Dependency) bool {
+	var unmetDependencies = slice.Filter(allDependencies, func(dependency Dependency) bool {
 		return !dependency.IsSatisfied
 	})
 

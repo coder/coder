@@ -2710,11 +2710,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 	require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(allUsers[:limit]), "first page, limit=%d", limit)
 	count += len(page.Users)
 
-	for {
-		if len(page.Users) == 0 {
-			break
-		}
-
+	for len(page.Users) != 0 {
 		afterCursor := page.Users[len(page.Users)-1].ID
 		// Assert each page is the next expected page
 		// This is using a cursor, and only works if all users created_at

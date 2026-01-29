@@ -65,9 +65,10 @@ func TestCheckInactiveUsers(t *testing.T) {
 
 	var dormant, suspended int
 	for _, row := range rows {
-		if row.Status == database.UserStatusDormant {
+		switch row.Status {
+		case database.UserStatusDormant:
 			dormant++
-		} else if row.Status == database.UserStatusSuspended {
+		case database.UserStatusSuspended:
 			suspended++
 		}
 	}

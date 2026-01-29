@@ -840,7 +840,7 @@ func (c *Client) UpdateUserQuietHoursSchedule(ctx context.Context, userIdent str
 // the default behavior is to return all users in a single page.
 func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users", nil,
-		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
 		func(r *http.Request) {
 			q := r.URL.Query()
 			var params []string

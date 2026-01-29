@@ -224,7 +224,7 @@ type CreateTestAuditLogRequest struct {
 
 // AuditLogs retrieves audit logs from the given page.
 func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {

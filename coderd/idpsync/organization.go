@@ -36,7 +36,7 @@ func (AGPLIDPSync) OrganizationSyncEnabled(_ context.Context, _ database.Store) 
 
 func (s AGPLIDPSync) UpdateOrganizationSyncSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
 	rlv := s.Manager.Resolver(db)
-	err := s.SyncSettings.Organization.SetRuntimeValue(ctx, rlv, &settings)
+	err := s.Organization.SetRuntimeValue(ctx, rlv, &settings)
 	if err != nil {
 		return xerrors.Errorf("update organization sync settings: %w", err)
 	}
@@ -48,7 +48,7 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 	// If this logic is ever updated, make sure to update the corresponding
 	// checkIDPOrgSync in coderd/telemetry/telemetry.go.
 	rlv := s.Manager.Resolver(db)
-	orgSettings, err := s.SyncSettings.Organization.Resolve(ctx, rlv)
+	orgSettings, err := s.Organization.Resolve(ctx, rlv)
 	if err != nil {
 		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, xerrors.Errorf("resolve org sync settings: %w", err)
@@ -56,9 +56,9 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 
 		// Default to the statically assigned settings if they exist.
 		orgSettings = &OrganizationSyncSettings{
-			Field:         s.DeploymentSyncSettings.OrganizationField,
-			Mapping:       s.DeploymentSyncSettings.OrganizationMapping,
-			AssignDefault: s.DeploymentSyncSettings.OrganizationAssignDefault,
+			Field:         s.OrganizationField,
+			Mapping:       s.OrganizationMapping,
+			AssignDefault: s.OrganizationAssignDefault,
 		}
 	}
 	return orgSettings, nil

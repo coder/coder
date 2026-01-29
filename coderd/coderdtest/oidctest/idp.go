@@ -1236,7 +1236,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	mux.Handle(revokeTokenPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if f.revokeTokenGitHubFormat {
 			u, p, ok := r.BasicAuth()
-			if !ok || !(u == f.clientID && p == f.clientSecret) {
+			if !ok || (u != f.clientID || p != f.clientSecret) {
 				httpError(rw, http.StatusForbidden, xerrors.Errorf("basic auth failed"))
 				return
 			}

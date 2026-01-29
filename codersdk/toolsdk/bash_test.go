@@ -51,6 +51,7 @@ func TestWorkspaceBash(t *testing.T) {
 		ctx := context.Background()
 
 		// Test input validation errors (these should fail before client access)
+		//nolint:paralleltest // Uses shared ctx from parent test
 		t.Run("EmptyWorkspace", func(t *testing.T) {
 			args := toolsdk.WorkspaceBashArgs{
 				Workspace: "", // Empty workspace should be caught by validation
@@ -61,6 +62,7 @@ func TestWorkspaceBash(t *testing.T) {
 			require.Contains(t, err.Error(), "workspace name cannot be empty")
 		})
 
+		//nolint:paralleltest // Uses shared ctx from parent test
 		t.Run("EmptyCommand", func(t *testing.T) {
 			args := toolsdk.WorkspaceBashArgs{
 				Workspace: "test-workspace",

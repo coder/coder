@@ -420,6 +420,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert all authz properties
+		//nolint:paralleltest // Uses shared authz from parent test
 		t.Run("OnlyOrganizationAuthzCalls", func(t *testing.T) {
 			// Creating workspaces is an organization action. So organization
 			// permissions should be sufficient to complete the action.
@@ -2806,7 +2807,7 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusConflict, apiErr.StatusCode())
-			require.Equal(t, tc.apiErrorMsg, apiErr.Response.Message)
+			require.Equal(t, tc.apiErrorMsg, apiErr.Message)
 
 			// Given: the prebuilt workspace is claimed by a user
 			user, err := client.User(ctx, "testUser")
@@ -4598,9 +4599,10 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Find actors in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
 		for i := range sharedWith {
-			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
+			switch sharedWith[i].ActorType {
+			case codersdk.SharedWorkspaceActorTypeUser:
 				userActor = &sharedWith[i]
-			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
+			case codersdk.SharedWorkspaceActorTypeGroup:
 				groupActor = &sharedWith[i]
 			}
 		}
@@ -4685,9 +4687,10 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Find actors in response
 		var userActor, groupActor *codersdk.SharedWorkspaceActor
 		for i := range sharedWith {
-			if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeUser {
+			switch sharedWith[i].ActorType {
+			case codersdk.SharedWorkspaceActorTypeUser:
 				userActor = &sharedWith[i]
-			} else if sharedWith[i].ActorType == codersdk.SharedWorkspaceActorTypeGroup {
+			case codersdk.SharedWorkspaceActorTypeGroup:
 				groupActor = &sharedWith[i]
 			}
 		}

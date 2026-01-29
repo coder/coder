@@ -232,6 +232,7 @@ func TestRoleByName(t *testing.T) {
 
 		for _, c := range testCases {
 			t.Run(c.Role.Identifier.String(), func(t *testing.T) {
+				t.Parallel()
 				role, err := RoleByName(c.Role.Identifier)
 				require.NoError(t, err, "role exists")
 				equalRoles(t, c.Role, role)

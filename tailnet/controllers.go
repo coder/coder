@@ -356,7 +356,7 @@ func NewTunnelSrcCoordController(
 func (c *TunnelSrcCoordController) New(client CoordinatorClient) CloserWaiter {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	b := c.BasicCoordinationController.NewCoordination(client)
+	b := c.NewCoordination(client)
 	c.coordination = b
 	// resync destinations on reconnect
 	for dest := range c.dests {

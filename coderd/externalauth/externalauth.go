@@ -317,7 +317,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", link.AccessToken))
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
+	res, err := c.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
 	}
@@ -368,7 +368,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceAppInstallations, req)
+	res, err := c.Do(ctx, promoauth.SourceAppInstallations, req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -420,7 +420,7 @@ func (c *Config) RevokeToken(ctx context.Context, link database.ExternalAuthLink
 		return false, err
 	}
 
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceRevoke, req)
+	res, err := c.Do(ctx, promoauth.SourceRevoke, req)
 	if err != nil {
 		return false, err
 	}

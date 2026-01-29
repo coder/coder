@@ -410,6 +410,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Parallel()
 
 		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 			client := coderdtest.New(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -426,6 +427,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		})
 
 		t.Run("EnterpriseLevelError", func(t *testing.T) {
+			t.Parallel()
 			client := coderdtest.New(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1038,7 +1040,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, template.MaxPortShareLevel)
 
-		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelAuthenticated
+		level := codersdk.WorkspaceAgentPortShareLevelAuthenticated
 		req := codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		}

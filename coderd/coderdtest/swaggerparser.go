@@ -119,9 +119,10 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 				r.model = args[2]
 			}
 
-			if annotationName == "@Success" {
+			switch annotationName {
+			case "@Success":
 				c.successes = append(c.successes, r)
-			} else if annotationName == "@Failure" {
+			case "@Failure":
 				c.failures = append(c.failures, r)
 			}
 		case "@Param":

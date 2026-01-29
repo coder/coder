@@ -428,7 +428,7 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	// The caller should use either 1 or the other (or none).
 	// Using "AnyOrgOwner" and an OrgID is a contradiction.
 	// An empty uuid or a nil uuid means "no org owner".
-	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
+	if object.AnyOrgOwner && (object.OrgID != "" && object.OrgID != "00000000-0000-0000-0000-000000000000") {
 		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 

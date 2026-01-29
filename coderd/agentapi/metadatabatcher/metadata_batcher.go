@@ -192,7 +192,7 @@ func (b *Batcher) Close() {
 // to the same metadata key for the same agent are deduplicated in the batch,
 // keeping only the value with the most recent collectedAt timestamp.
 func (b *Batcher) Add(agentID uuid.UUID, keys []string, values []string, errors []string, collectedAt []time.Time) error {
-	if !(len(keys) == len(values) && len(values) == len(errors) && len(errors) == len(collectedAt)) {
+	if len(keys) != len(values) || len(values) != len(errors) || len(errors) != len(collectedAt) {
 		return xerrors.Errorf("invalid Add call, all inputs must have the same number of items; keys: %d, values: %d, errors: %d, collectedAt: %d", len(keys), len(values), len(errors), len(collectedAt))
 	}
 

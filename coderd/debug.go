@@ -57,7 +57,7 @@ func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 // @Param force query boolean false "Force a healthcheck to run"
 func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APITokenFromRequest(r)
-	ctx, cancel := context.WithTimeout(r.Context(), api.Options.HealthcheckTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), api.HealthcheckTimeout)
 	defer cancel()
 
 	// Load sections previously marked as dismissed.
@@ -71,7 +71,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	// Get cached report if it exists and the requester did not force a refresh.
 	if !forced {
 		if report := api.healthCheckCache.Load(); report != nil {
-			if time.Since(report.Time) < api.Options.HealthcheckRefresh {
+			if time.Since(report.Time) < api.HealthcheckRefresh {
 				formatHealthcheck(ctx, rw, r, *report, dismissed...)
 				return
 			}
@@ -80,7 +80,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 
 	resChan := api.healthCheckGroup.DoChan("", func() (*healthsdk.HealthcheckReport, error) {
 		// Create a new context not tied to the request.
-		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), api.HealthcheckTimeout)
 		defer cancel()
 
 		// Create and store progress tracker for timeout diagnostics.

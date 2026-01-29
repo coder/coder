@@ -156,7 +156,7 @@ func mapToSlogFields(m map[string]interface{}) slog.Map {
 func mapToBasicMap(m map[string]interface{}) map[string]interface{} {
 	basic := make(map[string]interface{}, len(m))
 	for k, v := range m {
-		var val interface{} = v
+		var val = v
 		switch v := v.(type) {
 		case float32:
 			val = float64(v)
