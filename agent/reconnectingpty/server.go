@@ -63,10 +63,7 @@ func NewServer(logger slog.Logger, commandCreator *agentssh.Server, reportConnec
 
 func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr error) {
 	var wg sync.WaitGroup
-	for {
-		if ctx.Err() != nil {
-			break
-		}
+	for ctx.Err() == nil {
 		conn, err := l.Accept()
 		if err != nil {
 			s.logger.Debug(ctx, "accept pty failed", slog.Error(err))

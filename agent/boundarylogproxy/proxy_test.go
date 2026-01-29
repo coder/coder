@@ -283,7 +283,7 @@ func TestServer_MessageTooLarge(t *testing.T) {
 	defer conn.Close()
 
 	// Send a message claiming to be larger than the max message size.
-	var length uint32 = codec.MaxMessageSizeV1 + 1
+	var length = codec.MaxMessageSizeV1 + 1
 	err = binary.Write(conn, binary.BigEndian, length)
 	require.NoError(t, err)
 

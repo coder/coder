@@ -3662,9 +3662,10 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		for _, m := range mf.GetMetric() {
 			assert.Equal(t, expected[i].Name, mf.GetName())
 			assert.Equal(t, expected[i].Type.String(), mf.GetType().String())
-			if expected[i].Type == proto.Stats_Metric_GAUGE {
+			switch expected[i].Type {
+			case proto.Stats_Metric_GAUGE:
 				assert.NoError(t, expected[i].CheckFn(m.GetGauge().GetValue()), "check fn for %s failed", expected[i].Name)
-			} else if expected[i].Type == proto.Stats_Metric_COUNTER {
+			case proto.Stats_Metric_COUNTER:
 				assert.NoError(t, expected[i].CheckFn(m.GetCounter().GetValue()), "check fn for %s failed", expected[i].Name)
 			}
 			for j, lbl := range expected[i].Labels {
