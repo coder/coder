@@ -102,7 +102,7 @@ func NewTunnel(
 
 func (t *Tunnel) requestLoop() {
 	defer close(t.requestLoopDone)
-	for req := range t.speaker.requests {
+	for req := range t.requests {
 		if req.msg.Rpc != nil && req.msg.Rpc.MsgId != 0 {
 			t.handleRPC(req)
 			if _, ok := req.msg.GetMsg().(*ManagerMessage_Stop); ok {
@@ -124,7 +124,7 @@ func (t *Tunnel) handleRPC(req *request[*TunnelMessage, *ManagerMessage]) {
 	resp.Rpc = &RPC{ResponseTo: req.msg.Rpc.MsgId}
 	switch msg := req.msg.GetMsg().(type) {
 	case *ManagerMessage_GetPeerUpdate:
-		err := t.updater.sendUpdateResponse(req)
+		err := t.sendUpdateResponse(req)
 		if err != nil {
 			t.logger.Error(t.ctx, "failed to send peer update", slog.Error(err))
 		}
@@ -199,7 +199,7 @@ func WithClock(clock quartz.Clock) TunnelOption {
 
 // ApplyNetworkSettings sends a request to the manager to apply the given network settings
 func (t *Tunnel) ApplyNetworkSettings(ctx context.Context, ns *NetworkSettingsRequest) error {
-	msg, err := t.speaker.unaryRPC(ctx, &TunnelMessage{
+	msg, err := t.unaryRPC(ctx, &TunnelMessage{
 		Msg: &TunnelMessage_NetworkSettings{
 			NetworkSettings: ns,
 		},
@@ -277,7 +277,7 @@ func (t *Tunnel) start(req *StartRequest) error {
 		return xerrors.Errorf("failed to start connection: %w", err)
 	}
 
-	if ok := t.updater.setConn(conn); !ok {
+	if ok := t.setConn(conn); !ok {
 		t.logger.Warn(t.ctx, "asked to start tunnel, but tunnel is already running")
 	}
 	return err
