@@ -12,9 +12,9 @@ export const Paywall = ({
 }: React.ComponentProps<"div">) => {
 	return (
 		<div
-			css={styles.root}
 			className={cn(
-				"flex flex-row items-center justify-center min-h-[280px] p-4 rounded-md gap-8",
+				"flex flex-row items-center justify-center min-h-[280px] p-4 rounded-lg gap-8",
+				"border border-solid border-border-purple bg-[linear-gradient(160deg,transparent,hsl(var(--surface-purple)))]",
 				className,
 			)}
 			{...props}
@@ -191,10 +191,3 @@ const FeatureIcon: FC<React.ComponentProps<"svg">> = ({
 		/>
 	);
 };
-
-const styles = {
-	root: (theme) => ({
-		backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.premium.background})`,
-		border: `1px solid ${theme.branding.premium.border}`,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
