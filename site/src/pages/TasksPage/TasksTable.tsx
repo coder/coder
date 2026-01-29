@@ -1,3 +1,4 @@
+import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -12,6 +13,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Table,
@@ -35,9 +37,10 @@ import {
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
 import { type FC, type ReactNode, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-
 import { relativeTime } from "utils/time";
+import { TaskActionButton } from "./TaskActionButton";
 
 type TasksTableProps = {
 	tasks: readonly Task[] | undefined;
@@ -192,6 +195,50 @@ const TaskRow: FC<TaskRowProps> = ({
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+
+	const showPause =
+		task.status === "active" ||
+		task.status === "initializing" ||
+		task.status === "pending";
+	const pauseDisabled =
+		task.status === "pending" || task.status === "initializing";
+	const showResume = task.status === "paused" || task.status === "error";
+
+	const pauseMutation = useMutation({
+		mutationFn: async () => {
+			if (!task.workspace_id) {
+				throw new Error("Workspace ID is not available");
+			}
+			return API.stopWorkspace(task.workspace_id);
+		},
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		},
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to pause task."));
+		},
+	});
+
+	const resumeMutation = useMutation({
+		mutationFn: async () => {
+			if (!task.workspace_id) {
+				throw new Error("Workspace ID is not available");
+			}
+			return API.startWorkspace(
+				task.workspace_id,
+				task.template_version_id,
+				undefined,
+				undefined,
+			);
+		},
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		},
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to resume task."));
+		},
+	});
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
 	// Discard role, breaks Chromatic.
@@ -258,42 +305,59 @@ const TaskRow: FC<TaskRowProps> = ({
 					/>
 				</TableCell>
 				<TableCell className="text-right">
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon-lg"
-								variant="subtle"
-								onClick={(e) => e.stopPropagation()}
-							>
-								<EllipsisVertical aria-hidden="true" />
-								<span className="sr-only">Open task actions</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onClick={(e) => {
-									e.stopPropagation();
-									navigate(
-										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
-									);
-								}}
-							>
-								<Share2Icon />
-								Share
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={(e) => {
-									e.stopPropagation();
-									setIsDeleteDialogOpen(true);
-								}}
-							>
-								<TrashIcon />
-								Delete&hellip;
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					<div className="flex items-center justify-end gap-1">
+						{showPause && (
+							<TaskActionButton
+								action="pause"
+								disabled={pauseDisabled}
+								loading={pauseMutation.isPending}
+								onClick={() => pauseMutation.mutate()}
+							/>
+						)}
+						{showResume && (
+							<TaskActionButton
+								action="resume"
+								loading={resumeMutation.isPending}
+								onClick={() => resumeMutation.mutate()}
+							/>
+						)}
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									size="icon-lg"
+									variant="subtle"
+									onClick={(e) => e.stopPropagation()}
+								>
+									<EllipsisVertical aria-hidden="true" />
+									<span className="sr-only">Open task actions</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={(e) => {
+										e.stopPropagation();
+										navigate(
+											`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
+										);
+									}}
+								>
+									<Share2Icon />
+									Share
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={(e) => {
+										e.stopPropagation();
+										setIsDeleteDialogOpen(true);
+									}}
+								>
+									<TrashIcon />
+									Delete&hellip;
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
 				</TableCell>
 			</TableRow>
 
