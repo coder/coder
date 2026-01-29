@@ -75,6 +75,7 @@ type AIBridgeListInterceptionsFilter struct {
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
 	Provider      string    `json:"provider,omitempty"`
 	Model         string    `json:"model,omitempty"`
+	Client        string    `json:"client,omitempty"`
 
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -100,6 +101,9 @@ func (f AIBridgeListInterceptionsFilter) asRequestOption() RequestOption {
 		}
 		if f.Model != "" {
 			params = append(params, fmt.Sprintf("model:%q", f.Model))
+		}
+		if f.Client != "" {
+			params = append(params, fmt.Sprintf("client:%q", f.Client))
 		}
 		if f.FilterQuery != "" {
 			// If custom stuff is added, just add it on here.
