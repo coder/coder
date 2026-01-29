@@ -365,6 +365,21 @@ coder:
     # NodePort or LoadBalancer. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpsNodePort: ""
+    # coder.service.additionalPorts -- Additional ports to expose on the service.
+    # Useful for exposing custom services.
+    # Each port should specify name, port, targetPort, and protocol.
+    # NodePort can optionally be specified when service.type is NodePort or LoadBalancer.
+    additionalPorts: []
+    # - name: "coder-custom"
+    #   port: 8081
+    #   targetPort: 8081
+    #   protocol: TCP
+    #   nodePort: 30081  # Optional, only for NodePort/LoadBalancer
+    # - name: "coder-custom"
+    #   port: 8444
+    #   targetPort: 8444
+    #   protocol: TCP
+    #   nodePort: 30444  # Optional, only for NodePort/LoadBalancer
 
   # coder.ingress -- The Ingress object to expose for Coder.
   ingress:

@@ -114,6 +114,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "svc_additional_ports",
+		expectedError: "",
+	},
+	{
 		name:          "securitycontext",
 		expectedError: "",
 	},
