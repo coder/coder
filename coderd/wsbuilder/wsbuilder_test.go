@@ -571,6 +571,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withInactiveVersionNoParams(),
+			withNoTask,
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
 			withParameterSchemas(inactiveJobID, schemas),
@@ -604,6 +605,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Inputs
 			withTemplate,
 			withInactiveVersion(richParameters),
+			withNoTask,
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(initialBuildParameters),
@@ -1049,7 +1051,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 		var calls int64
 		fakeUsageChecker := &fakeUsageChecker{
-			checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+			checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 				atomic.AddInt64(&calls, 1)
 				return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 			},
@@ -1126,7 +1128,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 			var calls int64
 			fakeUsageChecker := &fakeUsageChecker{
-				checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+				checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 					atomic.AddInt64(&calls, 1)
 					return c.response, c.responseErr
 				},
@@ -1134,6 +1136,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 
 			mDB := expectDB(t,
 				withTemplate,
+				withNoTask,
 				withInactiveVersionNoParams(),
 			)
 			fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -1577,11 +1580,11 @@ func expectFindMatchingPresetID(id uuid.UUID, err error) func(mTx *dbmock.MockSt
 }
 
 type fakeUsageChecker struct {
-	checkBuildUsageFunc func(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error)
+	checkBuildUsageFunc func(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error)
 }
 
-func (f *fakeUsageChecker) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
-	return f.checkBuildUsageFunc(ctx, store, templateVersion)
+func (f *fakeUsageChecker) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+	return f.checkBuildUsageFunc(ctx, store, templateVersion, task, transition)
 }
 
 func withNoTask(mTx *dbmock.MockStore) {
