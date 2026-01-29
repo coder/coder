@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { Button } from "components/Button/Button";
 import { CircleCheckBigIcon } from "lucide-react";
 import type React from "react";
