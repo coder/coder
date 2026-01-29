@@ -192,15 +192,15 @@ func (t *timingAggregator) startStage(stage database.ProvisionerJobTimingStage) 
 		action:   "terraform",
 		provider: "coder",
 	}
-	endTs := ts
+	endTS := ts
 	t.ingest(dbtime.Now(), &ts)
 
 	return func(err error) {
-		endTs.kind = timingStageEnd
+		endTS.kind = timingStageEnd
 		if err != nil {
-			endTs.kind = timingStageError
+			endTS.kind = timingStageError
 		}
-		t.ingest(dbtime.Now(), &endTs)
+		t.ingest(dbtime.Now(), &endTS)
 	}
 }
 
