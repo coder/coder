@@ -176,7 +176,7 @@ jobs:
       - name: Get golangci-lint cache dir
         run: |
           linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
-          ./.github/scripts/retry.sh 3 go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
+          ./.github/scripts/retry.sh -- go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
@@ -329,7 +329,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install shfmt
-        run: ./.github/scripts/retry.sh 3 go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
+        run: ./.github/scripts/retry.sh -- go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
       - name: make fmt
         timeout-minutes: 7
@@ -1068,7 +1068,7 @@ jobs:
       - name: Build dylibs
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh 3 go mod download
+          ./.github/scripts/retry.sh -- go mod download
 
           make gen/mark-fresh
           make build/coder-dylib
@@ -1117,10 +1117,10 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install go-winres
-        run: ./.github/scripts/retry.sh 3 go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
 
       - name: Install nfpm
-        run: ./.github/scripts/retry.sh 3 go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
@@ -1128,7 +1128,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh 3 go mod download
+          ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
           make build
 
@@ -1207,10 +1207,10 @@ jobs:
           java-version: "11.0"
 
       - name: Install go-winres
-        run: ./.github/scripts/retry.sh 3 go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
 
       - name: Install nfpm
-        run: ./.github/scripts/retry.sh 3 go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
@@ -1258,7 +1258,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh 3 go mod download
+          ./.github/scripts/retry.sh -- go mod download
 
           version="$(./scripts/version.sh)"
           tag="main-${version//+/-}"
