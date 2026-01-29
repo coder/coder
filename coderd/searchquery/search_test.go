@@ -313,6 +313,36 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "HealthyTrue",
+			Query: "healthy:true",
+			Expected: database.GetWorkspacesParams{
+				Healthy: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HealthyFalse",
+			Query: "healthy:false",
+			Expected: database.GetWorkspacesParams{
+				Healthy: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HealthyMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				Healthy: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
+		{
 			Name:  "SharedWithUser",
 			Query: `shared_with_user:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
 			Setup: func(t *testing.T, db database.Store) {
