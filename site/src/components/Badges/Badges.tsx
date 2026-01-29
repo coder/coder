@@ -11,33 +11,20 @@ import {
 	type HTMLAttributes,
 	type PropsWithChildren,
 } from "react";
-import { cn } from "utils/cn";
-
-const classNames = {
-	root: cn(
-		"text-[10px] h-6 font-semibold uppercase tracking-[0.085em]",
-		"px-3 flex items-center w-fit whitespace-nowrap rounded-sm",
-		"rounded-full border border-solid border-zinc-700 text-white",
-	),
-	green: "border-green-500 bg-surface-green",
-	error: "border-red-600 bg-surface-red",
-	warn: "border-amber-300 bg-amber-950",
-	purple: "border-violet-500 bg-surface-purple",
-	info: "border-blue-400 bg-blue-950",
-	orange: "border-orange-500 bg-orange-950",
-};
 
 export const EnabledBadge: FC = () => {
 	return (
-		<span className={cn("option-enabled", classNames.root, classNames.green)}>
+		<Badge className="option-enabled" variant="green" border="solid">
 			Enabled
-		</span>
+		</Badge>
 	);
 };
 
 export const EntitledBadge: FC = () => {
 	return (
-		<span className={cn(classNames.root, classNames.green)}>Entitled</span>
+		<Badge border="solid" variant="green">
+			Entitled
+		</Badge>
 	);
 };
 
@@ -47,15 +34,17 @@ interface HealthyBadgeProps {
 
 export const HealthyBadge: FC<HealthyBadgeProps> = ({ derpOnly }) => {
 	return (
-		<span className={cn(classNames.root, classNames.green)}>
+		<Badge variant="green" border="solid">
 			{derpOnly ? "Healthy (DERP only)" : "Healthy"}
-		</span>
+		</Badge>
 	);
 };
 
 export const NotHealthyBadge: FC = () => {
 	return (
-		<span className={cn(classNames.root, classNames.error)}>Unhealthy</span>
+		<Badge variant="destructive" border="solid">
+			Unhealthy
+		</Badge>
 	);
 };
 
@@ -63,7 +52,9 @@ export const NotRegisteredBadge: FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className={cn(classNames.root, classNames.warn)}>Never seen</span>
+				<Badge variant="warning" border="solid">
+					Never seen
+				</Badge>
 			</TooltipTrigger>
 			<TooltipContent side="bottom" className="max-w-xs">
 				Workspace Proxy has never come online and needs to be started.
@@ -76,9 +67,9 @@ export const NotReachableBadge: FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className={cn(classNames.root, classNames.warn)}>
+				<Badge variant="warning" border="solid">
 					Not reachable
-				</span>
+				</Badge>
 			</TooltipTrigger>
 			<TooltipContent side="bottom" className="max-w-xs">
 				Workspace Proxy not responding to http(s) requests.
@@ -88,23 +79,21 @@ export const NotReachableBadge: FC = () => {
 };
 
 export const DisabledBadge: FC = forwardRef<
-	HTMLSpanElement,
-	HTMLAttributes<HTMLSpanElement>
+	HTMLDivElement,
+	HTMLAttributes<HTMLDivElement>
 >((props, ref) => {
 	return (
-		<span
-			{...props}
-			ref={ref}
-			className={cn("option-disabled", classNames.root)}
-		>
+		<Badge ref={ref} {...props} className="option-disabled">
 			Disabled
-		</span>
+		</Badge>
 	);
 });
 
 export const EnterpriseBadge: FC = () => {
 	return (
-		<span className={cn(classNames.root, classNames.info)}>Enterprise</span>
+		<Badge variant="info" border="solid">
+			Enterprise
+		</Badge>
 	);
 };
 
@@ -116,10 +105,7 @@ export const PremiumBadge: FC<PremiumBadgeProps> = ({
 	children = "Premium",
 }) => {
 	return (
-		<Badge
-			size="sm"
-			className={cn(classNames.root, classNames.purple, "border-border-purple")}
-		>
+		<Badge variant="purple" border="solid">
 			{children}
 		</Badge>
 	);
@@ -127,17 +113,25 @@ export const PremiumBadge: FC<PremiumBadgeProps> = ({
 
 export const PreviewBadge: FC = () => {
 	return (
-		<span className={cn(classNames.root, classNames.purple)}>Preview</span>
+		<Badge variant="purple" border="solid">
+			Preview
+		</Badge>
 	);
 };
 
 export const AlphaBadge: FC = () => {
-	return <span className={cn(classNames.root, classNames.purple)}>Alpha</span>;
+	return (
+		<Badge variant="purple" border="solid">
+			Alpha
+		</Badge>
+	);
 };
 
 export const DeprecatedBadge: FC = () => {
 	return (
-		<span className={cn(classNames.root, classNames.orange)}>Deprecated</span>
+		<Badge variant="warning" border="solid">
+			Deprecated
+		</Badge>
 	);
 };
 
