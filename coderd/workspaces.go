@@ -2353,6 +2353,14 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiKey := httpmw.APIKey(r)
+	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "You cannot change your own workspace sharing role.",
+		})
+		return
+	}
+
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
