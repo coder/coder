@@ -22,6 +22,16 @@ Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to us
 
 Again, the exact environment variable or setting naming may differ from tool to tool; consult your tool's documentation.
 
+### Retrieving your session token
+
+If you're logged in with the Coder CLI, you can retrieve your current session
+token using [`coder login token`](../../reference/cli/login_token.md):
+
+```sh
+export ANTHROPIC_API_KEY=$(coder login token)
+export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
+```
+
 ## Configuring In-Workspace Tools
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.

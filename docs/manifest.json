@@ -1488,6 +1488,11 @@
 							"path": "reference/cli/login.md"
 						},
 						{
+							"title": "login token",
+							"description": "Print the current session token",
+							"path": "reference/cli/login_token.md"
+						},
+						{
 							"title": "logout",
 							"description": "Unauthenticate your local session",
 							"path": "reference/cli/logout.md"
