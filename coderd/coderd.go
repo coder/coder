@@ -44,6 +44,7 @@ import (
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -758,6 +759,7 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
+		options.PrometheusRegistry.MustRegister(agentapi.WorkspaceBuildDurationSeconds)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),

@@ -3893,6 +3893,14 @@ func (q *querier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Conte
 	return q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceBuildMetricsByAgentID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByAgentIDRow, error) {
+	// Verify access to the agent first.
+	if _, err := q.GetWorkspaceAgentByID(ctx, id); err != nil {
+		return database.GetWorkspaceBuildMetricsByAgentIDRow{}, err
+	}
+	return q.db.GetWorkspaceBuildMetricsByAgentID(ctx, id)
+}
+
 func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	// Authorized call to get the workspace build. If we can read the build,
 	// we can read the params.
