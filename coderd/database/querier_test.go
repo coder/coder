@@ -8482,3 +8482,68 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate when latest build is not STOP")
 	})
 }
+
+// Our `InsertWorkspaceAgentDevcontainers` query should ideally be `[]uuid.NullUUID` but unfortunately
+// sqlc infers it as `[]uuid.UUID`. To ensure we don't insert a `uuid.Nil`, the query inserts NULL when
+// passed with `uuid.Nil`. This test ensures we keep this behaviour without regression.
+func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
+	t.Parallel()
+
+	for _, useValidUUID := range []bool{true, false} {
+		t.Run(fmt.Sprintf("SubAgentID/Valid/%t", useValidUUID), func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				db, _ = dbtestutil.NewDB(t)
+				org   = dbgen.Organization(t, db, database.Organization{})
+				job   = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					Type:           database.ProvisionerJobTypeTemplateVersionImport,
+					OrganizationID: org.ID,
+				})
+				resource   = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+				agent      = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+				subagentID = uuid.Nil
+			)
+
+			if useValidUUID {
+				subagentID = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+					ResourceID: resource.ID,
+					ParentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
+				}).ID
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Given: We insert the devcontainer record
+			devcontainers, err := db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agent.ID,
+				CreatedAt:        dbtime.Now(),
+				ID:               []uuid.UUID{uuid.New()},
+				Name:             []string{"test-devcontainer"},
+				WorkspaceFolder:  []string{"/workspace"},
+				ConfigPath:       []string{"/workspace/.devcontainer/devcontainer.json"},
+				SubagentID:       []uuid.UUID{subagentID},
+			})
+			require.NoError(t, err)
+			require.Len(t, devcontainers, 1)
+
+			// Then:
+			// - When we pass `uuid.Nil`, we get a `uuid.NullUUID{Valid: false}`
+			// - When we pass a valid UUID, we get a `uuid.NullUUID{Valid: true}`
+			require.Equal(t, useValidUUID, devcontainers[0].SubagentID.Valid, "subagent_id validity mismatch")
+			if useValidUUID {
+				require.Equal(t, subagentID, devcontainers[0].SubagentID.UUID, "subagent_id UUID mismatch")
+			}
+
+			// Perform the same check on data returned by `GetWorkspaceAgentDevcontainersByAgentID` to ensure
+			// the fix is at the data storage layer, instead of just at a query level.
+			fetched, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
+			require.NoError(t, err)
+			require.Len(t, fetched, 1)
+			require.Equal(t, useValidUUID, fetched[0].SubagentID.Valid, "fetched subagent_id validity mismatch")
+			if useValidUUID {
+				require.Equal(t, subagentID, fetched[0].SubagentID.UUID, "fetched subagent_id UUID mismatch")
+			}
+		})
+	}
+}
