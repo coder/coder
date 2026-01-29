@@ -199,12 +199,11 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		"refresh_token":         {src.refreshToken},
 	}
 	// Using params based auth
-	req, err := http.NewRequest("POST", src.cfg.tokenURL, strings.NewReader(v.Encode()))
+	req, err := http.NewRequestWithContext(src.ctx, "POST", src.cfg.tokenURL, strings.NewReader(v.Encode()))
 	if err != nil {
 		return nil, xerrors.Errorf("oauth2: make token refresh request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req = req.WithContext(src.ctx)
 	resp, err := cli.Do(req)
 	if err != nil {
 		return nil, xerrors.Errorf("oauth2: cannot get token: %w", err)

@@ -96,11 +96,11 @@ func (t *WorkspaceACL) Scan(src interface{}) error {
 }
 
 //nolint:revive
-func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
+func (t WorkspaceACL) RBACACL() map[string][]policy.Action {
 	// Convert WorkspaceACL to a map of string to []policy.Action.
 	// This is used for RBAC checks.
-	rbacACL := make(map[string][]policy.Action, len(w))
-	for id, entry := range w {
+	rbacACL := make(map[string][]policy.Action, len(t))
+	for id, entry := range t {
 		rbacACL[id] = entry.Permissions
 	}
 	return rbacACL

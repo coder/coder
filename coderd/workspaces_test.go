@@ -4943,9 +4943,10 @@ func TestWorkspaceListTasks(t *testing.T) {
 
 	// Then: verify TaskID is only set for task workspaces
 	for _, workspace := range workspaces.Workspaces {
-		if workspace.ID == workspaceWithoutTask.ID {
+		switch workspace.ID {
+		case workspaceWithoutTask.ID:
 			assert.False(t, workspace.TaskID.Valid)
-		} else if workspace.ID == workspaceWithTask.ID {
+		case workspaceWithTask.ID:
 			assert.True(t, workspace.TaskID.Valid)
 			assert.Equal(t, task.ID, workspace.TaskID.UUID)
 		}

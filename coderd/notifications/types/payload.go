@@ -1,3 +1,4 @@
+//nolint:revive // Package name is used for clarity within notifications package hierarchy
 package types
 
 import "github.com/google/uuid"

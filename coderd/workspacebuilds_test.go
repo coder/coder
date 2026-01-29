@@ -450,6 +450,7 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 		})
 
 		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 			// Include a provisioner so that we can test that provisionerdserver
 			// performs deletion.
 			auditor := audit.NewMock()

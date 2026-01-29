@@ -395,7 +395,7 @@ type MultiAgentController struct {
 }
 
 func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.CloserWaiter {
-	b := m.BasicCoordinationController.NewCoordination(client)
+	b := m.NewCoordination(client)
 	// resync all destinations
 	m.mu.Lock()
 	defer m.mu.Unlock()

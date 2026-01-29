@@ -120,7 +120,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -342,7 +342,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -873,7 +873,7 @@ func createWorkspace(
 		workspace,
 		apiBuild,
 		template,
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		codersdk.WorkspaceAppStatus{},
 	)
 	if err != nil {
@@ -1074,7 +1074,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// patched in the future, it's enough if one changes.
 	name := workspace.Name
 	if req.Name != "" || req.Name != workspace.Name {
-		if !api.Options.AllowWorkspaceRenames {
+		if !api.AllowWorkspaceRenames {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Workspace renames are not allowed.",
 			})
@@ -1519,7 +1519,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -2099,7 +2099,7 @@ func (api *API) watchWorkspace(
 			workspace,
 			data.builds[0],
 			data.templates[0],
-			api.Options.AllowWorkspaceRenames,
+			api.AllowWorkspaceRenames,
 			appStatus,
 		)
 		if err != nil {
@@ -2569,7 +2569,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		templates:    templates,
 		appStatuses:  db2sdk.WorkspaceAppStatuses(appStatuses),
 		builds:       apiBuilds,
-		allowRenames: api.Options.AllowWorkspaceRenames,
+		allowRenames: api.AllowWorkspaceRenames,
 	}, nil
 }
 

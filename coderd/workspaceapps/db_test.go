@@ -540,6 +540,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
 				req := (workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
@@ -843,7 +844,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, req.BasePath, token.BasePath)
 		require.Empty(t, token.UsernameOrID)
 		require.Empty(t, token.WorkspaceNameOrID)
-		require.Equal(t, req.AgentNameOrID, token.Request.AgentNameOrID)
+		require.Equal(t, req.AgentNameOrID, token.AgentNameOrID)
 		require.Empty(t, token.AppSlugOrPort)
 		require.Empty(t, token.AppURL)
 		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, "terminal", database.ConnectionTypeWorkspaceApp, me.ID)

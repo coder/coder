@@ -874,6 +874,7 @@ func TestUpdateJob(t *testing.T) {
 		t.Parallel()
 
 		t.Run("Valid", func(t *testing.T) {
+			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
@@ -915,6 +916,7 @@ func TestUpdateJob(t *testing.T) {
 		})
 
 		t.Run("Missing required value", func(t *testing.T) {
+			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
@@ -4348,7 +4350,7 @@ func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 func (s *fakeStream) Recv() (*proto.CancelAcquire, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.canceled || s.closed) {
+	for !s.canceled && !s.closed {
 		s.c.Wait()
 	}
 	if s.canceled {
@@ -4391,7 +4393,7 @@ func (s *fakeStream) Close() error {
 func (s *fakeStream) waitForJob() (*proto.AcquiredJob, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.sendCalled || s.closed) {
+	for !s.sendCalled && !s.closed {
 		s.c.Wait()
 	}
 	if s.sendCalled {

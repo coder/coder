@@ -358,7 +358,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 
 	sendEvent := func(newEvent codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
-		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
+		_, err := fmt.Fprintf(buf, "event: %s\n", newEvent.Type)
 		if err != nil {
 			return err
 		}

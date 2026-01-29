@@ -32,7 +32,7 @@ type SignedToken struct {
 // MatchesRequest returns true if the token matches the request. Any token that
 // does not match the request should be considered invalid.
 func (t SignedToken) MatchesRequest(req Request) bool {
-	tokenBasePath := t.Request.BasePath
+	tokenBasePath := t.BasePath
 	if !strings.HasSuffix(tokenBasePath, "/") {
 		tokenBasePath += "/"
 	}
@@ -111,7 +111,7 @@ func FromRequest(r *http.Request, mgr cryptokeys.SigningKeycache) (*SignedToken,
 			Time: time.Now(),
 		}))
 		if err == nil {
-			req := token.Request.Normalize()
+			req := token.Normalize()
 			if hasQueryParam && req.AccessMethod != AccessMethodTerminal {
 				// The request must be a terminal request if we're using a
 				// query parameter.

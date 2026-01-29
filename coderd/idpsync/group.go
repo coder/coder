@@ -33,7 +33,7 @@ func (AGPLIDPSync) GroupSyncEntitled() bool {
 
 func (s AGPLIDPSync) UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
-	err := s.SyncSettings.Group.SetRuntimeValue(ctx, orgResolver, &settings)
+	err := s.Group.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {
 		return xerrors.Errorf("update group sync settings: %w", err)
 	}
@@ -43,7 +43,7 @@ func (s AGPLIDPSync) UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUI
 
 func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error) {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
-	settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
+	settings, err := s.Group.Resolve(ctx, orgResolver)
 	if err != nil {
 		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
 			return nil, xerrors.Errorf("resolve group sync settings: %w", err)
@@ -53,7 +53,7 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 		settings = &GroupSyncSettings{}
 
 		// Check for legacy settings if the default org.
-		if s.DeploymentSyncSettings.Legacy.GroupField != "" {
+		if s.Legacy.GroupField != "" {
 			defaultOrganization, err := db.GetDefaultOrganization(ctx)
 			if err != nil {
 				return nil, xerrors.Errorf("get default organization: %w", err)

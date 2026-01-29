@@ -322,8 +322,8 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 	// Figure out which RBAC resource to check. For terminals we use execution
 	// instead of application connect.
 	var (
-		rbacAction   policy.Action = policy.ActionApplicationConnect
-		rbacResource rbac.Object   = dbReq.Workspace.RBACObject()
+		rbacAction   = policy.ActionApplicationConnect
+		rbacResource = dbReq.Workspace.RBACObject()
 		// rbacResourceOwned is for the level "authenticated". We still need to
 		// make sure the API key has permissions to connect to the actor's own
 		// workspace. Scopes would prevent this.
@@ -336,7 +336,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// the object to check the proper permissions. AnyOrg is almost the same,
 		// but technically excludes users who are not in any organization. This is
 		// the closest we can get though without more significant refactoring.
-		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
+		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
 	)
 	if dbReq.AccessMethod == AccessMethodTerminal {
 		rbacAction = policy.ActionSSH
@@ -448,7 +448,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 
 		// Approximation of the status code.
 		// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
-		var statusCode int32 = int32(sw.Status)
+		var statusCode = int32(sw.Status)
 		if statusCode == 0 {
 			statusCode = http.StatusOK
 		}

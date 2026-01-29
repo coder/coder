@@ -250,7 +250,7 @@ func (a *labelAggregator) aggregate(am annotatedMetric, labels []string) error {
 	}
 
 	// Memoize based on the metric name & the unique combination of labels.
-	key := fmt.Sprintf("%s:%v", am.Stats_Metric.Name, labelSet.FastFingerprint())
+	key := fmt.Sprintf("%s:%v", am.Name, labelSet.FastFingerprint())
 
 	// Aggregate the value based on the key.
 	a.aggregations[key] += am.Value
@@ -297,7 +297,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 					key := hashKey(&req, m)
 
 					if val, ok := ma.store[key]; ok {
-						val.Stats_Metric.Value = m.Value
+						val.Value = m.Value
 						val.expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
 						ma.store[key] = val
 					} else {
