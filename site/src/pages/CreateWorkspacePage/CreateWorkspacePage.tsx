@@ -3,6 +3,7 @@ import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
+	templateVersion,
 	templateVersionExternalAuth,
 	templateVersionPresets,
 } from "api/queries/templates";
@@ -87,6 +88,11 @@ const CreateWorkspacePage: FC = () => {
 	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
+
+	const templateVersionQuery = useQuery({
+		...templateVersion(realizedVersionId ?? ""),
+		enabled: realizedVersionId !== undefined,
+	});
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
@@ -308,6 +314,7 @@ const CreateWorkspacePage: FC = () => {
 					resetMutation={createWorkspaceMutation.reset}
 					template={templateQuery.data}
 					versionId={realizedVersionId}
+					versionName={templateVersionQuery.data?.name}
 					externalAuth={externalAuth ?? []}
 					externalAuthPollingState={externalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}
