@@ -339,7 +339,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				(opt) => opt.value.value === value,
 			);
 			return (
-				<Combobox>
+				<Combobox
+					value={value}
+					onValueChange={(newValue) => onChange(newValue ?? "")}
+				>
 					<ComboboxTrigger asChild>
 						<ComboboxButton
 							selectedOption={
@@ -360,17 +363,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 								<ComboboxItem
 									key={option.value.value}
 									value={option.value.value}
-									selectedOption={
-										selectedOption
-											? {
-													label: selectedOption.name,
-													value: selectedOption.value.value,
-												}
-											: undefined
-									}
-									onSelect={(selectedValue) => {
-										onChange(selectedValue);
-									}}
 								>
 									{option.name}
 								</ComboboxItem>

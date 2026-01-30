@@ -173,7 +173,12 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 							IdP role name
 						</Label>
 						{claimFieldValues ? (
-							<Combobox open={open} onOpenChange={setOpen}>
+							<Combobox
+								open={open}
+								onOpenChange={setOpen}
+								value={idpRoleName}
+								onValueChange={(value) => setIdpRoleName(value ?? "")}
+							>
 								<ComboboxTrigger asChild>
 									<ComboboxButton
 										className="w-72"
@@ -203,15 +208,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 												<ComboboxItem
 													key={value}
 													value={value}
-													selectedOption={
-														idpRoleName
-															? { label: idpRoleName, value: idpRoleName }
-															: undefined
-													}
-													onSelect={(selectedValue) => {
-														setIdpRoleName(selectedValue);
-														setComboInputValue("");
-													}}
+													onSelect={() => setComboInputValue("")}
 												>
 													{value}
 												</ComboboxItem>

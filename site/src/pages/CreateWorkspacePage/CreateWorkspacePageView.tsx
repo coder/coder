@@ -575,7 +575,27 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
-											<Combobox>
+											<Combobox
+												value={presetOptions[selectedPresetIndex]?.value}
+												onValueChange={(value) => {
+													const index = presetOptions.findIndex(
+														(preset) => preset.value === value,
+													);
+													if (index === -1) {
+														return;
+													}
+													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														// "undefined" string is equivalent to using None option.
+														// Combobox requires a value in order to correctly
+														// highlight the None option.
+														presetOptions[index].value === "undefined"
+															? undefined
+															: presetOptions[index].value,
+													);
+												}}
+											>
 												<ComboboxTrigger asChild>
 													<ComboboxButton
 														selectedOption={{
@@ -592,26 +612,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 														<ComboboxItem
 															key={preset.value}
 															value={preset.value}
-															selectedOption={
-																presetOptions[selectedPresetIndex]
-															}
-															onSelect={(value) => {
-																const index = presetOptions.findIndex(
-																	(preset) => preset.value === value,
-																);
-																if (index === -1) {
-																	return;
-																}
-																setSelectedPresetIndex(index);
-																form.setFieldValue(
-																	"template_version_preset_id",
-																	// "undefined" string is equivalent to using None option
-																	// Combobox requires a value in order to correctly highlight the None option
-																	presetOptions[index].value === "undefined"
-																		? undefined
-																		: presetOptions[index].value,
-																);
-															}}
 														>
 															{preset.icon && (
 																<img

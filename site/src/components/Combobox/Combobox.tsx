@@ -20,6 +20,8 @@ import { cn } from "utils/cn";
 type ComboboxContextProps = {
 	open: boolean;
 	setOpen: (open: boolean) => void;
+	value: string | undefined;
+	onValueChange: ((value: string | undefined) => void) | undefined;
 };
 
 const ComboboxContext = createContext<ComboboxContextProps | null>(null);
@@ -32,12 +34,19 @@ function useCombobox() {
 	return context;
 }
 
+interface ComboboxProps extends React.ComponentProps<typeof Popover> {
+	value?: string;
+	onValueChange?: (value: string | undefined) => void;
+}
+
 function Combobox({
 	children,
 	open: controlledOpen,
 	onOpenChange: controlledOnOpenChange,
+	value,
+	onValueChange,
 	...props
-}: React.ComponentProps<typeof Popover>) {
+}: ComboboxProps) {
 	const [internalOpen, setInternalOpen] = useState(false);
 
 	// Use controlled state if provided, otherwise use internal state
@@ -45,7 +54,7 @@ function Combobox({
 	const setOpen = controlledOnOpenChange ?? setInternalOpen;
 
 	return (
-		<ComboboxContext.Provider value={{ open, setOpen }}>
+		<ComboboxContext.Provider value={{ open, setOpen, value, onValueChange }}>
 			<Popover open={open} onOpenChange={setOpen} {...props}>
 				{children}
 			</Popover>
@@ -104,23 +113,24 @@ const ComboboxContent = forwardRef<
 const ComboboxInput = CommandInput;
 const ComboboxList = CommandList;
 
-interface ComboboxItemProps {
-	selectedOption?: SelectFilterOption;
-}
-
 const ComboboxItem = forwardRef<
 	HTMLDivElement,
-	React.ComponentProps<typeof CommandItem> & ComboboxItemProps
->(({ children, className, onSelect, value, selectedOption, ...props }, ref) => {
-	const { setOpen } = useCombobox();
+	React.ComponentProps<typeof CommandItem>
+>(({ children, className, onSelect, value, ...props }, ref) => {
+	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
+	const isSelected = value === selectedValue;
+
 	return (
 		<CommandItem
 			ref={ref}
 			value={value}
 			className={cn(className, "rounded-none")}
-			onSelect={(value) => {
+			onSelect={(itemValue) => {
 				setOpen(false);
-				onSelect?.(value);
+				// Toggle behavior: selecting the same value deselects it.
+				const newValue = itemValue === selectedValue ? undefined : itemValue;
+				onValueChange?.(newValue);
+				onSelect?.(itemValue);
 			}}
 			{...props}
 		>
@@ -128,7 +138,7 @@ const ComboboxItem = forwardRef<
 			<CheckIcon
 				className={cn(
 					"ml-2 h-4 w-4 min-w-0 flex-shrink-0",
-					value === selectedOption?.value ? "opacity-100" : "opacity-0",
+					isSelected ? "opacity-100" : "opacity-0",
 				)}
 			/>
 		</CommandItem>
@@ -145,4 +155,5 @@ export {
 	ComboboxList,
 	ComboboxItem,
 	ComboboxEmpty,
+	useCombobox,
 };

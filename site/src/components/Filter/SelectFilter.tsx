@@ -1,4 +1,3 @@
-import { Button } from "components/Button/Button";
 import {
 	Combobox,
 	ComboboxButton,
@@ -8,8 +7,7 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "components/Combobox/Combobox";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import type { FC, ReactNode } from "react";
 import { cn } from "utils/cn";
 
 const BASE_WIDTH = 200;
@@ -45,10 +43,13 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 	width = BASE_WIDTH,
 	selectFilterSearch,
 }) => {
-	const [open, setOpen] = useState(false);
-
 	return (
-		<Combobox open={open} onOpenChange={setOpen}>
+		<Combobox
+			value={selectedOption?.value}
+			onValueChange={(value) =>
+				onSelect(options?.find((opt) => opt.value === value))
+			}
+		>
 			<ComboboxTrigger asChild>
 				<ComboboxButton
 					selectedOption={selectedOption}
@@ -82,12 +83,6 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 							className="px-4 data-[selected=true]:bg-surface-tertiary font-normal gap-4"
 							key={option.value}
 							value={option.value}
-							onSelect={() =>
-								option.value === selectedOption?.value
-									? onSelect(undefined)
-									: onSelect(option)
-							}
-							selectedOption={selectedOption}
 						>
 							{option.startIcon}
 							<span className="flex-1 truncate">{option.label}</span>

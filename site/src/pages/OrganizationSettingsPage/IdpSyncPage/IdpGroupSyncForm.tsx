@@ -231,7 +231,12 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							IdP group name
 						</Label>
 						{claimFieldValues ? (
-							<Combobox open={open} onOpenChange={setOpen}>
+							<Combobox
+								open={open}
+								onOpenChange={setOpen}
+								value={idpGroupName}
+								onValueChange={(value) => setIdpGroupName(value ?? "")}
+							>
 								<ComboboxTrigger asChild>
 									<ComboboxButton
 										className="w-72"
@@ -261,15 +266,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 												<ComboboxItem
 													key={value}
 													value={value}
-													selectedOption={
-														idpGroupName
-															? { label: idpGroupName, value: idpGroupName }
-															: undefined
-													}
-													onSelect={(selectedValue) => {
-														setIdpGroupName(selectedValue);
-														setComboInputValue("");
-													}}
+													onSelect={() => setComboInputValue("")}
 												>
 													{value}
 												</ComboboxItem>

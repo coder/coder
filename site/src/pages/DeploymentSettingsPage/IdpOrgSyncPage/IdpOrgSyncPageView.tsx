@@ -228,7 +228,12 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</Label>
 
 								{claimFieldValues ? (
-									<Combobox open={open} onOpenChange={setOpen}>
+									<Combobox
+										open={open}
+										onOpenChange={setOpen}
+										value={idpOrgName}
+										onValueChange={(value) => setIdpOrgName(value ?? "")}
+									>
 										<ComboboxTrigger asChild>
 											<ComboboxButton
 												className="w-72"
@@ -258,15 +263,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 														<ComboboxItem
 															key={value}
 															value={value}
-															selectedOption={
-																idpOrgName
-																	? { label: idpOrgName, value: idpOrgName }
-																	: undefined
-															}
-															onSelect={(selectedValue) => {
-																setIdpOrgName(selectedValue);
-																setInputValue("");
-															}}
+															onSelect={() => setInputValue("")}
 														>
 															{value}
 														</ComboboxItem>
