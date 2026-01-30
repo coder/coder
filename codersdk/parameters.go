@@ -104,7 +104,7 @@ func (p PreviewParameter) TemplateVersionParameter() TemplateVersionParameter {
 		}
 		if valid.Max != nil {
 			//nolint:gosec
-			tp.ValidationMin = ptr.Ref(int32(*valid.Max))
+			tp.ValidationMax = ptr.Ref(int32(*valid.Max))
 		}
 	}
 	return tp
