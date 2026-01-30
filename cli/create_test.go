@@ -175,6 +175,86 @@ func TestCreateDynamic(t *testing.T) {
 		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "enable_region", Value: "true"})
 		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "eu-west"})
 	})
+
+	// Test that updating a template with a new required parameter causes start to fail
+	// when the user doesn't provide the new parameter value.
+	t.Run("UpdateTemplateRequiredParamStartFails", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, owner)
+		member, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Initial template with just enable_region parameter (no default, so required)
+		const initialTF = `
+			terraform {
+			  required_providers {
+			    coder = {
+			      source = "coder/coder"
+			    }
+			  }
+			}
+			data "coder_workspace_owner" "me" {}
+			data "coder_parameter" "enable_region" {
+			  name         = "enable_region"
+			  type         = "bool"
+			}
+		`
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: initialTF,
+		})
+
+		// Create workspace with initial template
+		inv, root := clitest.New(t, "create", "ws-update-test",
+			"--template", template.Name,
+			"--parameter", "enable_region=false",
+			"-y",
+		)
+		clitest.SetupConfig(t, member, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Stop the workspace
+		inv, root = clitest.New(t, "stop", "ws-update-test", "-y")
+		clitest.SetupConfig(t, member, root)
+		err = inv.Run()
+		require.NoError(t, err)
+
+		const updatedTF = `
+			terraform {
+			  required_providers {
+			    coder = {
+			      source = "coder/coder"
+			    }
+			  }
+			}
+			data "coder_workspace_owner" "me" {}
+			data "coder_parameter" "enable_region" {
+			  name         = "enable_region"
+			  type         = "bool"
+			}
+			data "coder_parameter" "region" {
+			  count        = data.coder_parameter.enable_region.value == "true" ? 1 : 0
+			  name         = "region"
+			  type         = "string"
+			  # No default - required when enable_region is true
+			}
+		`
+
+		coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF:     updatedTF,
+			TemplateID: template.ID,
+		})
+
+		// Try to start the workspace with update - should fail because region is now required
+		// (enable_region defaults to true, making region appear, but no value provided)
+		// and we're using -y to skip prompts
+		inv, root = clitest.New(t, "start", "ws-update-test", "-y", "--parameter", "enable_region=true")
+		clitest.SetupConfig(t, member, root)
+		err = inv.Run()
+		require.Error(t, err, "start should fail because new required parameter 'region' is missing")
+		require.Contains(t, err.Error(), "region")
+	})
 }
 
 func TestCreate(t *testing.T) {
