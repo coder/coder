@@ -155,5 +155,4 @@ export {
 	ComboboxList,
 	ComboboxItem,
 	ComboboxEmpty,
-	useCombobox,
 };
