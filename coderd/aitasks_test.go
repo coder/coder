@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -820,22 +821,30 @@ func TestTasks(t *testing.T) {
 		snapshotTime := time.Date(2025, 1, 1, 10, 5, 0, 0, time.UTC)
 
 		// Helper to verify snapshot logs content.
-		verifySnapshotLogs := func(t *testing.T, resp codersdk.TaskLogsResponse) {
+		verifySnapshotLogs := func(t *testing.T, got codersdk.TaskLogsResponse) {
 			t.Helper()
-			assert.True(t, resp.Snapshot)
-			require.NotNil(t, resp.SnapshotAt)
-			assert.True(t, snapshotTime.Equal(*resp.SnapshotAt))
-			assert.Equal(t, 2, resp.Count)
-			require.Len(t, resp.Logs, 2)
-			assert.Equal(t, 0, resp.Logs[0].ID)
-			assert.Equal(t, codersdk.TaskLogTypeOutput, resp.Logs[0].Type)
-			assert.Equal(t, "First message", resp.Logs[0].Content)
-			assert.Equal(t, snapshotMessages[0].Time, resp.Logs[0].Time)
-
-			assert.Equal(t, 1, resp.Logs[1].ID)
-			assert.Equal(t, codersdk.TaskLogTypeInput, resp.Logs[1].Type)
-			assert.Equal(t, "Second message", resp.Logs[1].Content)
-			assert.Equal(t, snapshotMessages[1].Time, resp.Logs[1].Time)
+			want := codersdk.TaskLogsResponse{
+				Count:      2,
+				Snapshot:   true,
+				SnapshotAt: &snapshotTime,
+				Logs: []codersdk.TaskLogEntry{
+					{
+						ID:      0,
+						Type:    codersdk.TaskLogTypeOutput,
+						Content: "First message",
+						Time:    snapshotMessages[0].Time,
+					},
+					{
+						ID:      1,
+						Type:    codersdk.TaskLogTypeInput,
+						Content: "Second message",
+						Time:    snapshotMessages[1].Time,
+					},
+				},
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("got bad response (-want +got):\n%s", diff)
+			}
 		}
 
 		t.Run("PendingTaskReturnsSnapshot", func(t *testing.T) {
@@ -849,10 +858,10 @@ func TestTasks(t *testing.T) {
 				LogSnapshot:          json.RawMessage(snapshotJSON),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
-			require.NoError(t, err)
+			require.NoError(t, err, "upserting task snapshot")
 
 			logsResp, err := client.TaskLogs(ctx, "me", taskID)
-			require.NoError(t, err)
+			require.NoError(t, err, "fetching task logs")
 			verifySnapshotLogs(t, logsResp)
 		})
 
@@ -867,10 +876,10 @@ func TestTasks(t *testing.T) {
 				LogSnapshot:          json.RawMessage(snapshotJSON),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
-			require.NoError(t, err)
+			require.NoError(t, err, "upserting task snapshot")
 
 			logsResp, err := client.TaskLogs(ctx, "me", taskID)
-			require.NoError(t, err)
+			require.NoError(t, err, "fetching task logs")
 			verifySnapshotLogs(t, logsResp)
 		})
 
@@ -885,10 +894,10 @@ func TestTasks(t *testing.T) {
 				LogSnapshot:          json.RawMessage(snapshotJSON),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
-			require.NoError(t, err)
+			require.NoError(t, err, "upserting task snapshot")
 
 			logsResp, err := client.TaskLogs(ctx, "me", taskID)
-			require.NoError(t, err)
+			require.NoError(t, err, "fetching task logs")
 			verifySnapshotLogs(t, logsResp)
 		})
 
