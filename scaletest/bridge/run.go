@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -248,13 +249,19 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 }
 
 func (r *Runner) handleNonStreamingResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
-	if r.cfg.Provider == "anthropic" {
-		return r.handleAnthropicResponse(ctx, logger, resp)
+	switch r.cfg.Provider {
+	case "messages":
+		return r.handleMessagesResponse(ctx, logger, resp)
+	case "responses":
+		return r.handleResponsesResponse(ctx, logger, resp)
+	case "completions":
+		return r.handleCompletionsResponse(ctx, logger, resp)
+	default:
+		return xerrors.Errorf("unsupported provider: %s", r.cfg.Provider)
 	}
-	return r.handleOpenAIResponse(ctx, logger, resp)
 }
 
-func (r *Runner) handleOpenAIResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
+func (r *Runner) handleCompletionsResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
 	var response struct {
 		ID      string `json:"id"`
 		Model   string `json:"model"`
@@ -291,7 +298,60 @@ func (r *Runner) handleOpenAIResponse(ctx context.Context, logger slog.Logger, r
 	return nil
 }
 
-func (r *Runner) handleAnthropicResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
+func (r *Runner) handleResponsesResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
+	var response struct {
+		ID     string `json:"id"`
+		Model  string `json:"model"`
+		Output []struct {
+			Type    string `json:"type"`
+			Role    string `json:"role"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+			TotalTokens  int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return xerrors.Errorf("decode response: %w", err)
+	}
+
+	var assistantContent string
+	var contentBuilder strings.Builder
+	for _, item := range response.Output {
+		if item.Role != "assistant" {
+			continue
+		}
+		for _, content := range item.Content {
+			if content.Type != "output_text" {
+				continue
+			}
+			contentBuilder.WriteString(content.Text)
+		}
+	}
+	assistantContent = contentBuilder.String()
+	if assistantContent != "" {
+		logger.Debug(ctx, "received response",
+			slog.F("response_id", response.ID),
+			slog.F("content_length", len(assistantContent)),
+		)
+	}
+
+	if response.Usage.TotalTokens > 0 {
+		r.totalTokens += int64(response.Usage.TotalTokens)
+		r.cfg.Metrics.AddTokens("input", int64(response.Usage.InputTokens))
+		r.cfg.Metrics.AddTokens("output", int64(response.Usage.OutputTokens))
+	}
+
+	return nil
+}
+
+func (r *Runner) handleMessagesResponse(ctx context.Context, logger slog.Logger, resp *http.Response) error {
 	var response struct {
 		ID      string `json:"id"`
 		Model   string `json:"model"`
