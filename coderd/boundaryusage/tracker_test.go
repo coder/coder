@@ -159,23 +159,18 @@ func TestTracker_FlushToDB_Accumulates(t *testing.T) {
 	workspaceID := uuid.New()
 	ownerID := uuid.New()
 
+	// First flush is an insert, resets unique counts (new period).
 	tracker.Track(workspaceID, ownerID, 5, 3)
-
-	// First flush is an insert, which resets in-memory stats.
 	err := tracker.FlushToDB(ctx, db, replicaID)
 	require.NoError(t, err)
 
-	// Track more data after the reset.
+	// Track & flush more data. Same workspace/user, so unique counts stay at 1.
 	tracker.Track(workspaceID, ownerID, 2, 1)
-
-	// Second flush is an update so stats should accumulate.
 	err = tracker.FlushToDB(ctx, db, replicaID)
 	require.NoError(t, err)
 
-	// Track even more data.
+	// Track & flush even more data to continue accumulation.
 	tracker.Track(workspaceID, ownerID, 3, 2)
-
-	// Third flush stats should continue accumulating.
 	err = tracker.FlushToDB(ctx, db, replicaID)
 	require.NoError(t, err)
 
@@ -184,8 +179,8 @@ func TestTracker_FlushToDB_Accumulates(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), summary.UniqueWorkspaces)
 	require.Equal(t, int64(1), summary.UniqueUsers)
-	require.Equal(t, int64(5), summary.AllowedRequests, "should accumulate after first reset: 2+3=5")
-	require.Equal(t, int64(3), summary.DeniedRequests, "should accumulate after first reset: 1+2=3")
+	require.Equal(t, int64(5+2+3), summary.AllowedRequests)
+	require.Equal(t, int64(3+1+2), summary.DeniedRequests)
 }
 
 func TestTracker_FlushToDB_NewPeriod(t *testing.T) {
@@ -256,15 +251,24 @@ func TestUpsertBoundaryUsageStats_Insert(t *testing.T) {
 
 	replicaID := uuid.New()
 
+	// Set different values for delta vs cumulative to verify INSERT uses delta.
 	newPeriod, err := db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replicaID,
-		UniqueWorkspacesCount: 5,
-		UniqueUsersCount:      3,
+		UniqueWorkspacesDelta: 5,
+		UniqueUsersDelta:      3,
+		UniqueWorkspacesCount: 999, // should be ignored on INSERT
+		UniqueUsersCount:      999, // should be ignored on INSERT
 		AllowedRequests:       100,
 		DeniedRequests:        10,
 	})
 	require.NoError(t, err)
 	require.True(t, newPeriod, "should return true for insert")
+
+	// Verify INSERT used the delta values, not cumulative.
+	summary, err := db.GetBoundaryUsageSummary(ctx, 60000)
+	require.NoError(t, err)
+	require.Equal(t, int64(5), summary.UniqueWorkspaces)
+	require.Equal(t, int64(3), summary.UniqueUsers)
 }
 
 func TestUpsertBoundaryUsageStats_Update(t *testing.T) {
@@ -275,34 +279,34 @@ func TestUpsertBoundaryUsageStats_Update(t *testing.T) {
 
 	replicaID := uuid.New()
 
-	// First insert.
+	// First insert uses delta fields.
 	_, err := db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replicaID,
-		UniqueWorkspacesCount: 5,
-		UniqueUsersCount:      3,
+		UniqueWorkspacesDelta: 5,
+		UniqueUsersDelta:      3,
 		AllowedRequests:       100,
 		DeniedRequests:        10,
 	})
 	require.NoError(t, err)
 
-	// Second upsert (update).
+	// Second upsert (update). Set different delta vs cumulative to verify UPDATE uses cumulative.
 	newPeriod, err := db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replicaID,
-		UniqueWorkspacesCount: 8,
-		UniqueUsersCount:      5,
+		UniqueWorkspacesCount: 8, // cumulative, should be used
+		UniqueUsersCount:      5, // cumulative, should be used
 		AllowedRequests:       200,
 		DeniedRequests:        20,
 	})
 	require.NoError(t, err)
 	require.False(t, newPeriod, "should return false for update")
 
-	// Verify the update took effect.
+	// Verify UPDATE used cumulative values.
 	summary, err := db.GetBoundaryUsageSummary(ctx, 60000)
 	require.NoError(t, err)
 	require.Equal(t, int64(8), summary.UniqueWorkspaces)
 	require.Equal(t, int64(5), summary.UniqueUsers)
-	require.Equal(t, int64(200), summary.AllowedRequests)
-	require.Equal(t, int64(20), summary.DeniedRequests)
+	require.Equal(t, int64(100+200), summary.AllowedRequests)
+	require.Equal(t, int64(10+20), summary.DeniedRequests)
 }
 
 func TestGetBoundaryUsageSummary_MultipleReplicas(t *testing.T) {
@@ -315,11 +319,11 @@ func TestGetBoundaryUsageSummary_MultipleReplicas(t *testing.T) {
 	replica2 := uuid.New()
 	replica3 := uuid.New()
 
-	// Insert stats for 3 replicas.
+	// Insert stats for 3 replicas. Delta fields are used for INSERT.
 	_, err := db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replica1,
-		UniqueWorkspacesCount: 10,
-		UniqueUsersCount:      5,
+		UniqueWorkspacesDelta: 10,
+		UniqueUsersDelta:      5,
 		AllowedRequests:       100,
 		DeniedRequests:        10,
 	})
@@ -327,8 +331,8 @@ func TestGetBoundaryUsageSummary_MultipleReplicas(t *testing.T) {
 
 	_, err = db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replica2,
-		UniqueWorkspacesCount: 15,
-		UniqueUsersCount:      8,
+		UniqueWorkspacesDelta: 15,
+		UniqueUsersDelta:      8,
 		AllowedRequests:       150,
 		DeniedRequests:        15,
 	})
@@ -336,8 +340,8 @@ func TestGetBoundaryUsageSummary_MultipleReplicas(t *testing.T) {
 
 	_, err = db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replica3,
-		UniqueWorkspacesCount: 20,
-		UniqueUsersCount:      12,
+		UniqueWorkspacesDelta: 20,
+		UniqueUsersDelta:      12,
 		AllowedRequests:       200,
 		DeniedRequests:        20,
 	})
@@ -375,12 +379,12 @@ func TestResetBoundaryUsageStats(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	ctx := dbauthz.AsBoundaryUsageTracker(context.Background())
 
-	// Insert stats for multiple replicas.
+	// Insert stats for multiple replicas. Delta fields are used for INSERT.
 	for i := 0; i < 5; i++ {
 		_, err := db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 			ReplicaID:             uuid.New(),
-			UniqueWorkspacesCount: int64(i + 1),
-			UniqueUsersCount:      int64(i + 1),
+			UniqueWorkspacesDelta: int64(i + 1),
+			UniqueUsersDelta:      int64(i + 1),
 			AllowedRequests:       int64((i + 1) * 10),
 			DeniedRequests:        int64(i + 1),
 		})
@@ -412,11 +416,11 @@ func TestDeleteBoundaryUsageStatsByReplicaID(t *testing.T) {
 	replica1 := uuid.New()
 	replica2 := uuid.New()
 
-	// Insert stats for 2 replicas.
+	// Insert stats for 2 replicas. Delta fields are used for INSERT.
 	_, err := db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replica1,
-		UniqueWorkspacesCount: 10,
-		UniqueUsersCount:      5,
+		UniqueWorkspacesDelta: 10,
+		UniqueUsersDelta:      5,
 		AllowedRequests:       100,
 		DeniedRequests:        10,
 	})
@@ -424,8 +428,8 @@ func TestDeleteBoundaryUsageStatsByReplicaID(t *testing.T) {
 
 	_, err = db.UpsertBoundaryUsageStats(ctx, database.UpsertBoundaryUsageStatsParams{
 		ReplicaID:             replica2,
-		UniqueWorkspacesCount: 20,
-		UniqueUsersCount:      10,
+		UniqueWorkspacesDelta: 20,
+		UniqueUsersDelta:      10,
 		AllowedRequests:       200,
 		DeniedRequests:        20,
 	})
@@ -497,6 +501,49 @@ func TestTracker_TelemetryCycle(t *testing.T) {
 	require.Equal(t, int64(1), summary.AllowedRequests)
 }
 
+func TestTracker_FlushToDB_NoStaleDataAfterReset(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
+
+	tracker := boundaryusage.NewTracker()
+	replicaID := uuid.New()
+	workspaceID := uuid.New()
+	ownerID := uuid.New()
+
+	// Track some data, flush, and verify.
+	tracker.Track(workspaceID, ownerID, 10, 5)
+	err := tracker.FlushToDB(ctx, db, replicaID)
+	require.NoError(t, err)
+
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), summary.UniqueWorkspaces)
+	require.Equal(t, int64(10), summary.AllowedRequests)
+
+	// Simulate telemetry reset (new period).
+	err = db.ResetBoundaryUsageStats(boundaryCtx)
+	require.NoError(t, err)
+	summary, err = db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), summary.AllowedRequests)
+
+	// Flush again without any new Track() calls. This should not write stale
+	// data back to the DB.
+	err = tracker.FlushToDB(ctx, db, replicaID)
+	require.NoError(t, err)
+
+	// Summary should be empty (no stale data written).
+	summary, err = db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), summary.UniqueWorkspaces)
+	require.Equal(t, int64(0), summary.UniqueUsers)
+	require.Equal(t, int64(0), summary.AllowedRequests)
+	require.Equal(t, int64(0), summary.DeniedRequests)
+}
+
 func TestTracker_ConcurrentFlushAndTrack(t *testing.T) {
 	t.Parallel()
 
@@ -539,4 +586,58 @@ func TestTracker_ConcurrentFlushAndTrack(t *testing.T) {
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, summary.AllowedRequests, int64(0))
 	require.GreaterOrEqual(t, summary.DeniedRequests, int64(0))
+}
+
+// trackDuringUpsertDB wraps a database.Store to call Track() during the
+// UpsertBoundaryUsageStats operation, simulating a concurrent Track() call.
+type trackDuringUpsertDB struct {
+	database.Store
+	tracker     *boundaryusage.Tracker
+	workspaceID uuid.UUID
+	userID      uuid.UUID
+}
+
+func (s *trackDuringUpsertDB) UpsertBoundaryUsageStats(ctx context.Context, arg database.UpsertBoundaryUsageStatsParams) (bool, error) {
+	s.tracker.Track(s.workspaceID, s.userID, 20, 10)
+	return s.Store.UpsertBoundaryUsageStats(ctx, arg)
+}
+
+func TestTracker_TrackDuringFlush(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
+
+	tracker := boundaryusage.NewTracker()
+	replicaID := uuid.New()
+
+	// Track some initial data.
+	tracker.Track(uuid.New(), uuid.New(), 10, 5)
+
+	trackingDB := &trackDuringUpsertDB{
+		Store:       db,
+		tracker:     tracker,
+		workspaceID: uuid.New(),
+		userID:      uuid.New(),
+	}
+
+	// Flush will call Track() during the DB operation.
+	err := tracker.FlushToDB(ctx, trackingDB, replicaID)
+	require.NoError(t, err)
+
+	// Verify first flush only wrote the initial data.
+	summary, err := db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), summary.AllowedRequests)
+
+	// The second flush should include the Track() call that happened during the
+	// first flush's DB operation.
+	err = tracker.FlushToDB(ctx, db, replicaID)
+	require.NoError(t, err)
+
+	summary, err = db.GetBoundaryUsageSummary(boundaryCtx, 60000)
+	require.NoError(t, err)
+	require.Equal(t, int64(10+20), summary.AllowedRequests)
+	require.Equal(t, int64(5+10), summary.DeniedRequests)
 }
