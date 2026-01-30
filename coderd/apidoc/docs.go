@@ -12444,6 +12444,8 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "aibridge:*",
+                "aibridge:use",
                 "aibridge_interception:*",
                 "aibridge_interception:create",
                 "aibridge_interception:read",
@@ -12646,6 +12648,8 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAibridgeAll",
+                "APIKeyScopeAibridgeUse",
                 "APIKeyScopeAibridgeInterceptionAll",
                 "APIKeyScopeAibridgeInterceptionCreate",
                 "APIKeyScopeAibridgeInterceptionRead",

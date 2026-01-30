@@ -6,6 +6,8 @@ const (
 	APIKeyScopeAll APIKeyScope = "all"
 	// Deprecated: use codersdk.APIKeyScopeCoderApplicationConnect instead.
 	APIKeyScopeApplicationConnect                  APIKeyScope = "application_connect"
+	APIKeyScopeAibridgeAll                         APIKeyScope = "aibridge:*"
+	APIKeyScopeAibridgeUse                         APIKeyScope = "aibridge:use"
 	APIKeyScopeAibridgeInterceptionAll             APIKeyScope = "aibridge_interception:*"
 	APIKeyScopeAibridgeInterceptionCreate          APIKeyScope = "aibridge_interception:create"
 	APIKeyScopeAibridgeInterceptionRead            APIKeyScope = "aibridge_interception:read"
