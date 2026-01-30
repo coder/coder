@@ -364,7 +364,6 @@ type sqlcQuerier interface {
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) (Task, error)
-	GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error)
 	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
 	// Batch fetch tasks by workspace IDs from the tasks_with_status view.
 	// Used for telemetry to efficiently fetch tasks for workspaces with activity.

@@ -13259,39 +13259,6 @@ func (q *sqlQuerier) GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByO
 	return i, err
 }
 
-const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE workspace_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
-	row := q.db.QueryRowContext(ctx, getTaskByWorkspaceID, workspaceID)
-	var i Task
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.OwnerID,
-		&i.Name,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.TemplateParameters,
-		&i.Prompt,
-		&i.CreatedAt,
-		&i.DeletedAt,
-		&i.DisplayName,
-		&i.Status,
-		&i.StatusDebug,
-		&i.WorkspaceBuildNumber,
-		&i.WorkspaceAgentID,
-		&i.WorkspaceAppID,
-		&i.WorkspaceAgentLifecycleState,
-		&i.WorkspaceAppHealth,
-		&i.OwnerUsername,
-		&i.OwnerName,
-		&i.OwnerAvatarUrl,
-	)
-	return i, err
-}
-
 const getTaskSnapshot = `-- name: GetTaskSnapshot :one
 SELECT
 	task_id, log_snapshot, log_snapshot_created_at

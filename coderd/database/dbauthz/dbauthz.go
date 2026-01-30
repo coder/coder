@@ -3111,10 +3111,6 @@ func (q *querier) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetT
 	return fetch(q.log, q.auth, q.db.GetTaskByOwnerIDAndName)(ctx, arg)
 }
 
-func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
-	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
-}
-
 func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	// Fetch task to build RBAC object for authorization.
 	task, err := q.GetTaskByID(ctx, taskID)

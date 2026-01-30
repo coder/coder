@@ -7357,17 +7357,17 @@ func TestTasksWithStatusView(t *testing.T) {
 	}
 }
 
-func TestGetTaskByWorkspaceID(t *testing.T) {
+func TestGetTasksByWorkspaceIDs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupTask func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable)
-		wantErr   bool
+		name       string
+		setupTask  func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable)
+		expectTask bool
 	}{
 		{
-			name:    "task doesn't exist",
-			wantErr: true,
+			name:       "task doesn't exist",
+			expectTask: false,
 		},
 		{
 			name: "task with no workspace id",
@@ -7380,7 +7380,7 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 					Prompt:            "Test prompt",
 				})
 			},
-			wantErr: true,
+			expectTask: false,
 		},
 		{
 			name: "task with workspace id",
@@ -7395,7 +7395,7 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 					Prompt:            "Test prompt",
 				})
 			},
-			wantErr: false,
+			expectTask: true,
 		},
 	}
 
@@ -7429,14 +7429,15 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID)
-			if tt.wantErr {
-				require.Error(t, err)
+			tasks, err := db.GetTasksByWorkspaceIDs(ctx, []uuid.UUID{workspace.ID})
+			require.NoError(t, err)
+			if tt.expectTask {
+				require.Len(t, tasks, 1)
+				require.False(t, tasks[0].WorkspaceBuildNumber.Valid)
+				require.False(t, tasks[0].WorkspaceAgentID.Valid)
+				require.False(t, tasks[0].WorkspaceAppID.Valid)
 			} else {
-				require.NoError(t, err)
-				require.False(t, task.WorkspaceBuildNumber.Valid)
-				require.False(t, task.WorkspaceAgentID.Valid)
-				require.False(t, task.WorkspaceAppID.Valid)
+				require.Len(t, tasks, 0)
 			}
 		})
 	}

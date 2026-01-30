@@ -1476,9 +1476,10 @@ func TestTasksCreate(t *testing.T) {
 
 		// Verify the bidirectional relationship works by looking up the task
 		// via workspace ID.
-		dbTaskByWs, err := db.GetTaskByWorkspaceID(dbCtx, ws.ID)
+		dbTasksByWs, err := db.GetTasksByWorkspaceIDs(dbCtx, []uuid.UUID{ws.ID})
 		require.NoError(t, err)
-		assert.Equal(t, dbTask.ID, dbTaskByWs.ID)
+		require.Len(t, dbTasksByWs, 1)
+		assert.Equal(t, dbTask.ID, dbTasksByWs[0].ID)
 	})
 
 	t.Run("TaskWithCustomName", func(t *testing.T) {

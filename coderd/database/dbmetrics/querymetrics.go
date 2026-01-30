@@ -1774,14 +1774,6 @@ func (m queryMetricsStore) GetTaskByOwnerIDAndName(ctx context.Context, arg data
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTaskByWorkspaceID(ctx, workspaceID)
-	m.queryLatencies.WithLabelValues("GetTaskByWorkspaceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskByWorkspaceID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTaskSnapshot(ctx, taskID)

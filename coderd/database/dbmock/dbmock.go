@@ -3283,21 +3283,6 @@ func (mr *MockStoreMockRecorder) GetTaskByOwnerIDAndName(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskByOwnerIDAndName", reflect.TypeOf((*MockStore)(nil).GetTaskByOwnerIDAndName), ctx, arg)
 }
 
-// GetTaskByWorkspaceID mocks base method.
-func (m *MockStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskByWorkspaceID", ctx, workspaceID)
-	ret0, _ := ret[0].(database.Task)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTaskByWorkspaceID indicates an expected call of GetTaskByWorkspaceID.
-func (mr *MockStoreMockRecorder) GetTaskByWorkspaceID(ctx, workspaceID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetTaskByWorkspaceID), ctx, workspaceID)
-}
-
 // GetTaskSnapshot mocks base method.
 func (m *MockStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	m.ctrl.T.Helper()

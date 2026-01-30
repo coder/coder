@@ -2573,11 +2573,11 @@ func (s *MethodTestSuite) TestTasks() {
 
 		check.Args(arg).Asserts(task, policy.ActionUpdate).Returns(updatedTask.TaskTable())
 	}))
-	s.Run("GetTaskByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetTasksByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		task := testutil.Fake(s.T(), faker, database.Task{})
 		task.WorkspaceID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
-		dbm.EXPECT().GetTaskByWorkspaceID(gomock.Any(), task.WorkspaceID.UUID).Return(task, nil).AnyTimes()
-		check.Args(task.WorkspaceID.UUID).Asserts(task, policy.ActionRead).Returns(task)
+		dbm.EXPECT().GetTasksByWorkspaceIDs(gomock.Any(), []uuid.UUID{task.WorkspaceID.UUID}).Return([]database.Task{task}, nil).AnyTimes()
+		check.Args([]uuid.UUID{task.WorkspaceID.UUID}).Asserts(task, policy.ActionRead).Returns([]database.Task{task})
 	}))
 	s.Run("ListTasks", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u1 := testutil.Fake(s.T(), faker, database.User{})
