@@ -72,6 +72,16 @@ var (
 		Type: "boundary_usage",
 	}
 
+	// ResourceChat
+	// Valid Actions
+	//  - "ActionCreate" :: create a new chat
+	//  - "ActionDelete" :: delete a chat
+	//  - "ActionRead" :: read chat messages and metadata
+	//  - "ActionUpdate" :: update chat title or settings
+	ResourceChat = Object{
+		Type: "chat",
+	}
+
 	// ResourceConnectionLog
 	// Valid Actions
 	//  - "ActionRead" :: read connection logs
@@ -427,6 +437,7 @@ func AllResources() []Objecter {
 		ResourceAssignRole,
 		ResourceAuditLog,
 		ResourceBoundaryUsage,
+		ResourceChat,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

@@ -1028,6 +1028,76 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatStatus string
+
+const (
+	ChatStatusWaiting   ChatStatus = "waiting"
+	ChatStatusPending   ChatStatus = "pending"
+	ChatStatusRunning   ChatStatus = "running"
+	ChatStatusPaused    ChatStatus = "paused"
+	ChatStatusCompleted ChatStatus = "completed"
+	ChatStatusError     ChatStatus = "error"
+)
+
+func (e *ChatStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatStatus(s)
+	case string:
+		*e = ChatStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatStatus struct {
+	ChatStatus ChatStatus `json:"chat_status"`
+	Valid      bool       `json:"valid"` // Valid is true if ChatStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatStatus), nil
+}
+
+func (e ChatStatus) Valid() bool {
+	switch e {
+	case ChatStatusWaiting,
+		ChatStatusPending,
+		ChatStatusRunning,
+		ChatStatusPaused,
+		ChatStatusCompleted,
+		ChatStatusError:
+		return true
+	}
+	return false
+}
+
+func AllChatStatusValues() []ChatStatus {
+	return []ChatStatus{
+		ChatStatusWaiting,
+		ChatStatusPending,
+		ChatStatusRunning,
+		ChatStatusPaused,
+		ChatStatusCompleted,
+		ChatStatusError,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -3730,6 +3800,32 @@ type BoundaryUsageStat struct {
 	WindowStart time.Time `db:"window_start" json:"window_start"`
 	// Timestamp of the last update to this row.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type Chat struct {
+	ID               uuid.UUID       `db:"id" json:"id"`
+	OwnerID          uuid.UUID       `db:"owner_id" json:"owner_id"`
+	WorkspaceID      uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	WorkspaceAgentID uuid.NullUUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Title            string          `db:"title" json:"title"`
+	Status           ChatStatus      `db:"status" json:"status"`
+	ModelConfig      json.RawMessage `db:"model_config" json:"model_config"`
+	WorkerID         uuid.NullUUID   `db:"worker_id" json:"worker_id"`
+	StartedAt        sql.NullTime    `db:"started_at" json:"started_at"`
+	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time       `db:"updated_at" json:"updated_at"`
+}
+
+type ChatMessage struct {
+	ID         int64           `db:"id" json:"id"`
+	ChatID     uuid.UUID       `db:"chat_id" json:"chat_id"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+	Role       string          `db:"role" json:"role"`
+	Content    json.RawMessage `db:"content" json:"content"`
+	ToolCalls  json.RawMessage `db:"tool_calls" json:"tool_calls"`
+	ToolCallID sql.NullString  `db:"tool_call_id" json:"tool_call_id"`
+	Thinking   sql.NullString  `db:"thinking" json:"thinking"`
+	Hidden     bool            `db:"hidden" json:"hidden"`
 }
 
 type ConnectionLog struct {

@@ -1158,6 +1158,16 @@ func New(options *Options) *API {
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
+		r.Route("/chats", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.listChats)
+			r.Post("/", api.createChat)
+			r.Route("/{chat}", func(r chi.Router) {
+				r.Get("/", api.getChat)
+				r.Delete("/", api.deleteChat)
+				r.Post("/messages", api.createChatMessage)
+			})
+		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
