@@ -3273,10 +3273,6 @@ func insertDevcontainerSubagent(
 		return uuid.UUID{}, nil
 	}
 
-	if dc.GetSubagentId() == "" {
-		return uuid.UUID{}, nil
-	}
-
 	subAgentID := uuid.New()
 	if opts.useAgentIDsFromProto {
 		var err error
