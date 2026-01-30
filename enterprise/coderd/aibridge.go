@@ -48,6 +48,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 		// Apply overload protection middleware to the aibridged handler.
 		// Concurrency limit is checked first for faster rejection under load.
 		r.Group(func(r chi.Router) {
+			r.Use(middlewares...)
 			r.Use(concurrencyLimiter, rateLimiter)
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
