@@ -118,6 +118,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 
 | Client | OpenAI | Anthropic | Notes |
 |---|---|---|---|
+<<<<<<< HEAD
 | [Claude Code](./claude-code.md) | - | ✅ | Native Anthropic support. |
 | [Cline](./cline.md) | ✅ | ✅ | Supports both provider types. |
 | [Codex CLI](./codex.md) | ⚠️ | - | Requires v0.58.0. |
@@ -129,6 +130,27 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | [OpenCode](./opencode.md) | ✅ | ✅ | Via `api_base`. |
 | [Roo Code](./roo-code.md) | ✅ | ✅ | Supports both provider types. |
 | [Zed](./zed.md) | ✅ | ✅ | Configured via `settings.json`. |
+=======
+| [Claude Code](./claude-code.md) | - | ✅ | Works out of the box and can be preconfigured in templates. |
+| [Claude Code (VS Code)](./claude-code.md) | - | ✅ | May require signing in once; afterwards respects workspace environment variables. |
+| [Cursor](./cursor.md) | ✅ | ❌ | Supports `v1/responses` endpoints. |
+| [Roo Code](./roo-code.md) | ✅ | ✅ | Use the **OpenAI Compatible** provider with the legacy format to avoid `/v1/responses`. |
+| [Codex CLI](./codex.md) | ⚠️ | N/A | • Use v0.58.0 (`npm install -g @openai/codex@0.58.0`). Newer versions have a [bug](https://github.com/openai/codex/issues/8107) breaking the request payload. <br/>• `gpt-5-codex` support is [in progress](https://github.com/coder/aibridge/issues/16). |
+| [GitHub Copilot](./copilot.md) | ✅ | ❌ | Requires the pre-release extension. Anthropic endpoints are not supported. |
+| [Goose](./goose.md) | ✅ | ✅ | Support via custom provider configuration. |
+| [Goose Desktop](./goose.md) | ❓ | ✅ | |
+| [Cline](./cline.md) | ✅ | ✅ | Similar to Roo Code. |
+| [OpenCode](./opencode.md) | ✅ | ✅ | Support via `api_base` configuration. |
+| WindSurf | ❌ | ❌ | No option to override the base URL. |
+| Sourcegraph Amp | ❌ | ❌ | No option to override the base URL. |
+| Kiro | ❌ | ❌ | No option to override the base URL. |
+| [Copilot CLI](https://github.com/github/copilot-cli/issues/104) | ❌ | ❌ | No support for custom base URLs and uses a `GITHUB_TOKEN` for authentication. |
+| [Kilo Code](./kilo-code.md) | ✅ | ✅ | Similar to Roo Code. |
+| Gemini CLI | ❌ | ❌ | Not supported yet. |
+| [Amazon Q CLI](https://aws.amazon.com/q/) | ❌ | ❌ | Limited to Amazon Q subscriptions; no custom endpoint support. |
+| [Zed](./zed.md) | ✅ | ✅ | Configure via `settings.json`. |
+| [JetBrains](./jetbrains.md) | ✅ | ✅ | Use "Bring Your Own Key" (BYOK) with AI Assistant plugin. |
+>>>>>>> e437368cb (docs: refine AI bridge client documentation structure and content)
 
 *Legend: ✅ works, ⚠️ limited support, ❌ not supported, - not applicable.*
 
