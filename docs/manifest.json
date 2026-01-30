@@ -996,15 +996,15 @@
 							"title": "Agent Boundaries",
 							"description": "Understanding Agent Boundaries in Coder Tasks",
 							"path": "./ai-coder/boundary/agent-boundary.md",
-							"state": ["beta"],
+							"state": ["premium", "beta"],
 							"children": [
 								{
-									"title": "nsjail",
+									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
 									"path": "./ai-coder/boundary/nsjail.md"
 								},
 								{
-									"title": "landjail",
+									"title": "LandJail",
 									"description": "Documentation for LandJail",
 									"path": "./ai-coder/boundary/landjail.md"
 								},
@@ -1012,6 +1012,11 @@
 									"title": "Rules Engine",
 									"description": "Documentation for the Boundary rules engine",
 									"path": "./ai-coder/boundary/rules-engine.md"
+								},
+								{
+									"title": "Version Compatibility",
+									"description": "Version requirements and compatibility information",
+									"path": "./ai-coder/boundary/version.md"
 								}
 							]
 						},
@@ -1481,6 +1486,11 @@
 							"title": "login",
 							"description": "Authenticate with Coder deployment",
 							"path": "reference/cli/login.md"
+						},
+						{
+							"title": "login token",
+							"description": "Print the current session token",
+							"path": "reference/cli/login_token.md"
 						},
 						{
 							"title": "logout",

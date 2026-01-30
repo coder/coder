@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { Badge } from "components/Badge/Badge";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
@@ -11,6 +12,7 @@ import {
 	type HTMLAttributes,
 	type PropsWithChildren,
 } from "react";
+import { cn } from "utils/cn";
 
 const styles = {
 	badge: {
@@ -137,20 +139,23 @@ export const EnterpriseBadge: FC = () => {
 	);
 };
 
-export const PremiumBadge: FC = () => {
+interface PremiumBadgeProps {
+	children?: React.ReactNode;
+}
+
+export const PremiumBadge: FC<PremiumBadgeProps> = ({
+	children = "Premium",
+}) => {
 	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					backgroundColor: theme.branding.premium.background,
-					border: `1px solid ${theme.branding.premium.border}`,
-					color: theme.branding.premium.text,
-				}),
-			]}
+		<Badge
+			size="sm"
+			className={cn(
+				"bg-surface-purple border border-solid border-border-purple uppercase",
+				"tracking-[0.085em] text-white rounded-full px-3 font-semibold",
+			)}
 		>
-			Premium
-		</span>
+			{children}
+		</Badge>
 	);
 };
 

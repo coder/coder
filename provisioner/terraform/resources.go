@@ -60,9 +60,11 @@ type agentAttributes struct {
 }
 
 type agentDevcontainerAttributes struct {
+	ID              string `mapstructure:"id"`
 	AgentID         string `mapstructure:"agent_id"`
 	WorkspaceFolder string `mapstructure:"workspace_folder"`
 	ConfigPath      string `mapstructure:"config_path"`
+	SubAgentID      string `mapstructure:"subagent_id"`
 }
 
 type agentResourcesMonitoring struct {
@@ -444,6 +446,36 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 	}
 
+	// Associate Dev Containers with agents.
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type != "coder_devcontainer" {
+				continue
+			}
+			var attrs agentDevcontainerAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode devcontainer attributes: %w", err)
+			}
+			for _, agents := range resourceAgents {
+				for _, agent := range agents {
+					// Find agents with the matching ID and associate them!
+					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+						continue
+					}
+
+					agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+						Id:              attrs.ID,
+						Name:            resource.Name,
+						WorkspaceFolder: attrs.WorkspaceFolder,
+						ConfigPath:      attrs.ConfigPath,
+						SubagentId:      attrs.SubAgentID,
+					})
+				}
+			}
+		}
+	}
+
 	// Manually associate agents with instance IDs.
 	for _, resources := range tfResourcesByLabel {
 		for _, resource := range resources {
@@ -554,40 +586,48 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				openIn = proto.AppOpenIn_TAB
 			}
 
+			appID := attrs.ID
+			if appID == "" {
+				// This should never happen since the "id" attribute is set on creation:
+				// https://github.com/coder/terraform-provider-coder/blob/cfa101df4635e405e66094fa7779f9a89d92f400/provider/app.go#L37
+				logger.Warn(ctx, "coder_app's id was unexpectedly empty", slog.F("name", attrs.Name))
+
+				appID = uuid.NewString()
+			}
+
+			app := &proto.App{
+				Id:           appID,
+				Slug:         attrs.Slug,
+				DisplayName:  attrs.DisplayName,
+				Command:      attrs.Command,
+				External:     attrs.External,
+				Url:          attrs.URL,
+				Icon:         attrs.Icon,
+				Subdomain:    attrs.Subdomain,
+				SharingLevel: sharingLevel,
+				Healthcheck:  healthcheck,
+				Order:        attrs.Order,
+				Group:        attrs.Group,
+				Hidden:       attrs.Hidden,
+				OpenIn:       openIn,
+				Tooltip:      attrs.Tooltip,
+			}
+
+		appAgentLoop:
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-						continue
+					if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+						agent.Apps = append(agent.Apps, app)
+						break appAgentLoop
 					}
 
-					id := attrs.ID
-					if id == "" {
-						// This should never happen since the "id" attribute is set on creation:
-						// https://github.com/coder/terraform-provider-coder/blob/cfa101df4635e405e66094fa7779f9a89d92f400/provider/app.go#L37
-						logger.Warn(ctx, "coder_app's id was unexpectedly empty", slog.F("name", attrs.Name))
-
-						id = uuid.NewString()
+					for _, dc := range agent.GetDevcontainers() {
+						if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
+							dc.Apps = append(dc.Apps, app)
+							break appAgentLoop
+						}
 					}
-
-					agent.Apps = append(agent.Apps, &proto.App{
-						Id:           id,
-						Slug:         attrs.Slug,
-						DisplayName:  attrs.DisplayName,
-						Command:      attrs.Command,
-						External:     attrs.External,
-						Url:          attrs.URL,
-						Icon:         attrs.Icon,
-						Subdomain:    attrs.Subdomain,
-						SharingLevel: sharingLevel,
-						Healthcheck:  healthcheck,
-						Order:        attrs.Order,
-						Group:        attrs.Group,
-						Hidden:       attrs.Hidden,
-						OpenIn:       openIn,
-						Tooltip:      attrs.Tooltip,
-					})
 				}
 			}
 		}
@@ -604,16 +644,27 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			if err != nil {
 				return nil, xerrors.Errorf("decode env attributes: %w", err)
 			}
+
+			env := &proto.Env{
+				Name:  attrs.Name,
+				Value: attrs.Value,
+			}
+
+		envAgentLoop:
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-						continue
+					if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+						agent.ExtraEnvs = append(agent.ExtraEnvs, env)
+						break envAgentLoop
 					}
-					agent.ExtraEnvs = append(agent.ExtraEnvs, &proto.Env{
-						Name:  attrs.Name,
-						Value: attrs.Value,
-					})
+
+					for _, dc := range agent.GetDevcontainers() {
+						if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
+							dc.Envs = append(dc.Envs, env)
+							break envAgentLoop
+						}
+					}
 				}
 			}
 		}
@@ -630,55 +681,38 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			if err != nil {
 				return nil, xerrors.Errorf("decode script attributes: %w", err)
 			}
+
+			script := &proto.Script{
+				DisplayName:      attrs.DisplayName,
+				Icon:             attrs.Icon,
+				Script:           attrs.Script,
+				Cron:             attrs.Cron,
+				LogPath:          attrs.LogPath,
+				StartBlocksLogin: attrs.StartBlocksLogin,
+				RunOnStart:       attrs.RunOnStart,
+				RunOnStop:        attrs.RunOnStop,
+				TimeoutSeconds:   attrs.TimeoutSeconds,
+			}
+
+		scriptAgentLoop:
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-						continue
+					if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+						agent.Scripts = append(agent.Scripts, script)
+						break scriptAgentLoop
 					}
-					agent.Scripts = append(agent.Scripts, &proto.Script{
-						DisplayName:      attrs.DisplayName,
-						Icon:             attrs.Icon,
-						Script:           attrs.Script,
-						Cron:             attrs.Cron,
-						LogPath:          attrs.LogPath,
-						StartBlocksLogin: attrs.StartBlocksLogin,
-						RunOnStart:       attrs.RunOnStart,
-						RunOnStop:        attrs.RunOnStop,
-						TimeoutSeconds:   attrs.TimeoutSeconds,
-					})
+
+					for _, dc := range agent.GetDevcontainers() {
+						if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
+							dc.Scripts = append(dc.Scripts, script)
+							break scriptAgentLoop
+						}
+					}
 				}
 			}
 		}
 	}
-
-	// Associate Dev Containers with agents.
-	for _, resources := range tfResourcesByLabel {
-		for _, resource := range resources {
-			if resource.Type != "coder_devcontainer" {
-				continue
-			}
-			var attrs agentDevcontainerAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
-			if err != nil {
-				return nil, xerrors.Errorf("decode script attributes: %w", err)
-			}
-			for _, agents := range resourceAgents {
-				for _, agent := range agents {
-					// Find agents with the matching ID and associate them!
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-						continue
-					}
-					agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
-						Name:            resource.Name,
-						WorkspaceFolder: attrs.WorkspaceFolder,
-						ConfigPath:      attrs.ConfigPath,
-					})
-				}
-			}
-		}
-	}
-
 	// Associate metadata blocks with resources.
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
 	resourceHidden := map[string]bool{}
@@ -1157,6 +1191,30 @@ func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, resourceAgentID
 
 	// Provision: agent ID and child resource ID are present
 	return agent.Id == resourceAgentID
+}
+
+func dependsOnDevcontainer(graph *gographviz.Graph, dc *proto.Devcontainer, resourceAgentID string, resource *tfjson.StateResource) bool {
+	// Plan: we need to find if there is an edge between the resource and the devcontainer.
+	if dc.SubagentId == "" && resourceAgentID == "" {
+		resourceNodeSuffix := fmt.Sprintf(`] %s.%s (expand)"`, resource.Type, resource.Name)
+		agentNodeSuffix := fmt.Sprintf(`] coder_devcontainer.%s (expand)"`, dc.Name)
+
+		// Traverse the graph to check if the coder_<resource_type> depends on coder_devcontainer.
+		for _, dst := range graph.Edges.SrcToDsts {
+			for _, edges := range dst {
+				for _, edge := range edges {
+					if strings.HasSuffix(edge.Src, resourceNodeSuffix) &&
+						strings.HasSuffix(edge.Dst, agentNodeSuffix) {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
+	// Provision: subagent ID and child resource ID are present
+	return dc.SubagentId == resourceAgentID
 }
 
 type graphResource struct {

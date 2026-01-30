@@ -11,7 +11,7 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { Stack } from "components/Stack/Stack";
 import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -125,7 +125,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 				</Cond>
 
 				<Cond>
-					<Paywall
+					<PaywallPremium
 						message="Connection logs"
 						description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
 						documentationLink={docs("/admin/monitoring/connection-logs")}

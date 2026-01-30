@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.24.11
+go 1.25.6
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -475,7 +475,7 @@ require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aibridge v1.0.0
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/boundary v0.6.0
+	github.com/coder/boundary v0.6.1
 	github.com/coder/preview v1.0.4
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
