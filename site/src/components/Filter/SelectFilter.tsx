@@ -7,6 +7,7 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "components/Combobox/Combobox";
+import { Spinner } from "components/Spinner/Spinner";
 import type { FC, ReactNode } from "react";
 import { cn } from "utils/cn";
 
@@ -78,18 +79,24 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 						"border-surface-quaternary",
 					)}
 				>
-					{options?.map((option) => (
-						<ComboboxItem
-							className="px-4 data-[selected=true]:bg-surface-tertiary font-normal gap-4"
-							key={option.value}
-							value={option.value}
-						>
-							{option.startIcon}
-							<span className="flex-1 truncate">{option.label}</span>
-						</ComboboxItem>
-					))}
+					{options !== undefined ? (
+						options.map((option) => (
+							<ComboboxItem
+								className="px-4 data-[selected=true]:bg-surface-tertiary font-normal gap-4"
+								key={option.value}
+								value={option.value}
+							>
+								{option.startIcon}
+								<span className="flex-1 truncate">{option.label}</span>
+							</ComboboxItem>
+						))
+					) : (
+						<div className="flex items-center justify-center py-4">
+							<Spinner size="sm" loading />
+						</div>
+					)}
 				</ComboboxList>
-				<ComboboxEmpty>{emptyText}</ComboboxEmpty>
+				{options !== undefined && <ComboboxEmpty>{emptyText}</ComboboxEmpty>}
 			</ComboboxContent>
 		</Combobox>
 	);
