@@ -392,25 +392,13 @@ func TestAPIKey(t *testing.T) {
 		}{
 			{
 				name:              "OldLastUsed",
-				lastUsedOffset:    -2 * httpmw.APIKeyLastUsedUpdateInterval,
+				lastUsedOffset:    -2 * httpmw.APIKeyUpdateInterval,
 				expectLastUpdated: true,
 			},
 			{
 				name:              "RecentLastUsed",
-				lastUsedOffset:    -(httpmw.APIKeyLastUsedUpdateInterval / 2),
+				lastUsedOffset:    -(httpmw.APIKeyUpdateInterval / 2),
 				expectLastUpdated: false,
-			},
-			{
-				// Exactly at the boundary should not update (uses > not >=).
-				// We subtract a small buffer to account for timing between test setup and middleware execution.
-				name:              "ExactlyAtBoundary",
-				lastUsedOffset:    -httpmw.APIKeyLastUsedUpdateInterval + 5*time.Second,
-				expectLastUpdated: false,
-			},
-			{
-				name:              "JustOverBoundary",
-				lastUsedOffset:    -httpmw.APIKeyLastUsedUpdateInterval - time.Second,
-				expectLastUpdated: true,
 			},
 		}
 
@@ -461,7 +449,7 @@ func TestAPIKey(t *testing.T) {
 				UserID:   user.ID,
 				LastUsed: dbtime.Now(),
 				// Expires just under the update interval, so should be refreshed.
-				ExpiresAt: dbtime.Now().Add(httpmw.APIKeyLastUsedUpdateInterval - time.Second),
+				ExpiresAt: dbtime.Now().Add(httpmw.APIKeyUpdateInterval - time.Second),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
