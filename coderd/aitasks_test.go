@@ -727,12 +727,15 @@ func TestTasks(t *testing.T) {
 	t.Run("LogsWithSnapshot", func(t *testing.T) {
 		t.Parallel()
 
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
-		owner := coderdtest.CreateFirstUser(t, client)
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
 
-		ownerUser, err := client.User(testutil.Context(t, testutil.WaitMedium), owner.UserID.String())
+		ownerUser, err := ownerClient.User(testutil.Context(t, testutil.WaitMedium), owner.UserID.String())
 		require.NoError(t, err)
 		ownerSubject := coderdtest.AuthzUserSubject(ownerUser)
+
+		// Create a regular user to test snapshot access.
+		client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 		// Helper to create a task in the desired state.
 		createTaskInState := func(ctx context.Context, t *testing.T, status database.TaskStatus) uuid.UUID {
@@ -740,11 +743,11 @@ func TestTasks(t *testing.T) {
 
 			builder := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: owner.OrganizationID,
-				OwnerID:        owner.UserID,
+				OwnerID:        user.ID,
 			}).
 				WithTask(database.TaskTable{
 					OrganizationID: owner.OrganizationID,
-					OwnerID:        owner.UserID,
+					OwnerID:        user.ID,
 				}, nil)
 
 			switch status {
