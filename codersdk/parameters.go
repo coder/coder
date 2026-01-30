@@ -99,9 +99,11 @@ func (p PreviewParameter) TemplateVersionParameter() TemplateVersionParameter {
 			tp.ValidationRegex = *valid.Regex
 		}
 		if valid.Min != nil {
+			//nolint:gosec
 			tp.ValidationMin = ptr.Ref(int32(*valid.Min))
 		}
 		if valid.Max != nil {
+			//nolint:gosec
 			tp.ValidationMin = ptr.Ref(int32(*valid.Max))
 		}
 	}
