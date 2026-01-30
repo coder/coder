@@ -612,9 +612,13 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
-		task, err := s.Database.GetTaskByWorkspaceID(ctx, workspaceBuild.WorkspaceID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		tasks, err := s.Database.GetTasksByWorkspaceIDs(ctx, []uuid.UUID{workspaceBuild.WorkspaceID})
+		if err != nil {
 			return nil, xerrors.Errorf("get task by workspace id: %w", err)
+		}
+		var task database.Task
+		if len(tasks) > 0 {
+			task = tasks[0]
 		}
 
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
@@ -2142,7 +2146,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		var hasAITask bool
-		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
+		tasks, err := db.GetTasksByWorkspaceIDs(ctx, []uuid.UUID{workspace.ID})
+		if err != nil {
+			return xerrors.Errorf("get task by workspace id: %w", err)
+		}
+		if len(tasks) > 0 {
+			task := tasks[0]
 			hasAITask = true
 			if workspaceBuild.Transition == database.WorkspaceTransitionStart {
 				// Insert usage event for managed agents.
@@ -2174,8 +2183,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			if err != nil {
 				return xerrors.Errorf("upsert task workspace app: %w", err)
 			}
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
 		_, hasExternalAgent := slice.Find(jobType.WorkspaceBuild.Resources, func(resource *sdkproto.Resource) bool {

@@ -1588,17 +1588,17 @@ func (f *fakeUsageChecker) CheckBuildUsage(ctx context.Context, store database.S
 }
 
 func withNoTask(mTx *dbmock.MockStore) {
-	mTx.EXPECT().GetTaskByWorkspaceID(gomock.Any(), gomock.Any()).Times(1).
-		DoAndReturn(func(ctx context.Context, id uuid.UUID) (database.Task, error) {
-			return database.Task{}, sql.ErrNoRows
+	mTx.EXPECT().GetTasksByWorkspaceIDs(gomock.Any(), gomock.Any()).Times(1).
+		DoAndReturn(func(ctx context.Context, ids []uuid.UUID) ([]database.Task, error) {
+			return []database.Task{}, nil
 		})
 }
 
 func withTask(task database.Task) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
-		mTx.EXPECT().GetTaskByWorkspaceID(gomock.Any(), gomock.Any()).Times(1).
-			DoAndReturn(func(ctx context.Context, id uuid.UUID) (database.Task, error) {
-				return task, nil
+		mTx.EXPECT().GetTasksByWorkspaceIDs(gomock.Any(), gomock.Any()).Times(1).
+			DoAndReturn(func(ctx context.Context, ids []uuid.UUID) ([]database.Task, error) {
+				return []database.Task{task}, nil
 			})
 	}
 }

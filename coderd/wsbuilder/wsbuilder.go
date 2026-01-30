@@ -641,17 +641,17 @@ func (b *Builder) getWorkspaceTask() (*database.Task, error) {
 	if b.hasTask != nil {
 		return b.task, nil
 	}
-	t, err := b.store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
+	tasks, err := b.store.GetTasksByWorkspaceIDs(b.ctx, []uuid.UUID{b.workspace.ID})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			b.hasTask = ptr.Ref(false)
-			//nolint:nilnil // No task exists.
-			return nil, nil
-		}
 		return nil, xerrors.Errorf("get task: %w", err)
 	}
+	if len(tasks) == 0 {
+		b.hasTask = ptr.Ref(false)
+		//nolint:nilnil // No task exists.
+		return nil, nil
+	}
 
-	b.task = &t
+	b.task = &tasks[0]
 	b.hasTask = ptr.Ref(true)
 	return b.task, nil
 }

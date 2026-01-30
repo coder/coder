@@ -351,12 +351,13 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		slog.F("build_number", resp.Build.BuildNumber))
 
 	// If this is a task workspace, link it to the workspace build.
-	task, err := b.db.GetTaskByWorkspaceID(ownerCtx, resp.Workspace.ID)
+	tasks, err := b.db.GetTasksByWorkspaceIDs(ownerCtx, []uuid.UUID{resp.Workspace.ID})
 	if err != nil {
 		if b.taskAppID != uuid.Nil {
-			require.Fail(b.t, "task app configured but failed to get task by workspace id", err)
+			require.Fail(b.t, "task app configured but failed to get tasks by workspace id", err)
 		}
-	} else {
+	} else if len(tasks) > 0 {
+		task := tasks[0]
 		if b.taskAppID == uuid.Nil {
 			require.Fail(b.t, "task app not configured but workspace is a task workspace")
 		}
