@@ -1,6 +1,6 @@
 # Codex CLI
 
-The OpenAI Codex CLI is supported with specific version requirements.
+The OpenAI [Codex CLI](https://developers.openai.com/codex/cli) is supported with specific version requirements.
 
 ## Configuration
 
@@ -30,4 +30,5 @@ module "codex" {
   enable_aibridge = true
 }
 ```
+
 **References:** [Codex CLI Configuration](https://developers.openai.com/codex/config-advanced)

@@ -1,7 +1,6 @@
-````markdown
 # Droid
 
-Droid supports custom OpenAI and Anthropic endpoints through its settings file.
+[Droid](https://factory.ai) supports custom OpenAI and Anthropic endpoints through its settings file.
 
 ## Configuration
 

@@ -1,13 +1,12 @@
 # VS Code
 
-VS Code can be configured to use AI Bridge with the GitHub Copilot Chat extension's custom language model support.
+[VS Code](https://code.visualstudio.com) can be configured to use AI Bridge with the GitHub Copilot Chat extension's custom language model support.
 
 ## Configuration
 
 ### Prerequisites
 
 - You need the **Pre-release** version of the GitHub Copilot Chat extension and VS Code Insiders.
-
 
 ### Steps
 
@@ -20,33 +19,33 @@ VS Code can be configured to use AI Bridge with the GitHub Copilot Chat extensio
 
 ```json
 [
-	{
-		"name": "Coder",
-		"vendor": "customoai",
-		"apiKey": "${input:chat.lm.secret.-40213ea}", // Replace with your secret input name added automatically when adding the API key
-		"models": [
-			{
-				"name": "GPT 5.2",
-				"url": "https://coder.example.com/api/v2/aibridge/openai/v1/chat/completions",
-				"toolCalling": true,
-				"vision": true,
-				"thinking": true,
-				"maxInputTokens": 272000,
-				"maxOutputTokens": 128000,
-				"id": "gpt-5.2"
-			},
-			{
-				"name": "GPT 5.2 Codex",
-				"url": "https://coder.example.com/api/v2/aibridge/openai/v1/responses",
-				"toolCalling": true,
-				"vision": true,
-				"thinking": true,
-				"maxInputTokens": 272000,
-				"maxOutputTokens": 128000,
-				"id": "gpt-5.2-codex"
-			}
-		]
-	}
+    {
+        "name": "Coder",
+        "vendor": "customoai",
+        "apiKey": "${input:chat.lm.secret.-40213ea}", // Replace with your secret input name added automatically when adding the API key
+        "models": [
+            {
+                "name": "GPT 5.2",
+                "url": "https://coder.example.com/api/v2/aibridge/openai/v1/chat/completions",
+                "toolCalling": true,
+                "vision": true,
+                "thinking": true,
+                "maxInputTokens": 272000,
+                "maxOutputTokens": 128000,
+                "id": "gpt-5.2"
+            },
+            {
+                "name": "GPT 5.2 Codex",
+                "url": "https://coder.example.com/api/v2/aibridge/openai/v1/responses",
+                "toolCalling": true,
+                "vision": true,
+                "thinking": true,
+                "maxInputTokens": 272000,
+                "maxOutputTokens": 128000,
+                "id": "gpt-5.2-codex"
+            }
+        ]
+    }
 ]
 ```
 

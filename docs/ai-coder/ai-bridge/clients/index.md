@@ -135,7 +135,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 The following clients currently do not support custom base URLs or are otherwise incompatible:
 
 - **WindSurf**: No option to override base URL.
-- **Cursor**: Override for OpenAI broken becasue of an upstream [issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894); no Anthropic support.
+- **Cursor**: Override for OpenAI broken because of an upstream [issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894); no Anthropic support.
 - **Sourcegraph Amp**: No option to override base URL.
 - **Kiro**: No option to override base URL.
 - **Gemini CLI**: Not supported.

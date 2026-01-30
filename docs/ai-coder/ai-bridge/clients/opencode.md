@@ -1,37 +1,44 @@
-# OpenCode Interpreter
+# OpenCode
 
-OpenCode Interpreter (Open Interpreter) supports custom OpenAI-compatible endpoints via the `api_base` parameter.
+[OpenCode](https://opencode.ai/) is an open source agent that helps you write code in your terminal, IDE, or desktop.
 
 ## Configuration
 
-You can configure OpenCode Interpreter via CLI arguments or Python code.
+You can configure OpenCode to connect to AI Bridge by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
 
-<div class="tabs">
-
-### Option 1: CLI Usage
-
-Pass the `api_base` and `api_key` flags when starting the interpreter:
-
-```bash
-interpreter --api_base "https://coder.example.com/api/v2/aibridge/openai/v1" --api_key "<your-coder-session-token>"
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "baseURL": "https://coder.example.com/api/v2/aibridge/anthropic/v1"
+      }
+    },
+    "openai": {
+      "options": {
+        "baseURL": "https://coder.example.com/api/v2/aibridge/openai/v1"
+      }
+    }
+  }
+}
 ```
 
-### Option 2: Python Script
+## Authentication
 
-If you are using Open Interpreter as a library:
+To authenticate with AI Bridge, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in `~/.local/share/opencode/auth.json`
 
-```python
-import interpreter
-
-interpreter.llm.api_base = "https://coder.example.com/api/v2/aibridge/openai/v1"
-interpreter.llm.api_key = "<your-coder-session-token>"
-interpreter.llm.model = "gpt-4o"
-
-interpreter.chat("Hello, world!")
+```json
+{
+  "anthropic": {
+    "type": "api",
+    "key": "<your-coder-session-token>"
+  },
+  "openai": {
+    "type": "api",
+    "key": "<your-coder-session-token>"
+  }
+}
 ```
 
-</div>
-
----
-
-**References:** [Open Interpreter Custom Endpoint](https://docs.openinterpreter.com/language-models/local-models/custom-endpoint)
+**References:** [OpenCode Documentation](https://opencode.ai/docs/providers/#config)

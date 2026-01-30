@@ -1,28 +1,30 @@
 # Kilo Code
 
-Kilo Code supports both OpenAI and Anthropic providers, allowing full integration with AI Bridge.
+[Kilo Code](https://kilocode.ai) supports both OpenAI and Anthropic providers, allowing full integration with AI Bridge.
 
 ## Configuration
 
-<!-- TODO: Add screenshot of Kilo Code settings -->
-
 <div class="tabs">
 
-### Option 1: OpenAI Compatible (Recommended)
+### OpenAI Compatible
 
 1. Open Kilo Code in VS Code.
-2. Go to **Settings** / **Configuration**.
-3. **Provider**: Select **OpenAI Compatible**.
-4. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/openai/v1`.
-5. **API Key**: Enter your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
-6. **Model ID**: Enter the model you wish to use (e.g., `gpt-4o`).
+1. Go to **Settings**.
+1. **Provider**: Select **OpenAI**.
+1. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/openai/v1`.
+1. **API Key**: Enter your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+1. **Model ID**: Enter the model you wish to use (e.g., `gpt-5.2-codex`).
 
-### Option 2: Anthropic
+![Kilo Code OpenAI Settings](../../../images/aibridge/clients/kilo-code-openai.png)
+
+### Anthropic
 
 1. **Provider**: Select **Anthropic**.
-2. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/anthropic`.
-3. **API Key**: Enter your **Coder Session Token**.
-4. **Model ID**: Select your desired Claude model.
+1. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/anthropic`.
+1. **API Key**: Enter your **Coder Session Token**.
+1. **Model ID**: Select your desired Claude model.
+
+![Kilo Code Anthropic Settings](../../../images/aibridge/clients/kilo-code-anthropic.png)
 
 </div>
 

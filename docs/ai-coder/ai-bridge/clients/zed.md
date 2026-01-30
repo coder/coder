@@ -1,6 +1,6 @@
 # Zed
 
-Zed IDE supports AI Bridge via its `language_models` configuration in `settings.json`.
+[Zed](https://zed.dev) IDE supports AI Bridge via its `language_models` configuration in `settings.json`.
 
 ## Configuration
 
@@ -10,37 +10,24 @@ To configure Zed to use AI Bridge, you need to edit your `settings.json` file. Y
 
 You can configure both Anthropic and OpenAI providers to point to AI Bridge.
 
-<div class="tabs">
-
-### OpenAI Provider
-
-To use OpenAI-compatible models (e.g., `gpt-4o`):
-
 ```json
 {
-  "language_models": {
-    "openai": {
-      "api_url": "https://coder.example.com/api/v2/aibridge/openai/v1"
-    }
-  }
-}
-```
-
-### Anthropic Provider
-
-To use Anthropic models (e.g., `claude-3-5-sonnet`):
-
-```json
-{
+    "agent": {
+        "default_model": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-5-latest",
+        },
+    },
   "language_models": {
     "anthropic": {
-      "api_url": "https://coder.example.com/api/v2/aibridge/anthropic"
-    }
-  }
+      "api_url": "https://coder.example.com/api/v2/aibridge/anthropic",
+    },
+    "openai": {
+      "api_url": "https://coder.example.com/api/v2/aibridge/openai/v1",
+    },
+  },
 }
 ```
-
-</div>
 
 *Replace `coder.example.com` with your Coder deployment URL.*
 
@@ -50,13 +37,19 @@ Zed requires an API key for these providers. For AI Bridge, this key is your **[
 
 You can set this in two ways:
 
-1. **Zed UI**:
-    * Open the Assistant Panel (right sidebar).
-    * Click "Configuration" or the settings icon.
-    * Select your provider ("Anthropic" or "OpenAI").
-    * Paste your Coder Session Token when prompted for the API Key.
+<div class="tabs">
 
-2. **Environment Variables**:
-    * Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to your Coder session token in the environment where you launch Zed.
+### Zed UI
 
-**References:** [Configuring Zed - Language Models](https://zed.dev/docs/configuring-zed#language-models)
+1. Open the Assistant Panel (right sidebar).
+1. Click "Configuration" or the settings icon.
+1. Select your provider ("Anthropic" or "OpenAI").
+1. Paste your Coder Session Token for the API Key.
+
+### Environment Variables
+
+1. Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to your Coder session token in the environment where you launch Zed.
+
+</div>
+
+**References:** [Configuring Zed - Language Models](https://zed.dev/docs/reference/all-settings#language-models)
