@@ -808,14 +808,16 @@ func createWorkspace(
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
+		if api.ProvisionerdServerMetrics != nil && provisionerJob != nil && provisionerJob.Provisioner.Valid() {
+			api.ProvisionerdServerMetrics.RecordWorkspaceBuildEnqueued(string(provisionerJob.Provisioner), string(workspaceBuild.Reason), string(workspaceBuild.Transition), err)
+		}
 		return err
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
 
-	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
-	if err != nil {
+	if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
 		// Client probably doesn't care about this error, so just log it.
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}

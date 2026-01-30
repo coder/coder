@@ -481,6 +481,9 @@ func (api *API) postWorkspaceBuildsInternal(
 			},
 			workspaceBuildBaggage,
 		)
+		if api.ProvisionerdServerMetrics != nil && provisionerJob != nil && provisionerJob.Provisioner.Valid() {
+			api.ProvisionerdServerMetrics.RecordWorkspaceBuildEnqueued(string(provisionerJob.Provisioner), string(workspaceBuild.Reason), string(workspaceBuild.Transition), err)
+		}
 		return err
 	}, nil)
 	if err != nil {

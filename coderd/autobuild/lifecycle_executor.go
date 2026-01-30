@@ -353,6 +353,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						}
 
 						nextBuild, job, _, err = builder.Build(e.ctx, tx, e.fileCache, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						if e.provisionerdServerMetrics != nil && job != nil && job.Provisioner.Valid() {
+							e.provisionerdServerMetrics.RecordWorkspaceBuildEnqueued(string(job.Provisioner), string(reason), string(nextTransition), err)
+						}
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
