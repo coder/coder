@@ -8,7 +8,7 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
@@ -78,7 +78,7 @@ const IdpOrgSyncPage: FC = () => {
 				</header>
 				<ChooseOne>
 					<Cond condition={!isIdpSyncEnabled}>
-						<Paywall
+						<PaywallPremium
 							message="IdP Organization Sync"
 							description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
 							documentationLink={docs("/admin/users/idp-sync")}
