@@ -2032,6 +2032,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 					agentIDByAppID[app.GetId()] = agentID
 				}
 
+				// Subagents in devcontainers can also have apps that need
+				// tracking for task linking, just like the parent agent's
+				// apps above.
 				for _, dc := range protoAgent.GetDevcontainers() {
 					dc.Id = uuid.New().String()
 
