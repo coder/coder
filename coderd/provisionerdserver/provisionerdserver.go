@@ -3449,8 +3449,8 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 	if slug == "" {
 		return xerrors.Errorf("app must have a slug or name set")
 	}
-	// Contrary to agent names above, app slugs were never permitted to
-	// contain uppercase letters or underscores.
+	// Unlike agent names, app slugs were never permitted to contain uppercase
+	// letters or underscores.
 	if !provisioner.AppSlugRegex.MatchString(slug) {
 		return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
 	}
