@@ -833,7 +833,11 @@ In the meantime, you can safely convert existing templates and build new paramet
 
 ### "Module not loaded" errors when using Dynamic Parameters
 
-One possible cause is exceeding the size limit for module archiving. If your template uses modules that exceed the limit, you may see warnings in the provisioner logs:
+Dynamic Parameters require Terraform modules to be archived and stored in the database. Coder limits module archives to **20MB total** to prevent database bloat. If your template uses modules that exceed this limit, some modules will be unavailable for parameter declarations.
+
+**Symptoms:**
+
+You may see warnings in the provisioner logs:
 
 ```text
 [API] 2026-01-29 22:00:22.691 [warn]  provisionerd-nixos-0.executor: some (or all) terraform modules were not archived, template will have reduced function  skipped_modules=large:git::https://github.com/coder/large-module.git
