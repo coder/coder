@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -8489,8 +8491,18 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	t.Parallel()
 
-	for _, useValidUUID := range []bool{true, false} {
-		t.Run(fmt.Sprintf("SubAgentID/Valid/%t", useValidUUID), func(t *testing.T) {
+	testCases := []struct {
+		name          string
+		validSubagent []bool
+	}{
+		{"BothValid", []bool{true, true}},
+		{"FirstValidSecondInvalid", []bool{true, false}},
+		{"FirstInvalidSecondValid", []bool{false, true}},
+		{"BothInvalid", []bool{false, false}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			var (
@@ -8500,49 +8512,74 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 					Type:           database.ProvisionerJobTypeTemplateVersionImport,
 					OrganizationID: org.ID,
 				})
-				resource   = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
-				agent      = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
-				subagentID = uuid.Nil
+				resource = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+				agent    = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
 			)
 
-			if useValidUUID {
-				subagentID = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-					ResourceID: resource.ID,
-					ParentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
-				}).ID
+			ids := make([]uuid.UUID, len(tc.validSubagent))
+			names := make([]string, len(tc.validSubagent))
+			workspaceFolders := make([]string, len(tc.validSubagent))
+			configPaths := make([]string, len(tc.validSubagent))
+			subagentIDs := make([]uuid.UUID, len(tc.validSubagent))
+
+			for i, valid := range tc.validSubagent {
+				ids[i] = uuid.New()
+				names[i] = fmt.Sprintf("test-devcontainer-%d", i)
+				workspaceFolders[i] = fmt.Sprintf("/workspace%d", i)
+				configPaths[i] = fmt.Sprintf("/workspace%d/.devcontainer/devcontainer.json", i)
+
+				if valid {
+					subagentIDs[i] = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ResourceID: resource.ID,
+						ParentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
+					}).ID
+				} else {
+					subagentIDs[i] = uuid.Nil
+				}
 			}
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 
-			// Given: We insert the devcontainer record
+			// Given: We insert multiple devcontainer records.
 			devcontainers, err := db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
 				WorkspaceAgentID: agent.ID,
 				CreatedAt:        dbtime.Now(),
-				ID:               []uuid.UUID{uuid.New()},
-				Name:             []string{"test-devcontainer"},
-				WorkspaceFolder:  []string{"/workspace"},
-				ConfigPath:       []string{"/workspace/.devcontainer/devcontainer.json"},
-				SubagentID:       []uuid.UUID{subagentID},
+				ID:               ids,
+				Name:             names,
+				WorkspaceFolder:  workspaceFolders,
+				ConfigPath:       configPaths,
+				SubagentID:       subagentIDs,
 			})
 			require.NoError(t, err)
-			require.Len(t, devcontainers, 1)
+			require.Len(t, devcontainers, len(tc.validSubagent))
 
-			// Then:
+			// Then: Verify each devcontainer has the correct SubagentID validity.
 			// - When we pass `uuid.Nil`, we get a `uuid.NullUUID{Valid: false}`
 			// - When we pass a valid UUID, we get a `uuid.NullUUID{Valid: true}`
-			require.Equal(t, useValidUUID, devcontainers[0].SubagentID.Valid, "subagent_id validity mismatch")
-			if useValidUUID {
-				require.Equal(t, subagentID, devcontainers[0].SubagentID.UUID, "subagent_id UUID mismatch")
+			for i, valid := range tc.validSubagent {
+				require.Equal(t, valid, devcontainers[i].SubagentID.Valid, "devcontainer %d: subagent_id validity mismatch", i)
+				if valid {
+					require.Equal(t, subagentIDs[i], devcontainers[i].SubagentID.UUID, "devcontainer %d: subagent_id UUID mismatch", i)
+				}
 			}
 
-			// Perform the same check on data returned by `GetWorkspaceAgentDevcontainersByAgentID` to ensure
-			// the fix is at the data storage layer, instead of just at a query level.
+			// Perform the same check on data returned by
+			// `GetWorkspaceAgentDevcontainersByAgentID` to ensure the fix is at
+			// the data storage layer, instead of just at a query level.
 			fetched, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
 			require.NoError(t, err)
-			require.Len(t, fetched, 1)
-			require.Equal(t, useValidUUID, fetched[0].SubagentID.Valid, "fetched subagent_id validity mismatch")
-			if useValidUUID {
-				require.Equal(t, subagentID, fetched[0].SubagentID.UUID, "fetched subagent_id UUID mismatch")
+			require.Len(t, fetched, len(tc.validSubagent))
+
+			// Sort fetched by name to ensure consistent ordering for comparison.
+			slices.SortFunc(fetched, func(a, b database.WorkspaceAgentDevcontainer) int {
+				return strings.Compare(a.Name, b.Name)
+			})
+
+			for i, valid := range tc.validSubagent {
+				require.Equal(t, valid, fetched[i].SubagentID.Valid, "fetched devcontainer %d: subagent_id validity mismatch", i)
+				if valid {
+					require.Equal(t, subagentIDs[i], fetched[i].SubagentID.UUID, "fetched devcontainer %d: subagent_id UUID mismatch", i)
+				}
 			}
 		})
 	}
