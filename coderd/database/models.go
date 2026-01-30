@@ -217,8 +217,8 @@ const (
 	ApiKeyScopeBoundaryUsageDelete                 APIKeyScope = "boundary_usage:delete"
 	ApiKeyScopeBoundaryUsageRead                   APIKeyScope = "boundary_usage:read"
 	ApiKeyScopeBoundaryUsageUpdate                 APIKeyScope = "boundary_usage:update"
-	ApiKeyScopeWorkspaceUpdateAgent                APIKeyScope = "workspace:update_agent"
-	ApiKeyScopeWorkspaceDormantUpdateAgent         APIKeyScope = "workspace_dormant:update_agent"
+	ApiKeyScopeAibridge                            APIKeyScope = "aibridge:*"
+	ApiKeyScopeAibridgeUse                         APIKeyScope = "aibridge:use"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -456,8 +456,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryUsageDelete,
 		ApiKeyScopeBoundaryUsageRead,
 		ApiKeyScopeBoundaryUsageUpdate,
-		ApiKeyScopeWorkspaceUpdateAgent,
-		ApiKeyScopeWorkspaceDormantUpdateAgent:
+		ApiKeyScopeAibridge,
+		ApiKeyScopeAibridgeUse:
 		return true
 	}
 	return false
@@ -663,8 +663,8 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryUsageDelete,
 		ApiKeyScopeBoundaryUsageRead,
 		ApiKeyScopeBoundaryUsageUpdate,
-		ApiKeyScopeWorkspaceUpdateAgent,
-		ApiKeyScopeWorkspaceDormantUpdateAgent,
+		ApiKeyScopeAibridge,
+		ApiKeyScopeAibridgeUse,
 	}
 }
 
@@ -4777,8 +4777,7 @@ type WorkspaceAgentDevcontainer struct {
 	// Path to devcontainer.json.
 	ConfigPath string `db:"config_path" json:"config_path"`
 	// The name of the Dev Container.
-	Name       string        `db:"name" json:"name"`
-	SubagentID uuid.NullUUID `db:"subagent_id" json:"subagent_id"`
+	Name string `db:"name" json:"name"`
 }
 
 type WorkspaceAgentLog struct {
