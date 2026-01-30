@@ -598,7 +598,6 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 				// for users that are not part of the organization.
 				owningUser, uerr := client.User(ctx, args.Owner)
 				if uerr != nil {
-					// Return the original member
 					return nil, xerrors.Errorf("get owning member: %w", err)
 				}
 				ownerID = owningUser.ID
