@@ -42,7 +42,7 @@ AI coding tools running inside a Coder workspace, such as IDE extensions, can be
 
 While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Bridge base URL into the workspace environment.
 
-In this example, Claude Code and  respects these environment variables and will route all requests via AI Bridge.
+In this example, Claude Code respects these environment variables and will route all requests via AI Bridge.
 
 ```hcl
 data "coder_workspace_owner" "me" {}
@@ -55,9 +55,7 @@ resource "coder_agent" "dev" {
     dir  = local.repo_dir
     env = {
         ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
-        ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-        OPENAI_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/openai/v1",
-        OPENAI_API_KEY : data.coder_workspace_owner.me.session_token
+        ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
     }
     ... # other agent configuration
 }
