@@ -4,7 +4,15 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	Dialog,
@@ -221,19 +229,48 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 								{claimFieldValues ? (
 									<Combobox
-										value={idpOrgName}
-										options={claimFieldValues}
-										placeholder="Select IdP organization"
 										open={open}
 										onOpenChange={setOpen}
-										inputValue={inputValue}
-										onInputChange={setInputValue}
-										onKeyDown={handleKeyDown}
-										onSelect={(value: string) => {
-											setIdpOrgName(value);
-											setOpen(false);
-										}}
-									/>
+										value={idpOrgName}
+										onValueChange={(value) => setIdpOrgName(value ?? "")}
+									>
+										<ComboboxTrigger asChild>
+											<ComboboxButton
+												className="w-72"
+												selectedOption={
+													idpOrgName
+														? { label: idpOrgName, value: idpOrgName }
+														: undefined
+												}
+												placeholder="Select IdP organization"
+											/>
+										</ComboboxTrigger>
+										<ComboboxContent className="w-72">
+											<ComboboxInput
+												value={inputValue}
+												onValueChange={setInputValue}
+												placeholder="Search..."
+												onKeyDown={handleKeyDown}
+											/>
+											<ComboboxList>
+												{claimFieldValues
+													.filter((value) =>
+														value
+															.toLowerCase()
+															.includes(inputValue.toLowerCase()),
+													)
+													.map((value) => (
+														<ComboboxItem
+															key={value}
+															value={value}
+															onSelect={() => setInputValue("")}
+														>
+															{value}
+														</ComboboxItem>
+													))}
+											</ComboboxList>
+										</ComboboxContent>
+									</Combobox>
 								) : (
 									<Input
 										id={`${id}-idp-org-name`}

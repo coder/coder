@@ -1,9 +1,9 @@
 import { API } from "api/api";
 import { Avatar } from "components/Avatar/Avatar";
+import { ComboboxInput } from "components/Combobox/Combobox";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
@@ -97,15 +97,14 @@ export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
+			width={width}
 			selectFilterSearch={
-				<SelectFilterSearch
-					inputProps={{ "aria-label": "Search user" }}
+				<ComboboxInput
 					placeholder="Search user..."
 					value={menu.query}
-					onChange={menu.setQuery}
+					onValueChange={menu.setQuery}
 				/>
 			}
-			width={width}
 		/>
 	);
 };

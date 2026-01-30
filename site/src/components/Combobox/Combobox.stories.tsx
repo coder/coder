@@ -1,82 +1,129 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
-import { Combobox } from "./Combobox";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "./Combobox";
 
-const simpleOptions = ["Go", "Gleam", "Kotlin", "Rust"];
+const options = [
+	{ value: "option-1", label: "Option 1" },
+	{ value: "option-2", label: "Option 2" },
+	{ value: "option-3", label: "Option 3" },
+	{ value: "another-option", label: "Another Option" },
+];
 
-const advancedOptions = [
-	{
-		displayName: "Go",
-		value: "go",
-		icon: "/icon/go.svg",
-	},
-	{
-		displayName: "Gleam",
-		value: "gleam",
-		icon: "https://github.com/gleam-lang.png",
-	},
-	{
-		displayName: "Kotlin",
-		value: "kotlin",
-		description: "Kotlin 2.1, OpenJDK 24, gradle",
-		icon: "/icon/kotlin.svg",
-	},
-	{
-		displayName: "Rust",
-		value: "rust",
-		icon: "/icon/rust.svg",
-	},
-] as const;
+const ComboboxWithHooks = () => {
+	const [value, setValue] = useState<string | undefined>(undefined);
+	const selectedOption = options.find((opt) => opt.value === value);
 
-const ComboboxWithHooks = ({
-	options = advancedOptions,
-}: {
-	options?: React.ComponentProps<typeof Combobox>["options"];
-}) => {
-	const [value, setValue] = useState("");
-	const [open, setOpen] = useState(false);
+	return (
+		<Combobox value={value} onValueChange={setValue}>
+			<ComboboxTrigger asChild>
+				<ComboboxButton
+					selectedOption={selectedOption}
+					placeholder="Select option"
+				/>
+			</ComboboxTrigger>
+			<ComboboxContent className="w-60">
+				<ComboboxInput placeholder="Search..." />
+				<ComboboxList>
+					{options.map((option) => (
+						<ComboboxItem key={option.value} value={option.value}>
+							{option.label}
+						</ComboboxItem>
+					))}
+				</ComboboxList>
+				<ComboboxEmpty>No results found</ComboboxEmpty>
+			</ComboboxContent>
+		</Combobox>
+	);
+};
+
+const ComboboxWithCustomValue = () => {
+	const [value, setValue] = useState<string | undefined>(undefined);
 	const [inputValue, setInputValue] = useState("");
+	const [open, setOpen] = useState(false);
+
+	const selectedOption = options.find((opt) => opt.value === value);
+	const displayLabel = selectedOption?.label ?? value;
+
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (
+			e.key === "Enter" &&
+			inputValue &&
+			!options.some((o) => o.value === inputValue)
+		) {
+			setValue(inputValue);
+			setInputValue("");
+			setOpen(false);
+		}
+	};
 
 	return (
 		<Combobox
 			value={value}
-			options={options}
-			placeholder="Select option"
+			onValueChange={setValue}
 			open={open}
 			onOpenChange={setOpen}
-			inputValue={inputValue}
-			onInputChange={setInputValue}
-			onSelect={setValue}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" && inputValue && !options.includes(inputValue)) {
-					setValue(inputValue);
-					setInputValue("");
-					setOpen(false);
-				}
-			}}
-		/>
+		>
+			<ComboboxTrigger asChild>
+				<ComboboxButton
+					selectedOption={
+						displayLabel
+							? { label: displayLabel, value: value ?? "" }
+							: undefined
+					}
+					placeholder="Select option"
+				/>
+			</ComboboxTrigger>
+			<ComboboxContent className="w-60">
+				<ComboboxInput
+					placeholder="Search or enter custom..."
+					value={inputValue}
+					onValueChange={setInputValue}
+					onKeyDown={handleKeyDown}
+				/>
+				<ComboboxList>
+					{options.map((option) => (
+						<ComboboxItem key={option.value} value={option.value}>
+							{option.label}
+						</ComboboxItem>
+					))}
+				</ComboboxList>
+				<ComboboxEmpty>
+					<span>No results found</span>
+					{inputValue && (
+						<span className="block text-content-secondary text-xs mt-1">
+							Press Enter to use "{inputValue}"
+						</span>
+					)}
+				</ComboboxEmpty>
+			</ComboboxContent>
+		</Combobox>
 	);
 };
 
 const meta: Meta<typeof Combobox> = {
 	title: "components/Combobox",
 	component: Combobox,
-	args: { options: advancedOptions },
 };
 
 export default meta;
 type Story = StoryObj<typeof Combobox>;
 
-export const Default: Story = {};
-
-export const SimpleOptions: Story = {
-	args: {
-		options: simpleOptions,
-	},
+export const Default: Story = {
+	render: () => <ComboboxWithHooks />,
 };
 
 export const OpenCombobox: Story = {
+	render: () => <ComboboxWithHooks />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
@@ -90,7 +137,11 @@ export const SelectOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await userEvent.click(screen.getByText("Go"));
+		await userEvent.click(screen.getByText("Option 1"));
+
+		await waitFor(() =>
+			expect(canvas.getByRole("button")).toHaveTextContent("Option 1"),
+		);
 	},
 };
 
@@ -99,26 +150,38 @@ export const SearchAndFilter: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await userEvent.type(screen.getByRole("combobox"), "r");
+		await userEvent.type(screen.getByRole("combobox"), "Another");
+
 		await waitFor(() => {
 			expect(
-				screen.queryByRole("option", { name: "Kotlin" }),
+				screen.getByRole("option", { name: /Another Option/ }),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("option", { name: /^Option 1$/ }),
 			).not.toBeInTheDocument();
 		});
-		await userEvent.click(screen.getByRole("option", { name: "Rust" }));
 	},
 };
 
+export const WithCustomValue: Story = {
+	render: () => <ComboboxWithCustomValue />,
+};
+
 export const EnterCustomValue: Story = {
-	render: () => <ComboboxWithHooks />,
+	render: () => <ComboboxWithCustomValue />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await userEvent.type(screen.getByRole("combobox"), "Swift{enter}");
+		await userEvent.type(screen.getByRole("combobox"), "Custom Value{enter}");
+
+		await waitFor(() =>
+			expect(canvas.getByRole("button")).toHaveTextContent("Custom Value"),
+		);
 	},
 };
 
 export const NoResults: Story = {
+	render: () => <ComboboxWithCustomValue />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
@@ -126,7 +189,7 @@ export const NoResults: Story = {
 
 		await waitFor(() => {
 			expect(screen.getByText("No results found")).toBeInTheDocument();
-			expect(screen.getByText("Enter custom value")).toBeInTheDocument();
+			expect(screen.getByText(/Press Enter to use/)).toBeInTheDocument();
 		});
 	},
 };
@@ -136,12 +199,17 @@ export const ClearSelectedOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await userEvent.click(canvas.getByRole("button"));
-		// const goOption = screen.getByText("Go");
 		// First select an option
-		await userEvent.click(await screen.findByRole("option", { name: "Go" }));
-		// Then clear it by selecting it again
-		await userEvent.click(await screen.findByRole("option", { name: "Go" }));
+		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(screen.getByRole("option", { name: /Option 1/ }));
+
+		await waitFor(() =>
+			expect(canvas.getByRole("button")).toHaveTextContent("Option 1"),
+		);
+
+		// Then clear it by selecting it again (toggle behavior)
+		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(screen.getByRole("option", { name: /Option 1/ }));
 
 		await waitFor(() =>
 			expect(canvas.getByRole("button")).toHaveTextContent("Select option"),

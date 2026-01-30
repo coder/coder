@@ -1,14 +1,10 @@
 import { withDesktopViewport } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Avatar } from "components/Avatar/Avatar";
+import { ComboboxInput } from "components/Combobox/Combobox";
 import { useState } from "react";
-import { action } from "storybook/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
-import {
-	SelectFilter,
-	type SelectFilterOption,
-	SelectFilterSearch,
-} from "./SelectFilter";
+import { SelectFilter, type SelectFilterOption } from "./SelectFilter";
 
 const options: SelectFilterOption[] = Array.from({ length: 50 }, (_, i) => ({
 	startIcon: <Avatar fallback={`username ${i + 1}`} size="sm" />,
@@ -56,18 +52,38 @@ export const Selected: Story = {
 	args: {
 		selectedOption: options[25],
 	},
+	play: () => {},
 };
 
 export const WithSearch: Story = {
 	args: {
 		selectedOption: options[25],
-		selectFilterSearch: (
-			<SelectFilterSearch
-				value=""
-				onChange={action("onSearch")}
-				placeholder="Search options..."
+	},
+	render: function SelectFilterWithSearch(args) {
+		const [selectedOption, setSelectedOption] = useState<
+			SelectFilterOption | undefined
+		>(args.selectedOption);
+		const [search, setSearch] = useState("");
+
+		return (
+			<SelectFilter
+				{...args}
+				selectedOption={selectedOption}
+				onSelect={setSelectedOption}
+				selectFilterSearch={
+					<ComboboxInput
+						placeholder="Search options..."
+						value={search}
+						onValueChange={setSearch}
+					/>
+				}
 			/>
-		),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button");
+		await userEvent.click(button);
 	},
 };
 
@@ -88,7 +104,7 @@ export const SelectingOption: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button");
 		await userEvent.click(button);
-		const option = screen.getByText("Option 25");
+		const option = screen.getByRole("option", { name: /Option 25/ });
 		await userEvent.click(option);
 		await expect(button).toHaveTextContent("Option 25");
 	},
@@ -102,8 +118,8 @@ export const UnselectingOption: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button");
 		await userEvent.click(button);
-		const menu = screen.getByRole("menu");
-		const option = within(menu).getByText("Option 26");
+		// Click the already-selected option to unselect it (toggle behavior)
+		const option = screen.getByRole("option", { name: /Option 26/ });
 		await userEvent.click(option);
 		await expect(button).toHaveTextContent("All options");
 	},
@@ -126,11 +142,11 @@ export const SearchingOption: Story = {
 				onSelect={setSelectedOption}
 				options={visibleOptions}
 				selectFilterSearch={
-					<SelectFilterSearch
-						value={search}
-						onChange={setSearch}
+					<ComboboxInput
+						aria-label="Search options"
 						placeholder="Search options..."
-						inputProps={{ "aria-label": "Search options" }}
+						value={search}
+						onValueChange={setSearch}
 					/>
 				}
 			/>
