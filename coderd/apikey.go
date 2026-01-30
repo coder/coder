@@ -421,6 +421,67 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Expire API key
+// @ID expire-api-key
+// @Security CoderSessionToken
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyid path string true "Key ID" format(string)
+// @Success 204
+// @Router /users/{user}/keys/{keyid}/expire [put]
+func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		keyID             = chi.URLParam(r, "keyid")
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
+	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.Old = key
+
+	err = api.Database.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+		ID:        key.ID,
+		LastUsed:  key.LastUsed,
+		ExpiresAt: dbtime.Now(),
+		IPAddress: key.IPAddress,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error expiring API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Fetch the updated key for audit log.
+	newKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to fetch updated API key for audit log", slog.Error(err))
+	} else {
+		aReq.New = newKey
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Get token config
 // @ID get-token-config
 // @Security CoderSessionToken

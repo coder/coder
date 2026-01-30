@@ -2018,6 +2018,11 @@
 							"path": "reference/cli/tokens_create.md"
 						},
 						{
+							"title": "tokens expire",
+							"description": "Expire a token immediately, preserving it for audit purposes",
+							"path": "reference/cli/tokens_expire.md"
+						},
+						{
 							"title": "tokens list",
 							"description": "List tokens",
 							"path": "reference/cli/tokens_list.md"

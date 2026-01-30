@@ -47,6 +47,7 @@ func (r *RootCmd) tokens() *serpent.Command {
 			r.listTokens(),
 			r.viewToken(),
 			r.removeToken(),
+			r.expireToken(),
 		},
 	}
 	return cmd
@@ -354,6 +355,48 @@ func (r *RootCmd) removeToken() *serpent.Command {
 			cliui.Infof(
 				inv.Stdout,
 				"Token has been deleted.",
+			)
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func (r *RootCmd) expireToken() *serpent.Command {
+	cmd := &serpent.Command{
+		Use:   "expire <name|id|token>",
+		Short: "Expire a token immediately, preserving it for audit purposes",
+		Long: "Expire a token immediately by setting its expiry to now.\n" +
+			"Unlike 'tokens rm', this preserves the token record for audit trail purposes.",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
+			if err != nil {
+				// If it's a token, we need to extract the ID.
+				maybeID := strings.Split(inv.Args[0], "-")[0]
+				token, err = client.APIKeyByID(inv.Context(), codersdk.Me, maybeID)
+				if err != nil {
+					return xerrors.Errorf("fetch api key by name or id: %w", err)
+				}
+			}
+
+			err = client.ExpireAPIKey(inv.Context(), codersdk.Me, token.ID)
+			if err != nil {
+				return xerrors.Errorf("expire api key: %w", err)
+			}
+
+			cliui.Infof(
+				inv.Stdout,
+				"Token has been expired.",
 			)
 
 			return nil
