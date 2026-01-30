@@ -7,11 +7,11 @@ Claude Code is fully supported by AI Bridge and works out of the box with Anthro
 Claude Code can be configured using environment variables.
 
 * **Base URL**: `ANTHROPIC_BASE_URL` should point to `https://coder.example.com/api/v2/aibridge/anthropic`
-* **API Key**: `ANTHROPIC_API_KEY` should be your Coder session token.
+* **API Key**: `ANTHROPIC_API_KEY` should be your [Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
 
 ### Pre-configuring in Templates
 
-Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's session token and the AI Bridge base URL into the workspace environment.
+Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Bridge base URL into the workspace environment.
 
 ```hcl
 data "coder_workspace_owner" "me" {}
@@ -32,7 +32,7 @@ resource "coder_agent" "dev" {
 
 ### Coder Tasks
 
-Agents like Claude Code can be configured to route through AI Bridge in any template by pre-configuring the agent with the session token. [Coder Tasks](../../tasks.md) is particularly useful for this pattern, providing a framework for agents to complete background development operations autonomously.
+Agents like Claude Code can be configured to route through AI Bridge in any template by pre-configuring the agent with the Coder session token. [Coder Tasks](../../tasks.md) is particularly useful for this pattern, providing a framework for agents to complete background development operations autonomously.
 
 ```hcl
 data "coder_workspace_owner" "me" {}

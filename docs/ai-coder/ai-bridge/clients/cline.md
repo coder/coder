@@ -4,32 +4,31 @@ Cline is an autonomous coding agent that works with OpenAI and Anthropic provide
 
 ## Configuration
 
-<!-- TODO: Add screenshot of Cline configuration interface -->
+To configure Cline to use AI Bridge, follow these steps:
+![Cline Settings](../../../images/aibridge/clients/cline-setup.png)
 
 <div class="tabs">
 
-### Option 1: OpenAI Compatible (Recommended)
+### OpenAI Compatible
 
 1. Open Cline in VS Code.
-2. Go to **Settings** / **Configuration**.
-3. **Provider**: Select **OpenAI Compatible**.
-4. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/openai/v1`.
-5. **API Key**: Enter your **Coder Session Token**.
-6. **Model ID**: Enter the model you wish to use (e.g., `gpt-4o`).
+1. Go to **Settings** / **Configuration**.
+1. **Provider**: Select **OpenAI Compatible**.
+1. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/openai/v1`.
+1. **API Key**: Enter your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+1. **Model ID** (Optional): Enter the model you wish to use (e.g., `gpt-5.2-codex`).
 
-### Option 2: Anthropic
+![Cline OpenAI Settings](../../../images/aibridge/clients/cline-openai.png)
+
+### Anthropic
 
 1. **Provider**: Select **Anthropic**.
-2. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/anthropic`.
-3. **API Key**: Enter your **Coder Session Token**.
-4. **Model ID**: Select your desired Claude model.
+1. **API Key**: Enter your **Coder Session Token**.
+1. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/anthropic` after checking **_Use custom base URL_**.
+1. **Model ID** (Optional): Select your desired Claude model.
+
+![Cline Anthropic Settings](../../../images/aibridge/clients/cline-anthropic.png)
 
 </div>
-
-### Notes
-
-* If using the **OpenAI** provider type, you must override the Base URL in the advanced settings. The **OpenAI Compatible** provider is generally easier to configure.
-
----
 
 **References:** [Cline Configuration](https://github.com/cline/cline)

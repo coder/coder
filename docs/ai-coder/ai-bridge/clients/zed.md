@@ -46,7 +46,7 @@ To use Anthropic models (e.g., `claude-3-5-sonnet`):
 
 ## Authentication
 
-Zed requires an API key for these providers. For AI Bridge, this key is your **Coder Session Token**.
+Zed requires an API key for these providers. For AI Bridge, this key is your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 You can set this in two ways:
 
@@ -57,8 +57,6 @@ You can set this in two ways:
     * Paste your Coder Session Token when prompted for the API Key.
 
 2. **Environment Variables**:
-    * Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to your session token in the environment where you launch Zed.
-
----
+    * Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to your Coder session token in the environment where you launch Zed.
 
 **References:** [Configuring Zed - Language Models](https://zed.dev/docs/configuring-zed#language-models)

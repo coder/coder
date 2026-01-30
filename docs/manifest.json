@@ -1025,7 +1025,7 @@
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 							"path": "./ai-coder/ai-bridge/index.md",
 							"icon_path": "./images/icons/api.svg",
-							"state": ["premium", "beta"],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "Setup",
@@ -1052,6 +1052,10 @@
 										{
 											"title": "Copilot",
 											"path": "./ai-coder/ai-bridge/clients/copilot.md"
+										},
+										{
+											"title": "Droid",
+											"path": "./ai-coder/ai-bridge/clients/droid.md"
 										},
 										{
 											"title": "Goose",

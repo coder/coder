@@ -14,7 +14,7 @@ Kilo Code supports both OpenAI and Anthropic providers, allowing full integratio
 2. Go to **Settings** / **Configuration**.
 3. **Provider**: Select **OpenAI Compatible**.
 4. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/openai/v1`.
-5. **API Key**: Enter your **Coder Session Token**.
+5. **API Key**: Enter your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 6. **Model ID**: Enter the model you wish to use (e.g., `gpt-4o`).
 
 ### Option 2: Anthropic
@@ -25,11 +25,5 @@ Kilo Code supports both OpenAI and Anthropic providers, allowing full integratio
 4. **Model ID**: Select your desired Claude model.
 
 </div>
-
-### Notes
-
-* The **OpenAI Compatible** provider is recommended for broad compatibility.
-
----
 
 **References:** [Kilo Code Configuration](https://kilocode.ai/docs/ai-providers/openai-compatible)

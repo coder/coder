@@ -21,12 +21,10 @@ JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Bridge via th
     * **Endpoint**: Enter the corresponding AI Bridge URL:
         * **OpenAI**: `https://coder.example.com/api/v2/aibridge/openai/v1`
         * **Anthropic**: `https://coder.example.com/api/v2/aibridge/anthropic`
-5. **Enter API Key**: Paste your **Coder Session Token**.
+5. **Enter API Key**: Paste your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 6. **Select Models**: The available models should populate automatically.
 7. **Apply**: Click **Apply** and **OK**.
 
 You can now use the AI Assistant chat with the configured provider.
-
----
 
 **References:** [Use custom models with JetBrains AI Assistant](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html)

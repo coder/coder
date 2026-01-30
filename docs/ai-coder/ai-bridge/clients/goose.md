@@ -20,7 +20,7 @@ goose configure
 2. Select **Add Custom Provider**.
 3. Choose **OpenAI Compatible**.
 4. **Base URL**: `https://coder.example.com/api/v2/aibridge/openai/v1`
-5. **API Key**: Your **Coder Session Token**.
+5. **API Key**: Your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 ### Option 2: Environment Variables
 
@@ -34,7 +34,5 @@ export OPENAI_API_KEY="<your-coder-session-token>"
 *Note: Replace `<your-coder-session-token>` with your actual token.*
 
 </div>
-
----
 
 **References:** [Goose Providers](https://block.github.io/goose/docs/getting-started/providers/)
