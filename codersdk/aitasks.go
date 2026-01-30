@@ -350,7 +350,6 @@ type TaskLogEntry struct {
 // logs are fetched live from the task app. When snapshot is true, logs are
 // fetched from a stored snapshot captured during pause.
 type TaskLogsResponse struct {
-	Count      int            `json:"count"`
 	Logs       []TaskLogEntry `json:"logs"`
 	Snapshot   bool           `json:"snapshot,omitempty"`
 	SnapshotAt *time.Time     `json:"snapshot_at,omitempty"`

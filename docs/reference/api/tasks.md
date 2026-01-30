@@ -344,7 +344,6 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
 
 ```json
 {
-  "count": 0,
   "logs": [
     {
       "content": "string",

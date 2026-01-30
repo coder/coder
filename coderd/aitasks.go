@@ -884,8 +884,7 @@ func (api *API) fetchLiveTaskLogs(r *http.Request, task database.Task) (codersdk
 		}
 
 		out = codersdk.TaskLogsResponse{
-			Count: len(logs),
-			Logs:  logs,
+			Logs: logs,
 		}
 		return nil
 	})
@@ -907,7 +906,6 @@ func (api *API) fetchSnapshotTaskLogs(ctx context.Context, taskID uuid.UUID) (co
 			// paused/initializing/pending, we cannot fetch live logs, so
 			// snapshot must be true even with no snapshot data.
 			return codersdk.TaskLogsResponse{
-				Count:    0,
 				Logs:     []codersdk.TaskLogEntry{},
 				Snapshot: true,
 			}, nil
@@ -956,7 +954,6 @@ func (api *API) fetchSnapshotTaskLogs(ctx context.Context, taskID uuid.UUID) (co
 	}
 
 	return codersdk.TaskLogsResponse{
-		Count:      len(logs),
 		Logs:       logs,
 		Snapshot:   true,
 		SnapshotAt: ptr.Ref(snapshot.LogSnapshotCreatedAt),

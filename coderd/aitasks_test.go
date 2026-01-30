@@ -827,7 +827,6 @@ func TestTasks(t *testing.T) {
 		verifySnapshotLogs := func(t *testing.T, got codersdk.TaskLogsResponse) {
 			t.Helper()
 			want := codersdk.TaskLogsResponse{
-				Count:      2,
 				Snapshot:   true,
 				SnapshotAt: &snapshotTime,
 				Logs: []codersdk.TaskLogEntry{
@@ -915,8 +914,7 @@ func TestTasks(t *testing.T) {
 
 			assert.True(t, logsResp.Snapshot)
 			assert.Nil(t, logsResp.SnapshotAt)
-			assert.Equal(t, 0, logsResp.Count)
-			assert.Empty(t, logsResp.Logs)
+			assert.Len(t, logsResp.Logs, 0)
 		})
 
 		t.Run("InvalidSnapshotFormat", func(t *testing.T) {

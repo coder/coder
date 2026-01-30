@@ -5013,7 +5013,6 @@ export const TaskLogTypes: TaskLogType[] = ["input", "output"];
  * fetched from a stored snapshot captured during pause.
  */
 export interface TaskLogsResponse {
-	readonly count: number;
 	readonly logs: readonly TaskLogEntry[];
 	readonly snapshot?: boolean;
 	readonly snapshot_at?: string;

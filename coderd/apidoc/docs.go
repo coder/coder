@@ -18562,9 +18562,6 @@ const docTemplate = `{
         "codersdk.TaskLogsResponse": {
             "type": "object",
             "properties": {
-                "count": {
-                    "type": "integer"
-                },
                 "logs": {
                     "type": "array",
                     "items": {
