@@ -16,11 +16,11 @@ Run the configuration wizard:
 goose configure
 ```
 
-1.  Select **Configure Providers**.
-2.  Select **Add Custom Provider**.
-3.  Choose **OpenAI Compatible**.
-4.  **Base URL**: `https://coder.example.com/api/v2/aibridge/openai/v1`
-5.  **API Key**: Your **Coder Session Token**.
+1. Select **Configure Providers**.
+2. Select **Add Custom Provider**.
+3. Choose **OpenAI Compatible**.
+4. **Base URL**: `https://coder.example.com/api/v2/aibridge/openai/v1`
+5. **API Key**: Your **Coder Session Token**.
 
 ### Option 2: Environment Variables
 

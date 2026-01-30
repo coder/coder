@@ -16,12 +16,12 @@ Newer versions have a [known bug](https://github.com/openai/codex/issues/8107) t
 
 ### Support Status
 
-*   **OpenAI Support**: ⚠️ Limited (Version restricted)
-*   **Anthropic Support**: N/A
+* **OpenAI Support**: ⚠️ Limited (Version restricted)
+* **Anthropic Support**: N/A
 
 ### Known Issues
 
-*   `gpt-5-codex` support is currently [in progress](https://github.com/coder/aibridge/issues/16).
+* `gpt-5-codex` support is currently [in progress](https://github.com/coder/aibridge/issues/16).
 
 ---
 

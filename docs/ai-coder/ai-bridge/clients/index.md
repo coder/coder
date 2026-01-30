@@ -25,6 +25,7 @@ Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to us
 > Provider-specific API keys (such as OpenAI or Anthropic keys) will not work with AI Bridge.
 
 Again, the exact environment variable or setting naming may differ from tool to tool; consult your tool's documentation.
+
 ### Retrieving your session token
 
 If you're logged in with the Coder CLI, you can retrieve your current session
@@ -51,14 +52,14 @@ data "coder_workspace_owner" "me" {}
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "dev" {
-	arch = "amd64"
-	os   = "linux"
-	dir  = local.repo_dir
-	env = {
-		ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
-		ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
-	}
-	... # other agent configuration
+    arch = "amd64"
+    os   = "linux"
+    dir  = local.repo_dir
+    env = {
+        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
+        ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
+    }
+    ... # other agent configuration
 }
 ```
 
@@ -74,32 +75,32 @@ data "coder_workspace" "me" {}
 data "coder_task" "me" {}
 
 resource "coder_agent" "dev" {
-	arch = "amd64"
-	os   = "linux"
-	dir  = local.repo_dir
-	env = {
-		ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
-		ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
-	}
-	... # other agent configuration
+    arch = "amd64"
+    os   = "linux"
+    dir  = local.repo_dir
+    env = {
+        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
+        ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
+    }
+    ... # other agent configuration
 }
 
 # See https://registry.coder.com/modules/coder/claude-code for more information
 module "claude-code" {
-	count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-	source              = "dev.registry.coder.com/coder/claude-code/coder"
-	version             = ">= 4.0.0"
-	agent_id            = coder_agent.dev.id
-	workdir             = "/home/coder/project"
-	claude_api_key      = data.coder_workspace_owner.me.session_token # Use the Coder session token to authenticate with AI Bridge
-	ai_prompt           = data.coder_task.me.prompt
-	... # other claude-code configuration
+    count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+    source              = "dev.registry.coder.com/coder/claude-code/coder"
+    version             = ">= 4.0.0"
+    agent_id            = coder_agent.dev.id
+    workdir             = "/home/coder/project"
+    claude_api_key      = data.coder_workspace_owner.me.session_token # Use the Coder session token to authenticate with AI Bridge
+    ai_prompt           = data.coder_task.me.prompt
+    ... # other claude-code configuration
 }
 
 # The coder_ai_task resource associates the task to the app.
 resource "coder_ai_task" "task" {
-	count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-	app_id = module.claude-code[0].task_app_id
+    count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+    app_id = module.claude-code[0].task_app_id
 }
 ```
 
@@ -110,7 +111,6 @@ You can also configure AI tools running outside of a Coder workspace, such as lo
 The configuration is the same: point the tool to the AI Bridge [base URL](#base-urls) and use a Coder API key for authentication.
 
 Users can generate a long-lived API key from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
-
 
 ## Compatibility
 
@@ -150,6 +150,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | [Amazon Q CLI](https://aws.amazon.com/q/) | ❌ | ❌ | Limited to Amazon Q subscriptions; no custom endpoint support. |
 | [Zed](./zed.md) | ✅ | ✅ | Configure via `settings.json`. |
 | [JetBrains](./jetbrains.md) | ✅ | ✅ | Use "Bring Your Own Key" (BYOK) with AI Assistant plugin. |
+
 >>>>>>> e437368cb (docs: refine AI bridge client documentation structure and content)
 
 *Legend: ✅ works, ⚠️ limited support, ❌ not supported, - not applicable.*
@@ -158,9 +159,9 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 
 The following clients currently do not support custom base URLs or are otherwise incompatible:
 
-*   **WindSurf**: No option to override base URL.
-*   **Sourcegraph Amp**: No option to override base URL.
-*   **Kiro**: No option to override base URL.
-*   **Copilot CLI**: No custom base URL support; uses `GITHUB_TOKEN`.
-*   **Gemini CLI**: Not supported.
-*   **Amazon Q CLI**: No custom endpoint support.
+- **WindSurf**: No option to override base URL.
+- **Sourcegraph Amp**: No option to override base URL.
+- **Kiro**: No option to override base URL.
+- **Copilot CLI**: No custom base URL support; uses `GITHUB_TOKEN`.
+- **Gemini CLI**: Not supported.
+- **Amazon Q CLI**: No custom endpoint support.

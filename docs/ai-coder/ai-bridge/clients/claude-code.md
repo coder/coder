@@ -6,8 +6,8 @@ Claude Code is fully supported by AI Bridge and works out of the box with Anthro
 
 Claude Code can be configured using environment variables.
 
-*   **Base URL**: `ANTHROPIC_BASE_URL` should point to `https://coder.example.com/api/v2/aibridge/anthropic`
-*   **API Key**: `ANTHROPIC_API_KEY` should be your Coder session token.
+* **Base URL**: `ANTHROPIC_BASE_URL` should point to `https://coder.example.com/api/v2/aibridge/anthropic`
+* **API Key**: `ANTHROPIC_API_KEY` should be your Coder session token.
 
 ### Pre-configuring in Templates
 
@@ -75,8 +75,8 @@ resource "coder_ai_task" "task" {
 
 The Claude Code VS Code extension is also supported.
 
-1.  If pre-configured in the workspace environment variables (as shown above), it typically respects them.
-2.  You may need to sign in once; afterwards, it respects the workspace environment variables.
+1. If pre-configured in the workspace environment variables (as shown above), it typically respects them.
+2. You may need to sign in once; afterwards, it respects the workspace environment variables.
 
 ---
 

@@ -6,13 +6,13 @@ GitHub Copilot (VS Code Extension) supports connecting to OpenAI-compatible endp
 
 ### Prerequisites
 
-*   **VS Code Extension**: You typically need the **Pre-release** version of the GitHub Copilot Chat extension to access these features.
-*   **Anthropic Support**: ❌ Not supported (only OpenAI-compatible).
+* **VS Code Extension**: You typically need the **Pre-release** version of the GitHub Copilot Chat extension to access these features.
+* **Anthropic Support**: ❌ Not supported (only OpenAI-compatible).
 
 ### Steps
 
-1.  Open your VS Code `settings.json`.
-2.  Add the configuration for `github.copilot.advanced`.
+1. Open your VS Code `settings.json`.
+2. Add the configuration for `github.copilot.advanced`.
 
 ```json
 "github.copilot.advanced": {

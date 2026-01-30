@@ -1032,52 +1032,53 @@
 									"description": "How to set up and configure AI Bridge",
 									"path": "./ai-coder/ai-bridge/setup.md"
 								},
-									{
-										"title": "Client Configuration",
-										"description": "How to configure your AI coding tools to use AI Bridge",
-										"path": "./ai-coder/ai-bridge/clients/index.md",
-											"children": [
-												{
-													"title": "Claude Code",
-													"path": "./ai-coder/ai-bridge/clients/claude-code.md"
-												},
-												{
-													"title": "Cline",
-													"path": "./ai-coder/ai-bridge/clients/cline.md"
-												},
-												{
-													"title": "Codex",
-													"path": "./ai-coder/ai-bridge/clients/codex.md"
-												},
-												{
-													"title": "Copilot",
-													"path": "./ai-coder/ai-bridge/clients/copilot.md"
-												},
-												{
-													"title": "Goose",
-													"path": "./ai-coder/ai-bridge/clients/goose.md"
-												},
-												{
-													"title": "JetBrains",
-													"path": "./ai-coder/ai-bridge/clients/jetbrains.md"
-												},
-												{
-													"title": "Kilo Code",
-													"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
-												},
-												{
-													"title": "OpenCode",
-													"path": "./ai-coder/ai-bridge/clients/opencode.md"
-												},
-												{
-													"title": "Roo Code",
-													"path": "./ai-coder/ai-bridge/clients/roo-code.md"
-												},
-												{
-													"title": "Zed",
-													"path": "./ai-coder/ai-bridge/clients/zed.md"
-												}
-											]										},
+								{
+									"title": "Client Configuration",
+									"description": "How to configure your AI coding tools to use AI Bridge",
+									"path": "./ai-coder/ai-bridge/clients/index.md",
+									"children": [
+										{
+											"title": "Claude Code",
+											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
+										},
+										{
+											"title": "Cline",
+											"path": "./ai-coder/ai-bridge/clients/cline.md"
+										},
+										{
+											"title": "Codex",
+											"path": "./ai-coder/ai-bridge/clients/codex.md"
+										},
+										{
+											"title": "Copilot",
+											"path": "./ai-coder/ai-bridge/clients/copilot.md"
+										},
+										{
+											"title": "Goose",
+											"path": "./ai-coder/ai-bridge/clients/goose.md"
+										},
+										{
+											"title": "JetBrains",
+											"path": "./ai-coder/ai-bridge/clients/jetbrains.md"
+										},
+										{
+											"title": "Kilo Code",
+											"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
+										},
+										{
+											"title": "OpenCode",
+											"path": "./ai-coder/ai-bridge/clients/opencode.md"
+										},
+										{
+											"title": "Roo Code",
+											"path": "./ai-coder/ai-bridge/clients/roo-code.md"
+										},
+										{
+											"title": "Zed",
+											"path": "./ai-coder/ai-bridge/clients/zed.md"
+										}
+									]
+								},
 								{
 									"title": "MCP Tools Injection",
 									"description": "How to configure MCP servers for tools injection through AI Bridge",
@@ -1108,9 +1109,9 @@
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
-					}
-				]
-			},
+				}
+			]
+		},
 		{
 			"title": "Tutorials",
 			"description": "Coder knowledgebase for administrating your deployment",

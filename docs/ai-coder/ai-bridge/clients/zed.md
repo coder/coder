@@ -50,14 +50,14 @@ Zed requires an API key for these providers. For AI Bridge, this key is your **C
 
 You can set this in two ways:
 
-1.  **Zed UI**:
-    *   Open the Assistant Panel (right sidebar).
-    *   Click "Configuration" or the settings icon.
-    *   Select your provider ("Anthropic" or "OpenAI").
-    *   Paste your Coder Session Token when prompted for the API Key.
+1. **Zed UI**:
+    * Open the Assistant Panel (right sidebar).
+    * Click "Configuration" or the settings icon.
+    * Select your provider ("Anthropic" or "OpenAI").
+    * Paste your Coder Session Token when prompted for the API Key.
 
-2.  **Environment Variables**:
-    *   Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to your session token in the environment where you launch Zed.
+2. **Environment Variables**:
+    * Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` to your session token in the environment where you launch Zed.
 
 ---
 
