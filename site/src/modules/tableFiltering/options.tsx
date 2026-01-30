@@ -9,6 +9,7 @@
  */
 import { API } from "api/api";
 import { Avatar } from "components/Avatar/Avatar";
+import { ComboboxInput } from "components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -16,7 +17,6 @@ import {
 import {
 	SelectFilter,
 	type SelectFilterOption,
-	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
 import type { FC } from "react";
 // Organization helpers ////////////////////////////////////////////////////////
@@ -107,11 +107,10 @@ export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
 			selectFilterSearch={
-				<SelectFilterSearch
-					inputProps={{ "aria-label": "Search organization" }}
+				<ComboboxInput
 					placeholder="Search organization..."
 					value={menu.query}
-					onChange={menu.setQuery}
+					onValueChange={menu.setQuery}
 				/>
 			}
 			width={width}

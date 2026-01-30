@@ -1,14 +1,14 @@
-import { Loader } from "components/Loader/Loader";
+import { Button } from "components/Button/Button";
 import {
-	SelectMenu,
-	SelectMenuButton,
-	SelectMenuContent,
-	SelectMenuIcon,
-	SelectMenuItem,
-	SelectMenuList,
-	SelectMenuSearch,
-	SelectMenuTrigger,
-} from "components/SelectMenu/SelectMenu";
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { cn } from "utils/cn";
 
@@ -30,9 +30,9 @@ type SelectFilterProps = {
 	// Used to customize the empty state message
 	emptyText?: string;
 	onSelect: (option: SelectFilterOption | undefined) => void;
+	width?: number;
 	// SelectFilterSearch element
 	selectFilterSearch?: ReactNode;
-	width?: number;
 };
 
 export const SelectFilter: FC<SelectFilterProps> = ({
@@ -42,78 +42,60 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 	onSelect,
 	placeholder,
 	emptyText,
-	selectFilterSearch,
 	width = BASE_WIDTH,
+	selectFilterSearch,
 }) => {
 	const [open, setOpen] = useState(false);
 
 	return (
-		<SelectMenu open={open} onOpenChange={setOpen}>
-			<SelectMenuTrigger>
-				<SelectMenuButton
-					startIcon={selectedOption?.startIcon}
-					className="shrink-0 grow"
+		<Combobox open={open} onOpenChange={setOpen}>
+			<ComboboxTrigger asChild>
+				<ComboboxButton
+					selectedOption={selectedOption}
+					placeholder={placeholder}
+					className="flex-shrink-0 grow"
 					style={{ flexBasis: width }}
 					aria-label={label}
-				>
-					{selectedOption?.label ?? placeholder}
-				</SelectMenuButton>
-			</SelectMenuTrigger>
-			<SelectMenuContent
-				align="end"
+				/>
+			</ComboboxTrigger>
+			<ComboboxContent
 				className={cn([
 					// When including selectFilterSearch, we aim for the width to be as
 					// wide as possible.
 					selectFilterSearch && "w-full",
-					"max-w-[320px]",
+					"max-w-[260px]",
 				])}
 				style={{
 					minWidth: width,
 				}}
+				align="end"
 			>
 				{selectFilterSearch}
-				{options ? (
-					options.length > 0 ? (
-						<SelectMenuList>
-							{options.map((o) => {
-								const isSelected = o.value === selectedOption?.value;
-								return (
-									<SelectMenuItem
-										key={o.value}
-										selected={isSelected}
-										onClick={() => {
-											setOpen(false);
-											onSelect(isSelected ? undefined : o);
-										}}
-									>
-										{o.startIcon && (
-											<SelectMenuIcon>{o.startIcon}</SelectMenuIcon>
-										)}
-										{o.label}
-									</SelectMenuItem>
-								);
-							})}
-						</SelectMenuList>
-					) : (
-						<div
-							css={(theme) => ({
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								padding: 32,
-								color: theme.palette.text.secondary,
-								lineHeight: 1,
-							})}
+				<ComboboxList
+					className={cn(
+						!selectFilterSearch && "border-t-0",
+						"border-surface-quaternary",
+					)}
+				>
+					{options?.map((option) => (
+						<ComboboxItem
+							className="px-4 data-[selected=true]:bg-surface-tertiary font-normal gap-4"
+							key={option.value}
+							value={option.value}
+							onSelect={() =>
+								option.value === selectedOption?.value
+									? onSelect(undefined)
+									: onSelect(option)
+							}
+							selectedOption={selectedOption}
 						>
-							{emptyText || "No options found"}
-						</div>
-					)
-				) : (
-					<Loader size="sm" />
-				)}
-			</SelectMenuContent>
-		</SelectMenu>
+							{option.startIcon}
+							<span className="flex-1 truncate">{option.label}</span>
+						</ComboboxItem>
+					))}
+				</ComboboxList>
+				<ComboboxEmpty>{emptyText}</ComboboxEmpty>
+			</ComboboxContent>
+		</Combobox>
 	);
 };
-
-export const SelectFilterSearch = SelectMenuSearch;

@@ -4,11 +4,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { useState } from "react";
 import { action } from "storybook/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
-import {
-	SelectFilter,
-	type SelectFilterOption,
-	SelectFilterSearch,
-} from "./SelectFilter";
+import { SelectFilter, type SelectFilterOption } from "./SelectFilter";
 
 const options: SelectFilterOption[] = Array.from({ length: 50 }, (_, i) => ({
 	startIcon: <Avatar fallback={`username ${i + 1}`} size="sm" />,
@@ -61,13 +57,6 @@ export const Selected: Story = {
 export const WithSearch: Story = {
 	args: {
 		selectedOption: options[25],
-		selectFilterSearch: (
-			<SelectFilterSearch
-				value=""
-				onChange={action("onSearch")}
-				placeholder="Search options..."
-			/>
-		),
 	},
 };
 
@@ -125,14 +114,6 @@ export const SearchingOption: Story = {
 				selectedOption={selectedOption}
 				onSelect={setSelectedOption}
 				options={visibleOptions}
-				selectFilterSearch={
-					<SelectFilterSearch
-						value={search}
-						onChange={setSearch}
-						placeholder="Search options..."
-						inputProps={{ "aria-label": "Search options" }}
-					/>
-				}
 			/>
 		);
 	},

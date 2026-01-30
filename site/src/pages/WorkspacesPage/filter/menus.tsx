@@ -1,6 +1,7 @@
 import { API } from "api/api";
 import type { Template, WorkspaceStatus } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { ComboboxInput } from "components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -8,7 +9,6 @@ import {
 import {
 	SelectFilter,
 	type SelectFilterOption,
-	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
 import {
 	StatusIndicatorDot,
@@ -84,11 +84,11 @@ export const TemplateMenu: FC<TemplateMenuProps> = ({ width, menu }) => {
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
 			selectFilterSearch={
-				<SelectFilterSearch
-					inputProps={{ "aria-label": "Search template" }}
+				<ComboboxInput
+					aria-label="Search template"
 					placeholder="Search template..."
 					value={menu.query}
-					onChange={menu.setQuery}
+					onValueChange={menu.setQuery}
 				/>
 			}
 		/>
