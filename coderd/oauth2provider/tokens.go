@@ -34,6 +34,9 @@ var (
 	errInvalidPKCE = xerrors.New("invalid code_verifier")
 	// errInvalidResource means the resource parameter validation failed.
 	errInvalidResource = xerrors.New("invalid resource parameter")
+	// errConflictingClientAuth means the client provided credentials in both the
+	// request body and HTTP Basic, but they did not match.
+	errConflictingClientAuth = xerrors.New("conflicting client authentication")
 )
 
 func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
@@ -52,7 +55,7 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 	case codersdk.OAuth2ProviderGrantTypeRefreshToken:
 		p.RequiredNotEmpty("refresh_token")
 	case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
-		p.RequiredNotEmpty("client_secret", "client_id", "code")
+		p.RequiredNotEmpty("code")
 	}
 
 	req := codersdk.OAuth2TokenRequest{
@@ -65,6 +68,35 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 		CodeVerifier: p.String(vals, "", "code_verifier"),
 		Resource:     p.String(vals, "", "resource"),
 		Scope:        p.String(vals, "", "scope"),
+	}
+
+	// RFC 6749 §2.3.1: confidential clients may authenticate via HTTP Basic.
+	if user, pass, ok := r.BasicAuth(); ok && user != "" {
+		if req.ClientID != "" && req.ClientID != user {
+			return codersdk.OAuth2TokenRequest{}, nil, errConflictingClientAuth
+		}
+		if req.ClientSecret != "" && req.ClientSecret != pass {
+			return codersdk.OAuth2TokenRequest{}, nil, errConflictingClientAuth
+		}
+
+		req.ClientID = user
+		req.ClientSecret = pass
+	}
+
+	// Grant-specific required checks that can be satisfied via HTTP Basic.
+	if req.GrantType == codersdk.OAuth2ProviderGrantTypeAuthorizationCode {
+		if req.ClientID == "" {
+			p.Errors = append(p.Errors, codersdk.ValidationError{
+				Field:  "client_id",
+				Detail: "Query param \"client_id\" is required and cannot be empty",
+			})
+		}
+		if req.ClientSecret == "" {
+			p.Errors = append(p.Errors, codersdk.ValidationError{
+				Field:  "client_secret",
+				Detail: "Query param \"client_secret\" is required and cannot be empty",
+			})
+		}
 	}
 
 	// Validate redirect URI - errors are added to p.Errors.
@@ -104,6 +136,11 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 
 		req, validationErrs, err := extractTokenRequest(r, callbackURL)
 		if err != nil {
+			if errors.Is(err, errConflictingClientAuth) {
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+				return
+			}
+
 			// Check for specific validation errors in priority order
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "grant_type"

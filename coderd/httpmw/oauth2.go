@@ -330,6 +330,13 @@ func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func
 					}
 				}
 				if paramAppID == "" {
+					// RFC 6749 §2.3.1: confidential clients may authenticate via
+					// HTTP Basic where the username is the client_id.
+					if user, _, ok := r.BasicAuth(); ok && user != "" {
+						paramAppID = user
+					}
+				}
+				if paramAppID == "" {
 					errWriter.writeMissingClientID(ctx, rw)
 					return
 				}
