@@ -2,162 +2,156 @@ import { Button } from "components/Button/Button";
 import {
 	Command,
 	CommandEmpty,
-	CommandGroup,
 	CommandInput,
 	CommandItem,
 	CommandList,
 } from "components/Command/Command";
+import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { Check, ChevronDown, CornerDownLeft, Info } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useState } from "react";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import type React from "react";
+import { createContext, forwardRef, useContext, useState } from "react";
 import { cn } from "utils/cn";
-import { ExternalImage } from "../ExternalImage/ExternalImage";
 
-interface ComboboxProps {
-	value: string;
-	options?: Readonly<Array<string | ComboboxOption>>;
+type ComboboxProps = {
+	id?: string;
+	value?: string;
 	placeholder?: string;
-	open?: boolean;
-	onOpenChange?: (open: boolean) => void;
 	inputValue?: string;
 	onInputChange?: (value: string) => void;
-	onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
-	onSelect: (value: string) => void;
-	id?: string;
-}
-
-type ComboboxOption = {
-	icon?: string;
-	displayName: string;
-	value: string;
-	description?: string;
+	onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+	onSelect?: (value: string) => void;
 };
 
-export const Combobox: FC<ComboboxProps> = ({
-	value,
-	options = [],
-	placeholder = "Select option",
-	open,
-	onOpenChange,
-	inputValue,
-	onInputChange,
-	onKeyDown,
-	onSelect,
-	id,
-}) => {
-	const [managedOpen, setManagedOpen] = useState(false);
-	const [managedInputValue, setManagedInputValue] = useState("");
+type ComboboxContextProps = {
+	open: boolean;
+	setOpen: (open: boolean) => void;
+};
 
-	const optionsMap = new Map<string, ComboboxOption>(
-		options.map((option) =>
-			typeof option === "string"
-				? [option, { displayName: option, value: option }]
-				: [option.value, option],
-		),
-	);
-	const optionObjects = [...optionsMap.values()];
-	const showIcons = optionObjects.some((it) => it.icon);
+const ComboboxContext = createContext<ComboboxContextProps | null>(null);
 
-	const isOpen = open ?? managedOpen;
+function useCombobox() {
+	const context = useContext(ComboboxContext);
+	if (!context) {
+		throw new Error("useCombobox must be used within a <Combobox />");
+	}
+	return context;
+}
 
-	const handleOpenChange = (newOpen: boolean) => {
-		setManagedOpen(newOpen);
-		onOpenChange?.(newOpen);
-	};
+function Combobox({
+	children,
+	open: controlledOpen,
+	onOpenChange: controlledOnOpenChange,
+	...props
+}: React.ComponentProps<typeof Popover> & ComboboxProps) {
+	const [internalOpen, setInternalOpen] = useState(false);
+
+	// Use controlled state if provided, otherwise use internal state
+	const open = controlledOpen ?? internalOpen;
+	const setOpen = controlledOnOpenChange ?? setInternalOpen;
 
 	return (
-		<Popover open={isOpen} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<Button
-					id={id}
-					variant="outline"
-					aria-expanded={isOpen}
-					className="w-full justify-between group"
-				>
-					<span className={cn(!value && "text-content-secondary")}>
-						{optionsMap.get(value)?.displayName || value || placeholder}
-					</span>
-					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent className="w-[var(--radix-popover-trigger-width)]">
-				<Command>
-					<CommandInput
-						placeholder="Search or enter custom value"
-						value={inputValue ?? managedInputValue}
-						onValueChange={(newValue) => {
-							setManagedInputValue(newValue);
-							onInputChange?.(newValue);
-						}}
-						onKeyDown={onKeyDown}
-					/>
-					<CommandList>
-						<CommandEmpty>
-							<p>No results found</p>
-							<span className="flex flex-row items-center justify-center gap-1">
-								Enter custom value
-								<CornerDownLeft className="size-icon-sm bg-surface-tertiary rounded-sm p-1" />
-							</span>
-						</CommandEmpty>
-						<CommandGroup>
-							{optionObjects.map((option) => (
-								<CommandItem
-									key={option.value}
-									value={option.value}
-									keywords={[option.displayName]}
-									onSelect={(currentValue) => {
-										onSelect(currentValue === value ? "" : currentValue);
-										// Close the popover after selection
-										handleOpenChange(false);
-									}}
-								>
-									{showIcons &&
-										(option.icon ? (
-											<ExternalImage
-												className="w-4 h-4 object-contain"
-												src={option.icon}
-												alt=""
-											/>
-										) : (
-											/* Placeholder for missing icon to maintain layout consistency */
-											<div className="w-4 h-4"></div>
-										))}
-									{option.displayName}
-									<div className="flex flex-row items-center ml-auto gap-1">
-										{value === option.value && (
-											<Check className="size-icon-sm" />
-										)}
-										{option.description && (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<span
-														className="flex"
-														onMouseEnter={(e) => e.stopPropagation()}
-													>
-														<Info className="w-3.5 h-3.5 text-content-secondary" />
-													</span>
-												</TooltipTrigger>
-												<TooltipContent side="right" sideOffset={10}>
-													{option.description}
-												</TooltipContent>
-											</Tooltip>
-										)}
-									</div>
-								</CommandItem>
-							))}
-						</CommandGroup>
-					</CommandList>
-				</Command>
-			</PopoverContent>
-		</Popover>
+		<ComboboxContext.Provider value={{ open, setOpen }}>
+			<Popover open={open} onOpenChange={setOpen} {...props}>
+				{children}
+			</Popover>
+		</ComboboxContext.Provider>
 	);
+}
+
+const ComboboxTrigger = PopoverTrigger;
+
+interface ComboboxButtonProps extends React.ComponentProps<"button"> {
+	width?: number;
+	selectedOption?: SelectFilterOption;
+	placeholder?: string;
+}
+
+const ComboboxButton = forwardRef<
+	HTMLButtonElement,
+	React.ComponentProps<"button"> & ComboboxButtonProps
+>(
+	(
+		{ children, className, width, selectedOption, placeholder, ...props },
+		ref,
+	) => (
+		<Button
+			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
+			style={{ flexBasis: width }}
+			variant="outline"
+			ref={ref}
+			{...props}
+		>
+			{selectedOption?.startIcon}
+			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
+				{selectedOption?.label ?? placeholder}
+			</span>
+			<ChevronDownIcon className="size-icon-sm" />
+		</Button>
+	),
+);
+
+const ComboboxContent = forwardRef<
+	HTMLDivElement,
+	React.ComponentProps<typeof PopoverContent>
+>(({ children, className, ...props }, ref) => (
+	<PopoverContent
+		ref={ref}
+		className={cn(
+			"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
+			className,
+		)}
+		{...props}
+	>
+		<Command className="bg-surface-secondary">{children}</Command>
+	</PopoverContent>
+));
+
+const ComboboxInput = CommandInput;
+const ComboboxList = CommandList;
+
+interface ComboboxItemProps {
+	selectedOption?: SelectFilterOption;
+}
+
+const ComboboxItem = forwardRef<
+	HTMLDivElement,
+	React.ComponentProps<typeof CommandItem> & ComboboxItemProps
+>(({ children, className, onSelect, value, selectedOption, ...props }, ref) => {
+	const { setOpen } = useCombobox();
+	return (
+		<CommandItem
+			ref={ref}
+			className={cn(className, "rounded-none")}
+			onSelect={(value) => {
+				setOpen(false);
+				onSelect?.(value);
+			}}
+			{...props}
+		>
+			{children}
+			<CheckIcon
+				className={cn(
+					"ml-2 h-4 w-4 min-w-0 flex-shrink-0",
+					value === selectedOption?.value ? "opacity-100" : "opacity-0",
+				)}
+			/>
+		</CommandItem>
+	);
+});
+const ComboboxEmpty = CommandEmpty;
+
+export {
+	Combobox,
+	ComboboxTrigger,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxInput,
+	ComboboxList,
+	ComboboxItem,
+	ComboboxEmpty,
 };
