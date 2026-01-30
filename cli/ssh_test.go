@@ -1188,7 +1188,17 @@ func TestSSH(t *testing.T) {
 			}
 			close(sessionStarted)
 			<-sleepDone
-			assert.NoError(t, session.Close())
+			// Ref: https://github.com/coder/internal/issues/1289
+			// This may return either a nil error or io.EOF.
+			// There is an inherent race here:
+			// 1. Sleep process is killed -> sleepDone is closed.
+			// 2. watchParentContext detects parent death, cancels context,
+			//    causing SSH session teardown.
+			// 3. We receive from sleepDone and attempt to call session.Close()
+			// Now either:
+			// a. Session teardown completes before we call Close(), resulting in io.EOF
+			// b. We call Close() first, resulting in a nil error.
+			_ = session.Close()
 		}()
 
 		// Wait for our "parent" process to start
