@@ -30,7 +30,7 @@ const buttonVariants = cva(
 					`,
 				outline: `
 					border border-border-default bg-transparent text-content-primary
-					hover:bg-surface-secondary
+					hover:bg-surface-secondary [&>svg]:text-content-secondary
 					`,
 				subtle: `
 					border-none bg-transparent text-content-secondary
