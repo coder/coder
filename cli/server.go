@@ -2174,7 +2174,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// existing database
 	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
 	if retryPortDiscovery {
-		maxAttempts = 3
+		maxAttempts = 5
 	}
 
 	var startErr error
@@ -2219,6 +2219,12 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 				Database("coder").
 				Encoding("UTF8").
 				Port(uint32(pgPort)).
+				// Only listen on IPv4 loopback to reduce port conflict surface.
+				// By default postgres tries to bind both IPv4 and IPv6, which
+				// doubles the chance of conflicts with other processes.
+				StartParameters(map[string]string{
+					"listen_addresses": "127.0.0.1",
+				}).
 				Logger(stdlibLogger.Writer()),
 		)
 
@@ -2233,6 +2239,15 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			slog.F("port", pgPort),
 			slog.Error(startErr),
 		)
+
+		// Add a small delay before retrying to allow ports to be released.
+		if attempt < maxAttempts-1 {
+			select {
+			case <-ctx.Done():
+				return "", nil, ctx.Err()
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
 	}
 
 	return "", nil, xerrors.Errorf("failed to start built-in PostgreSQL after %d attempts. "+
