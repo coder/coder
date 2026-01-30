@@ -32,12 +32,13 @@ func TestReap(t *testing.T) {
 	}
 
 	pids := make(reap.PidCh, 1)
-	err := reaper.ForkReap(
+	exitCode, err := reaper.ForkReap(
 		reaper.WithPIDCallback(pids),
 		// Provide some argument that immediately exits.
 		reaper.WithExecArgs("/bin/sh", "-c", "exit 0"),
 	)
 	require.NoError(t, err)
+	require.Equal(t, 0, exitCode)
 
 	cmd := exec.Command("tail", "-f", "/dev/null")
 	err = cmd.Start()
@@ -65,6 +66,36 @@ func TestReap(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest
+func TestForkReapExitCodes(t *testing.T) {
+	if testutil.InCI() {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
+
+	tests := []struct {
+		name         string
+		command      string
+		expectedCode int
+	}{
+		{"exit 0", "exit 0", 0},
+		{"exit 1", "exit 1", 1},
+		{"exit 42", "exit 42", 42},
+		{"exit 255", "exit 255", 255},
+		{"SIGKILL", "kill -9 $$", 128 + 9},
+		{"SIGTERM", "kill -15 $$", 128 + 15},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exitCode, err := reaper.ForkReap(
+				reaper.WithExecArgs("/bin/sh", "-c", tt.command),
+			)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedCode, exitCode, "exit code mismatch for %q", tt.command)
+		})
+	}
+}
+
 //nolint:paralleltest // Signal handling.
 func TestReapInterrupt(t *testing.T) {
 	// Don't run the reaper test in CI. It does weird
@@ -84,13 +115,17 @@ func TestReapInterrupt(t *testing.T) {
 	defer signal.Stop(usrSig)
 
 	go func() {
-		errC <- reaper.ForkReap(
+		exitCode, err := reaper.ForkReap(
 			reaper.WithPIDCallback(pids),
 			reaper.WithCatchSignals(os.Interrupt),
 			// Signal propagation does not extend to children of children, so
 			// we create a little bash script to ensure sleep is interrupted.
 			reaper.WithExecArgs("/bin/sh", "-c", fmt.Sprintf("pid=0; trap 'kill -USR2 %d; kill -TERM $pid' INT; sleep 10 &\npid=$!; kill -USR1 %d; wait", os.Getpid(), os.Getpid())),
 		)
+		// The child exits with 128 + SIGTERM (15) = 143, but the trap catches
+		// SIGINT and sends SIGTERM to the sleep process, so exit code varies.
+		_ = exitCode
+		errC <- err
 	}()
 
 	require.Equal(t, <-usrSig, syscall.SIGUSR1)

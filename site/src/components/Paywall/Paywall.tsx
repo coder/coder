@@ -10,61 +10,86 @@ interface PaywallProps {
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
+	documentationLinkText?: string;
+	features?: Array<{
+		text: string;
+		link?: { href: string; text: string };
+	}>;
+	badgeText?: string;
+	ctaText?: string;
+	ctaLink?: string;
 }
 
 export const Paywall: FC<PaywallProps> = ({
 	message,
 	description,
 	documentationLink,
+	documentationLinkText = "Read the documentation",
+	features,
+	badgeText = "Premium",
+	ctaText = "Learn about Premium",
+	ctaLink = "https://coder.com/pricing#compare-plans",
 }) => {
+	const defaultFeatures: Array<{
+		text: string;
+		link?: { href: string; text: string };
+	}> = [
+		{ text: "High availability & workspace proxies" },
+		{ text: "Multi-org & role-based access control" },
+		{ text: "24x7 global support with SLA" },
+		{ text: "Unlimited Git & external auth integrations" },
+	];
+
+	const displayFeatures = features ?? defaultFeatures;
 	return (
 		<div css={styles.root}>
 			<div>
 				<Stack direction="row" alignItems="center" className="mb-6">
 					<h5 className="font-semibold font-inherit text-xl m-0">{message}</h5>
-					<PremiumBadge />
+					<PremiumBadge>{badgeText}</PremiumBadge>
 				</Stack>
 
 				{description && (
-					<p className="font-inherit max-w-md text-sm">{description}</p>
+					<p className="font-inherit max-w-md text-sm mb-4">{description}</p>
 				)}
-				<Link
-					href={documentationLink}
-					target="_blank"
-					rel="noreferrer"
-					className="font-semibold"
-				>
-					Read the documentation
-				</Link>
+				{documentationLink && (
+					<Link
+						href={documentationLink}
+						target="_blank"
+						rel="noreferrer"
+						className="font-semibold"
+					>
+						{documentationLinkText}
+					</Link>
+				)}
 			</div>
 			<div className="w-px h-[220px] bg-highlight-purple/50 ml-2" />
 			<Stack direction="column" alignItems="left" spacing={3}>
 				<ul className="m-0 px-6 text-sm font-medium">
-					<li css={styles.feature}>
-						<FeatureIcon />
-						High availability & workspace proxies
-					</li>
-					<li css={styles.feature}>
-						<FeatureIcon />
-						Multi-org & role-based access control
-					</li>
-					<li css={styles.feature}>
-						<FeatureIcon />
-						24x7 global support with SLA
-					</li>
-					<li css={styles.feature}>
-						<FeatureIcon />
-						Unlimited Git & external auth integrations
-					</li>
+					{displayFeatures.map((feature, index) => (
+						<li key={index} css={styles.feature}>
+							<FeatureIcon />
+							{feature.text}
+							{feature.link && (
+								<>
+									{" "}
+									<Link
+										href={feature.link.href}
+										target="_blank"
+										rel="noreferrer"
+										className="font-semibold text-sm"
+									>
+										{feature.link.text}
+									</Link>
+								</>
+							)}
+						</li>
+					))}
 				</ul>
 				<div className="px-7">
 					<Button asChild>
-						<a
-							href="https://coder.com/pricing#compare-plans"
-							target="_blank"
-							rel="noreferrer"
-						>
-							Learn about Premium
+						<a href={ctaLink} target="_blank" rel="noreferrer">
+							{ctaText}
 						</a>
 					</Button>
 				</div>

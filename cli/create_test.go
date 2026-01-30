@@ -139,12 +139,15 @@ func TestCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent(), func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.Name = "v1"
+		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Create a new version
 		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent(), func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.Name = "v2"
 			ctvr.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
@@ -516,6 +519,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				version2 := coderdtest.CreateTemplateVersion(t, tctx.client, tctx.owner.OrganizationID, prepareEchoResponses([]*proto.RichParameter{
 					{Name: "another_parameter", Type: "string", DefaultValue: "not-relevant"},
 				}), func(ctvr *codersdk.CreateTemplateVersionRequest) {
+					ctvr.Name = "v2"
 					ctvr.TemplateID = tctx.template.ID
 				})
 				coderdtest.AwaitTemplateVersionJobCompleted(t, tctx.client, version2.ID)

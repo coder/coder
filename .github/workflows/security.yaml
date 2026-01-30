@@ -97,11 +97,11 @@ jobs:
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.44.3
       - name: Install mockgen
-        run: go install go.uber.org/mock/mockgen@v0.5.0
+        run: ./.github/scripts/retry.sh -- go install go.uber.org/mock/mockgen@v0.6.0
       - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+        run: ./.github/scripts/retry.sh -- go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
       - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
+        run: ./.github/scripts/retry.sh -- go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
       - name: Install Protoc
         run: |
           # protoc must be in lockstep with our dogfood Dockerfile or the

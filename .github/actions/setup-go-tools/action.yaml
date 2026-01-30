@@ -7,6 +7,6 @@ runs:
     - name: go install tools
       shell: bash
       run: |
-          go install tool
+          ./.github/scripts/retry.sh -- go install tool
           # NOTE: protoc-gen-go cannot be installed with `go get`
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+          ./.github/scripts/retry.sh -- go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30

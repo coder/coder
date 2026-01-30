@@ -162,6 +162,12 @@ func (l *Set) Errors() []string {
 	return slices.Clone(l.entitlements.Errors)
 }
 
+func (l *Set) Warnings() []string {
+	l.entitlementsMu.RLock()
+	defer l.entitlementsMu.RUnlock()
+	return slices.Clone(l.entitlements.Warnings)
+}
+
 func (l *Set) HasLicense() bool {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()

@@ -186,6 +186,8 @@ jobs:
 
           Use \`gh\` to get PR details, diff, and all comments. Check for previous doc-check comments (from coder-doc-check) and only post a new comment if it adds value.
 
+          **Do not comment if no documentation changes are needed.**
+
           ## Comment format
 
           Use this structure (only include relevant sections):
@@ -201,9 +203,6 @@ jobs:
 
           ### New Documentation Needed
           - [ ] \`docs/suggested/path.md\` - [what should be documented]
-
-          ### No Changes Needed
-          [brief explanation - use this OR the above sections, not both]
 
           ---
           *Automated review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*

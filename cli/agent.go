@@ -136,7 +136,7 @@ func workspaceAgent() *serpent.Command {
 				// to do this else we fork bomb ourselves.
 				//nolint:gocritic
 				args := append(os.Args, "--no-reap")
-				err := reaper.ForkReap(
+				exitCode, err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
 					reaper.WithCatchSignals(StopSignals...),
 				)
@@ -145,8 +145,8 @@ func workspaceAgent() *serpent.Command {
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
-				logger.Info(ctx, "reaper process exiting")
-				return nil
+				logger.Info(ctx, "reaper child process exited", slog.F("exit_code", exitCode))
+				return ExitError(exitCode, nil)
 			}
 
 			// Handle interrupt signals to allow for graceful shutdown,

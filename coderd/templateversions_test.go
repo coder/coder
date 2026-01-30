@@ -1977,10 +1977,13 @@ func TestTemplateVersionPatch(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.Name = "v1"
+		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.Name = "v2"
 			ctvr.TemplateID = template.ID
 		})
 

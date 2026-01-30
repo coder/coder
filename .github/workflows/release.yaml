@@ -121,7 +121,7 @@ jobs:
       - name: Build dylibs
         run: |
           set -euxo pipefail
-          go mod download
+          ./.github/scripts/retry.sh -- go mod download
 
           make gen/mark-fresh
           make build/coder-dylib
@@ -259,7 +259,7 @@ jobs:
           java-version: "11.0"
 
       - name: Install go-winres
-        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
 
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
@@ -341,7 +341,7 @@ jobs:
       - name: Build binaries
         run: |
           set -euo pipefail
-          go mod download
+          ./.github/scripts/retry.sh -- go mod download
 
           version="$(./scripts/version.sh)"
           make gen/mark-fresh

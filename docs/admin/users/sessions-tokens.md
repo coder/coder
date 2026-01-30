@@ -9,6 +9,21 @@ The [Coder CLI](../../install/cli.md) and
 token to authenticate. To generate a short-lived session token on behalf of your
 account, visit the following URL: `https://coder.example.com/cli-auth`
 
+### Retrieve the current session token
+
+If you're already logged in with the CLI, you can retrieve your current session
+token for use in scripts and automation:
+
+```sh
+coder login token
+```
+
+This is useful for passing your session token to other tools:
+
+```sh
+export CODER_SESSION_TOKEN=$(coder login token)
+```
+
 ### Session Durations
 
 By default, sessions last 24 hours and are automatically refreshed. You can

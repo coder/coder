@@ -720,7 +720,7 @@ func TestManagedAgentLimit(t *testing.T) {
 	require.NoError(t, err, "fetching AI workspace must succeed")
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 
-	// Create a second AI workspace, which should fail.
+	// Create a second AI task, which should fail due to breaching the limit.
 	_, err = cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
 		Name:                    namesgenerator.UniqueNameWith("-"),
 		TemplateVersionID:       aiTemplate.ActiveVersionID,
@@ -730,7 +730,11 @@ func TestManagedAgentLimit(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "You have breached the managed agent limit in your license")
 
-	// Create a third non-AI workspace, which should succeed.
+	// Create a third workspace using the same template, which should succeed.
+	workspace = coderdtest.CreateWorkspace(t, cli, aiTemplate.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
+
+	// Create a fourth non-AI workspace, which should also succeed.
 	workspace = coderdtest.CreateWorkspace(t, cli, noAiTemplate.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 }

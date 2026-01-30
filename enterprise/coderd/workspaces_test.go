@@ -1486,7 +1486,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a template version1 that passes to get a functioning workspace.
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.Name = "v1"
+		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
@@ -1502,6 +1504,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Create a new version so that we can assert we don't update
 		// to the latest by default.
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.Name = "v2"
 			ctvr.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)

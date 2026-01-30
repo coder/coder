@@ -22,14 +22,14 @@ runs:
 
     - name: Install gotestsum
       shell: bash
-      run: go install gotest.tools/gotestsum@0d9599e513d70e5792bb9334869f82f6e8b53d4d # main as of 2025-05-15
+      run: ./.github/scripts/retry.sh -- go install gotest.tools/gotestsum@0d9599e513d70e5792bb9334869f82f6e8b53d4d # main as of 2025-05-15
 
     - name: Install mtimehash
       shell: bash
-      run: go install github.com/slsyy/mtimehash/cmd/mtimehash@a6b5da4ed2c4a40e7b805534b004e9fde7b53ce0 # v1.0.0
+      run: ./.github/scripts/retry.sh -- go install github.com/slsyy/mtimehash/cmd/mtimehash@a6b5da4ed2c4a40e7b805534b004e9fde7b53ce0 # v1.0.0
 
     # It isn't necessary that we ever do this, but it helps
     # separate the "setup" from the "run" times.
     - name: go mod download
       shell: bash
-      run: go mod download -x
+      run: ./.github/scripts/retry.sh -- go mod download -x

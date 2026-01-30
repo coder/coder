@@ -31,23 +31,14 @@ import (
 	previewtypes "github.com/coder/preview/types"
 )
 
-// List is a helper function to reduce boilerplate when converting slices of
-// database types to slices of codersdk types.
-// Only works if the function takes a single argument.
+// Deprecated: use slice.List
 func List[F any, T any](list []F, convert func(F) T) []T {
-	return ListLazy(convert)(list)
+	return slice.List[F, T](list, convert)
 }
 
-// ListLazy returns the converter function for a list, but does not eval
-// the input. Helpful for combining the Map and the List functions.
+// Deprecated: use slice.ListLazy
 func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
-	return func(list []F) []T {
-		into := make([]T, 0, len(list))
-		for _, item := range list {
-			into = append(into, convert(item))
-		}
-		return into
-	}
+	return slice.ListLazy[F, T](convert)
 }
 
 func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget {
