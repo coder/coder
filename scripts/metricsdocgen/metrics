@@ -14,10 +14,6 @@ coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="secondary-gith
 # TYPE coderd_oauth2_external_requests_rate_limit gauge
 coderd_oauth2_external_requests_rate_limit{name="primary-github",resource="core-unauthorized"} 5000
 coderd_oauth2_external_requests_rate_limit{name="secondary-github",resource="core-unauthorized"} 5000
-# HELP coderd_oauth2_external_requests_rate_limit_total DEPRECATED: use coderd_oauth2_external_requests_rate_limit instead
-# TYPE coderd_oauth2_external_requests_rate_limit_total gauge
-coderd_oauth2_external_requests_rate_limit_total{name="primary-github",resource="core-unauthorized"} 5000
-coderd_oauth2_external_requests_rate_limit_total{name="secondary-github",resource="core-unauthorized"} 5000
 # HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
 # TYPE coderd_oauth2_external_requests_rate_limit_used gauge
 coderd_oauth2_external_requests_rate_limit_used{name="primary-github",resource="core"} 148
