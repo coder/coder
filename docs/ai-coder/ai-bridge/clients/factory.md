@@ -1,7 +1,6 @@
-# Droid
+# Factory
 
-[Droid](https://factory.ai) supports custom OpenAI and Anthropic endpoints through its settings file.
-
+[Factory](https://factory.ai) is an AI-native software development platform that works everywhere you do.
 ## Configuration
 
 1. Open `~/.factory/settings.json` (create it if it does not exist).

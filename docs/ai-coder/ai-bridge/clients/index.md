@@ -117,15 +117,15 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | Client                           | OpenAI | Anthropic | Notes                                        |
 |----------------------------------|--------|-----------|----------------------------------------------|
 | [Claude Code](./claude-code.md)  | -      | ✅         |                                              |
-| [Cline](./cline.md)              | ✅      | ✅         |                                              |
 | [Codex CLI](./codex.md)          | ✅      | -         |                                              |
-| [Copilot](./copilot.md)          | ✅      | ❌         |                                              |
-| [Droid](./droid.md)              | ✅      | ✅         |                                              |
-| [Goose](./goose.md)              | ✅      | ✅         |                                              |
-| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key". |
-| [Kilo Code](./kilo-code.md)      | ✅      | ✅         |                                              |
 | [OpenCode](./opencode.md)        | ✅      | ✅         |                                              |
+| [Factory](./factory.md)          | ✅      | ✅         |                                              |
+| [Goose](./goose.md)              | ✅      | ✅         |                                              |
+| [Cline](./cline.md)              | ✅      | ✅         |                                              |
+| [Kilo Code](./kilo-code.md)      | ✅      | ✅         |                                              |
 | [Roo Code](./roo-code.md)        | ✅      | ✅         |                                              |
+| [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.    |
+| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key". |
 | [Zed](./zed.md)                  | ✅      | ✅         |                                              |
 
 *Legend: ✅ works, ⚠️ limited support, ❌ not supported, - not applicable.*
@@ -138,4 +138,5 @@ The following clients currently do not support custom base URLs or are otherwise
 - **Cursor**: Override for OpenAI broken because of an upstream [issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894); no Anthropic support.
 - **Sourcegraph Amp**: No option to override base URL.
 - **Kiro**: No option to override base URL.
-- **Gemini CLI**: Not supported.
+- **Gemini CLI**: No support for Gemini API via AI Bridge. Upvote [this issue](https://github.com/coder/aibridge/issues/27) to track progress.
+- **Antigravity**: No option to override base URL.

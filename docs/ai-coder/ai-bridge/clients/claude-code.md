@@ -1,6 +1,6 @@
 # Claude Code
 
-[Claude Code](https://code.claude.com/docs/en/overview) is fully supported by AI Bridge and works out of the box with Anthropic endpoints.
+[Claude Code](https://code.claude.com/docs/en/overview) is Anthropic’s agentic coding tool that lives in your terminal and helps you turn ideas into code faster than ever before.
 
 ## Configuration
 

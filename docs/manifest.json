@@ -1039,47 +1039,58 @@
 									"children": [
 										{
 											"title": "Claude Code",
-											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
+											"path": "./ai-coder/ai-bridge/clients/claude-code.md",
+											"description": "Configure Claude Code to use AI Bridge"
 										},
 										{
 											"title": "Codex",
-											"path": "./ai-coder/ai-bridge/clients/codex.md"
+											"path": "./ai-coder/ai-bridge/clients/codex.md",
+											"description": "Configure Codex to use AI Bridge"
 										},
 										{
 											"title": "OpenCode",
-											"path": "./ai-coder/ai-bridge/clients/opencode.md"
+											"path": "./ai-coder/ai-bridge/clients/opencode.md",
+											"description": "Configure OpenCode to use AI Bridge"
 										},
 										{
-											"title": "Droid",
-											"path": "./ai-coder/ai-bridge/clients/droid.md"
-										},
-										{
-											"title": "VS Code",
-											"path": "./ai-coder/ai-bridge/clients/vscode.md"
-										},
-										{
-											"title": "Zed",
-											"path": "./ai-coder/ai-bridge/clients/zed.md"
-										},
-										{
-											"title": "Cline",
-											"path": "./ai-coder/ai-bridge/clients/cline.md"
+											"title": "Factory",
+											"path": "./ai-coder/ai-bridge/clients/factory.md",
+											"description": "Configure Factory to use AI Bridge"
 										},
 										{
 											"title": "Goose",
-											"path": "./ai-coder/ai-bridge/clients/goose.md"
+											"path": "./ai-coder/ai-bridge/clients/goose.md",
+											"description": "Configure Goose to use AI Bridge"
 										},
 										{
-											"title": "JetBrains",
-											"path": "./ai-coder/ai-bridge/clients/jetbrains.md"
+											"title": "Cline",
+											"path": "./ai-coder/ai-bridge/clients/cline.md",
+											"description": "Configure Cline to use AI Bridge"
 										},
 										{
 											"title": "Kilo Code",
-											"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
+											"path": "./ai-coder/ai-bridge/clients/kilo-code.md",
+											"description": "Configure Kilo Code to use AI Bridge"
 										},
 										{
 											"title": "Roo Code",
-											"path": "./ai-coder/ai-bridge/clients/roo-code.md"
+											"path": "./ai-coder/ai-bridge/clients/roo-code.md",
+											"description": "Configure Roo Code to use AI Bridge"
+										},
+										{
+											"title": "VS Code",
+											"path": "./ai-coder/ai-bridge/clients/vscode.md",
+											"description": "Configure VS Code to use AI Bridge"
+										},
+										{
+											"title": "JetBrains",
+											"path": "./ai-coder/ai-bridge/clients/jetbrains.md",
+											"description": "Configure JetBrains IDEs to use AI Bridge"
+										},
+										{
+											"title": "Zed",
+											"path": "./ai-coder/ai-bridge/clients/zed.md",
+											"description": "Configure Zed to use AI Bridge"
 										}
 									]
 								},

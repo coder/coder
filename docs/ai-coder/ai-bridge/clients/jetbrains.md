@@ -21,4 +21,7 @@ JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Bridge via th
 
 You can now use the AI Assistant chat with the configured provider.
 
-**References:** [Use custom models with JetBrains AI Assistant](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html)
+> [!NOTE]
+> JetBrains AI Assistant currently only supports OpenAI-compatible endpoints. There is an open [issue](https://youtrack.jetbrains.com/issue/LLM-22740) tracking support for Anthropic.
+
+**References:** [Use custom models with JetBrains AI Assistant](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key)

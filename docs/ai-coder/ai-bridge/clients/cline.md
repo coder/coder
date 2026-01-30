@@ -1,6 +1,6 @@
 # Cline
 
-[Cline](https://cline.bot) is an autonomous coding agent that works with OpenAI and Anthropic providers via AI Bridge.
+[Cline](https://cline.bot) is an open source AI coding agent that brings frontier AI models directly to your IDE.
 
 ## Configuration
 

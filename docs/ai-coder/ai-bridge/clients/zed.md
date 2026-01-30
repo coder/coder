@@ -6,8 +6,6 @@
 
 To configure Zed to use AI Bridge, you need to edit your `settings.json` file. You can access this by pressing `Cmd/Ctrl + ,` or opening the command palette and searching for "Open Settings".
 
-<!-- TODO: Add screenshot of Zed settings.json or assistant panel configuration -->
-
 You can configure both Anthropic and OpenAI providers to point to AI Bridge.
 
 ```json
@@ -30,6 +28,9 @@ You can configure both Anthropic and OpenAI providers to point to AI Bridge.
 ```
 
 *Replace `coder.example.com` with your Coder deployment URL.*
+
+> [!NOTE]
+> These settings and environment variables need to be configured from client side. Zed currently does not support reading these settings from remote configuration. See this [GitHub issue](https://github.com/zed-industries/zed/discussions/47058) for more details.
 
 ## Authentication
 
