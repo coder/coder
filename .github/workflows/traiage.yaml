@@ -1,3 +1,18 @@
+# This workflow triages GitHub issues using AI.
+# It has two phases:
+#   1. Classification: Uses Claude to evaluate if the issue is suitable for
+#      automated implementation (small, low complexity, has enough info)
+#   2. Implementation: If classification passes, creates a Coder Task that
+#      autonomously implements the fix and creates a PR
+#
+# Triggers:
+#   - Issue labeled "traiage": Automatic classification and potential implementation
+#   - Workflow dispatch: Manual run with issue URL
+#
+# Note: This workflow requires access to secrets and will be skipped for:
+#   - Any run where secrets are not available
+# For these cases, maintainers can manually trigger via workflow_dispatch.
+
 name: AI Triage Automation
 
 on:
@@ -10,35 +25,31 @@ on:
         description: "GitHub Issue URL to process"
         required: true
         type: string
-      template_name:
-        description: "Coder template to use for workspace"
-        required: true
-        default: "coder"
-        type: string
       template_preset:
         description: "Template preset to use"
         required: false
         default: ""
         type: string
-      prefix:
-        description: "Prefix for workspace name"
+      skip_classification:
+        description: "Skip classification and go straight to implementation"
         required: false
-        default: "traiage"
-        type: string
+        default: "false"
+        type: boolean
 
 jobs:
   traiage:
-    name: Triage GitHub Issue with Claude Code
+    name: Triage GitHub Issue
     runs-on: ubuntu-latest
+    concurrency:
+      group: traiage-${{ github.event.issue.number || inputs.issue_url }}
+      cancel-in-progress: true
     if: github.event.label.name == 'traiage' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
-    env:
-      CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
-      CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
     permissions:
       contents: read
       issues: write
       actions: write
+      pull-requests: write
 
     steps:
       # This is only required for testing locally using nektos/act, so leaving commented out.
@@ -56,103 +67,346 @@ jobs:
       #     && sudo apt update \
       #     && sudo apt install gh -y
 
-      - name: Determine Inputs
-        id: determine-inputs
-        if: always()
+      - name: Check if secrets are available
+        id: check-secrets
         env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_EVENT_ISSUE_HTML_URL: ${{ github.event.issue.html_url }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
-          GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
-          INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
-          INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'coder' }}
-          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || ''}}
-          INPUTS_PREFIX: ${{ inputs.prefix || 'traiage' }}
-          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
         run: |
-          echo "Using template name: ${INPUTS_TEMPLATE_NAME}"
-          echo "template_name=${INPUTS_TEMPLATE_NAME}" >> "${GITHUB_OUTPUT}"
+          if [[ -z "${ANTHROPIC_API_KEY}" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "ANTHROPIC_API_KEY not available - skipping traiage."
+            {
+              echo "Workflow skipped: ANTHROPIC_API_KEY not available"
+              echo ""
+              echo "This workflow requires the ANTHROPIC_API_KEY secret for classification."
+              echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
 
-          echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
+          if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "Coder secrets not available - skipping traiage."
+            {
+              echo "Workflow skipped: Coder secrets not available"
+              echo ""
+              echo "This workflow requires TRAIAGE_CODER_URL and TRAIAGE_CODER_SESSION_TOKEN."
+              echo "Maintainers can manually trigger via workflow_dispatch if needed."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          echo "skip=false" >> "${GITHUB_OUTPUT}"
+
+      - name: Determine Context
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: determine-context
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ISSUE_HTML_URL: ${{ github.event.issue.html_url }}
+          GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
+          INPUTS_SKIP_CLASSIFICATION: ${{ inputs.skip_classification || 'false' }}
+        run: |
           echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
+          echo "skip_classification=${INPUTS_SKIP_CLASSIFICATION}" >> "${GITHUB_OUTPUT}"
 
-          echo "Using prefix: ${INPUTS_PREFIX}"
-          echo "prefix=${INPUTS_PREFIX}" >> "${GITHUB_OUTPUT}"
-
-          # For workflow_dispatch, use the actor who triggered it
-          # For issues events, use the issue author.
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
-              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+            echo "Using issue URL: ${INPUTS_ISSUE_URL}"
+
+            if [[ ! "${INPUTS_ISSUE_URL}" =~ ^https://github\.com/[^/]+/[^/]+/issues/[0-9]+$ ]]; then
+              echo "::error::Invalid issue URL format: ${INPUTS_ISSUE_URL}"
+              echo "::error::Expected format: https://github.com/owner/repo/issues/NUMBER"
               exit 1
             fi
-            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
-            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
-            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
 
-            echo "Using issue URL: ${INPUTS_ISSUE_URL}"
             echo "issue_url=${INPUTS_ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            ISSUE_NUMBER=$(echo "${INPUTS_ISSUE_URL}" | grep -oP '(?<=issues/)\d+')
+            echo "issue_number=${ISSUE_NUMBER}" >> "${GITHUB_OUTPUT}"
 
-            exit 0
           elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
-            GITHUB_USER_ID=${GITHUB_EVENT_USER_ID}
-            echo "Using issue author: ${GITHUB_EVENT_USER_LOGIN} (ID: ${GITHUB_USER_ID})"
-            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
-            echo "github_username=${GITHUB_EVENT_USER_LOGIN}" >> "${GITHUB_OUTPUT}"
-
             echo "Using issue URL: ${GITHUB_EVENT_ISSUE_HTML_URL}"
             echo "issue_url=${GITHUB_EVENT_ISSUE_HTML_URL}" >> "${GITHUB_OUTPUT}"
+            echo "issue_number=${GITHUB_EVENT_ISSUE_NUMBER}" >> "${GITHUB_OUTPUT}"
 
-            exit 0
           else
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
             exit 1
           fi
 
-      - name: Verify push access
+      # =========================================================================
+      # PHASE 1: CLASSIFICATION
+      # Uses claude-code-action to evaluate if this issue is suitable for
+      # automated implementation
+      # =========================================================================
+
+      - name: Checkout repository for classification
+        if: steps.check-secrets.outputs.skip != 'true' && steps.determine-context.outputs.skip_classification != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: coder/coder
+          fetch-depth: 1
+
+      - name: Classify Issue
+        if: steps.check-secrets.outputs.skip != 'true' && steps.determine-context.outputs.skip_classification != 'true'
+        id: classify
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          trigger_phrase: ""
+          label_trigger: ""
+          prompt: |
+            You are an expert software engineer evaluating GitHub issue #${{ steps.determine-context.outputs.issue_number }} to determine if it's suitable for automated AI implementation.
+
+            **This requires deep reasoning and thoughtful analysis** - not just keyword matching.
+
+            Issue URL: ${{ steps.determine-context.outputs.issue_url }}
+
+            ## Workflow
+
+            1. Use GitHub tools to fetch the full issue details (title, description, labels, comments)
+            2. Read and understand what is being reported
+            3. Browse the codebase to understand what would need to change
+               - Search for relevant files, functions, or error messages mentioned in the issue
+               - Understand the scope of the fix by looking at the actual code
+            4. Analyze using the framework below - think deeply about each point
+            5. Classify OR decline if insufficient information
+            6. Provide structured output
+
+            ## Analysis Framework
+
+            Reason through each of these points:
+
+            1. **What is actually broken?**
+               - Distinguish between what the user *says* is broken vs what is *actually* broken
+               - Is this a bug, feature request, or question?
+               - What is the expected vs actual behavior?
+
+            2. **How clear is the scope?**
+               - Can you identify exactly which code needs to change?
+               - Is this a single file fix or does it touch multiple components?
+               - Are there clear boundaries to the change?
+
+            3. **How complex is the fix?**
+               - Is this straightforward logic or does it require deep domain knowledge?
+               - Are there security implications or architectural decisions involved?
+               - Could a fix here break other things?
+
+            4. **Is there enough information to implement?**
+               - Are there reproduction steps or error messages?
+               - Is the environment/configuration context provided?
+               - Can you start coding without asking questions?
+
+            5. **How long would this realistically take?**
+               - Include time for: understanding, finding code, implementing, testing
+               - Be realistic - small bugs take 15-60 min, medium bugs 1-4 hours
+               - Factor in test writing and linting
+
+            ## Classification Criteria
+
+            **Size**: small (single file, clear scope) | medium (multiple files, well-defined) | large (refactor, architectural)
+
+            **Complexity**: low (straightforward fix) | medium (multiple components) | high (security/architectural)
+
+            **Estimated Time**: minutes an experienced developer would take
+
+            ## Decision Rules
+
+            PROCEED if ALL true:
+            - Size is "small" or "medium"
+            - Complexity is "low" or "medium"
+            - Estimated time is under 60 minutes
+            - Has sufficient information
+
+            DO NOT PROCEED if ANY true:
+            - Size is "large"
+            - Complexity is "high"
+            - Estimated time exceeds 60 minutes
+            - Missing critical information
+
+            ## Insufficient Information Fail-Safe
+
+            **It is completely acceptable to decline if you lack sufficient information.**
+
+            Decline if:
+            - Issue has no description or minimal details
+            - Unclear what feature/component is affected
+            - No reproduction steps or error messages
+            - Ambiguous whether it's a bug, feature request, or question
+
+            ## Output
+
+            You MUST output valid JSON:
+            ```json
+            {
+              "should_implement": true|false,
+              "size": "small"|"medium"|"large",
+              "complexity": "low"|"medium"|"high",
+              "estimated_minutes": number,
+              "has_sufficient_info": true|false,
+              "reasoning": "Brief explanation focusing on WHY, not just WHAT",
+              "missing_info": ["item1", "item2"] // Only if has_sufficient_info is false
+            }
+            ```
+          claude_args: |
+            --json-schema '{
+              "type": "object",
+              "properties": {
+                "should_implement": {"type": "boolean"},
+                "size": {"type": "string", "enum": ["small", "medium", "large"]},
+                "complexity": {"type": "string", "enum": ["low", "medium", "high"]},
+                "estimated_minutes": {"type": "number"},
+                "has_sufficient_info": {"type": "boolean"},
+                "reasoning": {"type": "string"},
+                "missing_info": {"type": "array", "items": {"type": "string"}}
+              },
+              "required": ["should_implement", "size", "complexity", "estimated_minutes", "has_sufficient_info", "reasoning"]
+            }'
+
+      - name: Parse Classification Result
+        if: steps.check-secrets.outputs.skip != 'true' && steps.determine-context.outputs.skip_classification != 'true'
+        id: parse-classification
         env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_USERNAME: ${{ steps.determine-inputs.outputs.github_username }}
-          GITHUB_USER_ID: ${{ steps.determine-inputs.outputs.github_user_id }}
+          STRUCTURED_OUTPUT: ${{ steps.classify.outputs.structured_output }}
+          ISSUE_NUMBER: ${{ steps.determine-context.outputs.issue_number }}
         run: |
-          # Query the actor’s permission on this repo
-          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_USERNAME}/permission" --jq '.user.permissions.push')"
-          if [[ "${can_push}" != "true" ]]; then
-            echo "::error title=Access Denied::${GITHUB_USERNAME} does not have push access to ${GITHUB_REPOSITORY}"
-            exit 1
+          echo "Classification output: ${STRUCTURED_OUTPUT}"
+
+          if [[ -z "${STRUCTURED_OUTPUT}" ]]; then
+            echo "::error::No structured output from classification"
+            echo "should_implement=false" >> "${GITHUB_OUTPUT}"
+            exit 0
           fi
 
-      - name: Extract context key and description from issue
-        id: extract-context
+          # Parse the JSON output
+          SHOULD_IMPLEMENT=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.should_implement // false')
+          SIZE=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.size // "unknown"')
+          COMPLEXITY=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.complexity // "unknown"')
+          ESTIMATED_MINUTES=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.estimated_minutes // 0')
+          HAS_INFO=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.has_sufficient_info // false')
+          REASONING=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.reasoning // "No reasoning provided"')
+
+          echo "should_implement=${SHOULD_IMPLEMENT}" >> "${GITHUB_OUTPUT}"
+          echo "size=${SIZE}" >> "${GITHUB_OUTPUT}"
+          echo "complexity=${COMPLEXITY}" >> "${GITHUB_OUTPUT}"
+          echo "estimated_minutes=${ESTIMATED_MINUTES}" >> "${GITHUB_OUTPUT}"
+          echo "has_info=${HAS_INFO}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Issue Classification"
+            echo ""
+            echo "**Issue:** #${ISSUE_NUMBER}"
+            echo "**Size:** ${SIZE}"
+            echo "**Complexity:** ${COMPLEXITY}"
+            echo "**Estimated Time:** ${ESTIMATED_MINUTES} minutes"
+            echo "**Has Sufficient Info:** ${HAS_INFO}"
+            echo "**Should Implement:** ${SHOULD_IMPLEMENT}"
+            echo ""
+            echo "**Reasoning:** ${REASONING}"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Post Classification Comment (Not Implementing)
+        if: |
+          steps.check-secrets.outputs.skip != 'true' &&
+          steps.determine-context.outputs.skip_classification != 'true' &&
+          steps.parse-classification.outputs.should_implement != 'true'
         env:
-          ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
+          ISSUE_NUMBER: ${{ steps.determine-context.outputs.issue_number }}
+          STRUCTURED_OUTPUT: ${{ steps.classify.outputs.structured_output }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
-          context_key="gh-${issue_number}"
+          REASONING=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.reasoning // "No reasoning provided"')
+          HAS_INFO=$(echo "${STRUCTURED_OUTPUT}" | jq -r '.has_sufficient_info // false')
+          MISSING_INFO=$(echo "${STRUCTURED_OUTPUT}" | jq -r 'if .missing_info then .missing_info | map("- " + .) | join("\n") else "" end')
 
-          TASK_PROMPT=$(cat <<EOF
-          Fix ${ISSUE_URL}
+          COMMENT_BODY="## Triage Classification
 
-            1. Use the gh CLI to read the issue description and comments.
-            2. Think carefully and try to understand the root cause. If the issue is unclear or not well defined, ask me to clarify and provide more information.
-            3. Write a proposed implementation plan to PLAN.md for me to review before starting implementation. Your plan should use TDD and only make the minimal changes necessary to fix the root cause.
-            4. When I approve your plan, start working on it. If you encounter issues with the plan, ask me for clarification and update the plan as required.
-            5. When you have finished implementation according to the plan, commit and push your changes, and create a PR using the gh CLI for me to review.
+          This issue was evaluated for automated AI implementation but is not suitable for autonomous fixing at this time.
 
-          EOF
-          )
+          ${REASONING}"
 
-          echo "context_key=${context_key}" >> "${GITHUB_OUTPUT}"
+          if [[ "${HAS_INFO}" == "false" && -n "${MISSING_INFO}" ]]; then
+            COMMENT_BODY="${COMMENT_BODY}
+
+          ### Information Needed
+
+          ${MISSING_INFO}"
+          fi
+
+          COMMENT_BODY="${COMMENT_BODY}
+
+          ---
+          *Automated triage via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*"
+
+          gh issue comment "${ISSUE_NUMBER}" --repo "${{ github.repository }}" --body "${COMMENT_BODY}"
+
+      # =========================================================================
+      # PHASE 2: IMPLEMENTATION
+      # Creates a Coder Task to autonomously implement the fix
+      # Only runs if classification passed or was skipped
+      # =========================================================================
+
+      - name: Setup Coder CLI
+        if: |
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
+        uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1
+        with:
+          access_url: ${{ secrets.TRAIAGE_CODER_URL }}
+          coder_session_token: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+
+      - name: Build Implementation Prompt
+        if: |
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
+        id: build-prompt
+        env:
+          ISSUE_URL: ${{ steps.determine-context.outputs.issue_url }}
+          ISSUE_NUMBER: ${{ steps.determine-context.outputs.issue_number }}
+        run: |
+          TASK_PROMPT="Use the triage skill to fix issue #${ISSUE_NUMBER} in coder/coder.
+
+          This issue has been classified as suitable for automated implementation.
+
+          ## Workflow
+
+          1. Use \`gh issue view ${ISSUE_NUMBER} --repo coder/coder\` to read the full issue and all comments.
+
+          2. Investigate the codebase to understand the root cause.
+
+          3. Implement the fix using TDD:
+             - Write failing tests first that demonstrate the bug
+             - Implement the minimal fix to make tests pass
+             - Run \`make lint\` to verify code style
+
+          4. Commit your changes and create a PR using \`gh pr create\`:
+             - Title: \`fix(scope): description\`
+             - Body: Link to issue (#${ISSUE_NUMBER}), summary of fix
+
+          ## Important
+
+          - Make minimal changes - only fix what's broken
+          - Follow existing code patterns and style
+          - Ensure all tests pass before creating PR
+          - If you encounter blockers, comment on the issue explaining what's needed
+
+          Issue URL: ${ISSUE_URL}"
+
           {
-            echo "TASK_PROMPT<<EOF"
+            echo "task_prompt<<EOFOUTPUT"
             echo "${TASK_PROMPT}"
-            echo "EOF"
+            echo "EOFOUTPUT"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Checkout repository
+      - name: Checkout create-task-action
+        if: |
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
@@ -161,30 +415,183 @@ jobs:
           ref: main
           repository: coder/create-task-action
 
-      - name: Create Coder Task
+      - name: Create Coder Task for Implementation
+        if: |
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
         id: create_task
         uses: ./.github/actions/create-task-action
         with:
           coder-url: ${{ secrets.TRAIAGE_CODER_URL }}
           coder-token: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
           coder-organization: "default"
-          coder-template-name: coder
-          coder-template-preset: ${{ steps.determine-inputs.outputs.template_preset }}
-          coder-task-name-prefix: gh-coder
-          coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
-          github-user-id: ${{ steps.determine-inputs.outputs.github_user_id }}
+          coder-template-name: coder-workflow-bot
+          coder-template-preset: ${{ steps.determine-context.outputs.template_preset }}
+          coder-task-name-prefix: traiage
+          coder-task-prompt: ${{ steps.build-prompt.outputs.task_prompt }}
+          coder-username: traiage-bot
           github-token: ${{ github.token }}
-          github-issue-url: ${{ steps.determine-inputs.outputs.issue_url }}
-          comment-on-issue: ${{ startsWith(steps.determine-inputs.outputs.issue_url, format('{0}/{1}', github.server_url, github.repository)) }}
+          github-issue-url: ${{ steps.determine-context.outputs.issue_url }}
+          comment-on-issue: true
 
-      - name: Write outputs
+      - name: Write Task Info
+        if: |
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
         env:
           TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
           TASK_URL: ${{ steps.create_task.outputs.task-url }}
+          ISSUE_URL: ${{ steps.determine-context.outputs.issue_url }}
         run: |
           {
+            echo "## Implementation Task"
+            echo ""
+            echo "**Issue:** ${ISSUE_URL}"
             echo "**Task created:** ${TASK_CREATED}"
-            echo "**Task name:**    ${TASK_NAME}"
-            echo "**Task URL**:     ${TASK_URL}"
+            echo "**Task name:** ${TASK_NAME}"
+            echo "**Task URL:** ${TASK_URL}"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Wait for Task Completion
+        if: |
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
+        id: wait_task
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "Waiting for task to complete..."
+          echo "Task name: ${TASK_NAME}"
+
+          if [[ -z "${TASK_NAME}" ]]; then
+            echo "::error::TASK_NAME is empty"
+            exit 1
+          fi
+
+          MAX_WAIT=600  # 10 minutes
+          WAITED=0
+          POLL_INTERVAL=3
+          LAST_STATUS=""
+
+          is_workspace_message() {
+            local msg="$1"
+            [[ -z "$msg" ]] && return 0
+            [[ "$msg" =~ ^Workspace ]] && return 0
+            [[ "$msg" =~ ^Agent ]] && return 0
+            return 1
+          }
+
+          while [[ $WAITED -lt $MAX_WAIT ]]; do
+            RAW_OUTPUT=$(coder task status "${TASK_NAME}" -o json 2>&1) || true
+            STATUS_JSON=$(echo "$RAW_OUTPUT" | grep -v "^version mismatch\|^download v" || true)
+
+            if [[ $WAITED -eq 0 ]]; then
+              echo "Raw status output: ${RAW_OUTPUT:0:500}"
+            fi
+
+            if [[ -z "$STATUS_JSON" ]] || ! echo "$STATUS_JSON" | jq -e . >/dev/null 2>&1; then
+              if [[ "$LAST_STATUS" != "waiting" ]]; then
+                echo "[${WAITED}s] Waiting for task status..."
+                LAST_STATUS="waiting"
+              fi
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
+              continue
+            fi
+
+            TASK_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
+            TASK_MESSAGE=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
+            WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
+
+            CURRENT_STATUS="${TASK_STATE}|${WORKSPACE_STATUS}|${TASK_MESSAGE}"
+
+            if [[ "$CURRENT_STATUS" != "$LAST_STATUS" ]]; then
+              if [[ "$TASK_STATE" == "idle" ]] && is_workspace_message "$TASK_MESSAGE"; then
+                echo "[${WAITED}s] Workspace ready, waiting for Agent..."
+              else
+                echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
+              fi
+              LAST_STATUS="$CURRENT_STATUS"
+            fi
+
+            if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
+              echo "::error::Workspace failed: ${WORKSPACE_STATUS}"
+              exit 1
+            fi
+
+            if [[ "$TASK_STATE" == "idle" ]]; then
+              if ! is_workspace_message "$TASK_MESSAGE"; then
+                echo ""
+                echo "Task completed: ${TASK_MESSAGE}"
+                RESULT_URI=$(echo "$STATUS_JSON" | jq -r '.current_state.uri // ""')
+                echo "result_uri=${RESULT_URI}" >> "${GITHUB_OUTPUT}"
+                echo "task_message=${TASK_MESSAGE}" >> "${GITHUB_OUTPUT}"
+                break
+              fi
+            fi
+
+            sleep $POLL_INTERVAL
+            WAITED=$((WAITED + POLL_INTERVAL))
+          done
+
+          if [[ $WAITED -ge $MAX_WAIT ]]; then
+            echo "::error::Task monitoring timed out after ${MAX_WAIT}s"
+            exit 1
+          fi
+
+      - name: Fetch Task Logs
+        if: |
+          always() &&
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::Task Conversation Log"
+          if [[ -n "${TASK_NAME}" ]]; then
+            coder task logs "${TASK_NAME}" 2>&1 || echo "Failed to fetch logs"
+          else
+            echo "No task name, skipping log fetch"
+          fi
+          echo "::endgroup::"
+
+      - name: Cleanup Task
+        if: |
+          always() &&
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          if [[ -n "${TASK_NAME}" ]]; then
+            echo "Deleting task: ${TASK_NAME}"
+            coder task delete "${TASK_NAME}" -y 2>&1 || echo "Task deletion failed or already deleted"
+          else
+            echo "No task name, skipping cleanup"
+          fi
+
+      - name: Write Final Summary
+        if: |
+          always() &&
+          steps.check-secrets.outputs.skip != 'true' &&
+          (steps.parse-classification.outputs.should_implement == 'true' || steps.determine-context.outputs.skip_classification == 'true')
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
+          RESULT_URI: ${{ steps.wait_task.outputs.result_uri }}
+          ISSUE_NUMBER: ${{ steps.determine-context.outputs.issue_number }}
+        run: |
+          {
+            echo ""
+            echo "---"
+            echo "### Result"
+            echo ""
+            echo "**Status:** ${TASK_MESSAGE:-Task completed}"
+            if [[ -n "${RESULT_URI}" ]]; then
+              echo "**Result:** ${RESULT_URI}"
+            fi
+            echo ""
+            echo "Task \`${TASK_NAME}\` has been cleaned up."
           } >> "${GITHUB_STEP_SUMMARY}"
