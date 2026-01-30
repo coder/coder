@@ -2942,8 +2942,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		if err := insertAgentScripts(ctx, db, agentID, scriptsParams); err != nil {
-			return err
+		if err := insertAgentScriptsAndLogSources(ctx, db, agentID, scriptsParams); err != nil {
+			return xerrors.Errorf("insert agent scripts and log sources: %w", err)
 		}
 
 		for _, app := range prAgent.Apps {
@@ -3322,8 +3322,8 @@ func insertDevcontainerSubagent(
 		}
 	}
 
-	if err := insertAgentScripts(ctx, db, subAgentID, agentScriptsFromProto(dc.GetScripts())); err != nil {
-		return uuid.UUID{}, err
+	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, agentScriptsFromProto(dc.GetScripts())); err != nil {
+		return uuid.UUID{}, xerrors.Errorf("insert agent scripts and log sources: %w", err)
 	}
 
 	return subAgentID, nil
@@ -3402,11 +3402,11 @@ func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
 	return params
 }
 
-// insertAgentScripts inserts log sources and scripts for an agent (or
+// insertAgentScriptsAndLogSources inserts log sources and scripts for an agent (or
 // subagent). It expects the caller to have built the agentScriptsParams,
 // allowing for additional entries to be appended before insertion (e.g. for
 // devcontainers). Returns nil if there are no log sources to insert.
-func insertAgentScripts(ctx context.Context, db database.Store, agentID uuid.UUID, params agentScriptsParams) error {
+func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, agentID uuid.UUID, params agentScriptsParams) error {
 	if len(params.LogSourceIDs) == 0 {
 		return nil
 	}
