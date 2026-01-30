@@ -255,6 +255,84 @@ func TestCreateDynamic(t *testing.T) {
 		require.Error(t, err, "start should fail because new required parameter 'region' is missing")
 		require.Contains(t, err.Error(), "region")
 	})
+
+	// Test that dynamic validation allows values that would be invalid with static validation.
+	// A slider's max value is determined by another parameter, so a value of 8 is invalid
+	// when max_slider=5, but valid when max_slider=10.
+	t.Run("DynamicValidation", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, owner)
+		member, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Template where slider's max is controlled by another parameter
+		const dynamicValidationTF = `
+			terraform {
+			  required_providers {
+			    coder = {
+			      source = "coder/coder"
+			    }
+			  }
+			}
+			data "coder_workspace_owner" "me" {}
+			data "coder_parameter" "max_slider" {
+			  name         = "max_slider"
+			  type         = "number"
+			  default      = 5
+			}
+			data "coder_parameter" "slider" {
+			  name         = "slider"
+			  type         = "number"
+			  default      = 1
+			  validation {
+			    min = 1
+			    max = data.coder_parameter.max_slider.value
+			  }
+			}
+		`
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: dynamicValidationTF,
+		})
+
+		// Test 1: slider=8 should fail when max_slider=5 (default)
+		inv, root := clitest.New(t, "create", "ws-validation-fail",
+			"--template", template.Name,
+			"--parameter", "slider=8",
+			"-y",
+		)
+		clitest.SetupConfig(t, member, root)
+		err := inv.Run()
+		require.Error(t, err, "slider=8 should fail when max_slider=5")
+
+		// Test 2: slider=8 should succeed when max_slider=10
+		inv, root = clitest.New(t, "create", "ws-validation-pass",
+			"--template", template.Name,
+			"--parameter", "max_slider=10",
+			"--parameter", "slider=8",
+			"-y",
+		)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		pty.ExpectMatch("has been created")
+
+		err = <-doneChan
+		require.NoError(t, err, "slider=8 should succeed when max_slider=10")
+
+		// Verify workspace created with correct parameters
+		ws, err := member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-validation-pass", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err := member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "max_slider", Value: "10"})
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "slider", Value: "8"})
+	})
 }
 
 func TestCreate(t *testing.T) {
