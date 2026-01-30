@@ -7,7 +7,14 @@ import type {
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
-import { Combobox } from "components/Combobox/Combobox";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -328,18 +335,49 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "dropdown": {
+			const selectedOption = parameter.options.find(
+				(opt) => opt.value.value === value,
+			);
 			return (
-				<Combobox
-					id={id}
-					value={value ?? ""}
-					onSelect={(value) => onChange(value)}
-					options={parameter.options.map((option) => ({
-						icon: option.icon,
-						displayName: option.name,
-						value: option.value.value,
-						description: option.description,
-					}))}
-				/>
+				<Combobox>
+					<ComboboxTrigger asChild>
+						<ComboboxButton
+							selectedOption={
+								selectedOption
+									? {
+											label: selectedOption.name,
+											value: selectedOption.value.value,
+										}
+									: undefined
+							}
+							placeholder={parameter.styling?.placeholder || "Select option"}
+							disabled={disabled}
+						/>
+					</ComboboxTrigger>
+					<ComboboxContent>
+						<ComboboxList>
+							{parameter.options.map((option) => (
+								<ComboboxItem
+									key={option.value.value}
+									value={option.value.value}
+									selectedOption={
+										selectedOption
+											? {
+													label: selectedOption.name,
+													value: selectedOption.value.value,
+												}
+											: undefined
+									}
+									onSelect={(selectedValue) => {
+										onChange(selectedValue);
+									}}
+								>
+									{option.name}
+								</ComboboxItem>
+							))}
+						</ComboboxList>
+					</ComboboxContent>
+				</Combobox>
 			);
 		}
 

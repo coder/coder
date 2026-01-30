@@ -4,7 +4,15 @@ import type {
 	Organization,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -223,20 +231,52 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							IdP group name
 						</Label>
 						{claimFieldValues ? (
-							<Combobox
-								value={idpGroupName}
-								options={claimFieldValues}
-								placeholder="Select IdP group"
-								open={open}
-								onOpenChange={setOpen}
-								inputValue={comboInputValue}
-								onInputChange={setComboInputValue}
-								onKeyDown={handleKeyDown}
-								onSelect={(value) => {
-									setIdpGroupName(value);
-									setOpen(false);
-								}}
-							/>
+							<Combobox open={open} onOpenChange={setOpen}>
+								<ComboboxTrigger asChild>
+									<ComboboxButton
+										className="w-72"
+										selectedOption={
+											idpGroupName
+												? { label: idpGroupName, value: idpGroupName }
+												: undefined
+										}
+										placeholder="Select IdP group"
+									/>
+								</ComboboxTrigger>
+								<ComboboxContent className="w-72">
+									<ComboboxInput
+										value={comboInputValue}
+										onValueChange={setComboInputValue}
+										placeholder="Search..."
+										onKeyDown={handleKeyDown}
+									/>
+									<ComboboxList>
+										{claimFieldValues
+											.filter((value) =>
+												value
+													.toLowerCase()
+													.includes(comboInputValue.toLowerCase()),
+											)
+											.map((value) => (
+												<ComboboxItem
+													key={value}
+													value={value}
+													selectedOption={
+														idpGroupName
+															? { label: idpGroupName, value: idpGroupName }
+															: undefined
+													}
+													onSelect={(selectedValue) => {
+														setIdpGroupName(selectedValue);
+														setComboInputValue("");
+													}}
+												>
+													{value}
+												</ComboboxItem>
+											))}
+									</ComboboxList>
+								</ComboboxContent>
+							</Combobox>
 						) : (
 							<Input
 								id={`${id}-idp-group-name`}

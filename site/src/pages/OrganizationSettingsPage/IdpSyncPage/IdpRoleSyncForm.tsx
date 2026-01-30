@@ -1,6 +1,14 @@
 import type { Organization, Role, RoleSyncSettings } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import {
@@ -165,20 +173,52 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 							IdP role name
 						</Label>
 						{claimFieldValues ? (
-							<Combobox
-								value={idpRoleName}
-								options={claimFieldValues}
-								placeholder="Select IdP role"
-								open={open}
-								onOpenChange={setOpen}
-								inputValue={comboInputValue}
-								onInputChange={setComboInputValue}
-								onKeyDown={handleKeyDown}
-								onSelect={(value) => {
-									setIdpRoleName(value);
-									setOpen(false);
-								}}
-							/>
+							<Combobox open={open} onOpenChange={setOpen}>
+								<ComboboxTrigger asChild>
+									<ComboboxButton
+										className="w-72"
+										selectedOption={
+											idpRoleName
+												? { label: idpRoleName, value: idpRoleName }
+												: undefined
+										}
+										placeholder="Select IdP role"
+									/>
+								</ComboboxTrigger>
+								<ComboboxContent className="w-72">
+									<ComboboxInput
+										value={comboInputValue}
+										onValueChange={setComboInputValue}
+										placeholder="Search..."
+										onKeyDown={handleKeyDown}
+									/>
+									<ComboboxList>
+										{claimFieldValues
+											.filter((value) =>
+												value
+													.toLowerCase()
+													.includes(comboInputValue.toLowerCase()),
+											)
+											.map((value) => (
+												<ComboboxItem
+													key={value}
+													value={value}
+													selectedOption={
+														idpRoleName
+															? { label: idpRoleName, value: idpRoleName }
+															: undefined
+													}
+													onSelect={(selectedValue) => {
+														setIdpRoleName(selectedValue);
+														setComboInputValue("");
+													}}
+												>
+													{value}
+												</ComboboxItem>
+											))}
+									</ComboboxList>
+								</ComboboxContent>
+							</Combobox>
 						) : (
 							<Input
 								id={`${id}-idp-role-name`}

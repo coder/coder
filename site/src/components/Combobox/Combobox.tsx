@@ -17,16 +17,6 @@ import type React from "react";
 import { createContext, forwardRef, useContext, useState } from "react";
 import { cn } from "utils/cn";
 
-type ComboboxProps = {
-	id?: string;
-	value?: string;
-	placeholder?: string;
-	inputValue?: string;
-	onInputChange?: (value: string) => void;
-	onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
-	onSelect?: (value: string) => void;
-};
-
 type ComboboxContextProps = {
 	open: boolean;
 	setOpen: (open: boolean) => void;
@@ -47,7 +37,7 @@ function Combobox({
 	open: controlledOpen,
 	onOpenChange: controlledOnOpenChange,
 	...props
-}: React.ComponentProps<typeof Popover> & ComboboxProps) {
+}: React.ComponentProps<typeof Popover>) {
 	const [internalOpen, setInternalOpen] = useState(false);
 
 	// Use controlled state if provided, otherwise use internal state
@@ -126,6 +116,7 @@ const ComboboxItem = forwardRef<
 	return (
 		<CommandItem
 			ref={ref}
+			value={value}
 			className={cn(className, "rounded-none")}
 			onSelect={(value) => {
 				setOpen(false);
