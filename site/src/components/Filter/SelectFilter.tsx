@@ -85,6 +85,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 								className="px-4 data-[selected=true]:bg-surface-tertiary font-normal gap-4"
 								key={option.value}
 								value={option.value}
+								keywords={[option.label]}
 							>
 								{option.startIcon}
 								<span className="flex-1 truncate">{option.label}</span>
