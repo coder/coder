@@ -537,3 +537,31 @@ func TestLogin(t *testing.T) {
 		require.Equal(t, selected, first.OrganizationID.String())
 	})
 }
+
+func TestLoginToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PrintsToken", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "token", "--url", client.URL.String())
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		pty.ExpectMatch(client.SessionToken())
+	})
+
+	t.Run("NoTokenStored", func(t *testing.T) {
+		t.Parallel()
+		inv, _ := clitest.New(t, "login", "token")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "no session token found")
+	})
+}

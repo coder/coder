@@ -978,3 +978,9 @@ coderd_agentapi_metadata_flushed_total 71
 # HELP coderd_agentapi_metadata_publish_errors_total Total number of metadata batch pubsub publish calls that have resulted in an error.
 # TYPE coderd_agentapi_metadata_publish_errors_total counter
 coderd_agentapi_metadata_publish_errors_total 0
+# HELP coderd_license_warnings The number of active license warnings.
+# TYPE coderd_license_warnings gauge
+coderd_license_warnings 0
+# HELP coderd_license_errors The number of active license errors.
+# TYPE coderd_license_errors gauge
+coderd_license_errors 0
