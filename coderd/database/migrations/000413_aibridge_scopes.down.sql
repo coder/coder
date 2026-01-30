@@ -1,0 +1,2 @@
+-- Enum values cannot be removed in PostgreSQL without recreating the type.
+-- This is intentionally left empty as the scope values are harmless if unused.
