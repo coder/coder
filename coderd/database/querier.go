@@ -250,6 +250,12 @@ type sqlcQuerier interface {
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	// Get the last "working" app status for multiple apps before a specific time.
+	// Used for task telemetry to determine when a task was last actively working
+	// before being paused (to calculate idle duration).
+	//
+	// Returns at most one row per app_id (the most recent "working" status).
+	GetLastWorkingAppStatusesBeforeTimeBatch(ctx context.Context, arg GetLastWorkingAppStatusesBeforeTimeBatchParams) ([]GetLastWorkingAppStatusesBeforeTimeBatchRow, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
 	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
@@ -360,6 +366,9 @@ type sqlcQuerier interface {
 	GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) (Task, error)
 	GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error)
 	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
+	// Batch fetch tasks by workspace IDs from the tasks_with_status view.
+	// Used for telemetry to efficiently fetch tasks for workspaces with activity.
+	GetTasksByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]Task, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
 	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given

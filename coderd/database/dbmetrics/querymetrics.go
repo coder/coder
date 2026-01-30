@@ -1182,6 +1182,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLastWorkingAppStatusesBeforeTimeBatch(ctx context.Context, arg database.GetLastWorkingAppStatusesBeforeTimeBatchParams) ([]database.GetLastWorkingAppStatusesBeforeTimeBatchRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLastWorkingAppStatusesBeforeTimeBatch(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLastWorkingAppStatusesBeforeTimeBatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastWorkingAppStatusesBeforeTimeBatch").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
@@ -1779,6 +1787,14 @@ func (m queryMetricsStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID
 	r0, r1 := m.s.GetTaskSnapshot(ctx, taskID)
 	m.queryLatencies.WithLabelValues("GetTaskSnapshot").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskSnapshot").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTasksByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTasksByWorkspaceIDs(ctx, workspaceIds)
+	m.queryLatencies.WithLabelValues("GetTasksByWorkspaceIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTasksByWorkspaceIDs").Inc()
 	return r0, r1
 }
 

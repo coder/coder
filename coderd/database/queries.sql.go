@@ -13308,6 +13308,59 @@ func (q *sqlQuerier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (Tas
 	return i, err
 }
 
+const getTasksByWorkspaceIDs = `-- name: GetTasksByWorkspaceIDs :many
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status
+WHERE workspace_id = ANY($1::uuid[])
+ORDER BY created_at DESC
+`
+
+// Batch fetch tasks by workspace IDs from the tasks_with_status view.
+// Used for telemetry to efficiently fetch tasks for workspaces with activity.
+func (q *sqlQuerier) GetTasksByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, getTasksByWorkspaceIDs, pq.Array(workspaceIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.TemplateParameters,
+			&i.Prompt,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.DisplayName,
+			&i.Status,
+			&i.StatusDebug,
+			&i.WorkspaceBuildNumber,
+			&i.WorkspaceAgentID,
+			&i.WorkspaceAppID,
+			&i.WorkspaceAgentLifecycleState,
+			&i.WorkspaceAppHealth,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.OwnerAvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertTask = `-- name: InsertTask :one
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, display_name, workspace_id, template_version_id, template_parameters, prompt, created_at)
@@ -20283,6 +20336,64 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	var new_or_stale bool
 	err := row.Scan(&new_or_stale)
 	return new_or_stale, err
+}
+
+const getLastWorkingAppStatusesBeforeTimeBatch = `-- name: GetLastWorkingAppStatusesBeforeTimeBatch :many
+SELECT DISTINCT ON (app_id)
+    app_id,
+    created_at AS last_working_time,
+    state,
+    message
+FROM workspace_app_statuses
+WHERE app_id = ANY($1::uuid[])
+  AND created_at < $2::timestamptz
+  AND state = 'working'::workspace_app_status_state
+ORDER BY app_id, created_at DESC
+`
+
+type GetLastWorkingAppStatusesBeforeTimeBatchParams struct {
+	AppIds     []uuid.UUID `db:"app_ids" json:"app_ids"`
+	BeforeTime time.Time   `db:"before_time" json:"before_time"`
+}
+
+type GetLastWorkingAppStatusesBeforeTimeBatchRow struct {
+	AppID           uuid.UUID               `db:"app_id" json:"app_id"`
+	LastWorkingTime time.Time               `db:"last_working_time" json:"last_working_time"`
+	State           WorkspaceAppStatusState `db:"state" json:"state"`
+	Message         string                  `db:"message" json:"message"`
+}
+
+// Get the last "working" app status for multiple apps before a specific time.
+// Used for task telemetry to determine when a task was last actively working
+// before being paused (to calculate idle duration).
+//
+// Returns at most one row per app_id (the most recent "working" status).
+func (q *sqlQuerier) GetLastWorkingAppStatusesBeforeTimeBatch(ctx context.Context, arg GetLastWorkingAppStatusesBeforeTimeBatchParams) ([]GetLastWorkingAppStatusesBeforeTimeBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLastWorkingAppStatusesBeforeTimeBatch, pq.Array(arg.AppIds), arg.BeforeTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLastWorkingAppStatusesBeforeTimeBatchRow
+	for rows.Next() {
+		var i GetLastWorkingAppStatusesBeforeTimeBatchRow
+		if err := rows.Scan(
+			&i.AppID,
+			&i.LastWorkingTime,
+			&i.State,
+			&i.Message,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getLatestWorkspaceAppStatusByAppID = `-- name: GetLatestWorkspaceAppStatusByAppID :one

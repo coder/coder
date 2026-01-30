@@ -740,18 +740,102 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
-			OwnerID:        uuid.Nil,
-			OrganizationID: uuid.Nil,
-			Status:         "",
-			CreatedAfter:   sql.NullTime{Time: createdAfter, Valid: true},
-		})
+		// Activity-based filtering: include tasks with workspace build activity
+		// (creation, pause, resume) in the time window, not just newly created tasks.
+		// This captures lifecycle events for existing tasks.
+
+		// Step 1: Get all workspace builds created in time window.
+		builds, err := r.options.Database.GetWorkspaceBuildsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get tasks: %w", err)
+			return xerrors.Errorf("get workspace builds: %w", err)
 		}
+
+		// Step 2: Extract unique workspace IDs.
+		workspaceIDSet := make(map[uuid.UUID]struct{})
+		for _, build := range builds {
+			workspaceIDSet[build.WorkspaceID] = struct{}{}
+		}
+
+		if len(workspaceIDSet) == 0 {
+			// No workspace activity, no tasks to report.
+			return nil
+		}
+
+		workspaceIDs := make([]uuid.UUID, 0, len(workspaceIDSet))
+		for wsID := range workspaceIDSet {
+			workspaceIDs = append(workspaceIDs, wsID)
+		}
+
+		// Step 3: Batch fetch tasks for these workspaces.
+		dbTasks, err := r.options.Database.GetTasksByWorkspaceIDs(ctx, workspaceIDs)
+		if err != nil {
+			return xerrors.Errorf("get tasks by workspace IDs: %w", err)
+		}
+
+		if len(dbTasks) == 0 {
+			return nil
+		}
+
+		// Step 4: Process builds to identify pause/resume events.
+		// Group builds by workspace for easier processing.
+		buildsByWorkspace := make(map[uuid.UUID][]database.WorkspaceBuild)
+		for _, build := range builds {
+			buildsByWorkspace[build.WorkspaceID] = append(buildsByWorkspace[build.WorkspaceID], build)
+		}
+
+		// Step 5: Collect app IDs for batch app status query.
+		appIDSet := make(map[uuid.UUID]struct{})
+		for _, task := range dbTasks {
+			if task.WorkspaceAppID.Valid {
+				appIDSet[task.WorkspaceAppID.UUID] = struct{}{}
+			}
+		}
+
+		// Find earliest pause time for app status query optimization.
+		var earliestPause *time.Time
+		for _, buildList := range buildsByWorkspace {
+			for _, build := range buildList {
+				if build.Transition == database.WorkspaceTransitionStop &&
+					(build.Reason == database.BuildReasonTaskAutoPause ||
+						build.Reason == database.BuildReasonTaskManualPause) {
+					if earliestPause == nil || build.CreatedAt.Before(*earliestPause) {
+						earliestPause = &build.CreatedAt
+					}
+				}
+			}
+		}
+
+		// Step 6: Batch fetch app statuses for idle duration calculations.
+		var lastWorkingByApp map[uuid.UUID]time.Time
+		if len(appIDSet) > 0 && earliestPause != nil {
+			appIDs := make([]uuid.UUID, 0, len(appIDSet))
+			for appID := range appIDSet {
+				appIDs = append(appIDs, appID)
+			}
+
+			appStatuses, err := r.options.Database.GetLastWorkingAppStatusesBeforeTimeBatch(ctx,
+				database.GetLastWorkingAppStatusesBeforeTimeBatchParams{
+					AppIds:     appIDs,
+					BeforeTime: *earliestPause,
+				})
+			if err != nil {
+				r.options.Logger.Warn(ctx, "failed to get app statuses for idle duration", slog.Error(err))
+				// Continue without idle duration data.
+			} else {
+				lastWorkingByApp = make(map[uuid.UUID]time.Time, len(appStatuses))
+				for _, status := range appStatuses {
+					lastWorkingByApp[status.AppID] = status.LastWorkingTime
+				}
+			}
+		}
+
+		// Step 7: Convert tasks with lifecycle data.
+		snapshot.Tasks = make([]Task, 0, len(dbTasks))
 		for _, dbTask := range dbTasks {
-			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
+			task := convertTaskWithLifecycle(dbTask, buildsByWorkspace, lastWorkingByApp)
+			snapshot.Tasks = append(snapshot.Tasks, task)
 		}
+
 		return nil
 	})
 	eg.Go(func() error {
@@ -1931,6 +2015,13 @@ type Task struct {
 	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
 	CreatedAt            time.Time `json:"created_at"`
 	Status               string    `json:"status"`
+
+	// Lifecycle fields for tracking task pause/resume behavior.
+	LastPausedAt     *time.Time `json:"last_paused_at,omitempty"`
+	LastResumedAt    *time.Time `json:"last_resumed_at,omitempty"`
+	PauseReason      *string    `json:"pause_reason,omitempty"`
+	IdleDurationMs   *int64     `json:"idle_duration_ms,omitempty"`
+	PausedDurationMs *int64     `json:"paused_duration_ms,omitempty"`
 }
 
 // ConvertTask anonymizes a Task.
@@ -1962,6 +2053,86 @@ func ConvertTask(task database.Task) Task {
 		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
 	}
 	return *t
+}
+
+// convertTaskWithLifecycle converts a database task to a telemetry Task with
+// lifecycle metrics (pause/resume tracking, idle time, pause duration).
+func convertTaskWithLifecycle(
+	task database.Task,
+	buildsByWorkspace map[uuid.UUID][]database.WorkspaceBuild,
+	lastWorkingByApp map[uuid.UUID]time.Time,
+) Task {
+	// Start with basic conversion.
+	t := ConvertTask(task)
+
+	// Add lifecycle metrics only if task has a workspace.
+	if !task.WorkspaceID.Valid {
+		return t
+	}
+
+	builds, hasBuilds := buildsByWorkspace[task.WorkspaceID.UUID]
+	if !hasBuilds || len(builds) == 0 {
+		return t
+	}
+
+	// Find most recent pause and resume events.
+	var lastPause, lastResume *database.WorkspaceBuild
+	for i := range builds {
+		build := &builds[i]
+
+		// Check for pause events (stop transition with task pause reason).
+		if build.Transition == database.WorkspaceTransitionStop &&
+			(build.Reason == database.BuildReasonTaskAutoPause ||
+				build.Reason == database.BuildReasonTaskManualPause) {
+			if lastPause == nil || build.CreatedAt.After(lastPause.CreatedAt) {
+				lastPause = build
+			}
+		}
+
+		// Check for resume events (start transition with task resume reason).
+		if build.Transition == database.WorkspaceTransitionStart &&
+			build.Reason == database.BuildReasonTaskResume {
+			if lastResume == nil || build.CreatedAt.After(lastResume.CreatedAt) {
+				lastResume = build
+			}
+		}
+	}
+
+	// Populate pause information.
+	if lastPause != nil {
+		t.LastPausedAt = &lastPause.CreatedAt
+
+		// Determine pause reason.
+		pauseReason := "auto"
+		if lastPause.Reason == database.BuildReasonTaskManualPause {
+			pauseReason = "manual"
+		}
+		t.PauseReason = &pauseReason
+
+		// Calculate idle duration if we have app activity data.
+		if task.WorkspaceAppID.Valid {
+			if lastWorking, found := lastWorkingByApp[task.WorkspaceAppID.UUID]; found {
+				idleDuration := lastPause.CreatedAt.Sub(lastWorking).Milliseconds()
+				if idleDuration > 0 {
+					t.IdleDurationMs = &idleDuration
+				}
+			}
+		}
+	}
+
+	// Populate resume information.
+	if lastResume != nil {
+		t.LastResumedAt = &lastResume.CreatedAt
+
+		// Calculate paused duration if we have both pause and resume, and resume
+		// came after pause (handles multiple pause/resume cycles correctly).
+		if lastPause != nil && lastResume.CreatedAt.After(lastPause.CreatedAt) {
+			pausedDuration := lastResume.CreatedAt.Sub(lastPause.CreatedAt).Milliseconds()
+			t.PausedDurationMs = &pausedDuration
+		}
+	}
+
+	return t
 }
 
 type telemetryItemKey string

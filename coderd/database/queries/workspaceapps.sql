@@ -87,3 +87,20 @@ SELECT DISTINCT ON (workspace_id)
 FROM workspace_app_statuses
 WHERE workspace_id = ANY(@ids :: uuid[])
 ORDER BY workspace_id, created_at DESC;
+
+-- name: GetLastWorkingAppStatusesBeforeTimeBatch :many
+-- Get the last "working" app status for multiple apps before a specific time.
+-- Used for task telemetry to determine when a task was last actively working
+-- before being paused (to calculate idle duration).
+--
+-- Returns at most one row per app_id (the most recent "working" status).
+SELECT DISTINCT ON (app_id)
+    app_id,
+    created_at AS last_working_time,
+    state,
+    message
+FROM workspace_app_statuses
+WHERE app_id = ANY(@app_ids::uuid[])
+  AND created_at < @before_time::timestamptz
+  AND state = 'working'::workspace_app_status_state
+ORDER BY app_id, created_at DESC;

@@ -2515,6 +2515,14 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return q.db.GetLastUpdateCheck(ctx)
 }
 
+func (q *querier) GetLastWorkingAppStatusesBeforeTimeBatch(ctx context.Context, arg database.GetLastWorkingAppStatusesBeforeTimeBatchParams) ([]database.GetLastWorkingAppStatusesBeforeTimeBatchRow, error) {
+	// Workspace app statuses require system resource read access.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLastWorkingAppStatusesBeforeTimeBatch(ctx, arg)
+}
+
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -3124,6 +3132,11 @@ func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (databa
 	}
 
 	return q.db.GetTaskSnapshot(ctx, taskID)
+}
+
+func (q *querier) GetTasksByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) ([]database.Task, error) {
+	// Batch fetch with post-filter authorization, same pattern as ListTasks.
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetTasksByWorkspaceIDs)(ctx, workspaceIDs)
 }
 
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {

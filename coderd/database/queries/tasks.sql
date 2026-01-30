@@ -41,6 +41,13 @@ SELECT * FROM tasks_with_status WHERE id = @id::uuid;
 -- name: GetTaskByWorkspaceID :one
 SELECT * FROM tasks_with_status WHERE workspace_id = @workspace_id::uuid;
 
+-- name: GetTasksByWorkspaceIDs :many
+-- Batch fetch tasks by workspace IDs from the tasks_with_status view.
+-- Used for telemetry to efficiently fetch tasks for workspaces with activity.
+SELECT * FROM tasks_with_status
+WHERE workspace_id = ANY(@workspace_ids::uuid[])
+ORDER BY created_at DESC;
+
 -- name: GetTaskByOwnerIDAndName :one
 SELECT * FROM tasks_with_status
 WHERE
