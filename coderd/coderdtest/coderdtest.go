@@ -399,6 +399,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
 		experiments,
+		options.ProvisionerdServerMetrics,
 	).WithStatsChannel(options.AutobuildStats)
 
 	lifecycleExecutor.Run()

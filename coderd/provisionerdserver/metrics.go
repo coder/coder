@@ -13,6 +13,8 @@ type Metrics struct {
 	logger                   slog.Logger
 	workspaceCreationTimings *prometheus.HistogramVec
 	workspaceClaimTimings    *prometheus.HistogramVec
+	jobQueueWait             *prometheus.HistogramVec
+	workspaceBuildsEnqueued  *prometheus.CounterVec
 }
 
 type WorkspaceTimingType int
@@ -28,6 +30,18 @@ const (
 	workspaceTypeRegular  = "regular"
 	workspaceTypePrebuild = "prebuild"
 )
+
+// Metric label values for build status.
+const (
+	BuildStatusSuccess = "success"
+	BuildStatusFailed  = "failed"
+)
+
+// BuildReasonPrebuild is the build_reason metric label value for prebuild
+// operations. This is distinct from database.BuildReason values since prebuilds
+// use BuildReasonInitiator in the database but we want to track them separately
+// in metrics.
+const BuildReasonPrebuild = "prebuild"
 
 type WorkspaceTimingFlags struct {
 	IsPrebuild   bool
@@ -90,6 +104,34 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name"}),
+		jobQueueWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "coderd",
+			Name:      "provisioner_job_queue_wait_seconds",
+			Help:      "Time from job creation to acquisition by a provisioner daemon.",
+			Buckets: []float64{
+				0.01,  // 10ms
+				0.025, // 25ms
+				0.05,  // 50ms
+				0.1,   // 100ms
+				0.5,   // 500ms
+				1,     // 1s
+				5,     // 5s
+				10,    // 10s
+				30,    // 30s
+				60,    // 1m
+				300,   // 5m
+			},
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: time.Hour,
+			NativeHistogramZeroThreshold:    0,
+			NativeHistogramMaxZeroThreshold: 0,
+		}, []string{"provisioner_type", "job_type", "transition", "build_reason"}),
+		workspaceBuildsEnqueued: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Name:      "workspace_builds_enqueued_total",
+			Help:      "Total number of workspace build enqueue attempts.",
+		}, []string{"provisioner_type", "build_reason", "transition", "status"}),
 	}
 }
 
@@ -97,7 +139,13 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	if err := reg.Register(m.workspaceCreationTimings); err != nil {
 		return err
 	}
-	return reg.Register(m.workspaceClaimTimings)
+	if err := reg.Register(m.workspaceClaimTimings); err != nil {
+		return err
+	}
+	if err := reg.Register(m.jobQueueWait); err != nil {
+		return err
+	}
+	return reg.Register(m.workspaceBuildsEnqueued)
 }
 
 // IsTrackable returns true if the workspace build should be tracked in metrics.
@@ -161,4 +209,21 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 	default:
 		// Not a trackable build type (e.g. restart, stop, subsequent builds)
 	}
+}
+
+// RecordWorkspaceBuildEnqueued records a workspace build enqueue attempt. It
+// determines the status based on whether an error occurred and increments the
+// counter metric.
+func (m *Metrics) RecordWorkspaceBuildEnqueued(provisionerType, buildReason, transition string, err error) {
+	status := BuildStatusSuccess
+	if err != nil {
+		status = BuildStatusFailed
+	}
+	m.workspaceBuildsEnqueued.WithLabelValues(provisionerType, buildReason, transition, status).Inc()
+}
+
+// ObserveJobQueueWait records the time a provisioner job spent waiting in the queue.
+// For non-workspace-build jobs, transition and buildReason should be empty strings.
+func (m *Metrics) ObserveJobQueueWait(provisionerType, jobType, transition, buildReason string, waitSeconds float64) {
+	m.jobQueueWait.WithLabelValues(provisionerType, jobType, transition, buildReason).Observe(waitSeconds)
 }
