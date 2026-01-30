@@ -1042,20 +1042,28 @@
 											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
 										},
 										{
-											"title": "Cline",
-											"path": "./ai-coder/ai-bridge/clients/cline.md"
-										},
-										{
 											"title": "Codex",
 											"path": "./ai-coder/ai-bridge/clients/codex.md"
 										},
 										{
-											"title": "Copilot",
-											"path": "./ai-coder/ai-bridge/clients/copilot.md"
+											"title": "OpenCode",
+											"path": "./ai-coder/ai-bridge/clients/opencode.md"
 										},
 										{
 											"title": "Droid",
 											"path": "./ai-coder/ai-bridge/clients/droid.md"
+										},
+										{
+											"title": "VS Code",
+											"path": "./ai-coder/ai-bridge/clients/vscode.md"
+										},
+										{
+											"title": "Zed",
+											"path": "./ai-coder/ai-bridge/clients/zed.md"
+										},
+										{
+											"title": "Cline",
+											"path": "./ai-coder/ai-bridge/clients/cline.md"
 										},
 										{
 											"title": "Goose",
@@ -1070,16 +1078,8 @@
 											"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
 										},
 										{
-											"title": "OpenCode",
-											"path": "./ai-coder/ai-bridge/clients/opencode.md"
-										},
-										{
 											"title": "Roo Code",
 											"path": "./ai-coder/ai-bridge/clients/roo-code.md"
-										},
-										{
-											"title": "Zed",
-											"path": "./ai-coder/ai-bridge/clients/zed.md"
 										}
 									]
 								},
