@@ -2873,33 +2873,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
-		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
-		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
-		scriptIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
-		scriptDisplayName := make([]string, 0, len(prAgent.Scripts))
-		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
-		scriptSources := make([]string, 0, len(prAgent.Scripts))
-		scriptCron := make([]string, 0, len(prAgent.Scripts))
-		scriptTimeout := make([]int32, 0, len(prAgent.Scripts))
-		scriptStartBlocksLogin := make([]bool, 0, len(prAgent.Scripts))
-		scriptRunOnStart := make([]bool, 0, len(prAgent.Scripts))
-		scriptRunOnStop := make([]bool, 0, len(prAgent.Scripts))
-
-		for _, script := range prAgent.Scripts {
-			logSourceIDs = append(logSourceIDs, uuid.New())
-			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
-			logSourceIcons = append(logSourceIcons, script.Icon)
-			scriptIDs = append(scriptIDs, uuid.New())
-			scriptDisplayName = append(scriptDisplayName, script.DisplayName)
-			scriptLogPaths = append(scriptLogPaths, script.LogPath)
-			scriptSources = append(scriptSources, script.Script)
-			scriptCron = append(scriptCron, script.Cron)
-			scriptTimeout = append(scriptTimeout, script.TimeoutSeconds)
-			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
-			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
-			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
-		}
+		scriptsParams := agentScriptsFromProto(prAgent.Scripts)
 
 		// Dev Containers require a script and log/source, so we do this before
 		// the logs insert below.
@@ -2934,21 +2908,21 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				// Add a log source and script for each devcontainer so we can
 				// track logs and timings for each devcontainer.
 				displayName := fmt.Sprintf("Dev Container (%s)", dc.GetName())
-				logSourceIDs = append(logSourceIDs, uuid.New())
-				logSourceDisplayNames = append(logSourceDisplayNames, displayName)
-				logSourceIcons = append(logSourceIcons, "/emojis/1f4e6.png") // Emoji package. Or perhaps /icon/container.svg?
-				scriptIDs = append(scriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
-				scriptDisplayName = append(scriptDisplayName, displayName)
-				scriptLogPaths = append(scriptLogPaths, "")
-				scriptSources = append(scriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
-				scriptCron = append(scriptCron, "")
-				scriptTimeout = append(scriptTimeout, 0)
-				scriptStartBlocksLogin = append(scriptStartBlocksLogin, false)
+				scriptsParams.LogSourceIDs = append(scriptsParams.LogSourceIDs, uuid.New())
+				scriptsParams.LogSourceDisplayNames = append(scriptsParams.LogSourceDisplayNames, displayName)
+				scriptsParams.LogSourceIcons = append(scriptsParams.LogSourceIcons, "/emojis/1f4e6.png") // Emoji package. Or perhaps /icon/container.svg?
+				scriptsParams.ScriptIDs = append(scriptsParams.ScriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
+				scriptsParams.ScriptDisplayNames = append(scriptsParams.ScriptDisplayNames, displayName)
+				scriptsParams.ScriptLogPaths = append(scriptsParams.ScriptLogPaths, "")
+				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptsParams.ScriptCron = append(scriptsParams.ScriptCron, "")
+				scriptsParams.ScriptTimeout = append(scriptsParams.ScriptTimeout, 0)
+				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
 				// Run on start to surface the warning message in case the
 				// terraform resource is used, but the experiment hasn't
 				// been enabled.
-				scriptRunOnStart = append(scriptRunOnStart, true)
-				scriptRunOnStop = append(scriptRunOnStop, false)
+				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, true)
+				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
 			}
 
 			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
@@ -2965,33 +2939,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
-			WorkspaceAgentID: agentID,
-			ID:               logSourceIDs,
-			CreatedAt:        dbtime.Now(),
-			DisplayName:      logSourceDisplayNames,
-			Icon:             logSourceIcons,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert agent log sources: %w", err)
-		}
-
-		_, err = db.InsertWorkspaceAgentScripts(ctx, database.InsertWorkspaceAgentScriptsParams{
-			WorkspaceAgentID: agentID,
-			LogSourceID:      logSourceIDs,
-			LogPath:          scriptLogPaths,
-			CreatedAt:        dbtime.Now(),
-			Script:           scriptSources,
-			Cron:             scriptCron,
-			TimeoutSeconds:   scriptTimeout,
-			StartBlocksLogin: scriptStartBlocksLogin,
-			RunOnStart:       scriptRunOnStart,
-			RunOnStop:        scriptRunOnStop,
-			DisplayName:      scriptDisplayName,
-			ID:               scriptIDs,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert agent scripts: %w", err)
+		if err := insertAgentScripts(ctx, db, agentID, scriptsParams); err != nil {
+			return err
 		}
 
 		for _, app := range prAgent.Apps {
@@ -3374,7 +3323,7 @@ func insertDevcontainerSubagent(
 		}
 	}
 
-	if err := insertSubagentScripts(ctx, db, subAgentID, dc.GetScripts()); err != nil {
+	if err := insertAgentScripts(ctx, db, subAgentID, agentScriptsFromProto(dc.GetScripts())); err != nil {
 		return uuid.UUID{}, err
 	}
 
@@ -3398,67 +3347,95 @@ func encodeSubagentEnvs(envs []*sdkproto.Env) (pqtype.NullRawMessage, error) {
 	return pqtype.NullRawMessage{Valid: true, RawMessage: data}, nil
 }
 
-func insertSubagentScripts(ctx context.Context, db database.Store, subAgentID uuid.UUID, scripts []*sdkproto.Script) error {
-	if len(scripts) == 0 {
+// agentScriptsParams holds the parameters for inserting agent scripts and
+// their associated log sources.
+type agentScriptsParams struct {
+	LogSourceIDs          []uuid.UUID
+	LogSourceDisplayNames []string
+	LogSourceIcons        []string
+
+	ScriptIDs              []uuid.UUID
+	ScriptDisplayNames     []string
+	ScriptLogPaths         []string
+	ScriptSources          []string
+	ScriptCron             []string
+	ScriptTimeout          []int32
+	ScriptStartBlocksLogin []bool
+	ScriptRunOnStart       []bool
+	ScriptRunOnStop        []bool
+}
+
+// agentScriptsFromProto converts a slice of proto scripts into the
+// agentScriptsParams struct needed for database insertion.
+func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
+	params := agentScriptsParams{
+		LogSourceIDs:          make([]uuid.UUID, 0, len(scripts)),
+		LogSourceDisplayNames: make([]string, 0, len(scripts)),
+		LogSourceIcons:        make([]string, 0, len(scripts)),
+
+		ScriptIDs:              make([]uuid.UUID, 0, len(scripts)),
+		ScriptDisplayNames:     make([]string, 0, len(scripts)),
+		ScriptLogPaths:         make([]string, 0, len(scripts)),
+		ScriptSources:          make([]string, 0, len(scripts)),
+		ScriptCron:             make([]string, 0, len(scripts)),
+		ScriptTimeout:          make([]int32, 0, len(scripts)),
+		ScriptStartBlocksLogin: make([]bool, 0, len(scripts)),
+		ScriptRunOnStart:       make([]bool, 0, len(scripts)),
+		ScriptRunOnStop:        make([]bool, 0, len(scripts)),
+	}
+
+	for _, script := range scripts {
+		params.LogSourceIDs = append(params.LogSourceIDs, uuid.New())
+		params.LogSourceDisplayNames = append(params.LogSourceDisplayNames, script.GetDisplayName())
+		params.LogSourceIcons = append(params.LogSourceIcons, script.GetIcon())
+
+		params.ScriptIDs = append(params.ScriptIDs, uuid.New())
+		params.ScriptDisplayNames = append(params.ScriptDisplayNames, script.GetDisplayName())
+		params.ScriptLogPaths = append(params.ScriptLogPaths, script.GetLogPath())
+		params.ScriptSources = append(params.ScriptSources, script.GetScript())
+		params.ScriptCron = append(params.ScriptCron, script.GetCron())
+		params.ScriptTimeout = append(params.ScriptTimeout, script.GetTimeoutSeconds())
+		params.ScriptStartBlocksLogin = append(params.ScriptStartBlocksLogin, script.GetStartBlocksLogin())
+		params.ScriptRunOnStart = append(params.ScriptRunOnStart, script.GetRunOnStart())
+		params.ScriptRunOnStop = append(params.ScriptRunOnStop, script.GetRunOnStop())
+	}
+
+	return params
+}
+
+// insertAgentScripts inserts log sources and scripts for an agent (or
+// subagent). It expects the caller to have built the agentScriptsParams,
+// allowing for additional entries to be appended before insertion (e.g. for
+// devcontainers). Returns nil if there are no log sources to insert.
+func insertAgentScripts(ctx context.Context, db database.Store, agentID uuid.UUID, params agentScriptsParams) error {
+	if len(params.LogSourceIDs) == 0 {
 		return nil
 	}
 
-	var (
-		logSourceIDs   = make([]uuid.UUID, 0, len(scripts))
-		logSourceNames = make([]string, 0, len(scripts))
-		logSourceIcons = make([]string, 0, len(scripts))
-
-		scriptIDs          = make([]uuid.UUID, 0, len(scripts))
-		scriptLogPaths     = make([]string, 0, len(scripts))
-		scriptSources      = make([]string, 0, len(scripts))
-		scriptCron         = make([]string, 0, len(scripts))
-		scriptTimeout      = make([]int32, 0, len(scripts))
-		scriptStartBlock   = make([]bool, 0, len(scripts))
-		scriptRunOnStart   = make([]bool, 0, len(scripts))
-		scriptRunOnStop    = make([]bool, 0, len(scripts))
-		scriptDisplayNames = make([]string, 0, len(scripts))
-	)
-
-	for _, script := range scripts {
-		logSourceIDs = append(logSourceIDs, uuid.New())
-		logSourceNames = append(logSourceNames, script.GetDisplayName())
-		logSourceIcons = append(logSourceIcons, script.GetIcon())
-
-		scriptIDs = append(scriptIDs, uuid.New())
-		scriptLogPaths = append(scriptLogPaths, script.GetLogPath())
-		scriptSources = append(scriptSources, script.GetScript())
-		scriptCron = append(scriptCron, script.GetCron())
-		scriptTimeout = append(scriptTimeout, script.GetTimeoutSeconds())
-		scriptStartBlock = append(scriptStartBlock, script.GetStartBlocksLogin())
-		scriptRunOnStart = append(scriptRunOnStart, script.GetRunOnStart())
-		scriptRunOnStop = append(scriptRunOnStop, script.GetRunOnStop())
-		scriptDisplayNames = append(scriptDisplayNames, script.GetDisplayName())
-	}
-
 	_, err := db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
-		WorkspaceAgentID: subAgentID,
-		ID:               logSourceIDs,
+		WorkspaceAgentID: agentID,
+		ID:               params.LogSourceIDs,
 		CreatedAt:        dbtime.Now(),
-		DisplayName:      logSourceNames,
-		Icon:             logSourceIcons,
+		DisplayName:      params.LogSourceDisplayNames,
+		Icon:             params.LogSourceIcons,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert log sources: %w", err)
 	}
 
 	_, err = db.InsertWorkspaceAgentScripts(ctx, database.InsertWorkspaceAgentScriptsParams{
-		WorkspaceAgentID: subAgentID,
-		LogSourceID:      logSourceIDs,
-		ID:               scriptIDs,
-		LogPath:          scriptLogPaths,
+		WorkspaceAgentID: agentID,
+		LogSourceID:      params.LogSourceIDs,
+		ID:               params.ScriptIDs,
+		LogPath:          params.ScriptLogPaths,
 		CreatedAt:        dbtime.Now(),
-		Script:           scriptSources,
-		Cron:             scriptCron,
-		TimeoutSeconds:   scriptTimeout,
-		StartBlocksLogin: scriptStartBlock,
-		RunOnStart:       scriptRunOnStart,
-		RunOnStop:        scriptRunOnStop,
-		DisplayName:      scriptDisplayNames,
+		Script:           params.ScriptSources,
+		Cron:             params.ScriptCron,
+		TimeoutSeconds:   params.ScriptTimeout,
+		StartBlocksLogin: params.ScriptStartBlocksLogin,
+		RunOnStart:       params.ScriptRunOnStart,
+		RunOnStop:        params.ScriptRunOnStop,
+		DisplayName:      params.ScriptDisplayNames,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert scripts: %w", err)
