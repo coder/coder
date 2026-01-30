@@ -24,7 +24,7 @@ This is a Premium/Beta feature that intercepts AI traffic to record prompts, tok
 
 ### Agent Boundaries
 
-Agent Boundaries was introduced in 2.27 and is currently in Early Access. Agent Boundaries are process-level firewalls in Coder that restrict and audit what autonomous programs (like AI agents) can access and do within a workspace. They provide network policy enforcement—blocking specific domains and HTTP verbs to prevent data exfiltration—and write logs to the workspace for auditability. Boundaries support any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module. For more information, read our documentation [here](https://coder.com/docs/ai-coder/agent-boundary).
+Agent Boundaries was introduced in 2.27 and is currently in Early Access. Agent Boundaries are process-level firewalls in Coder that restrict and audit what autonomous programs (like AI agents) can access and do within a workspace. They provide network policy enforcement—blocking specific domains and HTTP verbs to prevent data exfiltration—and write logs to the workspace for auditability. Boundaries support any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module. For more information, read our documentation [here](https://coder.com/docs/ai-coder/agent-boundaries).
 
 ### Performance Enhancements
 
