@@ -1,23 +1,23 @@
 # Agent Boundary
 
-Agent Boundaries are process-level firewalls that restrict and audit what autonomous programs, such as AI agents, can access and use.
+Agent Boundary is a process-level firewall that restricts and audits what autonomous programs, such as AI agents, can access and use.
 
-![Screenshot of Agent Boundaries blocking a process](../../images/guides/ai-agents/boundary.png)Example of Agent Boundaries blocking a process.
+![Screenshot of Agent Boundary blocking a process](../../images/guides/ai-agents/boundary.png)Example of Agent Boundary blocking a process.
 
 ## Supported Agents
 
-Agent Boundaries support the securing of any terminal-based agent, including your own custom agents.
+Agent Boundary supports the securing of any terminal-based agent, including your own custom agents.
 
 ## Features
 
-Agent Boundaries offer network policy enforcement, which blocks domains and HTTP verbs to prevent exfiltration, and writes logs to the workspace.
+Agent Boundary offers network policy enforcement, which blocks domains and HTTP verbs to prevent exfiltration, and writes logs to the workspace.
 
-Agent Boundaries also stream audit logs to Coder's control plane for centralized
+Agent Boundary also streams audit logs to Coder's control plane for centralized
 monitoring of HTTP requests.
 
-## Getting Started with Boundary
+## Getting Started with Agent Boundary
 
-The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
+The easiest way to use Agent Boundary is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
 
 ## Configuration
 
@@ -88,7 +88,7 @@ Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when
 
 For detailed information about the rules engine and how to construct allowlist rules, see the [rules engine documentation](./rules-engine.md).
 
-You can also run Agent Boundaries directly in your workspace and configure it per template. You can do so by installing the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
+You can also run Agent Boundary directly in your workspace and configure it per template. You can do so by installing the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
@@ -118,7 +118,7 @@ The choice of jail type depends on your security requirements, available Linux c
 
 ## Audit Logs
 
-Agent Boundaries stream audit logs to the Coder control plane, providing centralized
+Agent Boundary streams audit logs to the Coder control plane, providing centralized
 visibility into HTTP requests made within workspaces—whether from AI agents or ad-hoc
 commands run with `boundary`.
 

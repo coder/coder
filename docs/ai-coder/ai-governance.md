@@ -5,7 +5,7 @@ Coder Workspaces already lets teams run AI tools like [Cursor](https://registry.
 Coder’s AI Governance Add-On for Premium licenses includes a set of features that help organizations safely roll out AI tooling at scale:
 
 - [AI Bridge](./ai-bridge/index.md): LLM gateway to audit AI sessions, central MCP server management, and policy enforcement
-- [Boundaries](./boundary/agent-boundary.md): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
+- [Agent Boundary](./agent-boundary/): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
 - [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured): Additional allowance of Agent Workspace Builds for continued use of Coder Tasks.
 
 ## Who should use the AI Governance Add-On
@@ -31,7 +31,7 @@ Without centralized monitoring, teams have no way to understand how AI tools are
 
 ### Restricting agent network and command access
 
-AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data. They can also execute destructive commands within a workspace. Agent Boundaries enforce process-level policies that restrict which domains agents can reach and what actions they can perform, preventing unintended data exposure and destructive operations like `rm -rf`.
+AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data. They can also execute destructive commands within a workspace. Agent Boundary enforces process-level policies that restrict which domains agents can reach and what actions they can perform, preventing unintended data exposure and destructive operations like `rm -rf`.
 
 ### Centralizing API key management
 
@@ -47,11 +47,11 @@ Without usage data, it's hard to justify AI tooling investments or identify high
 
 ## GA status and availability
 
-Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are generally available as part of the AI Governance Add-On.
+Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundary are generally available as part of the AI Governance Add-On.
 
 If you've been experimenting with these features in earlier releases, you'll see a notification banner in your deployment in v2.30. This banner is a reminder that these features have moved out of beta and are now included with the AI Governance Add-On.
 
-In v2.30, this notification is informational only. A future Coder release will require the add-on to continue using AI Bridge and Agent Boundaries.
+In v2.30, this notification is informational only. A future Coder release will require the add-on to continue using AI Bridge and Agent Boundary.
 
 To learn more about enabling the AI Governance Add-On, pricing, or trial options, reach out to your [Coder account team](https://coder.com/contact/sales).
 
@@ -72,7 +72,7 @@ Traditional Coder Workspaces started manually by developers or scheduled to auto
 | Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |
 | Developer starts a workspace for use with VS Code and Jupyter                                     | No                             |
 | Developer creates a workspace for use with Cursor and Claude Code CLI                             | No                             |
-| Developer creates a workspace for use with Coder AI Bridge and Boundaries                         | No                             |
+| Developer creates a workspace for use with Coder AI Bridge and Agent Boundary                     | No                             |
 
 In the future, additional capabilities for managing agents (beyond Coder Tasks) may also consume agent workspace builds.
 

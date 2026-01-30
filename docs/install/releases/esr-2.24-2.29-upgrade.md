@@ -22,9 +22,9 @@ AI Bridge was introduced in 2.26, and is a smart gateway that acts as an interme
 
 This is a Premium/Beta feature that intercepts AI traffic to record prompts, token usage, and tool invocations. For more information, read our documentation [here](https://coder.com/docs/ai-coder/ai-bridge).
 
-### Agent Boundaries
+### Agent Boundary
 
-Agent Boundaries was introduced in 2.27 and is currently in Early Access. Agent Boundaries are process-level firewalls in Coder that restrict and audit what autonomous programs (like AI agents) can access and do within a workspace. They provide network policy enforcement—blocking specific domains and HTTP verbs to prevent data exfiltration—and write logs to the workspace for auditability. Boundaries support any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module. For more information, read our documentation [here](https://coder.com/docs/ai-coder/agent-boundary).
+Agent Boundary was introduced in 2.27 and is currently in Early Access. Agent Boundary is a process-level firewall in Coder that restricts and audits what autonomous programs (like AI agents) can access and do within a workspace. It provides network policy enforcement—blocking specific domains and HTTP verbs to prevent data exfiltration—and writes logs to the workspace for auditability. Agent Boundary supports any terminal-based agent, including custom ones, and can be easily configured through existing Coder modules like the Claude Code module. For more information, read our documentation [here](https://coder.com/docs/ai-coder/agent-boundary).
 
 ### Performance Enhancements
 

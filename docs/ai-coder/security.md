@@ -23,6 +23,6 @@ This will likely involve editing your template for Agents to set different scope
 
 Additional guidance and tooling is coming in future releases of Coder.
 
-## Set Up Agent Boundaries
+## Set Up Agent Boundary
 
-Agent Boundaries are process-level "agent firewalls" that lets you restrict and audit what AI agents can access within Coder workspaces. To learn more about this feature, see [Agent Boundary](./boundary/agent-boundary.md).
+Agent Boundary is a process-level "agent firewall" that lets you restrict and audit what AI agents can access within Coder workspaces. To learn more about this feature, see [Agent Boundary](./agent-boundary/).

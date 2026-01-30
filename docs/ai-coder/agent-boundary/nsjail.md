@@ -1,24 +1,24 @@
 # nsjail Jail Type
 
-nsjail is Boundary's default jail type that uses Linux namespaces to provide process isolation. It creates unprivileged network namespaces to control and monitor network access for processes running under Boundary.
+nsjail is Agent Boundary's default jail type that uses Linux namespaces to provide process isolation. It creates unprivileged network namespaces to control and monitor network access for processes running under Agent Boundary.
 
 ## Overview
 
-nsjail leverages Linux namespace technology to isolate processes at the network level. When Boundary runs with nsjail, it creates a separate network namespace for the isolated process, allowing Boundary to intercept and filter all network traffic according to the configured policy.
+nsjail leverages Linux namespace technology to isolate processes at the network level. When Agent Boundary runs with nsjail, it creates a separate network namespace for the isolated process, allowing Agent Boundary to intercept and filter all network traffic according to the configured policy.
 
 This jail type requires Linux capabilities to create and manage network namespaces, which means it has specific runtime requirements when running in containerized environments like Docker.
 
 ## Architecture
 
-<img width="1228" height="604" alt="Boundary" src="https://github.com/user-attachments/assets/1b7c8c5b-7b8f-4adf-8795-325bd28715c6" />
+<img width="1228" height="604" alt="Agent Boundary" src="https://github.com/user-attachments/assets/1b7c8c5b-7b8f-4adf-8795-325bd28715c6" />
 
-## Runtime & Permission Requirements for Running the Boundary in Docker
+## Runtime & Permission Requirements for Running Agent Boundary in Docker
 
 This section describes the Linux capabilities and runtime configurations required to run the Agent Boundary with nsjail inside a Docker container. Requirements vary depending on the OCI runtime and the seccomp profile in use.
 
 ### 1. Default `runc` runtime with `CAP_NET_ADMIN`
 
-When using Docker's default `runc` runtime, the Boundary requires the container to have `CAP_NET_ADMIN`. This is the minimal capability needed for configuring virtual networking inside the container.
+When using Docker's default `runc` runtime, Agent Boundary requires the container to have `CAP_NET_ADMIN`. This is the minimal capability needed for configuring virtual networking inside the container.
 
 Docker's default seccomp profile may also block certain syscalls (such as `clone`) required for creating unprivileged network namespaces. If you encounter these restrictions, you may need to update or override the seccomp profile to allow these syscalls.
 
@@ -28,15 +28,15 @@ Docker's default seccomp profile may also block certain syscalls (such as `clone
 
 For development or testing environments, you may grant the container `CAP_SYS_ADMIN`, which implicitly bypasses many of the restrictions in Docker's default seccomp profile.
 
-- The Boundary does not require `CAP_SYS_ADMIN` itself.
+- Agent Boundary does not require `CAP_SYS_ADMIN` itself.
 - However, Docker's default seccomp policy commonly blocks namespace-related syscalls unless `CAP_SYS_ADMIN` is present.
-- Granting `CAP_SYS_ADMIN` enables the Boundary to run without modifying the seccomp profile.
+- Granting `CAP_SYS_ADMIN` enables Agent Boundary to run without modifying the seccomp profile.
 
 ⚠️ Warning: `CAP_SYS_ADMIN` is extremely powerful and should not be used in production unless absolutely necessary.
 
 ### 3. `sysbox-runc` runtime with `CAP_NET_ADMIN`
 
-When using the `sysbox-runc` runtime (from Nestybox), the Boundary can run with only:
+When using the `sysbox-runc` runtime (from Nestybox), Agent Boundary can run with only:
 
 - `CAP_NET_ADMIN`
 
@@ -44,7 +44,7 @@ The sysbox-runc runtime provides more complete support for unprivileged user nam
 
 ## Docker Seccomp Profile Considerations
 
-Docker's default seccomp profile frequently blocks the `clone` syscall, which is required by the Boundary when creating unprivileged network namespaces. If the `clone` syscall is denied, the Boundary will fail to start.
+Docker's default seccomp profile frequently blocks the `clone` syscall, which is required by Agent Boundary when creating unprivileged network namespaces. If the `clone` syscall is denied, Agent Boundary will fail to start.
 
 To address this, you may need to modify or override the seccomp profile used by your container to explicitly allow the required `clone` variants.
 

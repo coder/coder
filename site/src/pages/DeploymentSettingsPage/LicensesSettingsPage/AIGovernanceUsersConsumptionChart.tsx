@@ -83,11 +83,11 @@ export const AIGovernanceUsersConsumption: FC<
 							</Link>
 							,{" "}
 							<Link
-								href={docs("/ai-coder/boundary/agent-boundary")}
+								href={docs("/ai-coder/agent-boundary")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								Boundary
+								Agent Boundary
 							</Link>
 							, or{" "}
 							<Link
