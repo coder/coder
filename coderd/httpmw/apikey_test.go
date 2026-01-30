@@ -382,35 +382,74 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
-	t.Run("ValidUpdateLastUsed", func(t *testing.T) {
+	t.Run("UpdateLastUsed", func(t *testing.T) {
 		t.Parallel()
-		var (
-			db, _             = dbtestutil.NewDB(t)
-			user              = dbgen.User(t, db, database.User{})
-			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
-				UserID:    user.ID,
-				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
-				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
+
+		tests := []struct {
+			name              string
+			lastUsedOffset    time.Duration
+			expectLastUpdated bool
+		}{
+			{
+				name:              "OldLastUsed",
+				lastUsedOffset:    -2 * httpmw.APIKeyLastUsedUpdateInterval,
+				expectLastUpdated: true,
+			},
+			{
+				name:              "RecentLastUsed",
+				lastUsedOffset:    -(httpmw.APIKeyLastUsedUpdateInterval / 2),
+				expectLastUpdated: false,
+			},
+			{
+				// Exactly at the boundary should not update (uses > not >=).
+				// We subtract a small buffer to account for timing between test setup and middleware execution.
+				name:              "ExactlyAtBoundary",
+				lastUsedOffset:    -httpmw.APIKeyLastUsedUpdateInterval + 5*time.Second,
+				expectLastUpdated: false,
+			},
+			{
+				name:              "JustOverBoundary",
+				lastUsedOffset:    -httpmw.APIKeyLastUsedUpdateInterval - time.Second,
+				expectLastUpdated: true,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					db, _             = dbtestutil.NewDB(t)
+					user              = dbgen.User(t, db, database.User{})
+					sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+						UserID:    user.ID,
+						LastUsed:  dbtime.Now().Add(tc.lastUsedOffset),
+						ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
+					})
+
+					r  = httptest.NewRequest("GET", "/", nil)
+					rw = httptest.NewRecorder()
+				)
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+
+				httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+					DB:              db,
+					RedirectToLogin: false,
+				})(successHandler).ServeHTTP(rw, r)
+				res := rw.Result()
+				defer res.Body.Close()
+				require.Equal(t, http.StatusOK, res.StatusCode)
+
+				gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+				require.NoError(t, err)
+
+				if tc.expectLastUpdated {
+					require.NotEqual(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed, "expected LastUsed to be updated")
+				} else {
+					require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed, "expected LastUsed to remain unchanged")
+				}
 			})
-
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, token)
-
-		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-			DB:              db,
-			RedirectToLogin: false,
-		})(successHandler).ServeHTTP(rw, r)
-		res := rw.Result()
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
-		require.NoError(t, err)
-
-		require.NotEqual(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
-		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+		}
 	})
 
 	t.Run("ValidUpdateExpiry", func(t *testing.T) {
@@ -419,9 +458,10 @@ func TestAPIKey(t *testing.T) {
 			db, _             = dbtestutil.NewDB(t)
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
-				UserID:    user.ID,
-				LastUsed:  dbtime.Now(),
-				ExpiresAt: dbtime.Now().Add(time.Minute),
+				UserID:   user.ID,
+				LastUsed: dbtime.Now(),
+				// Expires just under the update interval, so should be refreshed.
+				ExpiresAt: dbtime.Now().Add(httpmw.APIKeyLastUsedUpdateInterval - time.Second),
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)

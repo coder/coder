@@ -80,6 +80,11 @@ func (c *OAuth2Configs) IsZero() bool {
 const (
 	SignedOutErrorMessage = "You are signed out or your session has expired. Please sign in again to continue."
 	internalErrorMessage  = "An internal error occurred. Please try again or contact the system administrator."
+
+	// APIKeyLastUsedUpdateInterval is the interval at which we update the last
+	// used time of an API key. We avoid updating on every request to reduce
+	// database writes.
+	APIKeyLastUsedUpdateInterval = time.Minute
 )
 
 type ExtractAPIKeyConfig struct {
@@ -378,8 +383,8 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// Tracks if the API key has properties updated
 	changed := false
 
-	// Only update LastUsed once an hour to prevent database spam.
-	if now.Sub(key.LastUsed) > time.Hour {
+	// Only update LastUsed periodically to reduce write load.
+	if now.Sub(key.LastUsed) > APIKeyLastUsedUpdateInterval {
 		key.LastUsed = now
 		remoteIP := net.ParseIP(r.RemoteAddr)
 		if remoteIP == nil {
@@ -395,11 +400,11 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		}
 		changed = true
 	}
-	// Only update the ExpiresAt once an hour to prevent database spam.
+	// Only update the ExpiresAt periodically to reduce write load.
 	// We extend the ExpiresAt to reduce re-authentication.
 	if !cfg.DisableSessionExpiryRefresh {
 		apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
-		if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
+		if key.ExpiresAt.Sub(now) <= apiKeyLifetime-APIKeyLastUsedUpdateInterval {
 			key.ExpiresAt = now.Add(apiKeyLifetime)
 			changed = true
 		}
