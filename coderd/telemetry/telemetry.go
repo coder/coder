@@ -423,6 +423,8 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
 		}
+		// Channel to share workspace builds between WorkspaceBuilds and Tasks goroutines.
+		workspaceBuildsChannel = make(chan []database.WorkspaceBuild, 1)
 	)
 
 	eg.Go(func() error {
@@ -556,10 +558,13 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
+		defer close(workspaceBuildsChannel)
 		workspaceBuilds, err := r.options.Database.GetWorkspaceBuildsCreatedAfter(ctx, createdAfter)
 		if err != nil {
 			return xerrors.Errorf("get workspace builds: %w", err)
 		}
+		// Share workspace builds with Tasks goroutine to avoid duplicate query.
+		workspaceBuildsChannel <- workspaceBuilds
 		snapshot.WorkspaceBuilds = make([]WorkspaceBuild, 0, len(workspaceBuilds))
 		for _, build := range workspaceBuilds {
 			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, ConvertWorkspaceBuild(build))
@@ -744,10 +749,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		// (creation, pause, resume) in the time window, not just newly created tasks.
 		// This captures lifecycle events for existing tasks.
 
-		// Step 1: Get all workspace builds created in time window.
-		builds, err := r.options.Database.GetWorkspaceBuildsCreatedAfter(ctx, createdAfter)
-		if err != nil {
-			return xerrors.Errorf("get workspace builds: %w", err)
+		// Step 1: Receive workspace builds from WorkspaceBuilds goroutine to avoid duplicate query.
+		builds, ok := <-workspaceBuildsChannel
+		if !ok {
+			return xerrors.New("workspace builds channel closed unexpectedly")
 		}
 
 		// Step 2: Extract unique workspace IDs.
