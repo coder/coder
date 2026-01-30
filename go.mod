@@ -594,7 +594,3 @@ tool (
 replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
 
 replace github.com/openai/openai-go/v3 => github.com/SasSwart/openai-go/v3 v3.0.0-20260130120340-7f5aceda0250
-
-// replace github.com/openai/openai-go/v3 => ../openai-go
-
-// replace github.com/coder/aibridge => ../aibridge
