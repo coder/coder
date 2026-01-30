@@ -13,6 +13,7 @@ type Metrics struct {
 	logger                   slog.Logger
 	workspaceCreationTimings *prometheus.HistogramVec
 	workspaceClaimTimings    *prometheus.HistogramVec
+	jobQueueWait             *prometheus.HistogramVec
 }
 
 type WorkspaceTimingType int
@@ -90,6 +91,29 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name"}),
+		jobQueueWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "coderd",
+			Name:      "provisioner_job_queue_wait_seconds",
+			Help:      "Time from job creation to acquisition by a provisioner daemon.",
+			Buckets: []float64{
+				0.01,  // 10ms
+				0.025, // 25ms
+				0.05,  // 50ms
+				0.1,   // 100ms
+				0.5,   // 500ms
+				1,     // 1s
+				5,     // 5s
+				10,    // 10s
+				30,    // 30s
+				60,    // 1m
+				300,   // 5m
+			},
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: time.Hour,
+			NativeHistogramZeroThreshold:    0,
+			NativeHistogramMaxZeroThreshold: 0,
+		}, []string{"provisioner_type", "job_type"}),
 	}
 }
 
@@ -97,7 +121,10 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	if err := reg.Register(m.workspaceCreationTimings); err != nil {
 		return err
 	}
-	return reg.Register(m.workspaceClaimTimings)
+	if err := reg.Register(m.workspaceClaimTimings); err != nil {
+		return err
+	}
+	return reg.Register(m.jobQueueWait)
 }
 
 // IsTrackable returns true if the workspace build should be tracked in metrics.

@@ -823,6 +823,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpcsdk.MaxMessageSize))
 	}
 
+	// Record the time the job spent waiting in the queue.
+	if s.metrics != nil && job.StartedAt.Valid {
+		queueWaitSeconds := job.StartedAt.Time.Sub(job.CreatedAt).Seconds()
+		s.metrics.jobQueueWait.WithLabelValues(string(job.Provisioner), string(job.Type)).Observe(queueWaitSeconds)
+	}
+
 	return protoJob, err
 }
 
