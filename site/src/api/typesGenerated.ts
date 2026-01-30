@@ -4408,6 +4408,18 @@ export interface Role {
 /**
  * Ideally this roles would be generated from the rbac/roles.go package.
  */
+export const RoleAibridgeAuditor = "aibridge-auditor";
+
+// From codersdk/rbacroles.go
+/**
+ * Ideally this roles would be generated from the rbac/roles.go package.
+ */
+export const RoleAibridgeUser = "aibridge-user";
+
+// From codersdk/rbacroles.go
+/**
+ * Ideally this roles would be generated from the rbac/roles.go package.
+ */
 export const RoleAuditor = "auditor";
 
 // From codersdk/rbacroles.go
