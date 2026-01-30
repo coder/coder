@@ -164,10 +164,12 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "aibridge:*"
 	| "aibridge_interception:*"
 	| "aibridge_interception:create"
 	| "aibridge_interception:read"
 	| "aibridge_interception:update"
+	| "aibridge:use"
 	| "all"
 	| "api_key:*"
 	| "api_key:create"
@@ -368,10 +370,12 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"aibridge:*",
 	"aibridge_interception:*",
 	"aibridge_interception:create",
 	"aibridge_interception:read",
 	"aibridge_interception:update",
+	"aibridge:use",
 	"all",
 	"api_key:*",
 	"api_key:create",
