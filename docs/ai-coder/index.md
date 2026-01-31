@@ -24,4 +24,4 @@ AI agents can be powerful teammates, but must be treated as untrusted and unpred
 
 [Agent Boundaries](./agent-boundaries/index.md) is a new tool that offers process-level safeguards that detect and prevent destructive actions. Unlike traditional mitigation methods like firewalls, service meshes, and RBAC systems, Agent Boundaries is an agent-aware, centralized control point that can either be embedded in the same secure Coder Workspaces that enterprises already trust, or used through an open source CLI.
 
-To learn more about features, implementation details, and how to get started, check out the [Agent Boundary documentation](./agent-boundaries/index.md).
+To learn more about features, implementation details, and how to get started, check out the [Agent Boundaries documentation](./agent-boundaries/index.md).
