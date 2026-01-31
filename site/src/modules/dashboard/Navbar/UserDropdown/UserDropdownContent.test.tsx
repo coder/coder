@@ -1,11 +1,11 @@
+import { MockUserOwner } from "testHelpers/entities";
+import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { MockUserOwner } from "testHelpers/entities";
-import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
 import { Language, UserDropdownContent } from "./UserDropdownContent";
 
 const renderUserDropdownContent = (props: { onSignOut: () => void }) => {
