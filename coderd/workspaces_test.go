@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -29,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -5678,4 +5681,51 @@ func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 		require.NotNil(t, ws2.LatestBuild.TemplateVersionPresetID)
 		require.Equal(t, preset2ID, *ws2.LatestBuild.TemplateVersionPresetID)
 	})
+}
+
+func TestProvisionerJobQueueWaitMetric(t *testing.T) {
+	t.Parallel()
+
+	logger := testutil.Logger(t)
+	reg := prometheus.NewRegistry()
+	metrics := provisionerdserver.NewMetrics(logger)
+	err := metrics.Register(reg)
+	require.NoError(t, err)
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:  true,
+		ProvisionerdServerMetrics: metrics,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a template version - this triggers a template_version_import job.
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	// Check that the queue wait metric was recorded for the template_version_import job.
+	importMetric := promhelp.MetricValue(t, reg, "coderd_provisioner_job_queue_wait_seconds", prometheus.Labels{
+		"provisioner_type": "echo",
+		"job_type":         "template_version_import",
+	})
+	require.NotNil(t, importMetric, "import job metric should be recorded")
+	importHistogram := importMetric.GetHistogram()
+	require.NotNil(t, importHistogram)
+	require.Equal(t, uint64(1), importHistogram.GetSampleCount(), "import job should have 1 sample")
+	require.Greater(t, importHistogram.GetSampleSum(), 0.0, "import job queue wait should be non-zero")
+
+	// Create a template and workspace - this triggers a workspace_build job.
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Check that the queue wait metric was recorded for the workspace_build job.
+	buildMetric := promhelp.MetricValue(t, reg, "coderd_provisioner_job_queue_wait_seconds", prometheus.Labels{
+		"provisioner_type": "echo",
+		"job_type":         "workspace_build",
+	})
+	require.NotNil(t, buildMetric, "workspace build job metric should be recorded")
+	buildHistogram := buildMetric.GetHistogram()
+	require.NotNil(t, buildHistogram)
+	require.Equal(t, uint64(1), buildHistogram.GetSampleCount(), "workspace build job should have 1 sample")
+	require.Greater(t, buildHistogram.GetSampleSum(), 0.0, "workspace build job queue wait should be non-zero")
 }
