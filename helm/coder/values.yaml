@@ -396,6 +396,37 @@ coder:
       # use for the wildcard host.
       wildcardSecretName: ""
 
+  # coder.httpRoute -- HTTPRoute configuration for Gateway API. Requires support
+  # for the Gateway API (https://gateway-api.sigs.k8s.io/). A Gateway must
+  # already exist. If using HTTPRoute, we recommend not specifying
+  # coder.tls.secretNames as the Gateway will handle TLS termination.
+  httpRoute:
+    # coder.httpRoute.enable -- Whether to create the HTTPRoute object.
+    enable: false
+    # coder.httpRoute.host -- The hostname to match on.
+    # Be sure to also set CODER_ACCESS_URL within coder.env[]
+    host: ""
+    # coder.httpRoute.wildcardHost -- The wildcard hostname to match on. Should be
+    # in the form "*.example.com" or "*-suffix.example.com". If you are using a
+    # suffix after the wildcard, the suffix will be stripped from the created
+    # HTTPRoute to ensure that it is a legal hostname. Optional if not using
+    # applications over subdomains.
+    # Be sure to also set CODER_WILDCARD_ACCESS_URL within coder.env[]
+    wildcardHost: ""
+    # coder.httpRoute.annotations -- The HTTPRoute annotations.
+    annotations: {}
+    # coder.httpRoute.gateway -- Gateway configuration for the HTTPRoute.
+    gateway:
+      # coder.httpRoute.gateway.name -- The name of your Gateway for this route.
+      name: your-gateway
+      # coder.httpRoute.gateway.namespace -- The namespace the Gateway is running in.
+      # Required for a gateway resource in another namespace.
+      namespace: ""
+      # coder.httpRoute.gateway.sectionName -- The name of the Gateway listener
+      # section to route traffic to. Common values are 'http', 'https', or custom
+      # listener names.
+      # sectionName: https
+
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.
   command:
