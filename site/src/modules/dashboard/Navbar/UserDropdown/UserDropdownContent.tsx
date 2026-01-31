@@ -110,10 +110,10 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							}}
 							asChild
 						>
-							<div className="flex items-center gap-2">
+							<div className="flex items-center gap-2 relative">
 								<span className="truncate">{buildInfo.deployment_id}</span>
 								<CopyButton
-									className="size-4"
+									className="size-4 after:content-[''] after:absolute after:inset-0"
 									text={buildInfo.deployment_id}
 									label="Copy deployment ID"
 								/>
