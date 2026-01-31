@@ -105,9 +105,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<TooltipTrigger asChild>
 						<DropdownMenuItem
 							className="text-xs"
-							onClick={(e) => {
-								e.preventDefault();
-							}}
+							onSelect={(e) => e.preventDefault()}
 							asChild
 						>
 							<div className="flex items-center gap-2 relative">
