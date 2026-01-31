@@ -1025,7 +1025,7 @@
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 							"path": "./ai-coder/ai-bridge/index.md",
 							"icon_path": "./images/icons/api.svg",
-							"state": ["premium", "beta"],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "Setup",
@@ -1035,7 +1035,64 @@
 								{
 									"title": "Client Configuration",
 									"description": "How to configure your AI coding tools to use AI Bridge",
-									"path": "./ai-coder/ai-bridge/client-config.md"
+									"path": "./ai-coder/ai-bridge/clients/index.md",
+									"children": [
+										{
+											"title": "Claude Code",
+											"path": "./ai-coder/ai-bridge/clients/claude-code.md",
+											"description": "Configure Claude Code to use AI Bridge"
+										},
+										{
+											"title": "Codex",
+											"path": "./ai-coder/ai-bridge/clients/codex.md",
+											"description": "Configure Codex to use AI Bridge"
+										},
+										{
+											"title": "OpenCode",
+											"path": "./ai-coder/ai-bridge/clients/opencode.md",
+											"description": "Configure OpenCode to use AI Bridge"
+										},
+										{
+											"title": "Factory",
+											"path": "./ai-coder/ai-bridge/clients/factory.md",
+											"description": "Configure Factory to use AI Bridge"
+										},
+										{
+											"title": "Goose",
+											"path": "./ai-coder/ai-bridge/clients/goose.md",
+											"description": "Configure Goose to use AI Bridge"
+										},
+										{
+											"title": "Cline",
+											"path": "./ai-coder/ai-bridge/clients/cline.md",
+											"description": "Configure Cline to use AI Bridge"
+										},
+										{
+											"title": "Kilo Code",
+											"path": "./ai-coder/ai-bridge/clients/kilo-code.md",
+											"description": "Configure Kilo Code to use AI Bridge"
+										},
+										{
+											"title": "Roo Code",
+											"path": "./ai-coder/ai-bridge/clients/roo-code.md",
+											"description": "Configure Roo Code to use AI Bridge"
+										},
+										{
+											"title": "VS Code",
+											"path": "./ai-coder/ai-bridge/clients/vscode.md",
+											"description": "Configure VS Code to use AI Bridge"
+										},
+										{
+											"title": "JetBrains",
+											"path": "./ai-coder/ai-bridge/clients/jetbrains.md",
+											"description": "Configure JetBrains IDEs to use AI Bridge"
+										},
+										{
+											"title": "Zed",
+											"path": "./ai-coder/ai-bridge/clients/zed.md",
+											"description": "Configure Zed to use AI Bridge"
+										}
+									]
 								},
 								{
 									"title": "MCP Tools Injection",
