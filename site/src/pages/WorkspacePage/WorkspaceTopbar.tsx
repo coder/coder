@@ -124,7 +124,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				<TooltipContent side="bottom">Back to workspaces</TooltipContent>
 			</Tooltip>
 
-			<div css={styles.topbarLeft}>
+			<div className="flex items-center gap-y-6 gap-x-2 flex-wrap px-3 py-2 mr-auto">
 				<TopbarData>
 					<OwnerBreadcrumb
 						ownerName={workspace.owner_name}
@@ -409,17 +409,6 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 };
 
 const styles = {
-	topbarLeft: {
-		display: "flex",
-		alignItems: "center",
-		columnGap: 24,
-		rowGap: 8,
-		flexWrap: "wrap",
-		// 12px - It is needed to keep vertical spacing when the content is wrapped
-		padding: "12px",
-		marginRight: "auto",
-	},
-
 	breadcrumbSegment: {
 		display: "flex",
 		alignItems: "center",
