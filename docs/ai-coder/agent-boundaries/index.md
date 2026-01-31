@@ -29,8 +29,8 @@ can also be ran directly in the terminal by installing the
 
 ## Configuration
 
-> [!NOTE] For information about version requirements and compatibility, see the
-> [Version Requirements](./version.md) documentation.
+> [!NOTE]
+> For information about version requirements and compatibility, see the [Version Requirements](./version.md) documentation.
 
 Agent Boundaries is configured using a `config.yaml` file. This allows you to
 maintain allow lists and share detailed policies with teammates.
@@ -177,7 +177,8 @@ but the remote server returns a 500 error, the audit log records
 `decision=allow` because Agent Boundaries permitted the request. The HTTP
 response status is not tracked in audit logs.
 
-> [!NOTE] Requires Coder v2.30+ and Agent Boundaries v0.5.2+.
+> [!NOTE]
+> Requires Coder v2.30+ and Agent Boundaries v0.5.2+.
 
 ### Audit Log Contents
 
