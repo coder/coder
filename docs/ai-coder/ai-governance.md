@@ -5,7 +5,7 @@ Coder Workspaces already lets teams run AI tools like [Cursor](https://registry.
 Coder’s AI Governance Add-On for Premium licenses includes a set of features that help organizations safely roll out AI tooling at scale:
 
 - [AI Bridge](./ai-bridge/index.md): LLM gateway to audit AI sessions, central MCP server management, and policy enforcement
-- [Boundaries](./agent-boundaries/index.md): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
+- [Agent Boundaries](./agent-boundaries/index.md): Process-level firewalls for agents, restricting which domains can be accessed by AI agents
 - [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured): Additional allowance of Agent Workspace Builds for continued use of Coder Tasks.
 
 ## Who should use the AI Governance Add-On
@@ -72,7 +72,7 @@ Traditional Coder Workspaces started manually by developers or scheduled to auto
 | Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |
 | Developer starts a workspace for use with VS Code and Jupyter                                     | No                             |
 | Developer creates a workspace for use with Cursor and Claude Code CLI                             | No                             |
-| Developer creates a workspace for use with Coder AI Bridge and Boundaries                         | No                             |
+| Developer creates a workspace for use with Coder AI Bridge and Agent Boundaries                         | No                             |
 
 In the future, additional capabilities for managing agents (beyond Coder Tasks) may also consume agent workspace builds.
 
