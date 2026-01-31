@@ -59,7 +59,7 @@ module "claude-code" {
 ## Summary
 
 | Coder Version | Claude Code Module Version | Configuration Required                                |
-| ------------- | -------------------------- | ----------------------------------------------------- |
+|---------------|----------------------------|-------------------------------------------------------|
 | v2.30.0+      | v4.7.0+                    | No additional configuration needed                    |
 | < v2.30.0     | v4.7.0+                    | `use_boundary_directly = true` and `boundary_version` |
 | Any           | < v4.7.0                   | `boundary_version`                                    |

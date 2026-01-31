@@ -42,13 +42,13 @@ allowlist:
 The `*` wildcard matches domain labels (parts separated by dots).
 
 | Pattern        | Matches                                                     | Does NOT Match                                                           |
-| -------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+|----------------|-------------------------------------------------------------|--------------------------------------------------------------------------|
 | `*`            | All domains                                                 | -                                                                        |
 | `github.com`   | `github.com` (exact match only)                             | `api.github.com`, `v1.api.github.com` (subdomains), `github.io`          |
 | `*.github.com` | `api.github.com`, `v1.api.github.com` (1+ subdomain levels) | `github.com` (base domain)                                               |
 | `api.*.com`    | `api.github.com`, `api.google.com`                          | `api.v1.github.com` (`*` in the middle matches exactly one domain label) |
 | `*.*.com`      | `api.example.com`, `api.v1.github.com`                      | -                                                                        |
-| `api.*`        | ❌ **ERROR** - Cannot end with `*`                          | -                                                                        |
+| `api.*`        | ❌ **ERROR** - Cannot end with `*`                           | -                                                                        |
 
 **Important**:
 
@@ -65,7 +65,7 @@ The `*` wildcard matches domain labels (parts separated by dots).
 The `*` wildcard matches path segments (parts separated by slashes).
 
 | Pattern        | Matches                                                    | Does NOT Match                          |
-| -------------- | ---------------------------------------------------------- | --------------------------------------- |
+|----------------|------------------------------------------------------------|-----------------------------------------|
 | `*`            | All paths                                                  | -                                       |
 | `/api/users`   | `/api/users`                                               | `/api/users/123` (subpaths don't match) |
 | `/api/*`       | `/api/users`, `/api/posts`                                 | `/api`                                  |
@@ -85,10 +85,10 @@ The `*` wildcard matches path segments (parts separated by slashes).
 ## Special Meaning of Wildcard at Beginning and End
 
 | Position   | Domain              | Path                  |
-| ---------- | ------------------- | --------------------- |
+|------------|---------------------|-----------------------|
 | Beginning  | 1+ subdomain levels | Exactly 1 segment     |
 | Middle     | Exactly 1 label     | Exactly 1 segment     |
-| End        | ❌ Not allowed      | 1+ segments (special) |
+| End        | ❌ Not allowed       | 1+ segments (special) |
 | Standalone | All domains         | All paths             |
 
 ---

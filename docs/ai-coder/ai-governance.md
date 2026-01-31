@@ -112,7 +112,7 @@ and coding assistants.
 ### Scenarios
 
 | Scenario                                                                                          | Consumes Agent Workspace Build |
-| ------------------------------------------------------------------------------------------------- | ------------------------------ |
+|---------------------------------------------------------------------------------------------------|--------------------------------|
 | Developer creates a Coder Task to write end-to-end tests                                          | Yes                            |
 | Automated pipeline creates a task via Coder Tasks CLI (with Claude Code) to review a pull request | Yes                            |
 | Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |

@@ -146,11 +146,11 @@ environments where namespace capabilities are limited or unavailable.
 
 ## Implementation Comparison: Namespaces+iptables vs Landlock V4
 
-| Aspect                        | Namespace Jail (Namespaces + veth-pair + iptables)                                 | Landlock V4 Jail                                                         |
-| ----------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| **Privileges**                | Requires `CAP_NET_ADMIN`                                                           | ✅ No special capabilities required                                      |
+| Aspect                        | Namespace Jail (Namespaces + veth-pair + iptables)                                | Landlock V4 Jail                                                        |
+|-------------------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| **Privileges**                | Requires `CAP_NET_ADMIN`                                                          | ✅ No special capabilities required                                      |
 | **Docker seccomp**            | ❌ Requires seccomp profile modifications or sysbox-runc                           | ✅ Works without seccomp changes                                         |
-| **Kernel requirements**       | Linux 3.8+ (widely available)                                                      | ❌ Linux 6.7+ (very new, limited adoption)                               |
+| **Kernel requirements**       | Linux 3.8+ (widely available)                                                     | ❌ Linux 6.7+ (very new, limited adoption)                               |
 | **Bypass resistance**         | ✅ Strong - transparent interception prevents bypass                               | ❌ **Medium - can bypass by connecting to `evil.com:<HTTP_PROXY_PORT>`** |
 | **Process isolation**         | ✅ PID namespace (processes can't see/kill others); **implementation in-progress** | ❌ No PID namespace (agent can kill other processes)                     |
 | **Non-TCP traffic control**   | ✅ Can block/control UDP via iptables; **implementation in-progress**              | ❌ No control over UDP (data can leak via UDP)                           |
@@ -184,7 +184,7 @@ response status is not tracked in audit logs.
 Each Agent Boundaries audit log entry includes:
 
 | Field                 | Description                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------- |
+|-----------------------|-----------------------------------------------------------------------------------------|
 | `decision`            | Whether the request was allowed (`allow`) or blocked (`deny`)                           |
 | `workspace_id`        | The UUID of the workspace where the request originated                                  |
 | `workspace_name`      | The name of the workspace where the request originated                                  |
