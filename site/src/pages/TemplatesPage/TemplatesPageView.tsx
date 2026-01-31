@@ -130,19 +130,11 @@ const TemplateRow: FC<TemplateRowProps> = ({
 
 			<TableCell css={styles.secondary}>
 				{showOrganizations ? (
-					<Stack
-						spacing={0}
-						css={{
-							width: "100%",
-						}}
-					>
-						<span css={styles.cellPrimaryLine}>
-							{template.organization_display_name}
-						</span>
-						<span css={styles.cellSecondaryLine}>
-							Used by {Language.developerCount(template.active_user_count)}
-						</span>
-					</Stack>
+					<AvatarData
+						title={template.organization_display_name}
+						subtitle={Language.developerCount(template.active_user_count)}
+						avatar={<Avatar variant="icon" src={template.organization_icon} />}
+					/>
 				) : (
 					Language.developerCount(template.active_user_count)
 				)}
