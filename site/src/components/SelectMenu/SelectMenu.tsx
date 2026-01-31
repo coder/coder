@@ -72,11 +72,11 @@ export const SelectMenuButton = forwardRef<
 export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 	return (
 		<SearchField
-			fullWidth
-			size="medium"
-			className="border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3"
+			className="w-full border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3"
+			autoFocus={true}
 			{...props}
-			inputProps={{ autoFocus: true, ...props.inputProps }}
+			// size="medium"
+			// inputProps={{ ...props.inputProps }}
 		/>
 	);
 };
