@@ -1,0 +1,12 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder tokens expire <name|id|token>
+
+  Expire a token immediately, preserving it for audit purposes
+
+  Expire a token immediately by setting its expiry to now.
+  Unlike 'tokens rm', this preserves the token record for audit trail purposes.
+
+———
+Run `coder --help` for a list of global options.

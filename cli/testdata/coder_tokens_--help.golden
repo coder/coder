@@ -26,6 +26,7 @@ USAGE:
 
 SUBCOMMANDS:
     create    Create a token
+    expire    Expire a token immediately, preserving it for audit purposes
     list      List tokens
     remove    Delete a token
     view      Display detailed information about a token
