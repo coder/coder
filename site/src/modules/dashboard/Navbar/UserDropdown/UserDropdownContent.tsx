@@ -6,9 +6,9 @@ import {
 } from "@emotion/react";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
-import { PopoverClose } from "@radix-ui/react-popover";
 import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
+import { PopoverClose } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,

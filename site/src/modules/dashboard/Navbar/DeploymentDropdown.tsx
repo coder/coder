@@ -1,16 +1,14 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
-import MenuItem from "@mui/material/MenuItem";
 import { Button } from "components/Button/Button";
 import {
-	Popover,
-	PopoverClose,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
-import { NavLink } from "react-router";
+import { Link } from "react-router";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
@@ -41,18 +39,15 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	}
 
 	return (
-		<Popover>
-			<PopoverTrigger asChild>
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
 				<Button variant="outline" size="lg">
 					Admin settings
-					<ChevronDownIcon className="text-content-primary !size-icon-xs" />
+					<ChevronDownIcon className="text-content-primary size-icon-sm text-white" />
 				</Button>
-			</PopoverTrigger>
+			</DropdownMenuTrigger>
 
-			<PopoverContent
-				align="end"
-				className="bg-surface-secondary border-surface-quaternary w-[180px] min-w-auto"
-			>
+			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
 				<DeploymentDropdownContent
 					canViewDeployment={canViewDeployment}
 					canViewOrganizations={canViewOrganizations}
@@ -61,8 +56,8 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 					canViewHealth={canViewHealth}
 					canViewAIBridge={canViewAIBridge}
 				/>
-			</PopoverContent>
-		</Popover>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };
 
@@ -77,79 +72,35 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	return (
 		<nav>
 			{canViewDeployment && (
-				<PopoverClose asChild>
-					<MenuItem component={NavLink} to="/deployment" css={styles.menuItem}>
-						Deployment
-					</MenuItem>
-				</PopoverClose>
+				<DropdownMenuItem asChild>
+					<Link to="/deployment">Deployment</Link>
+				</DropdownMenuItem>
 			)}
 			{canViewOrganizations && (
-				<PopoverClose asChild>
-					<MenuItem
-						component={NavLink}
-						to="/organizations"
-						css={styles.menuItem}
-					>
-						Organizations
-					</MenuItem>
-				</PopoverClose>
+				<DropdownMenuItem asChild>
+					<Link to="/organizations">Organizations</Link>
+				</DropdownMenuItem>
 			)}
 			{canViewAuditLog && (
-				<PopoverClose asChild>
-					<MenuItem
-						component={NavLink}
-						to={linkToAuditing}
-						css={styles.menuItem}
-					>
-						Audit Logs
-					</MenuItem>
-				</PopoverClose>
+				<DropdownMenuItem asChild>
+					<Link to={linkToAuditing}>Audit Logs</Link>
+				</DropdownMenuItem>
 			)}
 			{canViewConnectionLog && (
-				<PopoverClose asChild>
-					<MenuItem
-						component={NavLink}
-						to="/connectionlog"
-						css={styles.menuItem}
-					>
-						Connection Logs
-					</MenuItem>
-				</PopoverClose>
+				<DropdownMenuItem asChild>
+					<Link to="/connectionlog">Connection Logs</Link>
+				</DropdownMenuItem>
 			)}
 			{canViewAIBridge && (
-				<PopoverClose asChild>
-					<MenuItem component={NavLink} to="/aibridge" css={styles.menuItem}>
-						AI Bridge Logs
-					</MenuItem>
-				</PopoverClose>
+				<DropdownMenuItem asChild>
+					<Link to="/aibridge">AI Bridge Logs</Link>
+				</DropdownMenuItem>
 			)}
 			{canViewHealth && (
-				<PopoverClose asChild>
-					<MenuItem component={NavLink} to="/health" css={styles.menuItem}>
-						Healthcheck
-					</MenuItem>
-				</PopoverClose>
+				<DropdownMenuItem asChild>
+					<Link to="/health">Healthcheck</Link>
+				</DropdownMenuItem>
 			)}
 		</nav>
 	);
 };
-
-const styles = {
-	menuItem: (theme) => css`
-		text-decoration: none;
-		color: inherit;
-		gap: 8px;
-		padding: 8px 20px;
-		font-size: 14px;
-
-		&:hover {
-			background-color: ${theme.palette.action.hover};
-			transition: background-color 0.3s ease;
-		}
-	`,
-	menuItemIcon: (theme) => ({
-		color: theme.palette.text.secondary,
-		width: 20,
-		height: 20,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
