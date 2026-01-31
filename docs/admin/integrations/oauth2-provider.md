@@ -69,6 +69,19 @@ curl -X POST \
 
 ## Integration Patterns
 
+### Client Authentication Methods
+
+Coder supports the following OAuth2 client authentication methods at the token endpoint (`/oauth2/tokens`):
+
+- `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1). The username is `client_id` and the password is `client_secret`.
+- `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
+
+Coder supports both methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+
+If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request.
+
+If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
+
 ### Standard OAuth2 Flow
 
 1. **Authorization Request**: Redirect users to Coder's authorization endpoint:
@@ -81,7 +94,21 @@ curl -X POST \
      state=random-string
    ```
 
-2. **Token Exchange**: Exchange the authorization code for an access token:
+2. **Token Exchange**: Exchange the authorization code for an access token.
+
+   **Option A: HTTP Basic authentication (`client_secret_basic`, recommended)**
+
+   ```bash
+   curl -X POST \
+     -u "$CLIENT_ID:$CLIENT_SECRET" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=$AUTH_CODE" \
+     -d "redirect_uri=https://yourapp.example.com/callback" \
+     "$CODER_URL/oauth2/tokens"
+   ```
+
+   **Option B: Form parameters (`client_secret_post`)**
 
    ```bash
    curl -X POST \
@@ -101,9 +128,9 @@ curl -X POST \
      "$CODER_URL/api/v2/users/me"
    ```
 
-### PKCE Flow (Public Clients)
+### PKCE Flow (Recommended)
 
-For mobile apps and single-page applications, use PKCE for enhanced security:
+Use PKCE for enhanced security (recommended for both public and confidential clients):
 
 1. Generate a code verifier and challenge:
 
@@ -123,14 +150,16 @@ For mobile apps and single-page applications, use PKCE for enhanced security:
      redirect_uri=https://yourapp.example.com/callback
    ```
 
-3. Include the code verifier in the token exchange:
+3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
 
    ```bash
    curl -X POST \
+     -u "$CLIENT_ID:$CLIENT_SECRET" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
      -d "grant_type=authorization_code" \
      -d "code=$AUTH_CODE" \
-     -d "client_id=$CLIENT_ID" \
      -d "code_verifier=$CODE_VERIFIER" \
+     -d "redirect_uri=https://yourapp.example.com/callback" \
      "$CODER_URL/oauth2/tokens"
    ```
 
@@ -147,7 +176,20 @@ These endpoints return server capabilities and endpoint URLs according to [RFC 8
 
 ### Refresh Tokens
 
-Refresh an expired access token:
+Refresh an expired access token.
+
+**Option A: HTTP Basic authentication (`client_secret_basic`)**
+
+```bash
+curl -X POST \
+  -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=$REFRESH_TOKEN" \
+  "$CODER_URL/oauth2/tokens"
+```
+
+**Option B: Form parameters (`client_secret_post`)**
 
 ```bash
 curl -X POST \
