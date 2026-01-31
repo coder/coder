@@ -548,12 +548,19 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 
 ### Parameters
 
-| Name             | In    | Type    | Required | Description        |
-|------------------|-------|---------|----------|--------------------|
-| `workspacebuild` | path  | string  | true     | Workspace build ID |
-| `before`         | query | integer | false    | Before log id      |
-| `after`          | query | integer | false    | After log id       |
-| `follow`         | query | boolean | false    | Follow log stream  |
+| Name             | In    | Type    | Required | Description                                                                                                                                 |
+|------------------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspacebuild` | path  | string  | true     | Workspace build ID                                                                                                                          |
+| `before`         | query | integer | false    | Before log id                                                                                                                               |
+| `after`          | query | integer | false    | After log id                                                                                                                                |
+| `follow`         | query | boolean | false    | Follow log stream                                                                                                                           |
+| `format`         | query | string  | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 
