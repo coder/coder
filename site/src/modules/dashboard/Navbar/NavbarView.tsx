@@ -187,6 +187,14 @@ const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 				Templates
 			</NavLink>
 			<TasksNavItem user={user} />
+			<NavLink
+				className={({ isActive }) => {
+					return cn(linkStyles.default, { [linkStyles.active]: isActive });
+				}}
+				to="/agents"
+			>
+				Agents
+			</NavLink>
 		</nav>
 	);
 };

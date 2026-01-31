@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
+	"github.com/coder/coder/v2/coderd/chats"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -265,6 +266,8 @@ type Options struct {
 	// DatabaseRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	DatabaseRolluper *dbrollup.Rolluper
+	// ChatProcessor handles background processing of pending chats.
+	ChatProcessor *chats.Processor
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
 	// BoundaryUsageTracker tracks boundary usage for telemetry.
@@ -487,6 +490,10 @@ func New(options *Options) *API {
 		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
 	}
 
+	if options.ChatProcessor == nil {
+		options.ChatProcessor = chats.NewProcessor(options.Logger.Named("chats"), options.Database)
+	}
+
 	if options.WorkspaceUsageTracker == nil {
 		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
 			workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
@@ -625,7 +632,8 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper: options.DatabaseRolluper,
+		dbRolluper:    options.DatabaseRolluper,
+		chatProcessor: options.ChatProcessor,
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -1166,6 +1174,7 @@ func New(options *Options) *API {
 				r.Get("/", api.getChat)
 				r.Delete("/", api.deleteChat)
 				r.Post("/messages", api.createChatMessage)
+				r.Get("/git-changes", api.getChatGitChanges)
 			})
 		})
 		r.Route("/files", func(r chi.Router) {
@@ -1908,6 +1917,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+	// chatProcessor handles background processing of pending chats.
+	chatProcessor *chats.Processor
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1938,6 +1949,7 @@ func (api *API) Close() error {
 	}
 
 	api.dbRolluper.Close()
+	api.chatProcessor.Close()
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
 		api.updateChecker.Close()

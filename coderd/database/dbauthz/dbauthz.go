@@ -1742,6 +1742,18 @@ func (q *querier) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UU
 	return q.db.DeleteChatMessagesByChatID(ctx, chatID)
 }
 
+func (q *querier) DeleteChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) error {
+	// Authorize delete on the parent chat.
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatGitChangesByChatID(ctx, chatID)
+}
+
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -2340,6 +2352,15 @@ func (q *querier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID)
 
 func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerID)(ctx, ownerID)
+}
+
+func (q *querier) GetChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatGitChange, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatGitChangesByChatID(ctx, chatID)
 }
 
 func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
@@ -4251,6 +4272,18 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()), q.db.InsertChat)(ctx, arg)
+}
+
+func (q *querier) InsertChatGitChange(ctx context.Context, arg database.InsertChatGitChangeParams) (database.ChatGitChange, error) {
+	// Authorize update on the parent chat (to report changes).
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatGitChange{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatGitChange{}, err
+	}
+	return q.db.InsertChatGitChange(ctx, arg)
 }
 
 func (q *querier) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {

@@ -1010,6 +1010,90 @@ export interface CancelWorkspaceBuildParams {
 // From codersdk/workspacebuilds.go
 export type CancelWorkspaceBuildStatus = "pending" | "running";
 
+// From codersdk/chats.go
+export interface Chat {
+	readonly id: string;
+	readonly owner_id: string;
+	readonly workspace_id?: string;
+	readonly workspace_agent_id?: string;
+	readonly title: string;
+	readonly status: ChatStatus;
+	// empty interface{} type, falling back to unknown
+	readonly model_config?: Record<string, unknown>;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+export interface ChatMessage {
+	readonly id: number;
+	readonly chat_id: string;
+	readonly created_at: string;
+	readonly role: string;
+	// empty interface{} type, falling back to unknown
+	readonly content?: unknown;
+	// empty interface{} type, falling back to unknown
+	readonly tool_calls?: unknown;
+	readonly tool_call_id?: string;
+	readonly thinking?: string;
+	readonly hidden: boolean;
+}
+
+// From codersdk/chats.go
+export interface ChatGitChange {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly file_path: string;
+	readonly change_type: string;
+	readonly old_path?: string;
+	readonly diff_summary?: string;
+	readonly detected_at: string;
+}
+
+// From codersdk/chats.go
+export type ChatStatus =
+	| "waiting"
+	| "pending"
+	| "running"
+	| "paused"
+	| "completed"
+	| "error";
+
+export const ChatStatuses: ChatStatus[] = [
+	"waiting",
+	"pending",
+	"running",
+	"paused",
+	"completed",
+	"error",
+];
+
+// From codersdk/chats.go
+export interface ChatWithMessages {
+	readonly chat: Chat;
+	readonly messages: readonly ChatMessage[];
+}
+
+// From codersdk/chats.go
+export interface CreateChatMessageRequest {
+	readonly role: string;
+	// empty interface{} type, falling back to unknown
+	readonly content?: unknown;
+	// empty interface{} type, falling back to unknown
+	readonly tool_calls?: unknown;
+	readonly tool_call_id?: string;
+	readonly thinking?: string;
+}
+
+// From codersdk/chats.go
+export interface CreateChatRequest {
+	readonly title?: string;
+	readonly workspace_id?: string;
+	readonly workspace_agent_id?: string;
+	// empty interface{} type, falling back to unknown
+	readonly model_config?: Record<string, unknown>;
+}
+
 export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
 	"pending",
 	"running",

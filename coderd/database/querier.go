@@ -95,6 +95,7 @@ type sqlcQuerier interface {
 	DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error
 	DeleteChatByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
+	DeleteChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -209,6 +210,7 @@ type sqlcQuerier interface {
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error)
+	GetChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error)
 	// Find chats that appear stuck (running but no heartbeat).
 	// Used for recovery after coderd crashes.
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
@@ -563,6 +565,7 @@ type sqlcQuerier interface {
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	InsertChatGitChange(ctx context.Context, arg InsertChatGitChangeParams) (ChatGitChange, error)
 	InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)

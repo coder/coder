@@ -342,6 +342,8 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
+const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
+const AgentDetail = lazy(() => import("./pages/AgentsPage/AgentDetail"));
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
@@ -458,6 +460,10 @@ export const router = createBrowserRouter(
 					<Route path="/audit" element={<AuditPage />} />
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+
+					<Route path="/agents" element={<AgentsPage />}>
+						<Route path=":agentId" element={<AgentDetail />} />
+					</Route>
 
 					<Route path="/tasks" element={<TasksPage />} />
 

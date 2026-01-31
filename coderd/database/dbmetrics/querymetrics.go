@@ -367,6 +367,14 @@ func (m queryMetricsStore) DeleteChatMessagesByChatID(ctx context.Context, chatI
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatGitChangesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("DeleteChatGitChangesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatGitChangesByChatID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteCryptoKey(ctx, arg)
@@ -963,6 +971,14 @@ func (m queryMetricsStore) GetChatsByOwnerID(ctx context.Context, ownerID uuid.U
 	r0, r1 := m.s.GetChatsByOwnerID(ctx, ownerID)
 	m.queryLatencies.WithLabelValues("GetChatsByOwnerID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByOwnerID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatGitChange, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatGitChangesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatGitChangesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGitChangesByChatID").Inc()
 	return r0, r1
 }
 
@@ -2763,6 +2779,14 @@ func (m queryMetricsStore) InsertChat(ctx context.Context, arg database.InsertCh
 	r0, r1 := m.s.InsertChat(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChat").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChat").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatGitChange(ctx context.Context, arg database.InsertChatGitChangeParams) (database.ChatGitChange, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatGitChange(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatGitChange").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatGitChange").Inc()
 	return r0, r1
 }
 

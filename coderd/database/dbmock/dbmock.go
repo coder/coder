@@ -44,6 +44,21 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
+// AcquireChat mocks base method.
+func (m *MockStore) AcquireChat(ctx context.Context, arg database.AcquireChatParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireChat", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireChat indicates an expected call of AcquireChat.
+func (mr *MockStoreMockRecorder) AcquireChat(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireChat", reflect.TypeOf((*MockStore)(nil).AcquireChat), ctx, arg)
+}
+
 // AcquireLock mocks base method.
 func (m *MockStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	m.ctrl.T.Helper()
@@ -537,6 +552,20 @@ func (m *MockStore) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
 func (mr *MockStoreMockRecorder) DeleteChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatByID", reflect.TypeOf((*MockStore)(nil).DeleteChatByID), ctx, id)
+}
+
+// DeleteChatGitChangesByChatID mocks base method.
+func (m *MockStore) DeleteChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatGitChangesByChatID", ctx, chatID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatGitChangesByChatID indicates an expected call of DeleteChatGitChangesByChatID.
+func (mr *MockStoreMockRecorder) DeleteChatGitChangesByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatGitChangesByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatGitChangesByChatID), ctx, chatID)
 }
 
 // DeleteChatMessagesByChatID mocks base method.
@@ -1704,6 +1733,21 @@ func (m *MockStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Cha
 func (mr *MockStoreMockRecorder) GetChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByID", reflect.TypeOf((*MockStore)(nil).GetChatByID), ctx, id)
+}
+
+// GetChatGitChangesByChatID mocks base method.
+func (m *MockStore) GetChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatGitChange, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatGitChangesByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.ChatGitChange)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatGitChangesByChatID indicates an expected call of GetChatGitChangesByChatID.
+func (mr *MockStoreMockRecorder) GetChatGitChangesByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGitChangesByChatID", reflect.TypeOf((*MockStore)(nil).GetChatGitChangesByChatID), ctx, chatID)
 }
 
 // GetChatMessageByID mocks base method.
@@ -3279,6 +3323,21 @@ func (m *MockStore) GetRuntimeConfig(ctx context.Context, key string) (string, e
 func (mr *MockStoreMockRecorder) GetRuntimeConfig(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetRuntimeConfig), ctx, key)
+}
+
+// GetStaleChats mocks base method.
+func (m *MockStore) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStaleChats", ctx, staleThreshold)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStaleChats indicates an expected call of GetStaleChats.
+func (mr *MockStoreMockRecorder) GetStaleChats(ctx, staleThreshold any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStaleChats", reflect.TypeOf((*MockStore)(nil).GetStaleChats), ctx, staleThreshold)
 }
 
 // GetTailnetPeers mocks base method.
@@ -5155,6 +5214,21 @@ func (mr *MockStoreMockRecorder) InsertChat(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChat", reflect.TypeOf((*MockStore)(nil).InsertChat), ctx, arg)
 }
 
+// InsertChatGitChange mocks base method.
+func (m *MockStore) InsertChatGitChange(ctx context.Context, arg database.InsertChatGitChangeParams) (database.ChatGitChange, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatGitChange", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGitChange)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatGitChange indicates an expected call of InsertChatGitChange.
+func (mr *MockStoreMockRecorder) InsertChatGitChange(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatGitChange", reflect.TypeOf((*MockStore)(nil).InsertChatGitChange), ctx, arg)
+}
+
 // InsertChatMessage mocks base method.
 func (m *MockStore) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -6524,6 +6598,21 @@ func (m *MockStore) UpdateChatByID(ctx context.Context, arg database.UpdateChatB
 func (mr *MockStoreMockRecorder) UpdateChatByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatByID", reflect.TypeOf((*MockStore)(nil).UpdateChatByID), ctx, arg)
+}
+
+// UpdateChatStatus mocks base method.
+func (m *MockStore) UpdateChatStatus(ctx context.Context, arg database.UpdateChatStatusParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatStatus", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatStatus indicates an expected call of UpdateChatStatus.
+func (mr *MockStoreMockRecorder) UpdateChatStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatStatus), ctx, arg)
 }
 
 // UpdateCryptoKeyDeletesAt mocks base method.

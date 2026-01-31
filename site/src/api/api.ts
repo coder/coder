@@ -2805,6 +2805,53 @@ class ApiMethods {
 			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
 		return response.data;
 	};
+
+	// Chat API methods
+	getChats = async (): Promise<TypesGen.Chat[]> => {
+		const response = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
+		return response.data;
+	};
+
+	getChat = async (chatId: string): Promise<TypesGen.ChatWithMessages> => {
+		const response = await this.axios.get<TypesGen.ChatWithMessages>(
+			`/api/v2/chats/${chatId}`,
+		);
+		return response.data;
+	};
+
+	createChat = async (
+		req: TypesGen.CreateChatRequest,
+	): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			"/api/v2/chats",
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChat = async (chatId: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/chats/${chatId}`);
+	};
+
+	createChatMessage = async (
+		chatId: string,
+		req: TypesGen.CreateChatMessageRequest,
+	): Promise<TypesGen.ChatMessage[]> => {
+		const response = await this.axios.post<TypesGen.ChatMessage[]>(
+			`/api/v2/chats/${chatId}/messages`,
+			req,
+		);
+		return response.data;
+	};
+
+	getChatGitChanges = async (
+		chatId: string,
+	): Promise<TypesGen.ChatGitChange[]> => {
+		const response = await this.axios.get<TypesGen.ChatGitChange[]>(
+			`/api/v2/chats/${chatId}/git-changes`,
+		);
+		return response.data;
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
