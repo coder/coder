@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import { Abbr } from "components/Abbr/Abbr";
 import {
@@ -22,9 +21,8 @@ export const Latency: FC<LatencyProps> = ({
 	isLoading,
 	className,
 }) => {
-	const theme = useTheme();
 	// Always use the no latency color for loading.
-	const color = getLatencyColor(theme, isLoading ? undefined : latency);
+	const latencyColor = getLatencyColor(isLoading ? undefined : latency);
 
 	if (isLoading) {
 		return (
@@ -40,7 +38,10 @@ export const Latency: FC<LatencyProps> = ({
 							className,
 						)}
 					>
-						<CircularProgress className="!size-icon-xs" style={{ color }} />
+						<CircularProgress
+							className="!size-icon-xs"
+							style={{ color: latencyColor }}
+						/>
 					</div>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Loading latency...</TooltipContent>
@@ -54,8 +55,7 @@ export const Latency: FC<LatencyProps> = ({
 				<TooltipTrigger asChild>
 					<CircleHelpIcon
 						aria-label="Latency not available"
-						className={cn("!size-icon-sm", className)}
-						style={{ color }}
+						className={cn("!size-icon-sm", latencyColor, className)}
 					/>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Latency not available</TooltipContent>
@@ -64,7 +64,7 @@ export const Latency: FC<LatencyProps> = ({
 	}
 
 	return (
-		<div className={cn("text-sm", className)} style={{ color }}>
+		<div className={cn("text-sm", latencyColor, className)}>
 			<span className="sr-only">Latency: </span>
 			{latency.toFixed(0)}
 			<Abbr title="milliseconds">ms</Abbr>

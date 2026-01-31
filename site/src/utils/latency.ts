@@ -1,16 +1,17 @@
-import type { Theme } from "@emotion/react";
-
-export const getLatencyColor = (theme: Theme, latency?: number) => {
+export const getLatencyColor = (
+	latency?: number,
+	text: "text" | "background" = "text",
+) => {
 	if (!latency) {
-		return theme.palette.text.secondary;
+		return "text-content-secondary";
 	}
 
-	let color = theme.roles.success.fill.solid;
+	let color = text === "text" ? "text-content-success" : "bg-surface-success";
 
 	if (latency >= 150 && latency < 300) {
-		color = theme.roles.warning.fill.solid;
+		color = text === "text" ? "text-content-warning" : "bg-surface-warning";
 	} else if (latency >= 300) {
-		color = theme.roles.error.fill.solid;
+		color = text === "text" ? "text-content-error" : "bg-surface-error";
 	}
 	return color;
 };

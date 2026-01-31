@@ -19,8 +19,6 @@ interface ProxyRowProps {
 }
 
 export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
-	const theme = useTheme();
-
 	// If we have a more specific proxy status, use that.
 	// All users can see healthy/unhealthy, some can see more.
 	let statusBadge = <ProxyStatus proxy={proxy} />;
@@ -78,10 +76,12 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 					css={{
 						fontSize: 14,
 						textAlign: "right",
-						color: latency
-							? getLatencyColor(theme, latency.latencyMS)
-							: theme.palette.text.secondary,
 					}}
+					className={
+						latency
+							? getLatencyColor(latency.latencyMS)
+							: "text-content-secondary"
+					}
 				>
 					{latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
 				</TableCell>
