@@ -66,7 +66,7 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 			templates={templates}
 			onSuccess={(task) => {
 				displaySuccess("Task created successfully");
-				navigate(linkToTask(task.id));
+				navigate(linkToTask(task.owner_name, task.id));
 			}}
 		/>
 	);

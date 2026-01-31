@@ -31,4 +31,5 @@ export const linkToTemplate =
 			? `/templates/${organizationName}/${templateName}`
 			: `/templates/${templateName}`;
 
-export const linkToTask = (taskId: string): string => `/tasks/admin/${taskId}`;
+export const linkToTask = (ownerName: string, taskId: string): string =>
+	`/tasks/${ownerName}/${taskId}`;
