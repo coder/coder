@@ -30,3 +30,5 @@ export const linkToTemplate =
 		dashboard.showOrganizations
 			? `/templates/${organizationName}/${templateName}`
 			: `/templates/${templateName}`;
+
+export const linkToTask = (taskId: string): string => `/tasks/admin/${taskId}`;
