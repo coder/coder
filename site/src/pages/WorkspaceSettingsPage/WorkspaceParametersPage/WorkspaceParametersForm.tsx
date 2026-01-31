@@ -33,6 +33,7 @@ interface WorkspaceParameterFormProps {
 	templateVersionRichParameters: TemplateVersionParameter[];
 	autofillParams: AutofillBuildParameter[];
 	isSubmitting: boolean;
+	isInTransition: boolean;
 	canChangeVersions: boolean;
 	templatePermissions: { canUpdateTemplate: boolean } | undefined;
 	error: unknown;
@@ -50,6 +51,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 	canChangeVersions,
 	templatePermissions,
 	isSubmitting,
+	isInTransition,
 }) => {
 	const form = useFormik<WorkspaceParametersFormValues>({
 		onSubmit,
@@ -169,7 +171,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 
 					<Button
 						type="submit"
-						disabled={isSubmitting || disabled || !form.dirty}
+						disabled={isSubmitting || disabled || isInTransition || !form.dirty}
 					>
 						<Spinner loading={isSubmitting} />
 						Submit and restart

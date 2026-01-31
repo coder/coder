@@ -8,6 +8,7 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -39,12 +40,33 @@ const WorkspaceParametersPage: FC = () => {
 	);
 	const navigate = useNavigate();
 	const updateParameters = useMutation({
-		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
-			API.postWorkspaceBuild(workspace.id, {
+		mutationFn: async (buildParameters: WorkspaceBuildParameter[]) => {
+			const currentBuild = workspace.latest_build;
+
+			// If workspace is running, stop it first then start with new parameters
+			if (currentBuild.status === "running") {
+				const stopBuild = await API.stopWorkspace(workspace.id);
+				const awaitedStopBuild = await API.waitForBuild(stopBuild);
+				// If the stop is canceled or failed, bail out
+				if (awaitedStopBuild?.status === "canceled") {
+					throw new Error(
+						"Workspace stop was canceled, not proceeding with parameter update.",
+					);
+				}
+				if (awaitedStopBuild?.status === "failed") {
+					throw new Error(
+						"Workspace failed to stop, not proceeding with parameter update.",
+					);
+				}
+			}
+
+			// Now start the workspace with new parameters
+			return API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
 				rich_parameter_values: buildParameters,
 				reason: "dashboard",
-			}),
+			});
+		},
 		onSuccess: () => {
 			navigate(`/${workspace.owner_name}/${workspace.name}`);
 		},
@@ -78,6 +100,14 @@ const WorkspaceParametersPage: FC = () => {
 		| { canUpdateTemplate: boolean }
 		| undefined;
 
+	// Check if workspace is in a transitional state
+	const isInTransition =
+		workspace.latest_build.status === "starting" ||
+		workspace.latest_build.status === "stopping" ||
+		workspace.latest_build.status === "pending" ||
+		workspace.latest_build.status === "canceling" ||
+		workspace.latest_build.status === "deleting";
+
 	return (
 		<>
 			<title>{pageTitle(workspace.name, "Parameters")}</title>
@@ -88,6 +118,7 @@ const WorkspaceParametersPage: FC = () => {
 				buildParameters={buildParameters}
 				canChangeVersions={canChangeVersions}
 				templatePermissions={templatePermissions}
+				isInTransition={isInTransition}
 				submitError={updateParameters.error}
 				isSubmitting={updateParameters.isPending}
 				onSubmit={(values) => {
@@ -123,6 +154,7 @@ type WorkspaceParametersPageViewProps = {
 	templatePermissions: { canUpdateTemplate: boolean } | undefined;
 	templateVersionParameters?: TemplateVersionParameter[];
 	buildParameters?: WorkspaceBuildParameter[];
+	isInTransition: boolean;
 	submitError: unknown;
 	isSubmitting: boolean;
 	onSubmit: (formValues: WorkspaceParametersFormValues) => void;
@@ -137,6 +169,7 @@ export const WorkspaceParametersPageView: FC<
 	templatePermissions,
 	templateVersionParameters,
 	buildParameters,
+	isInTransition,
 	submitError,
 	onSubmit,
 	isSubmitting,
@@ -154,12 +187,22 @@ export const WorkspaceParametersPageView: FC<
 				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
 			) : null}
 
+			{isInTransition && (
+				<Alert severity="info">
+					There is currently a{" "}
+					<strong>{workspace.latest_build.transition}</strong> workspace build{" "}
+					<strong>{workspace.latest_build.status}</strong>. Please wait for the
+					workspace build to complete before proceeding.
+				</Alert>
+			)}
+
 			{templateVersionParameters && buildParameters ? (
 				templateVersionParameters.length > 0 ? (
 					<WorkspaceParametersForm
 						workspace={workspace}
 						canChangeVersions={canChangeVersions}
 						templatePermissions={templatePermissions}
+						isInTransition={isInTransition}
 						autofillParams={buildParameters.map((p) => ({
 							...p,
 							source: "active_build",

@@ -36,7 +36,13 @@ export const WorkspaceSettingsLayout: FC = () => {
 		error,
 		isLoading,
 		isError,
-	} = useQuery(workspaceByOwnerAndName(username, workspaceName));
+	} = useQuery({
+		...workspaceByOwnerAndName(username, workspaceName),
+		// Always refetch workspace data when navigating to settings pages to ensure
+		// we have the latest build status. This prevents the isInTransition check
+		// from using stale data and incorrectly disabling the submit button.
+		refetchOnMount: "always",
+	});
 
 	const sharingSettingsQuery = useQuery({
 		...workspaceSharingSettings(workspace?.organization_id ?? ""),
