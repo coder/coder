@@ -10,7 +10,7 @@ Since Coder v2.30.0, Agent Boundaries is embedded inside the Coder binary, and y
 
 ### Claude Code Module v4.7.0+
 
-Since Claude Code module v4.7.0, the embedded Coder Agent Boundaries subcommand is used by default. This means you don't need to set `boundary_version`; the boundary version is tied to your Coder version.
+Since Claude Code module v4.7.0, the embedded `coder boundary` subcommand is used by default. This means you don't need to set `boundary_version`; the boundary version is tied to your Coder version.
 
 ## Compatibility with Older Versions
 
