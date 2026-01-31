@@ -306,7 +306,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 					</DropdownMenuItem>
 				)}
 				{learnMoreLink2 && learnMoreLabel2 && (
-					<DropdownMenuItem>
+					<DropdownMenuItem asChild>
 						<a href={learnMoreLink2} target="_blank">
 							<ExternalLinkIcon className="size-icon-xs" />
 							{learnMoreLabel2}
