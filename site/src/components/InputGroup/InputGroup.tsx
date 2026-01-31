@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button, type ButtonProps } from "components/Button/Button";
 import { Input } from "components/Input/Input";
-import type { FC } from "react";
+import { type FC, forwardRef } from "react";
 import { cn } from "utils/cn";
 
 const InputGroup: FC<React.ComponentProps<"div">> = ({
@@ -63,12 +63,13 @@ const InputGroupAddon: FC<
 	);
 };
 
-const InputGroupInput: FC<React.ComponentProps<typeof Input>> = ({
-	className,
-	...props
-}) => {
+const InputGroupInput = forwardRef<
+	HTMLInputElement,
+	React.ComponentProps<typeof Input>
+>(({ className, ...props }, ref) => {
 	return (
 		<Input
+			ref={ref}
 			className={cn(
 				// Reset Input's default styles that conflict with group
 				"flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0",
@@ -80,7 +81,7 @@ const InputGroupInput: FC<React.ComponentProps<typeof Input>> = ({
 			{...props}
 		/>
 	);
-};
+});
 
 const InputGroupButton: FC<ButtonProps> = ({
 	className,
