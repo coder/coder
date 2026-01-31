@@ -744,9 +744,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			OwnerID:        uuid.Nil,
 			OrganizationID: uuid.Nil,
 			Status:         "",
+			CreatedAfter:   sql.NullTime{Time: createdAfter, Valid: true},
 		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("get tasks: %w", err)
 		}
 		for _, dbTask := range dbTasks {
 			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))

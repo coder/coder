@@ -398,6 +398,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 //   - status: string (pending, initializing, active, paused, error, unknown)
 func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UUID) (database.ListTasksParams, []codersdk.ValidationError) {
 	filter := database.ListTasksParams{
+		CreatedAfter:   sql.NullTime{},
 		OwnerID:        uuid.Nil,
 		OrganizationID: uuid.Nil,
 		Status:         "",

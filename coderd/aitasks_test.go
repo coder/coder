@@ -113,7 +113,7 @@ func TestTasks(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -148,6 +148,20 @@ func TestTasks(t *testing.T) {
 		// Status should be populated via the tasks_with_status view.
 		assert.NotEmpty(t, got.Status, "task status should not be empty")
 		assert.NotEmpty(t, got.WorkspaceStatus, "workspace status should not be empty")
+
+		// Verify created_after filtering works by querying for tasks created after this one.
+		createdAfter := dbtime.Now().Add(1 * time.Second)
+		dbTasks, err := db.ListTasks(dbauthz.AsSystemRestricted(ctx), database.ListTasksParams{
+			OwnerID:        uuid.Nil,
+			OrganizationID: uuid.Nil,
+			Status:         "",
+			CreatedAfter:   sql.NullTime{Time: createdAfter, Valid: true},
+		})
+		require.NoError(t, err)
+		// Task should be filtered out since it was created before createdAfter.
+		for _, dbTask := range dbTasks {
+			assert.NotEqual(t, task.ID, dbTask.ID, "task created before cutoff should be filtered out")
+		}
 	})
 
 	t.Run("Get", func(t *testing.T) {
