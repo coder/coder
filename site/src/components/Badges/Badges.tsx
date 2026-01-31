@@ -11,6 +11,7 @@ import {
 	type HTMLAttributes,
 	type PropsWithChildren,
 } from "react";
+import { cn } from "utils/cn";
 
 export const EnabledBadge: FC = () => {
 	return (

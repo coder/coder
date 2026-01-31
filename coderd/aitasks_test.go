@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -720,6 +721,266 @@ func TestTasks(t *testing.T) {
 			require.Error(t, err)
 			require.ErrorAs(t, err, &sdkErr)
 			require.Equal(t, http.StatusBadGateway, sdkErr.StatusCode())
+		})
+	})
+
+	t.Run("LogsWithSnapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+		ownerUser, err := ownerClient.User(testutil.Context(t, testutil.WaitMedium), owner.UserID.String())
+		require.NoError(t, err)
+		ownerSubject := coderdtest.AuthzUserSubject(ownerUser)
+
+		// Create a regular user to test snapshot access.
+		client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		// Helper to create a task in the desired state.
+		createTaskInState := func(ctx context.Context, t *testing.T, status database.TaskStatus) uuid.UUID {
+			ctx = dbauthz.As(ctx, ownerSubject)
+
+			builder := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        user.ID,
+			}).
+				WithTask(database.TaskTable{
+					OrganizationID: owner.OrganizationID,
+					OwnerID:        user.ID,
+				}, nil)
+
+			switch status {
+			case database.TaskStatusPending:
+				builder = builder.Pending()
+			case database.TaskStatusInitializing:
+				builder = builder.Starting()
+			case database.TaskStatusPaused:
+				builder = builder.Seed(database.WorkspaceBuild{
+					Transition: database.WorkspaceTransitionStop,
+				})
+			case database.TaskStatusError:
+				// For error state, create a completed build then manipulate app health.
+			default:
+				require.Fail(t, "unsupported task status in test helper", "status: %s", status)
+			}
+
+			resp := builder.Do()
+			taskID := resp.Task.ID
+
+			// Post-process by manipulating agent and app state.
+			if status == database.TaskStatusError {
+				// First, set agent to ready state so agent_status returns 'active'.
+				// This ensures the cascade reaches app_status.
+				err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             resp.Agents[0].ID,
+					LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+				})
+				require.NoError(t, err)
+
+				// Then set workspace app health to unhealthy to trigger error state.
+				apps, err := db.GetWorkspaceAppsByAgentID(ctx, resp.Agents[0].ID)
+				require.NoError(t, err)
+				require.Len(t, apps, 1, "expected exactly one app for task")
+
+				err = db.UpdateWorkspaceAppHealthByID(ctx, database.UpdateWorkspaceAppHealthByIDParams{
+					ID:     apps[0].ID,
+					Health: database.WorkspaceAppHealthUnhealthy,
+				})
+				require.NoError(t, err)
+			}
+
+			return taskID
+		}
+
+		// Prepare snapshot data used across tests.
+		snapshotMessages := []agentapisdk.Message{
+			{
+				Id:      0,
+				Content: "First message",
+				Role:    agentapisdk.RoleAgent,
+				Time:    time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
+			},
+			{
+				Id:      1,
+				Content: "Second message",
+				Role:    agentapisdk.RoleUser,
+				Time:    time.Date(2025, 1, 1, 10, 1, 0, 0, time.UTC),
+			},
+		}
+
+		snapshotData := agentapisdk.GetMessagesResponse{
+			Messages: snapshotMessages,
+		}
+
+		envelope := coderd.TaskLogSnapshotEnvelope{
+			Format: "agentapi",
+			Data:   snapshotData,
+		}
+
+		snapshotJSON, err := json.Marshal(envelope)
+		require.NoError(t, err)
+
+		snapshotTime := time.Date(2025, 1, 1, 10, 5, 0, 0, time.UTC)
+
+		// Helper to verify snapshot logs content.
+		verifySnapshotLogs := func(t *testing.T, got codersdk.TaskLogsResponse) {
+			t.Helper()
+			want := codersdk.TaskLogsResponse{
+				Snapshot:   true,
+				SnapshotAt: &snapshotTime,
+				Logs: []codersdk.TaskLogEntry{
+					{
+						ID:      0,
+						Type:    codersdk.TaskLogTypeOutput,
+						Content: "First message",
+						Time:    snapshotMessages[0].Time,
+					},
+					{
+						ID:      1,
+						Type:    codersdk.TaskLogTypeInput,
+						Content: "Second message",
+						Time:    snapshotMessages[1].Time,
+					},
+				},
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("got bad response (-want +got):\n%s", diff)
+			}
+		}
+
+		t.Run("PendingTaskReturnsSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTaskInState(ctx, t, database.TaskStatusPending)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err, "upserting task snapshot")
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err, "fetching task logs")
+			verifySnapshotLogs(t, logsResp)
+		})
+
+		t.Run("InitializingTaskReturnsSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTaskInState(ctx, t, database.TaskStatusInitializing)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err, "upserting task snapshot")
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err, "fetching task logs")
+			verifySnapshotLogs(t, logsResp)
+		})
+
+		t.Run("PausedTaskReturnsSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTaskInState(ctx, t, database.TaskStatusPaused)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err, "upserting task snapshot")
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err, "fetching task logs")
+			verifySnapshotLogs(t, logsResp)
+		})
+
+		t.Run("NoSnapshotReturnsEmpty", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTaskInState(ctx, t, database.TaskStatusPending)
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err)
+
+			assert.True(t, logsResp.Snapshot)
+			assert.Nil(t, logsResp.SnapshotAt)
+			assert.Len(t, logsResp.Logs, 0)
+		})
+
+		t.Run("InvalidSnapshotFormat", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTaskInState(ctx, t, database.TaskStatusPending)
+
+			invalidEnvelope := coderd.TaskLogSnapshotEnvelope{
+				Format: "unknown-format",
+				Data:   map[string]any{},
+			}
+			invalidJSON, err := json.Marshal(invalidEnvelope)
+			require.NoError(t, err)
+
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(invalidJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err)
+
+			_, err = client.TaskLogs(ctx, "me", taskID)
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+			assert.Contains(t, sdkErr.Message, "Unsupported task snapshot format")
+		})
+
+		t.Run("MalformedSnapshotData", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTaskInState(ctx, t, database.TaskStatusPending)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(`{"format":"agentapi","data":"not an object"}`),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err)
+
+			_, err = client.TaskLogs(ctx, "me", taskID)
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+		})
+
+		t.Run("ErrorStateReturnsError", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTaskInState(ctx, t, database.TaskStatusError)
+
+			_, err := client.TaskLogs(ctx, "me", taskID)
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+			assert.Contains(t, sdkErr.Message, "Cannot fetch logs for task in current state")
+			assert.Contains(t, sdkErr.Detail, "error")
 		})
 	})
 
