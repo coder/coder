@@ -494,15 +494,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								</div>
 								{permissions.createWorkspaceForAny && (
 									<div className="flex flex-col gap-2 flex-1">
-										<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
-											Owner
-										</Label>
 										<UserAutocomplete
 											value={owner}
+											label="Owner"
+											required
 											onChange={(user) => {
 												handleOwnerChange(user ?? defaultOwner);
 											}}
-											size="medium"
 										/>
 									</div>
 								)}

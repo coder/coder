@@ -30,6 +30,7 @@ interface AutocompleteProps<TOption> {
 	isOptionEqualToValue?: (option: TOption, value: TOption) => boolean;
 	renderOption?: (option: TOption, isSelected: boolean) => ReactNode;
 	loading?: boolean;
+	label?: string;
 	placeholder?: string;
 	noOptionsText?: string;
 	open?: boolean;
@@ -38,10 +39,16 @@ interface AutocompleteProps<TOption> {
 	onInputChange?: (value: string) => void;
 	clearable?: boolean;
 	disabled?: boolean;
+	required?: boolean;
 	startAdornment?: ReactNode;
 	className?: string;
 	id?: string;
 	"data-testid"?: string;
+	/**
+	 * Container element to portal the dropdown into. Use this when rendering
+	 * inside a Dialog to avoid scroll lock issues.
+	 */
+	popoverContainer?: HTMLElement | null;
 }
 
 export function Autocomplete<TOption>({
@@ -53,6 +60,7 @@ export function Autocomplete<TOption>({
 	isOptionEqualToValue,
 	renderOption,
 	loading = false,
+	label,
 	placeholder = "Select an option",
 	noOptionsText = "No results found",
 	open: controlledOpen,
@@ -61,10 +69,12 @@ export function Autocomplete<TOption>({
 	onInputChange,
 	clearable = true,
 	disabled = false,
+	required = false,
 	startAdornment,
 	className,
 	id,
 	"data-testid": testId,
+	popoverContainer,
 }: AutocompleteProps<TOption>) {
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
@@ -135,7 +145,7 @@ export function Autocomplete<TOption>({
 	const displayValue = value ? getOptionLabel(value) : "";
 	const showClearButton = clearable && value && !disabled;
 
-	return (
+	const autocomplete = (
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild disabled={disabled}>
 				<button
@@ -200,6 +210,7 @@ export function Autocomplete<TOption>({
 			<PopoverContent
 				className="w-[var(--radix-popover-trigger-width)] p-0"
 				align="start"
+				container={popoverContainer}
 			>
 				<Command shouldFilter={controlledInputValue === undefined}>
 					<CommandInput
@@ -249,4 +260,23 @@ export function Autocomplete<TOption>({
 			</PopoverContent>
 		</Popover>
 	);
+
+	if (label) {
+		return (
+			<div className="flex flex-col gap-1">
+				<label
+					htmlFor={id}
+					className="text-sm font-medium text-content-primary"
+				>
+					{label}
+					{required && (
+						<span className="text-content-destructive ml-0.5">*</span>
+					)}
+				</label>
+				{autocomplete}
+			</div>
+		);
+	}
+
+	return autocomplete;
 }
