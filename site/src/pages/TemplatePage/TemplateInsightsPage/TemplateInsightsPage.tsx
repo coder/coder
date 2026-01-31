@@ -290,7 +290,6 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
@@ -321,7 +320,10 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 									<div className="font-medium">{row.username}</div>
 								</div>
 								<div
-									className={cn("text-right font-medium text-[13px]", getLatencyColor(row.latency_ms.p50))}
+									className={cn(
+										"text-right font-medium text-[13px]",
+										getLatencyColor(row.latency_ms.p50),
+									)}
 								>
 									{row.latency_ms.p50.toFixed(0)}ms
 								</div>
