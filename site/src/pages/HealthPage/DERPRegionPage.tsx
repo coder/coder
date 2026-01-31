@@ -115,9 +115,10 @@ const DERPRegionPage: FC = () => {
 				{reports.map((report) => {
 					report = report as DERPNodeReport; // Can technically be null
 					const { node, client_logs: logs } = report;
-					const latencyColor = getLatencyColor(
-						theme,
+					const latencyColor = getLatencyColor(report.round_trip_ping_ms);
+					const latencyBackground = getLatencyColor(
 						report.round_trip_ping_ms,
+						"background",
 					);
 					return (
 						<section
@@ -141,8 +142,8 @@ const DERPRegionPage: FC = () => {
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<Pill
-												css={{ color: latencyColor }}
-												icon={<StatusCircle color={latencyColor} />}
+												className={latencyColor}
+												icon={<StatusCircle background={latencyBackground} />}
 											>
 												{report.round_trip_ping_ms}ms
 											</Pill>
@@ -174,9 +175,9 @@ const DERPRegionPage: FC = () => {
 	);
 };
 
-type StatusCircleProps = { color: string };
+type StatusCircleProps = { background: string };
 
-const StatusCircle: FC<StatusCircleProps> = ({ color }) => {
+const StatusCircle: FC<StatusCircleProps> = ({ background }) => {
 	return (
 		<div
 			css={{
@@ -189,7 +190,7 @@ const StatusCircle: FC<StatusCircleProps> = ({ color }) => {
 				css={{
 					width: 8,
 					height: 8,
-					backgroundColor: color,
+					backgroundColor: background,
 					borderRadius: 9999,
 				}}
 			/>

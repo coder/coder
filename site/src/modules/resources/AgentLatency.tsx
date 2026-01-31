@@ -1,4 +1,4 @@
-import { type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import type { DERPRegion, WorkspaceAgent } from "api/typesGenerated";
 import {
 	HelpTooltip,
@@ -11,7 +11,7 @@ import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
-const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
+const getDisplayLatency = (agent: WorkspaceAgent) => {
 	// Find the right latency to display
 	const latencyValues = Object.values(agent.latency ?? {});
 	const latency =
@@ -26,7 +26,7 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
 
 	return {
 		...latency,
-		color: getLatencyColor(theme, latency.latency_ms),
+		color: getLatencyColor(latency.latency_ms),
 	};
 };
 
@@ -36,7 +36,7 @@ interface AgentLatencyProps {
 
 export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 	const theme = useTheme();
-	const latency = getDisplayLatency(theme, agent);
+	const latency = getDisplayLatency(agent);
 
 	if (!latency || !agent.latency) {
 		return null;

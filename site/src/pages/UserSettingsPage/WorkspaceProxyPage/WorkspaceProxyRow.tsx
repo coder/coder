@@ -78,10 +78,8 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 					css={{
 						fontSize: 14,
 						textAlign: "right",
-						color: latency
-							? getLatencyColor(theme, latency.latencyMS)
-							: theme.palette.text.secondary,
 					}}
+					className={latency ? getLatencyColor(latency.latencyMS) : "text-content-secondary"}
 				>
 					{latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
 				</TableCell>

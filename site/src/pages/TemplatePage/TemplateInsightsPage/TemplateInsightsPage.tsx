@@ -321,10 +321,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 									<div className="font-medium">{row.username}</div>
 								</div>
 								<div
-									className="text-right font-medium text-[13px]"
-									css={{
-										color: getLatencyColor(theme, row.latency_ms.p50),
-									}}
+									className={cn("text-right font-medium text-[13px]", getLatencyColor(row.latency_ms.p50))}
 								>
 									{row.latency_ms.p50.toFixed(0)}ms
 								</div>
