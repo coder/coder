@@ -1,0 +1,5 @@
+err: WARN: Task is initializing. Showing last 2 messages from snapshot.
+err: 
+out: TYPE    CONTENT         
+out: input   What is 1 + 1?  
+out: output  2               
