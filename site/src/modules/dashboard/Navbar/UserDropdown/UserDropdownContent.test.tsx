@@ -1,20 +1,31 @@
+import { screen } from "@testing-library/react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { MockUserOwner } from "testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
-import { screen } from "@testing-library/react";
-import { Popover } from "components/Popover/Popover";
 import { Language, UserDropdownContent } from "./UserDropdownContent";
+
+const renderUserDropdownContent = (props: { onSignOut: () => void }) => {
+	return render(
+		<DropdownMenu defaultOpen>
+			<DropdownMenuTrigger>Open</DropdownMenuTrigger>
+			<DropdownMenuContent>
+				<UserDropdownContent
+					user={MockUserOwner}
+					onSignOut={props.onSignOut}
+					supportLinks={[]}
+				/>
+			</DropdownMenuContent>
+		</DropdownMenu>,
+	);
+};
 
 describe("UserDropdownContent", () => {
 	it("has the correct link for the account item", async () => {
-		render(
-			<Popover>
-				<UserDropdownContent
-					user={MockUserOwner}
-					onSignOut={vi.fn()}
-					supportLinks={[]}
-				/>
-			</Popover>,
-		);
+		renderUserDropdownContent({ onSignOut: vi.fn() });
 		await waitForLoaderToBeRemoved();
 
 		const link = screen.getByText(Language.accountLabel).closest("a");
@@ -27,15 +38,7 @@ describe("UserDropdownContent", () => {
 
 	it("calls the onSignOut function", async () => {
 		const onSignOut = vi.fn();
-		render(
-			<Popover>
-				<UserDropdownContent
-					user={MockUserOwner}
-					onSignOut={onSignOut}
-					supportLinks={[]}
-				/>
-			</Popover>,
-		);
+		renderUserDropdownContent({ onSignOut });
 		await waitForLoaderToBeRemoved();
 		screen.getByText(Language.signOutLabel).click();
 		expect(onSignOut).toBeCalledTimes(1);
