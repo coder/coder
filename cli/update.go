@@ -75,5 +75,6 @@ func (r *RootCmd) update() *serpent.Command {
 
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
 	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
+	cmd.Options = append(cmd.Options, parameterFlags.workspaceParameterDefaults())
 	return cmd
 }

@@ -86,3 +86,12 @@ Rich parameter default values in the format "name=value".
 | Type | <code>bool</code> |
 
 Always prompt all parameters. Does not pull parameter values from existing workspace.
+
+### --use-parameter-defaults
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_WORKSPACE_USE_PARAMETER_DEFAULTS</code> |
+
+Automatically accept parameter defaults when no value is provided.
