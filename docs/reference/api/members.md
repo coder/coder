@@ -540,6 +540,33 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organization member
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/members/{user}`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description          |
+|----------------|------|--------|----------|----------------------|
+| `organization` | path | string | true     | Organization ID      |
+| `user`         | path | string | true     | User ID, name, or me |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Add organization member
 
 ### Code samples
