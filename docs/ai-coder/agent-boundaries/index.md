@@ -1,4 +1,4 @@
-# Agent Boundary
+# Agent Boundaries
 
 Agent Boundaries are process-level firewalls that restrict and audit what autonomous programs, such as AI agents, can access and use.
 
@@ -15,7 +15,7 @@ Agent Boundaries offer network policy enforcement, which blocks domains and HTTP
 Agent Boundaries also stream audit logs to Coder's control plane for centralized
 monitoring of HTTP requests.
 
-## Getting Started with Boundary
+## Getting Started with Agent Boundaries
 
 The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
 
@@ -24,9 +24,9 @@ The easiest way to use Agent Boundaries is through existing Coder modules, such 
 > [!NOTE]
 > For information about version requirements and compatibility, see the [Version Requirements](./version.md) documentation.
 
-Boundary is configured using a `config.yaml` file. This allows you to maintain allow lists and share detailed policies with teammates.
+Agent Boundaries is configured using a `config.yaml` file. This allows you to maintain allow lists and share detailed policies with teammates.
 
-In your Terraform module, enable Boundary with minimal configuration:
+In your Terraform module, enable Agent Boundaries with minimal configuration:
 
 ```tf
 module "claude-code" {
@@ -50,7 +50,7 @@ proxy_port: 8087
 log_level: warn
 ```
 
-For a basic recommendation of what to allow for agents, see the [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains). For a comprehensive example of a production Boundary configuration, see the [Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
+For a basic recommendation of what to allow for agents, see the [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains). For a comprehensive example of a production Agent Boundaries configuration, see the [Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
 
 Add a `coder_script` resource to mount the configuration file into the workspace filesystem:
 
@@ -69,13 +69,13 @@ resource "coder_script" "boundary_config_setup" {
 }
 ```
 
-Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when it starts, so everyone who launches Boundary manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive allow lists in version control.
+Agent Boundaries automatically reads `config.yaml` from `~/.config/coder_boundary/` when it starts, so everyone who launches Agent Boundaries manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive allow lists in version control.
 
 ### Configuration Parameters
 
 - `log_dir` defines where boundary writes log files
-- `log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
-  - `WARN`: logs only requests that have been blocked by Boundary
+- `log_level` defines the verbosity at which requests are logged. Agent Boundaries uses the following verbosity levels:
+  - `WARN`: logs only requests that have been blocked by Agent Boundaries
   - `INFO`: logs all requests at a high level
   - `DEBUG`: logs all requests in detail
 - `proxy_port` defines the port used by the HTTP proxy.
@@ -96,7 +96,7 @@ curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | ba
 
 ## Jail Types
 
-Boundary supports two different jail types for process isolation, each with different characteristics and requirements:
+Agent Boundaries supports two different jail types for process isolation, each with different characteristics and requirements:
 
 1. **nsjail** - Uses Linux namespaces for isolation. This is the default jail type and provides network namespace isolation. See [nsjail documentation](./nsjail.md) for detailed information about runtime requirements and Docker configuration.
 
@@ -124,23 +124,23 @@ commands run with `boundary`.
 
 Audit logs are independent of application logs:
 
-- **Audit logs** record Boundary's policy decisions: whether each HTTP request was
+- **Audit logs** record Agent Boundaries' policy decisions: whether each HTTP request was
   allowed or denied based on the allowlist rules. These are always sent to the control
-  plane regardless of Boundary's configured log level.
-- **Application logs** are Boundary's operational logs written locally to the workspace.
+  plane regardless of Agent Boundaries' configured log level.
+- **Application logs** are Agent Boundaries' operational logs written locally to the workspace.
   These include startup messages, internal errors, and debugging information controlled
   by the `log_level` setting.
 
-For example, if a request to `api.example.com` is allowed by Boundary but the remote
-server returns a 500 error, the audit log records `decision=allow` because Boundary
+For example, if a request to `api.example.com` is allowed by Agent Boundaries but the remote
+server returns a 500 error, the audit log records `decision=allow` because Agent Boundaries
 permitted the request. The HTTP response status is not tracked in audit logs.
 
 > [!NOTE]
-> Requires Coder v2.30+ and Boundary v0.5.2+.
+> Requires Coder v2.30+ and Agent Boundaries v0.5.2+.
 
 ### Audit Log Contents
 
-Each boundary audit log entry includes:
+Each Agent Boundaries audit log entry includes:
 
 | Field                 | Description                                                                             |
 |-----------------------|-----------------------------------------------------------------------------------------|
@@ -157,7 +157,7 @@ Each boundary audit log entry includes:
 
 ### Viewing Audit Logs
 
-Boundary audit logs are emitted as structured log entries from the Coder server.
+Agent Boundaries audit logs are emitted as structured log entries from the Coder server.
 You can collect and analyze these logs using any log aggregation system such as
 Grafana Loki.
 
