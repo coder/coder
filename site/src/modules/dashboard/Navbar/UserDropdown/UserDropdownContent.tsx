@@ -41,7 +41,10 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 }) => {
 	return (
 		<>
-			<DropdownMenuItem className="flex items-center gap-3" asChild>
+			<DropdownMenuItem
+				className="flex items-center gap-3 [&_img]:w-full [&_img]:h-full"
+				asChild
+			>
 				<Link to="/settings/account">
 					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
 					<div className="flex flex-col">
