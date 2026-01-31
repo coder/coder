@@ -46,6 +46,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		autoUpdates          string
 		copyParametersFrom   string
 		useParameterDefaults bool
+		nonInteractive       bool
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -75,6 +76,9 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			if workspaceName == "" {
+				if nonInteractive {
+					return xerrors.New("workspace name must be provided as an argument in non-interactive mode")
+				}
 				workspaceName, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
@@ -122,11 +126,23 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			var templateVersionID uuid.UUID
 			switch {
 			case templateName == "":
-				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
-
 				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{})
 				if err != nil {
 					return err
+				}
+
+				if len(templates) == 0 {
+					return xerrors.New("no templates available")
+				}
+
+				if nonInteractive {
+					if len(templates) == 1 {
+						_, _ = fmt.Fprintf(inv.Stdout, "Using the only available template: %q\n", templates[0].Name)
+						template = templates[0]
+						templateVersionID = template.ActiveVersionID
+						break
+					}
+					return xerrors.New("multiple templates available; use --template to specify which to use")
 				}
 
 				slices.SortFunc(templates, func(a, b codersdk.Template) int {
@@ -166,6 +182,8 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 					templateNames = append(templateNames, templateName)
 					templateByName[templateName] = template
 				}
+
+				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
 				// Move the cursor up a single line for nicer display!
 				option, err := cliui.Select(inv, cliui.SelectOptions{
@@ -297,19 +315,24 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 					if !errors.Is(err, ErrNoPresetFound) {
 						return xerrors.Errorf("unable to resolve preset: %w", err)
 					}
-					// If no preset found, prompt the user to choose a preset
-					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
-						return xerrors.Errorf("unable to prompt user for preset: %w", err)
+					// If no preset found, prompt the user to choose a preset, unless in
+					// non-interactive mode, in which case no preset is used.
+					if !nonInteractive {
+						if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
+							return xerrors.Errorf("unable to prompt user for preset: %w", err)
+						}
 					}
 				}
+			}
 
+			if preset == nil {
+				// Inform the user when no preset will be applied.
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Bold("No preset applied."))
+			} else {
 				// Convert preset parameters into workspace build parameters
 				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
 				// Inform the user which preset was applied and its parameters
 				displayAppliedPreset(inv, preset, presetParameters)
-			} else {
-				// Inform the user that no preset was applied
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Bold("No preset applied."))
 			}
 
 			if opts.BeforeCreate != nil {
@@ -332,17 +355,20 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
 
 				UseParameterDefaults: useParameterDefaults,
+				NonInteractive:       nonInteractive,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
 			}
 
-			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      "Confirm create?",
-				IsConfirm: true,
-			})
-			if err != nil {
-				return err
+			if !nonInteractive {
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Confirm create?",
+					IsConfirm: true,
+				})
+				if err != nil {
+					return err
+				}
 			}
 
 			var ttlMillis *int64
@@ -444,6 +470,12 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Description: "Automatically accept parameter defaults when no value is provided.",
 			Value:       serpent.BoolOf(&useParameterDefaults),
 		},
+		serpent.Option{
+			Flag:        "non-interactive",
+			Env:         "CODER_NON_INTERACTIVE",
+			Description: "Automatically accept all defaults and error when there is no default for a required input.",
+			Value:       serpent.BoolOf(&nonInteractive),
+		},
 		cliui.SkipPromptOption(),
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
@@ -470,6 +502,7 @@ type prepWorkspaceBuildArgs struct {
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
 
 	UseParameterDefaults bool
+	NonInteractive       bool
 }
 
 // resolvePreset returns the preset matching the given presetName (if specified),
@@ -573,7 +606,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).
 		WithRichParametersDefaults(args.RichParameterDefaults).
-		WithUseParameterDefaults(args.UseParameterDefaults)
+		WithUseParameterDefaults(args.UseParameterDefaults).
+		WithNonInteractive(args.NonInteractive)
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err
