@@ -1,7 +1,8 @@
 -- name: UpsertBoundaryUsageStats :one
--- Upserts boundary usage statistics for a replica. All values are replaced with
--- the current in-memory state. Returns true if this was an insert (new period),
--- false if update.
+-- Upserts boundary usage statistics for a replica. On INSERT (new period), uses
+-- delta values for unique counts (only data since last flush). On UPDATE, uses
+-- cumulative values for unique counts (accurate period totals). Request counts
+-- are always deltas, accumulated in DB. Returns true if insert, false if update.
 INSERT INTO boundary_usage_stats (
     replica_id,
     unique_workspaces_count,
@@ -12,17 +13,17 @@ INSERT INTO boundary_usage_stats (
     updated_at
 ) VALUES (
     @replica_id,
-    @unique_workspaces_count,
-    @unique_users_count,
+    @unique_workspaces_delta,
+    @unique_users_delta,
     @allowed_requests,
     @denied_requests,
     NOW(),
     NOW()
 ) ON CONFLICT (replica_id) DO UPDATE SET
-    unique_workspaces_count = EXCLUDED.unique_workspaces_count,
-    unique_users_count = EXCLUDED.unique_users_count,
-    allowed_requests = EXCLUDED.allowed_requests,
-    denied_requests = EXCLUDED.denied_requests,
+    unique_workspaces_count = @unique_workspaces_count,
+    unique_users_count = @unique_users_count,
+    allowed_requests = boundary_usage_stats.allowed_requests + EXCLUDED.allowed_requests,
+    denied_requests = boundary_usage_stats.denied_requests + EXCLUDED.denied_requests,
     updated_at = NOW()
 RETURNING (xmax = 0) AS new_period;
 

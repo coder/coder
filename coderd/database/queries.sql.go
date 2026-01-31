@@ -2051,32 +2051,37 @@ INSERT INTO boundary_usage_stats (
     NOW(),
     NOW()
 ) ON CONFLICT (replica_id) DO UPDATE SET
-    unique_workspaces_count = EXCLUDED.unique_workspaces_count,
-    unique_users_count = EXCLUDED.unique_users_count,
-    allowed_requests = EXCLUDED.allowed_requests,
-    denied_requests = EXCLUDED.denied_requests,
+    unique_workspaces_count = $6,
+    unique_users_count = $7,
+    allowed_requests = boundary_usage_stats.allowed_requests + EXCLUDED.allowed_requests,
+    denied_requests = boundary_usage_stats.denied_requests + EXCLUDED.denied_requests,
     updated_at = NOW()
 RETURNING (xmax = 0) AS new_period
 `
 
 type UpsertBoundaryUsageStatsParams struct {
 	ReplicaID             uuid.UUID `db:"replica_id" json:"replica_id"`
-	UniqueWorkspacesCount int64     `db:"unique_workspaces_count" json:"unique_workspaces_count"`
-	UniqueUsersCount      int64     `db:"unique_users_count" json:"unique_users_count"`
+	UniqueWorkspacesDelta int64     `db:"unique_workspaces_delta" json:"unique_workspaces_delta"`
+	UniqueUsersDelta      int64     `db:"unique_users_delta" json:"unique_users_delta"`
 	AllowedRequests       int64     `db:"allowed_requests" json:"allowed_requests"`
 	DeniedRequests        int64     `db:"denied_requests" json:"denied_requests"`
+	UniqueWorkspacesCount int64     `db:"unique_workspaces_count" json:"unique_workspaces_count"`
+	UniqueUsersCount      int64     `db:"unique_users_count" json:"unique_users_count"`
 }
 
-// Upserts boundary usage statistics for a replica. All values are replaced with
-// the current in-memory state. Returns true if this was an insert (new period),
-// false if update.
+// Upserts boundary usage statistics for a replica. On INSERT (new period), uses
+// delta values for unique counts (only data since last flush). On UPDATE, uses
+// cumulative values for unique counts (accurate period totals). Request counts
+// are always deltas, accumulated in DB. Returns true if insert, false if update.
 func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, upsertBoundaryUsageStats,
 		arg.ReplicaID,
-		arg.UniqueWorkspacesCount,
-		arg.UniqueUsersCount,
+		arg.UniqueWorkspacesDelta,
+		arg.UniqueUsersDelta,
 		arg.AllowedRequests,
 		arg.DeniedRequests,
+		arg.UniqueWorkspacesCount,
+		arg.UniqueUsersCount,
 	)
 	var new_period bool
 	err := row.Scan(&new_period)

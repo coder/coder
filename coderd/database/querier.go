@@ -762,9 +762,10 @@ type sqlcQuerier interface {
 	UpsertAnnouncementBanners(ctx context.Context, value string) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
-	// Upserts boundary usage statistics for a replica. All values are replaced with
-	// the current in-memory state. Returns true if this was an insert (new period),
-	// false if update.
+	// Upserts boundary usage statistics for a replica. On INSERT (new period), uses
+	// delta values for unique counts (only data since last flush). On UPDATE, uses
+	// cumulative values for unique counts (accurate period totals). Request counts
+	// are always deltas, accumulated in DB. Returns true if insert, false if update.
 	UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error)
 	UpsertConnectionLog(ctx context.Context, arg UpsertConnectionLogParams) (ConnectionLog, error)
 	UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error

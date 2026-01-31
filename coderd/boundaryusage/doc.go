@@ -40,8 +40,10 @@
 // counters. When boundary logs are reported, Track() adds the IDs to the sets
 // and increments request counters.
 //
-// FlushToDB() writes stats to the database, replacing all values with the current
-// in-memory state. Stats accumulate in memory throughout the telemetry period.
+// FlushToDB() writes stats to the database only when there's been new activity
+// since the last flush. This prevents stale data from being written after a
+// telemetry reset when no new usage occurred. Stats accumulate in memory
+// throughout the telemetry period.
 //
 // A new period is detected when the upsert results in an INSERT (meaning
 // telemetry deleted the replica's row). At that point, all in-memory stats are
