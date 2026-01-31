@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { PopoverPaywall } from "./PopoverPaywall";
+import { PaywallPremium } from "./PaywallPremium";
 
-const meta: Meta<typeof PopoverPaywall> = {
-	title: "components/Paywall/PopoverPaywall",
-	component: PopoverPaywall,
+const meta: Meta<typeof PaywallPremium> = {
+	title: "components/Paywall/Premium",
+	component: PaywallPremium,
 };
 
 export default meta;
-type Story = StoryObj<typeof PopoverPaywall>;
+type Story = StoryObj<typeof PaywallPremium>;
 
-export const Premium: Story = {
+export const Default: Story = {
 	args: {
 		message: "Black Lotus",
 		description:
