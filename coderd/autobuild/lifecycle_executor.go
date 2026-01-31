@@ -351,6 +351,14 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 						nextBuild, job, _, err = builder.Build(e.ctx, tx, e.fileCache, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
+							// If we get a unique constraint violation on the build number,
+							// it means another lifecycle executor already started a build
+							// for this workspace. This is a benign race condition - the
+							// other executor won, so we just skip this workspace.
+							if database.IsUniqueViolation(err, database.UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey) {
+								log.Debug(e.ctx, "skipping workspace: build already started by another executor")
+								return nil
+							}
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
 					}
