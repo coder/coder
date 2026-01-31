@@ -12,6 +12,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// ChatGitChange represents a git file change detected during a chat session.
+type ChatGitChange struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	ChatID      uuid.UUID      `db:"chat_id" json:"chat_id"`
+	FilePath    string         `db:"file_path" json:"file_path"`
+	ChangeType  string         `db:"change_type" json:"change_type"`
+	OldPath     sql.NullString `db:"old_path" json:"old_path"`
+	DiffSummary sql.NullString `db:"diff_summary" json:"diff_summary"`
+	DetectedAt  time.Time      `db:"detected_at" json:"detected_at"`
+}
+
 const deleteChatByID = `-- name: DeleteChatByID :exec
 DELETE FROM chats WHERE id = $1
 `
@@ -378,4 +389,91 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertChatGitChange = `-- name: InsertChatGitChange :one
+INSERT INTO chat_git_changes (chat_id, file_path, change_type, old_path, diff_summary)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (chat_id, file_path) DO UPDATE SET
+    change_type = EXCLUDED.change_type,
+    old_path = EXCLUDED.old_path,
+    diff_summary = EXCLUDED.diff_summary,
+    detected_at = NOW()
+RETURNING id, chat_id, file_path, change_type, old_path, diff_summary, detected_at
+`
+
+type InsertChatGitChangeParams struct {
+	ChatID      uuid.UUID      `db:"chat_id" json:"chat_id"`
+	FilePath    string         `db:"file_path" json:"file_path"`
+	ChangeType  string         `db:"change_type" json:"change_type"`
+	OldPath     sql.NullString `db:"old_path" json:"old_path"`
+	DiffSummary sql.NullString `db:"diff_summary" json:"diff_summary"`
+}
+
+func (q *sqlQuerier) InsertChatGitChange(ctx context.Context, arg InsertChatGitChangeParams) (ChatGitChange, error) {
+	row := q.db.QueryRowContext(ctx, insertChatGitChange,
+		arg.ChatID,
+		arg.FilePath,
+		arg.ChangeType,
+		arg.OldPath,
+		arg.DiffSummary,
+	)
+	var i ChatGitChange
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.FilePath,
+		&i.ChangeType,
+		&i.OldPath,
+		&i.DiffSummary,
+		&i.DetectedAt,
+	)
+	return i, err
+}
+
+const getChatGitChangesByChatID = `-- name: GetChatGitChangesByChatID :many
+SELECT id, chat_id, file_path, change_type, old_path, diff_summary, detected_at
+FROM chat_git_changes
+WHERE chat_id = $1
+ORDER BY detected_at DESC
+`
+
+func (q *sqlQuerier) GetChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
+	rows, err := q.db.QueryContext(ctx, getChatGitChangesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatGitChange
+	for rows.Next() {
+		var i ChatGitChange
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.FilePath,
+			&i.ChangeType,
+			&i.OldPath,
+			&i.DiffSummary,
+			&i.DetectedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteChatGitChangesByChatID = `-- name: DeleteChatGitChangesByChatID :exec
+DELETE FROM chat_git_changes WHERE chat_id = $1
+`
+
+func (q *sqlQuerier) DeleteChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatGitChangesByChatID, chatID)
+	return err
 }

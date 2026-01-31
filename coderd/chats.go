@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -242,6 +243,22 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If this is a user message, mark the chat as pending so the processor picks
+	// it up.
+	if req.Role == "user" {
+		_, err = api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:        chatID,
+			Status:    database.ChatStatusPending,
+			WorkerID:  uuid.NullUUID{},
+			StartedAt: sql.NullTime{},
+		})
+		if err != nil {
+			// Log but don't fail - the message was saved.
+			api.Logger.Error(ctx, "failed to mark chat as pending",
+				slog.F("chat_id", chatID), slog.Error(err))
+		}
+	}
+
 	// Return all messages for this chat.
 	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
 	if err != nil {
@@ -253,6 +270,47 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatMessages(messages))
+}
+
+// @Summary Get git changes for a chat
+// @ID get-chat-git-changes
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {array} codersdk.ChatGitChange
+// @Router /chats/{chat}/git-changes [get]
+func (api *API) getChatGitChanges(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chatID, ok := parseChatID(rw, r)
+	if !ok {
+		return
+	}
+
+	// Check that the chat exists and user has access.
+	_, err := api.Database.GetChatByID(ctx, chatID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	changes, err := api.Database.GetChatGitChangesByChatID(ctx, chatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get git changes.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatGitChanges(changes))
 }
 
 func parseChatID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
@@ -332,6 +390,31 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 	result := make([]codersdk.ChatMessage, len(messages))
 	for i, m := range messages {
 		result[i] = convertChatMessage(m)
+	}
+	return result
+}
+
+func convertChatGitChange(c database.ChatGitChange) codersdk.ChatGitChange {
+	change := codersdk.ChatGitChange{
+		ID:         c.ID,
+		ChatID:     c.ChatID,
+		FilePath:   c.FilePath,
+		ChangeType: c.ChangeType,
+		DetectedAt: c.DetectedAt,
+	}
+	if c.OldPath.Valid {
+		change.OldPath = &c.OldPath.String
+	}
+	if c.DiffSummary.Valid {
+		change.DiffSummary = &c.DiffSummary.String
+	}
+	return change
+}
+
+func convertChatGitChanges(changes []database.ChatGitChange) []codersdk.ChatGitChange {
+	result := make([]codersdk.ChatGitChange, len(changes))
+	for i, c := range changes {
+		result[i] = convertChatGitChange(c)
 	}
 	return result
 }

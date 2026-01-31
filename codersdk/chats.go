@@ -76,6 +76,17 @@ type ChatWithMessages struct {
 	Messages []ChatMessage `json:"messages"`
 }
 
+// ChatGitChange represents a git file change detected during a chat session.
+type ChatGitChange struct {
+	ID          uuid.UUID `json:"id" format:"uuid"`
+	ChatID      uuid.UUID `json:"chat_id" format:"uuid"`
+	FilePath    string    `json:"file_path"`
+	ChangeType  string    `json:"change_type"` // added, modified, deleted, renamed
+	OldPath     *string   `json:"old_path,omitempty"`
+	DiffSummary *string   `json:"diff_summary,omitempty"`
+	DetectedAt  time.Time `json:"detected_at" format:"date-time"`
+}
+
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context) ([]Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats", nil)
@@ -143,4 +154,18 @@ func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req Cr
 	}
 	var messages []ChatMessage
 	return messages, json.NewDecoder(res.Body).Decode(&messages)
+}
+
+// GetChatGitChanges returns git changes for a chat.
+func (c *Client) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/git-changes", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var changes []ChatGitChange
+	return changes, json.NewDecoder(res.Body).Decode(&changes)
 }
