@@ -12444,6 +12444,8 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "aibridge:*",
+                "aibridge:use",
                 "aibridge_interception:*",
                 "aibridge_interception:create",
                 "aibridge_interception:read",
@@ -12646,6 +12648,8 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAibridgeAll",
+                "APIKeyScopeAibridgeUse",
                 "APIKeyScopeAibridgeInterceptionAll",
                 "APIKeyScopeAibridgeInterceptionCreate",
                 "APIKeyScopeAibridgeInterceptionRead",
@@ -17743,6 +17747,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "aibridge",
                 "aibridge_interception",
                 "api_key",
                 "assign_org_role",
@@ -17788,6 +17793,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAibridge",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
                 "ResourceAssignOrgRole",
