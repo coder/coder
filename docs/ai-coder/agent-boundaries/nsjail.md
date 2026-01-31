@@ -83,8 +83,8 @@ custom seccomp profile that adds an allow rule like the following:
 
 ```json
 {
-	"names": ["clone"],
-	"action": "SCMP_ACT_ALLOW"
+    "names": ["clone"],
+    "action": "SCMP_ACT_ALLOW"
 }
 ```
 
