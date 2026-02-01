@@ -1,7 +1,6 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { templates } from "api/queries/templates";
-import type { Template } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -22,17 +21,24 @@ import { Switch } from "components/Switch/Switch";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { Link } from "components/Link/Link";
-import { SettingsIcon, Code2 } from "lucide-react";
+import { SettingsIcon, Code2, InfoIcon } from "lucide-react";
 import { type FC, useState, type FormEvent, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
 
+type DuplicateMetadata = {
+	workspaceName: string;
+	branch: string;
+	repository: string;
+	pvcId: string;
+};
+
 type NewTaskDialogProps = {
 	open: boolean;
 	onClose: () => void;
-	initialPrompt?: string;
+	duplicateMetadata?: DuplicateMetadata;
 };
 
 type SkillInput = {
@@ -201,7 +207,7 @@ const AGENTS = [
 export const NewTaskDialog: FC<NewTaskDialogProps> = ({
 	open,
 	onClose,
-	initialPrompt,
+	duplicateMetadata,
 }) => {
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
@@ -219,16 +225,6 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({
 	const [apiCodeType, setApiCodeType] = useState<
 		"curl" | "cli" | "sdk" | "github"
 	>("curl");
-
-	// Set initial prompt when dialog opens with initialPrompt
-	useEffect(() => {
-		if (open && initialPrompt) {
-			setFreeFormPrompt(initialPrompt);
-			setSelectedSkill("");
-			setSkillInputs({});
-			setShowApiCode(false);
-		}
-	}, [open, initialPrompt]);
 
 	// Auto-focus the free-form input
 	useEffect(() => {
@@ -464,6 +460,49 @@ console.log(\`Task created: \${task.id}\`);`;
 								</div>
 							</div>
 						</DialogHeader>
+
+						{/* Duplicate metadata banner */}
+						{duplicateMetadata && (
+							<div className="mx-6 mt-4 p-4 bg-surface-secondary border-2 border-content-link/20 rounded-lg">
+								<div className="flex items-start gap-3">
+									<InfoIcon className="size-5 text-content-link flex-shrink-0 mt-0.5" />
+									<div className="flex-1 space-y-3">
+										<p className="m-0 text-sm font-semibold text-content-primary">
+											Duplicating from{" "}
+											<span className="font-mono text-content-link">
+												{duplicateMetadata.workspaceName}
+											</span>
+										</p>
+										<div className="grid grid-cols-3 gap-4 pt-2 border-t border-border">
+											<div>
+												<p className="m-0 font-semibold text-xs text-content-secondary mb-1.5">
+													Branch
+												</p>
+												<p className="m-0 font-mono text-sm text-content-primary">
+													{duplicateMetadata.branch}
+												</p>
+											</div>
+											<div>
+												<p className="m-0 font-semibold text-xs text-content-secondary mb-1.5">
+													Repository
+												</p>
+												<p className="m-0 font-mono text-sm text-content-primary">
+													{duplicateMetadata.repository}
+												</p>
+											</div>
+											<div>
+												<p className="m-0 font-semibold text-xs text-content-secondary mb-1.5">
+													PVC ID
+												</p>
+												<p className="m-0 font-mono text-sm text-content-primary">
+													{duplicateMetadata.pvcId}
+												</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						)}
 
 						<form
 							onSubmit={handleSubmit}

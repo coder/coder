@@ -163,7 +163,12 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 			<NewTaskDialog
 				open={isDuplicateDialogOpen}
 				onClose={() => setIsDuplicateDialogOpen(false)}
-				initialPrompt={task.initial_prompt}
+				duplicateMetadata={{
+					workspaceName: workspace.name,
+					branch: workspace.latest_build.template_version_name || "main",
+					repository: workspace.template_name,
+					pvcId: workspace.id.slice(0, 8),
+				}}
 			/>
 		</header>
 	);
