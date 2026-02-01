@@ -113,10 +113,10 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 								<div>
 									<p className="m-0 text-xs font-medium text-content-secondary mb-1">
 										<HardDriveIcon className="inline size-3 mr-1" />
-										Disk (PVC ID)
+										PersistentVolumeClaim
 									</p>
 									<p className="m-0 text-sm text-content-primary font-mono select-all">
-										{workspace.id.slice(0, 8)}
+										coder-{workspace.id.slice(0, 8)}-pvc
 									</p>
 								</div>
 								<div className="pt-2 border-t border-border">
@@ -165,9 +165,10 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 				onClose={() => setIsDuplicateDialogOpen(false)}
 				duplicateMetadata={{
 					workspaceName: workspace.name,
+					workspaceOwner: workspace.owner_name,
 					branch: workspace.latest_build.template_version_name || "main",
 					repository: workspace.template_name,
-					pvcId: workspace.id.slice(0, 8),
+					pvcName: `coder-${workspace.id.slice(0, 8)}-pvc`,
 				}}
 			/>
 		</header>

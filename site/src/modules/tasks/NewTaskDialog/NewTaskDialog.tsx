@@ -25,14 +25,15 @@ import { SettingsIcon, Code2, InfoIcon } from "lucide-react";
 import { type FC, useState, type FormEvent, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
-import { useNavigate } from "react-router";
+import { useNavigate, Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 
 type DuplicateMetadata = {
 	workspaceName: string;
+	workspaceOwner: string;
 	branch: string;
 	repository: string;
-	pvcId: string;
+	pvcName: string;
 };
 
 type NewTaskDialogProps = {
@@ -492,12 +493,26 @@ console.log(\`Task created: \${task.id}\`);`;
 											</div>
 											<div>
 												<p className="m-0 font-semibold text-xs text-content-secondary mb-1.5">
-													PVC ID
+													PersistentVolumeClaim
 												</p>
 												<p className="m-0 font-mono text-sm text-content-primary">
-													{duplicateMetadata.pvcId}
+													{duplicateMetadata.pvcName}
 												</p>
 											</div>
+										</div>
+										<div className="pt-3 border-t border-border mt-3">
+											<Button
+												variant="subtle"
+												size="sm"
+												className="p-0 min-w-0 text-xs"
+												asChild
+											>
+												<RouterLink
+													to={`/@${duplicateMetadata.workspaceOwner}/${duplicateMetadata.workspaceName}/terminal`}
+												>
+													View conversation history →
+												</RouterLink>
+											</Button>
 										</div>
 									</div>
 								</div>
