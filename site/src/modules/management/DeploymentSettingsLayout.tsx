@@ -9,13 +9,21 @@ import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { canViewDeploymentSettings } from "modules/permissions";
 import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, Suspense } from "react";
+import { type FC, Suspense, useEffect, useRef } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import { DeploymentSidebar } from "./DeploymentSidebar";
 
 const DeploymentSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
 	const location = useLocation();
+	const containerRef = useRef<HTMLDivElement>(null);
+
+	// Reset scroll position when navigating between sub-pages.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on pathname change
+	useEffect(() => {
+		// Scroll the nearest scrollable parent to the top.
+		containerRef.current?.closest(".overflow-y-auto")?.scrollTo(0, 0);
+	}, [location.pathname]);
 
 	if (location.pathname === "/deployment") {
 		return (
@@ -36,7 +44,7 @@ const DeploymentSettingsLayout: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
-			<div>
+			<div ref={containerRef}>
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
