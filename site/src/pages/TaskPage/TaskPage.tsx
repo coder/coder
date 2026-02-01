@@ -688,10 +688,11 @@ const HeadlessAgentView: FC<HeadlessAgentViewProps> = ({
 								/>
 								<div>
 									<h2 className="m-0 text-sm font-semibold text-content-primary">
-										Autonomous Session
+										Headless Session
 									</h2>
 									<p className="m-0 text-xs text-content-secondary">
-										{workspace.name}
+										No IDE, just pure agent execution. Watch the Mux agent work
+										autonomously.
 									</p>
 								</div>
 							</div>
@@ -703,16 +704,6 @@ const HeadlessAgentView: FC<HeadlessAgentViewProps> = ({
 								<CopyIcon />
 								Continue in a new session
 							</Button>
-						</div>
-
-						{/* Headless callout */}
-						<div className="mx-4 mt-3 p-3 bg-surface-secondary border border-border rounded-lg flex items-start gap-2">
-							<InfoIcon className="size-4 text-content-secondary flex-shrink-0 mt-0.5" />
-							<p className="m-0 text-xs text-content-secondary leading-relaxed">
-								This is a headless workspace—no IDE, just pure agent execution.
-								Watch the Mux agent work autonomously, then continue the
-								conversation in a new session when ready.
-							</p>
 						</div>
 
 						{/* Chat messages */}
