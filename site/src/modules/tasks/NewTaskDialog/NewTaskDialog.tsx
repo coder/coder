@@ -211,9 +211,9 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
 	const [selectedRepo, setSelectedRepo] = useState("");
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 	const [showApiCode, setShowApiCode] = useState(false);
-	const [apiCodeType, setApiCodeType] = useState<"curl" | "cli" | "sdk">(
-		"curl",
-	);
+	const [apiCodeType, setApiCodeType] = useState<
+		"curl" | "cli" | "sdk" | "github"
+	>("curl");
 
 	// Auto-focus the free-form input
 	useEffect(() => {
@@ -357,6 +357,32 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
   --template-version ${templateId}`;
 		}
 
+		if (apiCodeType === "github") {
+			return `name: Create Coder Task
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  create-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Coder Task
+        run: |
+          curl -X POST "$CODER_URL/api/v2/users/me/tasks" \\
+            -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \\
+            -H "Content-Type: application/json" \\
+            -d '{
+              "input": ${JSON.stringify(prompt)},
+              "template_version_id": "${templateId}"
+            }'
+        env:
+          CODER_URL: \${{ secrets.CODER_URL }}
+          CODER_SESSION_TOKEN: \${{ secrets.CODER_SESSION_TOKEN }}`;
+		}
+
 		// SDK (TypeScript)
 		return `import { API } from "@coder/api";
 
@@ -377,14 +403,50 @@ console.log(\`Task created: \${task.id}\`);`;
 						<DialogHeader className="px-6 py-4 border-b border-border">
 							<div className="flex items-center justify-between">
 								<DialogTitle>New Task</DialogTitle>
-								<Button
-									variant="subtle"
-									size="sm"
-									onClick={() => setShowAdvanced(!showAdvanced)}
-								>
-									<SettingsIcon className="size-4" />
-									{showAdvanced ? "Hide" : "Show"} Advanced
-								</Button>
+								<div className="flex items-center gap-2">
+									{showApiCode ? (
+										<Select
+											value={apiCodeType}
+											onValueChange={(value) =>
+												setApiCodeType(
+													value as "curl" | "cli" | "sdk" | "github",
+												)
+											}
+										>
+											<SelectTrigger className="w-[180px]">
+												<Code2 className="size-4" />
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="curl">curl</SelectItem>
+												<SelectItem value="cli">CLI</SelectItem>
+												<SelectItem value="sdk">SDK</SelectItem>
+												<SelectItem value="github">GitHub Actions</SelectItem>
+											</SelectContent>
+										</Select>
+									) : (
+										<Button
+											variant="subtle"
+											size="sm"
+											onClick={() => setShowAdvanced(!showAdvanced)}
+										>
+											<SettingsIcon className="size-4" />
+											{showAdvanced ? "Hide" : "Show"} Advanced
+										</Button>
+									)}
+									<Button
+										variant="subtle"
+										size="sm"
+										onClick={() => {
+											setShowApiCode(!showApiCode);
+											setSelectedSkill("");
+											setSkillInputs({});
+										}}
+									>
+										<Code2 className="size-4" />
+										API
+									</Button>
+								</div>
 							</div>
 						</DialogHeader>
 
@@ -392,8 +454,47 @@ console.log(\`Task created: \${task.id}\`);`;
 							onSubmit={handleSubmit}
 							className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
 						>
+							{/* Show API code example when API mode is active */}
+							{showApiCode && (
+								<div className="space-y-2">
+									<pre className="bg-surface-secondary border border-border rounded-lg p-4 text-xs overflow-x-auto">
+										<code className="text-content-secondary font-mono whitespace-pre">
+											{getApiCode()}
+										</code>
+									</pre>
+									<p className="text-xs text-content-secondary">
+										Use this to automate task creation via API
+									</p>
+								</div>
+							)}
+
+							{/* Free-form prompt input - show when not in API mode */}
+							{!showApiCode && !selectedSkillData && (
+								<div>
+									<label className="text-xs font-medium text-content-secondary block mb-1.5">
+										What would you like me to do?
+									</label>
+									<TextareaAutosize
+										ref={freeFormRef}
+										value={freeFormPrompt}
+										onChange={(e) => {
+											setFreeFormPrompt(e.target.value);
+											// Clear skill selection when typing
+											if (e.target.value.trim() && selectedSkill) {
+												setSelectedSkill("");
+												setSkillInputs({});
+											}
+										}}
+										placeholder="Describe your task..."
+										className="w-full bg-surface-secondary border border-border border-solid rounded-lg p-3 outline-none resize-none text-sm placeholder:text-content-secondary focus:border-content-link focus:ring-1 focus:ring-content-link"
+										minRows={3}
+										maxRows={8}
+									/>
+								</div>
+							)}
+
 							{/* Skill-specific inputs */}
-							{selectedSkillData && (
+							{!showApiCode && selectedSkillData && (
 								<div className="space-y-4">
 									{selectedSkillData.inputs.map((input) => (
 										<div key={input.key}>
@@ -653,46 +754,39 @@ console.log(\`Task created: \${task.id}\`);`;
 
 					{/* Right Sidebar - Skills */}
 					<div className="w-64 bg-surface-secondary border-l border-border overflow-y-auto flex flex-col">
-						{/* Free-form prompt at top */}
-						<div className="p-4 border-b border-border">
-							<label className="text-xs font-medium text-content-secondary block mb-1.5">
-								What would you like me to do?
-							</label>
-							<TextareaAutosize
-								ref={freeFormRef}
-								value={freeFormPrompt}
-								onChange={(e) => {
-									setFreeFormPrompt(e.target.value);
-									// Clear skill selection when typing
-									if (e.target.value.trim() && selectedSkill) {
-										setSelectedSkill("");
-										setSkillInputs({});
-									}
+						{/* Free Form Task button */}
+						<div className="p-3 pb-2 space-y-2">
+							<button
+								type="button"
+								onClick={() => {
+									setSelectedSkill("");
+									setSkillInputs({});
+									setShowApiCode(false);
+									// Focus the main textarea
+									setTimeout(() => {
+										if (freeFormRef.current) {
+											freeFormRef.current.focus();
+										}
+									}, 50);
 								}}
-								placeholder="Describe your task..."
-								className="w-full bg-surface-primary border border-border border-solid rounded-lg p-2 outline-none resize-none text-sm placeholder:text-content-secondary focus:border-content-link focus:ring-1 focus:ring-content-link"
-								minRows={2}
-								maxRows={4}
-							/>
+								className={cn(
+									"w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-all",
+									!selectedSkill && !showApiCode
+										? "bg-content-primary text-surface-primary"
+										: "text-content-secondary hover:bg-surface-invert-secondary hover:text-content-primary",
+								)}
+							>
+								Free Form Task
+							</button>
+
+							<h3 className="text-sm font-semibold px-1 pt-1">
+								or select a skill:
+							</h3>
 						</div>
 
 						{/* Skills section */}
 						<div className="flex-1 overflow-y-auto">
-							<div className="p-4 border-b border-border">
-								<h3 className="text-sm font-semibold mb-1">Select a Skill</h3>
-								<p className="text-xs text-content-secondary">
-									See your organization's{" "}
-									<Link
-										href="https://github.com/coder/coder/tree/main/.agent/skills"
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-content-link hover:underline"
-									>
-										.agent/skills
-									</Link>
-								</p>
-							</div>
-							<div className="p-3 space-y-1.5">
+							<div className="px-3 space-y-1.5">
 								{SKILLS.map((skill) => (
 									<button
 										key={skill.id}
@@ -701,6 +795,7 @@ console.log(\`Task created: \${task.id}\`);`;
 											setSelectedSkill(skill.id);
 											setSkillInputs({});
 											setFreeFormPrompt(""); // Clear free-form when selecting skill
+											setShowApiCode(false);
 										}}
 										className={cn(
 											"w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-all",
@@ -715,55 +810,19 @@ console.log(\`Task created: \${task.id}\`);`;
 							</div>
 						</div>
 
-						{/* API Code Section */}
-						<div className="border-t border-border">
-							<button
-								type="button"
-								onClick={() => setShowApiCode(!showApiCode)}
-								className="w-full p-4 flex items-center justify-between hover:bg-surface-invert-secondary transition-colors"
-							>
-								<div className="flex items-center gap-2">
-									<Code2 className="size-4" />
-									<span className="text-sm font-semibold">API / CLI / SDK</span>
-								</div>
-								<span className="text-xs text-content-secondary">
-									{showApiCode ? "Hide" : "Show"}
-								</span>
-							</button>
-
-							{showApiCode && (
-								<div className="px-4 pb-4 space-y-2">
-									{/* Code type tabs */}
-									<div className="flex gap-1 p-1 bg-surface-invert-secondary rounded-md">
-										{(["curl", "cli", "sdk"] as const).map((type) => (
-											<button
-												key={type}
-												type="button"
-												onClick={() => setApiCodeType(type)}
-												className={cn(
-													"flex-1 px-2 py-1 rounded text-xs font-medium transition-all",
-													apiCodeType === type
-														? "bg-surface-primary text-content-primary"
-														: "text-content-secondary hover:text-content-primary",
-												)}
-											>
-												{type.toUpperCase()}
-											</button>
-										))}
-									</div>
-
-									{/* Code block */}
-									<pre className="bg-surface-primary border border-border rounded-lg p-3 text-xs overflow-x-auto">
-										<code className="text-content-secondary font-mono whitespace-pre">
-											{getApiCode()}
-										</code>
-									</pre>
-
-									<p className="text-[10px] text-content-secondary">
-										Use this to automate task creation via API
-									</p>
-								</div>
-							)}
+						{/* Footer text */}
+						<div className="p-3 border-t border-border">
+							<p className="text-xs text-content-secondary">
+								From your{" "}
+								<Link
+									href="https://github.com/coder/coder/tree/main/.agent/skills"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="text-content-link hover:underline"
+								>
+									.agent/skills
+								</Link>
+							</p>
 						</div>
 					</div>
 				</div>
