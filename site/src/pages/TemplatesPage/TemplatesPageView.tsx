@@ -132,7 +132,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{showOrganizations ? (
 					<AvatarData
 						title={template.organization_display_name}
-						subtitle={Language.developerCount(template.active_user_count)}
+						subtitle={`Used by ${Language.developerCount(template.active_user_count)}`}
 						avatar={<Avatar variant="icon" src={template.organization_icon} />}
 					/>
 				) : (
