@@ -193,8 +193,9 @@ const TaskPage = () => {
 	} else {
 		const allApps = getAllAppsWithAgent(workspace);
 
-		// Third task (index 2) is headless - show special full-width agent view
-		if (taskIndex === 2) {
+		// Check if this is a headless workspace by name (case-insensitive)
+		const isHeadless = workspace.name?.toLowerCase().includes("headless");
+		if (isHeadless) {
 			content = (
 				<HeadlessAgentView
 					task={task}
@@ -203,7 +204,7 @@ const TaskPage = () => {
 				/>
 			);
 		} else {
-			// First task (index 0) uses "code-server", second task (index 1) uses "mux"
+			// Index 0 uses "code-server", Index 1 uses "mux"
 			const leftPanelAppSlug = taskIndex === 1 ? "mux" : "code-server";
 			const leftPanelApp = allApps.find((app) => app.slug === leftPanelAppSlug);
 			content = (

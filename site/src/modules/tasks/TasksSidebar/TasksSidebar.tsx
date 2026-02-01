@@ -170,10 +170,10 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ owner }) => {
 		refetchInterval: 10_000,
 	});
 
-	// Sort tasks by workspace_id for consistent ordering
+	// Sort tasks by workspace_id for consistent ordering (descending)
 	const sortedTasks = tasksQuery.data
 		? [...tasksQuery.data].sort((a, b) =>
-				(a.workspace_id ?? "").localeCompare(b.workspace_id ?? ""),
+				(b.workspace_id ?? "").localeCompare(a.workspace_id ?? ""),
 			)
 		: [];
 
@@ -330,12 +330,28 @@ const TaskSidebarMenuItemIcon: FC<{ task: Task; index: number }> = ({
 	task,
 	index,
 }) => {
-	// Use Claude icon for first workspace, Coder icon for second workspace, tasks icon for third
+	// Determine icon based on workspace name, with index as fallback
 	const getIconPath = () => {
-		if (task.workspace_name?.includes("claude") || index === 0) {
+		const workspaceName = task.workspace_name?.toLowerCase() || "";
+
+		// Check for headless workspaces (case-insensitive)
+		if (workspaceName.includes("headless")) {
+			return "/icon/tasks.svg";
+		}
+		// Check for mux workspace (case-insensitive)
+		if (workspaceName.includes("la de de")) {
+			return "/icon/coder.svg";
+		}
+		// Check for code-server workspace (case-insensitive)
+		if (workspaceName.includes("second")) {
 			return "/icon/claude.svg";
 		}
-		if (task.workspace_name?.includes("mux") || index === 1) {
+
+		// Fallback to index-based logic
+		if (index === 0) {
+			return "/icon/claude.svg";
+		}
+		if (index === 1) {
 			return "/icon/coder.svg";
 		}
 		if (index === 2) {
