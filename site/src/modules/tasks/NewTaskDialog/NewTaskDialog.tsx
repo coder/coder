@@ -22,7 +22,7 @@ import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { Link } from "components/Link/Link";
 import { SettingsIcon } from "lucide-react";
-import { type FC, useState, type FormEvent } from "react";
+import { type FC, useState, type FormEvent, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import { useNavigate } from "react-router";
@@ -77,6 +77,8 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const freeFormRef = useRef<HTMLTextAreaElement>(null);
+	const followUpRef = useRef<HTMLTextAreaElement>(null);
 	const [freeFormPrompt, setFreeFormPrompt] = useState("");
 	const [selectedSkill, setSelectedSkill] = useState<string>("");
 	const [skillFollowUp, setSkillFollowUp] = useState("");
@@ -85,6 +87,37 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [selectedRepo, setSelectedRepo] = useState("");
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+
+	// Auto-focus the appropriate input
+	useEffect(() => {
+		if (!open) return;
+
+		// Small delay to ensure dialog is rendered
+		const timer = setTimeout(() => {
+			if (selectedSkill && followUpRef.current) {
+				followUpRef.current.focus();
+			} else if (!selectedSkill && freeFormRef.current) {
+				freeFormRef.current.focus();
+			}
+		}, 100);
+
+		return () => clearTimeout(timer);
+	}, [open, selectedSkill]);
+
+	// Handle Cmd+Enter to close modal (prototyping)
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+				e.preventDefault();
+				onClose();
+			}
+		};
+
+		if (open) {
+			window.addEventListener("keydown", handleKeyDown);
+			return () => window.removeEventListener("keydown", handleKeyDown);
+		}
+	}, [open, onClose]);
 
 	const aiTemplatesQuery = useQuery(
 		templates({
@@ -164,82 +197,216 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
 
 	return (
 		<Dialog open={open} onOpenChange={onClose}>
-			<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-				<DialogHeader>
-					<div className="flex items-center justify-between">
-						<DialogTitle>New Task</DialogTitle>
-						<Button
-							variant="subtle"
-							size="sm"
-							onClick={() => setShowAdvanced(!showAdvanced)}
-						>
-							<SettingsIcon className="size-4" />
-							{showAdvanced ? "Hide" : "Show"} Advanced
-						</Button>
-					</div>
-				</DialogHeader>
-
-				<form onSubmit={handleSubmit} className="space-y-6">
-					{/* Free-form Prompt Input - Only show when no skill selected */}
-					{!selectedSkill && (
-						<>
-							<div className="space-y-2">
-								<TextareaAutosize
-									value={freeFormPrompt}
-									onChange={(e) => setFreeFormPrompt(e.target.value)}
-									placeholder="What would you like me to do?"
-									className="w-full bg-surface-secondary border border-border border-solid rounded-lg p-3 outline-none resize-none text-sm placeholder:text-content-secondary focus:border-content-secondary"
-									minRows={3}
-									maxRows={8}
-								/>
-							</div>
-
-							{/* Divider with "or" */}
-							<div className="relative">
-								<div className="absolute inset-0 flex items-center">
-									<div className="w-full border-t border-border" />
-								</div>
-								<div className="relative flex justify-center text-xs uppercase">
-									<span className="bg-surface-primary px-2 text-content-secondary">
-										or
-									</span>
-								</div>
-							</div>
-						</>
-					)}
-
-					{/* Select a Skill Section */}
-					<div className="space-y-3">
-						<div className="flex items-center justify-between">
-							<div>
-								<h3 className="text-base font-semibold">Select a Skill</h3>
-								<p className="text-xs text-content-secondary mt-0.5">
-									Learn more? See{" "}
-									<Link
-										href="https://github.com/coder/coder/tree/main/.claude/skills"
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-content-link hover:underline"
-									>
-										.claude/skills
-									</Link>
-								</p>
-							</div>
-							{selectedSkill && (
+			<DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+				<div className="flex h-full max-h-[90vh]">
+					{/* Left Side - Main Form */}
+					<div className="flex-1 flex flex-col overflow-hidden">
+						<DialogHeader className="px-6 py-4 border-b border-border">
+							<div className="flex items-center justify-between">
+								<DialogTitle>New Task</DialogTitle>
 								<Button
-									type="button"
 									variant="subtle"
 									size="sm"
-									onClick={() => {
-										setSelectedSkill("");
-										setSkillFollowUp("");
-									}}
+									onClick={() => setShowAdvanced(!showAdvanced)}
 								>
-									Clear
+									<SettingsIcon className="size-4" />
+									{showAdvanced ? "Hide" : "Show"} Advanced
 								</Button>
+							</div>
+						</DialogHeader>
+
+						<form
+							onSubmit={handleSubmit}
+							className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
+						>
+							{/* Dynamic prompt based on selection */}
+							{!selectedSkill ? (
+								<div>
+									<label className="text-xs font-medium text-content-secondary block mb-1.5">
+										What would you like me to do?
+									</label>
+									<TextareaAutosize
+										ref={freeFormRef}
+										value={freeFormPrompt}
+										onChange={(e) => setFreeFormPrompt(e.target.value)}
+										placeholder="Describe your task..."
+										className="w-full bg-surface-secondary border border-border border-solid rounded-lg p-3 outline-none resize-none text-sm placeholder:text-content-secondary focus:border-content-link focus:ring-1 focus:ring-content-link"
+										minRows={3}
+										maxRows={8}
+									/>
+								</div>
+							) : (
+								<div>
+									<label className="text-xs font-medium text-content-secondary block mb-1.5">
+										{SKILLS.find((s) => s.id === selectedSkill)?.followUpPrompt}
+									</label>
+									<TextareaAutosize
+										ref={followUpRef}
+										value={skillFollowUp}
+										onChange={(e) => setSkillFollowUp(e.target.value)}
+										placeholder="Provide details..."
+										className="w-full bg-surface-secondary border border-border border-solid rounded-lg p-3 outline-none resize-none text-sm placeholder:text-content-secondary focus:border-content-link focus:ring-1 focus:ring-content-link"
+										minRows={3}
+										maxRows={8}
+									/>
+								</div>
 							)}
+
+							{/* Agent Picker - Compact */}
+							<div className="space-y-1.5">
+								<label className="text-xs font-medium text-content-secondary">
+									Agent
+								</label>
+								<div className="flex gap-2">
+									{AGENTS.map((agent) => (
+										<button
+											key={agent.id}
+											type="button"
+											onClick={() => setSelectedAgent(agent.id)}
+											className={cn(
+												"flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border border-solid transition-all",
+												selectedAgent === agent.id
+													? "bg-content-primary text-surface-primary border-content-primary"
+													: "bg-surface-secondary text-content-secondary border-border hover:border-content-secondary hover:bg-surface-invert-secondary",
+											)}
+										>
+											<img
+												src={agent.icon}
+												alt={agent.label}
+												className="size-4"
+											/>
+											<span>{agent.label}</span>
+										</button>
+									))}
+								</div>
+							</div>
+
+							{/* Level of Control Slider - Compact */}
+							<div className="space-y-1.5">
+								<div className="flex justify-between items-center">
+									<label className="text-xs font-medium text-content-secondary">
+										Level of Control
+									</label>
+									<span className="text-xs text-content-secondary">
+										{controlLevel}%
+									</span>
+								</div>
+								<Slider
+									value={[controlLevel]}
+									onValueChange={(value) => setControlLevel(value[0])}
+									min={0}
+									max={100}
+									step={10}
+									className="w-full"
+								/>
+								<div className="flex justify-between text-[10px] text-content-secondary">
+									<span>Autonomous</span>
+									<span>Guided</span>
+								</div>
+							</div>
+
+							{/* Advanced Section */}
+							{showAdvanced && (
+								<div className="space-y-4 pt-4 border-t border-border">
+									<h3 className="text-sm font-medium">Advanced Options</h3>
+
+									{/* Repository Picker */}
+									<div className="space-y-2">
+										<label className="text-sm font-medium">Repository</label>
+										<input
+											type="text"
+											value={selectedRepo}
+											onChange={(e) => setSelectedRepo(e.target.value)}
+											placeholder="owner/repo"
+											className="w-full bg-surface-secondary border border-border border-solid rounded-lg px-3 py-2 text-sm outline-none focus:border-content-secondary"
+										/>
+									</div>
+
+									{/* Template Version Picker */}
+									<div className="space-y-2">
+										<label className="text-sm font-medium">Template</label>
+										<Select
+											value={selectedTemplateId}
+											onValueChange={setSelectedTemplateId}
+										>
+											<SelectTrigger className="w-full">
+												<SelectValue placeholder="Use default template" />
+											</SelectTrigger>
+											<SelectContent>
+												{aiTemplatesQuery.data?.map((template) => (
+													<SelectItem key={template.id} value={template.id}>
+														{template.display_name || template.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								</div>
+							)}
+						</form>
+
+						{/* Create Button - Footer */}
+						<div className="px-6 py-3 border-t border-border flex justify-end gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={onClose}
+								disabled={createTaskMutation.isPending}
+							>
+								Cancel
+							</Button>
+							<Button
+								type="submit"
+								size="sm"
+								disabled={!canSubmit}
+								onClick={handleSubmit}
+							>
+								{createTaskMutation.isPending ? (
+									<>
+										<Spinner />
+										Creating...
+									</>
+								) : (
+									"Create Task"
+								)}
+							</Button>
 						</div>
-						<div className="flex flex-wrap gap-2">
+					</div>
+
+					{/* Right Sidebar - Skills */}
+					<div className="w-64 bg-surface-secondary border-l border-border overflow-y-auto">
+						<div className="p-4 border-b border-border">
+							<h3 className="text-sm font-semibold mb-1">Select a Skill</h3>
+							<p className="text-xs text-content-secondary">
+								See your organization's{" "}
+								<Link
+									href="https://github.com/coder/coder/tree/main/.agent/skills"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="text-content-link hover:underline"
+								>
+									.agent/skills
+								</Link>
+							</p>
+						</div>
+						<div className="p-3 space-y-1.5">
+							{/* Free-form option as first skill */}
+							<button
+								type="button"
+								onClick={() => {
+									setSelectedSkill("");
+									setSkillFollowUp("");
+								}}
+								className={cn(
+									"w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-all",
+									!selectedSkill
+										? "bg-content-primary text-surface-primary"
+										: "text-content-secondary hover:bg-surface-invert-secondary hover:text-content-primary",
+								)}
+							>
+								Free-form Prompt
+							</button>
 							{SKILLS.map((skill) => (
 								<button
 									key={skill.id}
@@ -247,13 +414,13 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
 									onClick={() => {
 										setSelectedSkill(skill.id);
 										setSkillFollowUp("");
-										setFreeFormPrompt(""); // Clear free-form when selecting skill
+										setFreeFormPrompt("");
 									}}
 									className={cn(
-										"px-4 py-2 rounded-lg text-sm font-medium transition-all border border-solid",
+										"w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-all",
 										selectedSkill === skill.id
-											? "bg-content-primary text-surface-primary border-content-primary"
-											: "bg-surface-secondary text-content-secondary border-border hover:border-content-secondary",
+											? "bg-content-primary text-surface-primary"
+											: "text-content-secondary hover:bg-surface-invert-secondary hover:text-content-primary",
 									)}
 								>
 									{skill.label}
@@ -261,130 +428,7 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
 							))}
 						</div>
 					</div>
-
-					{/* Follow-up Input - Shows when skill is selected */}
-					{selectedSkill && (
-						<div className="space-y-2">
-							<label className="text-sm font-medium">
-								{SKILLS.find((s) => s.id === selectedSkill)?.followUpPrompt}
-							</label>
-							<TextareaAutosize
-								value={skillFollowUp}
-								onChange={(e) => setSkillFollowUp(e.target.value)}
-								placeholder="Provide details..."
-								className="w-full bg-surface-secondary border border-border border-solid rounded-lg p-3 outline-none resize-none text-sm placeholder:text-content-secondary focus:border-content-secondary"
-								minRows={3}
-								maxRows={8}
-							/>
-						</div>
-					)}
-
-					{/* Agent Picker - Clean Pills */}
-					<div className="space-y-2">
-						<label className="text-sm font-medium">Agent</label>
-						<div className="flex gap-2">
-							{AGENTS.map((agent) => (
-								<button
-									key={agent.id}
-									type="button"
-									onClick={() => setSelectedAgent(agent.id)}
-									className={cn(
-										"flex items-center gap-2 px-4 py-2.5 rounded-lg border border-solid transition-all",
-										selectedAgent === agent.id
-											? "bg-content-primary text-surface-primary border-content-primary"
-											: "bg-surface-secondary text-content-secondary border-border hover:border-content-secondary",
-									)}
-								>
-									<img src={agent.icon} alt={agent.label} className="size-5" />
-									<span className="font-medium">{agent.label}</span>
-								</button>
-							))}
-						</div>
-					</div>
-
-					{/* Level of Control Slider */}
-					<div className="space-y-2">
-						<div className="flex justify-between items-center">
-							<label className="text-sm font-medium">Level of Control</label>
-							<span className="text-xs text-content-secondary">
-								{controlLevel}% {controlLevel < 50 ? "Autonomous" : "Guided"}
-							</span>
-						</div>
-						<Slider
-							value={[controlLevel]}
-							onValueChange={(value) => setControlLevel(value[0])}
-							min={0}
-							max={100}
-							step={10}
-							className="w-full"
-						/>
-						<div className="flex justify-between text-xs text-content-secondary">
-							<span>Autonomous</span>
-							<span>Guided</span>
-						</div>
-					</div>
-
-					{/* Advanced Section */}
-					{showAdvanced && (
-						<div className="space-y-4 pt-4 border-t border-border">
-							<h3 className="text-sm font-medium">Advanced Options</h3>
-
-							{/* Repository Picker */}
-							<div className="space-y-2">
-								<label className="text-sm font-medium">Repository</label>
-								<input
-									type="text"
-									value={selectedRepo}
-									onChange={(e) => setSelectedRepo(e.target.value)}
-									placeholder="owner/repo"
-									className="w-full bg-surface-secondary border border-border border-solid rounded-lg px-3 py-2 text-sm outline-none focus:border-content-secondary"
-								/>
-							</div>
-
-							{/* Template Version Picker */}
-							<div className="space-y-2">
-								<label className="text-sm font-medium">Template</label>
-								<Select
-									value={selectedTemplateId}
-									onValueChange={setSelectedTemplateId}
-								>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Use default template" />
-									</SelectTrigger>
-									<SelectContent>
-										{aiTemplatesQuery.data?.map((template) => (
-											<SelectItem key={template.id} value={template.id}>
-												{template.display_name || template.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-					)}
-
-					{/* Create Button */}
-					<div className="flex justify-end gap-2 pt-4 border-t border-border">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={onClose}
-							disabled={createTaskMutation.isPending}
-						>
-							Cancel
-						</Button>
-						<Button type="submit" disabled={!canSubmit}>
-							{createTaskMutation.isPending ? (
-								<>
-									<Spinner />
-									Creating...
-								</>
-							) : (
-								"Create Task"
-							)}
-						</Button>
-					</div>
-				</form>
+				</div>
 			</DialogContent>
 		</Dialog>
 	);
