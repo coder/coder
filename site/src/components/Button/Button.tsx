@@ -25,16 +25,16 @@ const buttonVariants = cva(
 			variant: {
 				default: `
 					border-none bg-surface-invert-primary font-semibold text-content-invert
-					hover:bg-surface-invert-secondary
+					hover:bg-surface-invert-secondary data-[state=open]:bg-surface-invert-secondary
 					disabled:bg-surface-secondary
 					`,
 				outline: `
 					border border-border-default bg-transparent text-content-primary
-					hover:bg-surface-secondary
+					hover:bg-surface-secondary data-[state=open]:bg-surface-secondary
 					`,
 				subtle: `
 					border-none bg-transparent text-content-secondary
-					hover:text-content-primary
+					hover:text-content-primary data-[state=open]:text-content-primary data-[state=open]:bg-surface-secondary
 					`,
 				destructive: `
 					border border-border-destructive font-semibold text-content-primary bg-surface-destructive
