@@ -32,6 +32,7 @@ import { cn } from "utils/cn";
 type NewTaskDialogProps = {
 	open: boolean;
 	onClose: () => void;
+	initialPrompt?: string;
 };
 
 type SkillInput = {
@@ -197,7 +198,11 @@ const AGENTS = [
 	{ id: "claude-code", label: "Claude Code", icon: "/icon/claude.svg" },
 ];
 
-export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
+export const NewTaskDialog: FC<NewTaskDialogProps> = ({
+	open,
+	onClose,
+	initialPrompt,
+}) => {
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -214,6 +219,16 @@ export const NewTaskDialog: FC<NewTaskDialogProps> = ({ open, onClose }) => {
 	const [apiCodeType, setApiCodeType] = useState<
 		"curl" | "cli" | "sdk" | "github"
 	>("curl");
+
+	// Set initial prompt when dialog opens with initialPrompt
+	useEffect(() => {
+		if (open && initialPrompt) {
+			setFreeFormPrompt(initialPrompt);
+			setSelectedSkill("");
+			setSkillInputs({});
+			setShowApiCode(false);
+		}
+	}, [open, initialPrompt]);
 
 	// Auto-focus the free-form input
 	useEffect(() => {

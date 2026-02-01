@@ -11,14 +11,17 @@ import {
 	ArrowLeftIcon,
 	CheckIcon,
 	CopyIcon,
+	DatabaseIcon,
+	HardDriveIcon,
 	LayoutPanelTopIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { ShareButton } from "../WorkspacePage/WorkspaceActions/ShareButton";
 import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";
+import { NewTaskDialog } from "modules/tasks/NewTaskDialog/NewTaskDialog";
 
 type TaskTopbarProps = {
 	task: Task;
@@ -31,6 +34,8 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 	workspace,
 	canUpdatePermissions,
 }) => {
+	const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
+
 	return (
 		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
@@ -79,10 +84,73 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 					</Tooltip>
 				</TooltipProvider>
 
+				<TooltipProvider delayDuration={250}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button variant="outline" size="sm">
+								<DatabaseIcon />
+								Metadata
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent className="max-w-md bg-surface-secondary p-4">
+							<div className="space-y-3">
+								<div>
+									<p className="m-0 text-xs font-medium text-content-secondary mb-1">
+										Branch
+									</p>
+									<p className="m-0 text-sm text-content-primary font-mono select-all">
+										{workspace.latest_build.template_version_name || "main"}
+									</p>
+								</div>
+								<div>
+									<p className="m-0 text-xs font-medium text-content-secondary mb-1">
+										Repository
+									</p>
+									<p className="m-0 text-sm text-content-primary font-mono select-all">
+										{workspace.template_name}
+									</p>
+								</div>
+								<div>
+									<p className="m-0 text-xs font-medium text-content-secondary mb-1">
+										<HardDriveIcon className="inline size-3 mr-1" />
+										Disk (PVC ID)
+									</p>
+									<p className="m-0 text-sm text-content-primary font-mono select-all">
+										{workspace.id.slice(0, 8)}
+									</p>
+								</div>
+								<div className="pt-2 border-t border-border">
+									<Button
+										variant="subtle"
+										size="sm"
+										className="p-0 min-w-0"
+										asChild
+									>
+										<RouterLink
+											to={`/@${workspace.owner_name}/${workspace.name}/terminal`}
+										>
+											View session history →
+										</RouterLink>
+									</Button>
+								</div>
+							</div>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+
 				<ShareButton
 					workspace={workspace}
 					canUpdatePermissions={canUpdatePermissions}
 				/>
+
+				<Button
+					onClick={() => setIsDuplicateDialogOpen(true)}
+					variant="outline"
+					size="sm"
+				>
+					<CopyIcon />
+					Duplicate
+				</Button>
 
 				<Button asChild variant="outline" size="sm">
 					<RouterLink to={`/@${workspace.owner_name}/${workspace.name}`}>
@@ -91,6 +159,12 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 					</RouterLink>
 				</Button>
 			</div>
+
+			<NewTaskDialog
+				open={isDuplicateDialogOpen}
+				onClose={() => setIsDuplicateDialogOpen(false)}
+				initialPrompt={task.initial_prompt}
+			/>
 		</header>
 	);
 };
