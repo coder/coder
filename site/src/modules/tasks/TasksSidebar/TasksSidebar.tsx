@@ -26,9 +26,11 @@ import {
 	EditIcon,
 	EllipsisIcon,
 	PanelLeftIcon,
+	PinIcon,
 	Share2Icon,
 	TrashIcon,
 } from "lucide-react";
+import { NewTaskDialog } from "modules/tasks/NewTaskDialog/NewTaskDialog";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
@@ -45,92 +47,114 @@ export const TasksSidebar: FC = () => {
 	});
 
 	const [isCollapsed, setIsCollapsed] = useState(false);
+	const [isPinned, setIsPinned] = useState(false);
+	const [isHovering, setIsHovering] = useState(false);
+	const [isNewTaskDialogOpen, setIsNewTaskDialogOpen] = useState(false);
+
+	const shouldShowSidebar = isPinned || isHovering;
 
 	return (
-		<div
-			className={cn(
-				"h-full bg-surface-secondary w-full max-w-80",
-				"border-solid border-0 border-r transition-all flex flex-col",
-				{ "max-w-14": isCollapsed },
-			)}
-		>
-			<div className="p-3 flex flex-col gap-6">
-				<div className="flex items-center place-content-between">
-					{!isCollapsed && (
-						<Button
-							size="icon"
-							variant="subtle"
-							className={cn(["size-8 p-0 transition-[margin,opacity]"])}
-							asChild
-						>
-							<RouterLink to="/tasks">
-								<CoderIcon className="fill-content-primary !size-6 !p-0" />
-								<span className="sr-only">Navigate to tasks</span>
-							</RouterLink>
-						</Button>
-					)}
+		<>
+			<NewTaskDialog
+				open={isNewTaskDialogOpen}
+				onClose={() => setIsNewTaskDialogOpen(false)}
+			/>
+			{/* Hover trigger area */}
+			<div
+				className="absolute left-0 top-0 bottom-0 w-4 z-20"
+				onMouseEnter={() => setIsHovering(true)}
+			/>
+
+			<div
+				className={cn(
+					"h-full bg-surface-secondary w-full max-w-80",
+					"border-solid border-0 border-r transition-all flex flex-col",
+					"shadow-lg",
+					{
+						"max-w-14": isCollapsed,
+						"absolute left-0 top-0 bottom-0 z-30": !isPinned,
+						"-translate-x-full": !isPinned && !shouldShowSidebar,
+						"translate-x-0": isPinned || shouldShowSidebar,
+					},
+				)}
+				onMouseLeave={() => setIsHovering(false)}
+			>
+				<div className="p-3 flex flex-col gap-6">
+					<div className="flex items-center place-content-between">
+						{!isCollapsed && (
+							<Button
+								size="icon"
+								variant="subtle"
+								className={cn(["size-8 p-0 transition-[margin,opacity]"])}
+								asChild
+							>
+								<RouterLink to="/tasks">
+									<CoderIcon className="fill-content-primary !size-6 !p-0" />
+									<span className="sr-only">Navigate to tasks</span>
+								</RouterLink>
+							</Button>
+						)}
+
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										onClick={() => setIsCollapsed((v) => !v)}
+										className="[&_svg]:p-0"
+									>
+										<PanelLeftIcon />
+										<span className="sr-only">
+											{isCollapsed ? "Open" : "Close"} Sidebar
+										</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="right" align="center">
+									{isCollapsed ? "Open" : "Close"} Sidebar
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
 
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
-									size="icon"
-									variant="subtle"
-									onClick={() => setIsCollapsed((v) => !v)}
-									className="[&_svg]:p-0"
+									variant={isCollapsed ? "subtle" : "default"}
+									size={isCollapsed ? "icon" : "sm"}
+									className={cn({
+										"[&_svg]:p-0": isCollapsed,
+									})}
+									onClick={() => setIsNewTaskDialogOpen(true)}
 								>
-									<PanelLeftIcon />
-									<span className="sr-only">
-										{isCollapsed ? "Open" : "Close"} Sidebar
-									</span>
+									<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
+									<EditIcon />
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="right" align="center">
-								{isCollapsed ? "Open" : "Close"} Sidebar
+								New task
 							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
+
+					{!isCollapsed && permissions.viewAllUsers && (
+						<UserCombobox
+							value={ownerParam.value}
+							onValueChange={(username) => {
+								if (username === ownerParam.value) {
+									ownerParam.setValue("");
+									return;
+								}
+								ownerParam.setValue(username);
+							}}
+						/>
+					)}
 				</div>
 
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant={isCollapsed ? "subtle" : "default"}
-								size={isCollapsed ? "icon" : "sm"}
-								asChild={true}
-								className={cn({
-									"[&_svg]:p-0": isCollapsed,
-								})}
-							>
-								<RouterLink to="/tasks">
-									<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
-									<EditIcon />
-								</RouterLink>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="right" align="center">
-							New task
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-
-				{!isCollapsed && permissions.viewAllUsers && (
-					<UserCombobox
-						value={ownerParam.value}
-						onValueChange={(username) => {
-							if (username === ownerParam.value) {
-								ownerParam.setValue("");
-								return;
-							}
-							ownerParam.setValue(username);
-						}}
-					/>
-				)}
+				{!isCollapsed && <TasksSidebarGroup owner={ownerParam.value} />}
 			</div>
-
-			{!isCollapsed && <TasksSidebarGroup owner={ownerParam.value} />}
-		</div>
+		</>
 	);
 };
 
@@ -146,15 +170,22 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ owner }) => {
 		refetchInterval: 10_000,
 	});
 
+	// Sort tasks by workspace_id for consistent ordering
+	const sortedTasks = tasksQuery.data
+		? [...tasksQuery.data].sort((a, b) =>
+				(a.workspace_id ?? "").localeCompare(b.workspace_id ?? ""),
+			)
+		: [];
+
 	return (
 		<ScrollArea className="flex-1">
 			<div className="flex flex-col gap-2 p-3">
 				<div className="text-content-secondary text-xs">Tasks</div>
 				<div className="flex flex-col flex-1 gap-1">
 					{tasksQuery.data ? (
-						tasksQuery.data.length > 0 ? (
-							tasksQuery.data.map((task) => (
-								<TaskSidebarMenuItem key={task.id} task={task} />
+						sortedTasks.length > 0 ? (
+							sortedTasks.map((task, index) => (
+								<TaskSidebarMenuItem key={task.id} task={task} index={index} />
 							))
 						) : (
 							<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
@@ -180,9 +211,10 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ owner }) => {
 
 type TaskSidebarMenuItemProps = {
 	task: Task;
+	index: number;
 };
 
-const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
+const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task, index }) => {
 	const { taskId } = useParams<{ taskId: string }>();
 	const isActive = task.id === taskId;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -209,6 +241,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 						search: window.location.search,
 					}}
 				>
+					<TaskSidebarMenuItemIcon task={task} index={index} />
 					<TaskSidebarMenuItemStatus task={task} />
 					<span className="block max-w-[220px] truncate">
 						{task.display_name}
@@ -290,5 +323,42 @@ const TaskSidebarMenuItemStatus: FC<{ task: Task }> = ({ task }) => {
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
+	);
+};
+
+const TaskSidebarMenuItemIcon: FC<{ task: Task; index: number }> = ({
+	task,
+	index,
+}) => {
+	// Use Claude icon for first workspace, Coder icon for second workspace, tasks icon for third
+	const getIconPath = () => {
+		if (task.workspace_name?.includes("claude") || index === 0) {
+			return "/icon/claude.svg";
+		}
+		if (task.workspace_name?.includes("mux") || index === 1) {
+			return "/icon/coder.svg";
+		}
+		if (index === 2) {
+			return "/icon/tasks.svg";
+		}
+		return null;
+	};
+
+	const iconPath = getIconPath();
+
+	if (!iconPath) {
+		return null;
+	}
+
+	return (
+		<img
+			src={iconPath}
+			alt=""
+			className="size-4 flex-shrink-0"
+			onError={(e) => {
+				// Hide icon if it fails to load
+				e.currentTarget.style.display = "none";
+			}}
+		/>
 	);
 };
