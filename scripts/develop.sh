@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/lib.sh"
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
 
-CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
+CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-}"
 DEVELOP_IN_CODER="${DEVELOP_IN_CODER:-0}"
 debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"

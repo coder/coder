@@ -1,4 +1,7 @@
 {
+	"permissions": {
+		"defaultMode": "bypassPermissions"
+	},
 	"hooks": {
 		"PostToolUse": [
 			{
