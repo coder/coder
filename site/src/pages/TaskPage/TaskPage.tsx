@@ -512,226 +512,374 @@ const HeadlessAgentView: FC<HeadlessAgentViewProps> = ({
 	canUpdatePermissions,
 }) => {
 	const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
+	const [selectedFile, setSelectedFile] = useState<string | null>(
+		"site/src/pages/TaskPage/TaskTopbar.tsx",
+	);
 
-	// Mock agent activity data for demonstration
-	const agentActivity = [
+	// Mock agent conversation showing task breakdown
+	const agentMessages = [
 		{
-			type: "prompt" as const,
+			type: "agent" as const,
 			content:
-				"Analyze the codebase and identify potential performance bottlenecks",
-			timestamp: new Date(Date.now() - 120000),
+				"I'll help you add metadata dropdown and duplicate functionality to the task topbar. Let me break this down into subtasks:",
+			timestamp: new Date(Date.now() - 300000),
 		},
 		{
-			type: "tool_call" as const,
-			tool: "code_search",
-			args: { pattern: "*.tsx", query: "useEffect" },
-			timestamp: new Date(Date.now() - 110000),
+			type: "task_list" as const,
+			tasks: [
+				"Update TaskTopbar to add Metadata button with dropdown",
+				"Add Duplicate button that opens NewTaskDialog",
+				"Update NewTaskDialog to accept initialPrompt prop",
+				"Test the duplicate functionality",
+			],
+			timestamp: new Date(Date.now() - 295000),
 		},
 		{
-			type: "tool_call" as const,
-			tool: "read_file",
-			args: { path: "src/components/Dashboard.tsx" },
-			timestamp: new Date(Date.now() - 100000),
+			type: "agent" as const,
+			content: "Starting with task 1: Update TaskTopbar component",
+			timestamp: new Date(Date.now() - 290000),
 		},
 		{
-			type: "prompt" as const,
-			content: "Check for database query optimization opportunities",
-			timestamp: new Date(Date.now() - 90000),
+			type: "tool" as const,
+			tool: "Read",
+			args: "site/src/pages/TaskPage/TaskTopbar.tsx",
+			timestamp: new Date(Date.now() - 285000),
 		},
 		{
-			type: "tool_call" as const,
-			tool: "grep",
-			args: { pattern: "SELECT \\* FROM", directory: "src/" },
-			timestamp: new Date(Date.now() - 80000),
+			type: "agent" as const,
+			content:
+				"I can see the current structure. I'll add the Metadata button with a tooltip dropdown showing branch, repository, and PVC information.",
+			timestamp: new Date(Date.now() - 280000),
 		},
 		{
-			type: "boundary_blocked" as const,
-			reason: "Attempted to access /etc/passwd",
-			timestamp: new Date(Date.now() - 70000),
+			type: "tool" as const,
+			tool: "Edit",
+			args: "site/src/pages/TaskPage/TaskTopbar.tsx (lines 87-139)",
+			timestamp: new Date(Date.now() - 275000),
 		},
 		{
-			type: "tool_call" as const,
-			tool: "write_file",
-			args: { path: "docs/performance-analysis.md", size: "2.3 KB" },
-			timestamp: new Date(Date.now() - 60000),
+			type: "agent" as const,
+			content:
+				"✓ Completed task 1. Moving to task 2: Add Duplicate button functionality",
+			timestamp: new Date(Date.now() - 270000),
 		},
 		{
-			type: "boundary_blocked" as const,
-			reason: "Attempted to execute shell command: rm -rf",
-			timestamp: new Date(Date.now() - 50000),
+			type: "tool" as const,
+			tool: "Edit",
+			args: "site/src/pages/TaskPage/TaskTopbar.tsx (lines 146-153)",
+			timestamp: new Date(Date.now() - 265000),
 		},
 		{
-			type: "prompt" as const,
-			content: "Generate test coverage report for updated components",
-			timestamp: new Date(Date.now() - 40000),
+			type: "agent" as const,
+			content:
+				"✓ Completed task 2. Moving to task 3: Update NewTaskDialog component",
+			timestamp: new Date(Date.now() - 260000),
 		},
 		{
-			type: "tool_call" as const,
-			tool: "bash",
-			args: { command: "npm run test:coverage" },
-			timestamp: new Date(Date.now() - 30000),
+			type: "tool" as const,
+			tool: "Read",
+			args: "site/src/modules/tasks/NewTaskDialog/NewTaskDialog.tsx",
+			timestamp: new Date(Date.now() - 255000),
+		},
+		{
+			type: "boundary" as const,
+			reason: "Attempted to modify .env file - blocked for security",
+			timestamp: new Date(Date.now() - 250000),
+		},
+		{
+			type: "agent" as const,
+			content:
+				"Understood. I'll continue with the NewTaskDialog changes without touching environment files.",
+			timestamp: new Date(Date.now() - 245000),
+		},
+		{
+			type: "tool" as const,
+			tool: "Edit",
+			args: "site/src/modules/tasks/NewTaskDialog/NewTaskDialog.tsx (lines 32-36)",
+			timestamp: new Date(Date.now() - 240000),
+		},
+		{
+			type: "agent" as const,
+			content: "✓ Completed task 3. Moving to task 4: Testing the changes",
+			timestamp: new Date(Date.now() - 235000),
+		},
+		{
+			type: "tool" as const,
+			tool: "Bash",
+			args: "pnpm check",
+			timestamp: new Date(Date.now() - 230000),
+		},
+		{
+			type: "agent" as const,
+			content:
+				"✓ All tasks completed successfully. The duplicate button now opens the dialog with metadata attached.",
+			timestamp: new Date(Date.now() - 225000),
+		},
+		{
+			type: "thinking" as const,
+			content: "Planning next steps...",
+			timestamp: new Date(Date.now() - 10000),
 		},
 	];
 
+	// Mock diff data for the right panel
+	const fileDiffs = [
+		{
+			path: "site/src/pages/TaskPage/TaskTopbar.tsx",
+			additions: 52,
+			deletions: 3,
+			diff: `@@ -70,6 +70,58 @@
+ 			</TooltipContent>
+ 		</Tooltip>
+ 	</TooltipProvider>
++
++	<TooltipProvider delayDuration={250}>
++		<Tooltip>
++			<TooltipTrigger asChild>
++				<Button variant="outline" size="sm">
++					<DatabaseIcon />
++					Metadata
++				</Button>
++			</TooltipTrigger>
++			<TooltipContent className="max-w-md bg-surface-secondary p-4">
++				<div className="space-y-3">
++					<div>
++						<p className="m-0 text-xs font-medium text-content-secondary mb-1">
++							Branch
++						</p>
++						<p className="m-0 text-sm text-content-primary font-mono select-all">
++							{workspace.latest_build.template_version_name || "main"}
++						</p>
++					</div>
++				</div>
++			</TooltipContent>
++		</Tooltip>
++	</TooltipProvider>`,
+		},
+		{
+			path: "site/src/modules/tasks/NewTaskDialog/NewTaskDialog.tsx",
+			additions: 15,
+			deletions: 2,
+			diff: `@@ -32,8 +32,9 @@
+ type NewTaskDialogProps = {
+ 	open: boolean;
+ 	onClose: () => void;
++	initialPrompt?: string;
+ };`,
+		},
+	];
+
+	const selectedDiff = fileDiffs.find((f) => f.path === selectedFile);
+
 	return (
 		<>
-			<div className="flex flex-col h-full">
-				{/* Header with metadata */}
-				<div className="p-6 border-b border-border bg-surface-secondary">
-					<div className="max-w-7xl mx-auto">
-						<div className="flex items-start justify-between mb-6">
-							<div>
-								<div className="flex items-center gap-3 mb-2">
-									<img
-										src="/icon/tasks.svg"
-										alt="Headless Agent"
-										className="size-8"
-									/>
-									<h1 className="m-0 text-2xl font-semibold text-content-primary">
-										Headless Agent Session
-									</h1>
+			<PanelGroup direction="horizontal">
+				{/* Left: Chat-like conversation */}
+				<Panel defaultSize={50} minSize={30}>
+					<div className="flex flex-col h-full bg-surface-primary">
+						{/* Compact header */}
+						<div className="px-4 py-3 border-b border-border bg-surface-secondary flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<img
+									src="/icon/tasks.svg"
+									alt="Headless Agent"
+									className="size-5 opacity-60"
+								/>
+								<div>
+									<h2 className="m-0 text-sm font-semibold text-content-primary">
+										Autonomous Session
+									</h2>
+									<p className="m-0 text-xs text-content-secondary">
+										{workspace.name}
+									</p>
 								</div>
-								<p className="m-0 text-sm text-content-secondary">
-									Autonomous Mux agent executing tasks in the background
-								</p>
 							</div>
 							<Button
 								onClick={() => setIsDuplicateDialogOpen(true)}
-								variant="default"
+								variant="outline"
 								size="sm"
 							>
 								<CopyIcon />
-								Continue Conversation
+								Continue
 							</Button>
 						</div>
 
-						{/* Metadata Grid */}
-						<div className="grid grid-cols-4 gap-4 p-4 bg-surface-primary border border-border rounded-lg">
-							<div>
-								<p className="m-0 text-xs font-semibold text-content-secondary mb-1.5">
-									Workspace
-								</p>
-								<p className="m-0 text-sm font-mono text-content-primary">
-									{workspace.name}
-								</p>
-							</div>
-							<div>
-								<p className="m-0 text-xs font-semibold text-content-secondary mb-1.5">
-									Branch
-								</p>
-								<p className="m-0 text-sm font-mono text-content-primary">
-									{workspace.latest_build.template_version_name || "main"}
-								</p>
-							</div>
-							<div>
-								<p className="m-0 text-xs font-semibold text-content-secondary mb-1.5">
-									Repository
-								</p>
-								<p className="m-0 text-sm font-mono text-content-primary">
-									{workspace.template_name}
-								</p>
-							</div>
-							<div>
-								<p className="m-0 text-xs font-semibold text-content-secondary mb-1.5">
-									PersistentVolumeClaim
-								</p>
-								<p className="m-0 text-sm font-mono text-content-primary">
-									coder-{workspace.id.slice(0, 8)}-pvc
-								</p>
-							</div>
-						</div>
-					</div>
-				</div>
+						{/* Chat messages */}
+						<ScrollArea className="flex-1">
+							<div className="p-4 space-y-3 max-w-3xl">
+								{agentMessages.map((message, index) => (
+									<div key={index}>
+										{message.type === "agent" && (
+											<div className="flex items-start gap-3">
+												<div className="flex-shrink-0 size-6 rounded-full bg-content-link/10 flex items-center justify-center mt-0.5">
+													<img
+														src="/icon/coder.svg"
+														alt=""
+														className="size-4"
+													/>
+												</div>
+												<div className="flex-1 min-w-0">
+													<p className="m-0 text-sm text-content-primary leading-relaxed">
+														{message.content}
+													</p>
+													<span className="text-xs text-content-secondary mt-1 inline-block">
+														{message.timestamp.toLocaleTimeString()}
+													</span>
+												</div>
+											</div>
+										)}
 
-				{/* Agent Activity Feed */}
-				<ScrollArea className="flex-1">
-					<div className="max-w-7xl mx-auto p-6">
-						<div className="space-y-3">
-							{agentActivity.map((activity, index) => (
-								<div
-									key={index}
-									className={cn(
-										"p-4 rounded-lg border",
-										activity.type === "prompt" &&
-											"bg-surface-secondary border-border",
-										activity.type === "tool_call" &&
-											"bg-surface-primary border-content-link/20",
-										activity.type === "boundary_blocked" &&
-											"bg-surface-secondary border-content-destructive",
-									)}
-								>
-									<div className="flex items-start justify-between mb-2">
-										<div className="flex items-center gap-2">
-											{activity.type === "prompt" && (
-												<>
-													<SquareTerminalIcon className="size-4 text-content-secondary" />
-													<span className="text-xs font-semibold text-content-secondary uppercase">
-														Prompt
+										{message.type === "task_list" && (
+											<div className="ml-9 p-3 bg-surface-secondary border border-border rounded-lg">
+												<p className="m-0 text-xs font-semibold text-content-secondary mb-2 uppercase">
+													Task Breakdown
+												</p>
+												<ul className="m-0 space-y-1.5 list-none p-0">
+													{message.tasks.map((task, i) => (
+														<li
+															key={i}
+															className="text-sm text-content-primary flex items-start gap-2"
+														>
+															<span className="text-content-secondary">
+																{i + 1}.
+															</span>
+															<span>{task}</span>
+														</li>
+													))}
+												</ul>
+											</div>
+										)}
+
+										{message.type === "tool" && (
+											<div className="ml-9">
+												<div className="inline-flex items-center gap-1.5 px-2 py-1 bg-surface-secondary border border-border rounded text-xs">
+													<Code2 className="size-3 text-content-secondary" />
+													<span className="text-content-secondary">
+														{message.tool}
 													</span>
-												</>
-											)}
-											{activity.type === "tool_call" && (
-												<>
-													<Code2 className="size-4 text-content-link" />
-													<span className="text-xs font-semibold text-content-link uppercase">
-														Tool Call
+													<span className="text-content-primary font-mono">
+														{message.args}
 													</span>
-												</>
-											)}
-											{activity.type === "boundary_blocked" && (
-												<>
-													<AlertTriangleIcon className="size-4 text-content-destructive" />
-													<span className="text-xs font-semibold text-content-destructive uppercase">
-														Blocked by Boundary
-													</span>
-												</>
-											)}
-										</div>
-										<span className="text-xs text-content-secondary font-mono">
-											{activity.timestamp.toLocaleTimeString()}
-										</span>
+												</div>
+											</div>
+										)}
+
+										{message.type === "boundary" && (
+											<div className="ml-9 p-3 bg-surface-secondary border border-content-destructive/30 rounded-lg flex items-start gap-2">
+												<AlertTriangleIcon className="size-4 text-content-destructive flex-shrink-0 mt-0.5" />
+												<div>
+													<p className="m-0 text-xs font-semibold text-content-destructive mb-1">
+														Security Boundary
+													</p>
+													<p className="m-0 text-sm text-content-secondary">
+														{message.reason}
+													</p>
+												</div>
+											</div>
+										)}
+
+										{message.type === "thinking" && (
+											<div className="flex items-start gap-3">
+												<div className="flex-shrink-0 size-6 rounded-full bg-content-link/10 flex items-center justify-center mt-0.5">
+													<Spinner className="size-3" />
+												</div>
+												<div className="flex-1 min-w-0">
+													<p className="m-0 text-sm text-content-secondary italic">
+														{message.content}
+													</p>
+												</div>
+											</div>
+										)}
 									</div>
+								))}
+							</div>
+						</ScrollArea>
 
-									{activity.type === "prompt" && (
-										<p className="m-0 text-sm text-content-primary">
-											{activity.content}
-										</p>
-									)}
-
-									{activity.type === "tool_call" && (
-										<div className="space-y-1">
-											<p className="m-0 text-sm font-semibold text-content-primary font-mono">
-												{activity.tool}
-											</p>
-											<pre className="m-0 text-xs text-content-secondary font-mono bg-surface-secondary p-2 rounded">
-												{JSON.stringify(activity.args, null, 2)}
-											</pre>
-										</div>
-									)}
-
-									{activity.type === "boundary_blocked" && (
-										<div className="flex items-start gap-2">
-											<p className="m-0 text-sm text-content-destructive">
-												{activity.reason}
-											</p>
-										</div>
-									)}
-								</div>
-							))}
-
-							{/* Loading indicator */}
-							<div className="p-4 rounded-lg border border-border bg-surface-primary">
-								<div className="flex items-center gap-2">
-									<Spinner />
-									<span className="text-sm text-content-secondary">
-										Agent is processing...
+						{/* Metadata footer */}
+						<div className="px-4 py-2 border-t border-border bg-surface-secondary">
+							<div className="flex items-center justify-between text-xs">
+								<div className="flex items-center gap-4">
+									<span className="text-content-secondary">
+										<span className="font-semibold">Branch:</span>{" "}
+										<span className="font-mono">
+											{workspace.latest_build.template_version_name || "main"}
+										</span>
+									</span>
+									<span className="text-content-secondary">
+										<span className="font-semibold">PVC:</span>{" "}
+										<span className="font-mono">
+											coder-{workspace.id.slice(0, 8)}
+										</span>
 									</span>
 								</div>
+								<span className="text-content-secondary">Mux Agent</span>
 							</div>
 						</div>
 					</div>
-				</ScrollArea>
-			</div>
+				</Panel>
+
+				<PanelResizeHandle>
+					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+				</PanelResizeHandle>
+
+				{/* Right: Diff viewer */}
+				<Panel defaultSize={50} minSize={30}>
+					<div className="flex flex-col h-full bg-surface-primary">
+						{/* File tabs */}
+						<div className="border-b border-border bg-surface-secondary">
+							<div className="flex items-center gap-1 px-2 py-1 overflow-x-auto">
+								{fileDiffs.map((file) => (
+									<button
+										key={file.path}
+										type="button"
+										onClick={() => setSelectedFile(file.path)}
+										className={cn(
+											"px-3 py-1.5 text-xs font-mono rounded-t transition-colors whitespace-nowrap",
+											selectedFile === file.path
+												? "bg-surface-primary text-content-primary"
+												: "text-content-secondary hover:text-content-primary hover:bg-surface-tertiary",
+										)}
+									>
+										<span className="truncate max-w-[200px] inline-block">
+											{file.path.split("/").pop()}
+										</span>
+										<span className="ml-2 text-green-500">
+											+{file.additions}
+										</span>
+										<span className="ml-1 text-red-500">-{file.deletions}</span>
+									</button>
+								))}
+							</div>
+						</div>
+
+						{/* Diff content */}
+						<ScrollArea className="flex-1">
+							{selectedDiff && (
+								<div className="p-4">
+									<div className="mb-3 flex items-center justify-between">
+										<p className="m-0 text-xs text-content-secondary font-mono">
+											{selectedDiff.path}
+										</p>
+										<div className="flex items-center gap-2 text-xs">
+											<span className="text-green-500">
+												+{selectedDiff.additions} additions
+											</span>
+											<span className="text-red-500">
+												-{selectedDiff.deletions} deletions
+											</span>
+										</div>
+									</div>
+									<pre className="m-0 text-xs font-mono bg-surface-secondary border border-border rounded-lg p-4 overflow-x-auto">
+										<code className="text-content-primary whitespace-pre">
+											{selectedDiff.diff}
+										</code>
+									</pre>
+								</div>
+							)}
+						</ScrollArea>
+					</div>
+				</Panel>
+			</PanelGroup>
 
 			<NewTaskDialog
 				open={isDuplicateDialogOpen}
