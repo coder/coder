@@ -15,7 +15,7 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
 	return (
 		<header
 			{...props}
-			className="min-h-12 border-0 border-b border-solid flex items-center text-[13px] leading-tight"
+			className="min-h-12 border-0 border-b border-border border-solid flex items-center text-[13px] leading-tight"
 		/>
 	);
 };
