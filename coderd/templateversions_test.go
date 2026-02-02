@@ -768,7 +768,11 @@ func TestTemplateVersionPresetValidation(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	tf := func(prebuildCount int) string {
+	tf := func(valid bool, prebuildCount int) string {
+		customImageURL := ""
+		if valid {
+			customImageURL = `custom_image_url = "ghcr.io/coder/example:latest"`
+		}
 		return fmt.Sprintf(`
 		terraform {
 		  required_providers {
@@ -796,17 +800,17 @@ func TestTemplateVersionPresetValidation(t *testing.T) {
 		  name = "Invalid Preset"
 		  parameters = {
 			"use_custom_image" = "true"
-			# Missing custom_image_url!
+			%s
 		  }
 		  prebuilds {
 			instances = %d
 		  }
 		}
-		`, prebuildCount)
+		`, customImageURL, prebuildCount)
 	}
 
 	tarFile := testutil.CreateTar(t, map[string]string{
-		`main.tf`: tf(1),
+		`main.tf`: tf(false, 1),
 	})
 
 	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
@@ -824,7 +828,23 @@ func TestTemplateVersionPresetValidation(t *testing.T) {
 	// If the preset is not a prebuild, validation should pass. As presets can
 	// be partially applied, we test with a prebuild count of 0.
 	tarFile = testutil.CreateTar(t, map[string]string{
-		`main.tf`: tf(0),
+		`main.tf`: tf(false, 0),
+	})
+
+	fi, err = templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+	require.NoError(t, err)
+
+	_, err = templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:          testutil.GetRandomNameHyphenated(t),
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		FileID:        fi.ID,
+	})
+	require.NoError(t, err)
+
+	// The valid preset should pass
+	tarFile = testutil.CreateTar(t, map[string]string{
+		`main.tf`: tf(true, 1),
 	})
 
 	fi, err = templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
