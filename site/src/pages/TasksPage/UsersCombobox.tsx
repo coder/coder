@@ -75,7 +75,11 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="w-[280px] p-0">
-				<Command>
+				{/*
+				 * `shouldFilter` is false because we don't want to filter on the `value`
+				 * because we're using the `name` field to filter on the backend.
+				 */}
+				<Command shouldFilter={false}>
 					<CommandInput
 						placeholder="Search user..."
 						value={search}
