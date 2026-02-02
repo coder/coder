@@ -14,7 +14,7 @@ AI Bridge Proxy operates in two modes depending on the destination:
 * MITM (Man-in-the-Middle) mode for allowlisted AI provider domains:
   * Intercepts and decrypts HTTPS traffic using a configured CA certificate
   * Forwards requests to AI Bridge for authentication, auditing, and routing
-  * Supports: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com
+  * Supports: Anthropic, OpenAI, GitHub Copilot
 
 * Tunnel mode for all other traffic:
   * Passes requests through without decryption

@@ -43,7 +43,7 @@ The AI Bridge Proxy only intercepts and forwards traffic to AI Bridge for the su
 
 All other traffic is tunneled through without decryption.
 
-For additional configuration options, see the [CLI reference](../../../reference/cli/index.md).
+For additional configuration options, see the [Coder server configuration](../../../reference/cli/server.md#options).
 
 ## Security Considerations
 
