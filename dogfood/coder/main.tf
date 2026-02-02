@@ -375,7 +375,7 @@ module "personalize" {
 module "mux" {
   count        = data.coder_workspace.me.start_count
   source       = "registry.coder.com/coder/mux/coder"
-  version      = "1.0.7"
+  version      = "1.0.8"
   agent_id     = coder_agent.dev.id
   subdomain    = true
   display_name = "Mux"
@@ -855,7 +855,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.7.0"
+  version             = "4.7.2"
   enable_boundary     = true
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
