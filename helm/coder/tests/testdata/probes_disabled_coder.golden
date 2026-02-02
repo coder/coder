@@ -156,14 +156,14 @@ spec:
           value: 0.0.0.0:2112
         - name: CODER_PPROF_ADDRESS
           value: 0.0.0.0:6060
+        - name: CODER_ACCESS_URL
+          value: http://coder.coder.svc.cluster.local
         - name: KUBE_POD_IP
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
         - name: CODER_DERP_SERVER_RELAY_URL
           value: http://$(KUBE_POD_IP):8080
-        - name: SOME_ENV
-          value: some value
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
@@ -172,12 +172,6 @@ spec:
         - containerPort: 8080
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
-          initialDelaySeconds: 0
         resources:
           limits:
             cpu: 2000m
