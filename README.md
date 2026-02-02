@@ -35,14 +35,30 @@
 
 [Coder](https://coder.com) enables organizations to set up development environments in their public or private cloud infrastructure. Cloud development environments are defined with Terraform, connected through a secure high-speed Wireguard® tunnel, and automatically shut down when not used to save on costs. Coder gives engineering teams the flexibility to use the cloud for workloads most beneficial to them.
 
-- Define cloud development environments in Terraform
-  - EC2 VMs, Kubernetes Pods, Docker Containers, etc.
-- Automatically shutdown idle resources to save on costs
-- Onboard developers in seconds instead of days
-
 <p align="center">
   <img src="./docs/images/hero-image.png" alt="Coder Hero Image">
 </p>
+
+## Table of Contents
+
+- [Features](#features)
+- [Quickstart](#quickstart)
+- [Install](#install)
+- [Documentation](#documentation)
+- [Security](#security)
+- [Support](#support)
+- [Integrations](#integrations)
+- [Contributing](#contributing)
+
+## Features
+
+- **Infrastructure as Code**: Define cloud development environments in Terraform - deploy on EC2 VMs, Kubernetes Pods, Docker Containers, and more
+- **Cost Control**: Automatically shutdown idle resources to save on cloud costs, with configurable auto-stop policies
+- **Fast Onboarding**: Onboard developers in seconds instead of days with pre-configured, reproducible environments
+- **Secure Connections**: High-speed Wireguard® tunnels provide secure access to workspaces from anywhere
+- **IDE Flexibility**: Connect using VS Code, JetBrains IDEs, SSH, or any editor with remote development support
+- **Self-Hosted**: Keep your source code and data on your own infrastructure with full control over security and compliance
+- **Multi-Cloud**: Deploy workspaces across any cloud provider or on-premises infrastructure using a single platform
 
 ## Quickstart
 
@@ -95,6 +111,17 @@ Browse our docs [here](https://coder.com/docs) or visit a specific section below
 - [**IDEs**](https://coder.com/docs/ides): Connect your existing editor to a workspace
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about our paid features built for large teams
+
+## Security
+
+We take security seriously at Coder. Our codebase undergoes regular security assessments and follows industry best practices:
+
+- **OpenSSF Best Practices**: We maintain [OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511) certification
+- **Security Scorecard**: Our security posture is continuously monitored via [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com%2Fcoder%2Fcoder)
+- **Secure by Design**: All workspace connections use encrypted Wireguard® tunnels
+- **Vulnerability Reporting**: Please report security vulnerabilities to <security@coder.com>
+
+For more information, see our [Security Policy](https://github.com/coder/coder/security/policy).
 
 ## Support
 
