@@ -217,7 +217,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 							handleDeadlineChange(deadline.subtract(1, "h"));
 						}}
 					>
-						<MinusIcon className="size-icon-xs" />
+						<MinusIcon className="size-icon-sm" />
 						<span style={visuallyHidden}>Subtract 1 hour from deadline</span>
 					</IconButton>
 				</TooltipTrigger>
@@ -235,7 +235,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 							handleDeadlineChange(deadline.add(1, "h"));
 						}}
 					>
-						<PlusIcon className="size-icon-xs" />
+						<PlusIcon className="size-icon-sm" />
 						<span style={visuallyHidden}>Add 1 hour to deadline</span>
 					</IconButton>
 				</TooltipTrigger>
@@ -330,13 +330,8 @@ const styles = {
 
 	scheduleButton: (theme) => ({
 		border: `1px solid ${theme.palette.divider}`,
-		borderRadius: 4,
-		width: 20,
-		height: 20,
-
-		"& svg.MuiSvgIcon-root": {
-			width: 12,
-			height: 12,
-		},
+		borderRadius: 6,
+		width: 32,
+		height: 32,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
