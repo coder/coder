@@ -204,7 +204,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 					<TableCell colSpan={999}>
 						<EmptyState
 							message="No shared members or groups yet"
-							description="Add a member or group using the controls above"
+							description="Add a member or group using the controls above."
 							isCompact={isCompact}
 						/>
 					</TableCell>
