@@ -204,7 +204,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 							</span>
 							<div css={{ marginLeft: "auto", lineHeight: 1 }}>
 								{userLoginType.login_type === "github" ? (
-									<ExternalImage src="/icon/github.svg" />
+									<ExternalImage src="/icon/github.svg" className="size-4" />
 								) : (
 									<OIDCIcon oidcAuth={authMethods.oidc} />
 								)}
