@@ -12467,6 +12467,10 @@ const docTemplate = `{
                 "audit_log:*",
                 "audit_log:create",
                 "audit_log:read",
+                "boundary_usage:*",
+                "boundary_usage:delete",
+                "boundary_usage:read",
+                "boundary_usage:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -12665,6 +12669,10 @@ const docTemplate = `{
                 "APIKeyScopeAuditLogAll",
                 "APIKeyScopeAuditLogCreate",
                 "APIKeyScopeAuditLogRead",
+                "APIKeyScopeBoundaryUsageAll",
+                "APIKeyScopeBoundaryUsageDelete",
+                "APIKeyScopeBoundaryUsageRead",
+                "APIKeyScopeBoundaryUsageUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -17740,6 +17748,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "boundary_usage",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -17784,6 +17793,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceBoundaryUsage",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -18557,6 +18567,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.TaskLogEntry"
                     }
+                },
+                "snapshot": {
+                    "type": "boolean"
+                },
+                "snapshot_at": {
+                    "type": "string"
                 }
             }
         },

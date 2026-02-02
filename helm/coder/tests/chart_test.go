@@ -137,14 +137,23 @@ var testCases = []testCase{
 		name:          "priority_class_name",
 		expectedError: "",
 	},
+  {
+		name:          "probes_custom",
+		expectedError: "",
+	},
+	{
+		name:          "probes_disabled",
+		expectedError: "",
+	},
 	{
 		name:          "pprof_address_override",
 		expectedError: "",
 	},
 	{
 		name:          "prometheus_address_override",
-		expectedError: "",
-	},
+    expectedError: "",
+  },
+ 
 }
 
 type testCase struct {

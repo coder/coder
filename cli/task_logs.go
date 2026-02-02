@@ -54,12 +54,38 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 				return xerrors.Errorf("get task logs: %w", err)
 			}
 
+			// Handle snapshot responses (paused/initializing/pending tasks).
+			if logs.Snapshot {
+				if logs.SnapshotAt == nil {
+					// No snapshot captured yet.
+					cliui.Warnf(inv.Stderr,
+						"Task is %s. No snapshot available (snapshot may have failed during pause, resume your task to view logs).\n",
+						task.Status)
+				}
+
+				// Snapshot exists with logs, show warning with count.
+				if len(logs.Logs) > 0 {
+					if len(logs.Logs) == 1 {
+						cliui.Warnf(inv.Stderr, "Task is %s. Showing last 1 message from snapshot.\n", task.Status)
+					} else {
+						cliui.Warnf(inv.Stderr, "Task is %s. Showing last %d messages from snapshot.\n", task.Status, len(logs.Logs))
+					}
+				}
+			}
+
+			// Handle empty logs for both snapshot/live, table/json.
+			if len(logs.Logs) == 0 {
+				cliui.Infof(inv.Stderr, "No task logs found.")
+				return nil
+			}
+
 			out, err := formatter.Format(ctx, logs.Logs)
 			if err != nil {
 				return xerrors.Errorf("format task logs: %w", err)
 			}
 
 			if out == "" {
+				// Defensive check (shouldn't happen given count check above).
 				cliui.Infof(inv.Stderr, "No task logs found.")
 				return nil
 			}

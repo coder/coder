@@ -1652,7 +1652,6 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		// Process modules
 		for transition, modules := range map[database.WorkspaceTransition][]*sdkproto.Module{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartModules,
-			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopModules,
 		} {
 			for _, module := range modules {
 				s.Logger.Info(ctx, "inserting template import job module",
@@ -2031,6 +2030,23 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				for _, app := range protoAgent.GetApps() {
 					appIDs = append(appIDs, app.GetId())
 					agentIDByAppID[app.GetId()] = agentID
+				}
+
+				// Subagents in devcontainers can also have apps that need
+				// tracking for task linking, just like the parent agent's
+				// apps above.
+				for _, dc := range protoAgent.GetDevcontainers() {
+					dc.Id = uuid.New().String()
+
+					if dc.GetSubagentId() != "" {
+						subAgentID := uuid.New()
+						dc.SubagentId = subAgentID.String()
+
+						for _, app := range dc.GetApps() {
+							appIDs = append(appIDs, app.GetId())
+							agentIDByAppID[app.GetId()] = subAgentID
+						}
+					}
 				}
 			}
 
@@ -2860,33 +2876,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
-		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
-		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
-		scriptIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
-		scriptDisplayName := make([]string, 0, len(prAgent.Scripts))
-		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
-		scriptSources := make([]string, 0, len(prAgent.Scripts))
-		scriptCron := make([]string, 0, len(prAgent.Scripts))
-		scriptTimeout := make([]int32, 0, len(prAgent.Scripts))
-		scriptStartBlocksLogin := make([]bool, 0, len(prAgent.Scripts))
-		scriptRunOnStart := make([]bool, 0, len(prAgent.Scripts))
-		scriptRunOnStop := make([]bool, 0, len(prAgent.Scripts))
-
-		for _, script := range prAgent.Scripts {
-			logSourceIDs = append(logSourceIDs, uuid.New())
-			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
-			logSourceIcons = append(logSourceIcons, script.Icon)
-			scriptIDs = append(scriptIDs, uuid.New())
-			scriptDisplayName = append(scriptDisplayName, script.DisplayName)
-			scriptLogPaths = append(scriptLogPaths, script.LogPath)
-			scriptSources = append(scriptSources, script.Script)
-			scriptCron = append(scriptCron, script.Cron)
-			scriptTimeout = append(scriptTimeout, script.TimeoutSeconds)
-			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
-			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
-			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
-		}
+		scriptsParams := agentScriptsFromProto(prAgent.Scripts)
 
 		// Dev Containers require a script and log/source, so we do this before
 		// the logs insert below.
@@ -2896,32 +2886,46 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				devcontainerNames            = make([]string, 0, len(devcontainers))
 				devcontainerWorkspaceFolders = make([]string, 0, len(devcontainers))
 				devcontainerConfigPaths      = make([]string, 0, len(devcontainers))
+				devcontainerSubagentIDs      = make([]uuid.UUID, 0, len(devcontainers))
 			)
 			for _, dc := range devcontainers {
 				id := uuid.New()
+				if opts.useAgentIDsFromProto {
+					id, err = uuid.Parse(dc.GetId())
+					if err != nil {
+						return xerrors.Errorf("invalid devcontainer ID format; must be uuid: %w", err)
+					}
+				}
+
+				subAgentID, err := insertDevcontainerSubagent(ctx, db, dc, dbAgent, resource.ID, appSlugs, snapshot, opts)
+				if err != nil {
+					return xerrors.Errorf("insert devcontainer %q subagent: %w", dc.GetName(), err)
+				}
+
 				devcontainerIDs = append(devcontainerIDs, id)
-				devcontainerNames = append(devcontainerNames, dc.Name)
-				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.WorkspaceFolder)
-				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.ConfigPath)
+				devcontainerNames = append(devcontainerNames, dc.GetName())
+				devcontainerWorkspaceFolders = append(devcontainerWorkspaceFolders, dc.GetWorkspaceFolder())
+				devcontainerConfigPaths = append(devcontainerConfigPaths, dc.GetConfigPath())
+				devcontainerSubagentIDs = append(devcontainerSubagentIDs, subAgentID)
 
 				// Add a log source and script for each devcontainer so we can
 				// track logs and timings for each devcontainer.
-				displayName := fmt.Sprintf("Dev Container (%s)", dc.Name)
-				logSourceIDs = append(logSourceIDs, uuid.New())
-				logSourceDisplayNames = append(logSourceDisplayNames, displayName)
-				logSourceIcons = append(logSourceIcons, "/emojis/1f4e6.png") // Emoji package. Or perhaps /icon/container.svg?
-				scriptIDs = append(scriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
-				scriptDisplayName = append(scriptDisplayName, displayName)
-				scriptLogPaths = append(scriptLogPaths, "")
-				scriptSources = append(scriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
-				scriptCron = append(scriptCron, "")
-				scriptTimeout = append(scriptTimeout, 0)
-				scriptStartBlocksLogin = append(scriptStartBlocksLogin, false)
+				displayName := fmt.Sprintf("Dev Container (%s)", dc.GetName())
+				scriptsParams.LogSourceIDs = append(scriptsParams.LogSourceIDs, uuid.New())
+				scriptsParams.LogSourceDisplayNames = append(scriptsParams.LogSourceDisplayNames, displayName)
+				scriptsParams.LogSourceIcons = append(scriptsParams.LogSourceIcons, "/emojis/1f4e6.png") // Emoji package. Or perhaps /icon/container.svg?
+				scriptsParams.ScriptIDs = append(scriptsParams.ScriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
+				scriptsParams.ScriptDisplayNames = append(scriptsParams.ScriptDisplayNames, displayName)
+				scriptsParams.ScriptLogPaths = append(scriptsParams.ScriptLogPaths, "")
+				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptsParams.ScriptCron = append(scriptsParams.ScriptCron, "")
+				scriptsParams.ScriptTimeout = append(scriptsParams.ScriptTimeout, 0)
+				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
 				// Run on start to surface the warning message in case the
 				// terraform resource is used, but the experiment hasn't
 				// been enabled.
-				scriptRunOnStart = append(scriptRunOnStart, true)
-				scriptRunOnStop = append(scriptRunOnStop, false)
+				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, true)
+				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
 			}
 
 			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
@@ -2931,131 +2935,21 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Name:             devcontainerNames,
 				WorkspaceFolder:  devcontainerWorkspaceFolders,
 				ConfigPath:       devcontainerConfigPaths,
+				SubagentID:       devcontainerSubagentIDs,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert agent devcontainer: %w", err)
 			}
 		}
 
-		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
-			WorkspaceAgentID: agentID,
-			ID:               logSourceIDs,
-			CreatedAt:        dbtime.Now(),
-			DisplayName:      logSourceDisplayNames,
-			Icon:             logSourceIcons,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert agent log sources: %w", err)
-		}
-
-		_, err = db.InsertWorkspaceAgentScripts(ctx, database.InsertWorkspaceAgentScriptsParams{
-			WorkspaceAgentID: agentID,
-			LogSourceID:      logSourceIDs,
-			LogPath:          scriptLogPaths,
-			CreatedAt:        dbtime.Now(),
-			Script:           scriptSources,
-			Cron:             scriptCron,
-			TimeoutSeconds:   scriptTimeout,
-			StartBlocksLogin: scriptStartBlocksLogin,
-			RunOnStart:       scriptRunOnStart,
-			RunOnStop:        scriptRunOnStop,
-			DisplayName:      scriptDisplayName,
-			ID:               scriptIDs,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert agent scripts: %w", err)
+		if err := insertAgentScriptsAndLogSources(ctx, db, agentID, scriptsParams); err != nil {
+			return xerrors.Errorf("insert agent scripts and log sources: %w", err)
 		}
 
 		for _, app := range prAgent.Apps {
-			// Similar logic is duplicated in terraform/resources.go.
-			slug := app.Slug
-			if slug == "" {
-				return xerrors.Errorf("app must have a slug or name set")
+			if err := insertAgentApp(ctx, db, dbAgent.ID, app, appSlugs, snapshot); err != nil {
+				return xerrors.Errorf("insert agent app: %w", err)
 			}
-			// Contrary to agent names above, app slugs were never permitted to
-			// contain uppercase letters or underscores.
-			if !provisioner.AppSlugRegex.MatchString(slug) {
-				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
-			}
-			if _, exists := appSlugs[slug]; exists {
-				return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
-			}
-			appSlugs[slug] = struct{}{}
-
-			health := database.WorkspaceAppHealthDisabled
-			if app.Healthcheck == nil {
-				app.Healthcheck = &sdkproto.Healthcheck{}
-			}
-			if app.Healthcheck.Url != "" {
-				health = database.WorkspaceAppHealthInitializing
-			}
-
-			sharingLevel := database.AppSharingLevelOwner
-			switch app.SharingLevel {
-			case sdkproto.AppSharingLevel_AUTHENTICATED:
-				sharingLevel = database.AppSharingLevelAuthenticated
-			case sdkproto.AppSharingLevel_PUBLIC:
-				sharingLevel = database.AppSharingLevelPublic
-			}
-
-			displayGroup := sql.NullString{
-				Valid:  app.Group != "",
-				String: app.Group,
-			}
-
-			openIn := database.WorkspaceAppOpenInSlimWindow
-			switch app.OpenIn {
-			case sdkproto.AppOpenIn_TAB:
-				openIn = database.WorkspaceAppOpenInTab
-			case sdkproto.AppOpenIn_SLIM_WINDOW:
-				openIn = database.WorkspaceAppOpenInSlimWindow
-			}
-
-			var appID string
-			if app.Id == "" || app.Id == uuid.Nil.String() {
-				appID = uuid.NewString()
-			} else {
-				appID = app.Id
-			}
-			id, err := uuid.Parse(appID)
-			if err != nil {
-				return xerrors.Errorf("parse app uuid: %w", err)
-			}
-
-			// If workspace apps are "persistent", the ID will not be regenerated across workspace builds, so we have to upsert.
-			dbApp, err := db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
-				ID:          id,
-				CreatedAt:   dbtime.Now(),
-				AgentID:     dbAgent.ID,
-				Slug:        slug,
-				DisplayName: app.DisplayName,
-				Icon:        app.Icon,
-				Command: sql.NullString{
-					String: app.Command,
-					Valid:  app.Command != "",
-				},
-				Url: sql.NullString{
-					String: app.Url,
-					Valid:  app.Url != "",
-				},
-				External:             app.External,
-				Subdomain:            app.Subdomain,
-				SharingLevel:         sharingLevel,
-				HealthcheckUrl:       app.Healthcheck.Url,
-				HealthcheckInterval:  app.Healthcheck.Interval,
-				HealthcheckThreshold: app.Healthcheck.Threshold,
-				Health:               health,
-				// #nosec G115 - Order represents a display order value that's always small and fits in int32
-				DisplayOrder: int32(app.Order),
-				DisplayGroup: displayGroup,
-				Hidden:       app.Hidden,
-				OpenIn:       openIn,
-				Tooltip:      app.Tooltip,
-			})
-			if err != nil {
-				return xerrors.Errorf("upsert app: %w", err)
-			}
-			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}
 	}
 
@@ -3360,4 +3254,286 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
 	}
 	return dapps
+}
+
+// insertDevcontainerSubagent creates a workspace agent for a devcontainer's
+// subagent if one is defined. It returns the subagent ID (zero UUID if no
+// subagent is defined).
+func insertDevcontainerSubagent(
+	ctx context.Context,
+	db database.Store,
+	dc *sdkproto.Devcontainer,
+	parentAgent database.WorkspaceAgent,
+	resourceID uuid.UUID,
+	appSlugs map[string]struct{},
+	snapshot *telemetry.Snapshot,
+	opts *insertWorkspaceResourceOptions,
+) (uuid.UUID, error) {
+	// If there are no attached resources, we don't need to pre-create the
+	// subagent. This preserves backwards compatibility where devcontainers
+	// without resources can have their agents recreated dynamically.
+	if len(dc.GetApps()) == 0 && len(dc.GetScripts()) == 0 && len(dc.GetEnvs()) == 0 {
+		return uuid.UUID{}, nil
+	}
+
+	subAgentID := uuid.New()
+	if opts.useAgentIDsFromProto {
+		var err error
+		subAgentID, err = uuid.Parse(dc.GetSubagentId())
+		if err != nil {
+			return uuid.UUID{}, xerrors.Errorf("parse subagent id: %w", err)
+		}
+	}
+
+	envJSON, err := encodeSubagentEnvs(dc.GetEnvs())
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+
+	_, err = db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		ID:                       subAgentID,
+		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
+		CreatedAt:                dbtime.Now(),
+		UpdatedAt:                dbtime.Now(),
+		ResourceID:               resourceID,
+		Name:                     dc.GetName(),
+		AuthToken:                uuid.New(),
+		AuthInstanceID:           parentAgent.AuthInstanceID,
+		Architecture:             parentAgent.Architecture,
+		EnvironmentVariables:     envJSON,
+		Directory:                dc.GetWorkspaceFolder(),
+		InstanceMetadata:         pqtype.NullRawMessage{},
+		ResourceMetadata:         pqtype.NullRawMessage{},
+		OperatingSystem:          parentAgent.OperatingSystem,
+		ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       parentAgent.TroubleshootingURL,
+		MOTDFile:                 "",
+		DisplayApps:              []database.DisplayApp{},
+		DisplayOrder:             0,
+		APIKeyScope:              parentAgent.APIKeyScope,
+	})
+	if err != nil {
+		return uuid.UUID{}, xerrors.Errorf("insert subagent: %w", err)
+	}
+
+	for _, app := range dc.GetApps() {
+		if err := insertAgentApp(ctx, db, subAgentID, app, appSlugs, snapshot); err != nil {
+			return uuid.UUID{}, xerrors.Errorf("insert agent app: %w", err)
+		}
+	}
+
+	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, agentScriptsFromProto(dc.GetScripts())); err != nil {
+		return uuid.UUID{}, xerrors.Errorf("insert agent scripts and log sources: %w", err)
+	}
+
+	return subAgentID, nil
+}
+
+func encodeSubagentEnvs(envs []*sdkproto.Env) (pqtype.NullRawMessage, error) {
+	if len(envs) == 0 {
+		return pqtype.NullRawMessage{}, nil
+	}
+
+	subAgentEnvs := make(map[string]string, len(envs))
+	for _, env := range envs {
+		subAgentEnvs[env.GetName()] = env.GetValue()
+	}
+
+	data, err := json.Marshal(subAgentEnvs)
+	if err != nil {
+		return pqtype.NullRawMessage{}, xerrors.Errorf("marshal env: %w", err)
+	}
+	return pqtype.NullRawMessage{Valid: true, RawMessage: data}, nil
+}
+
+// agentScriptsParams holds the parameters for inserting agent scripts and
+// their associated log sources.
+type agentScriptsParams struct {
+	LogSourceIDs          []uuid.UUID
+	LogSourceDisplayNames []string
+	LogSourceIcons        []string
+
+	ScriptIDs              []uuid.UUID
+	ScriptDisplayNames     []string
+	ScriptLogPaths         []string
+	ScriptSources          []string
+	ScriptCron             []string
+	ScriptTimeout          []int32
+	ScriptStartBlocksLogin []bool
+	ScriptRunOnStart       []bool
+	ScriptRunOnStop        []bool
+}
+
+// agentScriptsFromProto converts a slice of proto scripts into the
+// agentScriptsParams struct needed for database insertion.
+func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
+	params := agentScriptsParams{
+		LogSourceIDs:          make([]uuid.UUID, 0, len(scripts)),
+		LogSourceDisplayNames: make([]string, 0, len(scripts)),
+		LogSourceIcons:        make([]string, 0, len(scripts)),
+
+		ScriptIDs:              make([]uuid.UUID, 0, len(scripts)),
+		ScriptDisplayNames:     make([]string, 0, len(scripts)),
+		ScriptLogPaths:         make([]string, 0, len(scripts)),
+		ScriptSources:          make([]string, 0, len(scripts)),
+		ScriptCron:             make([]string, 0, len(scripts)),
+		ScriptTimeout:          make([]int32, 0, len(scripts)),
+		ScriptStartBlocksLogin: make([]bool, 0, len(scripts)),
+		ScriptRunOnStart:       make([]bool, 0, len(scripts)),
+		ScriptRunOnStop:        make([]bool, 0, len(scripts)),
+	}
+
+	for _, script := range scripts {
+		params.LogSourceIDs = append(params.LogSourceIDs, uuid.New())
+		params.LogSourceDisplayNames = append(params.LogSourceDisplayNames, script.GetDisplayName())
+		params.LogSourceIcons = append(params.LogSourceIcons, script.GetIcon())
+
+		params.ScriptIDs = append(params.ScriptIDs, uuid.New())
+		params.ScriptDisplayNames = append(params.ScriptDisplayNames, script.GetDisplayName())
+		params.ScriptLogPaths = append(params.ScriptLogPaths, script.GetLogPath())
+		params.ScriptSources = append(params.ScriptSources, script.GetScript())
+		params.ScriptCron = append(params.ScriptCron, script.GetCron())
+		params.ScriptTimeout = append(params.ScriptTimeout, script.GetTimeoutSeconds())
+		params.ScriptStartBlocksLogin = append(params.ScriptStartBlocksLogin, script.GetStartBlocksLogin())
+		params.ScriptRunOnStart = append(params.ScriptRunOnStart, script.GetRunOnStart())
+		params.ScriptRunOnStop = append(params.ScriptRunOnStop, script.GetRunOnStop())
+	}
+
+	return params
+}
+
+// insertAgentScriptsAndLogSources inserts log sources and scripts for an agent (or
+// subagent). It expects the caller to have built the agentScriptsParams,
+// allowing for additional entries to be appended before insertion (e.g. for
+// devcontainers). Returns nil if there are no log sources to insert.
+func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, agentID uuid.UUID, params agentScriptsParams) error {
+	if len(params.LogSourceIDs) == 0 {
+		return nil
+	}
+
+	_, err := db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
+		WorkspaceAgentID: agentID,
+		ID:               params.LogSourceIDs,
+		CreatedAt:        dbtime.Now(),
+		DisplayName:      params.LogSourceDisplayNames,
+		Icon:             params.LogSourceIcons,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert log sources: %w", err)
+	}
+
+	_, err = db.InsertWorkspaceAgentScripts(ctx, database.InsertWorkspaceAgentScriptsParams{
+		WorkspaceAgentID: agentID,
+		LogSourceID:      params.LogSourceIDs,
+		ID:               params.ScriptIDs,
+		LogPath:          params.ScriptLogPaths,
+		CreatedAt:        dbtime.Now(),
+		Script:           params.ScriptSources,
+		Cron:             params.ScriptCron,
+		TimeoutSeconds:   params.ScriptTimeout,
+		StartBlocksLogin: params.ScriptStartBlocksLogin,
+		RunOnStart:       params.ScriptRunOnStart,
+		RunOnStop:        params.ScriptRunOnStop,
+		DisplayName:      params.ScriptDisplayNames,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert scripts: %w", err)
+	}
+
+	return nil
+}
+
+func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, app *sdkproto.App, appSlugs map[string]struct{}, snapshot *telemetry.Snapshot) error {
+	// Similar logic is duplicated in terraform/resources.go.
+	slug := app.Slug
+	if slug == "" {
+		return xerrors.Errorf("app must have a slug or name set")
+	}
+	// Unlike agent names, app slugs were never permitted to contain uppercase
+	// letters or underscores.
+	if !provisioner.AppSlugRegex.MatchString(slug) {
+		return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
+	}
+	if _, exists := appSlugs[slug]; exists {
+		return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
+	}
+	appSlugs[slug] = struct{}{}
+
+	health := database.WorkspaceAppHealthDisabled
+	if app.Healthcheck == nil {
+		app.Healthcheck = &sdkproto.Healthcheck{}
+	}
+	if app.Healthcheck.Url != "" {
+		health = database.WorkspaceAppHealthInitializing
+	}
+
+	sharingLevel := database.AppSharingLevelOwner
+	switch app.SharingLevel {
+	case sdkproto.AppSharingLevel_AUTHENTICATED:
+		sharingLevel = database.AppSharingLevelAuthenticated
+	case sdkproto.AppSharingLevel_PUBLIC:
+		sharingLevel = database.AppSharingLevelPublic
+	}
+
+	displayGroup := sql.NullString{
+		Valid:  app.Group != "",
+		String: app.Group,
+	}
+
+	openIn := database.WorkspaceAppOpenInSlimWindow
+	switch app.OpenIn {
+	case sdkproto.AppOpenIn_TAB:
+		openIn = database.WorkspaceAppOpenInTab
+	case sdkproto.AppOpenIn_SLIM_WINDOW:
+		openIn = database.WorkspaceAppOpenInSlimWindow
+	}
+
+	var appID string
+	if app.Id == "" || app.Id == uuid.Nil.String() {
+		appID = uuid.NewString()
+	} else {
+		appID = app.Id
+	}
+	id, err := uuid.Parse(appID)
+	if err != nil {
+		return xerrors.Errorf("parse app uuid: %w", err)
+	}
+
+	// If workspace apps are "persistent", the ID will not be regenerated across workspace builds, so we have to upsert.
+	dbApp, err := db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+		ID:          id,
+		CreatedAt:   dbtime.Now(),
+		AgentID:     agentID,
+		Slug:        slug,
+		DisplayName: app.DisplayName,
+		Icon:        app.Icon,
+		Command: sql.NullString{
+			String: app.Command,
+			Valid:  app.Command != "",
+		},
+		Url: sql.NullString{
+			String: app.Url,
+			Valid:  app.Url != "",
+		},
+		External:             app.External,
+		Subdomain:            app.Subdomain,
+		SharingLevel:         sharingLevel,
+		HealthcheckUrl:       app.Healthcheck.Url,
+		HealthcheckInterval:  app.Healthcheck.Interval,
+		HealthcheckThreshold: app.Healthcheck.Threshold,
+		Health:               health,
+		// #nosec G115 - Order represents a display order value that's always small and fits in int32
+		DisplayOrder: int32(app.Order),
+		DisplayGroup: displayGroup,
+		Hidden:       app.Hidden,
+		OpenIn:       openIn,
+		Tooltip:      app.Tooltip,
+	})
+	if err != nil {
+		return xerrors.Errorf("upsert app: %w", err)
+	}
+
+	snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
+
+	return nil
 }

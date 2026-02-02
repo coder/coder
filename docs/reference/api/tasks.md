@@ -351,7 +351,9 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
       "time": "2019-08-24T14:15:22Z",
       "type": "input"
     }
-  ]
+  ],
+  "snapshot": true,
+  "snapshot_at": "string"
 }
 ```
 

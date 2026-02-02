@@ -122,16 +122,44 @@ ports:
   {{- end }}
   {{- end }}
   {{- end }}
+{{- if .Values.coder.readinessProbe.enabled }}
 readinessProbe:
   httpGet:
     path: /healthz
     port: "http"
     scheme: "HTTP"
   initialDelaySeconds: {{ .Values.coder.readinessProbe.initialDelaySeconds }}
+  {{- if hasKey .Values.coder.readinessProbe "periodSeconds" }}
+  periodSeconds: {{ .Values.coder.readinessProbe.periodSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.readinessProbe "timeoutSeconds" }}
+  timeoutSeconds: {{ .Values.coder.readinessProbe.timeoutSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.readinessProbe "successThreshold" }}
+  successThreshold: {{ .Values.coder.readinessProbe.successThreshold }}
+  {{- end }}
+  {{- if hasKey .Values.coder.readinessProbe "failureThreshold" }}
+  failureThreshold: {{ .Values.coder.readinessProbe.failureThreshold }}
+  {{- end }}
+{{- end }}
+{{- if .Values.coder.livenessProbe.enabled }}
 livenessProbe:
   httpGet:
     path: /healthz
     port: "http"
     scheme: "HTTP"
   initialDelaySeconds: {{ .Values.coder.livenessProbe.initialDelaySeconds }}
+  {{- if hasKey .Values.coder.livenessProbe "periodSeconds" }}
+  periodSeconds: {{ .Values.coder.livenessProbe.periodSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.livenessProbe "timeoutSeconds" }}
+  timeoutSeconds: {{ .Values.coder.livenessProbe.timeoutSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.livenessProbe "successThreshold" }}
+  successThreshold: {{ .Values.coder.livenessProbe.successThreshold }}
+  {{- end }}
+  {{- if hasKey .Values.coder.livenessProbe "failureThreshold" }}
+  failureThreshold: {{ .Values.coder.livenessProbe.failureThreshold }}
+  {{- end }}
+{{- end }}
 {{- end }}

@@ -523,7 +523,8 @@ disableWorkspaceSharing: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
-  # The SSH deployment prefix is used in the Host of the ssh config.
+  # Deprecated: use workspace-hostname-suffix instead. The SSH deployment prefix is
+  # used in the Host of the ssh config.
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
   # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder
@@ -775,15 +776,15 @@ aibridge:
   # Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
   # (unlimited).
   # (default: 0, type: int)
-  maxConcurrency: 0
+  max_concurrency: 0
   # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
   # (unlimited).
   # (default: 0, type: int)
-  rateLimit: 0
+  rate_limit: 0
   # Emit structured logs for AI Bridge interception records. Use this for exporting
   # these records to external SIEM or observability systems.
   # (default: false, type: bool)
-  structuredLogging: false
+  structured_logging: false
   # Once enabled, extra headers will be added to upstream requests to identify the
   # user (actor) making requests to AI Bridge. This is only needed if you are using
   # a proxy between AI Bridge and an upstream AI provider. This will send
@@ -794,20 +795,20 @@ aibridge:
   # Enable the circuit breaker to protect against cascading failures from upstream
   # AI provider rate limits (429, 503, 529 overloaded).
   # (default: false, type: bool)
-  circuitBreakerEnabled: false
+  circuit_breaker_enabled: false
   # Number of consecutive failures that triggers the circuit breaker to open.
   # (default: 5, type: int)
-  circuitBreakerFailureThreshold: 5
+  circuit_breaker_failure_threshold: 5
   # Cyclic period of the closed state for clearing internal failure counts.
   # (default: 10s, type: duration)
-  circuitBreakerInterval: 10s
+  circuit_breaker_interval: 10s
   # How long the circuit breaker stays open before transitioning to half-open state.
   # (default: 30s, type: duration)
-  circuitBreakerTimeout: 30s
+  circuit_breaker_timeout: 30s
   # Maximum number of requests allowed in half-open state before deciding to close
   # or re-open the circuit.
   # (default: 3, type: int)
-  circuitBreakerMaxRequests: 3
+  circuit_breaker_max_requests: 3
 aibridgeproxy:
   # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
   # requests.

@@ -86,6 +86,9 @@ const LicensesSettingsPage: FC = () => {
 				managedAgentFeature={
 					entitlementsQuery.data?.features.managed_agent_limit
 				}
+				aiGovernanceUserFeature={
+					entitlementsQuery.data?.features.ai_governance_user_limit
+				}
 				refreshEntitlements={async () => {
 					try {
 						await refreshEntitlementsMutation.mutateAsync();

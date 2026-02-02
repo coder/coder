@@ -25,6 +25,9 @@ const (
 	ScopeAssignRoleUnassign                  ScopeName = "assign_role:unassign"
 	ScopeAuditLogCreate                      ScopeName = "audit_log:create"
 	ScopeAuditLogRead                        ScopeName = "audit_log:read"
+	ScopeBoundaryUsageDelete                 ScopeName = "boundary_usage:delete"
+	ScopeBoundaryUsageRead                   ScopeName = "boundary_usage:read"
+	ScopeBoundaryUsageUpdate                 ScopeName = "boundary_usage:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -180,6 +183,9 @@ func (e ScopeName) Valid() bool {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryUsageDelete,
+		ScopeBoundaryUsageRead,
+		ScopeBoundaryUsageUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -336,6 +342,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryUsageDelete,
+		ScopeBoundaryUsageRead,
+		ScopeBoundaryUsageUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,

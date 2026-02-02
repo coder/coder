@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/appearance"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -645,6 +646,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	go api.runEntitlementsLoop(ctx)
 
+	api.BoundaryUsageTracker = boundaryusage.NewTracker()
+	// If there is no boundary usage nothing gets written to the database and
+	// nothing gets reported in telemetry, so we launch this unconditionally.
+	go api.BoundaryUsageTracker.StartFlushLoop(ctx, options.Logger.Named("boundary_usage_tracker"), options.Database, api.AGPL.ID)
+
 	return api, nil
 }
 
@@ -940,13 +946,15 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
-			reconciler, claimer := api.setupPrebuilds(enabled)
+			// Stop the old reconciler first to unregister its metrics before
+			// creating a new one. This prevents duplicate metric registration panics.
 			if current := api.AGPL.PrebuildsReconciler.Load(); current != nil {
 				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
 				defer giveUp()
 				(*current).Stop(stopCtx, xerrors.New("entitlements change"))
 			}
 
+			reconciler, claimer := api.setupPrebuilds(enabled)
 			api.AGPL.PrebuildsReconciler.Store(&reconciler)
 			// TODO: Should this context be the api.ctx context? To cancel when
 			// 	the API (and entire app) is closed via shutdown?
@@ -975,7 +983,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 var _ wsbuilder.UsageChecker = &API{}
 
-func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
 	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
@@ -988,7 +996,7 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 		}
 	}
 
-	resp, err := api.checkAIBuildUsage(ctx, store, templateVersion, transition)
+	resp, err := api.checkAIBuildUsage(ctx, store, task, transition)
 	if err != nil {
 		return wsbuilder.UsageCheckResponse{}, err
 	}
@@ -1001,14 +1009,14 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 
 // checkAIBuildUsage validates AI-related usage constraints. It is a no-op
 // unless the transition is "start" and the template version has an AI task.
-func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 	// Only check AI usage rules for start transitions.
 	if transition != database.WorkspaceTransitionStart {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
 
 	// If the template version doesn't have an AI task, we don't need to check usage.
-	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
+	if task == nil {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
 

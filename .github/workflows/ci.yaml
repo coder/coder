@@ -35,7 +35,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -157,7 +157,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -176,7 +176,7 @@ jobs:
       - name: Get golangci-lint cache dir
         run: |
           linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
-          go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
+          ./.github/scripts/retry.sh -- go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
@@ -225,13 +225,7 @@ jobs:
         run: helm version --short
 
       - name: make lint
-        run: |
-          # zizmor isn't included in the lint target because it takes a while,
-          # but we explicitly want to run it in CI.
-          make --output-sync=line -j lint lint/actions/zizmor
-        env:
-          # Used by zizmor to lint third-party GitHub actions.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make --output-sync=line -j lint
 
       - name: Check workflow files
         run: |
@@ -245,13 +239,38 @@ jobs:
           ./scripts/check_unstaged.sh
         shell: bash
 
+  lint-actions:
+    needs: changes
+    if: needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: make lint/actions
+        run: make --output-sync=line -j lint/actions
+        env:
+          # Used by zizmor to lint third-party GitHub actions.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   gen:
     timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -308,7 +327,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -329,7 +348,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install shfmt
-        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
+        run: ./.github/scripts/retry.sh -- go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
       - name: make fmt
         timeout-minutes: 7
@@ -360,7 +379,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -394,6 +413,18 @@ jobs:
       - name: Setup Go Paths
         id: go-paths
         uses: ./.github/actions/setup-go-paths
+
+      # macOS default bash and coreutils are too old for our scripts
+      # (lib.sh requires bash 4+, GNU getopt, make 4+).
+      - name: Setup GNU tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash gnu-getopt make
+          {
+            echo "$(brew --prefix bash)/bin"
+            echo "$(brew --prefix gnu-getopt)/bin"
+            echo "$(brew --prefix make)/libexec/gnubin"
+          } >> "$GITHUB_PATH"
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -554,7 +585,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -616,7 +647,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -688,7 +719,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -715,7 +746,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -748,7 +779,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -828,7 +859,7 @@ jobs:
     if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -909,7 +940,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -966,6 +997,7 @@ jobs:
       - changes
       - fmt
       - lint
+      - lint-actions
       - gen
       - test-go-pg
       - test-go-pg-17
@@ -980,7 +1012,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -990,6 +1022,7 @@ jobs:
           echo "- changes: ${{ needs.changes.result }}"
           echo "- fmt: ${{ needs.fmt.result }}"
           echo "- lint: ${{ needs.lint.result }}"
+          echo "- lint-actions: ${{ needs.lint-actions.result }}"
           echo "- gen: ${{ needs.gen.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
           echo "- test-go-pg-17: ${{ needs.test-go-pg-17.result }}"
@@ -1068,7 +1101,7 @@ jobs:
       - name: Build dylibs
         run: |
           set -euxo pipefail
-          go mod download
+          ./.github/scripts/retry.sh -- go mod download
 
           make gen/mark-fresh
           make build/coder-dylib
@@ -1100,7 +1133,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -1117,10 +1150,10 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install go-winres
-        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
 
       - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
@@ -1128,7 +1161,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          go mod download
+          ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
           make build
 
@@ -1155,7 +1188,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 
@@ -1201,16 +1234,16 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         with:
           distribution: "zulu"
           java-version: "11.0"
 
       - name: Install go-winres
-        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
 
       - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
@@ -1258,7 +1291,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          go mod download
+          ./.github/scripts/retry.sh -- go mod download
 
           version="$(./scripts/version.sh)"
           tag="main-${version//+/-}"
@@ -1552,7 +1585,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
         with:
           egress-policy: audit
 

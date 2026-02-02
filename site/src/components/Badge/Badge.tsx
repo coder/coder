@@ -24,6 +24,8 @@ const badgeVariants = cva(
 					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow",
 				green:
 					"border border-solid border-border-green bg-surface-green text-highlight-green shadow",
+				purple:
+					"border border-solid border-border-purple bg-surface-purple text-highlight-purple shadow",
 				info: "border border-solid border-border-pending bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {

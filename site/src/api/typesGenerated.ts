@@ -189,6 +189,10 @@ export type APIKeyScope =
 	| "audit_log:*"
 	| "audit_log:create"
 	| "audit_log:read"
+	| "boundary_usage:*"
+	| "boundary_usage:delete"
+	| "boundary_usage:read"
+	| "boundary_usage:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
 	| "coder:application_connect"
@@ -387,6 +391,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"audit_log:*",
 	"audit_log:create",
 	"audit_log:read",
+	"boundary_usage:*",
+	"boundary_usage:delete",
+	"boundary_usage:read",
+	"boundary_usage:update",
 	"coder:all",
 	"coder:apikeys.manage_self",
 	"coder:application_connect",
@@ -4057,6 +4065,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "boundary_usage"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -4101,6 +4110,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"boundary_usage",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -4998,10 +5008,14 @@ export const TaskLogTypes: TaskLogType[] = ["input", "output"];
 
 // From codersdk/aitasks.go
 /**
- * TaskLogsResponse contains the logs for a task.
+ * TaskLogsResponse contains task logs and metadata. When snapshot is false,
+ * logs are fetched live from the task app. When snapshot is true, logs are
+ * fetched from a stored snapshot captured during pause.
  */
 export interface TaskLogsResponse {
 	readonly logs: readonly TaskLogEntry[];
+	readonly snapshot?: boolean;
+	readonly snapshot_at?: string;
 }
 
 // From codersdk/aitasks.go
