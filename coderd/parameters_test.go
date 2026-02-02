@@ -83,8 +83,9 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
 
-		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		modulesArchive, skipped, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
 		require.NoError(t, err)
+		require.Len(t, skipped, 0)
 
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
@@ -198,8 +199,9 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
 
-		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		modulesArchive, skipped, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
 		require.NoError(t, err)
+		require.Len(t, skipped, 0)
 
 		c := atomic.NewInt32(0)
 		reject := &dbRejectGitSSHKey{Store: db, hook: func(d *dbRejectGitSSHKey) {
@@ -232,8 +234,9 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
 
-		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		modulesArchive, skipped, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
 		require.NoError(t, err)
+		require.Len(t, skipped, 0)
 
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
@@ -318,8 +321,9 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
 
-		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		modulesArchive, skipped, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
 		require.NoError(t, err)
+		require.Len(t, skipped, 0)
 
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),

@@ -946,13 +946,15 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspacePrebuilds); shouldUpdate(initial, changed, enabled) {
-			reconciler, claimer := api.setupPrebuilds(enabled)
+			// Stop the old reconciler first to unregister its metrics before
+			// creating a new one. This prevents duplicate metric registration panics.
 			if current := api.AGPL.PrebuildsReconciler.Load(); current != nil {
 				stopCtx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop"))
 				defer giveUp()
 				(*current).Stop(stopCtx, xerrors.New("entitlements change"))
 			}
 
+			reconciler, claimer := api.setupPrebuilds(enabled)
 			api.AGPL.PrebuildsReconciler.Store(&reconciler)
 			// TODO: Should this context be the api.ctx context? To cancel when
 			// 	the API (and entire app) is closed via shutdown?
