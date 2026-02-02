@@ -156,11 +156,11 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 
 		// Sender identification.
-		from, err := s.validateFromAddr(s.cfg.From.String())
+		envelopeFrom, headerFrom, err := s.validateFromAddr(s.cfg.From.String())
 		if err != nil {
 			return false, xerrors.Errorf("'from' validation: %w", err)
 		}
-		err = c.Mail(from, &smtp.MailOptions{})
+		err = c.Mail(envelopeFrom, &smtp.MailOptions{})
 		if err != nil {
 			// This is retryable because the server may be temporarily down.
 			return true, xerrors.Errorf("sender identification: %w", err)
@@ -200,7 +200,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		msg := &bytes.Buffer{}
 		multipartBuffer := &bytes.Buffer{}
 		multipartWriter := multipart.NewWriter(multipartBuffer)
-		_, _ = fmt.Fprintf(msg, "From: %s\r\n", from)
+		_, _ = fmt.Fprintf(msg, "From: %s\r\n", headerFrom)
 		_, _ = fmt.Fprintf(msg, "To: %s\r\n", strings.Join(recipients, ", "))
 		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", subject)
 		_, _ = fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
@@ -486,15 +486,25 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 	return nil, errs
 }
 
-func (*SMTPHandler) validateFromAddr(from string) (string, error) {
+// validateFromAddr parses the "from" address and returns two values:
+// 1. envelopeFrom: The bare email address for use in the SMTP MAIL FROM command.
+// 2. headerFrom: The original address (possibly including display name) for use in the email header.
+//
+// This separation is necessary because SMTP envelope addresses (used in MAIL FROM
+// and RCPT TO commands) must be bare email addresses, while email headers can
+// include display names (e.g., "John Doe <john@example.com>").
+func (*SMTPHandler) validateFromAddr(from string) (envelopeFrom, headerFrom string, err error) {
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
-		return "", xerrors.Errorf("parse 'from' address: %w", err)
+		return "", "", xerrors.Errorf("parse 'from' address: %w", err)
 	}
 	if len(addrs) != 1 {
-		return "", ErrValidationNoFromAddress
+		return "", "", ErrValidationNoFromAddress
 	}
-	return from, nil
+	// Use the parsed email address for the SMTP envelope (MAIL FROM command),
+	// but preserve the original string for the email header (which may include
+	// a display name).
+	return addrs[0].Address, from, nil
 }
 
 func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
