@@ -16398,7 +16398,7 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by name, email or username
+	-- Filter by email or username
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email ILIKE concat('%', $2, '%')
@@ -16406,58 +16406,64 @@ WHERE
 		)
 		ELSE true
 	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			name ILIKE concat('%', $3, '%')
+		ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($3 :: user_status[]) > 0 THEN
-			status = ANY($3 :: user_status[])
+		WHEN cardinality($4 :: user_status[]) > 0 THEN
+			status = ANY($4 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 		-- everyone is a member.
-		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[]) THEN
-			rbac_roles && $4 :: text[]
+		WHEN cardinality($5 :: text[]) > 0 AND 'member' != ANY($5 :: text[]) THEN
+			rbac_roles && $5 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
 	AND CASE
-		WHEN $5 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at <= $5
+		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= $6
 		ELSE true
 	END
 	AND CASE
-		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at >= $6
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= $7
 		ELSE true
 	END
 	-- Filter by created_at
 	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at <= $7
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= $8
 		ELSE true
 	END
 	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at >= $8
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= $9
 		ELSE true
 	END
   	AND CASE
-  	    WHEN $9::bool THEN TRUE
+  	    WHEN $10::bool THEN TRUE
   	    ELSE
 			is_system = false
 	END
 	AND CASE
-		WHEN $10 :: bigint != 0 THEN
-			github_com_user_id = $10
+		WHEN $11 :: bigint != 0 THEN
+			github_com_user_id = $11
 		ELSE true
 	END
 	-- Filter by login_type
 	AND CASE
-		WHEN cardinality($11 :: login_type[]) > 0 THEN
-			login_type = ANY($11 :: login_type[])
+		WHEN cardinality($12 :: login_type[]) > 0 THEN
+			login_type = ANY($12 :: login_type[])
 		ELSE true
 	END
 	-- End of filters
@@ -16466,15 +16472,16 @@ WHERE
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $12
+	LOWER(username) ASC OFFSET $13
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($13 :: int, 0)
+	NULLIF($14 :: int, 0)
 `
 
 type GetUsersParams struct {
 	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
 	Search          string       `db:"search" json:"search"`
+	Name            string       `db:"name" json:"name"`
 	Status          []UserStatus `db:"status" json:"status"`
 	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
@@ -16515,6 +16522,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterID,
 		arg.Search,
+		arg.Name,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,

@@ -297,6 +297,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
 		AfterID:         paginationParams.AfterID,
 		Search:          params.Search,
+		Name:            params.Name,
 		Status:          params.Status,
 		RbacRole:        params.RbacRole,
 		LastSeenBefore:  params.LastSeenBefore,
