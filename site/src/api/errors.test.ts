@@ -1,5 +1,6 @@
 import { mockApiError } from "testHelpers/entities";
 import {
+	getErrorDetail,
 	getErrorMessage,
 	getValidationErrorMessage,
 	isApiError,
@@ -99,5 +100,63 @@ describe("getValidationErrorMessage", () => {
 				"Something went wrong.",
 			),
 		).toBe("Something went wrong.");
+	});
+});
+
+describe("getErrorDetail", () => {
+	it("returns detail field when present", () => {
+		expect(
+			getErrorDetail(
+				mockApiError({
+					message: "Error message",
+					detail: "Detailed explanation",
+				}),
+			),
+		).toBe("Detailed explanation");
+	});
+
+	it("returns validation messages when no detail but validations present", () => {
+		expect(
+			getErrorDetail(
+				mockApiError({
+					message: "Unable to validate presets",
+					validations: [
+						{
+							field: "Custom Image (Missing URL)",
+							detail:
+								"Parameter custom_image_url: Required parameter not provided",
+						},
+					],
+				}),
+			),
+		).toBe(
+			"Custom Image (Missing URL): Parameter custom_image_url: Required parameter not provided",
+		);
+	});
+
+	it("returns multiple validation messages joined by newlines", () => {
+		expect(
+			getErrorDetail(
+				mockApiError({
+					message: "Unable to validate presets",
+					validations: [
+						{ field: "preset1", detail: "Missing required parameter" },
+						{ field: "preset2", detail: "Invalid value" },
+					],
+				}),
+			),
+		).toBe("preset1: Missing required parameter\npreset2: Invalid value");
+	});
+
+	it("returns generic message for Error without validations", () => {
+		expect(getErrorDetail(new Error("Something failed"))).toBe(
+			"Please check the developer console for more details.",
+		);
+	});
+
+	it("returns undefined for non-error values", () => {
+		expect(getErrorDetail(null)).toBeUndefined();
+		expect(getErrorDetail(undefined)).toBeUndefined();
+		expect(getErrorDetail("string")).toBeUndefined();
 	});
 });
