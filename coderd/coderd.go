@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -266,6 +267,8 @@ type Options struct {
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
+	// BoundaryUsageTracker tracks boundary usage for telemetry.
+	BoundaryUsageTracker *boundaryusage.Tracker
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	NotificationsEnqueuer notifications.Enqueuer
 
@@ -1448,6 +1451,9 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
+				r.Route("/tasks/{task}", func(r chi.Router) {
+					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
+				})
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(

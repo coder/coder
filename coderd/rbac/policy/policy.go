@@ -380,4 +380,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create aibridge interceptions & related records",
 		},
 	},
+	"boundary_usage": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read boundary usage statistics",
+			ActionUpdate: "upsert boundary usage statistics",
+			ActionDelete: "delete boundary usage statistics",
+		},
+	},
 }

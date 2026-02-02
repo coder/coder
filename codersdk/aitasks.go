@@ -346,9 +346,13 @@ type TaskLogEntry struct {
 	Time    time.Time   `json:"time" format:"date-time" table:"time,default_sort"`
 }
 
-// TaskLogsResponse contains the logs for a task.
+// TaskLogsResponse contains task logs and metadata. When snapshot is false,
+// logs are fetched live from the task app. When snapshot is true, logs are
+// fetched from a stored snapshot captured during pause.
 type TaskLogsResponse struct {
-	Logs []TaskLogEntry `json:"logs"`
+	Logs       []TaskLogEntry `json:"logs"`
+	Snapshot   bool           `json:"snapshot,omitempty"`
+	SnapshotAt *time.Time     `json:"snapshot_at,omitempty"`
 }
 
 // TaskLogs retrieves logs from the task app.

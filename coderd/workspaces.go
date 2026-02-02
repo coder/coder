@@ -2028,7 +2028,7 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ServerSentEvent
 // @Router /workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender)
+	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
 }
 
 func (api *API) watchWorkspace(
@@ -2350,6 +2350,14 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateWorkspaceACL
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	apiKey := httpmw.APIKey(r)
+	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "You cannot change your own workspace sharing role.",
+		})
 		return
 	}
 

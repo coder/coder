@@ -14,5 +14,6 @@ export const Premium: Story = {
 		message: "Black Lotus",
 		description:
 			"Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
+		documentationLink: "https://coder.com/docs",
 	},
 };

@@ -45,11 +45,11 @@ To remove sharing from a workspace:
 
 To show who a workspace is shared with:
 
-- `coder sharing show <workspace>`
+- `coder sharing status <workspace>`
 
 To list shared workspaces:
 
-- `coder list --shared`
+- `coder list --search shared:true`
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
 

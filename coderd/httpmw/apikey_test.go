@@ -16,9 +16,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -27,6 +29,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw/loggermock"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -990,5 +994,80 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("LogsAPIKeyID", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name           string
+			expired        bool
+			expectedStatus int
+		}{
+			{
+				name:           "OnSuccess",
+				expired:        false,
+				expectedStatus: http.StatusOK,
+			},
+			{
+				name:           "OnFailure",
+				expired:        true,
+				expectedStatus: http.StatusUnauthorized,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					db, _  = dbtestutil.NewDB(t)
+					user   = dbgen.User(t, db, database.User{})
+					expiry = dbtime.Now().AddDate(0, 0, 1)
+				)
+				if tc.expired {
+					expiry = dbtime.Now().AddDate(0, 0, -1)
+				}
+				sentAPIKey, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: expiry,
+				})
+
+				var (
+					ctrl       = gomock.NewController(t)
+					mockLogger = loggermock.NewMockRequestLogger(ctrl)
+					r          = httptest.NewRequest("GET", "/", nil)
+					rw         = httptest.NewRecorder()
+				)
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+
+				// Expect WithAuthContext to be called (from dbauthz.As).
+				mockLogger.EXPECT().WithAuthContext(gomock.Any()).AnyTimes()
+				// Expect WithFields to be called with api_key_id field regardless of success/failure.
+				mockLogger.EXPECT().WithFields(
+					slog.F("api_key_id", sentAPIKey.ID),
+				).Times(1)
+
+				// Add the mock logger to the context.
+				ctx := loggermw.WithRequestLogger(r.Context(), mockLogger)
+				r = r.WithContext(ctx)
+
+				httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+					DB:              db,
+					RedirectToLogin: false,
+				})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					if tc.expired {
+						t.Error("handler should not be called on auth failure")
+					}
+					httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+						Message: "It worked!",
+					})
+				})).ServeHTTP(rw, r)
+
+				res := rw.Result()
+				defer res.Body.Close()
+				require.Equal(t, tc.expectedStatus, res.StatusCode)
+			})
+		}
 	})
 }

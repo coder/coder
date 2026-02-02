@@ -14,10 +14,6 @@ coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="secondary-gith
 # TYPE coderd_oauth2_external_requests_rate_limit gauge
 coderd_oauth2_external_requests_rate_limit{name="primary-github",resource="core-unauthorized"} 5000
 coderd_oauth2_external_requests_rate_limit{name="secondary-github",resource="core-unauthorized"} 5000
-# HELP coderd_oauth2_external_requests_rate_limit_total DEPRECATED: use coderd_oauth2_external_requests_rate_limit instead
-# TYPE coderd_oauth2_external_requests_rate_limit_total gauge
-coderd_oauth2_external_requests_rate_limit_total{name="primary-github",resource="core-unauthorized"} 5000
-coderd_oauth2_external_requests_rate_limit_total{name="secondary-github",resource="core-unauthorized"} 5000
 # HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
 # TYPE coderd_oauth2_external_requests_rate_limit_used gauge
 coderd_oauth2_external_requests_rate_limit_used{name="primary-github",resource="core"} 148
@@ -654,9 +650,6 @@ coderd_api_requests_processed_total{code="401",method="POST",path="/api/v2/files
 # HELP coderd_api_workspace_latest_build The latest workspace builds with a status.
 # TYPE coderd_api_workspace_latest_build gauge
 coderd_api_workspace_latest_build{status="succeeded"} 1
-# HELP coderd_api_workspace_latest_build_total DEPRECATED: use coderd_api_workspace_latest_build instead
-# TYPE coderd_api_workspace_latest_build_total gauge
-coderd_api_workspace_latest_build_total{status="succeeded"} 1
 # HELP coderd_insights_applications_usage_seconds The application usage per template.
 # TYPE coderd_insights_applications_usage_seconds gauge
 coderd_insights_applications_usage_seconds{application_name="JetBrains",slug="",template_name="code-server-pod"} 1
@@ -915,3 +908,72 @@ coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5"
 coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="output"} 2014
 coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_audio"} 0
 coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_cached"} 31872
+#HELP coderd_agentapi_metadata_batch_size Total number of metadata entries in each batch, updated before flushes.
+# TYPE coderd_agentapi_metadata_batch_size histogram
+coderd_agentapi_metadata_batch_size_bucket{le="10"} 11
+coderd_agentapi_metadata_batch_size_bucket{le="25"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="50"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="100"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="150"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="200"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="250"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="300"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="350"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="400"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="450"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="500"} 12
+coderd_agentapi_metadata_batch_size_bucket{le="+Inf"} 12
+coderd_agentapi_metadata_batch_size_sum 71
+coderd_agentapi_metadata_batch_size_count 12
+# HELP coderd_agentapi_metadata_batch_utilization Number of metadata keys per agent in each batch, updated before flushes.
+# TYPE coderd_agentapi_metadata_batch_utilization histogram
+coderd_agentapi_metadata_batch_utilization_bucket{le="1"} 0
+coderd_agentapi_metadata_batch_utilization_bucket{le="2"} 0
+coderd_agentapi_metadata_batch_utilization_bucket{le="3"} 0
+coderd_agentapi_metadata_batch_utilization_bucket{le="4"} 0
+coderd_agentapi_metadata_batch_utilization_bucket{le="5"} 10
+coderd_agentapi_metadata_batch_utilization_bucket{le="6"} 10
+coderd_agentapi_metadata_batch_utilization_bucket{le="7"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="8"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="9"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="10"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="15"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="20"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="40"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="80"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="160"} 13
+coderd_agentapi_metadata_batch_utilization_bucket{le="+Inf"} 13
+coderd_agentapi_metadata_batch_utilization_sum 71
+coderd_agentapi_metadata_batch_utilization_count 13
+# HELP coderd_agentapi_metadata_batches_total Total number of metadata batches flushed.
+# TYPE coderd_agentapi_metadata_batches_total counter
+coderd_agentapi_metadata_batches_total{reason="scheduled"} 12
+# HELP coderd_agentapi_metadata_dropped_keys_total Total number of metadata keys dropped due to capacity limits.
+# TYPE coderd_agentapi_metadata_dropped_keys_total counter
+coderd_agentapi_metadata_dropped_keys_total 0
+# HELP coderd_agentapi_metadata_flush_duration_seconds Time taken to flush metadata batch to database and pubsub.
+# TYPE coderd_agentapi_metadata_flush_duration_seconds histogram
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="0.01"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="0.025"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="0.05"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="0.1"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="0.25"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="0.5"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="1"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="2.5"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="5"} 12
+coderd_agentapi_metadata_flush_duration_seconds_bucket{reason="scheduled",le="+Inf"} 12
+coderd_agentapi_metadata_flush_duration_seconds_sum{reason="scheduled"} 0.008704553
+coderd_agentapi_metadata_flush_duration_seconds_count{reason="scheduled"} 12
+# HELP coderd_agentapi_metadata_flushed_total Total number of unique metadatas flushed.
+# TYPE coderd_agentapi_metadata_flushed_total counter
+coderd_agentapi_metadata_flushed_total 71
+# HELP coderd_agentapi_metadata_publish_errors_total Total number of metadata batch pubsub publish calls that have resulted in an error.
+# TYPE coderd_agentapi_metadata_publish_errors_total counter
+coderd_agentapi_metadata_publish_errors_total 0
+# HELP coderd_license_warnings The number of active license warnings.
+# TYPE coderd_license_warnings gauge
+coderd_license_warnings 0
+# HELP coderd_license_errors The number of active license errors.
+# TYPE coderd_license_errors gauge
+coderd_license_errors 0

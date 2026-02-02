@@ -1,4 +1,3 @@
-import MuiLink from "@mui/material/Link";
 import type { Feature } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
@@ -7,7 +6,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "components/Collapsible/Collapsible";
-import { Stack } from "components/Stack/Stack";
+import { Link } from "components/Link/Link";
 import dayjs from "dayjs";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
@@ -24,16 +23,16 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	if (!managedAgentFeature?.enabled) {
 		return (
 			<div className="min-h-60 flex items-center justify-center rounded-lg border border-solid p-12">
-				<Stack alignItems="center" spacing={1}>
-					<Stack alignItems="center" spacing={0.5}>
-						<span className="text-base">Managed AI Agents Disabled</span>
+				<div className="flex flex-col gap-4 items-center justify-center">
+					<div className="flex flex-col gap-2 items-center justify-center">
+						<span className="text-base">Agent Workspace Builds Disabled</span>
 						<span className="text-content-secondary text-center max-w-[464px] mt-2">
-							Managed AI agents are not included in your current license.
-							Contact <MuiLink href="mailto:sales@coder.com">sales</MuiLink> to
+							Agent Workspace Builds are not included in your current license.
+							Contact <Link href="mailto:sales@coder.com">sales</Link> to
 							upgrade your license and unlock this feature.
 						</span>
-					</Stack>
-				</Stack>
+					</div>
+				</div>
 			</div>
 		);
 	}
@@ -76,7 +75,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
-						<h3 className="text-md m-0 font-medium">Managed AI Agents Usage</h3>
+						<h3 className="text-md m-0 font-medium">Agent Workspace Builds</h3>
 
 						<CollapsibleTrigger asChild>
 							<Button
@@ -100,15 +99,30 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
             `}
 					>
 						<p>
-							<MuiLink
+							Agent Workspace Builds are measured when you start an ephemeral
+							workspace, purely for running an agentic workload. These are not
+							to be confused with workspaces used for day-to-day development,
+							even if AI tooling is involved.
+						</p>
+						<p>
+							Today,{" "}
+							<Link
 								href={docs("/ai-coder/tasks")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								Coder Tasks
-							</MuiLink>{" "}
-							and upcoming managed AI features are included in Coder Premium
-							licenses during beta. Usage limits and pricing subject to change.
+								Coder Tasks (via UI, CLI, or API)
+							</Link>{" "}
+							is the only way to create agentic workspaces, but additional
+							protocols and APIs may be supported as standards emerge. Learn
+							more in{" "}
+							<Link
+								href={docs("/ai-coder/ai-governance")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								the Coder documentation
+							</Link>
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">

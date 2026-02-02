@@ -306,6 +306,11 @@ export interface Devcontainer {
   workspaceFolder: string;
   configPath: string;
   name: string;
+  id: string;
+  subagentId: string;
+  apps: App[];
+  scripts: Script[];
+  envs: Env[];
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -1094,6 +1099,21 @@ export const Devcontainer = {
     }
     if (message.name !== "") {
       writer.uint32(26).string(message.name);
+    }
+    if (message.id !== "") {
+      writer.uint32(34).string(message.id);
+    }
+    if (message.subagentId !== "") {
+      writer.uint32(42).string(message.subagentId);
+    }
+    for (const v of message.apps) {
+      App.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    for (const v of message.scripts) {
+      Script.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    for (const v of message.envs) {
+      Env.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     return writer;
   },

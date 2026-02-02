@@ -1980,6 +1980,114 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const deleteBoundaryUsageStatsByReplicaID = `-- name: DeleteBoundaryUsageStatsByReplicaID :exec
+DELETE FROM boundary_usage_stats WHERE replica_id = $1
+`
+
+// Deletes boundary usage statistics for a specific replica.
+func (q *sqlQuerier) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteBoundaryUsageStatsByReplicaID, replicaID)
+	return err
+}
+
+const getBoundaryUsageSummary = `-- name: GetBoundaryUsageSummary :one
+SELECT
+    COALESCE(SUM(unique_workspaces_count), 0)::bigint AS unique_workspaces,
+    COALESCE(SUM(unique_users_count), 0)::bigint AS unique_users,
+    COALESCE(SUM(allowed_requests), 0)::bigint AS allowed_requests,
+    COALESCE(SUM(denied_requests), 0)::bigint AS denied_requests
+FROM boundary_usage_stats
+WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+`
+
+type GetBoundaryUsageSummaryRow struct {
+	UniqueWorkspaces int64 `db:"unique_workspaces" json:"unique_workspaces"`
+	UniqueUsers      int64 `db:"unique_users" json:"unique_users"`
+	AllowedRequests  int64 `db:"allowed_requests" json:"allowed_requests"`
+	DeniedRequests   int64 `db:"denied_requests" json:"denied_requests"`
+}
+
+// Aggregates boundary usage statistics across all replicas. Filters to only
+// include data where window_start is within the given interval to exclude
+// stale data.
+func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getBoundaryUsageSummary, maxStalenessMs)
+	var i GetBoundaryUsageSummaryRow
+	err := row.Scan(
+		&i.UniqueWorkspaces,
+		&i.UniqueUsers,
+		&i.AllowedRequests,
+		&i.DeniedRequests,
+	)
+	return i, err
+}
+
+const resetBoundaryUsageStats = `-- name: ResetBoundaryUsageStats :exec
+DELETE FROM boundary_usage_stats
+`
+
+// Deletes all boundary usage statistics. Called after telemetry reports the
+// aggregated stats. Each replica will insert a fresh row on its next flush.
+func (q *sqlQuerier) ResetBoundaryUsageStats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetBoundaryUsageStats)
+	return err
+}
+
+const upsertBoundaryUsageStats = `-- name: UpsertBoundaryUsageStats :one
+INSERT INTO boundary_usage_stats (
+    replica_id,
+    unique_workspaces_count,
+    unique_users_count,
+    allowed_requests,
+    denied_requests,
+    window_start,
+    updated_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    NOW(),
+    NOW()
+) ON CONFLICT (replica_id) DO UPDATE SET
+    unique_workspaces_count = $6,
+    unique_users_count = $7,
+    allowed_requests = boundary_usage_stats.allowed_requests + EXCLUDED.allowed_requests,
+    denied_requests = boundary_usage_stats.denied_requests + EXCLUDED.denied_requests,
+    updated_at = NOW()
+RETURNING (xmax = 0) AS new_period
+`
+
+type UpsertBoundaryUsageStatsParams struct {
+	ReplicaID             uuid.UUID `db:"replica_id" json:"replica_id"`
+	UniqueWorkspacesDelta int64     `db:"unique_workspaces_delta" json:"unique_workspaces_delta"`
+	UniqueUsersDelta      int64     `db:"unique_users_delta" json:"unique_users_delta"`
+	AllowedRequests       int64     `db:"allowed_requests" json:"allowed_requests"`
+	DeniedRequests        int64     `db:"denied_requests" json:"denied_requests"`
+	UniqueWorkspacesCount int64     `db:"unique_workspaces_count" json:"unique_workspaces_count"`
+	UniqueUsersCount      int64     `db:"unique_users_count" json:"unique_users_count"`
+}
+
+// Upserts boundary usage statistics for a replica. On INSERT (new period), uses
+// delta values for unique counts (only data since last flush). On UPDATE, uses
+// cumulative values for unique counts (accurate period totals). Request counts
+// are always deltas, accumulated in DB. Returns true if insert, false if update.
+func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, upsertBoundaryUsageStats,
+		arg.ReplicaID,
+		arg.UniqueWorkspacesDelta,
+		arg.UniqueUsersDelta,
+		arg.AllowedRequests,
+		arg.DeniedRequests,
+		arg.UniqueWorkspacesCount,
+		arg.UniqueUsersCount,
+	)
+	var new_period bool
+	err := row.Scan(&new_period)
+	return new_period, err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count
@@ -12634,22 +12742,6 @@ func (q *sqlQuerier) CleanTailnetTunnels(ctx context.Context) error {
 	return err
 }
 
-const deleteAllTailnetClientSubscriptions = `-- name: DeleteAllTailnetClientSubscriptions :exec
-DELETE
-FROM tailnet_client_subscriptions
-WHERE client_id = $1 and coordinator_id = $2
-`
-
-type DeleteAllTailnetClientSubscriptionsParams struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg DeleteAllTailnetClientSubscriptionsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteAllTailnetClientSubscriptions, arg.ClientID, arg.CoordinatorID)
-	return err
-}
-
 const deleteAllTailnetTunnels = `-- name: DeleteAllTailnetTunnels :exec
 DELETE
 FROM tailnet_tunnels
@@ -12663,82 +12755,6 @@ type DeleteAllTailnetTunnelsParams struct {
 
 func (q *sqlQuerier) DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error {
 	_, err := q.db.ExecContext(ctx, deleteAllTailnetTunnels, arg.CoordinatorID, arg.SrcID)
-	return err
-}
-
-const deleteCoordinator = `-- name: DeleteCoordinator :exec
-DELETE
-FROM tailnet_coordinators
-WHERE id = $1
-`
-
-func (q *sqlQuerier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteCoordinator, id)
-	return err
-}
-
-const deleteTailnetAgent = `-- name: DeleteTailnetAgent :one
-DELETE
-FROM tailnet_agents
-WHERE id = $1 and coordinator_id = $2
-RETURNING id, coordinator_id
-`
-
-type DeleteTailnetAgentParams struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-type DeleteTailnetAgentRow struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteTailnetAgent(ctx context.Context, arg DeleteTailnetAgentParams) (DeleteTailnetAgentRow, error) {
-	row := q.db.QueryRowContext(ctx, deleteTailnetAgent, arg.ID, arg.CoordinatorID)
-	var i DeleteTailnetAgentRow
-	err := row.Scan(&i.ID, &i.CoordinatorID)
-	return i, err
-}
-
-const deleteTailnetClient = `-- name: DeleteTailnetClient :one
-DELETE
-FROM tailnet_clients
-WHERE id = $1 and coordinator_id = $2
-RETURNING id, coordinator_id
-`
-
-type DeleteTailnetClientParams struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-type DeleteTailnetClientRow struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteTailnetClient(ctx context.Context, arg DeleteTailnetClientParams) (DeleteTailnetClientRow, error) {
-	row := q.db.QueryRowContext(ctx, deleteTailnetClient, arg.ID, arg.CoordinatorID)
-	var i DeleteTailnetClientRow
-	err := row.Scan(&i.ID, &i.CoordinatorID)
-	return i, err
-}
-
-const deleteTailnetClientSubscription = `-- name: DeleteTailnetClientSubscription :exec
-DELETE
-FROM tailnet_client_subscriptions
-WHERE client_id = $1 and agent_id = $2 and coordinator_id = $3
-`
-
-type DeleteTailnetClientSubscriptionParams struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) error {
-	_, err := q.db.ExecContext(ctx, deleteTailnetClientSubscription, arg.ClientID, arg.AgentID, arg.CoordinatorID)
 	return err
 }
 
@@ -12790,39 +12806,6 @@ func (q *sqlQuerier) DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetT
 	var i DeleteTailnetTunnelRow
 	err := row.Scan(&i.CoordinatorID, &i.SrcID, &i.DstID)
 	return i, err
-}
-
-const getAllTailnetAgents = `-- name: GetAllTailnetAgents :many
-SELECT id, coordinator_id, updated_at, node
-FROM tailnet_agents
-`
-
-func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error) {
-	rows, err := q.db.QueryContext(ctx, getAllTailnetAgents)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TailnetAgent
-	for rows.Next() {
-		var i TailnetAgent
-		if err := rows.Scan(
-			&i.ID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getAllTailnetCoordinators = `-- name: GetAllTailnetCoordinators :many
@@ -12905,78 +12888,6 @@ func (q *sqlQuerier) GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel,
 			&i.SrcID,
 			&i.DstID,
 			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTailnetAgents = `-- name: GetTailnetAgents :many
-SELECT id, coordinator_id, updated_at, node
-FROM tailnet_agents
-WHERE id = $1
-`
-
-func (q *sqlQuerier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetAgents, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TailnetAgent
-	for rows.Next() {
-		var i TailnetAgent
-		if err := rows.Scan(
-			&i.ID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTailnetClientsForAgent = `-- name: GetTailnetClientsForAgent :many
-SELECT id, coordinator_id, updated_at, node
-FROM tailnet_clients
-WHERE id IN (
-	SELECT tailnet_client_subscriptions.client_id
-	FROM tailnet_client_subscriptions
-	WHERE tailnet_client_subscriptions.agent_id = $1
-)
-`
-
-func (q *sqlQuerier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetClientsForAgent, agentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TailnetClient
-	for rows.Next() {
-		var i TailnetClient
-		if err := rows.Scan(
-			&i.ID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
 		); err != nil {
 			return nil, err
 		}
@@ -13130,109 +13041,6 @@ type UpdateTailnetPeerStatusByCoordinatorParams struct {
 
 func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error {
 	_, err := q.db.ExecContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
-	return err
-}
-
-const upsertTailnetAgent = `-- name: UpsertTailnetAgent :one
-INSERT INTO
-	tailnet_agents (
-	id,
-	coordinator_id,
-	node,
-	updated_at
-)
-VALUES
-	($1, $2, $3, now() at time zone 'utc')
-ON CONFLICT (id, coordinator_id)
-DO UPDATE SET
-	id = $1,
-	coordinator_id = $2,
-	node = $3,
-	updated_at = now() at time zone 'utc'
-RETURNING id, coordinator_id, updated_at, node
-`
-
-type UpsertTailnetAgentParams struct {
-	ID            uuid.UUID       `db:"id" json:"id"`
-	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	Node          json.RawMessage `db:"node" json:"node"`
-}
-
-func (q *sqlQuerier) UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error) {
-	row := q.db.QueryRowContext(ctx, upsertTailnetAgent, arg.ID, arg.CoordinatorID, arg.Node)
-	var i TailnetAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CoordinatorID,
-		&i.UpdatedAt,
-		&i.Node,
-	)
-	return i, err
-}
-
-const upsertTailnetClient = `-- name: UpsertTailnetClient :one
-INSERT INTO
-	tailnet_clients (
-	id,
-	coordinator_id,
-	node,
-	updated_at
-)
-VALUES
-	($1, $2, $3, now() at time zone 'utc')
-ON CONFLICT (id, coordinator_id)
-DO UPDATE SET
-	id = $1,
-	coordinator_id = $2,
-	node = $3,
-	updated_at = now() at time zone 'utc'
-RETURNING id, coordinator_id, updated_at, node
-`
-
-type UpsertTailnetClientParams struct {
-	ID            uuid.UUID       `db:"id" json:"id"`
-	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	Node          json.RawMessage `db:"node" json:"node"`
-}
-
-func (q *sqlQuerier) UpsertTailnetClient(ctx context.Context, arg UpsertTailnetClientParams) (TailnetClient, error) {
-	row := q.db.QueryRowContext(ctx, upsertTailnetClient, arg.ID, arg.CoordinatorID, arg.Node)
-	var i TailnetClient
-	err := row.Scan(
-		&i.ID,
-		&i.CoordinatorID,
-		&i.UpdatedAt,
-		&i.Node,
-	)
-	return i, err
-}
-
-const upsertTailnetClientSubscription = `-- name: UpsertTailnetClientSubscription :exec
-INSERT INTO
-	tailnet_client_subscriptions (
-	client_id,
-	coordinator_id,
-	agent_id,
-	updated_at
-)
-VALUES
-	($1, $2, $3, now() at time zone 'utc')
-ON CONFLICT (client_id, coordinator_id, agent_id)
-DO UPDATE SET
-	client_id = $1,
-	coordinator_id = $2,
-	agent_id = $3,
-	updated_at = now() at time zone 'utc'
-`
-
-type UpsertTailnetClientSubscriptionParams struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-}
-
-func (q *sqlQuerier) UpsertTailnetClientSubscription(ctx context.Context, arg UpsertTailnetClientSubscriptionParams) error {
-	_, err := q.db.ExecContext(ctx, upsertTailnetClientSubscription, arg.ClientID, arg.CoordinatorID, arg.AgentID)
 	return err
 }
 
@@ -13483,6 +13291,22 @@ func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.
 	return i, err
 }
 
+const getTaskSnapshot = `-- name: GetTaskSnapshot :one
+SELECT
+	task_id, log_snapshot, log_snapshot_created_at
+FROM
+	task_snapshots
+WHERE
+	task_id = $1
+`
+
+func (q *sqlQuerier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, getTaskSnapshot, taskID)
+	var i TaskSnapshot
+	err := row.Scan(&i.TaskID, &i.LogSnapshot, &i.LogSnapshotCreatedAt)
+	return i, err
+}
+
 const insertTask = `-- name: InsertTask :one
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, display_name, workspace_id, template_version_id, template_parameters, prompt, created_at)
@@ -13671,6 +13495,29 @@ func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWo
 		&i.DisplayName,
 	)
 	return i, err
+}
+
+const upsertTaskSnapshot = `-- name: UpsertTaskSnapshot :exec
+INSERT INTO
+	task_snapshots (task_id, log_snapshot, log_snapshot_created_at)
+VALUES
+	($1, $2, $3)
+ON CONFLICT
+	(task_id)
+DO UPDATE SET
+	log_snapshot = EXCLUDED.log_snapshot,
+	log_snapshot_created_at = EXCLUDED.log_snapshot_created_at
+`
+
+type UpsertTaskSnapshotParams struct {
+	TaskID               uuid.UUID       `db:"task_id" json:"task_id"`
+	LogSnapshot          json.RawMessage `db:"log_snapshot" json:"log_snapshot"`
+	LogSnapshotCreatedAt time.Time       `db:"log_snapshot_created_at" json:"log_snapshot_created_at"`
+}
+
+func (q *sqlQuerier) UpsertTaskSnapshot(ctx context.Context, arg UpsertTaskSnapshotParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTaskSnapshot, arg.TaskID, arg.LogSnapshot, arg.LogSnapshotCreatedAt)
+	return err
 }
 
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
@@ -16556,7 +16403,7 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by name, email or username
+	-- Filter by email or username
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email ILIKE concat('%', $2, '%')
@@ -16564,58 +16411,64 @@ WHERE
 		)
 		ELSE true
 	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			name ILIKE concat('%', $3, '%')
+		ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($3 :: user_status[]) > 0 THEN
-			status = ANY($3 :: user_status[])
+		WHEN cardinality($4 :: user_status[]) > 0 THEN
+			status = ANY($4 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 		-- everyone is a member.
-		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[]) THEN
-			rbac_roles && $4 :: text[]
+		WHEN cardinality($5 :: text[]) > 0 AND 'member' != ANY($5 :: text[]) THEN
+			rbac_roles && $5 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
 	AND CASE
-		WHEN $5 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at <= $5
+		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= $6
 		ELSE true
 	END
 	AND CASE
-		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at >= $6
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= $7
 		ELSE true
 	END
 	-- Filter by created_at
 	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at <= $7
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= $8
 		ELSE true
 	END
 	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at >= $8
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= $9
 		ELSE true
 	END
   	AND CASE
-  	    WHEN $9::bool THEN TRUE
+  	    WHEN $10::bool THEN TRUE
   	    ELSE
 			is_system = false
 	END
 	AND CASE
-		WHEN $10 :: bigint != 0 THEN
-			github_com_user_id = $10
+		WHEN $11 :: bigint != 0 THEN
+			github_com_user_id = $11
 		ELSE true
 	END
 	-- Filter by login_type
 	AND CASE
-		WHEN cardinality($11 :: login_type[]) > 0 THEN
-			login_type = ANY($11 :: login_type[])
+		WHEN cardinality($12 :: login_type[]) > 0 THEN
+			login_type = ANY($12 :: login_type[])
 		ELSE true
 	END
 	-- End of filters
@@ -16624,15 +16477,16 @@ WHERE
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $12
+	LOWER(username) ASC OFFSET $13
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($13 :: int, 0)
+	NULLIF($14 :: int, 0)
 `
 
 type GetUsersParams struct {
 	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
 	Search          string       `db:"search" json:"search"`
+	Name            string       `db:"name" json:"name"`
 	Status          []UserStatus `db:"status" json:"status"`
 	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
@@ -16673,6 +16527,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterID,
 		arg.Search,
+		arg.Name,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
@@ -17371,7 +17226,7 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 
 const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
-	id, workspace_agent_id, created_at, workspace_folder, config_path, name
+	id, workspace_agent_id, created_at, workspace_folder, config_path, name, subagent_id
 FROM
 	workspace_agent_devcontainers
 WHERE
@@ -17396,6 +17251,7 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
 			&i.Name,
+			&i.SubagentID,
 		); err != nil {
 			return nil, err
 		}
@@ -17412,15 +17268,16 @@ func (q *sqlQuerier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context
 
 const insertWorkspaceAgentDevcontainers = `-- name: InsertWorkspaceAgentDevcontainers :many
 INSERT INTO
-	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path)
+	workspace_agent_devcontainers (workspace_agent_id, created_at, id, name, workspace_folder, config_path, subagent_id)
 SELECT
 	$1::uuid AS workspace_agent_id,
 	$2::timestamptz AS created_at,
 	unnest($3::uuid[]) AS id,
 	unnest($4::text[]) AS name,
 	unnest($5::text[]) AS workspace_folder,
-	unnest($6::text[]) AS config_path
-RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path, workspace_agent_devcontainers.name
+	unnest($6::text[]) AS config_path,
+	NULLIF(unnest($7::uuid[]), '00000000-0000-0000-0000-000000000000')::uuid AS subagent_id
+RETURNING workspace_agent_devcontainers.id, workspace_agent_devcontainers.workspace_agent_id, workspace_agent_devcontainers.created_at, workspace_agent_devcontainers.workspace_folder, workspace_agent_devcontainers.config_path, workspace_agent_devcontainers.name, workspace_agent_devcontainers.subagent_id
 `
 
 type InsertWorkspaceAgentDevcontainersParams struct {
@@ -17430,6 +17287,7 @@ type InsertWorkspaceAgentDevcontainersParams struct {
 	Name             []string    `db:"name" json:"name"`
 	WorkspaceFolder  []string    `db:"workspace_folder" json:"workspace_folder"`
 	ConfigPath       []string    `db:"config_path" json:"config_path"`
+	SubagentID       []uuid.UUID `db:"subagent_id" json:"subagent_id"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg InsertWorkspaceAgentDevcontainersParams) ([]WorkspaceAgentDevcontainer, error) {
@@ -17440,6 +17298,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 		pq.Array(arg.Name),
 		pq.Array(arg.WorkspaceFolder),
 		pq.Array(arg.ConfigPath),
+		pq.Array(arg.SubagentID),
 	)
 	if err != nil {
 		return nil, err
@@ -17455,6 +17314,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentDevcontainers(ctx context.Context, arg 
 			&i.WorkspaceFolder,
 			&i.ConfigPath,
 			&i.Name,
+			&i.SubagentID,
 		); err != nil {
 			return nil, err
 		}

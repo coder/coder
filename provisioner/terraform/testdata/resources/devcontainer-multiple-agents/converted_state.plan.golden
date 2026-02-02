@@ -1,0 +1,82 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "devcontainers": [
+            {
+              "workspace_folder": "/workspace",
+              "name": "dev",
+              "apps": [
+                {
+                  "slug": "devcontainer-app",
+                  "display_name": "devcontainer-app",
+                  "open_in": 1,
+                  "id": "a917a82a-fc11-9d2e-5431-cdbb8925e507"
+                }
+              ]
+            },
+            {
+              "workspace_folder": "/other",
+              "name": "other"
+            }
+          ],
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "other",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "secondary",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "secondary",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

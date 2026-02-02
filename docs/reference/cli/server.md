@@ -1198,17 +1198,6 @@ Disable password authentication. This is recommended for security purposes in pr
 
 Specify a YAML file to load configuration from.
 
-### --ssh-hostname-prefix
-
-|             |                                         |
-|-------------|-----------------------------------------|
-| Type        | <code>string</code>                     |
-| Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
-| YAML        | <code>client.sshHostnamePrefix</code>   |
-| Default     | <code>coder.</code>                     |
-
-The SSH deployment prefix is used in the Host of the ssh config.
-
 ### --workspace-hostname-suffix
 
 |             |                                               |
@@ -1311,7 +1300,7 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 | YAML        | <code>allowWorkspaceRenames</code>          |
 | Default     | <code>false</code>                          |
 
-DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.
+Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
 
 ### --health-check-refresh
 
@@ -1830,7 +1819,7 @@ Length of time to retain data such as interceptions and all related records (tok
 |-------------|----------------------------------------------|
 | Type        | <code>int</code>                             |
 | Environment | <code>$CODER_AIBRIDGE_MAX_CONCURRENCY</code> |
-| YAML        | <code>aibridge.maxConcurrency</code>         |
+| YAML        | <code>aibridge.max_concurrency</code>        |
 | Default     | <code>0</code>                               |
 
 Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
@@ -1841,7 +1830,7 @@ Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
 |-------------|-----------------------------------------|
 | Type        | <code>int</code>                        |
 | Environment | <code>$CODER_AIBRIDGE_RATE_LIMIT</code> |
-| YAML        | <code>aibridge.rateLimit</code>         |
+| YAML        | <code>aibridge.rate_limit</code>        |
 | Default     | <code>0</code>                          |
 
 Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
@@ -1852,10 +1841,21 @@ Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
 |-------------|-------------------------------------------------|
 | Type        | <code>bool</code>                               |
 | Environment | <code>$CODER_AIBRIDGE_STRUCTURED_LOGGING</code> |
-| YAML        | <code>aibridge.structuredLogging</code>         |
+| YAML        | <code>aibridge.structured_logging</code>        |
 | Default     | <code>false</code>                              |
 
 Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
+
+### --aibridge-send-actor-headers
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_SEND_ACTOR_HEADERS</code> |
+| YAML        | <code>aibridge.send_actor_headers</code>        |
+| Default     | <code>false</code>                              |
+
+Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
 
 ### --aibridge-circuit-breaker-enabled
 
@@ -1863,7 +1863,7 @@ Emit structured logs for AI Bridge interception records. Use this for exporting 
 |-------------|------------------------------------------------------|
 | Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED</code> |
-| YAML        | <code>aibridge.circuitBreakerEnabled</code>          |
+| YAML        | <code>aibridge.circuit_breaker_enabled</code>        |
 | Default     | <code>false</code>                                   |
 
 Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).

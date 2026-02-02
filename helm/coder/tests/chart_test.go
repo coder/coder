@@ -137,6 +137,14 @@ var testCases = []testCase{
 		name:          "priority_class_name",
 		expectedError: "",
 	},
+	{
+		name:          "probes_custom",
+		expectedError: "",
+	},
+	{
+		name:          "probes_disabled",
+		expectedError: "",
+	},
 }
 
 type testCase struct {
