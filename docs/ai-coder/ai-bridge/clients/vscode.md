@@ -4,25 +4,18 @@
 
 ## Configuration
 
-### Prerequisites
+> [!IMPORTANT]
+> You need the **Pre-release** version of the [GitHub Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) and [VS Code Insiders](https://code.visualstudio.com/insiders/).
 
-- You need the **Pre-release** version of the GitHub Copilot Chat extension and VS Code Insiders.
-
-### Steps
-
-1. Open command palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on Mac) and search for _Chat: Manage Language Models_.
-1. Click on _Add Models..._ --> _Open AI Compatible_.
-1. Add a name for your model provider (e.g., `Coder`).
-1. Add the `CODER_SESSION_TOKEN` (your [Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)) as the API key.
-1. Then when prompted, add the below configuration in `chatLanguageModels.json`.
-1. Add or modify the model entries as needed.
+1. Open command palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on Mac) and search for _Chat: Open Language Models (JSON)_.
+1. Paste the following JSON configuration, replacing `<your-coder-session-token>` with your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**:
 
 ```json
 [
     {
         "name": "Coder",
         "vendor": "customoai",
-        "apiKey": "${input:chat.lm.secret.-40213ea}", // Replace with your secret input name added automatically when adding the API key
+        "apiKey": "your-coder-session-token>",
         "models": [
             {
                 "name": "GPT 5.2",
@@ -48,6 +41,8 @@
     }
 ]
 ```
+
+_Replace `coder.example.com` with your Coder deployment URL._
 
 > [!NOTE]
 > The setting names may change as the feature moves from pre-release to stable. Refer to the official documentation for the latest setting keys.

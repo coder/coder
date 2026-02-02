@@ -26,7 +26,7 @@ You can configure OpenCode to connect to AI Bridge by setting the following conf
 
 ## Authentication
 
-To authenticate with AI Bridge, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in `~/.local/share/opencode/auth.json`
+To authenticate with AI Bridge, get your **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and replace `<your-coder-session-token>` in `~/.local/share/opencode/auth.json`
 
 ```json
 {

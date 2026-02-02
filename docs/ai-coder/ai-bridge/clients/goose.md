@@ -20,11 +20,13 @@ Run the configuration wizard:
 goose configure
 ```
 
+1. Open **Settings**.
 1. Select **Configure Providers**.
-2. Select **Add Custom Provider**.
-3. Choose **OpenAI Compatible**.
-4. **Base URL**: `https://coder.example.com/api/v2/aibridge/openai/v1`
-5. **API Key**: Your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+1. Select **Add Custom Provider**.
+1. Choose **OpenAI Compatible**.
+    - **Display Name**: `AI Bridge`
+    - **API URL**: `https://coder.example.com/api/v2/aibridge/openai/v1`
+    - **API Key**: Your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 #### Environment Variables
 
@@ -34,6 +36,8 @@ For a quick setup, you can export the following variables:
 export OPENAI_HOST="https://coder.example.com/api/v2/aibridge/openai/v1"
 export OPENAI_API_KEY="<your-coder-session-token>"
 ```
+
+</div>
 
 ### Anthropic
 
@@ -47,11 +51,13 @@ Run the configuration wizard:
 goose configure
 ```
 
+1. Open **Settings**.
 1. Select **Configure Providers**.
-2. Select **Add Custom Provider**.
-3. Choose **Anthropic**.
-4. **Base URL**: `https://coder.example.com/api/v2/aibridge/anthropic/v1`
-5. **API Key**: Your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+1. Select **Add Custom Provider**.
+1. Choose **Anthropic Compatible**.
+    - **Display Name**: `AI Bridge`
+    - **API URL**: `https://coder.example.com/api/v2/aibridge/anthropic/v1`
+    - **API Key**: Your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 #### Environment Variables
 

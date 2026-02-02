@@ -28,13 +28,38 @@ Again, the exact environment variable or setting naming may differ from tool to 
 
 ### Retrieving your session token
 
-If you're logged in with the Coder CLI, you can retrieve your current session
-token using [`coder login token`](../../../reference/cli/login_token.md):
+[Generate a long-lived API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) via the Coder dashboard and use it to configure your AI coding tool:
 
 ```sh
-export ANTHROPIC_API_KEY=$(coder login token)
+export ANTHROPIC_API_KEY="your-coder-session-token"
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 ```
+
+## Compatibility
+
+The table below shows tested AI clients and their compatibility with AI Bridge.
+
+| Client                           | OpenAI | Anthropic | Notes                                                                                                                                                  |
+|----------------------------------|--------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Claude Code](./claude-code.md)  | -      | ✅         |                                                                                                                                                        |
+| [Codex CLI](./codex.md)          | ✅      | -         |                                                                                                                                                        |
+| [OpenCode](./opencode.md)        | ✅      | ✅         |                                                                                                                                                        |
+| [Factory](./factory.md)          | ✅      | ✅         |                                                                                                                                                        |
+| [Goose](./goose.md)              | ✅      | ✅         |                                                                                                                                                        |
+| [Cline](./cline.md)              | ✅      | ✅         |                                                                                                                                                        |
+| [Kilo Code](./kilo-code.md)      | ✅      | ✅         |                                                                                                                                                        |
+| [Roo Code](./roo-code.md)        | ✅      | ✅         |                                                                                                                                                        |
+| [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.                                                                                                              |
+| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key".                                                                                                           |
+| [Zed](./zed.md)                  | ✅      | ✅         |                                                                                                                                                        |
+| WindSurf                         | ❌      | ❌         | No option to override base URL.                                                                                                                        |
+| Cursor                           | ❌      | ❌         | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
+| Sourcegraph Amp                  | ❌      | ❌         | No option to override base URL.                                                                                                                        |
+| Kiro                             | ❌      | ❌         | No option to override base URL.                                                                                                                        |
+| Gemini CLI                       | ❌      | ❌         | No Gemini API support. Upvote [this issue](https://github.com/coder/aibridge/issues/27).                                                               |
+| Antigravity                      | ❌      | ❌         | No option to override base URL.                                                                                                                        |
+
+*Legend: ✅ works, ⚠️ limited support, ❌ not supported, - not applicable.*
 
 ## Configuring In-Workspace Tools
 
@@ -110,33 +135,6 @@ The configuration is the same: point the tool to the AI Bridge [base URL](#base-
 
 Users can generate a long-lived API key from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
-## Compatibility
+## All Supported Clients
 
-The table below shows tested AI clients and their compatibility with AI Bridge.
-
-| Client                           | OpenAI | Anthropic | Notes                                        |
-|----------------------------------|--------|-----------|----------------------------------------------|
-| [Claude Code](./claude-code.md)  | -      | ✅         |                                              |
-| [Codex CLI](./codex.md)          | ✅      | -         |                                              |
-| [OpenCode](./opencode.md)        | ✅      | ✅         |                                              |
-| [Factory](./factory.md)          | ✅      | ✅         |                                              |
-| [Goose](./goose.md)              | ✅      | ✅         |                                              |
-| [Cline](./cline.md)              | ✅      | ✅         |                                              |
-| [Kilo Code](./kilo-code.md)      | ✅      | ✅         |                                              |
-| [Roo Code](./roo-code.md)        | ✅      | ✅         |                                              |
-| [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.    |
-| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key". |
-| [Zed](./zed.md)                  | ✅      | ✅         |                                              |
-
-*Legend: ✅ works, ⚠️ limited support, ❌ not supported, - not applicable.*
-
-### Unsupported Clients
-
-The following clients currently do not support custom base URLs or are otherwise incompatible:
-
-- **WindSurf**: No option to override base URL.
-- **Cursor**: Override for OpenAI broken because of an upstream [issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894); no Anthropic support.
-- **Sourcegraph Amp**: No option to override base URL.
-- **Kiro**: No option to override base URL.
-- **Gemini CLI**: No support for Gemini API via AI Bridge. Upvote [this issue](https://github.com/coder/aibridge/issues/27) to track progress.
-- **Antigravity**: No option to override base URL.
+<children></children>

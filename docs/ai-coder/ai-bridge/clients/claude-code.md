@@ -12,60 +12,36 @@ Claude Code can be configured using environment variables.
 Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Bridge base URL into the workspace environment.
 
 ```hcl
-data "coder_workspace_owner" "me" {}
-
-data "coder_workspace" "me" {}
-
-resource "coder_agent" "dev" {
-  arch = "amd64"
-  os   = "linux"
-  dir  = local.repo_dir
-  env = {
-    ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
-    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
-  }
-  ... # other agent configuration
+module "claude-code" {
+  source          = "registry.coder.com/coder/claude-code/coder"
+  version         = "4.7.3"
+  agent_id        = coder_agent.main.id
+  workdir         = "/path/to/project"  # Set to your project directory
+  enable_aibridge = true
 }
 ```
 
 ### Coder Tasks
 
-Agents like Claude Code can be configured to route through AI Bridge in any template by pre-configuring the agent with the Coder session token. [Coder Tasks](../../tasks.md) is particularly useful for this pattern, providing a framework for agents to complete background development operations autonomously.
+[Coder Tasks](../../tasks.md) provides a framework for agents to complete background development operations autonomously. Claude Code can be configured in your Tasks automatically:
 
 ```hcl
-data "coder_workspace_owner" "me" {}
-
-data "coder_workspace" "me" {}
+resource "coder_ai_task" "task" {
+  count  = data.coder_workspace.me.start_count
+  app_id = module.claude-code.task_app_id
+}
 
 data "coder_task" "me" {}
 
-resource "coder_agent" "dev" {
-  arch = "amd64"
-  os   = "linux"
-  dir  = local.repo_dir
-  env = {
-    ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
-    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
-  }
-  ... # other agent configuration
-}
-
-# See https://registry.coder.com/modules/coder/claude-code for more information
 module "claude-code" {
-  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = ">= 4.0.0"
-  agent_id            = coder_agent.dev.id
-  workdir             = "/home/coder/project"
-  claude_api_key      = data.coder_workspace_owner.me.session_token # Use the Coder session token to authenticate with AI Bridge
-  ai_prompt           = data.coder_task.me.prompt
-  ... # other claude-code configuration
-}
+  source         = "registry.coder.com/coder/claude-code/coder"
+  version        = "4.7.3"
+  agent_id       = coder_agent.main.id
+  workdir        = "/path/to/project"  # Set to your project directory
+  ai_prompt      = data.coder_task.me.prompt
 
-# The coder_ai_task resource associates the task to the app.
-resource "coder_ai_task" "task" {
-  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  app_id = module.claude-code[0].task_app_id
+  # Route through AI Bridge (Premium feature)
+  enable_aibridge = true
 }
 ```
 

@@ -4,9 +4,12 @@
 
 ## Configuration
 
-To configure Codex CLI to use AI Bridge, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.yaml`):
+> [!NOTE]
+> When running Codex CLI inside a Coder workspace, use the configuration below to route requests through AI Bridge.
 
-```yaml
+To configure Codex CLI to use AI Bridge, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
+
+```toml
 [model_providers.aibridge]
 name = "AI Bridge"
 base_url = "${data.coder_workspace.me.access_url}/api/v2/aibridge/openai/v1"
@@ -16,7 +19,12 @@ wire_api = "responses"
 [profiles.aibridge]
 model_provider = "aibridge"
 model = "gpt-5.2-codex"
-model_reasoning_effort = "medium"
+```
+
+Run Codex with the `aibridge` profile:
+
+```bash
+codex --profile aibridge
 ```
 
 If configuring within a Coder workspace, you can also use the [Codex CLI](https://registry.coder.com/modules/coder-labs/codex) module and set the following variables:
@@ -26,7 +34,7 @@ module "codex" {
   source          = "registry.coder.com/coder-labs/codex/coder"
   version         = "~> 4.1"
   agent_id        = coder_agent.main.id
-  workdir         = "/home/coder/project"
+  workdir         = "/path/to/project"  # Set to your project directory
   enable_aibridge = true
 }
 ```

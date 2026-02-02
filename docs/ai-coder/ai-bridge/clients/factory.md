@@ -1,6 +1,7 @@
 # Factory
 
 [Factory](https://factory.ai) is an AI-native software development platform that works everywhere you do.
+
 ## Configuration
 
 1. Open `~/.factory/settings.json` (create it if it does not exist).
@@ -31,4 +32,4 @@
 }
 ```
 
-**References:** [Droid BYOK OpenAI & Anthropic](https://docs.factory.ai/cli/byok/openai-anthropic)
+**References:** [Factory BYOK OpenAI & Anthropic](https://docs.factory.ai/cli/byok/openai-anthropic)
