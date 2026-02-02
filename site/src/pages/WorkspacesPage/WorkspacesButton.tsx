@@ -153,7 +153,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 					overflow: "hidden",
 				})}
 			>
-				<span css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+				<span css={{ whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>
 					{template.display_name || template.name || "[Unnamed]"}
 				</span>
 				<span

@@ -137,8 +137,10 @@ export const SelectMenuItem: FC<MenuItemProps> = ({
 			className={cn("text-sm gap-0 leading-none py-3 px-4", className)}
 			{...attrs}
 		>
-			{children}
-			{selected && <CheckIcon className="size-icon-xs ml-auto" />}
+			<span className="overflow-hidden text-ellipsis whitespace-nowrap">
+				{children}
+			</span>
+			{selected && <CheckIcon className="size-icon-xs ml-auto shrink-0" />}
 		</MenuItem>
 	);
 };
