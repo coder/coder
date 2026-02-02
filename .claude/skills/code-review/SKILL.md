@@ -15,8 +15,8 @@ quality problems.
    - For a PR: `gh pr diff <PR_NUMBER> --repo coder/coder`
    - For local changes: `git diff main` or `git diff --staged`
 
-2. **Read full files** before commenting - verify issues actually exist at the
-   lines you're reviewing
+2. **Read full files and related code** before commenting - verify issues exist
+   and consider how similar code is implemented elsewhere in the codebase
 
 3. **Analyze for issues** - Focus on what could break production
 
