@@ -13,7 +13,11 @@
 #
 # Note: This workflow requires access to secrets and will be skipped for:
 #   - Any PR where secrets are not available
+#   - PRs from release/* branches
 # For these PRs, maintainers can manually trigger via workflow_dispatch.
+#
+# The AI will only post a review comment if it finds actionable issues.
+# If the code looks good, no comment is posted to reduce noise.
 
 name: AI Code Review
 
@@ -49,7 +53,8 @@ jobs:
         github.event.action == 'ready_for_review' ||
         github.event_name == 'workflow_dispatch'
       ) &&
-      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
+      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
+      !startsWith(github.head_ref, 'release/')
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.CODE_REVIEW_CODER_URL }}
@@ -188,7 +193,11 @@ jobs:
 
           ## Review Format
 
-          Create review.json:
+          IMPORTANT: If you find NO issues requiring changes, do NOT post a review comment.
+          Only post a review if you have specific, actionable feedback or suggestions.
+          \"Looks good\" comments are noise - just complete the task silently if no changes needed.
+
+          If you DO have feedback, create review.json:
           \`\`\`json
           {
             \"event\": \"COMMENT\",
@@ -203,6 +212,7 @@ jobs:
 
           ## Submit
 
+          Only submit if you have actionable feedback:
           \`\`\`sh
           gh api repos/coder/coder/pulls/${PR_NUMBER} --jq '.head.sha'
           jq . review.json && gh api repos/coder/coder/pulls/${PR_NUMBER}/reviews --method POST --input review.json
