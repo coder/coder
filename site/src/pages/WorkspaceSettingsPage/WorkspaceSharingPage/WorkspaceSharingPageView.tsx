@@ -54,6 +54,7 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 		<WorkspaceSharingForm
 			workspaceACL={workspaceACL}
 			canUpdatePermissions={canUpdatePermissions}
+			isTaskWorkspace={workspace.task_id !== null}
 			error={error}
 			updatingUserId={updatingUserId}
 			onUpdateUser={onUpdateUser}

@@ -25,7 +25,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
-import { RotateCcwIcon, TrashIcon } from "lucide-react";
+import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
 import { type FC, type ReactNode, useState } from "react";
