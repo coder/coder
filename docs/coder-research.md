@@ -22,7 +22,7 @@ Coder maintains several open-source research projects exploring the future of AI
 
 ## Blink
 
-[Blink](https://github.com/coder/blink) is a self-hosted platform for deploying custom AI agents that integrate with GitHub, Slack, and web interfaces while maintaining full infrastructure control. The platform ships with a pre-built Scout agent specialized for coding tasks and code research.
+[Blink](https://blink.coder.com/docs) is a self-hosted platform for deploying custom AI agents that integrate with GitHub, Slack, and web interfaces while maintaining full infrastructure control. The platform ships with a pre-built Scout agent specialized for coding tasks and code research. Visit the [GitHub repository](https://github.com/coder/blink) for source code and documentation.
 
 ### Features
 
