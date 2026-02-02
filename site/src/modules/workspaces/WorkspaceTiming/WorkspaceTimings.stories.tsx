@@ -273,6 +273,8 @@ export const InvalidTimeRange: Story = {
 				display_name: "Startup Script 1",
 				started_at: "0001-01-01T00:00:00Z",
 				ended_at: "2025-01-01T00:10:00Z",
+				workspace_agent_id: "67e37a9d-ccac-497e-8f48-4093bcc4f3e7",
+				workspace_agent_name: "main",
 			},
 		],
 	},
