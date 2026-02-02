@@ -16,11 +16,11 @@ import (
 type EnterpriseClaimer struct {
 }
 
-func NewEnterpriseClaimer(store database.Store) *EnterpriseClaimer {
+func NewEnterpriseClaimer() *EnterpriseClaimer {
 	return &EnterpriseClaimer{}
 }
 
-func (c EnterpriseClaimer) Claim(
+func (EnterpriseClaimer) Claim(
 	ctx context.Context,
 	store database.Store,
 	now time.Time,
