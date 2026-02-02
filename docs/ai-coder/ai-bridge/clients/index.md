@@ -21,8 +21,8 @@ Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to us
 - **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
 
 > [!NOTE]
-> Only Coder-issued tokens are accepted at this time.
-> Provider-specific API keys (such as OpenAI or Anthropic keys) will not work with AI Bridge.
+> Only Coder-issued tokens can authenticate users against AI Bridge.
+> AI Bridge will use provider-specific API keys to authenticate against upstream AI services.
 
 Again, the exact environment variable or setting naming may differ from tool to tool; consult your tool's documentation.
 
