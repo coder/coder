@@ -278,6 +278,133 @@ export const InvalidTimeRange: Story = {
 	},
 };
 
+// Test case for multiple agents (e.g., main + devcontainer) where each agent
+// should only show its own timings, not duplicated across all agents.
+export const MultipleAgents: Story = {
+	decorators: [
+		(Story) => (
+			<div css={{ "--collapse-body-height": "600px" }}>
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		provisionerTimings: [
+			{
+				job_id: "fb0a0941-5052-4f8b-8046-64da139220cd",
+				started_at: "2026-02-02T08:34:16.067798Z",
+				ended_at: "2026-02-02T08:34:16.626888Z",
+				stage: "init",
+				source: "coder",
+				action: "terraform",
+				resource: "coder_stage_init",
+			},
+			{
+				job_id: "fb0a0941-5052-4f8b-8046-64da139220cd",
+				started_at: "2026-02-02T08:34:16.649547Z",
+				ended_at: "2026-02-02T08:34:18.65871Z",
+				stage: "plan",
+				source: "coder",
+				action: "terraform",
+				resource: "coder_stage_plan",
+			},
+			{
+				job_id: "fb0a0941-5052-4f8b-8046-64da139220cd",
+				started_at: "2026-02-02T08:34:18.722631Z",
+				ended_at: "2026-02-02T08:34:21.332458Z",
+				stage: "apply",
+				source: "coder",
+				action: "terraform",
+				resource: "coder_stage_apply",
+			},
+			{
+				job_id: "fb0a0941-5052-4f8b-8046-64da139220cd",
+				started_at: "2026-02-02T08:34:21.698283Z",
+				ended_at: "2026-02-02T08:34:22.014735Z",
+				stage: "graph",
+				source: "coder",
+				action: "terraform",
+				resource: "coder_stage_graph",
+			},
+		],
+		agentConnectionTimings: [
+			{
+				started_at: "2026-02-02T08:34:22.092544Z",
+				ended_at: "2026-02-02T08:34:23.090936Z",
+				stage: "connect",
+				workspace_agent_id: "a1d50955-a671-4e6c-8e0e-6bc938e931bf",
+				workspace_agent_name: "dev",
+			},
+			{
+				started_at: "2026-02-02T08:34:50.171921Z",
+				ended_at: "2026-02-02T08:34:51.36274Z",
+				stage: "connect",
+				workspace_agent_id: "afbdd368-b7b8-453e-af5a-02b13bc45553",
+				workspace_agent_name: "coder",
+			},
+		],
+		agentScriptTimings: [
+			{
+				started_at: "2026-02-02T08:34:23.745887Z",
+				ended_at: "2026-02-02T08:34:25.23973Z",
+				exit_code: 0,
+				stage: "start",
+				status: "ok",
+				display_name: "Installing Dependencies",
+				workspace_agent_id: "a1d50955-a671-4e6c-8e0e-6bc938e931bf",
+				workspace_agent_name: "dev",
+			},
+			{
+				started_at: "2026-02-02T08:34:23.743853Z",
+				ended_at: "2026-02-02T08:34:23.809943Z",
+				exit_code: 0,
+				stage: "start",
+				status: "ok",
+				display_name: "Git Clone",
+				workspace_agent_id: "a1d50955-a671-4e6c-8e0e-6bc938e931bf",
+				workspace_agent_name: "dev",
+			},
+			{
+				started_at: "2026-02-02T08:34:23.74382Z",
+				ended_at: "2026-02-02T08:34:40.822488Z",
+				exit_code: 0,
+				stage: "start",
+				status: "ok",
+				display_name: "code-server",
+				workspace_agent_id: "a1d50955-a671-4e6c-8e0e-6bc938e931bf",
+				workspace_agent_name: "dev",
+			},
+			// Same display_name as dev agent to test dedup scoping by agent ID.
+			{
+				started_at: "2026-02-02T08:34:51.5Z",
+				ended_at: "2026-02-02T08:34:53.2Z",
+				exit_code: 0,
+				stage: "start",
+				status: "ok",
+				display_name: "Installing Dependencies",
+				workspace_agent_id: "afbdd368-b7b8-453e-af5a-02b13bc45553",
+				workspace_agent_name: "coder",
+			},
+			{
+				started_at: "2026-02-02T08:34:53.3Z",
+				ended_at: "2026-02-02T08:34:55.1Z",
+				exit_code: 0,
+				stage: "start",
+				status: "ok",
+				display_name: "Personalize",
+				workspace_agent_id: "afbdd368-b7b8-453e-af5a-02b13bc45553",
+				workspace_agent_name: "coder",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Verify both agents are shown
+		await canvas.findByText("agent (dev)");
+		await canvas.findByText("agent (coder)");
+	},
+};
+
 // A template with no agent scripts.
 export const NoAgentScripts: Story = {
 	args: {
