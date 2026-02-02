@@ -292,7 +292,7 @@ WHERE
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN @has_agent :: text != '' THEN
+		WHEN array_length(@has_agent_statuses :: text[], 1) > 0 THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -306,7 +306,7 @@ WHERE
 					latest_build.transition = 'start'::workspace_transition AND
 					-- Filter out deleted sub agents.
 					workspace_agents.deleted = FALSE AND
-					@has_agent = (
+					(
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -324,7 +324,7 @@ WHERE
 							ELSE
 								NULL
 						END
-					)
+					) = ANY(@has_agent_statuses :: text[])
 			) > 0
 		ELSE true
 	END
@@ -389,48 +389,7 @@ WHERE
 			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
-	-- Filter by healthy: only applies to workspaces with running agents (started).
-	-- A workspace is unhealthy if any agent is disconnected, timed out, or has a start error.
-	-- This filter is only valid when status is 'running' or unset.
-	AND CASE
-		WHEN sqlc.narg('healthy') :: boolean IS NOT NULL THEN
-			-- Only allow healthy filter when status is 'running' or unset
-			CASE
-				WHEN @status :: text != '' AND @status != 'running' THEN
-					-- If status is set to something other than 'running', healthy filter doesn't apply
-					true
-				ELSE
-					-- Only consider workspaces that are running (started successfully)
-					latest_build.job_status = 'succeeded'::provisioner_job_status AND
-					latest_build.transition = 'start'::workspace_transition AND
-					(
-						sqlc.narg('healthy') :: boolean = (
-							-- healthy = true if no agents are unhealthy
-							NOT EXISTS (
-								SELECT 1
-								FROM workspace_resources wr
-								JOIN workspace_agents wa ON wa.resource_id = wr.id
-								WHERE
-									wr.job_id = latest_build.provisioner_job_id AND
-									wa.deleted = FALSE AND
-									wa.parent_id IS NULL AND -- Skip sub-agents
-									(
-										-- Agent is unhealthy if:
-										-- 1. Disconnected
-										(wa.disconnected_at IS NOT NULL AND wa.disconnected_at > wa.last_connected_at) OR
-										-- 2. Timed out waiting to connect
-										(wa.first_connected_at IS NULL AND wa.connection_timeout_seconds > 0 AND NOW() - wa.created_at > wa.connection_timeout_seconds * INTERVAL '1 second') OR
-										-- 3. Lost connection (no recent heartbeat)
-										(wa.last_connected_at IS NOT NULL AND NOW() - wa.last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint) OR
-										-- 4. Lifecycle in error or shutting down states
-										wa.lifecycle_state IN ('start_error', 'shutting_down', 'shutdown_error', 'off')
-									)
-							)
-						)
-					)
-			END
-		ELSE true
-	END
+
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (

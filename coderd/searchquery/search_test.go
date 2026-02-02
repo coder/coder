@@ -316,30 +316,21 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "HealthyTrue",
 			Query: "healthy:true",
 			Expected: database.GetWorkspacesParams{
-				Healthy: sql.NullBool{
-					Bool:  true,
-					Valid: true,
-				},
+				HasAgentStatuses: []string{"connected"},
 			},
 		},
 		{
 			Name:  "HealthyFalse",
 			Query: "healthy:false",
 			Expected: database.GetWorkspacesParams{
-				Healthy: sql.NullBool{
-					Bool:  false,
-					Valid: true,
-				},
+				HasAgentStatuses: []string{"disconnected", "timeout"},
 			},
 		},
 		{
 			Name:  "HealthyMissing",
 			Query: "",
 			Expected: database.GetWorkspacesParams{
-				Healthy: sql.NullBool{
-					Bool:  false,
-					Valid: false,
-				},
+				HasAgentStatuses: []string{},
 			},
 		},
 		{
@@ -503,6 +494,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.HasParam) == len(values.HasParam) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasParam = values.HasParam
+				}
+				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.HasAgentStatuses = values.HasAgentStatuses
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
