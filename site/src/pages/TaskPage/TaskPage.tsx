@@ -5,7 +5,6 @@ import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import {
 	startWorkspace,
 	workspaceByOwnerAndName,
-	workspacePermissions,
 } from "api/queries/workspaces";
 import type {
 	Workspace,
@@ -79,7 +78,6 @@ const TaskPage = () => {
 			return state.error ? false : 5_000;
 		},
 	});
-	const { data: permissions } = useQuery(workspacePermissions(workspace));
 	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
 	const error = taskQuery.error ?? workspaceQuery.error;
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
@@ -200,11 +198,7 @@ const TaskPage = () => {
 		<TaskPageLayout>
 			<title>{pageTitle(task.display_name)}</title>
 
-			<TaskTopbar
-				task={task}
-				workspace={workspace}
-				canUpdatePermissions={permissions?.updateWorkspace ?? false}
-			/>
+			<TaskTopbar task={task} workspace={workspace} />
 			{content}
 
 			<ModifyPromptDialog
