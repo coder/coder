@@ -69,6 +69,18 @@ func TestExtendedParseDuration(t *testing.T) {
 		{"92233754775807y", 0, false},
 		{"200y200y200y200y200y", 0, false},
 		{"9223372036854775807s", 0, false},
+		// fractional values
+		{"1.5d", 36 * time.Hour, true},
+		{"0.5h", 30 * time.Minute, true},
+		{"2.5s", 2500 * time.Millisecond, true},
+		{"1.5y", time.Duration(float64(365*24*time.Hour) * 1.5), true},
+		{"0.5m", 30 * time.Second, true},
+		{"1.5h30m", 2 * time.Hour, true},
+		{"0.25d", 6 * time.Hour, true},
+		{"-1.5h", -90 * time.Minute, true},
+		{"100.5ms", 100*time.Millisecond + 500*time.Microsecond, true},
+		{"1.5us", 1500 * time.Nanosecond, true},
+		{"1.5µs", 1500 * time.Nanosecond, true},
 	} {
 		t.Run(testCase.Duration, func(t *testing.T) {
 			t.Parallel()

@@ -188,9 +188,9 @@ func isDigit(s string) bool {
 //   - d (days, interpreted as 24h)
 //   - y (years, interpreted as 8_760h)
 //
-// FIXME: handle fractional values as discussed in https://github.com/coder/coder/pull/15040#discussion_r1799261736
+// Fractional values are supported for all units (e.g., "1.5d" for 36 hours).
 func extendedParseDuration(raw string) (time.Duration, error) {
-	var d int64
+	var d float64
 	isPositive := true
 
 	// handle negative durations by checking for a leading '-'
@@ -203,48 +203,52 @@ func extendedParseDuration(raw string) (time.Duration, error) {
 		return 0, xerrors.Errorf("invalid duration: %q", raw)
 	}
 
-	// Regular expression to match any characters that do not match the expected duration format
-	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym]+`)
+	// Regular expression to match any characters that do not match the expected
+	// duration format. Allows digits, decimal point, and unit characters.
+	invalidCharRe := regexp.MustCompile(`[^0-9.|nsuµhdym]+`)
 	if invalidCharRe.MatchString(raw) {
 		return 0, xerrors.Errorf("invalid duration format: %q", raw)
 	}
 
-	// Regular expression to match numbers followed by 'd', 'y', or time units
-	re := regexp.MustCompile(`(-?\d+)(ns|us|µs|ms|s|m|h|d|y)`)
+	// Regular expression to match numbers (including decimals) followed by time
+	// units. Captures the numeric part (with optional decimal) and the unit.
+	re := regexp.MustCompile(`(\d+\.?\d*)(ns|us|µs|ms|s|m|h|d|y)`)
 	matches := re.FindAllStringSubmatch(raw, -1)
 
 	for _, match := range matches {
-		var num int64
-		num, err := strconv.ParseInt(match[1], 10, 0)
+		num, err := strconv.ParseFloat(match[1], 64)
 		if err != nil {
 			return 0, xerrors.Errorf("invalid duration: %q", match[1])
 		}
 
+		var add float64
 		switch match[2] {
 		case "d":
-			// we want to check if d + num * int64(24*time.Hour) would overflow
-			if d > (1<<63-1)-num*int64(24*time.Hour) {
-				return 0, xerrors.Errorf("invalid duration: %q", raw)
-			}
-			d += num * int64(24*time.Hour)
+			add = num * float64(24*time.Hour)
 		case "y":
-			// we want to check if d + num * int64(8760*time.Hour) would overflow
-			if d > (1<<63-1)-num*int64(8760*time.Hour) {
-				return 0, xerrors.Errorf("invalid duration: %q", raw)
-			}
-			d += num * int64(8760*time.Hour)
-		case "h", "m", "s", "ns", "us", "µs", "ms":
-			partDuration, err := time.ParseDuration(match[0])
-			if err != nil {
-				return 0, xerrors.Errorf("invalid duration: %q", match[0])
-			}
-			if d > (1<<63-1)-int64(partDuration) {
-				return 0, xerrors.Errorf("invalid duration: %q", raw)
-			}
-			d += int64(partDuration)
+			add = num * float64(8760*time.Hour)
+		case "h":
+			add = num * float64(time.Hour)
+		case "m":
+			add = num * float64(time.Minute)
+		case "s":
+			add = num * float64(time.Second)
+		case "ms":
+			add = num * float64(time.Millisecond)
+		case "us", "µs":
+			add = num * float64(time.Microsecond)
+		case "ns":
+			add = num * float64(time.Nanosecond)
 		default:
 			return 0, xerrors.Errorf("invalid duration unit: %q", match[2])
 		}
+
+		// Check for overflow before adding.
+		const maxDuration = float64(1<<63 - 1)
+		if d > maxDuration-add {
+			return 0, xerrors.Errorf("invalid duration: %q", raw)
+		}
+		d += add
 	}
 
 	if !isPositive {
