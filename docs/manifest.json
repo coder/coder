@@ -313,7 +313,7 @@
 					"description": "Sharing workspaces",
 					"path": "./user-guides/shared-workspaces.md",
 					"icon_path": "./images/icons/generic.svg",
-					"state": ["early_access"]
+					"state": ["early access"]
 				},
 				{
 					"title": "Workspace Scheduling",
