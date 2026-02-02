@@ -1,7 +1,5 @@
 # Claude Code
 
-[Claude Code](https://code.claude.com/docs/en/overview) is Anthropic’s agentic coding tool that lives in your terminal and helps you turn ideas into code faster than ever before.
-
 ## Configuration
 
 Claude Code can be configured using environment variables.
