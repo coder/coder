@@ -14,17 +14,15 @@ import (
 )
 
 type EnterpriseClaimer struct {
-	store database.Store
 }
 
 func NewEnterpriseClaimer(store database.Store) *EnterpriseClaimer {
-	return &EnterpriseClaimer{
-		store: store,
-	}
+	return &EnterpriseClaimer{}
 }
 
 func (c EnterpriseClaimer) Claim(
 	ctx context.Context,
+	store database.Store,
 	now time.Time,
 	userID uuid.UUID,
 	name string,
@@ -33,7 +31,7 @@ func (c EnterpriseClaimer) Claim(
 	nextStartAt sql.NullTime,
 	ttl sql.NullInt64,
 ) (*uuid.UUID, error) {
-	result, err := c.store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+	result, err := store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
 		NewUserID:         userID,
 		NewName:           name,
 		Now:               now,
