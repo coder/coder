@@ -285,7 +285,7 @@ export const InvalidTimeRange: Story = {
 export const MultipleAgents: Story = {
 	decorators: [
 		(Story) => (
-			<div style={{ "--collapse-body-height": "600px" } as React.CSSProperties}>
+			<div css={{ "--collapse-body-height": "600px" }}>
 				<Story />
 			</div>
 		),
