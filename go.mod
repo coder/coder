@@ -591,6 +591,9 @@ tool (
 	storj.io/drpc/cmd/protoc-gen-go-drpc
 )
 
+// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
+// https://github.com/anthropics/anthropic-sdk-go/pull/262
 replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
 
+// https://github.com/openai/openai-go/pull/602
 replace github.com/openai/openai-go/v3 => github.com/SasSwart/openai-go/v3 v3.0.0-20260202093810-72af3b857f95
