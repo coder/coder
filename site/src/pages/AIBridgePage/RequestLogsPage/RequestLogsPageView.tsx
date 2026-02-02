@@ -3,6 +3,7 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
+import { aiBridgePaywallConfig } from "components/Paywall/AIBridgePaywallConfig";
 import { Paywall } from "components/Paywall/Paywall";
 import {
 	Table,
@@ -14,7 +15,6 @@ import {
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ComponentProps, FC } from "react";
-import { docs } from "utils/docs";
 import { RequestLogsFilter } from "./filter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
@@ -34,13 +34,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	filterProps,
 }) => {
 	if (!isRequestLogsVisible) {
-		return (
-			<Paywall
-				message="AI Bridge"
-				description="AI Bridge allows you to monitor and manage AI requests. You need an Premium license to use this feature."
-				documentationLink={docs("/ai-coder/ai-bridge")}
-			/>
-		);
+		return <Paywall {...aiBridgePaywallConfig} />;
 	}
 
 	return (

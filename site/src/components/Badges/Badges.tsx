@@ -137,7 +137,13 @@ export const EnterpriseBadge: FC = () => {
 	);
 };
 
-export const PremiumBadge: FC = () => {
+interface PremiumBadgeProps {
+	children?: React.ReactNode;
+}
+
+export const PremiumBadge: FC<PremiumBadgeProps> = ({
+	children = "Premium",
+}) => {
 	return (
 		<span
 			css={[
@@ -149,7 +155,7 @@ export const PremiumBadge: FC = () => {
 				}),
 			]}
 		>
-			Premium
+			{children}
 		</span>
 	);
 };
