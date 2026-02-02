@@ -86,3 +86,11 @@ GitHub Actions context variables (`github.*`, `inputs.*`) are always defined.
 - Make observations **actionable** with specific fixes
 - Read the **full context** before commenting on a line
 - Check **AGENTS.md** for project conventions before flagging style
+
+## Comment Standards
+
+- **Only comment when confident** - If you're not 80%+ sure it's a real issue,
+  don't comment. Verify claims before posting.
+- **No speculation** - Avoid "might", "could", "consider". State facts or skip.
+- **Verify technical claims** - Check documentation or code before asserting how
+  something works. Don't guess at API behavior or syntax rules.
