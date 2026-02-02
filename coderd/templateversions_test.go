@@ -742,6 +742,82 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 	})
 }
 
+// TestTemplateVersionPresetValidation validates that presets with prebuilds
+// are validated dynamically. A preset that enables a conditional parameter
+// but doesn't provide the required value for the newly-visible parameter
+// should fail validation during template version import.
+//
+// Scenario:
+// - Parameter A (use_custom_image): defaults to false
+// - Parameter B (custom_image_url): only exists when A is true, has no default
+// - Preset with prebuilds enables A but doesn't provide B
+//
+// Static validation passes because B doesn't exist when evaluated with default
+// values. ValidatePrebuilds catches this by evaluating with the preset's
+// parameter values.
+func TestTemplateVersionPresetValidation(t *testing.T) {
+	t.Parallel()
+
+	store, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: store,
+		Pubsub:   ps,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	tarFile := testutil.CreateTar(t, map[string]string{
+		`main.tf`: `
+			terraform {
+				required_providers {
+					coder = {
+						source = "coder/coder"
+						version = "2.8.0"
+					}
+				}
+			}
+
+			data "coder_parameter" "use_custom_image" {
+				name    = "use_custom_image"
+				type    = "bool"
+				default = "false"
+			}
+
+			data "coder_parameter" "custom_image_url" {
+				count   = data.coder_parameter.use_custom_image.value == "true" ? 1 : 0
+				name    = "custom_image_url"
+				type    = "string"
+				# No default - required when shown
+			}
+
+			data "coder_workspace_preset" "invalid" {
+				name = "Invalid Preset"
+				parameters = {
+					"use_custom_image" = "true"
+					# Missing custom_image_url!
+				}
+				prebuilds {
+					instances = 1
+				}
+			}
+		`,
+	})
+
+	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+	require.NoError(t, err)
+
+	_, err = templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:          testutil.GetRandomNameHyphenated(t),
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		FileID:        fi.ID,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "Parameter custom_image_url: Required parameter not provided; parameter value is null")
+}
+
 func TestPatchCancelTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("AlreadyCompleted", func(t *testing.T) {
