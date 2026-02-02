@@ -67,10 +67,6 @@ export const ConfirmingOIDCConversion: Story = {
 	),
 };
 
-export const SSOProviderEnabled: Story = {
-	args: set("oidc.section.authMethods", MockAuthMethodsAll, defaultArgs),
-};
-
 export const AuthenticatedWithGithub: Story = {
 	args: {
 		...defaultArgs,
