@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import type { TemplateExample } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
-import type { FC } from "react";
+import { type FC, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 
@@ -55,6 +55,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	starterTemplatesByTag,
 }) => {
 	const [urlParams] = useSearchParams();
+	const containerRef = useRef<HTMLDivElement>(null);
 	const tags = starterTemplatesByTag
 		? selectTags(starterTemplatesByTag)
 		: undefined;
@@ -63,8 +64,19 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		? sortVisibleTemplates(starterTemplatesByTag[activeTag])
 		: undefined;
 
+	// Reset scroll position when changing filter tags.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on tag change
+	useEffect(() => {
+		containerRef.current?.closest(".overflow-y-auto")?.scrollTo(0, 0);
+	}, [activeTag]);
+
 	return (
-		<Stack direction="row" spacing={4} alignItems="flex-start">
+		<Stack
+			ref={containerRef}
+			direction="row"
+			spacing={4}
+			alignItems="flex-start"
+		>
 			{starterTemplatesByTag && tags && (
 				<Stack css={{ width: 202, flexShrink: 0, position: "sticky" }}>
 					<h2 css={styles.sectionTitle}>Choose a starter template</h2>
