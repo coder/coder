@@ -179,6 +179,8 @@ func TestRolePermissions(t *testing.T) {
 	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
 	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
 	auditor := authSubject{Name: "auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAuditor()}}}
+	aibridgeUser := authSubject{Name: "aibridge-user", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAibridgeUser()}}}
+	aibridgeAuditor := authSubject{Name: "aibridge-auditor", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAibridgeAuditor()}}}
 
 	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)}}}
 	orgAuditor := authSubject{Name: "org_auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAuditor(orgID)}}}
@@ -1009,7 +1011,17 @@ func TestRolePermissions(t *testing.T) {
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+					aibridgeUser,
 				},
+			},
+		},
+		{
+			Name:     "AIBridgeInterceptionsRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAibridgeInterception,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, aibridgeAuditor},
+				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin, aibridgeUser},
 			},
 		},
 		{
@@ -1025,8 +1037,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionUse},
 			Resource: rbac.ResourceAibridge,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
+				true:  {owner, aibridgeUser},
+				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin, aibridgeAuditor},
 			},
 		},
 	}
