@@ -1,4 +1,9 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { createContext, type FC, forwardRef, useContext } from "react";
 import { cn } from "utils/cn";
 
@@ -91,5 +96,61 @@ export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 			)}
 			{...props}
 		/>
+	);
+};
+
+interface StatusHealthyIndicatorProps {
+	derpOnly?: boolean;
+}
+
+export const StatusHealthyIndicator: FC<StatusHealthyIndicatorProps> = ({
+	derpOnly,
+}: StatusHealthyIndicatorProps) => {
+	return (
+		<StatusIndicator variant="success">
+			<StatusIndicatorDot />
+			{derpOnly ? "Healthy (DERP only)" : "Healthy"}
+		</StatusIndicator>
+	);
+};
+
+export const StatusNotHealthyIndicator: FC = () => {
+	return (
+		<StatusIndicator variant="failed">
+			<StatusIndicatorDot />
+			Unhealthy
+		</StatusIndicator>
+	);
+};
+
+export const StatusNotRegisteredIndicator: FC = () => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<StatusIndicator variant="inactive">
+					<StatusIndicatorDot />
+					Never seen
+				</StatusIndicator>
+			</TooltipTrigger>
+			<TooltipContent>
+				Workspace Proxy has never come online and needs to be started.
+			</TooltipContent>
+		</Tooltip>
+	);
+};
+
+export const StatusNotReachableIndicator: FC = () => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<StatusIndicator variant="warning">
+					<StatusIndicatorDot />
+					Not reachable
+				</StatusIndicator>
+			</TooltipTrigger>
+			<TooltipContent>
+				Workspace Proxy not responding to http(s) requests.
+			</TooltipContent>
+		</Tooltip>
 	);
 };
