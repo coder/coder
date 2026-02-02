@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
 import type {
@@ -6,7 +5,6 @@ import type {
 	AgentScriptTiming,
 	ProvisionerTiming,
 } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
@@ -100,35 +98,30 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	};
 
 	return (
-		<div css={styles.collapse}>
-			<Button
+		<div className="rounded-lg border border-border bg-surface-primary">
+			<button
+				type="button"
 				disabled={isLoading}
-				variant="subtle"
-				css={styles.collapseTrigger}
+				className="flex items-center p-4 w-full bg-transparent border-0 text-content-secondary text-sm leading-none font-medium cursor-pointer"
 				onClick={() => setIsOpen((o) => !o)}
 			>
 				{isOpen ? (
-					<ChevronUpIcon css={{ width: 16, height: 16, marginRight: 16 }} />
+					<ChevronUpIcon className="size-4 mr-4" />
 				) : (
-					<ChevronDownIcon css={{ width: 16, height: 16, marginRight: 16 }} />
+					<ChevronDownIcon className="size-4 mr-4" />
 				)}
 				<span>Build timeline</span>
-				<span
-					css={(theme) => ({
-						marginLeft: "auto",
-						color: theme.palette.text.secondary,
-					})}
-				>
+				<span className="ml-auto">
 					{isLoading ? (
 						<Skeleton variant="text" width={40} height={16} />
 					) : (
 						displayProvisioningTime()
 					)}
 				</span>
-			</Button>
+			</button>
 			{!isLoading && (
 				<Collapse in={isOpen}>
-					<div css={styles.collapseBody}>
+					<div className="border-t border-border flex flex-col h-[var(--collapse-body-height,420px)]">
 						{view.name === "default" && (
 							<StagesChart
 								timings={stages.map((s) => {
@@ -255,30 +248,3 @@ const _humanizeDuration = (durationMs: number): string => {
 
 	return `${seconds.toLocaleString()}s`;
 };
-
-const styles = {
-	collapse: (theme) => ({
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		backgroundColor: theme.palette.background.default,
-	}),
-	collapseTrigger: {
-		background: "none",
-		border: 0,
-		padding: 16,
-		color: "inherit",
-		width: "100%",
-		display: "flex",
-		alignItems: "center",
-		height: 57,
-		fontSize: 14,
-		fontWeight: 500,
-		cursor: "pointer",
-	},
-	collapseBody: (theme) => ({
-		borderTop: `1px solid ${theme.palette.divider}`,
-		display: "flex",
-		flexDirection: "column",
-		height: "var(--collapse-body-height, 420px)",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
