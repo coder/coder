@@ -276,10 +276,13 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 }
 
 // setupCLITaskTestWithSnapshot creates a task in the specified status with a log snapshot.
+// Note: We do not use IncludeProvisionerDaemon because these tests use dbfake to directly
+// set up database state and don't need actual provisioning. This also avoids potential
+// interference from the provisioner daemon polling for jobs.
 func setupCLITaskTestWithSnapshot(ctx context.Context, t *testing.T, status codersdk.TaskStatus, messages []agentapisdk.Message) (*codersdk.Client, codersdk.Task) {
 	t.Helper()
 
-	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -312,10 +315,13 @@ func setupCLITaskTestWithSnapshot(ctx context.Context, t *testing.T, status code
 }
 
 // setupCLITaskTestWithoutSnapshot creates a task in the specified status without a log snapshot.
+// Note: We do not use IncludeProvisionerDaemon because these tests use dbfake to directly
+// set up database state and don't need actual provisioning. This also avoids potential
+// interference from the provisioner daemon polling for jobs.
 func setupCLITaskTestWithoutSnapshot(t *testing.T, status codersdk.TaskStatus) (*codersdk.Client, codersdk.Task) {
 	t.Helper()
 
-	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
