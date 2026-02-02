@@ -2111,6 +2111,12 @@
 					]
 				}
 			]
+		},
+		{
+			"title": "Coder Research",
+			"description": "Open source research projects exploring AI-assisted development",
+			"path": "./coder-research.md",
+			"icon_path": "./images/icons/wand.svg"
 		}
 	]
 }
