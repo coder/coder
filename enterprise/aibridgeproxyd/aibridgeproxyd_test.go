@@ -578,6 +578,24 @@ func TestNew(t *testing.T) {
 		require.Contains(t, err.Error(), "failed to read upstream proxy CA certificate")
 	})
 
+	t.Run("UpstreamProxyAuthWithBothEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://:@proxy.example.com:8080",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid credentials: both username and password are empty")
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
@@ -628,6 +646,79 @@ func TestNew(t *testing.T) {
 			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
 			UpstreamProxy:   "https://proxy.example.com:8080",
 			UpstreamProxyCA: certFile,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyAuth", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://proxyuser:proxypass@proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyUsernameAuthColon", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://proxyuser:@proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyUsernameAuth", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		// Username only (no colon) should also succeed (password is optional)
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://proxyuser@proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyTokenAuth", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://:proxypass@proxy.example.com:8080",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
@@ -1294,6 +1385,9 @@ func TestUpstreamProxy(t *testing.T) {
 		buildTargetURL func(finalDestinationURL *url.URL) string
 		// expectedAIBridgePath is the path aibridge should receive for MITM requests.
 		expectedAIBridgePath string
+		// upstreamProxyAuth is optional "user:pass" credentials for the upstream proxy.
+		// If set, the test verifies the Proxy-Authorization header is sent correctly.
+		upstreamProxyAuth string
 	}{
 		{
 			name:             "NonAllowlistedDomain_TunneledToHTTPUpstreamProxy",
@@ -1307,6 +1401,42 @@ func TestUpstreamProxy(t *testing.T) {
 			name:             "NonAllowlistedDomain_TunneledToHTTPSUpstreamProxy",
 			tunneled:         true,
 			upstreamProxyTLS: true,
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithAuth",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: "proxyuser:proxypass",
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithUsernameOnly",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: "proxyuser",
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithUsernameAndColon",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: "proxyuser:",
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithTokenAuth",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: ":proxypass",
 			buildTargetURL: func(finalDestinationURL *url.URL) string {
 				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
 			},
@@ -1330,6 +1460,7 @@ func TestUpstreamProxy(t *testing.T) {
 			var (
 				upstreamProxyCONNECTReceived bool
 				upstreamProxyCONNECTHost     string
+				upstreamProxyAuthHeader      string
 				finalDestinationReceived     bool
 				finalDestinationPath         string
 				finalDestinationBody         string
@@ -1364,6 +1495,7 @@ func TestUpstreamProxy(t *testing.T) {
 
 				upstreamProxyCONNECTReceived = true
 				upstreamProxyCONNECTHost = r.Host
+				upstreamProxyAuthHeader = r.Header.Get("Proxy-Authorization")
 
 				// Connect to the mock final destination server.
 				targetConn, err := net.Dial("tcp", finalDestinationURL.Host)
@@ -1453,11 +1585,19 @@ func TestUpstreamProxy(t *testing.T) {
 			//   - For MITM, api.anthropic.com must be in the allowlist.
 			domainAllowlist := []string{aibridgeproxyd.HostAnthropic}
 
+			// Build upstream proxy URL with optional auth credentials.
+			upstreamProxyURLStr := upstreamProxy.URL
+			if tt.upstreamProxyAuth != "" {
+				parsed, err := url.Parse(upstreamProxy.URL)
+				require.NoError(t, err)
+				upstreamProxyURLStr = fmt.Sprintf("%s://%s@%s", parsed.Scheme, tt.upstreamProxyAuth, parsed.Host)
+			}
+
 			// Create aiproxy with upstream proxy configured.
 			proxyOpts := []testProxyOption{
 				withCoderAccessURL(aibridgeServer.URL),
 				withDomainAllowlist(domainAllowlist...),
-				withUpstreamProxy(upstreamProxy.URL),
+				withUpstreamProxy(upstreamProxyURLStr),
 				withAllowedPorts("80", "443", parsedTargetURL.Port()),
 				// Use default provider mapping to test real AI provider routing.
 				withAIBridgeProviderFromHost(nil),
@@ -1522,6 +1662,13 @@ func TestUpstreamProxy(t *testing.T) {
 					"aibridge should receive the exact request body")
 				require.False(t, finalDestinationReceived,
 					"final destination should NOT receive request for allowlisted domain")
+			}
+
+			// Verify upstream proxy authentication if configured.
+			if tt.upstreamProxyAuth != "" {
+				expectedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(tt.upstreamProxyAuth))
+				require.Equal(t, expectedAuth, upstreamProxyAuthHeader,
+					"Proxy-Authorization header should contain correct credentials")
 			}
 		})
 	}
