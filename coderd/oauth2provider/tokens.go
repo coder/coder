@@ -88,13 +88,13 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 		if req.ClientID == "" {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  "client_id",
-				Detail: "Query param \"client_id\" is required and cannot be empty",
+				Detail: "Parameter \"client_id\" is required and cannot be empty",
 			})
 		}
 		if req.ClientSecret == "" {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  "client_secret",
-				Detail: "Query param \"client_secret\" is required and cannot be empty",
+				Detail: "Parameter \"client_secret\" is required and cannot be empty",
 			})
 		}
 	}
