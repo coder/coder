@@ -2,14 +2,21 @@ import { postApp } from "api/queries/oauth2";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 
 const CreateOAuth2AppPage: FC = () => {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const postAppMutation = useMutation(postApp(queryClient));
+
+	const defaultValues = {
+		name: searchParams.get("name") ?? "",
+		callback_url: searchParams.get("callback_url") ?? "",
+		icon: searchParams.get("icon") ?? "",
+	};
 
 	return (
 		<>
@@ -18,6 +25,7 @@ const CreateOAuth2AppPage: FC = () => {
 			<CreateOAuth2AppPageView
 				isUpdating={postAppMutation.isPending}
 				error={postAppMutation.error}
+				defaultValues={defaultValues}
 				createApp={async (req) => {
 					try {
 						const app = await postAppMutation.mutateAsync(req);
