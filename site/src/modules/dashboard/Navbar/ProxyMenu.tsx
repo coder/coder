@@ -105,7 +105,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						disabled
 						className="flex flex-col gap-1 items-start data-[disabled]:opacity-100"
 					>
-						<div className="text-white font-semibold text-left">
+						<div className="text-content-primary font-semibold text-left">
 							Select a region nearest to you
 						</div>
 						<div className="text-xs text-content-secondary leading-relaxed">
