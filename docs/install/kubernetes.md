@@ -258,15 +258,6 @@ reference, and not all security requirements may apply to your business.
    - Both the control plane and workspaces set resource request/limits by
      default.
 
-7. **All Kubernetes objects must define liveness and readiness probes**
-
-   - Control plane - The control plane Deployment has liveness and readiness
-     probes
-     [configured by default here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/templates/_coder.tpl#L98-L107).
-   - Workspaces - the Kubernetes Deployment template does not configure
-     liveness/readiness probes for the workspace, but this can be added to the
-     Terraform template, and is supported.
-
 ## Load balancing considerations
 
 ### AWS
