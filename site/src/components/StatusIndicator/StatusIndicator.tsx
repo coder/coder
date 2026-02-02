@@ -127,7 +127,7 @@ export const StatusNotRegisteredIndicator: FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<StatusIndicator variant="inactive">
+				<StatusIndicator variant="warning">
 					<StatusIndicatorDot />
 					Never seen
 				</StatusIndicator>
