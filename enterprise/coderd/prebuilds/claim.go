@@ -13,8 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 )
 
-type EnterpriseClaimer struct {
-}
+type EnterpriseClaimer struct{}
 
 func NewEnterpriseClaimer() *EnterpriseClaimer {
 	return &EnterpriseClaimer{}
