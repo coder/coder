@@ -9,7 +9,7 @@ import {
 	useState,
 } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { RouterProvider, ScrollRestoration } from "react-router";
+import { RouterProvider } from "react-router";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
