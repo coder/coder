@@ -36,9 +36,12 @@ on:
         type: string
 
 jobs:
-  extract-pr-number:
-    name: Extract PR Number
+  code-review:
+    name: AI Code Review
     runs-on: ubuntu-latest
+    concurrency:
+      group: code-review-${{ github.event.pull_request.number || inputs.pr_url }}
+      cancel-in-progress: true
     if: |
       (
         github.event.action == 'opened' ||
@@ -47,27 +50,6 @@ jobs:
         github.event_name == 'workflow_dispatch'
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
-    outputs:
-      pr_number: ${{ steps.extract.outputs.pr_number }}
-    steps:
-      - name: Extract PR number
-        id: extract
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            PR_NUMBER="${{ inputs.pr_url }}"
-            PR_NUMBER="${PR_NUMBER##*/}"
-          else
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          fi
-          echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
-
-  code-review:
-    name: AI Code Review
-    runs-on: ubuntu-latest
-    needs: extract-pr-number
-    concurrency:
-      group: code-review-${{ needs.extract-pr-number.outputs.pr_number }}
-      cancel-in-progress: true
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.CODE_REVIEW_CODER_URL }}
