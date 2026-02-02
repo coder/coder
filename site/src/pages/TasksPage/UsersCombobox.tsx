@@ -46,7 +46,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 	const debouncedSearch = useDebouncedValue(search, 250);
 	const { user } = useAuthenticated();
 	const { data: options } = useQuery({
-		...users({ q: debouncedSearch }),
+		...users({ q: debouncedSearch ? `name:"${debouncedSearch}"` : "" }),
 		select: (res) => mapUsersToOptions(res.users, user, value),
 		placeholderData: keepPreviousData,
 	});
