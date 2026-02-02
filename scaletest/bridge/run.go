@@ -331,7 +331,7 @@ func (r *Runner) handleResponsesResponse(ctx context.Context, logger slog.Logger
 			if content.Type != "output_text" {
 				continue
 			}
-			contentBuilder.WriteString(content.Text)
+			_, _ = contentBuilder.WriteString(content.Text)
 		}
 	}
 	assistantContent = contentBuilder.String()
