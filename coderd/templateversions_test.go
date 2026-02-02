@@ -768,41 +768,45 @@ func TestTemplateVersionPresetValidation(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
+	tf := func(prebuildCount int) string {
+		return fmt.Sprintf(`
+		terraform {
+		  required_providers {
+			coder = {
+			  source = "coder/coder"
+			  version = "2.8.0"
+			}
+		  }
+		}
+
+		data "coder_parameter" "use_custom_image" {
+		  name    = "use_custom_image"
+		  type    = "bool"
+		  default = "false"
+		}
+
+		data "coder_parameter" "custom_image_url" {
+		  count   = data.coder_parameter.use_custom_image.value == "true" ? 1 : 0
+		  name    = "custom_image_url"
+		  type    = "string"
+		  # No default - required when shown
+		}
+
+		data "coder_workspace_preset" "invalid" {
+		  name = "Invalid Preset"
+		  parameters = {
+			"use_custom_image" = "true"
+			# Missing custom_image_url!
+		  }
+		  prebuilds {
+			instances = %d
+		  }
+		}
+		`, prebuildCount)
+	}
+
 	tarFile := testutil.CreateTar(t, map[string]string{
-		`main.tf`: `
-			terraform {
-				required_providers {
-					coder = {
-						source = "coder/coder"
-						version = "2.8.0"
-					}
-				}
-			}
-
-			data "coder_parameter" "use_custom_image" {
-				name    = "use_custom_image"
-				type    = "bool"
-				default = "false"
-			}
-
-			data "coder_parameter" "custom_image_url" {
-				count   = data.coder_parameter.use_custom_image.value == "true" ? 1 : 0
-				name    = "custom_image_url"
-				type    = "string"
-				# No default - required when shown
-			}
-
-			data "coder_workspace_preset" "invalid" {
-				name = "Invalid Preset"
-				parameters = {
-					"use_custom_image" = "true"
-					# Missing custom_image_url!
-				}
-				prebuilds {
-					instances = 1
-				}
-			}
-		`,
+		`main.tf`: tf(1),
 	})
 
 	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
@@ -816,6 +820,23 @@ func TestTemplateVersionPresetValidation(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "Parameter custom_image_url: Required parameter not provided; parameter value is null")
+
+	// If the preset is not a prebuild, validation should pass. As presets can
+	// be partially applied, we test with a prebuild count of 0.
+	tarFile = testutil.CreateTar(t, map[string]string{
+		`main.tf`: tf(0),
+	})
+
+	fi, err = templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+	require.NoError(t, err)
+
+	_, err = templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:          testutil.GetRandomNameHyphenated(t),
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		FileID:        fi.ID,
+	})
+	require.NoError(t, err)
 }
 
 func TestPatchCancelTemplateVersion(t *testing.T) {
