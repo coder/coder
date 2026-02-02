@@ -54,7 +54,8 @@ jobs:
         id: extract
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            PR_NUMBER=$(echo "${{ inputs.pr_url }}" | grep -oP '(?<=pull/)\d+')
+            PR_NUMBER="${{ inputs.pr_url }}"
+            PR_NUMBER="${PR_NUMBER##*/}"
           else
             PR_NUMBER="${{ github.event.pull_request.number }}"
           fi
@@ -133,7 +134,7 @@ jobs:
 
             ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
             echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
-            PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
+            PR_NUMBER="${INPUTS_PR_URL##*/}"
             echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
