@@ -261,6 +261,7 @@ jobs:
       - name: make lint/actions
         run: make --output-sync=line -j lint/actions
         env:
+          # Used by zizmor to lint third-party GitHub actions.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gen:
