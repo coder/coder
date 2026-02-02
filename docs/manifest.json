@@ -1058,11 +1058,6 @@
 											"path": "./ai-coder/ai-bridge/clients/factory.md"
 										},
 										{
-											"title": "Goose",
-											"description": "Configure Goose to use AI Bridge",
-											"path": "./ai-coder/ai-bridge/clients/goose.md"
-										},
-										{
 											"title": "Cline",
 											"description": "Configure Cline to use AI Bridge",
 											"path": "./ai-coder/ai-bridge/clients/cline.md"

@@ -45,7 +45,6 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | [Codex CLI](./codex.md)          | ✅      | -         |                                                                                                                                                        |
 | [OpenCode](./opencode.md)        | ✅      | ✅         |                                                                                                                                                        |
 | [Factory](./factory.md)          | ✅      | ✅         |                                                                                                                                                        |
-| [Goose](./goose.md)              | ✅      | ✅         |                                                                                                                                                        |
 | [Cline](./cline.md)              | ✅      | ✅         |                                                                                                                                                        |
 | [Kilo Code](./kilo-code.md)      | ✅      | ✅         |                                                                                                                                                        |
 | [Roo Code](./roo-code.md)        | ✅      | ✅         |                                                                                                                                                        |
@@ -58,8 +57,9 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | Kiro                             | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 | Gemini CLI                       | ❌      | ❌         | No Gemini API support. Upvote [this issue](https://github.com/coder/aibridge/issues/27).                                                               |
 | Antigravity                      | ❌      | ❌         | No option to override base URL.                                                                                                                        |
+| Goose                            | ⚠️     | ⚠️        |                                                                                                                                                        |
 
-*Legend: ✅ works, ⚠️ limited support, ❌ not supported, - not applicable.*
+*Legend: ✅ works, ⚠️ limited support or not tested, ❌ not supported, - not applicable.*
 
 ## Configuring In-Workspace Tools
 
@@ -91,31 +91,16 @@ resource "coder_agent" "dev" {
 Agents like Claude Code can be configured to route through AI Bridge in any template by pre-configuring the agent with the session token. [Coder Tasks](../../tasks.md) is particularly useful for this pattern, providing a framework for agents to complete background development operations autonomously. To route agents through AI Bridge in a Coder Tasks template, pre-configure it to install Claude Code and configure it with the session token:
 
 ```hcl
-data "coder_workspace_owner" "me" {}
-
-data "coder_workspace" "me" {}
-
 data "coder_task" "me" {}
-
-resource "coder_agent" "dev" {
-    arch = "amd64"
-    os   = "linux"
-    dir  = local.repo_dir
-    env = {
-        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
-        ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
-    }
-    ... # other agent configuration
-}
 
 # See https://registry.coder.com/modules/coder/claude-code for more information
 module "claude-code" {
     count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
     source              = "dev.registry.coder.com/coder/claude-code/coder"
-    version             = ">= 4.0.0"
+    version             = ">= 4.7.3"
     agent_id            = coder_agent.dev.id
-    workdir             = "/home/coder/project"
-    claude_api_key      = data.coder_workspace_owner.me.session_token # Use the Coder session token to authenticate with AI Bridge
+    workdir             = "/path/to/project"  # Set to your project directory
+    enable_aibridge     = true                  # Enable routing through AI Bridge
     ai_prompt           = data.coder_task.me.prompt
     ... # other claude-code configuration
 }
