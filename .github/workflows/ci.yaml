@@ -225,13 +225,7 @@ jobs:
         run: helm version --short
 
       - name: make lint
-        run: |
-          # zizmor isn't included in the lint target because it takes a while,
-          # but we explicitly want to run it in CI.
-          make --output-sync=line -j lint lint/actions/zizmor
-        env:
-          # Used by zizmor to lint third-party GitHub actions.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make --output-sync=line -j lint
 
       - name: Check workflow files
         run: |
@@ -244,6 +238,30 @@ jobs:
           rm -f ./actionlint ./typos
           ./scripts/check_unstaged.sh
         shell: bash
+
+  lint-actions:
+    needs: changes
+    if: needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: make lint/actions
+        run: make --output-sync=line -j lint/actions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gen:
     timeout-minutes: 20
