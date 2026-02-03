@@ -2422,3 +2422,82 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 }
+
+func TestPauseTask(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		task, err := client.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "pause me",
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid)
+
+		workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		build, err := client.PauseTask(ctx, codersdk.Me, task.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
+		require.Equal(t, task.WorkspaceID.UUID, build.WorkspaceID)
+		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
+		// TODO: verify whether the assertion below is a requirement
+		// require.Equal(t, codersdk.BuildReason(codersdk.CreateWorkspaceBuildReasonTaskManualPause), build.Reason)
+	})
+
+	t.Run("Task not found", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Task lookup forbidden", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Workspace lookup forbidden", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("No Workspace for Task", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Workspace not found", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Workspace lookup internal error", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Build Forbidden", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Job already in progress", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Build Internal Error", func(t *testing.T) {
+		t.Parallel()
+	})
+}

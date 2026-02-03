@@ -329,6 +329,26 @@ func (c *Client) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID,
 	return nil
 }
 
+// PauseTask pauses a task by stopping its workspace.
+// Experimental: uses the /api/experimental endpoint.
+func (c *Client) PauseTask(ctx context.Context, user string, id uuid.UUID) (WorkspaceBuild, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/pause", user, id.String()), nil)
+	if err != nil {
+		return WorkspaceBuild{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return WorkspaceBuild{}, ReadBodyAsError(res)
+	}
+
+	var build WorkspaceBuild
+	if err := json.NewDecoder(res.Body).Decode(&build); err != nil {
+		return WorkspaceBuild{}, err
+	}
+
+	return build, nil
+}
+
 // TaskLogType indicates the source of a task log entry.
 type TaskLogType string
 
