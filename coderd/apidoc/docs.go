@@ -18567,6 +18567,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.TaskLogEntry"
                     }
+                },
+                "snapshot": {
+                    "type": "boolean"
+                },
+                "snapshot_at": {
+                    "type": "string"
                 }
             }
         },

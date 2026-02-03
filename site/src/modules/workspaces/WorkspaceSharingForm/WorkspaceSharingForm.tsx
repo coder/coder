@@ -68,7 +68,7 @@ const RoleSelect: FC<RoleSelectProps> = ({
 				<SelectItem value="use" className="flex-col items-start py-2 w-64">
 					<div className="font-medium text-content-primary">Use</div>
 					<div className="text-xs text-content-secondary leading-snug mt-0.5">
-						Can read and access this workspace.
+						Can read, access, start, and stop this workspace.
 					</div>
 				</SelectItem>
 				<SelectItem value="admin" className="flex-col items-start py-2 w-64">

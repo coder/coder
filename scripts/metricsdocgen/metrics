@@ -14,10 +14,6 @@ coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="secondary-gith
 # TYPE coderd_oauth2_external_requests_rate_limit gauge
 coderd_oauth2_external_requests_rate_limit{name="primary-github",resource="core-unauthorized"} 5000
 coderd_oauth2_external_requests_rate_limit{name="secondary-github",resource="core-unauthorized"} 5000
-# HELP coderd_oauth2_external_requests_rate_limit_total DEPRECATED: use coderd_oauth2_external_requests_rate_limit instead
-# TYPE coderd_oauth2_external_requests_rate_limit_total gauge
-coderd_oauth2_external_requests_rate_limit_total{name="primary-github",resource="core-unauthorized"} 5000
-coderd_oauth2_external_requests_rate_limit_total{name="secondary-github",resource="core-unauthorized"} 5000
 # HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
 # TYPE coderd_oauth2_external_requests_rate_limit_used gauge
 coderd_oauth2_external_requests_rate_limit_used{name="primary-github",resource="core"} 148
@@ -654,9 +650,6 @@ coderd_api_requests_processed_total{code="401",method="POST",path="/api/v2/files
 # HELP coderd_api_workspace_latest_build The latest workspace builds with a status.
 # TYPE coderd_api_workspace_latest_build gauge
 coderd_api_workspace_latest_build{status="succeeded"} 1
-# HELP coderd_api_workspace_latest_build_total DEPRECATED: use coderd_api_workspace_latest_build instead
-# TYPE coderd_api_workspace_latest_build_total gauge
-coderd_api_workspace_latest_build_total{status="succeeded"} 1
 # HELP coderd_insights_applications_usage_seconds The application usage per template.
 # TYPE coderd_insights_applications_usage_seconds gauge
 coderd_insights_applications_usage_seconds{application_name="JetBrains",slug="",template_name="code-server-pod"} 1

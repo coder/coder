@@ -26,6 +26,7 @@ const (
 
 type UsersRequest struct {
 	Search string `json:"search,omitempty" typescript:"-"`
+	Name   string `json:"name,omitempty" typescript:"-"`
 	// Filter users by status.
 	Status UserStatus `json:"status,omitempty" typescript:"-"`
 	// Filter users that have the given role.
@@ -846,6 +847,9 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 			var params []string
 			if req.Search != "" {
 				params = append(params, req.Search)
+			}
+			if req.Name != "" {
+				params = append(params, "name:"+req.Name)
 			}
 			if req.Status != "" {
 				params = append(params, "status:"+string(req.Status))

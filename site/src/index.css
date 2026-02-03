@@ -31,6 +31,7 @@
 		--surface-sky: 201 94% 86%;
 		--surface-red: 0 93% 94%;
 		--surface-purple: 251 91% 95%;
+		--border-purple: 255 92% 76%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
 		--border-sky: 203 90% 40%;
@@ -74,6 +75,7 @@
 		--surface-sky: 204 80% 16%;
 		--surface-red: 0 75% 15%;
 		--surface-purple: 261 73% 23%;
+		--border-purple: 255 92% 76%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
 		--border-warning: 30.66, 97.16%, 72.35%;
