@@ -1,6 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { CopyButton } from "components/CopyButton/CopyButton";
 import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
@@ -10,8 +9,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useClipboard } from "hooks/useClipboard";
 import {
+	CheckIcon,
 	CircleUserIcon,
+	CopyIcon,
 	LogOutIcon,
 	MonitorDownIcon,
 	SquareArrowOutUpRightIcon,
@@ -39,6 +41,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
+	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+
 	return (
 		<>
 			<DropdownMenuItem
@@ -105,20 +109,22 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<TooltipTrigger asChild>
 						<DropdownMenuItem
 							className="text-xs"
-							onSelect={(e) => e.preventDefault()}
-							asChild
+							onSelect={(e) => {
+								e.preventDefault();
+								copyToClipboard(buildInfo.deployment_id);
+							}}
 						>
-							<div className="flex items-center gap-2 relative">
-								<span className="truncate">{buildInfo.deployment_id}</span>
-								<CopyButton
-									className="size-4 after:content-[''] after:absolute after:inset-0"
-									text={buildInfo.deployment_id}
-									label="Copy deployment ID"
-								/>
-							</div>
+							<span className="truncate flex-1">{buildInfo.deployment_id}</span>
+							{showCopiedSuccess ? (
+								<CheckIcon className="!size-icon-xs ml-auto" />
+							) : (
+								<CopyIcon className="!size-icon-xs ml-auto" />
+							)}
 						</DropdownMenuItem>
 					</TooltipTrigger>
-					<TooltipContent side="bottom">Deployment Identifier</TooltipContent>
+					<TooltipContent side="bottom">
+						{showCopiedSuccess ? "Copied!" : "Copy deployment ID"}
+					</TooltipContent>
 				</Tooltip>
 			)}
 			<DropdownMenuItem className="text-xs" disabled>
