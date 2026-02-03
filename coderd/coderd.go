@@ -462,10 +462,6 @@ func New(options *Options) *API {
 	if siteCacheDir != "" {
 		siteCacheDir = filepath.Join(siteCacheDir, "site")
 	}
-	binFS, binHashes, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
-	if err != nil {
-		panic(xerrors.Errorf("read site bin failed: %w", err))
-	}
 
 	metricsCache := metricscache.New(
 		options.Database,
@@ -658,9 +654,8 @@ func New(options *Options) *API {
 		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
 	}
-	api.SiteHandler = site.New(&site.Options{
-		BinFS:             binFS,
-		BinHashes:         binHashes,
+	api.SiteHandler, err = site.New(&site.Options{
+		CacheDir:          siteCacheDir,
 		Database:          options.Database,
 		SiteFS:            site.FS(),
 		OAuth2Configs:     oauthConfigs,
@@ -672,6 +667,9 @@ func New(options *Options) *API {
 		Logger:            options.Logger.Named("site"),
 		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
 	})
+	if err != nil {
+		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
+	}
 	api.SiteHandler.Experiments.Store(&experiments)
 
 	if options.UpdateCheckOptions != nil {

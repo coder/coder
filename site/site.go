@@ -68,8 +68,7 @@ func init() {
 }
 
 type Options struct {
-	BinFS             http.FileSystem
-	BinHashes         map[string]string
+	CacheDir          string
 	Database          database.Store
 	SiteFS            fs.FS
 	OAuth2Configs     *httpmw.OAuth2Configs
@@ -82,7 +81,7 @@ type Options struct {
 	HideAITasks       bool
 }
 
-func New(opts *Options) *Handler {
+func New(opts *Options) (*Handler, error) {
 	if opts.AppearanceFetcher == nil {
 		daf := atomic.Pointer[appearance.Fetcher]{}
 		f := appearance.NewDefaultFetcher(opts.DocsURL)
@@ -100,11 +99,16 @@ func New(opts *Options) *Handler {
 	var err error
 	handler.htmlTemplates, err = findAndParseHTMLFiles(opts.SiteFS)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to parse html files: %v", err))
+		return nil, xerrors.Errorf("failed to parse html files: %w", err)
+	}
+
+	binHand, err := newBinHandler(opts)
+	if err != nil {
+		return nil, xerrors.Errorf("create bin handler: %w", err)
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/bin/", newBinHandler(opts))
+	mux.Handle("/bin/", binHand)
 	mux.Handle("/", http.FileServer(
 		http.FS(
 			// OnlyFiles is a wrapper around the file system that prevents directory
@@ -116,7 +120,7 @@ func New(opts *Options) *Handler {
 	)
 	buildInfoResponse, err := json.Marshal(opts.BuildInfo)
 	if err != nil {
-		panic("failed to marshal build info: " + err.Error())
+		return nil, xerrors.Errorf("failed to marshal build info: %w", err)
 	}
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
@@ -126,7 +130,7 @@ func New(opts *Options) *Handler {
 		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
 	}
 
-	return handler
+	return handler, nil
 }
 
 type Handler struct {

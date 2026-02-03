@@ -89,11 +89,15 @@ func (h *binHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	http.FileServer(h.binFS).ServeHTTP(rw, r)
 }
 
-func newBinHandler(options *Options) *binHandler {
-	return &binHandler{
-		binFS:         options.BinFS,
-		metadataCache: newBinMetadataCache(options.BinFS, options.BinHashes),
+func newBinHandler(options *Options) (*binHandler, error) {
+	binFS, binHashes, err := ExtractOrReadBinFS(options.CacheDir, options.SiteFS)
+	if err != nil {
+		return nil, xerrors.Errorf("extract or read bin filesystem: %w", err)
 	}
+	return &binHandler{
+		binFS:         binFS,
+		metadataCache: newBinMetadataCache(binFS, binHashes),
+	}, nil
 }
 
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and
