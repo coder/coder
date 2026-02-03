@@ -127,7 +127,6 @@ export const SelectFilterSearch = ({
 				className,
 				"rounded-none border-x-0 border-t-0",
 				"has-[input:focus-visible]:ring-0",
-				"[&_svg]:size-icon-xs [&_svg]:ml-1",
 			)}
 			{...props}
 		/>
