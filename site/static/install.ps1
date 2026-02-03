@@ -126,7 +126,13 @@ function Add-ToUserPath {
     $pathEntries = @()
     if ($currentPath) {
         $pathEntries = $currentPath -split ";" | ForEach-Object {
-            if ($_) { [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/').ToLowerInvariant() }
+            if ($_) {
+                try {
+                    [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/').ToLowerInvariant()
+                } catch {
+                    # Skip invalid PATH entries
+                }
+            }
         }
     }
     if ($pathEntries -contains $normalizedPathToAdd) {
@@ -146,7 +152,11 @@ function Add-ToUserPath {
         $newPath = $PathToAdd
     }
     [Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
-    $env:PATH = $env:PATH + ";" + $PathToAdd
+    if ($env:PATH) {
+        $env:PATH = $env:PATH + ";" + $PathToAdd
+    } else {
+        $env:PATH = $PathToAdd
+    }
     Write-CoderLog "Added to PATH: $PathToAdd"
 }
 
@@ -262,7 +272,12 @@ function Install-CoderCLI {
 
         if (Test-Path $installPath) {
             Write-CoderLog "+ Removing existing binary: $installPath"
-            Remove-Item $installPath -Force
+            try {
+                Remove-Item $installPath -Force -ErrorAction Stop
+            }
+            catch {
+                throw "Failed to remove existing Coder CLI binary at '$installPath'. Ensure that no coder processes are currently running (for example, stop any 'coder server' instances) and try again. Underlying error: $_"
+            }
         }
 
         Write-CoderLog "+ Copying $binaryFile to $installPath"
