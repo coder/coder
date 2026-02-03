@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -370,7 +371,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 			OrganizationID: m.OrganizationID,
 			CreatedAt:      m.CreatedAt,
 			UpdatedAt:      m.UpdatedAt,
-			Roles: db2sdk.List(m.Roles, func(r string) codersdk.SlimRole {
+			Roles: slice.List(m.Roles, func(r string) codersdk.SlimRole {
 				// If it is a built-in role, no lookups are needed.
 				rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: r, OrganizationID: m.OrganizationID})
 				if err == nil {
