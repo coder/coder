@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1358,12 +1359,19 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 		// Given: a coderd instance with a provisioner daemon
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
-		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:                 store,
 			Pubsub:                   ps,
-			IncludeProvisionerDaemon: true,
+			IncludeProvisionerDaemon: false,
 		})
-		defer closeDaemon.Close()
+
+		// Create a new provisioner with a heartbeater that does nothing.
+		provisioner := coderdtest.NewTaggedProvisionerDaemon(t, api, "test-provisioner", nil, coderd.MemoryProvisionerWithHeartbeatOverride(func(ctx context.Context) error {
+			// The default heartbeat updates the `last_seen_at` column in the database.
+			// By overriding it to do nothing, we can simulate a provisioner that is not sending heartbeats, and is therefore stale.
+			return nil
+		}))
+		defer provisioner.Close()
 
 		// Given: a user, template, and workspace
 		user := coderdtest.CreateFirstUser(t, client)
