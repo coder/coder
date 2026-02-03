@@ -4513,19 +4513,19 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ct
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildByWorkspaceIDAndBuildNumber", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildByWorkspaceIDAndBuildNumber), ctx, arg)
 }
 
-// GetWorkspaceBuildMetricsByAgentID mocks base method.
-func (m *MockStore) GetWorkspaceBuildMetricsByAgentID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByAgentIDRow, error) {
+// GetWorkspaceBuildMetricsByResourceID mocks base method.
+func (m *MockStore) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByResourceIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceBuildMetricsByAgentID", ctx, id)
-	ret0, _ := ret[0].(database.GetWorkspaceBuildMetricsByAgentIDRow)
+	ret := m.ctrl.Call(m, "GetWorkspaceBuildMetricsByResourceID", ctx, id)
+	ret0, _ := ret[0].(database.GetWorkspaceBuildMetricsByResourceIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspaceBuildMetricsByAgentID indicates an expected call of GetWorkspaceBuildMetricsByAgentID.
-func (mr *MockStoreMockRecorder) GetWorkspaceBuildMetricsByAgentID(ctx, id any) *gomock.Call {
+// GetWorkspaceBuildMetricsByResourceID indicates an expected call of GetWorkspaceBuildMetricsByResourceID.
+func (mr *MockStoreMockRecorder) GetWorkspaceBuildMetricsByResourceID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildMetricsByAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildMetricsByAgentID), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildMetricsByResourceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildMetricsByResourceID), ctx, id)
 }
 
 // GetWorkspaceBuildParameters mocks base method.

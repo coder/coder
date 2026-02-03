@@ -2414,11 +2414,11 @@ func (m queryMetricsStore) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx cont
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceBuildMetricsByAgentID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByAgentIDRow, error) {
+func (m queryMetricsStore) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByResourceIDRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceBuildMetricsByAgentID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetWorkspaceBuildMetricsByAgentID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildMetricsByAgentID").Inc()
+	r0, r1 := m.s.GetWorkspaceBuildMetricsByResourceID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildMetricsByResourceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildMetricsByResourceID").Inc()
 	return r0, r1
 }
 

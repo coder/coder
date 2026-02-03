@@ -137,7 +137,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		case database.WorkspaceAgentLifecycleStateReady,
 			database.WorkspaceAgentLifecycleStateStartTimeout,
 			database.WorkspaceAgentLifecycleStateStartError:
-			a.emitBuildDurationMetric(ctx, workspaceAgent.ID)
+			a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
 			a.buildDurationEmitted = true
 		}
 	}
@@ -207,9 +207,9 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 // from build creation to when all agents are ready.
 func (a *LifecycleAPI) emitBuildDurationMetric(
 	ctx context.Context,
-	agentID uuid.UUID,
+	resourceID uuid.UUID,
 ) {
-	buildInfo, err := a.Database.GetWorkspaceBuildMetricsByAgentID(ctx, agentID)
+	buildInfo, err := a.Database.GetWorkspaceBuildMetricsByResourceID(ctx, resourceID)
 	if err != nil {
 		a.Log.Warn(ctx, "failed to get build info for metrics", slog.Error(err))
 		return

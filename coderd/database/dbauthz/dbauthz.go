@@ -1451,6 +1451,14 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByResourceIDRow, error) {
+	// Verify access to the resource first.
+	if _, err := q.GetWorkspaceResourceByID(ctx, id); err != nil {
+		return database.GetWorkspaceBuildMetricsByResourceIDRow{}, err
+	}
+	return q.db.GetWorkspaceBuildMetricsByResourceID(ctx, id)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -3891,14 +3899,6 @@ func (q *querier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Conte
 		return database.WorkspaceBuild{}, err
 	}
 	return q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, arg)
-}
-
-func (q *querier) GetWorkspaceBuildMetricsByAgentID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByAgentIDRow, error) {
-	// Verify access to the agent first.
-	if _, err := q.GetWorkspaceAgentByID(ctx, id); err != nil {
-		return database.GetWorkspaceBuildMetricsByAgentIDRow{}, err
-	}
-	return q.db.GetWorkspaceBuildMetricsByAgentID(ctx, id)
 }
 
 func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {

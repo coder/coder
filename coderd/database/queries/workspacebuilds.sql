@@ -244,7 +244,7 @@ SET
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 
--- name: GetWorkspaceBuildMetricsByAgentID :one
+-- name: GetWorkspaceBuildMetricsByResourceID :one
 -- Returns build metadata for e2e workspace build duration metrics.
 -- Also checks if all agents are ready and returns the worst status.
 SELECT
@@ -254,23 +254,21 @@ SELECT
     o.name AS organization_name,
     (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0') AS is_prebuild,
     -- All agents must have ready_at set (terminal startup state)
-    COUNT(*) FILTER (WHERE wa2.ready_at IS NULL) = 0 AS all_agents_ready,
+    COUNT(*) FILTER (WHERE wa.ready_at IS NULL) = 0 AS all_agents_ready,
     -- Latest ready_at across all agents (for duration calculation)
-    MAX(wa2.ready_at) AS last_agent_ready_at,
+    MAX(wa.ready_at) AS last_agent_ready_at,
     -- Worst status: error > timeout > ready
     CASE
-        WHEN bool_or(wa2.lifecycle_state = 'start_error') THEN 'error'
-        WHEN bool_or(wa2.lifecycle_state = 'start_timeout') THEN 'timeout'
+        WHEN bool_or(wa.lifecycle_state = 'start_error') THEN 'error'
+        WHEN bool_or(wa.lifecycle_state = 'start_timeout') THEN 'timeout'
         ELSE 'success'
     END AS worst_status
-FROM workspace_agents wa
-JOIN workspace_resources wr ON wa.resource_id = wr.id
+FROM workspace_resources wr
 JOIN workspace_builds wb ON wr.job_id = wb.job_id
 JOIN workspaces w ON wb.workspace_id = w.id
 JOIN templates t ON w.template_id = t.id
 JOIN organizations o ON t.organization_id = o.id
--- Self-join to get all agents for this build
 JOIN workspace_resources wr2 ON wr2.job_id = wb.job_id
-JOIN workspace_agents wa2 ON wa2.resource_id = wr2.id
-WHERE wa.id = $1
+JOIN workspace_agents wa ON wa.resource_id = wr2.id
+WHERE wr.id = $1
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
