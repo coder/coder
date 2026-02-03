@@ -10,7 +10,7 @@ import (
 // duration from workspace build creation to agent ready, by template.
 //
 // This metric is recorded by the coderd replica handling the agent's
-// connection when the agent reports ready. In multi-replica deployments,
+// connection when the last agent reports ready. In multi-replica deployments,
 // each replica only has observations for agents it handles. Prometheus
 // should be configured to scrape all replicas, and queries should aggregate
 // across instances:
@@ -18,6 +18,10 @@ import (
 //	histogram_quantile(0.95,
 //	  sum(rate(coderd_template_workspace_build_duration_seconds_bucket[5m])) by (le, template_name)
 //	)
+//
+// The "prebuild" label distinguishes prebuild creation (background, no user
+// waiting) from user-initiated builds (regular workspace creation or prebuild
+// claims).
 var WorkspaceBuildDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace:                       "coderd",
 	Name:                            "template_workspace_build_duration_seconds",
@@ -25,4 +29,4 @@ var WorkspaceBuildDurationSeconds = prometheus.NewHistogramVec(prometheus.Histog
 	NativeHistogramBucketFactor:     1.1,
 	NativeHistogramMaxBucketNumber:  100,
 	NativeHistogramMinResetDuration: time.Hour,
-}, []string{"template_name", "organization_name", "workspace_transition", "status"})
+}, []string{"template_name", "organization_name", "workspace_transition", "status", "prebuild"})

@@ -503,6 +503,8 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error)
 	// Returns build metadata for e2e workspace build duration metrics.
+	// Also checks if all agents are ready and returns the worst status.
+	// Self-join to get all agents for this build
 	GetWorkspaceBuildMetricsByAgentID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByAgentIDRow, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
 	GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]WorkspaceBuildParameter, error)

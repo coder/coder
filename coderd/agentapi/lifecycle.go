@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"slices"
 	"time"
 
@@ -136,7 +137,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		case database.WorkspaceAgentLifecycleStateReady,
 			database.WorkspaceAgentLifecycleStateStartTimeout,
 			database.WorkspaceAgentLifecycleStateStartError:
-			a.emitBuildDurationMetric(ctx, workspaceAgent.ID, lifecycleState, readyAt.Time)
+			a.emitBuildDurationMetric(ctx, workspaceAgent.ID)
 			a.buildDurationEmitted = true
 		}
 	}
@@ -203,12 +204,10 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 }
 
 // emitBuildDurationMetric records the end-to-end workspace build duration
-// from build creation to agent ready.
+// from build creation to when all agents are ready.
 func (a *LifecycleAPI) emitBuildDurationMetric(
 	ctx context.Context,
 	agentID uuid.UUID,
-	lifecycleState database.WorkspaceAgentLifecycleState,
-	readyAt time.Time,
 ) {
 	buildInfo, err := a.Database.GetWorkspaceBuildMetricsByAgentID(ctx, agentID)
 	if err != nil {
@@ -216,24 +215,32 @@ func (a *LifecycleAPI) emitBuildDurationMetric(
 		return
 	}
 
-	duration := readyAt.Sub(buildInfo.CreatedAt).Seconds()
+	// Wait until all agents have reached a terminal startup state.
+	if !buildInfo.AllAgentsReady {
+		return
+	}
 
-	var status string
-	switch lifecycleState {
-	case database.WorkspaceAgentLifecycleStateReady:
-		status = "success"
-	case database.WorkspaceAgentLifecycleStateStartTimeout:
-		status = "timeout"
-	case database.WorkspaceAgentLifecycleStateStartError:
-		status = "error"
-	default:
-		status = "unknown"
+	// LastAgentReadyAt is the MAX(ready_at) across all agents. Since we only
+	// get here when AllAgentsReady is true, this should always be valid.
+	lastReadyAt, ok := buildInfo.LastAgentReadyAt.(time.Time)
+	if !ok {
+		a.Log.Warn(ctx, "unexpected type for last_agent_ready_at",
+			slog.F("type", fmt.Sprintf("%T", buildInfo.LastAgentReadyAt)))
+		return
+	}
+
+	duration := lastReadyAt.Sub(buildInfo.CreatedAt).Seconds()
+
+	prebuild := "false"
+	if buildInfo.IsPrebuild {
+		prebuild = "true"
 	}
 
 	WorkspaceBuildDurationSeconds.WithLabelValues(
 		buildInfo.TemplateName,
 		buildInfo.OrganizationName,
 		string(buildInfo.Transition),
-		status,
+		buildInfo.WorstStatus,
+		prebuild,
 	).Observe(duration)
 }

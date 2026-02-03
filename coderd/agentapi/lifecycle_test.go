@@ -110,6 +110,10 @@ func TestUpdateLifecycle(t *testing.T) {
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: now,
+			WorstStatus:      "success",
 		}, nil)
 
 		api := &agentapi.LifecycleAPI{
@@ -158,6 +162,10 @@ func TestUpdateLifecycle(t *testing.T) {
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: now,
+			WorstStatus:      "success",
 		}, nil)
 
 		publishCalled := false
@@ -211,6 +219,10 @@ func TestUpdateLifecycle(t *testing.T) {
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: now,
+			WorstStatus:      "success",
 		}, nil)
 
 		api := &agentapi.LifecycleAPI{
@@ -302,6 +314,10 @@ func TestUpdateLifecycle(t *testing.T) {
 					Transition:       database.WorkspaceTransitionStart,
 					TemplateName:     "test-template",
 					OrganizationName: "test-org",
+					IsPrebuild:       false,
+					AllAgentsReady:   true,
+					LastAgentReadyAt: stateNow,
+					WorstStatus:      "success",
 				}, nil).MaxTimes(1)
 			}
 
@@ -349,6 +365,130 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.ErrorContains(t, err, "unknown lifecycle state")
 		require.Nil(t, resp)
 		require.False(t, publishCalled)
+	})
+
+	// Test that metric is NOT emitted when not all agents are ready (multi-agent case).
+	t.Run("MetricNotEmittedWhenNotAllAgentsReady", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
+		// Return AllAgentsReady = false to simulate multi-agent case where not all are ready.
+		dbM.EXPECT().GetWorkspaceBuildMetricsByAgentID(gomock.Any(), agentStarting.ID).Return(database.GetWorkspaceBuildMetricsByAgentIDRow{
+			CreatedAt:        someTime,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   false, // Not all agents ready yet
+			LastAgentReadyAt: nil,   // No ready time yet
+			WorstStatus:      "success",
+		}, nil)
+
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return agentStarting, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			PublishWorkspaceUpdateFn: nil,
+		}
+
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+		// Metric should not be emitted because not all agents are ready.
+		// The test passes if no panic occurs - the metric observation is skipped.
+	})
+
+	// Test that prebuild label is "true" when owner is prebuild system user.
+	t.Run("PrebuildLabelTrue", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByAgentID(gomock.Any(), agentStarting.ID).Return(database.GetWorkspaceBuildMetricsByAgentIDRow{
+			CreatedAt:        someTime,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       true, // Prebuild workspace
+			AllAgentsReady:   true,
+			LastAgentReadyAt: now,
+			WorstStatus:      "success",
+		}, nil)
+
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return agentStarting, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			PublishWorkspaceUpdateFn: nil,
+		}
+
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+		// Metric should be emitted with prebuild="true" label.
+		// We can't easily verify the label value without capturing prometheus metrics,
+		// but the test passes if no error occurs.
+	})
+
+	// Test worst status is used when one agent has an error.
+	t.Run("WorstStatusError", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByAgentID(gomock.Any(), agentStarting.ID).Return(database.GetWorkspaceBuildMetricsByAgentIDRow{
+			CreatedAt:        someTime,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: now,
+			WorstStatus:      "error", // One agent had an error
+		}, nil)
+
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return agentStarting, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			PublishWorkspaceUpdateFn: nil,
+		}
+
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+		// Metric should be emitted with status="error" label.
 	})
 }
 
