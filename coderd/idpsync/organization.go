@@ -11,7 +11,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -107,7 +106,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return xerrors.Errorf("failed to get user organizations: %w", err)
 	}
 
-	existingOrgIDs := db2sdk.List(existingOrgs, func(org database.Organization) uuid.UUID {
+	existingOrgIDs := slice.List(existingOrgs, func(org database.Organization) uuid.UUID {
 		return org.ID
 	})
 
@@ -127,7 +126,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		if err != nil {
 			return xerrors.Errorf("failed to get expected organizations: %w", err)
 		}
-		finalExpected = db2sdk.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
+		finalExpected = slice.List(expectedOrganizations, func(org database.Organization) uuid.UUID {
 			return org.ID
 		})
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -62,9 +63,9 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 			UUID:  organization.ID,
 			Valid: true,
 		},
-		SitePermissions: db2sdk.List(req.SitePermissions, sdkPermissionToDB),
-		OrgPermissions:  db2sdk.List(req.OrganizationPermissions, sdkPermissionToDB),
-		UserPermissions: db2sdk.List(req.UserPermissions, sdkPermissionToDB),
+		SitePermissions: slice.List(req.SitePermissions, sdkPermissionToDB),
+		OrgPermissions:  slice.List(req.OrganizationPermissions, sdkPermissionToDB),
+		UserPermissions: slice.List(req.UserPermissions, sdkPermissionToDB),
 		// Satisfy the linter (we don't support member permissions in non-system roles).
 		MemberPermissions: database.CustomRolePermissions{},
 		IsSystem:          false,
@@ -154,9 +155,9 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		// to throw an error, then the story of a previously valid role
 		// now being invalid has to be addressed. Coder can change permissions,
 		// objects, and actions at any time.
-		SitePermissions: db2sdk.List(filterInvalidPermissions(req.SitePermissions), sdkPermissionToDB),
-		OrgPermissions:  db2sdk.List(filterInvalidPermissions(req.OrganizationPermissions), sdkPermissionToDB),
-		UserPermissions: db2sdk.List(filterInvalidPermissions(req.UserPermissions), sdkPermissionToDB),
+		SitePermissions: slice.List(filterInvalidPermissions(req.SitePermissions), sdkPermissionToDB),
+		OrgPermissions:  slice.List(filterInvalidPermissions(req.OrganizationPermissions), sdkPermissionToDB),
+		UserPermissions: slice.List(filterInvalidPermissions(req.UserPermissions), sdkPermissionToDB),
 		// Satisfy the linter (we don't support member permissions in non-system roles).
 		MemberPermissions: database.CustomRolePermissions{},
 	})

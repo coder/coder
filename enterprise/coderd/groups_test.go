@@ -12,12 +12,12 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -893,7 +893,7 @@ func TestGroup(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		foundIDs := db2sdk.List(found, func(g codersdk.Group) uuid.UUID {
+		foundIDs := slice.List(found, func(g codersdk.Group) uuid.UUID {
 			return g.ID
 		})
 
@@ -1009,7 +1009,7 @@ func TestGroups(t *testing.T) {
 		// disabled, but group membership is limited to the requesting user.
 		// TODO(geokat): add another test with workspace sharing disabled.
 		require.Len(t, user5View, 3)
-		user5ViewIDs := db2sdk.List(user5View, func(g codersdk.Group) uuid.UUID {
+		user5ViewIDs := slice.List(user5View, func(g codersdk.Group) uuid.UUID {
 			return g.ID
 		})
 

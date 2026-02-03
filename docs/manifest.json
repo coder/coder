@@ -1048,6 +1048,11 @@
 											"path": "./ai-coder/ai-bridge/clients/codex.md"
 										},
 										{
+											"title": "Mux",
+											"description": "Configure Mux to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/mux.md"
+										},
+										{
 											"title": "OpenCode",
 											"description": "Configure OpenCode to use AI Bridge",
 											"path": "./ai-coder/ai-bridge/clients/opencode.md"

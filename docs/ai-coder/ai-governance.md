@@ -7,7 +7,7 @@ development environments. As adoption grows, many enterprises also need
 observability, management, and policy controls to support secure and auditable
 AI rollouts.
 
-Coder’s AI Governance Add-On for Premium licenses includes a set of features
+The AI Governance Add-On is a per-user license that can be added to Premium seats. Each user with the add-on gets access to a set of features
 that help organizations safely roll out AI tooling at scale:
 
 - [AI Bridge](./ai-bridge/index.md): LLM gateway to audit AI sessions, central

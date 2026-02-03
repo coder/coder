@@ -141,6 +141,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 interface WorkspaceSharingFormProps {
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
+	isTaskWorkspace: boolean;
 	error: unknown;
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
 	updatingUserId: WorkspaceUser["id"] | undefined;
@@ -156,6 +157,7 @@ interface WorkspaceSharingFormProps {
 export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	workspaceACL,
 	canUpdatePermissions,
+	isTaskWorkspace,
 	error,
 	updatingUserId,
 	onUpdateUser,
@@ -185,14 +187,24 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 
 	const tableBody = (
 		<TableBody>
-			{!workspaceACL ? (
+			{isTaskWorkspace ? (
+				<TableRow>
+					<TableCell colSpan={999}>
+						<EmptyState
+							message="Task workspaces cannot be shared"
+							description="This workspace is managed by a task. Task sharing has not yet been implemented."
+							isCompact={isCompact}
+						/>
+					</TableCell>
+				</TableRow>
+			) : !workspaceACL ? (
 				<TableLoader />
 			) : isEmpty ? (
 				<TableRow>
 					<TableCell colSpan={999}>
 						<EmptyState
 							message="No shared members or groups yet"
-							description="Add a member or group using the controls above"
+							description="Add a member or group using the controls above."
 							isCompact={isCompact}
 						/>
 					</TableCell>

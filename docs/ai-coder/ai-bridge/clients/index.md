@@ -44,6 +44,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 
 | Client                           | OpenAI | Anthropic | Notes                                                                                                                                                  |
 |----------------------------------|--------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Mux](./mux.md)                  | ✅      | ✅         |                                                                                                                                                        |
 | [Claude Code](./claude-code.md)  | -      | ✅         |                                                                                                                                                        |
 | [Codex CLI](./codex.md)          | ✅      | -         |                                                                                                                                                        |
 | [OpenCode](./opencode.md)        | ✅      | ✅         |                                                                                                                                                        |
