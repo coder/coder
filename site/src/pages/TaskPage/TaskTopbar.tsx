@@ -11,8 +11,8 @@ import {
 	ArrowLeftIcon,
 	CheckIcon,
 	CopyIcon,
-	LaptopMinimalIcon,
-	TerminalIcon,
+	LayoutPanelTopIcon,
+	SquareTerminalIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
@@ -57,8 +57,8 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button variant="outline" size="sm">
-								<TerminalIcon />
-								Prompt
+								<SquareTerminalIcon />
+								View Prompt
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent className="max-w-xs bg-surface-secondary p-4">
@@ -72,8 +72,8 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 
 				<Button asChild variant="outline" size="sm">
 					<RouterLink to={`/@${workspace.owner_name}/${workspace.name}`}>
-						<LaptopMinimalIcon />
-						Workspace
+						<LayoutPanelTopIcon />
+						Go to workspace
 					</RouterLink>
 				</Button>
 			</div>
