@@ -200,7 +200,7 @@ func TestGetModulesArchive(t *testing.T) {
 		require.Empty(t, skipped)
 		actualSize := int64(len(archive))
 
-		originalDef["extra"] = moduleDef{payload: bytes.Repeat([]byte("X"), 1001)}
+		originalDef["extra"] = moduleDef{payload: bytes.Repeat([]byte("X"), 2000)}
 		memFS = moduleArchiveFS(t, originalDef)
 
 		// Now test with exact size - should just fit

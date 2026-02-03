@@ -313,7 +313,7 @@
 					"description": "Sharing workspaces",
 					"path": "./user-guides/shared-workspaces.md",
 					"icon_path": "./images/icons/generic.svg",
-					"state": ["early_access"]
+					"state": ["early access"]
 				},
 				{
 					"title": "Workspace Scheduling",
@@ -2163,6 +2163,12 @@
 					]
 				}
 			]
+		},
+		{
+			"title": "Coder Research",
+			"description": "Open source research projects exploring AI-assisted development",
+			"path": "./coder-research.md",
+			"icon_path": "./images/icons/wand.svg"
 		}
 	]
 }
