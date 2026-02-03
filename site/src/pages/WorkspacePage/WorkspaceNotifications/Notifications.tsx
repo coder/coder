@@ -51,7 +51,7 @@ export const Notifications: FC<NotificationsProps> = ({
 				<TooltipContent
 					align="end"
 					collisionPadding={16}
-					className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm  text-white"
+					className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
 					style={{
 						borderColor: theme.roles[severity].outline,
 					}}
