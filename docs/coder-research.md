@@ -9,7 +9,7 @@ Coder maintains several open-source research projects exploring the future of AI
 ### Features
 
 - **Isolated workspace management**: Run multiple agents in parallel using local execution, git worktrees, or remote SSH without interference
-- **Multi-model support**: Compatible with Claude (sonnet-4, opus-4), Grok, GPT-5, Ollama for local LLMs, and OpenRouter
+- **Multi-model support**: Compatible with models from Anthropic, xAI, OpenAI, Ollama for local LLMs, and OpenRouter
 - **Central git divergence view**: Monitor changes and potential conflicts across agent workspaces from a unified dashboard
 - **Developer integration**: VS Code extension, Plan/Exec mode, vim input support, and slash commands
 
