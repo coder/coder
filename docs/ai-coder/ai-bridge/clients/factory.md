@@ -1,6 +1,5 @@
 # Factory
 
-[Factory](https://factory.ai) is an AI-native software development platform that works everywhere you do.
 
 ## Configuration
 
