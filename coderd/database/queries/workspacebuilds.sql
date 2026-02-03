@@ -263,12 +263,11 @@ SELECT
         WHEN bool_or(wa.lifecycle_state = 'start_timeout') THEN 'timeout'
         ELSE 'success'
     END AS worst_status
-FROM workspace_resources wr
-JOIN workspace_builds wb ON wr.job_id = wb.job_id
+FROM workspace_builds wb
 JOIN workspaces w ON wb.workspace_id = w.id
 JOIN templates t ON w.template_id = t.id
 JOIN organizations o ON t.organization_id = o.id
-JOIN workspace_resources wr2 ON wr2.job_id = wb.job_id
-JOIN workspace_agents wa ON wa.resource_id = wr2.id
-WHERE wr.id = $1
+JOIN workspace_resources wr ON wr.job_id = wb.job_id
+JOIN workspace_agents wa ON wa.resource_id = wr.id
+WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
