@@ -298,7 +298,9 @@ func enablePrometheus(
 	//nolint:revive
 	return ServeHandler(
 		ctx, logger, promhttp.InstrumentMetricHandler(
-			options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
+			options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{
+				EnableOpenMetrics: true,
+			}),
 		), vals.Prometheus.Address.String(), "prometheus",
 	), nil
 }
