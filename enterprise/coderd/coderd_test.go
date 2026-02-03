@@ -115,6 +115,51 @@ func TestEntitlements(t *testing.T) {
 		assert.Nil(t, al.Actual)
 		assert.Empty(t, res.Warnings)
 	})
+
+	// TestEntitlements/MultiplePrebuildsLicenseUpdates verifies that uploading
+	// multiple licenses with prebuilds enabled doesn't cause a panic from
+	// duplicate Prometheus metric registration. This was a bug where the new
+	// reconciler's metrics were registered before the old reconciler was stopped.
+	t.Run("MultiplePrebuildsLicenseUpdates", func(t *testing.T) {
+		t.Parallel()
+		adminClient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			DontAddLicense: true,
+		})
+
+		// Add first license with prebuilds to initialize the reconciler
+		features := license.Features{
+			codersdk.FeatureUserLimit:          100,
+			codersdk.FeatureWorkspacePrebuilds: 1,
+		}
+		license1 := coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+			Features: features,
+		})
+		res, err := adminClient.Entitlements(context.Background())
+		require.NoError(t, err)
+		require.True(t, res.HasLicense)
+		require.Equal(t, codersdk.EntitlementEntitled, res.Features[codersdk.FeatureWorkspacePrebuilds].Entitlement)
+
+		// Verify the reconciler was set up
+		reconciler1 := api.AGPL.PrebuildsReconciler.Load()
+		require.NotNil(t, reconciler1)
+
+		// Delete the license to disable prebuilds, then add a new one.
+		// This tests the enabled -> disabled -> enabled transition.
+		err = adminClient.DeleteLicense(context.Background(), license1.ID)
+		require.NoError(t, err)
+
+		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+			Features: features,
+		})
+		res, err = adminClient.Entitlements(context.Background())
+		require.NoError(t, err)
+		require.True(t, res.HasLicense)
+		require.Equal(t, codersdk.EntitlementEntitled, res.Features[codersdk.FeatureWorkspacePrebuilds].Entitlement)
+
+		// Verify a new reconciler was created
+		reconciler2 := api.AGPL.PrebuildsReconciler.Load()
+		require.NotNil(t, reconciler2)
+	})
 	t.Run("FullLicenseToNone", func(t *testing.T) {
 		t.Parallel()
 		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{

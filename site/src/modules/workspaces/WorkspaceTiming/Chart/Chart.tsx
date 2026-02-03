@@ -92,7 +92,12 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 };
 
 export const ChartSearch = (props: SearchFieldProps) => {
-	return <SearchField css={styles.searchField} {...props} />;
+	return (
+		<SearchField
+			className="flex-1 h-12 rounded-none border-y-0 border-r-0 mr-4"
+			{...props}
+		/>
+	);
 };
 
 export type ChartLegend = {
@@ -208,20 +213,6 @@ const styles = {
 
 		"&:hover": {
 			color: theme.palette.text.primary,
-		},
-	}),
-	searchField: (theme) => ({
-		flex: "1",
-
-		"& fieldset": {
-			border: 0,
-			borderRadius: 0,
-			borderLeft: `1px solid ${theme.palette.divider} !important`,
-		},
-
-		"& .MuiInputBase-root": {
-			height: "100%",
-			fontSize: 12,
 		},
 	}),
 	legends: {

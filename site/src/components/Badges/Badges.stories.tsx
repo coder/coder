@@ -7,10 +7,6 @@ import {
 	EnabledBadge,
 	EnterpriseBadge,
 	EntitledBadge,
-	HealthyBadge,
-	NotHealthyBadge,
-	NotReachableBadge,
-	NotRegisteredBadge,
 	PremiumBadge,
 	PreviewBadge,
 } from "./Badges";
@@ -32,19 +28,6 @@ export const Enabled: Story = {
 export const Entitled: Story = {
 	args: {
 		children: <EntitledBadge />,
-	},
-};
-export const ProxyStatus: Story = {
-	args: {
-		children: (
-			<>
-				<HealthyBadge />
-				<HealthyBadge derpOnly />
-				<NotHealthyBadge />
-				<NotRegisteredBadge />
-				<NotReachableBadge />
-			</>
-		),
 	},
 };
 export const Disabled: Story = {

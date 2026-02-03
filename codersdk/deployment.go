@@ -1549,6 +1549,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupTelemetry,
 		YAML:        "enable",
 	}
+	workspaceHostnameSuffix := serpent.Option{
+		Name:        "Workspace Hostname Suffix",
+		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+		Flag:        "workspace-hostname-suffix",
+		Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
+		YAML:        "workspaceHostnameSuffix",
+		Group:       &deploymentGroupClient,
+		Value:       &c.WorkspaceHostnameSuffix,
+		Hidden:      false,
+		Default:     "coder",
+	}
 	opts := serpent.OptionSet{
 		{
 			Name:        "Access URL",
@@ -2973,26 +2984,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "SSH Host Prefix",
-			Description: "The SSH deployment prefix is used in the Host of the ssh config.",
+			Description: "Deprecated: use workspace-hostname-suffix instead. The SSH deployment prefix is used in the Host of the ssh config.",
 			Flag:        "ssh-hostname-prefix",
 			Env:         "CODER_SSH_HOSTNAME_PREFIX",
 			YAML:        "sshHostnamePrefix",
 			Group:       &deploymentGroupClient,
 			Value:       &c.SSHConfig.DeploymentName,
-			Hidden:      false,
+			Hidden:      true,
 			Default:     "coder.",
+			UseInstead:  serpent.OptionSet{workspaceHostnameSuffix},
 		},
-		{
-			Name:        "Workspace Hostname Suffix",
-			Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
-			Flag:        "workspace-hostname-suffix",
-			Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
-			YAML:        "workspaceHostnameSuffix",
-			Group:       &deploymentGroupClient,
-			Value:       &c.WorkspaceHostnameSuffix,
-			Hidden:      false,
-			Default:     "coder",
-		},
+		workspaceHostnameSuffix,
 		{
 			Name: "SSH Config Options",
 			Description: "These SSH config options will override the default SSH config options. " +

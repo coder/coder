@@ -216,6 +216,19 @@ type ProvisionerJobLog struct {
 	Output    string    `json:"output"`
 }
 
+// Text formats the log entry as human-readable text.
+func (l ProvisionerJobLog) Text() string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(l.CreatedAt.Format(time.RFC3339))
+	_, _ = sb.WriteString(" [")
+	_, _ = sb.WriteString(string(l.Level))
+	_, _ = sb.WriteString("] [provisioner|")
+	_, _ = sb.WriteString(l.Stage)
+	_, _ = sb.WriteString("] ")
+	_, _ = sb.WriteString(l.Output)
+	return sb.String()
+}
+
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
 func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	afterQuery := ""

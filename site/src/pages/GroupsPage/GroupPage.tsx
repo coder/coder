@@ -103,11 +103,7 @@ const GroupPage: FC = () => {
 		<>
 			{title}
 
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex align-baseline justify-between w-full">
 				<SettingsHeader>
 					<SettingsHeaderTitle>
 						{groupData?.display_name || groupData?.name || "Unknown Group"}
@@ -137,9 +133,9 @@ const GroupPage: FC = () => {
 						</Button>
 					</Stack>
 				)}
-			</Stack>
+			</div>
 
-			<Stack spacing={1}>
+			<div className="flex flex-col w-full gap-1">
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
 					<AddGroupMember
 						isLoading={addMemberMutation.isPending}
@@ -212,7 +208,7 @@ const GroupPage: FC = () => {
 						)}
 					</TableBody>
 				</Table>
-			</Stack>
+			</div>
 
 			{groupQuery.data && (
 				<DeleteDialog
