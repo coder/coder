@@ -133,14 +133,18 @@ workflows.
 Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of
 Agent Workspace Builds for automated workflows, along with limits that scale
 proportionately with user count. Usage counts are measured and sent to Coder via
-[usage data reporting](./usage-data-reporting.md). The day-to-day Coder
-experience will not be impacted if the limit is breached. Admins will receive a
-warning to [contact their account team](https://coder.com/contact) to remediate.
+[usage data reporting](./usage-data-reporting.md). Coder Tasks and other AI
+features continue to function normally even if the limit is breached. Admins
+will receive a warning to [contact their account team](https://coder.com/contact)
+to remediate.
 
 ### Tracking Agent Workspace Builds
 
-Admins can monitor Agent Workspace Build usage from the Coder dashboard. Navigate
-to **Deployment** > **Licenses** to view current usage against your entitlement
-limits.
+Admins can monitor Agent Workspace Build usage from the Coder dashboard.
+Navigate to **Deployment** > **Licenses** to view current usage against your
+entitlement limits.
 
 ![Agent Workspace Build usage](../images/admin/ai-governance-awb-usage.png)
+
+<small>Agent Workspace Build usage showing current consumption against
+entitlement limits in the Licenses page.</small>
