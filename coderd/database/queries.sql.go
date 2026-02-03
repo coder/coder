@@ -10251,6 +10251,7 @@ WHERE
 			provisioner_jobs AS potential_job
 		WHERE
 			potential_job.started_at IS NULL
+			AND potential_job.completed_at IS NULL
 			AND potential_job.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])

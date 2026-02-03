@@ -1645,6 +1645,53 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
 		}
 	})
+
+	t.Run("SkipsCanceledPendingJobs", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			now   = dbtime.Now()
+		)
+
+		// Insert a pending job (started_at is NULL).
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             uuid.New(),
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			InitiatorID:    uuid.New(),
+			OrganizationID: org.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         uuid.New(),
+			Input:          json.RawMessage(`{}`),
+			Tags:           database.StringMap{},
+			TraceMetadata:  pqtype.NullRawMessage{},
+		})
+		require.NoError(t, err)
+
+		// Cancel it while still pending. In production (workspacebuilds.go), canceling
+		// a pending build sets completed_at but leaves started_at NULL since no
+		// provisioner ever started the job.
+		err = db.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID:          job.ID,
+			CanceledAt:  sql.NullTime{Time: now, Valid: true},
+			CompletedAt: sql.NullTime{Time: now, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// AcquireProvisionerJob should skip this job since it's already completed.
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  org.ID,
+			StartedAt:       sql.NullTime{Time: now, Valid: true},
+			WorkerID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: json.RawMessage(`{}`),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
 }
 
 func TestUserLastSeenFilter(t *testing.T) {
