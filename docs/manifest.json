@@ -996,7 +996,7 @@
 							"title": "Agent Boundaries",
 							"description": "Understanding Agent Boundaries in Coder Tasks",
 							"path": "./ai-coder/agent-boundaries/index.md",
-							"state": ["premium", "beta"],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "NS Jail",
@@ -1025,7 +1025,7 @@
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 							"path": "./ai-coder/ai-bridge/index.md",
 							"icon_path": "./images/icons/api.svg",
-							"state": ["premium", "beta"],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "Setup",
