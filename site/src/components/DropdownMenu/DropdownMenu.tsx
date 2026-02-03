@@ -162,19 +162,20 @@ export const DropdownMenuRadioItem = forwardRef<
 		ref={ref}
 		className={cn(
 			[
-				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors",
+				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none transition-colors",
 				"focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"data-[state=checked]:bg-surface-secondary data-[state=checked]:text-content-primary",
 			],
 			className,
 		)}
 		{...props}
 	>
-		<span className="absolute top-3.5 left-2 flex h-3.5 w-3.5 items-center justify-center">
+		{children}
+		<span className="absolute top-3.5 right-2 flex h-3.5 w-3.5 items-center justify-center">
 			<DropdownMenuPrimitive.ItemIndicator>
 				<Check className="h-4 w-4" />
 			</DropdownMenuPrimitive.ItemIndicator>
 		</span>
-		{children}
 	</DropdownMenuPrimitive.RadioItem>
 ));
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
