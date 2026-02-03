@@ -11,14 +11,14 @@ Mux can be configured to route OpenAI- and Anthropic-compatible traffic through 
 
 <div class="tabs">
 
-### OpenAI (GPT / Codex)
+### OpenAI
 
 1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **OpenAI**.
 3. Set **API Key** to your Coder session token.
 4. Set **Base URL** to `https://coder.example.com/api/v2/aibridge/openai/v1`.
 
-### Anthropic (Claude)
+### Anthropic
 
 1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **Anthropic**.
