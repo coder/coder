@@ -5,7 +5,7 @@ Once enabled, `coderd` runs the `aibridgeproxyd` in-memory and intercepts traffi
 
 **Required:**
 
-1. AI Bridge must be enabled and configured (requires a **Premium** license with the [AI Governance Add-On](../../ai-governance)). See [AI Bridge Setup](../setup.md) for further information.1. AI Bridge Proxy must be [enabled](#proxy-configuration) using the server flag.
+1. AI Bridge must be enabled and configured (requires a **Premium** license with the [AI Governance Add-On](../../ai-governance.md)). See [AI Bridge Setup](../setup.md) for further information.1. AI Bridge Proxy must be [enabled](#proxy-configuration) using the server flag.
 1. A [CA certificate](#ca-certificate) must be configured for MITM interception.
 1. Clients must be configured to trust the CA certificate and use the proxy.
 
