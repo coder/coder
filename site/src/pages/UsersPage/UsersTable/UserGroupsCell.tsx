@@ -59,7 +59,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 							</button>
 						</TooltipTrigger>
 
-						<TooltipContent className="p-0 bg-surface-secondary border-surface-quaternary text-white">
+						<TooltipContent className="p-0 bg-surface-secondary border-surface-quaternary text-content-primary">
 							<OverflowY maxHeight={400}>
 								<List
 									component="ul"
