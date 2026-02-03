@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+  env:
+    - name: CODER_PROMETHEUS_ADDRESS
+      value: "127.0.0.1:2112"
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
