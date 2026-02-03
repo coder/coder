@@ -96,7 +96,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						"Select Proxy"
 					)}
 
-					<ChevronDownIcon className="text-content-primary !size-icon-lg" />
+					<ChevronDownIcon className="text-content-primary !size-icon-sm" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-80">
