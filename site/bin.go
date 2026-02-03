@@ -26,58 +26,74 @@ import (
 // errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
 var errHashMismatch = xerrors.New("hash mismatch")
 
-func binHandler(binFS http.FileSystem, binMetadataCache *binMetadataCache) http.Handler {
-	return http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// Convert underscores in the filename to hyphens. We eventually want to
-		// change our hyphen-based filenames to underscores, but we need to
-		// support both for now.
-		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
+type binHandler struct {
+	metadataCache *binMetadataCache
+	binFS         http.FileSystem
+}
 
-		// Set ETag header to the SHA1 hash of the file contents.
-		name := filePath(r.URL.Path)
-		if name == "" || name == "/" {
-			// Serve the directory listing. This intentionally allows directory listings to
-			// be served. This file system should not contain anything sensitive.
-			http.FileServer(binFS).ServeHTTP(rw, r)
-			return
-		}
-		if strings.Contains(name, "/") {
-			// We only serve files from the root of this directory, so avoid any
-			// shenanigans by blocking slashes in the URL path.
-			http.NotFound(rw, r)
-			return
-		}
+func (h *binHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, "/bin/") {
+		rw.WriteHeader(http.StatusNotFound)
+		_, _ = rw.Write([]byte("not found"))
+		return
+	}
+	r.URL.Path = strings.TrimPrefix(r.URL.Path, "/bin")
+	// Convert underscores in the filename to hyphens. We eventually want to
+	// change our hyphen-based filenames to underscores, but we need to
+	// support both for now.
+	r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
 
-		metadata, err := binMetadataCache.getMetadata(name)
-		if xerrors.Is(err, os.ErrNotExist) {
-			http.NotFound(rw, r)
-			return
-		}
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	// Set ETag header to the SHA1 hash of the file contents.
+	name := filePath(r.URL.Path)
+	if name == "" || name == "/" {
+		// Serve the directory listing. This intentionally allows directory listings to
+		// be served. This file system should not contain anything sensitive.
+		http.FileServer(h.binFS).ServeHTTP(rw, r)
+		return
+	}
+	if strings.Contains(name, "/") {
+		// We only serve files from the root of this directory, so avoid any
+		// shenanigans by blocking slashes in the URL path.
+		http.NotFound(rw, r)
+		return
+	}
 
-		// http.FileServer will not set Content-Length when performing chunked
-		// transport encoding, which is used for large files like our binaries
-		// so stream compression can be used.
-		//
-		// Clients like IDE extensions and the desktop apps can compare the
-		// value of this header with the amount of bytes written to disk after
-		// decompression to show progress. Without this, they cannot show
-		// progress without disabling compression.
-		//
-		// There isn't really a spec for a length header for the "inner" content
-		// size, but some nginx modules use this header.
-		rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", metadata.sizeBytes))
+	metadata, err := h.metadataCache.getMetadata(name)
+	if xerrors.Is(err, os.ErrNotExist) {
+		http.NotFound(rw, r)
+		return
+	}
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-		// Get and set ETag header. Must be quoted.
-		rw.Header().Set("ETag", fmt.Sprintf(`%q`, metadata.sha1Hash))
+	// http.FileServer will not set Content-Length when performing chunked
+	// transport encoding, which is used for large files like our binaries
+	// so stream compression can be used.
+	//
+	// Clients like IDE extensions and the desktop apps can compare the
+	// value of this header with the amount of bytes written to disk after
+	// decompression to show progress. Without this, they cannot show
+	// progress without disabling compression.
+	//
+	// There isn't really a spec for a length header for the "inner" content
+	// size, but some nginx modules use this header.
+	rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", metadata.sizeBytes))
 
-		// http.FileServer will see the ETag header and automatically handle
-		// If-Match and If-None-Match headers on the request properly.
-		http.FileServer(binFS).ServeHTTP(rw, r)
-	}))
+	// Get and set ETag header. Must be quoted.
+	rw.Header().Set("ETag", fmt.Sprintf(`%q`, metadata.sha1Hash))
+
+	// http.FileServer will see the ETag header and automatically handle
+	// If-Match and If-None-Match headers on the request properly.
+	http.FileServer(h.binFS).ServeHTTP(rw, r)
+}
+
+func newBinHandler(options *Options) *binHandler {
+	return &binHandler{
+		binFS:         options.BinFS,
+		metadataCache: newBinMetadataCache(options.BinFS, options.BinHashes),
+	}
 }
 
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and
