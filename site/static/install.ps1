@@ -10,7 +10,7 @@
     Echo the commands for the install process without running them.
 
 .PARAMETER InstallDir
-    The directory to install the Coder CLI to. Defaults to $HOME\.coder\bin
+    The directory to install the Coder CLI to. Defaults to $env:USERPROFILE\.coder\bin
     The installer will add this directory to the user's PATH.
 
 .PARAMETER BinaryName
@@ -43,10 +43,23 @@ function Write-CoderError {
 }
 
 function Get-CoderArch {
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-    switch ($arch) {
-        "X64" { return "amd64" }
-        "Arm64" { return "arm64" }
+    # Use environment variables for better compatibility with older PowerShell versions
+    # PROCESSOR_ARCHITEW6432 is set when running 32-bit process on 64-bit OS
+    $arch = $env:PROCESSOR_ARCHITEW6432
+    if (-not $arch) {
+        $arch = $env:PROCESSOR_ARCHITECTURE
+    }
+
+    if (-not $arch) {
+        throw "Unable to determine processor architecture from environment."
+    }
+
+    switch ($arch.ToUpperInvariant()) {
+        "AMD64" { return "amd64" }
+        "ARM64" { return "arm64" }
+        "X86" {
+            throw "Unsupported architecture: 32-bit Windows is not supported."
+        }
         default {
             throw "Unsupported architecture: $arch"
         }
@@ -89,7 +102,7 @@ function Invoke-Download {
 
     try {
         $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri $Url -OutFile $incompleteFile -UseBasicParsing
+        Invoke-WebRequest -Uri $Url -OutFile $incompleteFile -UseBasicParsing -ErrorAction Stop
         Move-Item -Path $incompleteFile -Destination $OutFile -Force
     }
     catch {
@@ -108,10 +121,13 @@ function Add-ToUserPath {
 
     $currentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
     # Normalize the path to add (resolve full path and remove trailing slashes)
-    $normalizedPathToAdd = [System.IO.Path]::GetFullPath($PathToAdd).TrimEnd('\', '/')
-    # Normalize all existing PATH entries for comparison
-    $pathEntries = $currentPath -split ";" | ForEach-Object {
-        if ($_) { [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/') }
+    $normalizedPathToAdd = [System.IO.Path]::GetFullPath($PathToAdd).TrimEnd('\', '/').ToLowerInvariant()
+    # Normalize all existing PATH entries for comparison (case-insensitive on Windows)
+    $pathEntries = @()
+    if ($currentPath) {
+        $pathEntries = $currentPath -split ";" | ForEach-Object {
+            if ($_) { [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/').ToLowerInvariant() }
+        }
     }
     if ($pathEntries -contains $normalizedPathToAdd) {
         Write-CoderLog "Directory already in PATH: $PathToAdd"
@@ -123,7 +139,12 @@ function Add-ToUserPath {
         return
     }
 
-    $newPath = $currentPath + ";" + $PathToAdd
+    # Handle empty PATH case
+    if ($currentPath) {
+        $newPath = $currentPath + ";" + $PathToAdd
+    } else {
+        $newPath = $PathToAdd
+    }
     [Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
     $env:PATH = $env:PATH + ";" + $PathToAdd
     Write-CoderLog "Added to PATH: $PathToAdd"
@@ -149,7 +170,8 @@ function Write-PostInstall {
     Write-Host ""
     Write-Host "The Coder binary has been placed in the following location:"
     Write-Host ""
-    Write-Host "  $InstallDir\$BinaryName.exe"
+    $binaryPath = Join-Path $InstallDir "$BinaryName.exe"
+    Write-Host "  $binaryPath"
     Write-Host ""
 
     $coderCommand = Get-Command $BinaryName -ErrorAction SilentlyContinue
@@ -168,7 +190,7 @@ function Write-PostInstall {
         Write-Host ""
         Write-Host "  $BinaryName login <deployment url>"
     }
-    elseif ($coderCommand.Source -ne "$InstallDir\$BinaryName.exe") {
+    elseif ([System.IO.Path]::GetFullPath($coderCommand.Source).ToLowerInvariant() -ne [System.IO.Path]::GetFullPath($binaryPath).ToLowerInvariant()) {
         Write-Host "Warning: There is another binary in your PATH that conflicts with the binary we've installed."
         Write-Host ""
         Write-Host "  $($coderCommand.Source)"
