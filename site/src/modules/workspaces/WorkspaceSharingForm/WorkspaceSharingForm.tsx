@@ -5,6 +5,7 @@ import type {
 	WorkspaceRole,
 	WorkspaceUser,
 } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -67,7 +68,7 @@ const RoleSelect: FC<RoleSelectProps> = ({
 				<SelectItem value="use" className="flex-col items-start py-2 w-64">
 					<div className="font-medium text-content-primary">Use</div>
 					<div className="text-xs text-content-secondary leading-snug mt-0.5">
-						Can read and access this workspace.
+						Can read, access, start, and stop this workspace.
 					</div>
 				</SelectItem>
 				<SelectItem value="admin" className="flex-col items-start py-2 w-64">
@@ -149,6 +150,7 @@ interface WorkspaceSharingFormProps {
 	onRemoveGroup: (group: Group) => void;
 	addMemberForm?: ReactNode;
 	isCompact?: boolean;
+	showRestartWarning?: boolean;
 }
 
 export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
@@ -163,6 +165,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	onRemoveGroup,
 	addMemberForm,
 	isCompact,
+	showRestartWarning,
 }) => {
 	const isEmpty = Boolean(
 		workspaceACL &&
@@ -307,6 +310,11 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 				{canUpdatePermissions && addMemberForm}
+				{showRestartWarning && (
+					<Alert severity="warning">
+						Workspace restart required for the removal to take effect.
+					</Alert>
+				)}
 				<div>
 					<Table>{tableHeader}</Table>
 					<div className="max-h-60 overflow-y-auto">
@@ -321,6 +329,11 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
 			{canUpdatePermissions && addMemberForm}
+			{showRestartWarning && (
+				<Alert severity="warning">
+					Workspace restart required for the removal to take effect.
+				</Alert>
+			)}
 			<Table>
 				{tableHeader}
 				{tableBody}

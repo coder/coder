@@ -52,6 +52,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 import {
 	addTime,
@@ -219,33 +220,17 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<div
-				css={{
-					marginBottom: 32,
-					display: "flex",
-					alignItems: "center",
-					gap: 8,
-				}}
-			>
-				{controls}
-			</div>
-			<div
-				css={{
-					display: "grid",
-					gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-					gridTemplateRows: "440px 440px auto",
-					gap: 24,
-				}}
-			>
+			<div className="flex items-center gap-2 mb-8">{controls}</div>
+			<div className="grid gap-6 grid-cols-3 grid-rows-[440px_440px_auto]">
 				<ActiveUsersPanel
-					css={{ gridColumn: "span 2" }}
+					className="col-span-2"
 					interval={interval}
 					data={templateInsights.data?.interval_reports}
 					error={templateInsights.error}
 				/>
 				<UsersLatencyPanel data={userLatency.data} error={userLatency.error} />
 				<TemplateUsagePanel
-					css={{ gridColumn: "span 2" }}
+					className="col-span-2"
 					data={templateInsights.data?.report?.apps_usage}
 					error={templateInsights.error}
 				/>
@@ -254,7 +239,7 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					error={userActivity.error}
 				/>
 				<TemplateParametersUsagePanel
-					css={{ gridColumn: "span 3" }}
+					className="col-span-3"
 					data={templateInsights.data?.report?.parameters_usage}
 					error={templateInsights.error}
 				/>
@@ -282,17 +267,13 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 					<ActiveUsersTitle interval={interval} />
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: "100%" }} />}
-				{(error || data?.length === 0) && <NoDataAvailable error={error} />}
-				{data && data.length > 0 && (
-					<ActiveUserChart
-						data={data.map((d) => ({
-							amount: d.active_users,
-							date: d.start_time,
-						}))}
-					/>
-				)}
+			<PanelContent error={error} data={data}>
+				<ActiveUserChart
+					data={(data || []).map((d) => ({
+						amount: d.active_users,
+						date: d.start_time,
+					}))}
+				/>
 			</PanelContent>
 		</Panel>
 	);
@@ -306,15 +287,14 @@ interface UsersLatencyPanelProps extends PanelProps {
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	data,
 	error,
+	className,
 	...panelProps
 }) => {
 	const theme = useTheme();
-	const users = data?.report.users;
-
 	return (
-		<Panel {...panelProps} css={{ overflowY: "auto" }}>
+		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
-				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
+				<PanelTitle className="flex items-center gap-2">
 					Latency by user
 					<HelpTooltip>
 						<HelpTooltipIconTrigger size="small" />
@@ -327,35 +307,23 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 					</HelpTooltip>
 				</PanelTitle>
 			</PanelHeader>
-
-			<PanelContent>
-				{!error && !users && <Loader css={{ height: "100%" }} />}
-				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
-				{users &&
-					[...users]
+			<PanelContent error={error} data={data?.report.users}>
+				{data?.report.users &&
+					[...data.report.users]
 						.sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
 						.map((row) => (
 							<div
 								key={row.user_id}
-								css={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									fontSize: 14,
-									paddingTop: 8,
-									paddingBottom: 8,
-								}}
+								className="flex justify-between items-center text-[14px] py-2"
 							>
-								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
-									<div css={{ fontWeight: 500 }}>{row.username}</div>
+									<div className="font-medium">{row.username}</div>
 								</div>
 								<div
+									className="text-right font-medium text-[13px]"
 									css={{
 										color: getLatencyColor(theme, row.latency_ms.p50),
-										fontWeight: 500,
-										fontSize: 13,
-										textAlign: "right",
 									}}
 								>
 									{row.latency_ms.p50.toFixed(0)}ms
@@ -375,16 +343,13 @@ interface UsersActivityPanelProps extends PanelProps {
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	data,
 	error,
+	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
-
-	const users = data?.report.users;
-
 	return (
-		<Panel {...panelProps} css={{ overflowY: "auto" }}>
+		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
-				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
+				<PanelTitle className="flex items-center gap-2">
 					Activity by user
 					<HelpTooltip>
 						<HelpTooltipIconTrigger size="small" />
@@ -398,35 +363,20 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 					</HelpTooltip>
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !users && <Loader css={{ height: "100%" }} />}
-				{(error || users?.length === 0) && <NoDataAvailable error={error} />}
-				{users &&
-					[...users]
+			<PanelContent error={error} data={data?.report.users}>
+				{data?.report.users &&
+					[...data.report.users]
 						.sort((a, b) => b.seconds - a.seconds)
 						.map((row) => (
 							<div
 								key={row.user_id}
-								css={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									fontSize: 14,
-									paddingTop: 8,
-									paddingBottom: 8,
-								}}
+								className="flex justify-between items-center text-[14px] py-2"
 							>
-								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
-									<div css={{ fontWeight: 500 }}>{row.username}</div>
+									<div className="font-medium">{row.username}</div>
 								</div>
-								<div
-									css={{
-										color: theme.palette.text.secondary,
-										fontSize: 13,
-										textAlign: "right",
-									}}
-								>
+								<div className="text-right text-[13px] text-content-secondary">
 									{formatTime(row.seconds)}
 								</div>
 							</div>
@@ -444,6 +394,7 @@ interface TemplateUsagePanelProps extends PanelProps {
 const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	data,
 	error,
+	className,
 	...panelProps
 }) => {
 	const theme = useTheme();
@@ -459,51 +410,26 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.colors(validUsage?.length ?? 0);
 
 	return (
-		<Panel {...panelProps} css={{ overflowY: "auto" }}>
+		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: "100%" }} />}
-				{(error || validUsage?.length === 0) && (
-					<NoDataAvailable error={error} />
-				)}
-				{validUsage && validUsage.length > 0 && (
-					<div
-						css={{
-							display: "flex",
-							flexDirection: "column",
-							gap: 24,
-						}}
-					>
-						{validUsage.map((usage, i) => {
+			<PanelContent error={error} data={validUsage}>
+				{
+					<div className="flex flex-col gap-6">
+						{(validUsage || []).map((usage, i) => {
 							const percentage = (usage.seconds / totalInSeconds) * 100;
 							return (
-								<div
-									key={usage.slug}
-									css={{ display: "flex", gap: 24, alignItems: "center" }}
-								>
-									<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
-										<div
-											css={{
-												width: 20,
-												height: 20,
-												display: "flex",
-												alignItems: "center",
-												justifyContent: "center",
-											}}
-										>
+								<div key={usage.slug} className="flex items-center gap-6">
+									<div className="flex items-center gap-2">
+										<div className="flex justify-center items-center w-5 h-5">
 											<img
 												src={usage.icon}
 												alt=""
-												style={{
-													objectFit: "contain",
-													width: "100%",
-													height: "100%",
-												}}
+												className="h-full w-full object-contain"
 											/>
 										</div>
-										<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
+										<div className="text-[13px] font-medium w-[200px]">
 											{usage.display_name}
 										</div>
 									</div>
@@ -512,10 +438,8 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											<LinearProgress
 												value={percentage}
 												variant="determinate"
+												className="w-full h-2 bg-surface-quaternary"
 												css={{
-													width: "100%",
-													height: 8,
-													backgroundColor: theme.palette.divider,
 													"& .MuiLinearProgress-bar": {
 														backgroundColor: usageColors[i],
 														borderRadius: 999,
@@ -530,22 +454,11 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 									</Tooltip>
 									<Stack
 										spacing={0}
-										css={{
-											fontSize: 13,
-											color: theme.palette.text.secondary,
-											width: 120,
-											flexShrink: 0,
-											lineHeight: "1.5",
-										}}
+										className="text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]"
 									>
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
-											<span
-												css={{
-													fontSize: 12,
-													color: theme.palette.text.disabled,
-												}}
-											>
+											<span className="text-[12px] text-content-disabled">
 												Opened {usage.times_used.toLocaleString()}{" "}
 												{usage.times_used === 1 ? "time" : "times"}
 											</span>
@@ -555,7 +468,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 							);
 						})}
 					</div>
-				)}
+				}
 			</PanelContent>
 		</Panel>
 	);
@@ -571,18 +484,12 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 	error,
 	...panelProps
 }) => {
-	const theme = useTheme();
-
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
 				<PanelTitle>Parameters usage</PanelTitle>
 			</PanelHeader>
-			<PanelContent>
-				{!error && !data && <Loader css={{ height: 200 }} />}
-				{(error || data?.length === 0) && (
-					<NoDataAvailable error={error} css={{ height: 200 }} />
-				)}
+			<PanelContent error={error} data={data}>
 				{data?.map((parameter, parameterIndex) => {
 					const label =
 						parameter.display_name !== ""
@@ -591,42 +498,21 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 					return (
 						<div
 							key={parameter.name}
+							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6"
 							css={{
-								display: "flex",
-								alignItems: "start",
-								padding: 24,
-								marginLeft: -24,
-								marginRight: -24,
-								borderTop: `1px solid ${theme.palette.divider}`,
-								width: "calc(100% + 48px)",
 								"&:first-of-type": {
 									borderTop: 0,
 								},
-								gap: 24,
 							}}
 						>
-							<div css={{ flex: 1 }}>
-								<div css={{ fontWeight: 500 }}>{label}</div>
-								<p
-									css={{
-										fontSize: 14,
-										color: theme.palette.text.secondary,
-										maxWidth: 400,
-										margin: 0,
-									}}
-								>
+							<div className="flex-1">
+								<div className="font-medium">{label}</div>
+								<p className="text-[14px] m-0 text-content-secondary max-w-[400px]">
 									{parameter.description}
 								</p>
 							</div>
-							<div css={{ flex: 1, fontSize: 14, flexGrow: 2 }}>
-								<ParameterUsageRow
-									css={{
-										color: theme.palette.text.secondary,
-										fontWeight: 500,
-										fontSize: 13,
-										cursor: "default",
-									}}
-								>
+							<div className="flex-1 text-[14px]" style={{ flexGrow: 2 }}>
+								<ParameterUsageRow className="font-medium text-[13px] cursor-default text-content-secondary">
 									<div>Value</div>
 									<Tooltip>
 										<TooltipTrigger asChild>
@@ -646,7 +532,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 												usage={usage}
 												parameter={parameter}
 											/>
-											<div css={{ textAlign: "right" }}>{usage.count}</div>
+											<div className="text-right">{usage.count}</div>
 										</ParameterUsageRow>
 									))}
 							</div>
@@ -670,17 +556,13 @@ const filterOrphanValues = (
 
 const ParameterUsageRow: FC<HTMLAttributes<HTMLDivElement>> = ({
 	children,
+	className,
 	...attrs
 }) => {
 	return (
 		<div
-			css={{
-				display: "flex",
-				alignItems: "baseline",
-				justifyContent: "space-between",
-				padding: "4px 0",
-			}}
 			{...attrs}
+			className={cn("flex items-baseline justify-between py-1", className)}
 		>
 			{children}
 		</div>
@@ -697,7 +579,6 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	parameter,
 }) => {
 	const ariaId = useId();
-	const theme = useTheme();
 
 	if (parameter.options) {
 		const option = parameter.options.find((o) => o.value === usage.value)!;
@@ -705,23 +586,13 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 		const label = option.name;
 
 		return (
-			<div
-				css={{
-					display: "flex",
-					alignItems: "center",
-					gap: 16,
-				}}
-			>
+			<div className="flex items-center gap-4">
 				{icon && (
-					<div css={{ width: 16, height: 16, lineHeight: 1 }}>
+					<div className="leading-none w-4 h-4">
 						<img
 							alt=""
 							src={icon}
-							css={{
-								objectFit: "contain",
-								width: "100%",
-								height: "100%",
-							}}
+							className="w-full h-full object-contain"
 							aria-labelledby={ariaId}
 						/>
 					</div>
@@ -737,12 +608,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 				href={usage.value}
 				target="_blank"
 				rel="noreferrer"
-				css={{
-					display: "flex",
-					alignItems: "center",
-					gap: 1,
-					color: theme.palette.text.primary,
-				}}
+				className="flex items-center gap-[1px] text-content-primary"
 			>
 				<TextValue>{usage.value}</TextValue>
 				<LinkIcon className="size-icon-xs text-content-link" />
@@ -753,16 +619,11 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	if (parameter.type === "list(string)") {
 		const values = JSON.parse(usage.value) as string[];
 		return (
-			<div css={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+			<div className="flex gap-2 flex-wrap">
 				{values.map((v, i) => (
 					<div
 						key={i}
-						css={{
-							padding: "2px 12px",
-							borderRadius: 999,
-							background: theme.palette.divider,
-							whiteSpace: "nowrap",
-						}}
+						className="rounded-full whitespace-nowrap bg-surface-quaternary py-0.5 px-3"
 					>
 						{v}
 					</div>
@@ -773,13 +634,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 	if (parameter.type === "bool") {
 		return (
-			<div
-				css={{
-					display: "flex",
-					alignItems: "center",
-					gap: 8,
-				}}
-			>
+			<div className="flex items-center gap-2">
 				{usage.value === "false" ? (
 					<>
 						<CircleXIcon className="size-icon-xs text-content-destructive" />
@@ -787,12 +642,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					</>
 				) : (
 					<>
-						<CircleCheckIcon
-							css={{
-								color: theme.palette.success.light,
-							}}
-							className="size-icon-xs"
-						/>
+						<CircleCheckIcon className="size-icon-xs text-content-success" />
 						True
 					</>
 				)}
@@ -805,19 +655,14 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 interface PanelProps extends HTMLAttributes<HTMLDivElement> {}
 
-const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
-	const theme = useTheme();
-
+const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (
 		<div
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				backgroundColor: theme.palette.background.paper,
-				display: "flex",
-				flexDirection: "column",
-			}}
 			{...attrs}
+			className={cn(
+				"flex flex-col rounded-lg bg-surface-secondary border border-solid border-surface-quaternary",
+				className,
+			)}
 		>
 			{children}
 		</div>
@@ -826,10 +671,11 @@ const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
 
 const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
 	children,
+	className,
 	...attrs
 }) => {
 	return (
-		<div css={{ padding: "20px 24px 24px" }} {...attrs}>
+		<div {...attrs} className={cn("p-6 pt-5", className)}>
 			{children}
 		</div>
 	);
@@ -837,22 +683,31 @@ const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
 
 const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	children,
+	className,
 	...attrs
 }) => {
 	return (
-		<div css={{ fontSize: 14, fontWeight: 500 }} {...attrs}>
+		<div {...attrs} className={cn("text-[14px] font-medium", className)}>
 			{children}
 		</div>
 	);
 };
 
-const PanelContent: FC<HTMLAttributes<HTMLDivElement>> = ({
-	children,
-	...attrs
-}) => {
+interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {
+	error: unknown | undefined;
+	data: readonly unknown[] | undefined;
+}
+
+const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	return (
-		<div css={{ padding: "0 24px 24px", flex: 1 }} {...attrs}>
-			{children}
+		<div className="flex-1 px-6 pb-6">
+			{!error && !data ? (
+				<Loader className="h-full min-h-[200px]" />
+			) : error || !data || data.length === 0 ? (
+				<NoDataAvailable error={error} />
+			) : (
+				children
+			)}
 		</div>
 	);
 };
@@ -862,20 +717,10 @@ interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
-	const theme = useTheme();
-
 	return (
 		<div
 			{...props}
-			css={{
-				fontSize: 13,
-				color: theme.palette.text.secondary,
-				textAlign: "center",
-				height: "100%",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-			}}
+			className="flex justify-center items-center text-[13px] py-2 text-content-secondary text-center h-full min-h-[200px]"
 		>
 			{error
 				? getErrorDetail(error) ||
@@ -886,29 +731,11 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 };
 
 const TextValue: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
-
 	return (
 		<span>
-			<span
-				css={{
-					color: theme.palette.text.secondary,
-					weight: 600,
-					marginRight: 2,
-				}}
-			>
-				&quot;
-			</span>
+			<span className="mr-0.5 text-content-secondary">&quot;</span>
 			{children}
-			<span
-				css={{
-					color: theme.palette.text.secondary,
-					weight: 600,
-					marginLeft: 2,
-				}}
-			>
-				&quot;
-			</span>
+			<span className="ml-0.5 text-content-secondary">&quot;</span>
 		</span>
 	);
 };

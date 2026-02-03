@@ -80,8 +80,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
-    "use_classic_parameter_flow": true,
-    "use_terraform_workspace_cache": true
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -139,7 +138,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
 |`» use_classic_parameter_flow`|boolean|false|||
-|`» use_terraform_workspace_cache`|boolean|false|||
 
 #### Enumerated Values
 
@@ -264,8 +262,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -415,8 +412,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -832,8 +828,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
-    "use_classic_parameter_flow": true,
-    "use_terraform_workspace_cache": true
+    "use_classic_parameter_flow": true
   }
 ]
 ```
@@ -891,7 +886,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
 |`» use_classic_parameter_flow`|boolean|false|||
-|`» use_terraform_workspace_cache`|boolean|false|||
 
 #### Enumerated Values
 
@@ -1034,8 +1028,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -1139,8 +1132,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
   "update_workspace_last_used_at": true,
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -1207,8 +1199,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -2248,13 +2239,20 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description           |
-|-------------------|-------|--------------|----------|-----------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID   |
-| `jobID`           | path  | string(uuid) | true     | Job ID                |
-| `before`          | query | integer      | false    | Before Unix timestamp |
-| `after`           | query | integer      | false    | After Unix timestamp  |
-| `follow`          | query | boolean      | false    | Follow log stream     |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `jobID`           | path  | string(uuid) | true     | Job ID                                                                                                                                      |
+| `before`          | query | integer      | false    | Before Unix timestamp                                                                                                                       |
+| `after`           | query | integer      | false    | After Unix timestamp                                                                                                                        |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 
@@ -2856,12 +2854,19 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description         |
-|-------------------|-------|--------------|----------|---------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID |
-| `before`          | query | integer      | false    | Before log id       |
-| `after`           | query | integer      | false    | After log id        |
-| `follow`          | query | boolean      | false    | Follow log stream   |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `before`          | query | integer      | false    | Before log id                                                                                                                               |
+| `after`           | query | integer      | false    | After log id                                                                                                                                |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 

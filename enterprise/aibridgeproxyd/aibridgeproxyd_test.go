@@ -1,0 +1,1675 @@
+package aibridgeproxyd_test
+
+import (
+	"bufio"
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/pem"
+	"fmt"
+	"io"
+	"math/big"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
+	"github.com/coder/coder/v2/testutil"
+)
+
+var (
+	// testCAOnce ensures the shared CA is generated exactly once.
+	// sync.Once guarantees single execution even with parallel tests.
+	// Note: no retry on failure.
+	testCAOnce sync.Once
+	// Shared CA certificate and key paths, and any error from generation.
+	// These are set once by testCAOnce and read by all tests.
+	testCACert      string
+	testCAKey       string
+	errTestSharedCA error
+)
+
+// getSharedTestCA returns a shared CA certificate for all tests.
+// This avoids race conditions with goproxy.GoproxyCa which is a global variable.
+// Using sync.Once ensures the CA is generated exactly once, even when tests run
+// in parallel. All tests share the same CA, so goproxy.GoproxyCa is only set once.
+func getSharedTestCA(t *testing.T) (certFile, keyFile string) {
+	t.Helper()
+
+	testCAOnce.Do(func() {
+		testCACert, testCAKey, errTestSharedCA = generateSharedTestCA()
+	})
+
+	require.NoError(t, errTestSharedCA, "failed to generate shared test CA")
+	return testCACert, testCAKey
+}
+
+// generateSharedTestCA creates a shared CA certificate and key for testing.
+func generateSharedTestCA() (certFile, keyFile string, err error) {
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", "", xerrors.Errorf("generate CA key: %w", err)
+	}
+
+	caTemplate := x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "Shared Test CA"},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caKey.PublicKey, caKey)
+	if err != nil {
+		return "", "", xerrors.Errorf("create CA certificate: %w", err)
+	}
+
+	tmpDir := os.TempDir()
+	certPath := filepath.Join(tmpDir, "aibridgeproxyd_test_ca.crt")
+	keyPath := filepath.Join(tmpDir, "aibridgeproxyd_test_ca.key")
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
+	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
+		return "", "", xerrors.Errorf("write cert file: %w", err)
+	}
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		return "", "", xerrors.Errorf("write key file: %w", err)
+	}
+
+	return certPath, keyPath, nil
+}
+
+type testProxyConfig struct {
+	listenAddr               string
+	coderAccessURL           string
+	allowedPorts             []string
+	certStore                *aibridgeproxyd.CertCache
+	domainAllowlist          []string
+	aibridgeProviderFromHost func(string) string
+	upstreamProxy            string
+	upstreamProxyCA          string
+	metrics                  *aibridgeproxyd.Metrics
+}
+
+type testProxyOption func(*testProxyConfig)
+
+func withAllowedPorts(ports ...string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.allowedPorts = ports
+	}
+}
+
+func withCoderAccessURL(coderAccessURL string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.coderAccessURL = coderAccessURL
+	}
+}
+
+func withCertStore(store *aibridgeproxyd.CertCache) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.certStore = store
+	}
+}
+
+func withDomainAllowlist(domains ...string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.domainAllowlist = domains
+	}
+}
+
+func withAIBridgeProviderFromHost(fn func(string) string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.aibridgeProviderFromHost = fn
+	}
+}
+
+func withUpstreamProxy(upstreamProxy string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.upstreamProxy = upstreamProxy
+	}
+}
+
+func withUpstreamProxyCA(upstreamProxyCA string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.upstreamProxyCA = upstreamProxyCA
+	}
+}
+
+func withMetrics(metrics *aibridgeproxyd.Metrics) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.metrics = metrics
+	}
+}
+
+// newTestProxy creates a new AI Bridge Proxy server for testing.
+// It uses the shared test CA and registers cleanup automatically.
+// It waits for the proxy server to be ready before returning.
+func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server {
+	t.Helper()
+
+	cfg := &testProxyConfig{
+		listenAddr:      "127.0.0.1:0",
+		coderAccessURL:  "http://localhost:3000",
+		domainAllowlist: []string{"127.0.0.1", "localhost"},
+		aibridgeProviderFromHost: func(host string) string {
+			return "test-provider"
+		},
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	certFile, keyFile := getSharedTestCA(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	aibridgeOpts := aibridgeproxyd.Options{
+		ListenAddr:               cfg.listenAddr,
+		CoderAccessURL:           cfg.coderAccessURL,
+		CertFile:                 certFile,
+		KeyFile:                  keyFile,
+		AllowedPorts:             cfg.allowedPorts,
+		DomainAllowlist:          cfg.domainAllowlist,
+		AIBridgeProviderFromHost: cfg.aibridgeProviderFromHost,
+		UpstreamProxy:            cfg.upstreamProxy,
+		UpstreamProxyCA:          cfg.upstreamProxyCA,
+		Metrics:                  cfg.metrics,
+	}
+	if cfg.certStore != nil {
+		aibridgeOpts.CertStore = cfg.certStore
+	}
+
+	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeOpts)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	// Wait for the proxy server to be ready.
+	proxyAddr := srv.Addr()
+	require.NotEmpty(t, proxyAddr)
+	require.Eventually(t, func() bool {
+		conn, err := net.Dial("tcp", proxyAddr)
+		if err != nil {
+			return false
+		}
+		_ = conn.Close()
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	return srv
+}
+
+// getProxyCertPool returns a cert pool containing the shared test CA certificate.
+// This is used for tests where requests are MITM'd by the proxy, so the client
+// needs to trust the proxy's CA to verify the generated certificates.
+func getProxyCertPool(t *testing.T) *x509.CertPool {
+	t.Helper()
+
+	certFile, _ := getSharedTestCA(t)
+
+	// Load the CA certificate so the client trusts the proxy's MITM certificate.
+	certPEM, err := os.ReadFile(certFile)
+	require.NoError(t, err)
+	certPool := x509.NewCertPool()
+	ok := certPool.AppendCertsFromPEM(certPEM)
+	require.True(t, ok)
+
+	return certPool
+}
+
+// newProxyClient creates an HTTP client configured to use the proxy.
+// It adds a Proxy-Authorization header with the provided token for authentication.
+// The certPool parameter specifies which certificates the client should trust.
+// For MITM'd requests, use the proxy's CA. For tunneled requests, use the target server's cert.
+func newProxyClient(t *testing.T, srv *aibridgeproxyd.Server, proxyAuth string, certPool *x509.CertPool) *http.Client {
+	t.Helper()
+
+	// Create an HTTP client configured to use the proxy.
+	proxyURL, err := url.Parse("http://" + srv.Addr())
+	require.NoError(t, err)
+
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    certPool,
+		},
+	}
+
+	// Only set the header if proxyAuth is provided. This allows tests to
+	// verify behavior when the Proxy-Authorization header is missing.
+	if proxyAuth != "" {
+		transport.ProxyConnectHeader = http.Header{
+			"Proxy-Authorization": []string{proxyAuth},
+		}
+	}
+
+	return &http.Client{Transport: transport}
+}
+
+// newTargetServer creates a mock HTTPS server that will be the target of proxied requests.
+// It returns the server and its parsed URL. The server is automatically closed when the test ends.
+func newTargetServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *url.URL) {
+	t.Helper()
+
+	srv := httptest.NewTLSServer(handler)
+	t.Cleanup(srv.Close)
+
+	srvURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	return srv, srvURL
+}
+
+// makeProxyAuthHeader creates a Proxy-Authorization header value with the given token.
+// Format: "Basic base64(username:token)" where username is "ignored".
+func makeProxyAuthHeader(token string) string {
+	credentials := base64.StdEncoding.EncodeToString([]byte("ignored:" + token))
+	return "Basic " + credentials
+}
+
+// sendConnect sends a raw CONNECT request to the proxy and returns the response.
+// This is needed to test proxy authentication challenges because Go's HTTP client
+// doesn't expose the response when CONNECT fails with a non-2xx status.
+func sendConnect(t *testing.T, proxyAddr, targetHost, proxyAuth string) *http.Response {
+	t.Helper()
+
+	conn, err := net.Dial("tcp", proxyAddr)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	// Build CONNECT request.
+	var reqBuf bytes.Buffer
+	_, err = fmt.Fprintf(&reqBuf, "CONNECT %s HTTP/1.1\r\n", targetHost)
+	require.NoError(t, err)
+	_, err = fmt.Fprintf(&reqBuf, "Host: %s\r\n", targetHost)
+	require.NoError(t, err)
+	if proxyAuth != "" {
+		_, err = fmt.Fprintf(&reqBuf, "Proxy-Authorization: %s\r\n", proxyAuth)
+		require.NoError(t, err)
+	}
+	_, err = reqBuf.WriteString("\r\n")
+	require.NoError(t, err)
+
+	// Send the CONNECT request to the proxy.
+	_, err = conn.Write(reqBuf.Bytes())
+	require.NoError(t, err)
+
+	// Read and parse the proxy's response.
+	// On success (200), the proxy establishes a tunnel.
+	// On auth failure (407), the proxy returns a challenge with Proxy-Authenticate header.
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	require.NoError(t, err)
+
+	return resp
+}
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MissingListenAddr", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "listen address is required")
+	})
+
+	t.Run("EmptyListenAddr", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "listen address is required")
+	})
+
+	t.Run("MissingCoderAccessURL", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "coder access URL is required")
+	})
+
+	t.Run("EmptyCoderAccessURL", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  " ",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "coder access URL is required")
+	})
+
+	t.Run("InvalidCoderAccessURL", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "://invalid",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid coder access URL")
+	})
+
+	t.Run("MissingCertFile", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      ":0",
+			CoderAccessURL:  "http://localhost:3000",
+			KeyFile:         "key.pem",
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cert file and key file are required")
+	})
+
+	t.Run("MissingKeyFile", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      ":0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        "cert.pem",
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cert file and key file are required")
+	})
+
+	t.Run("InvalidCertFile", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      ":0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        "/nonexistent/cert.pem",
+			KeyFile:         "/nonexistent/key.pem",
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to load MITM certificate")
+	})
+
+	t.Run("MissingDomainAllowlist", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:     ":0",
+			CoderAccessURL: "http://localhost:3000",
+			CertFile:       certFile,
+			KeyFile:        keyFile,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "domain allow list is required")
+	})
+
+	t.Run("EmptyDomainAllowlist", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      ":0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{""},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "domain allowlist is empty, at least one domain is required")
+	})
+
+	t.Run("InvalidDomainAllowlist", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{"[invalid:domain"},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid domain")
+	})
+
+	t.Run("DomainWithNonAllowedPort", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{"api.anthropic.com:8443"},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid port in domain")
+	})
+
+	t.Run("AllowlistWithoutProviderMapping", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{"unknown.example.com"},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `domain "unknown.example.com" is in allowlist but has no provider mapping`)
+	})
+
+	t.Run("InvalidUpstreamProxy", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "://invalid-url",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid upstream proxy URL")
+	})
+
+	t.Run("UpstreamProxyCAFileNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "https://proxy.example.com:8080",
+			UpstreamProxyCA: "/nonexistent/ca.pem",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to read upstream proxy CA certificate")
+	})
+
+	t.Run("UpstreamProxyAuthWithBothEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://:@proxy.example.com:8080",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid credentials: both username and password are empty")
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxy", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithHTTPSUpstreamProxyAndCA", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		// Use the shared test CA as the upstream proxy CA (it's a valid PEM cert)
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "https://proxy.example.com:8080",
+			UpstreamProxyCA: certFile,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyAuth", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://proxyuser:proxypass@proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyUsernameAuthColon", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://proxyuser:@proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyUsernameAuth", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		// Username only (no colon) should also succeed (password is optional)
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://proxyuser@proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithUpstreamProxyTokenAuth", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			UpstreamProxy:   "http://:proxypass@proxy.example.com:8080",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithMetrics", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		// Create metrics instance to verify it can be passed and stored.
+		reg := prometheus.NewRegistry()
+		metrics := aibridgeproxyd.NewMetrics(reg)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			Metrics:         metrics,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+}
+
+func TestClose(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.NoError(t, err)
+
+		err = srv.Close()
+		require.NoError(t, err)
+
+		// Calling Close again should not error.
+		err = srv.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("WithMetrics", func(t *testing.T) {
+		t.Parallel()
+
+		certFile, keyFile := getSharedTestCA(t)
+		logger := slogtest.Make(t, nil)
+
+		// Create metrics instance to verify Close() properly unregisters them.
+		reg := prometheus.NewRegistry()
+		metrics := aibridgeproxyd.NewMetrics(reg)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			CertFile:        certFile,
+			KeyFile:         keyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			Metrics:         metrics,
+		})
+		require.NoError(t, err)
+
+		err = srv.Close()
+		require.NoError(t, err)
+
+		// Verify metrics were unregistered by attempting to register new metrics
+		// with the same registry. This should succeed if the old metrics were
+		// properly unregistered.
+		newMetrics := aibridgeproxyd.NewMetrics(reg)
+		require.NotNil(t, newMetrics, "should be able to create new metrics after Close() unregisters old ones")
+
+		// Calling Close again should not error.
+		err = srv.Close()
+		require.NoError(t, err)
+	})
+}
+
+func TestProxy_CertCaching(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		domainAllowlist []string
+		tunneled        bool
+	}{
+		{
+			name:            "AllowlistedDomainCached",
+			domainAllowlist: nil, // will use targetURL.Hostname()
+			tunneled:        false,
+		},
+		{
+			name:            "NonAllowlistedDomainNotCached",
+			domainAllowlist: []string{"other.example.com"},
+			tunneled:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a mock HTTPS server that will be the target of the proxied request.
+			targetServer, targetURL := newTargetServer(t, func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			// Create a mock aibridged server for allowlisted (MITM'd) requests.
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(func() { aibridgedServer.Close() })
+
+			// Create a cert cache so we can inspect it after the request.
+			certCache := aibridgeproxyd.NewCertCache()
+
+			// Configure domain allowlist.
+			domainAllowlist := tt.domainAllowlist
+			if domainAllowlist == nil {
+				domainAllowlist = []string{targetURL.Hostname()}
+			}
+
+			// Start the proxy server with the certificate cache.
+			srv := newTestProxy(t,
+				withCoderAccessURL(aibridgedServer.URL),
+				withAllowedPorts(targetURL.Port()),
+				withCertStore(certCache),
+				withDomainAllowlist(domainAllowlist...),
+			)
+
+			// Build the cert pool for the client to trust:
+			//   - For tunneled requests, the client connects directly to the target server
+			//     through a tunnel, so it needs to trust the target's self-signed certificate.
+			//   - For MITM'd requests, the client connects through the proxy which generates
+			//     certificates signed by our test CA, so it needs to trust the proxy's CA.
+			var certPool *x509.CertPool
+			if tt.tunneled {
+				certPool = x509.NewCertPool()
+				certPool.AddCert(targetServer.Certificate())
+			} else {
+				certPool = getProxyCertPool(t)
+			}
+
+			// Make a request through the proxy to the target server.
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
+			require.NoError(t, err)
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			// Fetch with a generator that tracks calls.
+			genCalls := 0
+			_, err = certCache.Fetch(targetURL.Hostname(), func() (*tls.Certificate, error) {
+				genCalls++
+				return &tls.Certificate{}, nil
+			})
+			require.NoError(t, err)
+
+			if tt.tunneled {
+				// Certificate should NOT have been cached since request was tunneled.
+				require.Equal(t, 1, genCalls, "certificate should NOT have been cached for non-allowlisted domain")
+			} else {
+				// Certificate should have been cached during MITM.
+				require.Equal(t, 0, genCalls, "certificate should have been cached during request")
+			}
+		})
+	}
+}
+
+func TestProxy_PortValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		allowedPorts func(targetURL *url.URL) []string
+		expectError  bool
+	}{
+		{
+			name: "AllowedPort",
+			// Include the target's random port so the request is allowed.
+			allowedPorts: func(targetURL *url.URL) []string {
+				return []string{targetURL.Port()}
+			},
+		},
+		{
+			name: "RejectedPort",
+			// Only allow port 443 which doesn't match the target.
+			allowedPorts: func(_ *url.URL) []string {
+				return []string{"443"}
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a target HTTPS server that will be the destination of our proxied request.
+			_, targetURL := newTargetServer(t, func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from target"))
+			})
+
+			// Create a mock aibridged server for allowlisted (MITM'd) requests.
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from aibridged"))
+			}))
+			t.Cleanup(func() { aibridgedServer.Close() })
+
+			// Start the proxy server.
+			srv := newTestProxy(t,
+				withCoderAccessURL(aibridgedServer.URL),
+				withAllowedPorts(tt.allowedPorts(targetURL)...),
+				withDomainAllowlist(targetURL.Hostname()),
+			)
+
+			// Make a request through the proxy to the target server.
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t))
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
+			require.NoError(t, err)
+
+			resp, err := client.Do(req)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			// Verify the request was successful and routed to aibridged.
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "hello from aibridged", string(body))
+		})
+	}
+}
+
+func TestProxy_Authentication(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		proxyAuth     string
+		expectSuccess bool
+	}{
+		{
+			name:          "ValidCredentials",
+			proxyAuth:     makeProxyAuthHeader("test-coder-token"),
+			expectSuccess: true,
+		},
+		{
+			name:          "MissingCredentials",
+			proxyAuth:     "",
+			expectSuccess: false,
+		},
+		{
+			name:          "InvalidBase64",
+			proxyAuth:     "Basic not-valid-base64!",
+			expectSuccess: false,
+		},
+		{
+			name:          "EmptyToken",
+			proxyAuth:     makeProxyAuthHeader(""),
+			expectSuccess: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a mock HTTPS server that will be the target of our proxied request.
+			_, targetURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from target"))
+			})
+
+			// Create a mock aibridged server for allowlisted (MITM'd) requests.
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from aibridged"))
+			}))
+			t.Cleanup(func() { aibridgedServer.Close() })
+
+			// Start the proxy server.
+			srv := newTestProxy(t,
+				withCoderAccessURL(aibridgedServer.URL),
+				withAllowedPorts(targetURL.Port()),
+				withDomainAllowlist(targetURL.Hostname()),
+			)
+
+			if tt.expectSuccess {
+				// Use the standard HTTP client for successful requests.
+				client := newProxyClient(t, srv, tt.proxyAuth, getProxyCertPool(t))
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
+				require.NoError(t, err)
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				// Verify the response was successfully routed to aibridged.
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Equal(t, "hello from aibridged", string(body))
+			} else {
+				// Verify the proxy returns a 407 challenge with Proxy-Authenticate header.
+				// A raw CONNECT request is sent because Go's HTTP client doesn't expose
+				// the response when CONNECT fails with a non-2xx status.
+				resp := sendConnect(t, srv.Addr(), targetURL.Host, tt.proxyAuth)
+				defer resp.Body.Close()
+
+				// Verify the status code indicates proxy authentication is required.
+				require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+
+				// Verify the Proxy-Authenticate header is present and contains the
+				// expected realm. This header tells clients how to authenticate.
+				proxyAuthenticate := resp.Header.Get("Proxy-Authenticate")
+				require.Equal(t, "Basic realm="+aibridgeproxyd.ProxyAuthRealm, proxyAuthenticate)
+
+				// Verify the response body contains the expected error message.
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusText(http.StatusProxyAuthRequired), string(body))
+			}
+		})
+	}
+}
+
+func TestProxy_MITM(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		domainAllowlist []string
+		allowedPorts    []string
+		buildTargetURL  func(tunneledURL *url.URL) (string, error)
+		tunneled        bool
+		expectedPath    string
+		provider        string
+	}{
+		{
+			name:            "MitmdAnthropic",
+			domainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+			allowedPorts:    []string{"443"},
+			buildTargetURL: func(_ *url.URL) (string, error) {
+				return "https://api.anthropic.com/v1/messages", nil
+			},
+			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			provider:     "anthropic",
+		},
+		{
+			name:            "MitmdAnthropicNonDefaultPort",
+			domainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+			allowedPorts:    []string{"8443"},
+			buildTargetURL: func(_ *url.URL) (string, error) {
+				return "https://api.anthropic.com:8443/v1/messages", nil
+			},
+			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			provider:     "anthropic",
+		},
+		{
+			name:            "MitmdOpenAI",
+			domainAllowlist: []string{aibridgeproxyd.HostOpenAI},
+			allowedPorts:    []string{"443"},
+			buildTargetURL: func(_ *url.URL) (string, error) {
+				return "https://api.openai.com/v1/chat/completions", nil
+			},
+			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			provider:     "openai",
+		},
+		{
+			name:            "MitmdOpenAINonDefaultPort",
+			domainAllowlist: []string{aibridgeproxyd.HostOpenAI},
+			allowedPorts:    []string{"8443"},
+			buildTargetURL: func(_ *url.URL) (string, error) {
+				return "https://api.openai.com:8443/v1/chat/completions", nil
+			},
+			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			provider:     "openai",
+		},
+		{
+			name:            "TunneledUnknownHost",
+			domainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			allowedPorts:    nil, // will use tunneledURL.Port()
+			buildTargetURL: func(tunneledURL *url.URL) (string, error) {
+				return url.JoinPath(tunneledURL.String(), "/some/path")
+			},
+			tunneled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create metrics for verification.
+			reg := prometheus.NewRegistry()
+			metrics := aibridgeproxyd.NewMetrics(reg)
+
+			// Track what aibridged receives.
+			var receivedPath, receivedCoderToken, receivedRequestID string
+
+			// Create a mock aibridged server that captures requests.
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedPath = r.URL.Path
+				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
+				receivedRequestID = r.Header.Get(aibridgeproxyd.HeaderAIBridgeRequestID)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from aibridged"))
+			}))
+			t.Cleanup(func() { aibridgedServer.Close() })
+
+			// Create a mock target server for tunneled tests.
+			tunneledServer, tunneledURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from tunneled"))
+			})
+
+			// Configure allowed ports.
+			allowedPorts := tt.allowedPorts
+			if allowedPorts == nil {
+				allowedPorts = []string{tunneledURL.Port()}
+			}
+
+			// Configure domain allowlist.
+			domainAllowlist := tt.domainAllowlist
+			if domainAllowlist == nil {
+				domainAllowlist = []string{tunneledURL.Hostname()}
+			}
+
+			// Start the proxy server pointing to our mock aibridged.
+			srv := newTestProxy(t,
+				withCoderAccessURL(aibridgedServer.URL),
+				withAllowedPorts(allowedPorts...),
+				withDomainAllowlist(domainAllowlist...),
+				// Use default provider mapping to test real AI provider routing.
+				withAIBridgeProviderFromHost(nil),
+				withMetrics(metrics),
+			)
+
+			// Build the target URL:
+			targetURL, err := tt.buildTargetURL(tunneledURL)
+			require.NoError(t, err)
+
+			// Build the cert pool for the client to trust:
+			//   - For tunneled requests, the client connects directly to the target server
+			//     through a tunnel, so it needs to trust the target's self-signed certificate.
+			//   - For MITM'd requests, the client connects through the proxy which generates
+			//     certificates signed by our test CA, so it needs to trust the proxy's CA.
+			var certPool *x509.CertPool
+			if tt.tunneled {
+				certPool = x509.NewCertPool()
+				certPool.AddCert(tunneledServer.Certificate())
+			} else {
+				certPool = getProxyCertPool(t)
+			}
+
+			// Make a request through the proxy to the target URL.
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// Gather metrics for verification.
+			gatheredMetrics, err := reg.Gather()
+			require.NoError(t, err)
+
+			if tt.tunneled {
+				// Verify request went to target server, not aibridged.
+				require.Equal(t, "hello from tunneled", string(body))
+				require.Empty(t, receivedPath, "aibridged should not receive tunneled requests")
+				require.Empty(t, receivedCoderToken, "tunneled requests are not authenticated by the proxy")
+				require.Empty(t, receivedRequestID, "tunneled requests should not have request ID header")
+
+				// Verify metrics for tunneled requests.
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
+
+				// Verify MITM-specific metrics were not set.
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeMITM))
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_requests_total", tt.provider))
+				require.False(t, testutil.PromGaugeGathered(t, gatheredMetrics, "inflight_mitm_requests", tt.provider))
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "mitm_responses_total", "200", tt.provider))
+			} else {
+				// Verify the request was routed to aibridged correctly.
+				require.Equal(t, "hello from aibridged", string(body))
+				require.Equal(t, tt.expectedPath, receivedPath)
+				require.Equal(t, "test-token", receivedCoderToken, "MITM'd requests must include Coder token")
+				require.NotEmpty(t, receivedRequestID, "MITM'd requests must include request ID header")
+				_, err := uuid.Parse(receivedRequestID)
+				require.NoError(t, err, "request ID must be a valid UUID")
+
+				// Verify metrics for MITM requests.
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "connect_sessions_total", aibridgeproxyd.RequestTypeMITM))
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "mitm_requests_total", tt.provider))
+				require.True(t, testutil.PromGaugeHasValue(t, gatheredMetrics, 0, "inflight_mitm_requests", tt.provider))
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "mitm_responses_total", "200", tt.provider))
+
+				// Verify tunneled counter was not set.
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
+			}
+		})
+	}
+}
+
+// TestServeCACert validates that a configured certificate file can be served correctly by the API.
+//
+// Note: Tests for certificate file errors (missing file, invalid PEM) are
+// covered by [TestNew] since certificate validation happens at initialization.
+// The serveCACert handler returns the pre-loaded, pre-validated certificate.
+func TestServeCACert(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		srv := newTestProxy(t)
+
+		// Create a request to the CA cert endpoint via the Handler.
+		req := httptest.NewRequest(http.MethodGet, "/ca-cert.pem", nil)
+		rec := httptest.NewRecorder()
+
+		srv.Handler().ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "application/x-pem-file", rec.Header().Get("Content-Type"))
+		require.Equal(t, "attachment; filename=ca-cert.pem", rec.Header().Get("Content-Disposition"))
+
+		// Verify the certificate is valid PEM.
+		body := rec.Body.Bytes()
+		block, _ := pem.Decode(body)
+		require.NotNil(t, block, "response should be valid PEM")
+		require.Equal(t, "CERTIFICATE", block.Type)
+
+		// Verify the certificate is valid X.509.
+		cert, err := x509.ParseCertificate(block.Bytes)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+
+		// Verify it matches the original certificate.
+		certFile, _ := getSharedTestCA(t)
+		expectedCertPEM, err := os.ReadFile(certFile)
+		require.NoError(t, err)
+		require.Equal(t, expectedCertPEM, body)
+	})
+}
+
+// TestServeCACert_CompoundPEM validates that a compound PEM certificate which contains a private key
+// will only have its certificate type returned from the /ca-cert.pem endpoint.
+func TestServeCACert_CompoundPEM(t *testing.T) {
+	t.Parallel()
+
+	certFile, keyFile := getSharedTestCA(t)
+
+	// Read the shared CA cert and key to create a compound PEM file.
+	certPEM, err := os.ReadFile(certFile)
+	require.NoError(t, err)
+	keyPEM, err := os.ReadFile(keyFile)
+	require.NoError(t, err)
+
+	// Create a compound PEM file containing both the certificate and the private key.
+	compoundPEM := make([]byte, 0, len(certPEM)+len(keyPEM))
+	compoundPEM = append(compoundPEM, certPEM...)
+	compoundPEM = append(compoundPEM, keyPEM...)
+
+	tmpDir := t.TempDir()
+	compoundCertFile := filepath.Join(tmpDir, "compound.pem")
+
+	err = os.WriteFile(compoundCertFile, compoundPEM, 0o600)
+	require.NoError(t, err)
+
+	logger := slogtest.Make(t, nil)
+
+	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+		ListenAddr:      "127.0.0.1:0",
+		CoderAccessURL:  "http://localhost:3000",
+		CertFile:        compoundCertFile,
+		KeyFile:         keyFile,
+		DomainAllowlist: []string{"127.0.0.1", "localhost"},
+		AIBridgeProviderFromHost: func(host string) string {
+			return "test-provider"
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	// Create a request to the CA cert endpoint via the Handler.
+	req := httptest.NewRequest(http.MethodGet, "/ca-cert.pem", nil)
+	rec := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Verify the response contains only the certificate, not the private key.
+	body := rec.Body.Bytes()
+
+	// Parse all PEM blocks from the response.
+	var pemBlocks []*pem.Block
+	remaining := body
+	for {
+		var block *pem.Block
+		block, remaining = pem.Decode(remaining)
+		if block == nil {
+			break
+		}
+		pemBlocks = append(pemBlocks, block)
+	}
+
+	// There should be exactly one PEM block (the certificate).
+	require.Len(t, pemBlocks, 1, "response should contain exactly one PEM block")
+	require.Equal(t, "CERTIFICATE", pemBlocks[0].Type, "the PEM block should be a certificate")
+
+	// Verify no private key material is present by checking for common key block types.
+	bodyStr := string(body)
+	require.NotContains(t, bodyStr, "PRIVATE KEY", "response should not contain any private key")
+	require.NotContains(t, bodyStr, "RSA PRIVATE KEY", "response should not contain RSA private key")
+	require.NotContains(t, bodyStr, "EC PRIVATE KEY", "response should not contain EC private key")
+
+	// Verify the certificate is valid X.509.
+	cert, err := x509.ParseCertificate(pemBlocks[0].Bytes)
+	require.NoError(t, err)
+	require.Equal(t, "Shared Test CA", cert.Subject.CommonName)
+}
+
+func TestUpstreamProxy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// tunneled determines whether the request should be tunneled through
+		// the upstream proxy (true) or MITM'd by aiproxy (false).
+		// When true, the target domain is NOT in the allowlist.
+		// When false, the target domain IS in the allowlist.
+		tunneled bool
+		// upstreamProxyTLS determines whether the upstream proxy uses TLS.
+		// When true, aiproxy must be configured with the upstream proxy's CA.
+		upstreamProxyTLS bool
+		// buildTargetURL constructs the request URL. For tunneled requests, it uses
+		// the final destination URL. For MITM, it uses api.anthropic.com.
+		buildTargetURL func(finalDestinationURL *url.URL) string
+		// expectedAIBridgePath is the path aibridge should receive for MITM requests.
+		expectedAIBridgePath string
+		// upstreamProxyAuth is optional "user:pass" credentials for the upstream proxy.
+		// If set, the test verifies the Proxy-Authorization header is sent correctly.
+		upstreamProxyAuth string
+	}{
+		{
+			name:             "NonAllowlistedDomain_TunneledToHTTPUpstreamProxy",
+			tunneled:         true,
+			upstreamProxyTLS: false,
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:             "NonAllowlistedDomain_TunneledToHTTPSUpstreamProxy",
+			tunneled:         true,
+			upstreamProxyTLS: true,
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithAuth",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: "proxyuser:proxypass",
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithUsernameOnly",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: "proxyuser",
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithUsernameAndColon",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: "proxyuser:",
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:              "NonAllowlistedDomain_TunneledToHTTPUpstreamProxyWithTokenAuth",
+			tunneled:          true,
+			upstreamProxyTLS:  false,
+			upstreamProxyAuth: ":proxypass",
+			buildTargetURL: func(finalDestinationURL *url.URL) string {
+				return fmt.Sprintf("https://%s/tunneled-path", finalDestinationURL.Host)
+			},
+		},
+		{
+			name:             "AllowlistedDomain_MITMByAIProxy",
+			tunneled:         false,
+			upstreamProxyTLS: false,
+			buildTargetURL: func(_ *url.URL) string {
+				return "https://api.anthropic.com:443/v1/messages"
+			},
+			expectedAIBridgePath: "/api/v2/aibridge/anthropic/v1/messages",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Track requests received by each component to verify the flow.
+			var (
+				upstreamProxyCONNECTReceived bool
+				upstreamProxyCONNECTHost     string
+				upstreamProxyAuthHeader      string
+				finalDestinationReceived     bool
+				finalDestinationPath         string
+				finalDestinationBody         string
+				aibridgeReceived             bool
+				aibridgePath                 string
+				aibridgeCoderToken           string
+				aibridgeBody                 string
+			)
+
+			// Create mock final destination server representing the actual target:
+			//   - For tunneled requests, traffic should reach this server.
+			//   - For MITM requests, traffic should NOT reach this server.
+			finalDestination, finalDestinationURL := newTargetServer(t, func(w http.ResponseWriter, r *http.Request) {
+				finalDestinationReceived = true
+				finalDestinationPath = r.URL.Path
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				finalDestinationBody = string(body)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("final destination response"))
+			})
+
+			// Upstream proxy handler: same logic for both HTTP and HTTPS.
+			upstreamProxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodConnect {
+					http.Error(w, "expected CONNECT request", http.StatusBadRequest)
+					return
+				}
+
+				upstreamProxyCONNECTReceived = true
+				upstreamProxyCONNECTHost = r.Host
+				upstreamProxyAuthHeader = r.Header.Get("Proxy-Authorization")
+
+				// Connect to the mock final destination server.
+				targetConn, err := net.Dial("tcp", finalDestinationURL.Host)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadGateway)
+					return
+				}
+				defer targetConn.Close()
+
+				// Hijack the connection to take over the raw TCP socket.
+				// After responding "200 Connection Established", the proxy stops being
+				// an HTTP server and becomes a transparent tunnel that copies bytes
+				// bidirectionally. The http package can't handle this mode, so we
+				// hijack and manage the connection ourselves.
+				hijacker, ok := w.(http.Hijacker)
+				if !ok {
+					http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+					return
+				}
+
+				clientConn, _, err := hijacker.Hijack()
+				if err != nil {
+					return
+				}
+				defer clientConn.Close()
+
+				// Send 200 Connection Established to signal tunnel is ready.
+				_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+
+				// Copy data bidirectionally between aiproxy and final destination.
+				var wg sync.WaitGroup
+				wg.Add(2)
+				go func() {
+					defer wg.Done()
+					_, _ = io.Copy(targetConn, clientConn)
+				}()
+				go func() {
+					defer wg.Done()
+					_, _ = io.Copy(clientConn, targetConn)
+				}()
+				wg.Wait()
+			})
+
+			// Create upstream proxy: HTTP or HTTPS based on test case.
+			var upstreamProxy *httptest.Server
+			var upstreamProxyCAFile string
+			if tt.upstreamProxyTLS {
+				upstreamProxy = httptest.NewTLSServer(upstreamProxyHandler)
+				// Write the upstream proxy's CA cert to a temp file for aiproxy to trust.
+				upstreamProxyCAFile = filepath.Join(t.TempDir(), "upstream-proxy-ca.pem")
+				certPEM := pem.EncodeToMemory(&pem.Block{
+					Type:  "CERTIFICATE",
+					Bytes: upstreamProxy.Certificate().Raw,
+				})
+				err := os.WriteFile(upstreamProxyCAFile, certPEM, 0o600)
+				require.NoError(t, err)
+			} else {
+				upstreamProxy = httptest.NewServer(upstreamProxyHandler)
+			}
+			t.Cleanup(upstreamProxy.Close)
+
+			// Create a mock aibridged server:
+			//   - For tunneled requests, traffic should NOT reach this server.
+			//   - For MITM requests, aiproxy rewrites the URL and forwards here.
+			aibridgeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				aibridgeReceived = true
+				aibridgePath = r.URL.Path
+				aibridgeCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				aibridgeBody = string(body)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("aibridge response"))
+			}))
+			t.Cleanup(aibridgeServer.Close)
+
+			// Build the target URL for this test case.
+			targetURL := tt.buildTargetURL(finalDestinationURL)
+			parsedTargetURL, err := url.Parse(targetURL)
+			require.NoError(t, err)
+
+			// Configure allowlist based on test case:
+			//   - For tunneled requests, api.anthropic.com is in allowlist, but we target a different host.
+			//   - For MITM, api.anthropic.com must be in the allowlist.
+			domainAllowlist := []string{aibridgeproxyd.HostAnthropic}
+
+			// Build upstream proxy URL with optional auth credentials.
+			upstreamProxyURLStr := upstreamProxy.URL
+			if tt.upstreamProxyAuth != "" {
+				parsed, err := url.Parse(upstreamProxy.URL)
+				require.NoError(t, err)
+				upstreamProxyURLStr = fmt.Sprintf("%s://%s@%s", parsed.Scheme, tt.upstreamProxyAuth, parsed.Host)
+			}
+
+			// Create aiproxy with upstream proxy configured.
+			proxyOpts := []testProxyOption{
+				withCoderAccessURL(aibridgeServer.URL),
+				withDomainAllowlist(domainAllowlist...),
+				withUpstreamProxy(upstreamProxyURLStr),
+				withAllowedPorts("80", "443", parsedTargetURL.Port()),
+				// Use default provider mapping to test real AI provider routing.
+				withAIBridgeProviderFromHost(nil),
+			}
+			if upstreamProxyCAFile != "" {
+				proxyOpts = append(proxyOpts, withUpstreamProxyCA(upstreamProxyCAFile))
+			}
+			srv := newTestProxy(t, proxyOpts...)
+
+			// Configure certificate trust based on test case:
+			//   - For tunneled requests: client trusts final destination's CA.
+			//   - For MITM: client trusts aiproxy's CA (fake certs).
+			var certPool *x509.CertPool
+			if tt.tunneled {
+				certPool = x509.NewCertPool()
+				certPool.AddCert(finalDestination.Certificate())
+			} else {
+				certPool = getProxyCertPool(t)
+			}
+
+			// Create HTTP client configured to use aiproxy.
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-coder-token"), certPool)
+
+			// Make request through aiproxy.
+			requestBody := `{"test": "data", "foo": "bar"}`
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(requestBody))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// Verify the request flow based on test case.
+			if tt.tunneled {
+				require.True(t, upstreamProxyCONNECTReceived,
+					"upstream proxy should receive CONNECT for non-allowlisted domain")
+				require.Equal(t, finalDestinationURL.Host, upstreamProxyCONNECTHost,
+					"upstream proxy should receive CONNECT to correct host")
+				require.True(t, finalDestinationReceived,
+					"final destination should receive the tunneled request")
+				require.Equal(t, parsedTargetURL.Path, finalDestinationPath,
+					"final destination should receive correct path")
+				require.Equal(t, requestBody, finalDestinationBody,
+					"final destination should receive the exact request body")
+				require.False(t, aibridgeReceived,
+					"aibridge should NOT receive request for non-allowlisted domain")
+				require.Empty(t, aibridgeCoderToken,
+					"tunneled requests should not have Coder token")
+			} else {
+				require.False(t, upstreamProxyCONNECTReceived,
+					"upstream proxy should NOT receive CONNECT for allowlisted domain")
+				require.True(t, aibridgeReceived,
+					"aibridge should receive the MITM'd request")
+				require.Equal(t, tt.expectedAIBridgePath, aibridgePath,
+					"aibridge should receive rewritten path")
+				require.Equal(t, "test-coder-token", aibridgeCoderToken,
+					"aibridge should receive Coder token header")
+				require.Equal(t, requestBody, aibridgeBody,
+					"aibridge should receive the exact request body")
+				require.False(t, finalDestinationReceived,
+					"final destination should NOT receive request for allowlisted domain")
+			}
+
+			// Verify upstream proxy authentication if configured.
+			if tt.upstreamProxyAuth != "" {
+				expectedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(tt.upstreamProxyAuth))
+				require.Equal(t, expectedAuth, upstreamProxyAuthHeader,
+					"Proxy-Authorization header should contain correct credentials")
+			}
+		})
+	}
+}

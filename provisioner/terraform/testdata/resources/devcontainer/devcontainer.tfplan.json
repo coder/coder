@@ -139,7 +139,8 @@
         },
         "after_unknown": {
           "agent_id": true,
-          "id": true
+          "id": true,
+          "subagent_id": true
         },
         "before_sensitive": false,
         "after_sensitive": {}
@@ -162,7 +163,8 @@
         },
         "after_unknown": {
           "agent_id": true,
-          "id": true
+          "id": true,
+          "subagent_id": true
         },
         "before_sensitive": false,
         "after_sensitive": {}

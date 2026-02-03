@@ -127,6 +127,7 @@ spec:
   template:
     metadata:
       annotations:
+        app.kubernetes.io/component: coderd
         com.coder/podAnnotation/baz: qux
         com.coder/podAnnotation/foo: bar
       labels:
@@ -174,12 +175,6 @@ spec:
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
-          initialDelaySeconds: 0
         name: coder
         ports:
         - containerPort: 8080

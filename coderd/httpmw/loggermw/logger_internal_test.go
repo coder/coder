@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/testutil"
@@ -90,7 +90,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	}
 
 	// Check that the log contains the expected fields
-	requiredFields := []string{"host", "path", "proto", "remote_addr", "start", "took", "status_code", "latency_ms"}
+	requiredFields := []string{"host", "path", "proto", "remote_addr", "start", "took", "status_code", "user_agent", "latency_ms"}
 	for _, field := range requiredFields {
 		_, exists := fieldsMap[field]
 		require.True(t, exists, "field %q is missing in log fields", field)

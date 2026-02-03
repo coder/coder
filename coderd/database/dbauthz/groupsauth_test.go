@@ -8,13 +8,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 )
 
 // nolint:tparallel
@@ -109,8 +110,12 @@ func TestGroupsAuth(t *testing.T) {
 		{
 			Name: "GroupMember",
 			Subject: rbac.Subject{
-				ID:    users[0].ID.String(),
-				Roles: rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID)}.Expand())),
+				ID: users[0].ID.String(),
+				Roles: must(rolestore.Expand(
+					context.Background(),
+					store,
+					[]rbac.RoleIdentifier{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID)},
+				)),
 				Groups: []string{
 					group.ID.String(),
 				},

@@ -17,9 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"github.com/coder/terraform-provider-coder/v2/provider"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -43,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func TestWorkspace(t *testing.T) {
@@ -5191,6 +5190,74 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Len(t, cerr.Validations, 1)
 		require.Equal(t, cerr.Validations[0].Field, "user_roles")
 	})
+
+	//nolint:tparallel,paralleltest // Modifies package global rbac.workspaceACLDisabled.
+	t.Run("CannotChangeOwnRole", func(t *testing.T) {
+		// Save and restore the global to avoid affecting other tests.
+		prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
+		rbac.SetWorkspaceACLDisabled(false)
+		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		workspaceOwnerClient, workspaceOwner := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		sharedAdminClient, sharedAdminUser := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, workspaceOwnerClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, workspaceOwnerClient, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Share the workspace with another user as admin.
+		err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedAdminUser.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		// The shared admin user should not be able to change their own role.
+		err = sharedAdminClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedAdminUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		require.Contains(t, cerr.Message, "You cannot change your own workspace sharing role")
+
+		// The workspace owner should also not be able to change their own role.
+		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				workspaceOwner.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.Error(t, err)
+		cerr, ok = codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		require.Contains(t, cerr.Message, "You cannot change your own workspace sharing role")
+
+		// But the workspace owner should still be able to change the shared admin's role.
+		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedAdminUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+	})
 }
 
 func TestDeleteWorkspaceACL(t *testing.T) {
@@ -5267,7 +5334,66 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 	})
 }
 
-// nolint:tparallel,paralleltest // Subtests modify package global.
+// `use`-role shares are granted `workspace:read` via the workspace RBAC ACL
+// list, so they should be able to read the ACL.
+//
+//nolint:tparallel,paralleltest // Test modifies a package global (rbac.workspaceACLDisabled).
+func TestWorkspaceReadCanListACL(t *testing.T) {
+	// Be defensive by saving/restoring the modified package global.
+	prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
+	rbac.SetWorkspaceACLDisabled(false)
+	t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
+
+	var (
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+			}),
+		})
+		admin                                = coderdtest.CreateFirstUser(t, client)
+		workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		sharedUserClientA, sharedUserA       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		_, sharedUserB                       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		sharedGroup                          = dbgen.Group(t, db, database.Group{OrganizationID: admin.OrganizationID})
+		workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        workspaceOwner.ID,
+			OrganizationID: admin.OrganizationID,
+		}).Do().Workspace
+	)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+		UserRoles: map[string]codersdk.WorkspaceRole{
+			sharedUserA.ID.String(): codersdk.WorkspaceRoleUse,
+			sharedUserB.ID.String(): codersdk.WorkspaceRoleAdmin,
+		},
+		GroupRoles: map[string]codersdk.WorkspaceRole{
+			sharedGroup.ID.String(): codersdk.WorkspaceRoleUse,
+		},
+	})
+	require.NoError(t, err)
+
+	acl, err := sharedUserClientA.WorkspaceACL(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, acl.Users, 2)
+	require.Len(t, acl.Groups, 1)
+
+	gotRoles := make(map[uuid.UUID]codersdk.WorkspaceRole, len(acl.Users))
+	for _, u := range acl.Users {
+		gotRoles[u.ID] = u.Role
+	}
+	require.Equal(t, codersdk.WorkspaceRoleUse, gotRoles[sharedUserA.ID])
+	require.Equal(t, codersdk.WorkspaceRoleAdmin, gotRoles[sharedUserB.ID])
+
+	gotGroupRoles := make(map[uuid.UUID]codersdk.WorkspaceRole, len(acl.Groups))
+	for _, g := range acl.Groups {
+		gotGroupRoles[g.ID] = g.Role
+	}
+	require.Equal(t, codersdk.WorkspaceRoleUse, gotGroupRoles[sharedGroup.ID])
+}
+
+// nolint:tparallel,paralleltest // Subtests modify a package global (rbac.workspaceACLDisabled).
 func TestWorkspaceSharingDisabled(t *testing.T) {
 	t.Run("CanAccessWhenEnabled", func(t *testing.T) {
 		var (

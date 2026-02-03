@@ -1,4 +1,10 @@
 import Skeleton from "@mui/material/Skeleton";
+import { API } from "api/api";
+import { getErrorDetail, getErrorMessage } from "api/errors";
+import {
+	deleteWorkspaceAgentDevcontainer,
+	workspaceAgentContainersKey,
+} from "api/queries/workspaces";
 import type {
 	Template,
 	Workspace,
@@ -6,11 +12,18 @@ import type {
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
-
 import { Button } from "components/Button/Button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -21,12 +34,12 @@ import { Container, ExternalLinkIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
-import { useEffect } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { portForwardURL } from "utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
+import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 import { AgentLatency } from "./AgentLatency";
 import { DevcontainerStatus } from "./AgentStatus";
 import { PortForwardButton } from "./PortForwardButton";
@@ -78,37 +91,30 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		showVSCode ||
 		appSections.some((it) => it.apps.length > 0);
 
+	const queryKey = workspaceAgentContainersKey(parentAgent.id);
+
+	const deleteDevcontainerMutation = useMutation({
+		...deleteWorkspaceAgentDevcontainer(parentAgent, devcontainer, queryClient),
+	});
+
 	const rebuildDevcontainerMutation = useMutation({
 		mutationFn: async () => {
-			const response = await fetch(
-				`/api/v2/workspaceagents/${parentAgent.id}/containers/devcontainers/${devcontainer.id}/recreate`,
-				{ method: "POST" },
-			);
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.message || `Failed to rebuild: ${response.statusText}`,
-				);
-			}
-			return response;
+			await API.recreateDevContainer({
+				parentAgentId: parentAgent.id,
+				devcontainerId: devcontainer.id,
+			});
 		},
 		onMutate: async () => {
-			await queryClient.cancelQueries({
-				queryKey: ["agents", parentAgent.id, "containers"],
-			});
+			await queryClient.cancelQueries({ queryKey });
 
 			// Snapshot the previous data for rollback in case of error.
-			const previousData = queryClient.getQueryData([
-				"agents",
-				parentAgent.id,
-				"containers",
-			]);
+			const previousData = queryClient.getQueryData(queryKey);
 
 			// Optimistically update the devcontainer status to
 			// "starting" and zero the agent and container to mimic what
 			// the API does.
 			queryClient.setQueryData(
-				["agents", parentAgent.id, "containers"],
+				queryKey,
 				(oldData?: WorkspaceAgentListContainersResponse) => {
 					if (!oldData?.devcontainers) return oldData;
 					return {
@@ -133,11 +139,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			// If the mutation fails, use the context returned from
 			// onMutate to roll back.
 			if (context?.previousData) {
-				queryClient.setQueryData(
-					["agents", parentAgent.id, "containers"],
-					context.previousData,
-				);
+				queryClient.setQueryData(queryKey, context.previousData);
 			}
+
 			const errorMessage =
 				error instanceof Error ? error.message : "An unknown error occurred.";
 			displayError(`Failed to rebuild devcontainer: ${errorMessage}`);
@@ -145,29 +149,13 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		},
 	});
 
-	// Re-fetch containers when the subAgent changes to ensure data is
-	// in sync. This relies on agent updates being pushed to the client
-	// to trigger the re-fetch. That is why we match on name here
-	// instead of ID as we need to fetch to get an up-to-date ID.
-	const latestSubAgentByName = subAgents.find(
-		(agent) => agent.name === devcontainer.name,
-	);
-	useEffect(() => {
-		if (!latestSubAgentByName?.id || !latestSubAgentByName?.status) {
-			return;
-		}
-		queryClient.invalidateQueries({
-			queryKey: ["agents", parentAgent.id, "containers"],
-		});
-	}, [
-		latestSubAgentByName?.id,
-		latestSubAgentByName?.status,
-		queryClient,
-		parentAgent.id,
-	]);
-
 	const showDevcontainerControls = subAgent && devcontainer.container;
+	const isTransitioning =
+		devcontainer.status === "starting" ||
+		devcontainer.status === "stopping" ||
+		devcontainer.status === "deleting";
 	const showSubAgentApps =
+		devcontainer.status !== "deleting" &&
 		devcontainer.status !== "starting" &&
 		subAgent?.status === "connected" &&
 		hasAppsToDisplay;
@@ -181,12 +169,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
 
 	return (
-		<Stack
+		<div
 			key={devcontainer.id}
-			direction="column"
-			spacing={0}
 			className={cn(
-				"relative py-4 border border-dashed border-border rounded",
+				"flex flex-col max-w-full relative py-4 border border-dashed border-border rounded",
 				devcontainer.error && "border-content-destructive border-solid",
 			)}
 		>
@@ -250,11 +236,11 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						variant="outline"
 						size="sm"
 						onClick={handleRebuildDevcontainer}
-						disabled={devcontainer.status === "starting"}
+						disabled={isTransitioning}
 					>
-						<Spinner loading={devcontainer.status === "starting"} />
+						<Spinner loading={isTransitioning} />
 
-						{devcontainer.container === undefined ? "Start" : "Rebuild"}
+						{rebuildButtonLabel(devcontainer)}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
@@ -274,6 +260,18 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 								template={template}
 							/>
 						)}
+
+					{showDevcontainerControls && (
+						<AgentDevcontainerMoreActions
+							deleteDevContainer={deleteDevcontainerMutation.mutate}
+						/>
+					)}
+
+					<DevcontainerDeleteErrorDialog
+						open={deleteDevcontainerMutation.isError}
+						error={deleteDevcontainerMutation.error}
+						onClose={deleteDevcontainerMutation.reset}
+					/>
 				</div>
 			</header>
 
@@ -379,6 +377,75 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					)}
 				</div>
 			)}
-		</Stack>
+		</div>
+	);
+};
+
+function rebuildButtonLabel(devcontainer: WorkspaceAgentDevcontainer) {
+	switch (devcontainer.status) {
+		case "deleting":
+			return "Deleting";
+
+		case "stopping":
+			return "Stopping";
+
+		default:
+			if (devcontainer.container) {
+				return "Rebuild";
+			}
+			return "Start";
+	}
+}
+
+type DevcontainerDeleteErrorDialogProps = {
+	open: boolean;
+	error?: unknown;
+	onClose: () => void;
+};
+
+const DevcontainerDeleteErrorDialog: FC<DevcontainerDeleteErrorDialogProps> = ({
+	open,
+	error,
+	onClose,
+}) => {
+	const errorDetail = getErrorDetail(error);
+	const errorMessage = getErrorMessage(
+		error,
+		"Failed to delete dev container.",
+	);
+
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) {
+					onClose();
+				}
+			}}
+		>
+			<DialogContent variant="destructive">
+				<DialogHeader>
+					<DialogTitle>Error deleting dev container</DialogTitle>
+					<DialogDescription className="flex flex-row gap-4">
+						<strong className="text-content-primary">Message</strong>{" "}
+						<span>{errorMessage}</span>
+					</DialogDescription>
+					{errorDetail && (
+						<DialogDescription className="flex flex-row gap-9">
+							<strong className="text-content-primary">Detail</strong>{" "}
+							{/* TODO(DanielleMaywood): `[overflow-wrap:anywhere]` should be replaced with `wrap-anywhere` when we hit tailwind v4 */}
+							<span className="[overflow-wrap:anywhere] break-normal">
+								{errorDetail}
+							</span>
+						</DialogDescription>
+					)}
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose asChild>
+						<Button>Ok</Button>
+					</DialogClose>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 };

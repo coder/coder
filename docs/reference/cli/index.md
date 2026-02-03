@@ -47,6 +47,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>delete</code>](./delete.md)                           | Delete a workspace                                                                                                           |
 | [<code>favorite</code>](./favorite.md)                       | Add a workspace to your favorites                                                                                            |
 | [<code>list</code>](./list.md)                               | List workspaces                                                                                                              |
+| [<code>logs</code>](./logs.md)                               | View logs for a workspace                                                                                                    |
 | [<code>open</code>](./open.md)                               | Open a workspace                                                                                                             |
 | [<code>ping</code>](./ping.md)                               | Ping a workspace                                                                                                             |
 | [<code>rename</code>](./rename.md)                           | Rename a workspace                                                                                                           |
@@ -64,6 +65,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>support</code>](./support.md)                         | Commands for troubleshooting issues with a Coder deployment.                                                                 |
 | [<code>server</code>](./server.md)                           | Start a Coder server                                                                                                         |
 | [<code>provisioner</code>](./provisioner.md)                 | View and manage provisioner daemons and jobs                                                                                 |
+| [<code>boundary</code>](./boundary.md)                       | Network isolation tool for monitoring and restricting HTTP/HTTPS requests                                                    |
 | [<code>features</code>](./features.md)                       | List Enterprise features                                                                                                     |
 | [<code>licenses</code>](./licenses.md)                       | Add, delete, and list licenses                                                                                               |
 | [<code>groups</code>](./groups.md)                           | Manage groups                                                                                                                |

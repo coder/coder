@@ -10,14 +10,13 @@ import (
 	"regexp"
 	"strings"
 
-	"cdr.dev/slog"
-
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/aisdk-go"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -126,10 +125,7 @@ func generateFallback() TaskName {
 	// We have a 32 character limit for the name.
 	// We have a 5 character suffix `-ffff`.
 	// This leaves us with 27 characters for the name.
-	//
-	// `namesgenerator.GetRandomName(0)` can generate names
-	// up to 27 characters, but we truncate defensively.
-	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+	name := namesgenerator.NameWith("-")
 	name = name[:min(len(name), 27)]
 	name = strings.TrimSuffix(name, "-")
 

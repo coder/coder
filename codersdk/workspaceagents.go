@@ -217,6 +217,26 @@ type WorkspaceAgentLog struct {
 	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
 }
 
+// Text formats the log entry as human-readable text.
+func (l WorkspaceAgentLog) Text(agentName, sourceName string) string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(l.CreatedAt.Format(time.RFC3339))
+	_, _ = sb.WriteString(" [")
+	_, _ = sb.WriteString(string(l.Level))
+	_, _ = sb.WriteString("] [agent")
+	if agentName != "" {
+		_, _ = sb.WriteString(".")
+		_, _ = sb.WriteString(agentName)
+	}
+	if sourceName != "" {
+		_, _ = sb.WriteString("|")
+		_, _ = sb.WriteString(sourceName)
+	}
+	_, _ = sb.WriteString("] ")
+	_, _ = sb.WriteString(l.Output)
+	return sb.String()
+}
+
 type AgentSubsystem string
 
 const (
@@ -586,6 +606,19 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 
 	d := wsjson.NewDecoder[WorkspaceAgentListContainersResponse](conn, websocket.MessageText, c.logger)
 	return d.Chan(), d, nil
+}
+
+// WorkspaceAgentDeleteDevcontainer deletes the devcontainer with the given ID.
+func (c *Client) WorkspaceAgentDeleteDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s", agentID, devcontainerID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.

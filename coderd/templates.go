@@ -14,11 +14,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -102,6 +101,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		Deleted:   true,
 		UpdatedAt: dbtime.Now(),
 	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting template.",
@@ -773,11 +776,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		classicTemplateFlow = *req.UseClassicParameterFlow
 	}
 
-	useTerraformWorkspaceCache := template.UseTerraformWorkspaceCache
-	if req.UseTerraformWorkspaceCache != nil {
-		useTerraformWorkspaceCache = *req.UseTerraformWorkspaceCache
-	}
-
 	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
 	description := ptr.NilToDefault(req.Description, template.Description)
 	icon := ptr.NilToDefault(req.Icon, template.Icon)
@@ -803,8 +801,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			(deprecationMessage == template.Deprecated) &&
 			(classicTemplateFlow == template.UseClassicParameterFlow) &&
 			maxPortShareLevel == template.MaxPortSharingLevel &&
-			corsBehavior == template.CorsBehavior &&
-			useTerraformWorkspaceCache == template.UseTerraformWorkspaceCache {
+			corsBehavior == template.CorsBehavior {
 			return nil
 		}
 
@@ -847,7 +844,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      classicTemplateFlow,
 			CorsBehavior:                 corsBehavior,
-			UseTerraformWorkspaceCache:   useTerraformWorkspaceCache,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1126,13 +1122,12 @@ func (api *API) convertTemplate(
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
 		// These values depend on entitlements and come from the templateAccessControl
-		RequireActiveVersion:       templateAccessControl.RequireActiveVersion,
-		Deprecated:                 templateAccessControl.IsDeprecated(),
-		DeprecationMessage:         templateAccessControl.Deprecated,
-		MaxPortShareLevel:          maxPortShareLevel,
-		UseClassicParameterFlow:    template.UseClassicParameterFlow,
-		UseTerraformWorkspaceCache: template.UseTerraformWorkspaceCache,
-		CORSBehavior:               codersdk.CORSBehavior(template.CorsBehavior),
+		RequireActiveVersion:    templateAccessControl.RequireActiveVersion,
+		Deprecated:              templateAccessControl.IsDeprecated(),
+		DeprecationMessage:      templateAccessControl.Deprecated,
+		MaxPortShareLevel:       maxPortShareLevel,
+		UseClassicParameterFlow: template.UseClassicParameterFlow,
+		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
 	}
 }
 

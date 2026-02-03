@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentapisdk "github.com/coder/agentapi-sdk-go"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -20,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func Test_TaskLogs(t *testing.T) {
+func Test_TaskLogs_Golden(t *testing.T) {
 	t.Parallel()
 
 	testMessages := []agentapisdk.Message{
@@ -45,23 +44,20 @@ func Test_TaskLogs(t *testing.T) {
 		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client // user already has access to their own workspace
 
-		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "logs", task.Name, "--output", "json")
-		inv.Stdout = &stdout
+		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
+		// Verify JSON is valid.
 		var logs []codersdk.TaskLogEntry
-		err = json.NewDecoder(strings.NewReader(stdout.String())).Decode(&logs)
+		err = json.NewDecoder(strings.NewReader(output.Stdout())).Decode(&logs)
 		require.NoError(t, err)
 
-		require.Len(t, logs, 2)
-		require.Equal(t, "What is 1 + 1?", logs[0].Content)
-		require.Equal(t, codersdk.TaskLogTypeInput, logs[0].Type)
-		require.Equal(t, "2", logs[1].Content)
-		require.Equal(t, codersdk.TaskLogTypeOutput, logs[1].Type)
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
 	})
 
 	t.Run("ByTaskID_JSON", func(t *testing.T) {
@@ -71,23 +67,20 @@ func Test_TaskLogs(t *testing.T) {
 		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client
 
-		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "logs", task.ID.String(), "--output", "json")
-		inv.Stdout = &stdout
+		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
+		// Verify JSON is valid.
 		var logs []codersdk.TaskLogEntry
-		err = json.NewDecoder(strings.NewReader(stdout.String())).Decode(&logs)
+		err = json.NewDecoder(strings.NewReader(output.Stdout())).Decode(&logs)
 		require.NoError(t, err)
 
-		require.Len(t, logs, 2)
-		require.Equal(t, "What is 1 + 1?", logs[0].Content)
-		require.Equal(t, codersdk.TaskLogTypeInput, logs[0].Type)
-		require.Equal(t, "2", logs[1].Content)
-		require.Equal(t, codersdk.TaskLogTypeOutput, logs[1].Type)
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
 	})
 
 	t.Run("ByTaskID_Table", func(t *testing.T) {
@@ -97,19 +90,15 @@ func Test_TaskLogs(t *testing.T) {
 		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client
 
-		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "logs", task.ID.String())
-		inv.Stdout = &stdout
+		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		output := stdout.String()
-		require.Contains(t, output, "What is 1 + 1?")
-		require.Contains(t, output, "2")
-		require.Contains(t, output, "input")
-		require.Contains(t, output, "output")
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
 	})
 
 	t.Run("TaskNotFound_ByName", func(t *testing.T) {
@@ -160,6 +149,128 @@ func Test_TaskLogs(t *testing.T) {
 
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, assert.AnError.Error())
+	})
+
+	t.Run("SnapshotWithLogs_Table", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, task := setupCLITaskTestWithSnapshot(ctx, t, codersdk.TaskStatusPaused, testMessages)
+		userClient := client
+
+		inv, root := clitest.New(t, "task", "logs", task.Name)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
+	})
+
+	t.Run("SnapshotWithLogs_JSON", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, task := setupCLITaskTestWithSnapshot(ctx, t, codersdk.TaskStatusPaused, testMessages)
+		userClient := client
+
+		inv, root := clitest.New(t, "task", "logs", task.Name, "--output", "json")
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify JSON is valid.
+		var logs []codersdk.TaskLogEntry
+		err = json.NewDecoder(strings.NewReader(output.Stdout())).Decode(&logs)
+		require.NoError(t, err)
+
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
+	})
+
+	t.Run("SnapshotWithoutLogs_NoSnapshotCaptured", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, task := setupCLITaskTestWithoutSnapshot(t, codersdk.TaskStatusPaused)
+		userClient := client
+
+		inv, root := clitest.New(t, "task", "logs", task.Name)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
+	})
+
+	t.Run("SnapshotWithSingleMessage", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		singleMessage := []agentapisdk.Message{
+			{
+				Id:      0,
+				Role:    agentapisdk.RoleUser,
+				Content: "Single message",
+				Time:    time.Now(),
+			},
+		}
+
+		client, task := setupCLITaskTestWithSnapshot(ctx, t, codersdk.TaskStatusPending, singleMessage)
+		userClient := client
+
+		inv, root := clitest.New(t, "task", "logs", task.Name)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
+	})
+
+	t.Run("SnapshotEmptyLogs", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, task := setupCLITaskTestWithSnapshot(ctx, t, codersdk.TaskStatusInitializing, []agentapisdk.Message{})
+		userClient := client
+
+		inv, root := clitest.New(t, "task", "logs", task.Name)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
+	})
+
+	t.Run("InitializingTaskSnapshot", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, task := setupCLITaskTestWithSnapshot(ctx, t, codersdk.TaskStatusInitializing, testMessages)
+		userClient := client
+
+		inv, root := clitest.New(t, "task", "logs", task.Name)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify output format with golden file.
+		clitest.TestGoldenFile(t, t.Name(), output.Golden(), nil)
 	})
 }
 

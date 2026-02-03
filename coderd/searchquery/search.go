@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -157,6 +156,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
 		Search:          parser.String(values, "", "search"),
+		Name:            parser.String(values, "", "name"),
 		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
 		RbacRole:        parser.Strings(values, []string{}, "role"),
 		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),

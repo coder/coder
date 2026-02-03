@@ -9,14 +9,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/quartz"
-
-	tf_provider_helpers "github.com/coder/terraform-provider-coder/v2/provider/helpers"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/quartz"
+	tf_provider_helpers "github.com/coder/terraform-provider-coder/v2/provider/helpers"
 )
 
 // ActionType represents the type of action needed to reconcile prebuilds.
@@ -83,6 +80,49 @@ func NewPresetSnapshot(
 		clock:             clock,
 		logger:            logger,
 	}
+}
+
+// CanSkipReconciliation returns true if this preset can safely be skipped during
+// the reconciliation loop.
+//
+// This is a performance optimization to avoid spawning goroutines for presets
+// that have no work to do. It only returns true for presets from inactive
+// template versions that have no running workspaces, no pending jobs, and no
+// in-progress builds.
+func (p PresetSnapshot) CanSkipReconciliation() bool {
+	// Active presets are never skipped. Presets from active template versions always
+	// go through the reconciliation loop to ensure desired_instances is maintained correctly.
+	if p.isActive() {
+		return false
+	}
+
+	// Inactive presets with running prebuilds means there are prebuilds to delete.
+	if len(p.Running) > 0 {
+		return false
+	}
+
+	// Inactive presets with expired prebuilds means there are expired prebuilds to delete.
+	if len(p.Expired) > 0 {
+		return false
+	}
+
+	// Inactive presets with pending jobs means there are pending jobs to cancel.
+	if p.PendingCount > 0 {
+		return false
+	}
+
+	// Backoff is only populated for active presets, but check defensively.
+	if p.Backoff != nil {
+		return false
+	}
+
+	// Fields not checked (only relevant for active presets):
+	// - PrebuildSchedules: Only affects desired instance calculation.
+	// - InProgress: Only populated for active template versions.
+	// - IsHardLimited: Only populated for active template versions.
+
+	// Inactive preset with nothing to clean up: safe to skip.
+	return true
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,

@@ -25,8 +25,8 @@ locals {
   // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
   // Kyle for help.
   docker_host = {
-    ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
-    "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
+    ""              = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
+    "us-pittsburgh" = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
     // For legacy reasons, this host is labelled `eu-helsinki` but it's
     // actually in Germany now.
     "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
@@ -291,11 +291,6 @@ data "coder_parameter" "ide_choices" {
     icon  = "/icon/jetbrains.svg"
   }
   option {
-    name  = "JetBrains Fleet"
-    value = "fleet"
-    icon  = "/icon/fleet.svg"
-  }
-  option {
     name  = "Cursor"
     value = "cursor"
     icon  = "/icon/cursor.svg"
@@ -356,12 +351,18 @@ module "git-config" {
 }
 
 module "git-clone" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.2.2"
-  agent_id = coder_agent.dev.id
-  url      = "https://github.com/coder/coder"
-  base_dir = local.repo_base_dir
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/git-clone/coder"
+  version           = "1.2.3"
+  agent_id          = coder_agent.dev.id
+  url               = "https://github.com/coder/coder"
+  base_dir          = local.repo_base_dir
+  post_clone_script = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+    coder exp sync start git-clone
+    coder exp sync complete git-clone
+  EOT
 }
 
 module "personalize" {
@@ -372,17 +373,18 @@ module "personalize" {
 }
 
 module "mux" {
-  count     = data.coder_workspace.me.start_count
-  source    = "registry.coder.com/coder/mux/coder"
-  version   = "1.0.5"
-  agent_id  = coder_agent.dev.id
-  subdomain = true
+  count        = data.coder_workspace.me.start_count
+  source       = "registry.coder.com/coder/mux/coder"
+  version      = "1.0.8"
+  agent_id     = coder_agent.dev.id
+  subdomain    = true
+  display_name = "Mux"
 }
 
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.1"
+  version                 = "1.4.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -404,7 +406,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.2.1"
+  version       = "1.3.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -415,7 +417,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.3"
+  version    = "1.1.4"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -446,16 +448,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.3"
-  agent_id   = coder_agent.dev.id
-  agent_name = "dev"
-  folder     = local.repo_dir
-}
-
-module "jetbrains-fleet" {
-  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "fleet") ? data.coder_workspace.me.start_count : 0
-  source     = "registry.coder.com/coder/jetbrains-fleet/coder"
-  version    = "1.0.2"
+  version    = "1.1.4"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -510,61 +503,27 @@ resource "coder_agent" "dev" {
   }
 
   metadata {
-    display_name = "CPU Usage (Host)"
-    key          = "cpu_usage_host"
+    display_name = "/home Usage"
+    key          = "home_usage"
     order        = 2
-    script       = "coder stat cpu --host"
-    interval     = 10
-    timeout      = 1
+    script       = "sudo du -sh /home/coder | awk '{print $1}'"
+    interval     = 3600 # 1h to avoid thrashing disk
+    timeout      = 60   # Longer than this is likely problematic
   }
 
   metadata {
-    display_name = "RAM Usage (Host)"
-    key          = "ram_usage_host"
+    display_name = "/var/lib/docker Usage"
+    key          = "var_lib_docker_usage"
     order        = 3
-    script       = "coder stat mem --host"
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Swap Usage (Host)"
-    key          = "swap_usage_host"
-    order        = 4
-    script       = <<EOT
-      #!/usr/bin/env bash
-      echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
-    EOT
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Load Average (Host)"
-    key          = "load_host"
-    order        = 5
-    # get load avg scaled by number of cores
-    script   = <<EOT
-      #!/usr/bin/env bash
-      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
-    EOT
-    interval = 60
-    timeout  = 1
-  }
-
-  metadata {
-    display_name = "Disk Usage (Host)"
-    key          = "disk_host"
-    order        = 6
-    script       = "coder stat disk --path /"
-    interval     = 600
-    timeout      = 10
+    script       = "sudo du -sh /var/lib/docker | awk '{print $1}'"
+    interval     = 3600 # 1h to avoid thrashing disk
+    timeout      = 60   # Longer than this is likely problematic
   }
 
   metadata {
     display_name = "Word of the Day"
     key          = "word"
-    order        = 7
+    order        = 4
     script       = <<EOT
       #!/usr/bin/env bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
@@ -593,9 +552,14 @@ resource "coder_agent" "dev" {
   startup_script = <<-EOT
     #!/usr/bin/env bash
     set -eux -o pipefail
-
-    # Allow synchronization between scripts.
-    trap 'touch /tmp/.coder-startup-script.done' EXIT
+    # Allow other scripts to wait for agent startup.
+    function cleanup() {
+      coder exp sync complete agent-startup
+      # Some folks will also use this for their personalize scripts.
+      touch /tmp/.coder-startup-script.done
+    }
+    trap cleanup EXIT
+    coder exp sync start agent-startup
 
     # Authenticate GitHub CLI
     if ! gh auth status >/dev/null 2>&1; then
@@ -611,14 +575,6 @@ resource "coder_agent" "dev" {
     sudo sh -c 'jq ". += {\"shutdown-timeout\": 240}" /etc/docker/daemon.json > /tmp/daemon.json.new && mv /tmp/daemon.json.new /etc/docker/daemon.json'
     # Start Docker service
     sudo service docker start
-    # Install playwright dependencies
-    # We want to use the playwright version from site/package.json
-    # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.
-    while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
-      sleep 1
-    done
-    cd "${local.repo_dir}" && make clean
-    cd "${local.repo_dir}/site" && pnpm install
   EOT
 
   shutdown_script = <<-EOT
@@ -628,6 +584,9 @@ resource "coder_agent" "dev" {
     # Clean up the Go build cache to prevent the home volume from
     # accumulating waste and growing too large.
     go clean -cache
+
+    # Clean up the coder build directory as this can get quite large
+    rm -rf "${local.repo_dir}/build"
 
     # Clean up the unused resources to keep storage usage low.
     #
@@ -640,6 +599,26 @@ resource "coder_agent" "dev" {
 
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
+  EOT
+}
+
+resource "coder_script" "install-deps" {
+  agent_id           = coder_agent.dev.id
+  display_name       = "Installing Dependencies"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    trap 'coder exp sync complete install-deps' EXIT
+    coder exp sync want install-deps git-clone
+    coder exp sync start install-deps
+
+    # Install playwright dependencies
+    # We want to use the playwright version from site/package.json
+    cd "${local.repo_dir}" && make clean
+    cd "${local.repo_dir}/site" && pnpm install
   EOT
 }
 
@@ -767,6 +746,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
+    "CODER_AGENT_SOCKET_SERVER_ENABLED=true",
   ]
   host {
     host = "host.docker.internal"
@@ -862,6 +842,10 @@ resource "coder_script" "boundary_config_setup" {
 
   script = <<-EOF
     #!/bin/sh
+
+    trap 'coder exp sync complete boundary-config-setup' EXIT
+    coder exp sync start boundary-config-setup
+
     mkdir -p ~/.config/coder_boundary
     echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
     chmod 600 ~/.config/coder_boundary/config.yaml
@@ -871,12 +855,12 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.2.6"
+  version             = "4.7.2"
   enable_boundary     = true
-  boundary_version    = "v0.2.1"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
+  model               = "opus"
   order               = 999
   claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
   agentapi_version    = "latest"
@@ -884,6 +868,7 @@ module "claude-code" {
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_task.me.prompt
   post_install_script = <<-EOT
+    cd $HOME/coder
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
   EOT
 }
@@ -917,14 +902,10 @@ resource "coder_script" "develop_sh" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
-    # Wait for the agent startup script to finish.
-    for attempt in {1..60}; do
-      if [[ -f /tmp/.coder-startup-script.done ]]; then
-        break
-      fi
-      echo "Waiting for agent startup script to finish... ($attempt/60)"
-      sleep 10
-    done
+    trap 'coder exp sync complete develop-sh' EXIT
+    coder exp sync want develop-sh install-deps
+    coder exp sync start develop-sh
+
     cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
   EOT
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -480,7 +481,7 @@ func TestTemplates(t *testing.T) {
 
 		// Deprecate bar template
 		deprecationMessage := "Some deprecated message"
-		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   bar.ID,
 			RequireActiveVersion: false,
 			Deprecated:           deprecationMessage,
@@ -522,13 +523,13 @@ func TestTemplates(t *testing.T) {
 
 		// Deprecate foo and bar templates
 		deprecationMessage := "Some deprecated message"
-		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   foo.ID,
 			RequireActiveVersion: false,
 			Deprecated:           deprecationMessage,
 		})
 		require.NoError(t, err)
-		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   bar.ID,
 			RequireActiveVersion: false,
 			Deprecated:           deprecationMessage,
@@ -637,7 +638,7 @@ func TestTemplates(t *testing.T) {
 
 		// Deprecate bar template
 		deprecationMessage := "Some deprecated message"
-		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   bar.ID,
 			RequireActiveVersion: false,
 			Deprecated:           deprecationMessage,
@@ -650,7 +651,7 @@ func TestTemplates(t *testing.T) {
 		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
 
 		// Re-enable bar template
-		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   bar.ID,
 			RequireActiveVersion: false,
 			Deprecated:           "",
@@ -793,7 +794,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 
 		// Deprecate bar template
 		deprecationMessage := "Some deprecated message"
-		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   bar.ID,
 			RequireActiveVersion: false,
 			Deprecated:           deprecationMessage,
@@ -1004,7 +1005,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// nolint:gocritic // Setting up unit test data
-		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   template.ID,
 			RequireActiveVersion: false,
 			Deprecated:           "Some deprecated message",
@@ -1752,6 +1753,20 @@ func TestDeleteTemplate(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("NoPermission", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		tpl := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{CreatedBy: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := memberClient.DeleteTemplate(ctx, tpl.Template.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
 }
 

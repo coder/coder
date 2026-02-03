@@ -16,6 +16,11 @@ type OAuth2AppFormProps = {
 	error?: unknown;
 	isUpdating: boolean;
 	actions?: ReactNode;
+	defaultValues?: {
+		name: string;
+		callback_url: string;
+		icon: string;
+	};
 };
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
@@ -24,6 +29,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	error,
 	isUpdating,
 	actions,
+	defaultValues,
 }) => {
 	const apiValidationErrors = isApiValidationError(error)
 		? mapApiErrorToFieldErrors(error.response.data)
@@ -46,7 +52,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 				<TextField
 					name="name"
 					label="Application name"
-					defaultValue={app?.name}
+					defaultValue={app?.name ?? defaultValues?.name}
 					error={Boolean(apiValidationErrors?.name)}
 					helperText={
 						apiValidationErrors?.name || "The name of your Coder app."
@@ -57,7 +63,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 				<TextField
 					name="callback_url"
 					label="Callback URL"
-					defaultValue={app?.callback_url}
+					defaultValue={app?.callback_url ?? defaultValues?.callback_url}
 					error={Boolean(apiValidationErrors?.callback_url)}
 					helperText={
 						apiValidationErrors?.callback_url ||
@@ -68,7 +74,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 				<TextField
 					name="icon"
 					label="Application icon"
-					defaultValue={app?.icon}
+					defaultValue={app?.icon ?? defaultValues?.icon}
 					error={Boolean(apiValidationErrors?.icon)}
 					helperText={
 						apiValidationErrors?.icon || "A full or relative URL to an icon."

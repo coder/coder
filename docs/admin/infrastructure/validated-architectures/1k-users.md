@@ -4,53 +4,75 @@ The 1,000 users architecture is designed to cover a wide range of workflows.
 Examples of subjects that might utilize this architecture include medium-sized
 tech startups, educational units, or small to mid-sized enterprises.
 
-**Target load**: API: up to 180 RPS
+The recommendations on this page apply to deployments with up to the following limits. If your needs
+exceed any of these limits, consider increasing deployment resources or moving to the [next-higher
+architectural tier](./2k-users.md).
 
-**High Availability**: non-essential for small deployments
+| Users | Concurrent Running Workspaces | Concurrent Builds |
+|-------|-------------------------------|-------------------|
+| 1000  | 600                           | 60                |
 
 ## Hardware recommendations
 
-### Coderd nodes
+### Coderd
 
-| Users       | Node capacity       | Replicas                 | GCP             | AWS        | Azure             |
-|-------------|---------------------|--------------------------|-----------------|------------|-------------------|
-| Up to 1,000 | 2 vCPU, 8 GB memory | 1-2 nodes, 1 coderd each | `n1-standard-2` | `m5.large` | `Standard_D2s_v3` |
+| vCPU | Memory | Replicas |
+|------|--------|----------|
+| 2    | 8 GB   | 3        |
 
-**Footnotes**:
+**Notes**:
 
+- "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
+- If deploying on Kubernetes:
+  - Set CPU request and limit to `2000m`
+  - Set Memory request and limit to `8Gi`
+- Coderd does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
+- For small deployments (ca. 100 users, 10 concurrent workspace builds), it is
+  acceptable to deploy provisioners on `coderd` replicas.
+- Coderd instances should be deployed in the same region as the database.
+
+### Provisioners
+
+| vCPU | Memory | Replicas |
+|------|--------|----------|
+| 1    | 1 GB   | 60       |
+
+**Notes**:
+
+- "General purpose" virtual machines, such as N4-series in GCP or M8-series in AWS work well.
+- If deploying on Kubernetes:
+  - Set CPU request and limit to `1000m`
+  - Set Memory request and limit to `1Gi`
+- If deploying on virtual machines, stack up to 30 provisioners per machine with a commensurate amount of memory and CPU.
+- Provisioners benefit from high performance disks like SSDs.
 - For small deployments (ca. 100 users, 10 concurrent workspace builds), it is
   acceptable to deploy provisioners on `coderd` nodes.
+- If deploying workspaces to multiple clouds or multiple Kubernetes clusters, divide the provisioner replicas among the
+  clouds or clusters according to expected usage.
 
-### Provisioner nodes
+### Database
 
-| Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
-|-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
-| Up to 1,000 | 8 vCPU, 32 GB memory | 2 nodes, 30 provisioners each | `t2d-standard-8` | `c5.2xlarge` | `Standard_D8s_v3` |
+| vCPU | Memory | Replicas |
+|------|--------|----------|
+| 8    | 30 GB  | 1        |
 
-**Footnotes**:
+**Notes**:
 
-- An external provisioner is deployed as Kubernetes pod.
+- "General purpose" virtual machines, such as the M8-series in AWS work well.
+- Deploy in the same region as `coderd`
 
-### Workspace nodes
+### Workspaces
 
-| Users       | Node capacity        | Replicas                     | GCP              | AWS          | Azure             |
-|-------------|----------------------|------------------------------|------------------|--------------|-------------------|
-| Up to 1,000 | 8 vCPU, 32 GB memory | 64 nodes, 16 workspaces each | `t2d-standard-8` | `m5.2xlarge` | `Standard_D8s_v3` |
+The following resource requirements are for the Coder Workspace Agent, which runs alongside your end users work, and as
+such should be interpreted as the _bare minimum_ requirements for a Coder workspace. Size your workspaces to fit the use
+case your users will be undertaking. If in doubt, chose sizes based on the development environments your users are
+migrating from onto Coder.
 
-**Footnotes**:
+| vCPU | Memory |
+|------|--------|
+| 0.1  | 128 MB |
 
-- Assumed that a workspace user needs at minimum 2 GB memory to perform. We
-  recommend against over-provisioning memory for developer workloads, as this my
-  lead to OOMKiller invocations.
-- Maximum number of Kubernetes workspace pods per node: 256
-
-### Database nodes
-
-| Users       | Node capacity       | Replicas | Storage | GCP                | AWS           | Azure             |
-|-------------|---------------------|----------|---------|--------------------|---------------|-------------------|
-| Up to 1,000 | 2 vCPU, 8 GB memory | 1 node   | 512 GB  | `db-custom-2-7680` | `db.m5.large` | `Standard_D2s_v3` |
-
-**Footnotes for AWS instance types**:
+## Footnotes for AWS instance types
 
 - For production deployments, we recommend using non-burstable instance types,
   such as `m5` or `c5`, instead of burstable instances, such as `t3`.

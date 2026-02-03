@@ -10,14 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/serpent"
-
-	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
-
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -25,19 +17,25 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestFirstUser(t *testing.T) {
@@ -2111,6 +2109,108 @@ func TestGetUsers(t *testing.T) {
 		require.Len(t, res.Users, 1)
 		require.Equal(t, res.Users[0].Username, "bob")
 		require.Equal(t, res.Users[0].LoginType, codersdk.LoginTypeOIDC)
+	})
+
+	t.Run("NameFilter", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create users with different display names
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "alice@email.com",
+			Username:        "alice",
+			Name:            "Alice Smith",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "bob@email.com",
+			Username:        "bob",
+			Name:            "Bob Johnson",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "charlie@email.com",
+			Username:        "charlie",
+			Name:            "Charlie Smith",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		// Filter by name "Smith" should return Alice and Charlie
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			Name: "Smith",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 2)
+		usernames := []string{res.Users[0].Username, res.Users[1].Username}
+		require.ElementsMatch(t, []string{"alice", "charlie"}, usernames)
+
+		// Filter by name "Alice" should return only Alice
+		res, err = client.Users(ctx, codersdk.UsersRequest{
+			Name: "Alice",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, "alice", res.Users[0].Username)
+
+		// Filter by name "Johnson" should return only Bob
+		res, err = client.Users(ctx, codersdk.UsersRequest{
+			Name: "Johnson",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, "bob", res.Users[0].Username)
+
+		// Filter by name that doesn't exist should return no users
+		res, err = client.Users(ctx, codersdk.UsersRequest{
+			Name: "Nonexistent",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 0)
+	})
+
+	t.Run("NameFilterWithSearchFilter", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create users with different display names and usernames
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "alice@email.com",
+			Username:        "alice",
+			Name:            "Alice Developer",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "bob@email.com",
+			Username:        "bobdev",
+			Name:            "Bob Developer",
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			UserLoginType:   codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		// Filter by name "Developer" and search "alice" should return only Alice
+		// because name matches both but search matches only alice's username
+		res, err := client.Users(ctx, codersdk.UsersRequest{
+			SearchQuery: "name:Developer search:alice",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, "alice", res.Users[0].Username)
 	})
 }
 

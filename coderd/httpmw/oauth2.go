@@ -290,15 +290,15 @@ func (*codersdkErrorWriter) writeClientNotFound(ctx context.Context, rw http.Res
 type oauth2ErrorWriter struct{}
 
 func (*oauth2ErrorWriter) writeMissingClientID(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Missing client_id parameter")
+	httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Missing client_id parameter")
 }
 
 func (*oauth2ErrorWriter) writeInvalidClientID(ctx context.Context, rw http.ResponseWriter, _ error) {
-	httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, "invalid_client", "The client credentials are invalid")
+	httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 }
 
 func (*oauth2ErrorWriter) writeClientNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, "invalid_client", "The client credentials are invalid")
+	httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 }
 
 // extractOAuth2ProviderAppBase is the internal implementation that uses the strategy pattern
@@ -327,6 +327,13 @@ func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func
 					// Check the form params!
 					if r.ParseForm() == nil {
 						paramAppID = r.Form.Get("client_id")
+					}
+				}
+				if paramAppID == "" {
+					// RFC 6749 §2.3.1: confidential clients may authenticate via
+					// HTTP Basic where the username is the client_id.
+					if user, _, ok := r.BasicAuth(); ok && user != "" {
+						paramAppID = user
 					}
 				}
 				if paramAppID == "" {

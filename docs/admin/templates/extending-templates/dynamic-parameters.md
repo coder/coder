@@ -5,7 +5,7 @@ enriched input types, and user identity awareness.
 This allows template authors to create interactive workspace creation forms with more environment customization,
 and that means fewer templates to maintain.
 
-![Dynamic Parameters in Action](https://i.imgur.com/uR8mpRJ.gif)
+![Dynamic Parameters in Action](../../../images/admin/templates/extend-templates/dyn-params/dynamic-parameters-in-action.gif)
 
 All parameters are parsed from Terraform, so your workspace creation forms live in the same location as your provisioning code.
 You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template.
@@ -830,3 +830,17 @@ Unless explicitly mentioned, no registry modules require Dynamic Parameters.
 Later in 2025, more registry modules will be converted to Dynamic Parameters to improve their UX.
 
 In the meantime, you can safely convert existing templates and build new parameters on top of the functionality provided in the registry.
+
+### "Module not loaded" errors when using Dynamic Parameters
+
+Dynamic Parameters require Terraform modules to be archived and stored in the database. Coder limits module archives to **20MB total** to prevent database bloat. If your template uses modules that exceed this limit, some modules will be unavailable for parameter declarations.
+
+**Symptoms:**
+
+You may see warnings in the provisioner logs:
+
+```text
+[API] 2026-01-29 22:00:22.691 [warn]  provisionerd-nixos-0.executor: some (or all) terraform modules were not archived, template will have reduced function  skipped_modules=large:git::https://github.com/coder/large-module.git
+```
+
+If encountered, reduce the size of the module by removing unnecessary files.

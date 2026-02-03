@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-
 	"golang.org/x/xerrors"
 )
 
@@ -23,7 +22,7 @@ var (
 )
 
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session
-func newPty(opt ...Option) (*ptyWindows, error) {
+func newPty(opt ...Option) (PTY, error) {
 	var opts ptyOptions
 	for _, o := range opt {
 		o(&opts)
@@ -36,6 +35,21 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 		// If the CreatePseudoConsole API is not available, we fall back to a simpler
 		// implementation that doesn't create an actual PTY - just uses os.Pipe
 		return nil, xerrors.Errorf("pty not supported")
+	}
+
+	// On Windows, pty.New() without Start() is only used by ptytest.New() for
+	// in-process CLI testing. ConPTY requires an attached process to function
+	// correctly, so ptytest has its own pipe-based implementation. Production
+	// code should use pty.Start() which creates a ConPTY with process attached.
+	return nil, xerrors.Errorf("pty without process not supported on Windows; use ptytest.New() for tests")
+}
+
+// newConPty creates a PTY backed by a Windows PseudoConsole (ConPTY). This
+// should only be used when a process will be attached via Start().
+func newConPty(opt ...Option) (*ptyWindows, error) {
+	var opts ptyOptions
+	for _, o := range opt {
+		o(&opts)
 	}
 
 	pty := &ptyWindows{

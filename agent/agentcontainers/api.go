@@ -26,7 +26,7 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontainers/ignore"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -779,10 +779,13 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 	// close frames.
 	_ = conn.CloseRead(context.Background())
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.Heartbeat(ctx, conn)
+	go httpapi.HeartbeatClose(ctx, api.logger, cancel, conn)
 
 	updateCh := make(chan struct{}, 1)
 

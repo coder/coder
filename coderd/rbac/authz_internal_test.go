@@ -168,7 +168,7 @@ func TestFilter(t *testing.T) {
 			Name: "Admin",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), RoleAuditor(), RoleOwner(), RoleMember()},
+				Roles: RoleIdentifiers{RoleAuditor(), RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -177,7 +177,7 @@ func TestFilter(t *testing.T) {
 			Name: "OrgAdmin",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgAdmin(orgIDs[0]), RoleMember()},
+				Roles: RoleIdentifiers{ScopedRoleOrgAdmin(orgIDs[0]), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -186,7 +186,7 @@ func TestFilter(t *testing.T) {
 			Name: "OrgMember",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgMember(orgIDs[1]), RoleMember()},
+				Roles: RoleIdentifiers{RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -196,11 +196,9 @@ func TestFilter(t *testing.T) {
 			Actor: Subject{
 				ID: userIDs[0].String(),
 				Roles: RoleIdentifiers{
-					ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgAdmin(orgIDs[0]),
-					ScopedRoleOrgMember(orgIDs[1]), ScopedRoleOrgAdmin(orgIDs[1]),
-					ScopedRoleOrgMember(orgIDs[2]), ScopedRoleOrgAdmin(orgIDs[2]),
-					ScopedRoleOrgMember(orgIDs[4]),
-					ScopedRoleOrgMember(orgIDs[5]),
+					ScopedRoleOrgAdmin(orgIDs[0]),
+					ScopedRoleOrgAdmin(orgIDs[1]),
+					ScopedRoleOrgAdmin(orgIDs[2]),
 					RoleMember(),
 				},
 			},
@@ -221,10 +219,6 @@ func TestFilter(t *testing.T) {
 			Actor: Subject{
 				ID: userIDs[0].String(),
 				Roles: RoleIdentifiers{
-					ScopedRoleOrgMember(orgIDs[0]),
-					ScopedRoleOrgMember(orgIDs[1]),
-					ScopedRoleOrgMember(orgIDs[2]),
-					ScopedRoleOrgMember(orgIDs[3]),
 					RoleMember(),
 				},
 			},
@@ -235,7 +229,7 @@ func TestFilter(t *testing.T) {
 			Name: "ScopeApplicationConnect",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), RoleAuditor(), RoleOwner(), RoleMember()},
+				Roles: RoleIdentifiers{RoleAuditor(), RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -312,7 +306,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Groups: []string{allUsersGroup},
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 		},
 	}
 
@@ -456,7 +450,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -534,7 +528,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		ID:    "me",
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 		Roles: Roles{
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -890,7 +884,7 @@ func TestAuthorizeScope(t *testing.T) {
 		ID: "me",
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 		},
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 	}
@@ -926,7 +920,7 @@ func TestAuthorizeScope(t *testing.T) {
 		ID: "me",
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -1015,7 +1009,7 @@ func TestAuthorizeScope(t *testing.T) {
 		ID: "me",
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -1070,7 +1064,7 @@ func TestAuthorizeScope(t *testing.T) {
 		ID: meID.String(),
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 		},
 		Scope: must(ScopeNoUserData.Expand()),
 	}
@@ -1138,7 +1132,7 @@ func TestAuthorizeScope(t *testing.T) {
 			//  This is odd behavior, as without this membership role, the test for
 			//  the workspace fails. Maybe scopes should just assume the user
 			//  is a member.
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+			orgMemberRole(defOrg),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -1401,6 +1395,28 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 				}
 			})
 		}
+	}
+}
+
+// orgMemberRole returns an organization-member role for RBAC-only tests.
+//
+// organization-member is now a DB-backed system role (not a built-in role), so
+// RoleByName won't resolve it here. Assume the default behavior: workspace
+// sharing enabled.
+func orgMemberRole(orgID uuid.UUID) Role {
+	workspaceSharingDisabled := false
+	orgPerms, memberPerms := OrgMemberPermissions(workspaceSharingDisabled)
+	return Role{
+		Identifier:  ScopedRoleOrgMember(orgID),
+		DisplayName: "",
+		Site:        []Permission{},
+		User:        []Permission{},
+		ByOrgID: map[string]OrgPermissions{
+			orgID.String(): {
+				Org:    orgPerms,
+				Member: memberPerms,
+			},
+		},
 	}
 }
 

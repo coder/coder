@@ -7,6 +7,7 @@ package proto
 import (
 	context "context"
 	errors "errors"
+	proto1 "github.com/coder/coder/v2/provisionersdk/proto"
 	protojson "google.golang.org/protobuf/encoding/protojson"
 	proto "google.golang.org/protobuf/proto"
 	drpc "storj.io/drpc"
@@ -45,6 +46,7 @@ type DRPCProvisionerDaemonClient interface {
 	FailJob(ctx context.Context, in *FailedJob) (*Empty, error)
 	CompleteJob(ctx context.Context, in *CompletedJob) (*Empty, error)
 	UploadFile(ctx context.Context) (DRPCProvisionerDaemon_UploadFileClient, error)
+	DownloadFile(ctx context.Context, in *FileRequest) (DRPCProvisionerDaemon_DownloadFileClient, error)
 }
 
 type drpcProvisionerDaemonClient struct {
@@ -152,7 +154,7 @@ func (c *drpcProvisionerDaemonClient) UploadFile(ctx context.Context) (DRPCProvi
 
 type DRPCProvisionerDaemon_UploadFileClient interface {
 	drpc.Stream
-	Send(*UploadFileRequest) error
+	Send(*proto1.FileUpload) error
 	CloseAndRecv() (*Empty, error)
 }
 
@@ -164,7 +166,7 @@ func (x *drpcProvisionerDaemon_UploadFileClient) GetStream() drpc.Stream {
 	return x.Stream
 }
 
-func (x *drpcProvisionerDaemon_UploadFileClient) Send(m *UploadFileRequest) error {
+func (x *drpcProvisionerDaemon_UploadFileClient) Send(m *proto1.FileUpload) error {
 	return x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
 
@@ -186,6 +188,46 @@ func (x *drpcProvisionerDaemon_UploadFileClient) CloseAndRecvMsg(m *Empty) error
 	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
 
+func (c *drpcProvisionerDaemonClient) DownloadFile(ctx context.Context, in *FileRequest) (DRPCProvisionerDaemon_DownloadFileClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisionerd.ProvisionerDaemon/DownloadFile", drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcProvisionerDaemon_DownloadFileClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DRPCProvisionerDaemon_DownloadFileClient interface {
+	drpc.Stream
+	Recv() (*proto1.FileUpload, error)
+}
+
+type drpcProvisionerDaemon_DownloadFileClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisionerDaemon_DownloadFileClient) GetStream() drpc.Stream {
+	return x.Stream
+}
+
+func (x *drpcProvisionerDaemon_DownloadFileClient) Recv() (*proto1.FileUpload, error) {
+	m := new(proto1.FileUpload)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisionerDaemon_DownloadFileClient) RecvMsg(m *proto1.FileUpload) error {
+	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+}
+
 type DRPCProvisionerDaemonServer interface {
 	AcquireJob(context.Context, *Empty) (*AcquiredJob, error)
 	AcquireJobWithCancel(DRPCProvisionerDaemon_AcquireJobWithCancelStream) error
@@ -194,6 +236,7 @@ type DRPCProvisionerDaemonServer interface {
 	FailJob(context.Context, *FailedJob) (*Empty, error)
 	CompleteJob(context.Context, *CompletedJob) (*Empty, error)
 	UploadFile(DRPCProvisionerDaemon_UploadFileStream) error
+	DownloadFile(*FileRequest, DRPCProvisionerDaemon_DownloadFileStream) error
 }
 
 type DRPCProvisionerDaemonUnimplementedServer struct{}
@@ -226,9 +269,13 @@ func (s *DRPCProvisionerDaemonUnimplementedServer) UploadFile(DRPCProvisionerDae
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCProvisionerDaemonUnimplementedServer) DownloadFile(*FileRequest, DRPCProvisionerDaemon_DownloadFileStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCProvisionerDaemonDescription struct{}
 
-func (DRPCProvisionerDaemonDescription) NumMethods() int { return 7 }
+func (DRPCProvisionerDaemonDescription) NumMethods() int { return 8 }
 
 func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -293,6 +340,15 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 						&drpcProvisionerDaemon_UploadFileStream{in1.(drpc.Stream)},
 					)
 			}, DRPCProvisionerDaemonServer.UploadFile, true
+	case 7:
+		return "/provisionerd.ProvisionerDaemon/DownloadFile", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCProvisionerDaemonServer).
+					DownloadFile(
+						in1.(*FileRequest),
+						&drpcProvisionerDaemon_DownloadFileStream{in2.(drpc.Stream)},
+					)
+			}, DRPCProvisionerDaemonServer.DownloadFile, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -411,7 +467,7 @@ func (x *drpcProvisionerDaemon_CompleteJobStream) SendAndClose(m *Empty) error {
 type DRPCProvisionerDaemon_UploadFileStream interface {
 	drpc.Stream
 	SendAndClose(*Empty) error
-	Recv() (*UploadFileRequest, error)
+	Recv() (*proto1.FileUpload, error)
 }
 
 type drpcProvisionerDaemon_UploadFileStream struct {
@@ -425,14 +481,27 @@ func (x *drpcProvisionerDaemon_UploadFileStream) SendAndClose(m *Empty) error {
 	return x.CloseSend()
 }
 
-func (x *drpcProvisionerDaemon_UploadFileStream) Recv() (*UploadFileRequest, error) {
-	m := new(UploadFileRequest)
+func (x *drpcProvisionerDaemon_UploadFileStream) Recv() (*proto1.FileUpload, error) {
+	m := new(proto1.FileUpload)
 	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (x *drpcProvisionerDaemon_UploadFileStream) RecvMsg(m *UploadFileRequest) error {
+func (x *drpcProvisionerDaemon_UploadFileStream) RecvMsg(m *proto1.FileUpload) error {
 	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+}
+
+type DRPCProvisionerDaemon_DownloadFileStream interface {
+	drpc.Stream
+	Send(*proto1.FileUpload) error
+}
+
+type drpcProvisionerDaemon_DownloadFileStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisionerDaemon_DownloadFileStream) Send(m *proto1.FileUpload) error {
+	return x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }

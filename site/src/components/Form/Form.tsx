@@ -108,11 +108,13 @@ export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
 					]}
 					className={classes.sectionInfo}
 				>
-					<h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
-						{title}
+					<header className="flex items-center gap-4">
+						<h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
+							{title}
+						</h2>
 						{alpha && <AlphaBadge />}
 						{deprecated && <DeprecatedBadge />}
-					</h2>
+					</header>
 					<div css={styles.formSectionInfoDescription}>{description}</div>
 				</div>
 

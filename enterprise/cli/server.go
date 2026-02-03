@@ -14,6 +14,7 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
+	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -27,8 +28,6 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
-
-	agplcoderd "github.com/coder/coder/v2/coderd"
 )
 
 func (r *RootCmd) Server(_ func()) *serpent.Command {
@@ -163,6 +162,19 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			// aibridged will NOT affect in-flight requests but those will be closed once
 			// the API server is itself shutdown.
 			closers.Add(aibridgeDaemon)
+		}
+
+		// In-memory AI Bridge Proxy daemon
+		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
+			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api)
+			if err != nil {
+				_ = closers.Close()
+				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
+			}
+			closers.Add(aiBridgeProxyServer)
+
+			// Register the handler so coderd can serve the proxy endpoints.
+			api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
 		}
 
 		return api.AGPL, closers, nil

@@ -5,6 +5,17 @@ Service account to merge into the libcoder template
 {{- end -}}
 
 {{/*
+Component annotation for pod metadata.
+*/}}
+{{- define "coder.componentAnnotation" -}}
+{{- if .Values.coder.workspaceProxy -}}
+app.kubernetes.io/component: wsproxy
+{{- else -}}
+app.kubernetes.io/component: coderd
+{{- end -}}
+{{- end }}
+
+{{/*
 Deployment to merge into the libcoder template
 */}}
 {{- define "coder.deployment" -}}
@@ -39,10 +50,24 @@ envFrom:
 env:
 - name: CODER_HTTP_ADDRESS
   value: "0.0.0.0:8080"
+{{- $hasPrometheusAddress := false }}
+{{- $hasPprofAddress := false }}
+{{- range .Values.coder.env }}
+{{- if eq .name "CODER_PROMETHEUS_ADDRESS" }}
+{{- $hasPrometheusAddress = true }}
+{{- end }}
+{{- if eq .name "CODER_PPROF_ADDRESS" }}
+{{- $hasPprofAddress = true }}
+{{- end }}
+{{- end }}
+{{- if not $hasPrometheusAddress }}
 - name: CODER_PROMETHEUS_ADDRESS
   value: "0.0.0.0:2112"
+{{- end }}
+{{- if not $hasPprofAddress }}
 - name: CODER_PPROF_ADDRESS
   value: "0.0.0.0:6060"
+{{- end }}
 {{- if .Values.provisionerDaemon.pskSecretName }}
 - name: CODER_PROVISIONER_DAEMON_PSK
   valueFrom:
@@ -97,16 +122,44 @@ ports:
   {{- end }}
   {{- end }}
   {{- end }}
+{{- if .Values.coder.readinessProbe.enabled }}
 readinessProbe:
   httpGet:
     path: /healthz
     port: "http"
     scheme: "HTTP"
   initialDelaySeconds: {{ .Values.coder.readinessProbe.initialDelaySeconds }}
+  {{- if hasKey .Values.coder.readinessProbe "periodSeconds" }}
+  periodSeconds: {{ .Values.coder.readinessProbe.periodSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.readinessProbe "timeoutSeconds" }}
+  timeoutSeconds: {{ .Values.coder.readinessProbe.timeoutSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.readinessProbe "successThreshold" }}
+  successThreshold: {{ .Values.coder.readinessProbe.successThreshold }}
+  {{- end }}
+  {{- if hasKey .Values.coder.readinessProbe "failureThreshold" }}
+  failureThreshold: {{ .Values.coder.readinessProbe.failureThreshold }}
+  {{- end }}
+{{- end }}
+{{- if .Values.coder.livenessProbe.enabled }}
 livenessProbe:
   httpGet:
     path: /healthz
     port: "http"
     scheme: "HTTP"
   initialDelaySeconds: {{ .Values.coder.livenessProbe.initialDelaySeconds }}
+  {{- if hasKey .Values.coder.livenessProbe "periodSeconds" }}
+  periodSeconds: {{ .Values.coder.livenessProbe.periodSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.livenessProbe "timeoutSeconds" }}
+  timeoutSeconds: {{ .Values.coder.livenessProbe.timeoutSeconds }}
+  {{- end }}
+  {{- if hasKey .Values.coder.livenessProbe "successThreshold" }}
+  successThreshold: {{ .Values.coder.livenessProbe.successThreshold }}
+  {{- end }}
+  {{- if hasKey .Values.coder.livenessProbe "failureThreshold" }}
+  failureThreshold: {{ .Values.coder.livenessProbe.failureThreshold }}
+  {{- end }}
+{{- end }}
 {{- end }}

@@ -306,6 +306,11 @@ export interface Devcontainer {
   workspaceFolder: string;
   configPath: string;
   name: string;
+  id: string;
+  subagentId: string;
+  apps: App[];
+  scripts: Script[];
+  envs: Env[];
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -413,6 +418,7 @@ export interface Metadata {
   taskId: string;
   taskPrompt: string;
   templateVersionId: string;
+  templateVersionModulesFile: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -423,11 +429,7 @@ export interface Config {
     | string
     | undefined;
   /** Dry runs omit version id */
-  templateVersionId?:
-    | string
-    | undefined;
-  /** Whether to reuse existing terraform workspaces if they exist. */
-  expReuseTerraformWorkspace?: boolean | undefined;
+  templateVersionId?: string | undefined;
 }
 
 /** ParseRequest consumes source-code to produce inputs. */
@@ -457,6 +459,8 @@ export interface InitRequest {
    * this is costly, the zero value omitting the module files is preferred.
    */
   omitModuleFiles: boolean;
+  /** initial_module_tar is the hash of the tar of the terraform module files located in .terraform/modules */
+  initialModuleTarHash: Uint8Array;
 }
 
 export interface InitComplete {
@@ -548,7 +552,16 @@ export interface Request {
   plan?: PlanRequest | undefined;
   apply?: ApplyRequest | undefined;
   graph?: GraphRequest | undefined;
-  cancel?: CancelRequest | undefined;
+  cancel?:
+    | CancelRequest
+    | undefined;
+  /**
+   * The file upload is used to send over cached modules during the
+   * init step.
+   * This is kept intentionally generic if another step wants to reuse
+   * this.
+   */
+  file?: FileUpload | undefined;
 }
 
 export interface Response {
@@ -560,6 +573,16 @@ export interface Response {
   graph?: GraphComplete | undefined;
   dataUpload?: DataUpload | undefined;
   chunkPiece?: ChunkPiece | undefined;
+}
+
+export interface FileUpload {
+  dataUpload?: DataUpload | undefined;
+  chunkPiece?: ChunkPiece | undefined;
+  error?: FailedFile | undefined;
+}
+
+export interface FailedFile {
+  error: string;
 }
 
 export interface DataUpload {
@@ -1077,6 +1100,21 @@ export const Devcontainer = {
     if (message.name !== "") {
       writer.uint32(26).string(message.name);
     }
+    if (message.id !== "") {
+      writer.uint32(34).string(message.id);
+    }
+    if (message.subagentId !== "") {
+      writer.uint32(42).string(message.subagentId);
+    }
+    for (const v of message.apps) {
+      App.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    for (const v of message.scripts) {
+      Script.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    for (const v of message.envs) {
+      Env.encode(v!, writer.uint32(66).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1338,6 +1376,9 @@ export const Metadata = {
     if (message.templateVersionId !== "") {
       writer.uint32(194).string(message.templateVersionId);
     }
+    if (message.templateVersionModulesFile !== "") {
+      writer.uint32(202).string(message.templateVersionModulesFile);
+    }
     return writer;
   },
 };
@@ -1352,9 +1393,6 @@ export const Config = {
     }
     if (message.templateVersionId !== undefined) {
       writer.uint32(26).string(message.templateVersionId);
-    }
-    if (message.expReuseTerraformWorkspace !== undefined) {
-      writer.uint32(32).bool(message.expReuseTerraformWorkspace);
     }
     return writer;
   },
@@ -1403,6 +1441,9 @@ export const InitRequest = {
     }
     if (message.omitModuleFiles !== false) {
       writer.uint32(24).bool(message.omitModuleFiles);
+    }
+    if (message.initialModuleTarHash.length !== 0) {
+      writer.uint32(34).bytes(message.initialModuleTarHash);
     }
     return writer;
   },
@@ -1602,6 +1643,9 @@ export const Request = {
     if (message.cancel !== undefined) {
       CancelRequest.encode(message.cancel, writer.uint32(58).fork()).ldelim();
     }
+    if (message.file !== undefined) {
+      FileUpload.encode(message.file, writer.uint32(66).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1631,6 +1675,30 @@ export const Response = {
     }
     if (message.chunkPiece !== undefined) {
       ChunkPiece.encode(message.chunkPiece, writer.uint32(66).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const FileUpload = {
+  encode(message: FileUpload, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.dataUpload !== undefined) {
+      DataUpload.encode(message.dataUpload, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.chunkPiece !== undefined) {
+      ChunkPiece.encode(message.chunkPiece, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.error !== undefined) {
+      FailedFile.encode(message.error, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const FailedFile = {
+  encode(message: FailedFile, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error);
     }
     return writer;
   },

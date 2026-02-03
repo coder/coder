@@ -12,8 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -298,6 +297,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
 		AfterID:         paginationParams.AfterID,
 		Search:          params.Search,
+		Name:            params.Name,
 		Status:          params.Status,
 		RbacRole:        params.RbacRole,
 		LastSeenBefore:  params.LastSeenBefore,

@@ -62,9 +62,22 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added new field `template_version_id` to `provisioner.Metadata`
 //   - Added new field `exp_reuse_terraform_workspace` to `provisioner.Job.WorkspaceBuild`
 //   - Added fields `template_version_id`, `template_id`, and `exp_reuse_terraform_workspace` to `provisioner.Config`
+//
+// API v1.13:
+//   - Removed experimental fields `exp_reuse_terraform_workspace`. Caching moved into Coderd
+//
+// API v1.14:
+//   - Added new field `template_version_modules_file` to Metadata
+//   - Added `FailedFile` type for file upload failures.
+//   - Add `DownloadFile` capability for provisioner daemons to fetch files from coderd.
+//   - Moved type `UploadFileRequest` -> `provisioner.FileUpload`
+//
+// API v1.15:
+//   - Removed `stop_modules` from CompleteJob. Was a duplicate of start_modules
+//   - Add `id`, `subagent_id`, `apps`, `scripts` and `envs` to `provisioner.Devcontainer`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 12
+	CurrentMinor = 15
 )
 
 // CurrentVersion is the current provisionerd API version.

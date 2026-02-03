@@ -7,6 +7,7 @@ import {
 	DropdownMenuContent,
 	DropdownMenuGroup,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { CoderIcon } from "components/Icons/CoderIcon";
@@ -21,7 +22,13 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { EditIcon, EllipsisIcon, PanelLeftIcon, TrashIcon } from "lucide-react";
+import {
+	EditIcon,
+	EllipsisIcon,
+	PanelLeftIcon,
+	Share2Icon,
+	TrashIcon,
+} from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
@@ -227,6 +234,15 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 
 						<DropdownMenuContent align="end">
 							<DropdownMenuGroup>
+								<DropdownMenuItem asChild>
+									<RouterLink
+										to={`/@${task.owner_name}/${task.workspace_name}/settings/sharing`}
+									>
+										<Share2Icon />
+										Share
+									</RouterLink>
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									onClick={(e) => {
@@ -235,7 +251,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 									}}
 								>
 									<TrashIcon />
-									Delete
+									Delete&hellip;
 								</DropdownMenuItem>
 							</DropdownMenuGroup>
 						</DropdownMenuContent>

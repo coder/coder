@@ -1,49 +1,21 @@
 package testutil
 
 import (
-	"strconv"
-	"strings"
-	"sync/atomic"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 )
 
-var n atomic.Int64
-
-const maxNameLen = 32
-
-// GetRandomName returns a random name using moby/pkg/namesgenerator.
-// namesgenerator.GetRandomName exposes a retry parameter that appends
-// a pseudo-random number between 1 and 10 to its return value.
-// While this reduces the probability of collisions, it does not negate them.
-// This function calls namesgenerator.GetRandomName without the retry
-// parameter and instead increments a monotonically increasing integer
-// to the return value.
+// GetRandomName returns a random name with a unique suffix, truncated to 32
+// characters to fit common name length limits in tests.
 func GetRandomName(t testing.TB) string {
 	t.Helper()
-	name := namesgenerator.GetRandomName(0)
-	return incSuffix(name, n.Add(1), maxNameLen)
+	return namesgenerator.UniqueName()
 }
 
-// GetRandomNameHyphenated is as GetRandomName but uses a hyphen "-" instead of
-// an underscore.
+// GetRandomNameHyphenated is like GetRandomName but uses hyphens instead of
+// underscores.
 func GetRandomNameHyphenated(t testing.TB) string {
 	t.Helper()
-	name := GetRandomName(t)
-	return strings.ReplaceAll(name, "_", "-")
-}
-
-func incSuffix(s string, num int64, maxLen int) string {
-	suffix := strconv.FormatInt(num, 10)
-	if len(s)+len(suffix) <= maxLen {
-		return s + suffix
-	}
-	stripLen := (len(s) + len(suffix)) - maxLen
-	stripIdx := len(s) - stripLen
-	if stripIdx < 0 {
-		return ""
-	}
-	s = s[:stripIdx]
-	return s + suffix
+	return namesgenerator.UniqueNameWith("-")
 }

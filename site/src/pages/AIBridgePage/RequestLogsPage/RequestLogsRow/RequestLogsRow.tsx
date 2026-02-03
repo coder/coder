@@ -16,21 +16,11 @@ import {
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
-import { humanDuration } from "utils/time";
+import { formatDate, humanDuration } from "utils/time";
 import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
-};
-
-const customisedDateLocale: Intl.DateTimeFormatOptions = {
-	second: "2-digit",
-	minute: "2-digit",
-	hour: "2-digit",
-	day: "numeric",
-	// Show the month as a short name
-	month: "short",
-	year: "numeric",
 };
 
 type TokenUsageMetadataMerged =
@@ -117,8 +107,6 @@ export function tokenUsageMetadataMerge(
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
-	const [firstPrompt] = interception.user_prompts;
-
 	const inputTokens = interception.token_usages.reduce(
 		(acc, tokenUsage) => acc + tokenUsage.input_tokens,
 		0,
@@ -161,10 +149,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<ChevronRightIcon className="size-icon-xs" />
 						)}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
-						{new Date(interception.started_at).toLocaleString(
-							undefined,
-							customisedDateLocale,
-						)}
+						{formatDate(new Date(interception.started_at))}
 					</div>
 				</TableCell>
 				<TableCell className="w-48 max-w-48">
@@ -179,22 +164,6 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<div className="font-medium truncate min-w-0 flex-1 overflow-hidden">
 								{interception.initiator.name ?? interception.initiator.username}
 							</div>
-						</div>
-					</div>
-				</TableCell>
-				<TableCell className="min-w-0">
-					{/*
-						This is ensuring that the prompt is truncated and won't escape its bounding
-						container with an `absolute`.
-
-						Alternatively we could use a `table-fixed` table, but that would break worse
-						on mobile with the `min-w-0` column required.
-
-						This is a bit of a hack, but it works.
-					*/}
-					<div className="w-full h-4 min-w-48 relative">
-						<div className="absolute inset-0 leading-none overflow-hidden truncate">
-							{firstPrompt?.prompt}
 						</div>
 					</div>
 				</TableCell>
@@ -268,20 +237,14 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 								<dt>Start Time:</dt>
 								<dd data-chromatic="ignore">
-									{new Date(interception.started_at).toLocaleString(
-										undefined,
-										customisedDateLocale,
-									)}
+									{formatDate(new Date(interception.started_at))}
 								</dd>
 
 								{interception.ended_at && (
 									<>
 										<dt>End Time:</dt>
 										<dd data-chromatic="ignore">
-											{new Date(interception.ended_at).toLocaleString(
-												undefined,
-												customisedDateLocale,
-											)}
+											{formatDate(new Date(interception.ended_at))}
 										</dd>
 									</>
 								)}

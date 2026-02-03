@@ -5,7 +5,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { UsersIcon } from "lucide-react";
+import { Share2Icon } from "lucide-react";
 import { isGroup } from "modules/groups";
 import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
 import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
@@ -27,7 +27,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 		<Popover>
 			<PopoverTrigger asChild>
 				<TopbarButton data-testid="workspace-share-button">
-					<UsersIcon />
+					<Share2Icon />
 					Share
 				</TopbarButton>
 			</PopoverTrigger>
@@ -42,6 +42,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 					updatingGroupId={sharing.updatingGroupId}
 					onUpdateGroup={sharing.updateGroup}
 					onRemoveGroup={sharing.removeGroup}
+					showRestartWarning={sharing.hasRemovedMember}
 					isCompact
 					addMemberForm={
 						<AddWorkspaceUserOrGroup

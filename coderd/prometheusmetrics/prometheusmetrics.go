@@ -15,8 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -133,19 +132,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		duration = defaultRefreshRate
 	}
 
-	// TODO: deprecated: remove in the future
-	// See: https://github.com/coder/coder/issues/12999
-	// Deprecation reason: gauge metrics should avoid suffix `_total``
-	workspaceLatestBuildTotalsDeprecated := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "coderd",
-		Subsystem: "api",
-		Name:      "workspace_latest_build_total",
-		Help:      "DEPRECATED: use coderd_api_workspace_latest_build instead",
-	}, []string{"status"})
-	if err := registerer.Register(workspaceLatestBuildTotalsDeprecated); err != nil {
-		return nil, err
-	}
-
 	workspaceLatestBuildTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
@@ -199,8 +185,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		for _, w := range ws {
 			status := string(w.LatestBuildStatus)
 			workspaceLatestBuildTotals.WithLabelValues(status).Add(1)
-			// TODO: deprecated: remove in the future
-			workspaceLatestBuildTotalsDeprecated.WithLabelValues(status).Add(1)
 
 			workspaceLatestBuildStatuses.WithLabelValues(
 				status,

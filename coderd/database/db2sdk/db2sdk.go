@@ -17,8 +17,6 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	previewtypes "github.com/coder/preview/types"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -30,25 +28,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	previewtypes "github.com/coder/preview/types"
 )
 
-// List is a helper function to reduce boilerplate when converting slices of
-// database types to slices of codersdk types.
-// Only works if the function takes a single argument.
+// Deprecated: use slice.List
 func List[F any, T any](list []F, convert func(F) T) []T {
-	return ListLazy(convert)(list)
+	return slice.List[F, T](list, convert)
 }
 
-// ListLazy returns the converter function for a list, but does not eval
-// the input. Helpful for combining the Map and the List functions.
+// Deprecated: use slice.ListLazy
 func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
-	return func(list []F) []T {
-		into := make([]T, 0, len(list))
-		for _, item := range list {
-			into = append(into, convert(item))
-		}
-		return into
-	}
+	return slice.ListLazy[F, T](convert)
 }
 
 func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget {
@@ -570,7 +560,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	}.String()
 }
 
-func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
 	sort.Slice(dbApps, func(i, j int) bool {
 		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
 			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
@@ -630,6 +620,27 @@ func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAp
 		URI:         status.Uri.String,
 		Message:     status.Message,
 		State:       codersdk.WorkspaceAppStatusState(status.State),
+	}
+}
+
+func ProvisionerJobLog(log database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
+	return codersdk.ProvisionerJobLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Source:    codersdk.LogSource(log.Source),
+		Level:     codersdk.LogLevel(log.Level),
+		Stage:     log.Stage,
+		Output:    log.Output,
+	}
+}
+
+func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLog {
+	return codersdk.WorkspaceAgentLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Output:    log.Output,
+		Level:     codersdk.LogLevel(log.Level),
+		SourceID:  log.LogSourceID,
 	}
 }
 

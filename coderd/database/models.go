@@ -213,6 +213,10 @@ const (
 	ApiKeyScopeTask                                APIKeyScope = "task:*"
 	ApiKeyScopeWorkspaceShare                      APIKeyScope = "workspace:share"
 	ApiKeyScopeWorkspaceDormantShare               APIKeyScope = "workspace_dormant:share"
+	ApiKeyScopeBoundaryUsage                       APIKeyScope = "boundary_usage:*"
+	ApiKeyScopeBoundaryUsageDelete                 APIKeyScope = "boundary_usage:delete"
+	ApiKeyScopeBoundaryUsageRead                   APIKeyScope = "boundary_usage:read"
+	ApiKeyScopeBoundaryUsageUpdate                 APIKeyScope = "boundary_usage:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -445,7 +449,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeTaskDelete,
 		ApiKeyScopeTask,
 		ApiKeyScopeWorkspaceShare,
-		ApiKeyScopeWorkspaceDormantShare:
+		ApiKeyScopeWorkspaceDormantShare,
+		ApiKeyScopeBoundaryUsage,
+		ApiKeyScopeBoundaryUsageDelete,
+		ApiKeyScopeBoundaryUsageRead,
+		ApiKeyScopeBoundaryUsageUpdate:
 		return true
 	}
 	return false
@@ -647,6 +655,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeTask,
 		ApiKeyScopeWorkspaceShare,
 		ApiKeyScopeWorkspaceDormantShare,
+		ApiKeyScopeBoundaryUsage,
+		ApiKeyScopeBoundaryUsageDelete,
+		ApiKeyScopeBoundaryUsageRead,
+		ApiKeyScopeBoundaryUsageUpdate,
 	}
 }
 
@@ -936,6 +948,9 @@ const (
 	BuildReasonSshConnection       BuildReason = "ssh_connection"
 	BuildReasonVscodeConnection    BuildReason = "vscode_connection"
 	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
+	BuildReasonTaskAutoPause       BuildReason = "task_auto_pause"
+	BuildReasonTaskManualPause     BuildReason = "task_manual_pause"
+	BuildReasonTaskResume          BuildReason = "task_resume"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -985,7 +1000,10 @@ func (e BuildReason) Valid() bool {
 		BuildReasonCli,
 		BuildReasonSshConnection,
 		BuildReasonVscodeConnection,
-		BuildReasonJetbrainsConnection:
+		BuildReasonJetbrainsConnection,
+		BuildReasonTaskAutoPause,
+		BuildReasonTaskManualPause,
+		BuildReasonTaskResume:
 		return true
 	}
 	return false
@@ -1004,6 +1022,9 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonSshConnection,
 		BuildReasonVscodeConnection,
 		BuildReasonJetbrainsConnection,
+		BuildReasonTaskAutoPause,
+		BuildReasonTaskManualPause,
+		BuildReasonTaskResume,
 	}
 }
 
@@ -3698,6 +3719,24 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// Per-replica boundary usage statistics for telemetry aggregation.
+type BoundaryUsageStat struct {
+	// The unique identifier of the replica reporting stats.
+	ReplicaID uuid.UUID `db:"replica_id" json:"replica_id"`
+	// Count of unique workspaces that used boundary on this replica.
+	UniqueWorkspacesCount int64 `db:"unique_workspaces_count" json:"unique_workspaces_count"`
+	// Count of unique users that used boundary on this replica.
+	UniqueUsersCount int64 `db:"unique_users_count" json:"unique_users_count"`
+	// Total allowed requests through boundary on this replica.
+	AllowedRequests int64 `db:"allowed_requests" json:"allowed_requests"`
+	// Total denied requests through boundary on this replica.
+	DeniedRequests int64 `db:"denied_requests" json:"denied_requests"`
+	// Start of the time window for these stats, set on first flush after reset.
+	WindowStart time.Time `db:"window_start" json:"window_start"`
+	// Timestamp of the last update to this row.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ConnectionLog struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
@@ -3746,6 +3785,9 @@ type CustomRole struct {
 	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
 	// Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.
 	ID uuid.UUID `db:"id" json:"id"`
+	// System roles are managed by Coder and cannot be modified or deleted by users.
+	IsSystem          bool                  `db:"is_system" json:"is_system"`
+	MemberPermissions CustomRolePermissions `db:"member_permissions" json:"member_permissions"`
 }
 
 // A table used to store the keys used to encrypt the database.
@@ -4011,15 +4053,16 @@ type OAuth2ProviderAppToken struct {
 }
 
 type Organization struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	IsDefault   bool      `db:"is_default" json:"is_default"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Icon        string    `db:"icon" json:"icon"`
-	Deleted     bool      `db:"deleted" json:"deleted"`
+	ID                       uuid.UUID `db:"id" json:"id"`
+	Name                     string    `db:"name" json:"name"`
+	Description              string    `db:"description" json:"description"`
+	CreatedAt                time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
+	IsDefault                bool      `db:"is_default" json:"is_default"`
+	DisplayName              string    `db:"display_name" json:"display_name"`
+	Icon                     string    `db:"icon" json:"icon"`
+	Deleted                  bool      `db:"deleted" json:"deleted"`
+	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
 }
 
 type OrganizationMember struct {
@@ -4170,27 +4213,6 @@ type SiteConfig struct {
 	Value string `db:"value" json:"value"`
 }
 
-type TailnetAgent struct {
-	ID            uuid.UUID       `db:"id" json:"id"`
-	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	UpdatedAt     time.Time       `db:"updated_at" json:"updated_at"`
-	Node          json.RawMessage `db:"node" json:"node"`
-}
-
-type TailnetClient struct {
-	ID            uuid.UUID       `db:"id" json:"id"`
-	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	UpdatedAt     time.Time       `db:"updated_at" json:"updated_at"`
-	Node          json.RawMessage `db:"node" json:"node"`
-}
-
-type TailnetClientSubscription struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
-}
-
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
 type TailnetCoordinator struct {
 	ID          uuid.UUID `db:"id" json:"id"`
@@ -4234,6 +4256,16 @@ type Task struct {
 	OwnerUsername                string                           `db:"owner_username" json:"owner_username"`
 	OwnerName                    string                           `db:"owner_name" json:"owner_name"`
 	OwnerAvatarUrl               string                           `db:"owner_avatar_url" json:"owner_avatar_url"`
+}
+
+// Stores snapshots of task state when paused, currently limited to conversation history.
+type TaskSnapshot struct {
+	// The task this snapshot belongs to.
+	TaskID uuid.UUID `db:"task_id" json:"task_id"`
+	// Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.
+	LogSnapshot json.RawMessage `db:"log_snapshot" json:"log_snapshot"`
+	// When this log snapshot was captured.
+	LogSnapshotCreatedAt time.Time `db:"log_snapshot_created_at" json:"log_snapshot_created_at"`
 }
 
 type TaskTable struct {
@@ -4305,7 +4337,6 @@ type Template struct {
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
-	UseTerraformWorkspaceCache    bool            `db:"use_terraform_workspace_cache" json:"use_terraform_workspace_cache"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -4355,8 +4386,6 @@ type TemplateTable struct {
 	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
 	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
-	// Determines whether to keep terraform directories cached between runs for workspaces created from this template. When enabled, this can significantly speed up the `terraform init` step at the cost of increased disk usage. This is an opt-in experience, as it prevents modules from being updated, and therefore is a behavioral difference from the default.
-	UseTerraformWorkspaceCache bool `db:"use_terraform_workspace_cache" json:"use_terraform_workspace_cache"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -4747,7 +4776,8 @@ type WorkspaceAgentDevcontainer struct {
 	// Path to devcontainer.json.
 	ConfigPath string `db:"config_path" json:"config_path"`
 	// The name of the Dev Container.
-	Name string `db:"name" json:"name"`
+	Name       string        `db:"name" json:"name"`
+	SubagentID uuid.NullUUID `db:"subagent_id" json:"subagent_id"`
 }
 
 type WorkspaceAgentLog struct {

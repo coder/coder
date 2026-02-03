@@ -357,6 +357,7 @@
 {
   "access_key": "string",
   "access_key_secret": "string",
+  "base_url": "string",
   "model": "string",
   "region": "string",
   "small_fast_model": "string"
@@ -369,6 +370,7 @@
 |---------------------|--------|----------|--------------|-------------|
 | `access_key`        | string | false    |              |             |
 | `access_key_secret` | string | false    |              |             |
+| `base_url`          | string | false    |              |             |
 | `model`             | string | false    |              |             |
 | `region`            | string | false    |              |             |
 | `small_fast_model`  | string | false    |              |             |
@@ -384,10 +386,16 @@
   "bedrock": {
     "access_key": "string",
     "access_key_secret": "string",
+    "base_url": "string",
     "model": "string",
     "region": "string",
     "small_fast_model": "string"
   },
+  "circuit_breaker_enabled": true,
+  "circuit_breaker_failure_threshold": 0,
+  "circuit_breaker_interval": 0,
+  "circuit_breaker_max_requests": 0,
+  "circuit_breaker_timeout": 0,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -396,22 +404,31 @@
     "key": "string"
   },
   "rate_limit": 0,
-  "retention": 0
+  "retention": 0,
+  "send_actor_headers": true,
+  "structured_logging": true
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                                                 | Required | Restrictions | Description |
-|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
-| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
-| `enabled`                | boolean                                                              | false    |              |             |
-| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
-| `max_concurrency`        | integer                                                              | false    |              |             |
-| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
-| `rate_limit`             | integer                                                              | false    |              |             |
-| `retention`              | integer                                                              | false    |              |             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              |                                                                                                                       |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                       |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                       |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
 
 ## codersdk.AIBridgeInterception
 
@@ -592,6 +609,34 @@
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
 
+## codersdk.AIBridgeProxyConfig
+
+```json
+{
+  "cert_file": "string",
+  "domain_allowlist": [
+    "string"
+  ],
+  "enabled": true,
+  "key_file": "string",
+  "listen_addr": "string",
+  "upstream_proxy": "string",
+  "upstream_proxy_ca": "string"
+}
+```
+
+### Properties
+
+| Name                | Type            | Required | Restrictions | Description |
+|---------------------|-----------------|----------|--------------|-------------|
+| `cert_file`         | string          | false    |              |             |
+| `domain_allowlist`  | array of string | false    |              |             |
+| `enabled`           | boolean         | false    |              |             |
+| `key_file`          | string          | false    |              |             |
+| `listen_addr`       | string          | false    |              |             |
+| `upstream_proxy`    | string          | false    |              |             |
+| `upstream_proxy_ca` | string          | false    |              |             |
+
 ## codersdk.AIBridgeTokenUsage
 
 ```json
@@ -690,6 +735,17 @@
 
 ```json
 {
+  "aibridge_proxy": {
+    "cert_file": "string",
+    "domain_allowlist": [
+      "string"
+    ],
+    "enabled": true,
+    "key_file": "string",
+    "listen_addr": "string",
+    "upstream_proxy": "string",
+    "upstream_proxy_ca": "string"
+  },
   "bridge": {
     "anthropic": {
       "base_url": "string",
@@ -698,10 +754,16 @@
     "bedrock": {
       "access_key": "string",
       "access_key_secret": "string",
+      "base_url": "string",
       "model": "string",
       "region": "string",
       "small_fast_model": "string"
     },
+    "circuit_breaker_enabled": true,
+    "circuit_breaker_failure_threshold": 0,
+    "circuit_breaker_interval": 0,
+    "circuit_breaker_max_requests": 0,
+    "circuit_breaker_timeout": 0,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -710,16 +772,19 @@
       "key": "string"
     },
     "rate_limit": 0,
-    "retention": 0
+    "retention": 0,
+    "send_actor_headers": true,
+    "structured_logging": true
   }
 }
 ```
 
 ### Properties
 
-| Name     | Type                                               | Required | Restrictions | Description |
-|----------|----------------------------------------------------|----------|--------------|-------------|
-| `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
+| Name             | Type                                                         | Required | Restrictions | Description |
+|------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
+| `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 
 ## codersdk.APIAllowListTarget
 
@@ -797,9 +862,9 @@
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -2595,6 +2660,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "agent_stat_refresh_interval": 0,
     "ai": {
+      "aibridge_proxy": {
+        "cert_file": "string",
+        "domain_allowlist": [
+          "string"
+        ],
+        "enabled": true,
+        "key_file": "string",
+        "listen_addr": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
+      },
       "bridge": {
         "anthropic": {
           "base_url": "string",
@@ -2603,10 +2679,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
+          "base_url": "string",
           "model": "string",
           "region": "string",
           "small_fast_model": "string"
         },
+        "circuit_breaker_enabled": true,
+        "circuit_breaker_failure_threshold": 0,
+        "circuit_breaker_interval": 0,
+        "circuit_breaker_max_requests": 0,
+        "circuit_breaker_timeout": 0,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -2615,7 +2697,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "key": "string"
         },
         "rate_limit": 0,
-        "retention": 0
+        "retention": 0,
+        "send_actor_headers": true,
+        "structured_logging": true
       }
     },
     "allow_workspace_renames": true,
@@ -2860,6 +2944,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "username_field": "string"
     },
     "pg_auth": "string",
+    "pg_conn_max_idle": "string",
+    "pg_conn_max_open": 0,
     "pg_connection_url": "string",
     "pprof": {
       "address": {
@@ -2918,6 +3004,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
+    "stats_collection": {
+      "usage_stats": {
+        "enable": true
+      }
+    },
     "strict_transport_security": 0,
     "strict_transport_security_options": [
       "string"
@@ -2953,9 +3044,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       }
-    },
-    "template_insights": {
-      "enable": true
     },
     "terms_of_service_url": "string",
     "tls": {
@@ -3126,6 +3214,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "agent_stat_refresh_interval": 0,
   "ai": {
+    "aibridge_proxy": {
+      "cert_file": "string",
+      "domain_allowlist": [
+        "string"
+      ],
+      "enabled": true,
+      "key_file": "string",
+      "listen_addr": "string",
+      "upstream_proxy": "string",
+      "upstream_proxy_ca": "string"
+    },
     "bridge": {
       "anthropic": {
         "base_url": "string",
@@ -3134,10 +3233,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "bedrock": {
         "access_key": "string",
         "access_key_secret": "string",
+        "base_url": "string",
         "model": "string",
         "region": "string",
         "small_fast_model": "string"
       },
+      "circuit_breaker_enabled": true,
+      "circuit_breaker_failure_threshold": 0,
+      "circuit_breaker_interval": 0,
+      "circuit_breaker_max_requests": 0,
+      "circuit_breaker_timeout": 0,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -3146,7 +3251,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "key": "string"
       },
       "rate_limit": 0,
-      "retention": 0
+      "retention": 0,
+      "send_actor_headers": true,
+      "structured_logging": true
     }
   },
   "allow_workspace_renames": true,
@@ -3391,6 +3498,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "username_field": "string"
   },
   "pg_auth": "string",
+  "pg_conn_max_idle": "string",
+  "pg_conn_max_open": 0,
   "pg_connection_url": "string",
   "pprof": {
     "address": {
@@ -3449,6 +3558,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh_default_duration": 0
   },
   "ssh_keygen_algorithm": "string",
+  "stats_collection": {
+    "usage_stats": {
+      "enable": true
+    }
+  },
   "strict_transport_security": 0,
   "strict_transport_security_options": [
     "string"
@@ -3484,9 +3598,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     }
-  },
-  "template_insights": {
-    "enable": true
   },
   "terms_of_service_url": "string",
   "tls": {
@@ -3579,6 +3690,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
 | `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_idle`                   | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_open`                   | integer                                                                                              | false    |              |                                                                    |
 | `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
@@ -3592,12 +3705,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `scim_api_key`                       | string                                                                                               | false    |              |                                                                    |
 | `session_lifetime`                   | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
 | `ssh_keygen_algorithm`               | string                                                                                               | false    |              |                                                                    |
+| `stats_collection`                   | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                    |
 | `strict_transport_security`          | integer                                                                                              | false    |              |                                                                    |
 | `strict_transport_security_options`  | array of string                                                                                      | false    |              |                                                                    |
 | `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
-| `template_insights`                  | [codersdk.TemplateInsightsConfig](#codersdktemplateinsightsconfig)                                   | false    |              |                                                                    |
 | `terms_of_service_url`               | string                                                                                               | false    |              |                                                                    |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
@@ -3839,9 +3952,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                         |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `terraform-directory-reuse`, `web-push`, `workspace-sharing`, `workspace-usage` |
+| Value(s)                                                                                                                            |
+|-------------------------------------------------------------------------------------------------------------------------------------|
+| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-sharing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -5121,15 +5234,15 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "authorization_endpoint": "string",
   "code_challenge_methods_supported": [
-    "string"
+    "S256"
   ],
   "grant_types_supported": [
-    "string"
+    "authorization_code"
   ],
   "issuer": "string",
   "registration_endpoint": "string",
   "response_types_supported": [
-    "string"
+    "code"
   ],
   "revocation_endpoint": "string",
   "scopes_supported": [
@@ -5137,25 +5250,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   ],
   "token_endpoint": "string",
   "token_endpoint_auth_methods_supported": [
-    "string"
+    "client_secret_basic"
   ]
 }
 ```
 
 ### Properties
 
-| Name                                    | Type            | Required | Restrictions | Description |
-|-----------------------------------------|-----------------|----------|--------------|-------------|
-| `authorization_endpoint`                | string          | false    |              |             |
-| `code_challenge_methods_supported`      | array of string | false    |              |             |
-| `grant_types_supported`                 | array of string | false    |              |             |
-| `issuer`                                | string          | false    |              |             |
-| `registration_endpoint`                 | string          | false    |              |             |
-| `response_types_supported`              | array of string | false    |              |             |
-| `revocation_endpoint`                   | string          | false    |              |             |
-| `scopes_supported`                      | array of string | false    |              |             |
-| `token_endpoint`                        | string          | false    |              |             |
-| `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
+| Name                                    | Type                                                                                      | Required | Restrictions | Description |
+|-----------------------------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `authorization_endpoint`                | string                                                                                    | false    |              |             |
+| `code_challenge_methods_supported`      | array of [codersdk.OAuth2PKCECodeChallengeMethod](#codersdkoauth2pkcecodechallengemethod) | false    |              |             |
+| `grant_types_supported`                 | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)             | false    |              |             |
+| `issuer`                                | string                                                                                    | false    |              |             |
+| `registration_endpoint`                 | string                                                                                    | false    |              |             |
+| `response_types_supported`              | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype)       | false    |              |             |
+| `revocation_endpoint`                   | string                                                                                    | false    |              |             |
+| `scopes_supported`                      | array of string                                                                           | false    |              |             |
+| `token_endpoint`                        | string                                                                                    | false    |              |             |
+| `token_endpoint_auth_methods_supported` | array of [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod) | false    |              |             |
 
 ## codersdk.OAuth2ClientConfiguration
 
@@ -5170,7 +5283,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -5179,45 +5292,43 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": [
-    0
-  ],
+  "registration_access_token": "string",
   "registration_client_uri": "string",
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type             | Required | Restrictions | Description |
-|------------------------------|------------------|----------|--------------|-------------|
-| `client_id`                  | string           | false    |              |             |
-| `client_id_issued_at`        | integer          | false    |              |             |
-| `client_name`                | string           | false    |              |             |
-| `client_secret_expires_at`   | integer          | false    |              |             |
-| `client_uri`                 | string           | false    |              |             |
-| `contacts`                   | array of string  | false    |              |             |
-| `grant_types`                | array of string  | false    |              |             |
-| `jwks`                       | object           | false    |              |             |
-| `jwks_uri`                   | string           | false    |              |             |
-| `logo_uri`                   | string           | false    |              |             |
-| `policy_uri`                 | string           | false    |              |             |
-| `redirect_uris`              | array of string  | false    |              |             |
-| `registration_access_token`  | array of integer | false    |              |             |
-| `registration_client_uri`    | string           | false    |              |             |
-| `response_types`             | array of string  | false    |              |             |
-| `scope`                      | string           | false    |              |             |
-| `software_id`                | string           | false    |              |             |
-| `software_version`           | string           | false    |              |             |
-| `token_endpoint_auth_method` | string           | false    |              |             |
-| `tos_uri`                    | string           | false    |              |             |
+| Name                         | Type                                                                                | Required | Restrictions | Description |
+|------------------------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client_id`                  | string                                                                              | false    |              |             |
+| `client_id_issued_at`        | integer                                                                             | false    |              |             |
+| `client_name`                | string                                                                              | false    |              |             |
+| `client_secret_expires_at`   | integer                                                                             | false    |              |             |
+| `client_uri`                 | string                                                                              | false    |              |             |
+| `contacts`                   | array of string                                                                     | false    |              |             |
+| `grant_types`                | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)       | false    |              |             |
+| `jwks`                       | object                                                                              | false    |              |             |
+| `jwks_uri`                   | string                                                                              | false    |              |             |
+| `logo_uri`                   | string                                                                              | false    |              |             |
+| `policy_uri`                 | string                                                                              | false    |              |             |
+| `redirect_uris`              | array of string                                                                     | false    |              |             |
+| `registration_access_token`  | string                                                                              | false    |              |             |
+| `registration_client_uri`    | string                                                                              | false    |              |             |
+| `response_types`             | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype) | false    |              |             |
+| `scope`                      | string                                                                              | false    |              |             |
+| `software_id`                | string                                                                              | false    |              |             |
+| `software_version`           | string                                                                              | false    |              |             |
+| `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
+| `tos_uri`                    | string                                                                              | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationRequest
 
@@ -5229,7 +5340,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -5239,37 +5350,37 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_statement": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_name`                | string          | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_statement`         | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type                                                                                | Required | Restrictions | Description |
+|------------------------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client_name`                | string                                                                              | false    |              |             |
+| `client_uri`                 | string                                                                              | false    |              |             |
+| `contacts`                   | array of string                                                                     | false    |              |             |
+| `grant_types`                | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)       | false    |              |             |
+| `jwks`                       | object                                                                              | false    |              |             |
+| `jwks_uri`                   | string                                                                              | false    |              |             |
+| `logo_uri`                   | string                                                                              | false    |              |             |
+| `policy_uri`                 | string                                                                              | false    |              |             |
+| `redirect_uris`              | array of string                                                                     | false    |              |             |
+| `response_types`             | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype) | false    |              |             |
+| `scope`                      | string                                                                              | false    |              |             |
+| `software_id`                | string                                                                              | false    |              |             |
+| `software_statement`         | string                                                                              | false    |              |             |
+| `software_version`           | string                                                                              | false    |              |             |
+| `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
+| `tos_uri`                    | string                                                                              | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationResponse
 
@@ -5285,7 +5396,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "string"
   ],
   "grant_types": [
-    "string"
+    "authorization_code"
   ],
   "jwks": {},
   "jwks_uri": "string",
@@ -5297,41 +5408,41 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "registration_access_token": "string",
   "registration_client_uri": "string",
   "response_types": [
-    "string"
+    "code"
   ],
   "scope": "string",
   "software_id": "string",
   "software_version": "string",
-  "token_endpoint_auth_method": "string",
+  "token_endpoint_auth_method": "client_secret_basic",
   "tos_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_id`                  | string          | false    |              |             |
-| `client_id_issued_at`        | integer         | false    |              |             |
-| `client_name`                | string          | false    |              |             |
-| `client_secret`              | string          | false    |              |             |
-| `client_secret_expires_at`   | integer         | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `registration_access_token`  | string          | false    |              |             |
-| `registration_client_uri`    | string          | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type                                                                                | Required | Restrictions | Description |
+|------------------------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client_id`                  | string                                                                              | false    |              |             |
+| `client_id_issued_at`        | integer                                                                             | false    |              |             |
+| `client_name`                | string                                                                              | false    |              |             |
+| `client_secret`              | string                                                                              | false    |              |             |
+| `client_secret_expires_at`   | integer                                                                             | false    |              |             |
+| `client_uri`                 | string                                                                              | false    |              |             |
+| `contacts`                   | array of string                                                                     | false    |              |             |
+| `grant_types`                | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)       | false    |              |             |
+| `jwks`                       | object                                                                              | false    |              |             |
+| `jwks_uri`                   | string                                                                              | false    |              |             |
+| `logo_uri`                   | string                                                                              | false    |              |             |
+| `policy_uri`                 | string                                                                              | false    |              |             |
+| `redirect_uris`              | array of string                                                                     | false    |              |             |
+| `registration_access_token`  | string                                                                              | false    |              |             |
+| `registration_client_uri`    | string                                                                              | false    |              |             |
+| `response_types`             | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype) | false    |              |             |
+| `scope`                      | string                                                                              | false    |              |             |
+| `software_id`                | string                                                                              | false    |              |             |
+| `software_version`           | string                                                                              | false    |              |             |
+| `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
+| `tos_uri`                    | string                                                                              | false    |              |             |
 
 ## codersdk.OAuth2Config
 
@@ -5394,6 +5505,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `default_provider_enable` | boolean         | false    |              |             |
 | `device_flow`             | boolean         | false    |              |             |
 | `enterprise_base_url`     | string          | false    |              |             |
+
+## codersdk.OAuth2PKCECodeChallengeMethod
+
+```json
+"S256"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `S256`, `plain` |
 
 ## codersdk.OAuth2ProtectedResourceMetadata
 
@@ -5481,6 +5606,48 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |----------------------|--------|----------|--------------|-------------|
 | `client_secret_full` | string | false    |              |             |
 | `id`                 | string | false    |              |             |
+
+## codersdk.OAuth2ProviderGrantType
+
+```json
+"authorization_code"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                            |
+|-------------------------------------------------------------------------------------|
+| `authorization_code`, `client_credentials`, `implicit`, `password`, `refresh_token` |
+
+## codersdk.OAuth2ProviderResponseType
+
+```json
+"code"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `code`, `token` |
+
+## codersdk.OAuth2TokenEndpointAuthMethod
+
+```json
+"client_secret_basic"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `client_secret_basic`, `client_secret_post`, `none` |
 
 ## codersdk.OAuthConversionResponse
 
@@ -6893,9 +7060,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 ## codersdk.RateLimitConfig
 
@@ -7406,6 +7573,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `name`            | string | false    |              |             |
 | `organization_id` | string | false    |              |             |
 
+## codersdk.StatsCollectionConfig
+
+```json
+{
+  "usage_stats": {
+    "enable": true
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                                   | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------|----------|--------------|-------------|
+| `usage_stats` | [codersdk.UsageStatsConfig](#codersdkusagestatsconfig) | false    |              |             |
+
 ## codersdk.SupportConfig
 
 ```json
@@ -7619,15 +7802,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "time": "2019-08-24T14:15:22Z",
       "type": "input"
     }
-  ]
+  ],
+  "snapshot": true,
+  "snapshot_at": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type                                                    | Required | Restrictions | Description |
-|--------|---------------------------------------------------------|----------|--------------|-------------|
-| `logs` | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
+| Name          | Type                                                    | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------|----------|--------------|-------------|
+| `logs`        | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
+| `snapshot`    | boolean                                                 | false    |              |             |
+| `snapshot_at` | string                                                  | false    |              |             |
 
 ## codersdk.TaskSendRequest
 
@@ -7836,8 +8023,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -7878,7 +8064,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
-| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -8137,20 +8322,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Property | Value(s)       |
 |----------|----------------|
 | `role`   | `admin`, `use` |
-
-## codersdk.TemplateInsightsConfig
-
-```json
-{
-  "enable": true
-}
-```
-
-### Properties
-
-| Name     | Type    | Required | Restrictions | Description |
-|----------|---------|----------|--------------|-------------|
-| `enable` | boolean | false    |              |             |
 
 ## codersdk.TemplateInsightsIntervalReport
 
@@ -8925,8 +9096,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
   "update_workspace_last_used_at": true,
-  "use_classic_parameter_flow": true,
-  "use_terraform_workspace_cache": true
+  "use_classic_parameter_flow": true
 }
 ```
 
@@ -8956,7 +9126,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |
 | `update_workspace_last_used_at`    | boolean                                                                        | false    |              | Update workspace last used at updates the last_used_at field of workspaces spawned from the template. This is useful for preventing workspaces being immediately locked when updating the inactivity_ttl field to a new, shorter value.                                                                                                                                            |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              | Use classic parameter flow is a flag that switches the default behavior to use the classic parameter flow when creating a workspace. This only affects deployments with the experiment "dynamic-parameters" enabled. This setting will live for a period after the experiment is made the default. An "opt-out" is present in case the new feature breaks some existing templates. |
-| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              | Use terraform workspace cache allows optionally specifying whether to use cached terraform directories for workspaces created from this template. This field only applies when the correct experiment is enabled. This field is subject to being removed in the future.                                                                                                            |
 
 ## codersdk.UpdateUserAppearanceSettingsRequest
 
@@ -9106,6 +9275,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `schedule` | string | false    |              | Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>` Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present. |
 
+## codersdk.UpdateWorkspaceBuildStateRequest
+
+```json
+{
+  "state": [
+    0
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type             | Required | Restrictions | Description |
+|---------|------------------|----------|--------------|-------------|
+| `state` | array of integer | false    |              |             |
+
 ## codersdk.UpdateWorkspaceDormancy
 
 ```json
@@ -9220,6 +9405,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `end`       | string | false    |              |             |
 | `issued_at` | string | false    |              |             |
 | `start`     | string | false    |              |             |
+
+## codersdk.UsageStatsConfig
+
+```json
+{
+  "enable": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `enable` | boolean | false    |              |             |
 
 ## codersdk.User
 
@@ -11575,6 +11774,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)           |
 |--------------------|
 | ``, `admin`, `use` |
+
+## codersdk.WorkspaceSharingSettings
+
+```json
+{
+  "sharing_disabled": true
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `sharing_disabled` | boolean | false    |              |             |
 
 ## codersdk.WorkspaceStatus
 

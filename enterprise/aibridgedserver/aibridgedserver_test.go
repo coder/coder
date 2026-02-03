@@ -1,6 +1,8 @@
 package aibridgedserver_test
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -20,6 +22,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -182,6 +186,7 @@ func TestAuthorization(t *testing.T) {
 				expected := proto.IsAuthorizedResponse{
 					OwnerId:  user.ID.String(),
 					ApiKeyId: keyID,
+					Username: user.Username,
 				}
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)
@@ -831,4 +836,280 @@ func mustMarshalAny(t *testing.T, msg protobufproto.Message) *anypb.Any {
 
 func strPtr(s string) *string {
 	return &s
+}
+
+// logLine represents a parsed JSON log entry.
+type logLine struct {
+	Msg    string         `json:"msg"`
+	Level  string         `json:"level"`
+	Fields map[string]any `json:"fields"`
+}
+
+// parseLogLines parses JSON log lines from a buffer.
+func parseLogLines(buf *bytes.Buffer) []logLine {
+	var lines []logLine
+	scanner := bufio.NewScanner(buf)
+	for scanner.Scan() {
+		var line logLine
+		if err := json.Unmarshal(scanner.Bytes(), &line); err == nil {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+// getLogLinesWithMessage returns all log lines with the given message.
+func getLogLinesWithMessage(lines []logLine, msg string) []logLine {
+	var result []logLine
+	for _, line := range lines {
+		if line.Msg == msg {
+			result = append(result, line)
+		}
+	}
+	return result
+}
+
+func TestStructuredLogging(t *testing.T) {
+	t.Parallel()
+
+	metadataProto := map[string]*anypb.Any{
+		"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
+	}
+
+	type testCase struct {
+		name              string
+		structuredLogging bool
+		expectedErr       error
+		setupMocks        func(db *dbmock.MockStore, interceptionID uuid.UUID)
+		recordFn          func(srv *aibridgedserver.Server, ctx context.Context, interceptionID uuid.UUID) error
+		expectedFields    map[string]any
+	}
+
+	interceptionID := uuid.UUID{1}
+	initiatorID := uuid.UUID{2}
+
+	cases := []testCase{
+		{
+			name:              "RecordInterception_logs_when_enabled",
+			structuredLogging: true,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{
+					ID:          intcID,
+					InitiatorID: initiatorID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+					Id:          intcID.String(),
+					ApiKeyId:    "api-key-123",
+					InitiatorId: initiatorID.String(),
+					Provider:    "anthropic",
+					Model:       "claude-4-opus",
+					Metadata:    metadataProto,
+					StartedAt:   timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: map[string]any{
+				"record_type":     "interception_start",
+				"interception_id": interceptionID.String(),
+				"initiator_id":    initiatorID.String(),
+				"provider":        "anthropic",
+				"model":           "claude-4-opus",
+			},
+		},
+		{
+			name:              "RecordInterception_does_not_log_when_disabled",
+			structuredLogging: false,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{
+					ID:          intcID,
+					InitiatorID: initiatorID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+					Id:          intcID.String(),
+					ApiKeyId:    "api-key-123",
+					InitiatorId: initiatorID.String(),
+					Provider:    "anthropic",
+					Model:       "claude-4-opus",
+					StartedAt:   timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: nil, // No log expected.
+		},
+		{
+			name:              "RecordInterception_log_on_db_error",
+			structuredLogging: true,
+			expectedErr:       sql.ErrConnDone,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+					Id:          intcID.String(),
+					ApiKeyId:    "api-key-123",
+					InitiatorId: initiatorID.String(),
+					Provider:    "anthropic",
+					Model:       "claude-4-opus",
+					StartedAt:   timestamppb.Now(),
+				})
+				return err
+			},
+			// Even though the database call errored, we must still write the logs.
+			expectedFields: map[string]any{
+				"record_type":     "interception_start",
+				"interception_id": interceptionID.String(),
+				"initiator_id":    initiatorID.String(),
+				"provider":        "anthropic",
+				"model":           "claude-4-opus",
+			},
+		},
+		{
+			name:              "RecordInterceptionEnded_logs_when_enabled",
+			structuredLogging: true,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{
+					ID: intcID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
+					Id:      intcID.String(),
+					EndedAt: timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: map[string]any{
+				"record_type":     "interception_end",
+				"interception_id": interceptionID.String(),
+			},
+		},
+		{
+			name:              "RecordTokenUsage_logs_when_enabled",
+			structuredLogging: true,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeTokenUsage{
+					ID:             uuid.New(),
+					InterceptionID: intcID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+					InterceptionId: intcID.String(),
+					MsgId:          "msg_123",
+					InputTokens:    100,
+					OutputTokens:   200,
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: map[string]any{
+				"record_type":     "token_usage",
+				"interception_id": interceptionID.String(),
+				"input_tokens":    float64(100), // JSON numbers are float64.
+				"output_tokens":   float64(200),
+			},
+		},
+		{
+			name:              "RecordPromptUsage_logs_when_enabled",
+			structuredLogging: true,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), gomock.Any()).Return(database.AIBridgeUserPrompt{
+					ID:             uuid.New(),
+					InterceptionID: intcID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
+					InterceptionId: intcID.String(),
+					MsgId:          "msg_123",
+					Prompt:         "Hello, Claude!",
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: map[string]any{
+				"record_type":     "prompt_usage",
+				"interception_id": interceptionID.String(),
+				"prompt":          "Hello, Claude!",
+			},
+		},
+		{
+			name:              "RecordToolUsage_logs_when_enabled",
+			structuredLogging: true,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeToolUsage{
+					ID:             uuid.New(),
+					InterceptionID: intcID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+					InterceptionId:  intcID.String(),
+					MsgId:           "msg_123",
+					ServerUrl:       strPtr("https://api.example.com"),
+					Tool:            "read_file",
+					Input:           `{"path": "/etc/hosts"}`,
+					Injected:        true,
+					InvocationError: strPtr("permission denied"),
+					Metadata:        metadataProto,
+					CreatedAt:       timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: map[string]any{
+				"record_type":      "tool_usage",
+				"interception_id":  interceptionID.String(),
+				"tool":             "read_file",
+				"input":            `{"path": "/etc/hosts"}`,
+				"injected":         true,
+				"invocation_error": "permission denied",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			buf := &bytes.Buffer{}
+			logger := slog.Make(slogjson.Sink(buf)).Leveled(slog.LevelDebug)
+
+			tc.setupMocks(db, interceptionID)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{
+				StructuredLogging: serpent.Bool(tc.structuredLogging),
+			}, nil, requiredExperiments)
+			require.NoError(t, err)
+
+			err = tc.recordFn(srv, ctx, interceptionID)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			lines := parseLogLines(buf)
+			if tc.expectedFields == nil {
+				// No log expected (disabled or error case).
+				require.Empty(t, lines)
+			} else {
+				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
+				require.Len(t, matchedLines, 1, "expected exactly one log line with message %q", aibridgedserver.InterceptionLogMarker)
+
+				fields := matchedLines[0].Fields
+				for key, expected := range tc.expectedFields {
+					require.Equal(t, expected, fields[key], "field %q mismatch", key)
+				}
+			}
+		})
+	}
 }

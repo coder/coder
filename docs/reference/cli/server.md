@@ -269,16 +269,16 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
-### --template-insights-enable
+### --stats-collection-usage-stats-enable
 
-|             |                                                    |
-|-------------|----------------------------------------------------|
-| Type        | <code>bool</code>                                  |
-| Environment | <code>$CODER_TEMPLATE_INSIGHTS_ENABLE</code>       |
-| YAML        | <code>introspection.templateInsights.enable</code> |
-| Default     | <code>true</code>                                  |
+|             |                                                              |
+|-------------|--------------------------------------------------------------|
+| Type        | <code>bool</code>                                            |
+| Environment | <code>$CODER_STATS_COLLECTION_USAGE_STATS_ENABLE</code>      |
+| YAML        | <code>introspection.statsCollection.usageStats.enable</code> |
+| Default     | <code>true</code>                                            |
 
-Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.
+Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.
 
 ### --prometheus-enable
 
@@ -1015,6 +1015,28 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
+### --postgres-conn-max-open
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>int</code>                     |
+| Environment | <code>$CODER_PG_CONN_MAX_OPEN</code> |
+| YAML        | <code>pgConnMaxOpen</code>           |
+| Default     | <code>10</code>                      |
+
+Maximum number of open connections to the database. Defaults to 10.
+
+### --postgres-conn-max-idle
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_PG_CONN_MAX_IDLE</code> |
+| YAML        | <code>pgConnMaxIdle</code>           |
+| Default     | <code>auto</code>                    |
+
+Maximum number of idle connections to the database. Set to "auto" (the default) to use max open / 3. Value must be greater or equal to 0; 0 means explicitly no idle connections.
+
 ### --secure-auth-cookie
 
 |             |                                          |
@@ -1176,17 +1198,6 @@ Disable password authentication. This is recommended for security purposes in pr
 
 Specify a YAML file to load configuration from.
 
-### --ssh-hostname-prefix
-
-|             |                                         |
-|-------------|-----------------------------------------|
-| Type        | <code>string</code>                     |
-| Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
-| YAML        | <code>client.sshHostnamePrefix</code>   |
-| Default     | <code>coder.</code>                     |
-
-The SSH deployment prefix is used in the Host of the ssh config.
-
 ### --workspace-hostname-suffix
 
 |             |                                               |
@@ -1289,7 +1300,7 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 | YAML        | <code>allowWorkspaceRenames</code>          |
 | Default     | <code>false</code>                          |
 
-DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.
+Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
 
 ### --health-check-refresh
 
@@ -1720,6 +1731,16 @@ The base URL of the Anthropic API.
 
 The key to authenticate against the Anthropic API.
 
+### --aibridge-bedrock-base-url
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AIBRIDGE_BEDROCK_BASE_URL</code> |
+| YAML        | <code>aibridge.bedrock_base_url</code>        |
+
+The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
+
 ### --aibridge-bedrock-region
 
 |             |                                             |
@@ -1728,7 +1749,7 @@ The key to authenticate against the Anthropic API.
 | Environment | <code>$CODER_AIBRIDGE_BEDROCK_REGION</code> |
 | YAML        | <code>aibridge.bedrock_region</code>        |
 
-The AWS Bedrock API region.
+The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
 
 ### --aibridge-bedrock-access-key
 
@@ -1798,7 +1819,7 @@ Length of time to retain data such as interceptions and all related records (tok
 |-------------|----------------------------------------------|
 | Type        | <code>int</code>                             |
 | Environment | <code>$CODER_AIBRIDGE_MAX_CONCURRENCY</code> |
-| YAML        | <code>aibridge.maxConcurrency</code>         |
+| YAML        | <code>aibridge.max_concurrency</code>        |
 | Default     | <code>0</code>                               |
 
 Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
@@ -1809,10 +1830,105 @@ Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
 |-------------|-----------------------------------------|
 | Type        | <code>int</code>                        |
 | Environment | <code>$CODER_AIBRIDGE_RATE_LIMIT</code> |
-| YAML        | <code>aibridge.rateLimit</code>         |
+| YAML        | <code>aibridge.rate_limit</code>        |
 | Default     | <code>0</code>                          |
 
 Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
+
+### --aibridge-structured-logging
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_STRUCTURED_LOGGING</code> |
+| YAML        | <code>aibridge.structured_logging</code>        |
+| Default     | <code>false</code>                              |
+
+Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
+
+### --aibridge-send-actor-headers
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AIBRIDGE_SEND_ACTOR_HEADERS</code> |
+| YAML        | <code>aibridge.send_actor_headers</code>        |
+| Default     | <code>false</code>                              |
+
+Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+
+### --aibridge-circuit-breaker-enabled
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED</code> |
+| YAML        | <code>aibridge.circuit_breaker_enabled</code>        |
+| Default     | <code>false</code>                                   |
+
+Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).
+
+### --aibridge-proxy-enabled
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_ENABLED</code> |
+| YAML        | <code>aibridgeproxy.enabled</code>         |
+| Default     | <code>false</code>                         |
+
+Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.
+
+### --aibridge-proxy-listen-addr
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_LISTEN_ADDR</code> |
+| YAML        | <code>aibridgeproxy.listen_addr</code>         |
+| Default     | <code>:8888</code>                             |
+
+The address the AI Bridge Proxy will listen on.
+
+### --aibridge-proxy-cert-file
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
+| YAML        | <code>aibridgeproxy.cert_file</code>         |
+
+Path to the CA certificate file for AI Bridge Proxy.
+
+### --aibridge-proxy-key-file
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
+| YAML        | <code>aibridgeproxy.key_file</code>         |
+
+Path to the CA private key file for AI Bridge Proxy.
+
+### --aibridge-proxy-upstream
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy</code>   |
+
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+
+### --aibridge-proxy-upstream-ca
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM_CA</code> |
+| YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
+
+Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
 
 ### --audit-logs-retention
 

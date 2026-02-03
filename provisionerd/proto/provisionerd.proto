@@ -26,7 +26,8 @@ message AcquiredJob {
     // workspace build. Omit these values if the workspace is being created
     // for the first time.
     repeated provisioner.RichParameterValue previous_parameter_values = 10;
-    optional bool exp_reuse_terraform_workspace = 11;
+    // Reserved 11 for an experiment `exp_reuse_terraform_workspace` (bool) that was replaced.
+    reserved 11;
   }
   message TemplateImport {
     provisioner.Metadata metadata = 1;
@@ -90,7 +91,7 @@ message CompletedJob {
     repeated string external_auth_providers_names = 4;
     repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
     repeated provisioner.Module start_modules = 6;
-    repeated provisioner.Module stop_modules = 7;
+    reserved 7; // was stop_modules, which is always the same as start_modules
     repeated provisioner.Preset presets = 8;
     bytes plan = 9;
     bytes module_files = 10;
@@ -158,11 +159,9 @@ message CommitQuotaResponse {
 
 message CancelAcquire {}
 
-message UploadFileRequest {
-  oneof type {
-    provisioner.DataUpload data_upload = 1;
-    provisioner.ChunkPiece chunk_piece = 2;
-  }
+message FileRequest {
+  string file_id = 1;
+  provisioner.DataUploadType upload_type = 2;
 }
 
 service ProvisionerDaemon {
@@ -195,5 +194,7 @@ service ProvisionerDaemon {
 
   // UploadFile streams files to be inserted into the database.
   // The file upload_type should be used to determine how to handle the file.
-  rpc UploadFile(stream UploadFileRequest) returns (Empty);
+  rpc UploadFile(stream provisioner.FileUpload) returns (Empty);
+
+  rpc DownloadFile(FileRequest) returns (stream provisioner.FileUpload);
 }

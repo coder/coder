@@ -548,12 +548,19 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 
 ### Parameters
 
-| Name             | In    | Type    | Required | Description        |
-|------------------|-------|---------|----------|--------------------|
-| `workspacebuild` | path  | string  | true     | Workspace build ID |
-| `before`         | query | integer | false    | Before log id      |
-| `after`          | query | integer | false    | After log id       |
-| `follow`         | query | boolean | false    | Follow log stream  |
+| Name             | In    | Type    | Required | Description                                                                                                                                 |
+|------------------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspacebuild` | path  | string  | true     | Workspace build ID                                                                                                                          |
+| `before`         | query | integer | false    | Before log id                                                                                                                               |
+| `after`          | query | integer | false    | After log id                                                                                                                                |
+| `follow`         | query | boolean | false    | Follow log stream                                                                                                                           |
+| `format`         | query | string  | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 
@@ -1180,6 +1187,44 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 | Status | Meaning                                                 | Description | Schema                                                       |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update workspace build state
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/state \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /workspacebuilds/{workspacebuild}/state`
+
+> Body parameter
+
+```json
+{
+  "state": [
+    0
+  ]
+}
+```
+
+### Parameters
+
+| Name             | In   | Type                                                                                             | Required | Description        |
+|------------------|------|--------------------------------------------------------------------------------------------------|----------|--------------------|
+| `workspacebuild` | path | string(uuid)                                                                                     | true     | Workspace build ID |
+| `body`           | body | [codersdk.UpdateWorkspaceBuildStateRequest](schemas.md#codersdkupdateworkspacebuildstaterequest) | true     | Request body       |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

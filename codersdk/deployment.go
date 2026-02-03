@@ -14,19 +14,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/serpent"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -56,6 +54,111 @@ func (e Entitlement) Weight() int {
 		return -1
 	default:
 		return -2
+	}
+}
+
+// Addon represents a grouping of features used for additional license SKUs.
+// It is complementary to FeatureSet and similar in implementation, allowing
+// features to be grouped together dynamically. Unlike FeatureSet, licenses
+// can have multiple addons. This also means that entitlements don't require
+// reissuing when new features are added to an addon.
+type Addon string
+
+const (
+	AddonAIGovernance Addon = "ai_governance"
+)
+
+var (
+	// AddonsNames must be kept in-sync with the Addon enum above.
+	AddonsNames = []Addon{
+		AddonAIGovernance,
+	}
+
+	// AddonsMap is a map of all addon names for quick lookups.
+	AddonsMap = func() map[Addon]struct{} {
+		addonsMap := make(map[Addon]struct{}, len(AddonsNames))
+		for _, addon := range AddonsNames {
+			addonsMap[addon] = struct{}{}
+		}
+		return addonsMap
+	}()
+)
+
+// Features returns all the features that are part of the addon.
+func (a Addon) Features() []FeatureName {
+	switch a {
+	case AddonAIGovernance:
+		// Return all AI governance features.
+		var features []FeatureName
+		for _, featureName := range FeatureNames {
+			if featureName.IsAIGovernanceAddon() {
+				features = append(features, featureName)
+			}
+		}
+		return features
+	default:
+		return nil
+	}
+}
+
+// ValidateDependencies validates the dependencies of the addon
+// and returns a list of errors for the missing dependencies.
+func (a Addon) ValidateDependencies(features map[FeatureName]Feature) []string {
+	errors := []string{}
+
+	// Candidate for a switch statement once we have more addons.
+	if a == AddonAIGovernance {
+		requiredFeatures := []FeatureName{
+			FeatureAIGovernanceUserLimit,
+		}
+
+		for _, featureName := range requiredFeatures {
+			feature, ok := features[featureName]
+			if !ok {
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						featureName.Humanize(),
+						a.Humanize(),
+					),
+				)
+				continue
+			}
+			// For limit features, check if the Limit is set (not nil).
+			// For usage period features, check if the Limit is set.
+			if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
+				if feature.Limit == nil {
+					errors = append(errors,
+						fmt.Sprintf(
+							"Feature %s must be set when using the %s addon.",
+							featureName.Humanize(),
+							a.Humanize(),
+						),
+					)
+				}
+			} else if feature.Entitlement == EntitlementNotEntitled {
+				// For non-limit features, check if the feature is entitled.
+				errors = append(errors,
+					fmt.Sprintf(
+						"Feature %s must be set when using the %s addon.",
+						featureName.Humanize(),
+						a.Humanize(),
+					),
+				)
+			}
+		}
+	}
+
+	return errors
+}
+
+// Humanize returns the addon name in a human-readable format.
+func (a Addon) Humanize() string {
+	switch a {
+	case AddonAIGovernance:
+		return "AI Governance"
+	default:
+		return strings.Title(strings.ReplaceAll(string(a), "_", " "))
 	}
 }
 
@@ -92,6 +195,8 @@ const (
 	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 	FeatureAIBridge               FeatureName = "aibridge"
+	FeatureBoundary               FeatureName = "boundary"
+	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
 )
 
 var (
@@ -121,6 +226,8 @@ var (
 		FeatureManagedAgentLimit,
 		FeatureWorkspaceExternalAgent,
 		FeatureAIBridge,
+		FeatureBoundary,
+		FeatureAIGovernanceUserLimit,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -142,6 +249,8 @@ func (n FeatureName) Humanize() string {
 		return "SCIM"
 	case FeatureAIBridge:
 		return "AI Bridge"
+	case FeatureAIGovernanceUserLimit:
+		return "AI Governance User Limit"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -165,6 +274,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
 		FeatureWorkspaceExternalAgent:     true,
+		FeatureBoundary:                   true,
 	}[n]
 }
 
@@ -183,8 +293,9 @@ func (n FeatureName) Enterprise() bool {
 // be included in any feature sets (as they are not boolean features).
 func (n FeatureName) UsesLimit() bool {
 	return map[FeatureName]bool{
-		FeatureUserLimit:         true,
-		FeatureManagedAgentLimit: true,
+		FeatureUserLimit:             true,
+		FeatureManagedAgentLimit:     true,
+		FeatureAIGovernanceUserLimit: true,
 	}[n]
 }
 
@@ -193,6 +304,20 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	return map[FeatureName]bool{
 		FeatureManagedAgentLimit: true,
 	}[n]
+}
+
+// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+func (n FeatureName) IsAIGovernanceAddon() bool {
+	return n == FeatureAIBridge || n == FeatureBoundary
+}
+
+// IsAddon returns true if the feature is an addon feature.
+func (n FeatureName) IsAddonFeature() bool {
+	features := []FeatureName{}
+	for addon := range AddonsMap {
+		features = append(features, addon.Features()...)
+	}
+	return slices.Contains(features, n)
 }
 
 // FeatureSet represents a grouping of features. Rather than manually
@@ -219,6 +344,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
+			// TODO: In future release, restore the f.IsAddonFeature() check.
 			return !f.Enterprise() || f.UsesLimit()
 		})
 
@@ -228,6 +354,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(premiumFeatures, FeatureNames)
 		// Remove the selection
 		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
+			// TODO: In future release, restore the f.IsAddonFeature() check.
 			return f.UsesLimit()
 		})
 		// FeatureSetPremium is just all features.
@@ -444,6 +571,10 @@ var PostgresAuthDrivers = []string{
 	string(PostgresAuthAWSIAMRDS),
 }
 
+// PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
+// based on max open connections.
+const PostgresConnMaxIdleAuto = "auto"
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -464,6 +595,8 @@ type DeploymentValues struct {
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
+	PostgresConnMaxOpen             serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
+	PostgresConnMaxIdle             serpent.String                       `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -511,7 +644,7 @@ type DeploymentValues struct {
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
-	TemplateInsights                TemplateInsightsConfig               `json:"template_insights,omitempty" typescript:",notnull"`
+	StatsCollection                 StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -611,8 +744,12 @@ type DERPConfig struct {
 	Path            serpent.String `json:"path" typescript:",notnull"`
 }
 
-type TemplateInsightsConfig struct {
+type UsageStatsConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
+}
+
+type StatsCollectionConfig struct {
+	UsageStats UsageStatsConfig `json:"usage_stats" tyescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -1080,7 +1217,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
-			Description: `Configure logging, tracing, and metrics exporting.`,
+			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
 			YAML:        "introspection",
 		}
 		deploymentGroupIntrospectionPPROF = serpent.Group{
@@ -1088,10 +1225,15 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "pprof",
 			YAML:   "pprof",
 		}
-		deploymentGroupIntrospectionTemplateInsights = serpent.Group{
+		deploymentGroupIntrospectionStatsCollection = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
-			Name:   "Template Insights",
-			YAML:   "templateInsights",
+			Name:   "Stats Collection",
+			YAML:   "statsCollection",
+		}
+		deploymentGroupIntrospectionStatsCollectionUsageStats = serpent.Group{
+			Parent: &deploymentGroupIntrospectionStatsCollection,
+			Name:   "Usage Stats",
+			YAML:   "usageStats",
 		}
 		deploymentGroupIntrospectionPrometheus = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
@@ -1216,6 +1358,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge",
 			YAML: "aibridge",
+		}
+		deploymentGroupAIBridgeProxy = serpent.Group{
+			Name: "AI Bridge Proxy",
+			YAML: "aibridgeproxy",
 		}
 		deploymentGroupRetention = serpent.Group{
 			Name:        "Retention",
@@ -1402,6 +1548,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Value:       &c.Telemetry.Enable,
 		Group:       &deploymentGroupTelemetry,
 		YAML:        "enable",
+	}
+	workspaceHostnameSuffix := serpent.Option{
+		Name:        "Workspace Hostname Suffix",
+		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+		Flag:        "workspace-hostname-suffix",
+		Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
+		YAML:        "workspaceHostnameSuffix",
+		Group:       &deploymentGroupClient,
+		Value:       &c.WorkspaceHostnameSuffix,
+		Hidden:      false,
+		Default:     "coder",
 	}
 	opts := serpent.OptionSet{
 		{
@@ -1714,13 +1871,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "configPath",
 		},
 		{
-			Name:        "Enable Template Insights",
-			Description: "Enable the collection and display of template insights along with the associated API endpoints. This will also enable aggregating these insights into daily active users, application usage, and transmission rates for overall deployment stats. When disabled, these values will be zero, which will also affect what the bottom deployment overview bar displays. Disabling will also prevent Prometheus collection of these values.",
-			Flag:        "template-insights-enable",
-			Env:         "CODER_TEMPLATE_INSIGHTS_ENABLE",
+			Name:        "Stats Collection Usage Stats Enable",
+			Description: "Enable the collection of application and workspace usage along with the associated API endpoints and the template insights page. Disabling this will also disable traffic and connection insights in the deployment stats shown to admins in the bottom bar of the Coder UI, and will prevent Prometheus collection of these values.",
+			Flag:        "stats-collection-usage-stats-enable",
+			Env:         "CODER_STATS_COLLECTION_USAGE_STATS_ENABLE",
 			Default:     "true",
-			Value:       &c.TemplateInsights.Enable,
-			Group:       &deploymentGroupIntrospectionTemplateInsights,
+			Value:       &c.StatsCollection.UsageStats.Enable,
+			Group:       &deploymentGroupIntrospectionStatsCollectionUsageStats,
 			YAML:        "enable",
 		},
 		// TODO: support Git Auth settings.
@@ -2613,6 +2770,30 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "pgAuth",
 		},
 		{
+			Name:        "Postgres Connection Max Open",
+			Description: "Maximum number of open connections to the database. Defaults to 10.",
+			Flag:        "postgres-conn-max-open",
+			Env:         "CODER_PG_CONN_MAX_OPEN",
+			Default:     "10",
+			Value: serpent.Validate(&c.PostgresConnMaxOpen, func(value *serpent.Int64) error {
+				if value.Value() <= 0 {
+					return xerrors.New("must be greater than zero")
+				}
+				return nil
+			}),
+			YAML: "pgConnMaxOpen",
+		},
+		{
+			Name: "Postgres Connection Max Idle",
+			Description: "Maximum number of idle connections to the database. Set to \"auto\" (the default) to use max open / 3. " +
+				"Value must be greater or equal to 0; 0 means explicitly no idle connections.",
+			Flag:    "postgres-conn-max-idle",
+			Env:     "CODER_PG_CONN_MAX_IDLE",
+			Default: PostgresConnMaxIdleAuto,
+			Value:   &c.PostgresConnMaxIdle,
+			YAML:    "pgConnMaxIdle",
+		},
+		{
 			Name:        "Secure Auth Cookie",
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
@@ -2803,26 +2984,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "SSH Host Prefix",
-			Description: "The SSH deployment prefix is used in the Host of the ssh config.",
+			Description: "Deprecated: use workspace-hostname-suffix instead. The SSH deployment prefix is used in the Host of the ssh config.",
 			Flag:        "ssh-hostname-prefix",
 			Env:         "CODER_SSH_HOSTNAME_PREFIX",
 			YAML:        "sshHostnamePrefix",
 			Group:       &deploymentGroupClient,
 			Value:       &c.SSHConfig.DeploymentName,
-			Hidden:      false,
+			Hidden:      true,
 			Default:     "coder.",
+			UseInstead:  serpent.OptionSet{workspaceHostnameSuffix},
 		},
-		{
-			Name:        "Workspace Hostname Suffix",
-			Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
-			Flag:        "workspace-hostname-suffix",
-			Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
-			YAML:        "workspaceHostnameSuffix",
-			Group:       &deploymentGroupClient,
-			Value:       &c.WorkspaceHostnameSuffix,
-			Hidden:      false,
-			Default:     "coder",
-		},
+		workspaceHostnameSuffix,
 		{
 			Name: "SSH Config Options",
 			Description: "These SSH config options will override the default SSH config options. " +
@@ -2925,13 +3097,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "webTerminalRenderer",
 		},
 		{
-			Name:        "Allow Workspace Renames",
-			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.",
-			Flag:        "allow-workspace-renames",
-			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
-			Default:     "false",
-			Value:       &c.AllowWorkspaceRenames,
-			YAML:        "allowWorkspaceRenames",
+			Name: "Allow Workspace Renames",
+			Description: "Allow users to rename their workspaces. " +
+				"WARNING: Renaming a workspace can cause Terraform resources that depend on the " +
+				"workspace name to be destroyed and recreated, potentially causing data loss. " +
+				"Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.",
+			Flag:    "allow-workspace-renames",
+			Env:     "CODER_ALLOW_WORKSPACE_RENAMES",
+			Default: "false",
+			Value:   &c.AllowWorkspaceRenames,
+			YAML:    "allowWorkspaceRenames",
 		},
 		// Healthcheck Options
 		{
@@ -3353,14 +3528,26 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
-			Name:        "AI Bridge Bedrock Region",
-			Description: "The AWS Bedrock API region.",
-			Flag:        "aibridge-bedrock-region",
-			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:       &c.AI.BridgeConfig.Bedrock.Region,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "bedrock_region",
+			Name: "AI Bridge Bedrock Base URL",
+			Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
+				"over CODER_AIBRIDGE_BEDROCK_REGION.",
+			Flag:    "aibridge-bedrock-base-url",
+			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
+			Value:   &c.AI.BridgeConfig.Bedrock.BaseURL,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_base_url",
+		},
+		{
+			Name: "AI Bridge Bedrock Region",
+			Description: "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
+				"'https://bedrock-runtime.<region>.amazonaws.com'.",
+			Flag:    "aibridge-bedrock-region",
+			Env:     "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:   &c.AI.BridgeConfig.Bedrock.Region,
+			Default: "",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "bedrock_region",
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key",
@@ -3431,7 +3618,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.MaxConcurrency,
 			Default:     "0",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "maxConcurrency",
+			YAML:        "max_concurrency",
 		},
 		{
 			Name:        "AI Bridge Rate Limit",
@@ -3441,8 +3628,170 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.RateLimit,
 			Default:     "0",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "rateLimit",
+			YAML:        "rate_limit",
 		},
+		{
+			Name:        "AI Bridge Structured Logging",
+			Description: "Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.",
+			Flag:        "aibridge-structured-logging",
+			Env:         "CODER_AIBRIDGE_STRUCTURED_LOGGING",
+			Value:       &c.AI.BridgeConfig.StructuredLogging,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "structured_logging",
+		},
+		{
+			Name: "AI Bridge Send Actor Headers",
+			Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
+				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. " +
+				"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+			Flag:    "aibridge-send-actor-headers",
+			Env:     "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
+			Value:   &c.AI.BridgeConfig.SendActorHeaders,
+			Default: "false",
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "send_actor_headers",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Enabled",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Flag:        "aibridge-circuit-breaker-enabled",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuit_breaker_enabled",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Failure Threshold",
+			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+			Flag:        "aibridge-circuit-breaker-failure-threshold",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "5",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuit_breaker_failure_threshold",
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Interval",
+			Description: "Cyclic period of the closed state for clearing internal failure counts.",
+			Flag:        "aibridge-circuit-breaker-interval",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
+			Default:     "10s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuit_breaker_interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Timeout",
+			Description: "How long the circuit breaker stays open before transitioning to half-open state.",
+			Flag:        "aibridge-circuit-breaker-timeout",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT",
+			Value:       &c.AI.BridgeConfig.CircuitBreakerTimeout,
+			Default:     "30s",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuit_breaker_timeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "AI Bridge Circuit Breaker Max Requests",
+			Description: "Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
+			Flag:        "aibridge-circuit-breaker-max-requests",
+			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS",
+			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, func(value *serpent.Int64) error {
+				if value.Value() <= 0 || value.Value() > 100 {
+					return xerrors.New("must be between 1 and 100")
+				}
+				return nil
+			}),
+			Default: "3",
+			Hidden:  true,
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "circuit_breaker_max_requests",
+		},
+
+		// AI Bridge Proxy Options
+		{
+			Name:        "AI Bridge Proxy Enabled",
+			Description: "Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.",
+			Flag:        "aibridge-proxy-enabled",
+			Env:         "CODER_AIBRIDGE_PROXY_ENABLED",
+			Value:       &c.AI.BridgeProxyConfig.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "enabled",
+		},
+		{
+			Name:        "AI Bridge Proxy Listen Address",
+			Description: "The address the AI Bridge Proxy will listen on.",
+			Flag:        "aibridge-proxy-listen-addr",
+			Env:         "CODER_AIBRIDGE_PROXY_LISTEN_ADDR",
+			Value:       &c.AI.BridgeProxyConfig.ListenAddr,
+			Default:     ":8888",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "listen_addr",
+		},
+		{
+			Name:        "AI Bridge Proxy Certificate File",
+			Description: "Path to the CA certificate file for AI Bridge Proxy.",
+			Flag:        "aibridge-proxy-cert-file",
+			Env:         "CODER_AIBRIDGE_PROXY_CERT_FILE",
+			Value:       &c.AI.BridgeProxyConfig.CertFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "cert_file",
+		},
+		{
+			Name:        "AI Bridge Proxy Key File",
+			Description: "Path to the CA private key file for AI Bridge Proxy.",
+			Flag:        "aibridge-proxy-key-file",
+			Env:         "CODER_AIBRIDGE_PROXY_KEY_FILE",
+			Value:       &c.AI.BridgeProxyConfig.KeyFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "key_file",
+		},
+		{
+			Name:        "AI Bridge Proxy Domain Allowlist",
+			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. Requests to other domains will be tunneled directly without decryption. Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com.",
+			Flag:        "aibridge-proxy-domain-allowlist",
+			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default:     "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "domain_allowlist",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy",
+			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Flag:        "aibridge-proxy-upstream",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy",
+		},
+		{
+			Name:        "AI Bridge Proxy Upstream Proxy CA",
+			Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+			Flag:        "aibridge-proxy-upstream-ca",
+			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM_CA",
+			Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "upstream_proxy_ca",
+		},
+
 		// Retention settings
 		{
 			Name:        "Audit Logs Retention",
@@ -3515,6 +3864,15 @@ type AIBridgeConfig struct {
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool            `json:"send_actor_headers" typescript:",notnull"`
+	// Circuit breaker protects against cascading failures from upstream AI
+	// provider rate limits (429, 503, 529 overloaded).
+	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
+	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
+	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
+	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
+	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3528,6 +3886,7 @@ type AIBridgeAnthropicConfig struct {
 }
 
 type AIBridgeBedrockConfig struct {
+	BaseURL         serpent.String `json:"base_url" typescript:",notnull"`
 	Region          serpent.String `json:"region" typescript:",notnull"`
 	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
 	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
@@ -3535,8 +3894,19 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
+type AIBridgeProxyConfig struct {
+	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
+	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+}
+
 type AIConfig struct {
-	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
+	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
+	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 }
 
 type SupportConfig struct {
@@ -3788,8 +4158,6 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
-	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
 
 func (e Experiment) DisplayName() string {
@@ -3810,8 +4178,6 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
-	case ExperimentTerraformWorkspace:
-		return "Terraform Directory Reuse"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4069,4 +4435,29 @@ func (c CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := c.Secret != ""
 	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
 	return hasSecret && beforeDelete
+}
+
+// ComputeMaxIdleConns calculates the effective maxIdleConns value. If
+// configuredIdle is "auto", it returns maxOpen/3 with a minimum of 1. If
+// configuredIdle exceeds maxOpen, it returns an error.
+func ComputeMaxIdleConns(maxOpen int, configuredIdle string) (int, error) {
+	configuredIdle = strings.TrimSpace(configuredIdle)
+	if configuredIdle == PostgresConnMaxIdleAuto {
+		computed := maxOpen / 3
+		if computed < 1 {
+			return 1, nil
+		}
+		return computed, nil
+	}
+	idle, err := strconv.Atoi(configuredIdle)
+	if err != nil {
+		return 0, xerrors.Errorf("invalid max idle connections %q: must be %q or >= 0", configuredIdle, PostgresConnMaxIdleAuto)
+	}
+	if idle < 0 {
+		return 0, xerrors.Errorf("max idle connections must be %q or >= 0", PostgresConnMaxIdleAuto)
+	}
+	if idle > maxOpen {
+		return 0, xerrors.Errorf("max idle connections (%d) cannot exceed max open connections (%d)", idle, maxOpen)
+	}
+	return idle, nil
 }

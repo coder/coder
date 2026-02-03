@@ -135,7 +135,8 @@ spec:
       app.kubernetes.io/name: coder
   template:
     metadata:
-      annotations: {}
+      annotations:
+        app.kubernetes.io/component: coderd
       labels:
         app.kubernetes.io/instance: release-name
         app.kubernetes.io/managed-by: Helm
@@ -179,12 +180,6 @@ spec:
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
-          initialDelaySeconds: 0
         name: coder
         ports:
         - containerPort: 8080

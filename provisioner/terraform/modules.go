@@ -4,9 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,6 +37,11 @@ type module struct {
 	Dir     string `json:"Dir"`
 }
 
+type moduleWithEstimatedSize struct {
+	*module
+	EstimatedSize int64
+}
+
 type modulesFile struct {
 	Modules []*module `json:"Modules"`
 }
@@ -58,7 +65,7 @@ func parseModulesFile(filePath string) ([]*proto.Module, error) {
 // getModules returns the modules from the modules file if it exists.
 // It returns nil if the file does not exist.
 // Modules become available after terraform init.
-func getModules(files tfpath.Layouter) ([]*proto.Module, error) {
+func getModules(files tfpath.Layout) ([]*proto.Module, error) {
 	filePath := files.ModulesFilePath()
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, nil
@@ -78,30 +85,59 @@ func getModules(files tfpath.Layouter) ([]*proto.Module, error) {
 	return filteredModules, nil
 }
 
-func GetModulesArchive(root fs.FS) ([]byte, error) {
+func GetModulesArchive(root fs.FS) ([]byte, []string, error) {
+	return GetModulesArchiveWithLimit(root, MaximumModuleArchiveSize)
+}
+
+// GetModulesArchiveWithLimit returns the tar archive, the skipped modules, and an error if any.
+func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []string, error) {
 	modulesFileContent, err := fs.ReadFile(root, ".terraform/modules/modules.json")
 	if err != nil {
 		if xerrors.Is(err, fs.ErrNotExist) {
-			return []byte{}, nil
+			return []byte{}, []string{}, nil
 		}
-		return nil, xerrors.Errorf("failed to read modules.json: %w", err)
+		return nil, []string{}, xerrors.Errorf("failed to read modules.json: %w", err)
 	}
 	var m modulesFile
 	if err := json.Unmarshal(modulesFileContent, &m); err != nil {
-		return nil, xerrors.Errorf("failed to parse modules.json: %w", err)
+		return nil, []string{}, xerrors.Errorf("failed to parse modules.json: %w", err)
 	}
 
 	empty := true
 	var b bytes.Buffer
 
-	lw := xio.NewLimitWriter(&b, MaximumModuleArchiveSize)
+	lw := xio.NewLimitWriter(&b, maxArchiveSize)
 	w := tar.NewWriter(lw)
 
+	sized := make([]*moduleWithEstimatedSize, 0, len(m.Modules))
 	for _, it := range m.Modules {
+		sz, err := estimateModuleSize(root, it.Dir)
+		if err != nil {
+			return nil, []string{}, xerrors.Errorf("failed to estimate module size for %q: %w", it.Dir, err)
+		}
+		sized = append(sized, &moduleWithEstimatedSize{
+			module:        it,
+			EstimatedSize: sz,
+		})
+	}
+
+	// Sort modules by estimated size descending so that we skip the largest
+	slices.SortFunc(sized, func(a, b *moduleWithEstimatedSize) int {
+		return int(a.EstimatedSize - b.EstimatedSize)
+	})
+	skippedModules := []string{}
+
+	for _, it := range sized {
 		// Check to make sure that the module is a remote module fetched by
 		// Terraform. Any module that doesn't start with this path is already local,
 		// and should be part of the template files already.
 		if !strings.HasPrefix(it.Dir, ".terraform/modules/") {
+			continue
+		}
+
+		// Leave 1024 bytes for the footer
+		if it.EstimatedSize > lw.Remaining()-1024 {
+			skippedModules = append(skippedModules, fmt.Sprintf("%s:%s", it.Key, it.Source))
 			continue
 		}
 
@@ -149,26 +185,67 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, skippedModules, err
 		}
 	}
 
 	err = w.WriteHeader(defaultFileHeader(".terraform/modules/modules.json", len(modulesFileContent)))
 	if err != nil {
-		return nil, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+		return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
 	}
 	if _, err := w.Write(modulesFileContent); err != nil {
-		return nil, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+		return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
 	}
 
 	if err := w.Close(); err != nil {
-		return nil, xerrors.Errorf("failed to close module files archive: %w", err)
+		return nil, skippedModules, xerrors.Errorf("failed to close module files archive: %w", err)
 	}
 	// Don't persist empty tar files in the database
 	if empty {
-		return []byte{}, nil
+		return []byte{}, skippedModules, nil
 	}
-	return b.Bytes(), nil
+	return b.Bytes(), skippedModules, nil
+}
+
+// estimateModuleSize estimates the size impact of adding the specified module
+// directory to a tar archive.
+func estimateModuleSize(root fs.FS, moduleDir string) (int64, error) {
+	size := int64(0)
+	err := fs.WalkDir(root, moduleDir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		fileMode := d.Type()
+		if !fileMode.IsRegular() && !fileMode.IsDir() {
+			return nil
+		}
+
+		// .git directories are not needed in the archive and only cause
+		// hash differences for identical modules.
+		if fileMode.IsDir() && d.Name() == ".git" {
+			return fs.SkipDir
+		}
+
+		fileInfo, err := d.Info()
+		if err != nil {
+			return xerrors.Errorf("file info: %w", err)
+		}
+
+		size += 512 // tar header size
+		if !fileMode.IsRegular() {
+			return nil // Dirs have no content size
+		}
+
+		fileSize := fileInfo.Size()
+		size += fileSize
+		// Pad to 512 bytes
+		size += 512 - (fileSize % 512)
+		return nil
+	})
+	if err != nil {
+		return -1, err
+	}
+	return size, err
 }
 
 func fileHeader(filePath string, fileMode fs.FileMode, fileInfo fs.FileInfo) (*tar.Header, error) {

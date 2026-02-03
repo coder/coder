@@ -15,9 +15,11 @@ SUBCOMMANDS:
 
 OPTIONS:
       --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
-          DEPRECATED: Allow users to rename their workspaces. Use only for
-          temporary compatibility reasons, this will be removed in a future
-          release.
+          Allow users to rename their workspaces. WARNING: Renaming a workspace
+          can cause Terraform resources that depend on the workspace name to be
+          destroyed and recreated, potentially causing data loss. Only enable
+          this if your templates do not use workspace names in resource
+          identifiers, or if you understand the risks.
 
       --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
@@ -65,6 +67,14 @@ OPTIONS:
           Type of auth to use when connecting to postgres. For AWS RDS, using
           IAM authentication (awsiamrds) is recommended.
 
+      --postgres-conn-max-idle string, $CODER_PG_CONN_MAX_IDLE (default: auto)
+          Maximum number of idle connections to the database. Set to "auto" (the
+          default) to use max open / 3. Value must be greater or equal to 0; 0
+          means explicitly no idle connections.
+
+      --postgres-conn-max-open int, $CODER_PG_CONN_MAX_OPEN (default: 10)
+          Maximum number of open connections to the database. Defaults to 10.
+
       --postgres-url string, $CODER_PG_CONNECTION_URL
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all
@@ -101,17 +111,28 @@ AI BRIDGE OPTIONS:
           The access key secret to use with the access key to authenticate
           against the AWS Bedrock API.
 
+      --aibridge-bedrock-base-url string, $CODER_AIBRIDGE_BEDROCK_BASE_URL
+          The base URL to use for the AWS Bedrock API. Use this setting to
+          specify an exact URL to use. Takes precedence over
+          CODER_AIBRIDGE_BEDROCK_REGION.
+
       --aibridge-bedrock-model string, $CODER_AIBRIDGE_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
           The model to use when making requests to the AWS Bedrock API.
 
       --aibridge-bedrock-region string, $CODER_AIBRIDGE_BEDROCK_REGION
-          The AWS Bedrock API region.
+          The AWS Bedrock API region to use. Constructs a base URL to use for
+          the AWS Bedrock API in the form of
+          'https://bedrock-runtime.<region>.amazonaws.com'.
 
       --aibridge-bedrock-small-fastmodel string, $CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
           The small fast model to use when making requests to the AWS Bedrock
           API. Claude Code uses Haiku-class models to perform background tasks.
           See
           https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+
+      --aibridge-circuit-breaker-enabled bool, $CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED (default: false)
+          Enable the circuit breaker to protect against cascading failures from
+          upstream AI provider rate limits (429, 503, 529 overloaded).
 
       --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 60d)
           Length of time to retain data such as interceptions and all related
@@ -139,6 +160,43 @@ AI BRIDGE OPTIONS:
           Maximum number of AI Bridge requests per second per replica. Set to 0
           to disable (unlimited).
 
+      --aibridge-send-actor-headers bool, $CODER_AIBRIDGE_SEND_ACTOR_HEADERS (default: false)
+          Once enabled, extra headers will be added to upstream requests to
+          identify the user (actor) making requests to AI Bridge. This is only
+          needed if you are using a proxy between AI Bridge and an upstream AI
+          provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
+          making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
+          username).
+
+      --aibridge-structured-logging bool, $CODER_AIBRIDGE_STRUCTURED_LOGGING (default: false)
+          Emit structured logs for AI Bridge interception records. Use this for
+          exporting these records to external SIEM or observability systems.
+
+AI BRIDGE PROXY OPTIONS: 
+      --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
+          Path to the CA certificate file for AI Bridge Proxy.
+
+      --aibridge-proxy-enabled bool, $CODER_AIBRIDGE_PROXY_ENABLED (default: false)
+          Enable the AI Bridge MITM Proxy for intercepting and decrypting AI
+          provider requests.
+
+      --aibridge-proxy-key-file string, $CODER_AIBRIDGE_PROXY_KEY_FILE
+          Path to the CA private key file for AI Bridge Proxy.
+
+      --aibridge-proxy-listen-addr string, $CODER_AIBRIDGE_PROXY_LISTEN_ADDR (default: :8888)
+          The address the AI Bridge Proxy will listen on.
+
+      --aibridge-proxy-upstream string, $CODER_AIBRIDGE_PROXY_UPSTREAM
+          URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
+          requests through. Format: http://[user:pass@]host:port or
+          https://[user:pass@]host:port.
+
+      --aibridge-proxy-upstream-ca string, $CODER_AIBRIDGE_PROXY_UPSTREAM_CA
+          Path to a PEM-encoded CA certificate to trust for the upstream proxy's
+          TLS connection. Only needed for HTTPS upstream proxies with
+          certificates not trusted by the system. If not provided, the system
+          certificate pool is used.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
@@ -156,9 +214,6 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           Provide options in "key=value" or "key value" format separated by
           commas.Using this incorrectly can break SSH to your deployment, use
           cautiously.
-
-      --ssh-hostname-prefix string, $CODER_SSH_HOSTNAME_PREFIX (default: coder.)
-          The SSH deployment prefix is used in the Host of the ssh config.
 
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
           The renderer to use when opening a web terminal. Valid values are
@@ -277,15 +332,13 @@ INTROSPECTION / PROMETHEUS OPTIONS:
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
 
-INTROSPECTION / TEMPLATE INSIGHTS OPTIONS: 
-      --template-insights-enable bool, $CODER_TEMPLATE_INSIGHTS_ENABLE (default: true)
-          Enable the collection and display of template insights along with the
-          associated API endpoints. This will also enable aggregating these
-          insights into daily active users, application usage, and transmission
-          rates for overall deployment stats. When disabled, these values will
-          be zero, which will also affect what the bottom deployment overview
-          bar displays. Disabling will also prevent Prometheus collection of
-          these values.
+INTROSPECTION / STATS COLLECTION / USAGE STATS OPTIONS: 
+      --stats-collection-usage-stats-enable bool, $CODER_STATS_COLLECTION_USAGE_STATS_ENABLE (default: true)
+          Enable the collection of application and workspace usage along with
+          the associated API endpoints and the template insights page. Disabling
+          this will also disable traffic and connection insights in the
+          deployment stats shown to admins in the bottom bar of the Coder UI,
+          and will prevent Prometheus collection of these values.
 
 INTROSPECTION / TRACING OPTIONS: 
       --trace-logs bool, $CODER_TRACE_LOGS

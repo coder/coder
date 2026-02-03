@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
@@ -127,10 +127,11 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	defer monitor.close()
 
 	agentAPI := agentapi.New(agentapi.Options{
-		AgentID:        workspaceAgent.ID,
-		OwnerID:        workspace.OwnerID,
-		WorkspaceID:    workspace.ID,
-		OrganizationID: workspace.OrganizationID,
+		AgentID:           workspaceAgent.ID,
+		OwnerID:           workspace.OwnerID,
+		WorkspaceID:       workspace.ID,
+		OrganizationID:    workspace.OrganizationID,
+		TemplateVersionID: build.TemplateVersionID,
 
 		AuthenticatedCtx:                  ctx,
 		Log:                               logger,
@@ -143,9 +144,11 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
 		StatsReporter:                     api.statsReporter,
+		MetadataBatcher:                   api.metadataBatcher,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
+		BoundaryUsageTracker:              api.BoundaryUsageTracker,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,

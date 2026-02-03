@@ -24,6 +24,7 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/spf13/afero"
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
@@ -32,8 +33,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/types/netlogtype"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
@@ -84,6 +85,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 		containerName string
 		containerUser string
+
+		// Used in tests to simulate the parent exiting.
+		testForcePPID int64
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -174,6 +178,24 @@ func (r *RootCmd) ssh() *serpent.Command {
 			defer stop()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
+
+			// When running as a ProxyCommand (stdio mode), monitor the parent process
+			// and exit if it dies to avoid leaving orphaned processes. This is
+			// particularly important when editors like VSCode/Cursor spawn SSH
+			// connections and then crash or are killed - we don't want zombie
+			// `coder ssh` processes accumulating.
+			// Note: using gopsutil to check the parent process as this handles
+			// windows processes as well in a standard way.
+			if stdio {
+				ppid := int32(os.Getppid())             // nolint:gosec
+				checkParentInterval := 10 * time.Second // Arbitrary interval to not be too frequent
+				if testForcePPID > 0 {
+					ppid = int32(testForcePPID)                  // nolint:gosec
+					checkParentInterval = 100 * time.Millisecond // Shorter interval for testing
+				}
+				ctx, cancel = watchParentContext(ctx, quartz.NewReal(), ppid, process.PidExistsWithContext, checkParentInterval)
+				defer cancel()
+			}
 
 			// Prevent unnecessary logs from the stdlib from messing up the TTY.
 			// See: https://github.com/coder/coder/issues/13144
@@ -773,6 +795,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Flag:        "force-new-tunnel",
 			Description: "Force the creation of a new tunnel to the workspace, even if the Coder Connect tunnel is available.",
 			Value:       serpent.BoolOf(&forceNewTunnel),
+			Hidden:      true,
+		},
+		{
+			Flag:        "test.force-ppid",
+			Description: "Override the parent process ID to simulate a different parent process. ONLY USE THIS IN TESTS.",
+			Value:       serpent.Int64Of(&testForcePPID),
 			Hidden:      true,
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
@@ -1661,4 +1689,34 @@ func normalizeWorkspaceInput(input string) string {
 	default:
 		return input // Fallback
 	}
+}
+
+// watchParentContext returns a context that is canceled when the parent process
+// dies. It polls using the provided clock and checks if the parent is alive
+// using the provided pidExists function.
+func watchParentContext(ctx context.Context, clock quartz.Clock, originalPPID int32, pidExists func(context.Context, int32) (bool, error), interval time.Duration) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx) // intentionally shadowed
+
+	go func() {
+		ticker := clock.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				alive, err := pidExists(ctx, originalPPID)
+				// If we get an error checking the parent process (e.g., permission
+				// denied, the process is in an unknown state), we assume the parent
+				// is still alive to avoid disrupting the SSH connection. We only
+				// cancel when we definitively know the parent is gone (alive=false, err=nil).
+				if !alive && err == nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	return ctx, cancel
 }

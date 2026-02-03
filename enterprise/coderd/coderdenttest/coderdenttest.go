@@ -15,16 +15,15 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -186,6 +185,7 @@ type LicenseOptions struct {
 	// past.
 	IssuedAt time.Time
 	Features license.Features
+	Addons   []codersdk.Addon
 
 	AllowEmpty bool
 }
@@ -224,6 +224,11 @@ func (opts *LicenseOptions) FutureTerm(now time.Time) *LicenseOptions {
 
 func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureUserLimit, limit)
+}
+
+func (opts *LicenseOptions) AIGovernanceAddon(limit int64) *LicenseOptions {
+	opts.Addons = append(opts.Addons, codersdk.AddonAIGovernance)
+	return opts.Feature(codersdk.FeatureAIGovernanceUserLimit, limit)
 }
 
 func (opts *LicenseOptions) ManagedAgentLimit(soft int64, hard int64) *LicenseOptions {
@@ -302,6 +307,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		AllFeatures:      options.AllFeatures,
 		FeatureSet:       options.FeatureSet,
 		Features:         options.Features,
+		Addons:           options.Addons,
 		PublishUsageData: options.PublishUsageData,
 	}
 	return GenerateLicenseRaw(t, c)
@@ -329,9 +335,9 @@ type CreateOrganizationOptions struct {
 func CreateOrganization(t *testing.T, client *codersdk.Client, opts CreateOrganizationOptions, mutators ...func(*codersdk.CreateOrganizationRequest)) codersdk.Organization {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	req := codersdk.CreateOrganizationRequest{
-		Name:        strings.ReplaceAll(strings.ToLower(namesgenerator.GetRandomName(0)), "_", "-"),
-		DisplayName: namesgenerator.GetRandomName(1),
-		Description: namesgenerator.GetRandomName(1),
+		Name:        strings.ToLower(namesgenerator.UniqueNameWith("-")),
+		DisplayName: namesgenerator.UniqueName(),
+		Description: namesgenerator.UniqueName(),
 		Icon:        "",
 	}
 	for _, mutator := range mutators {

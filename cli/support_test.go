@@ -3,6 +3,7 @@ package cli_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -14,17 +15,17 @@ import (
 	"testing"
 	"time"
 
-	"tailscale.com/ipn/ipnstate"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/ipn/ipnstate"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
@@ -43,81 +44,71 @@ func TestSupportBundle(t *testing.T) {
 		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
 	}
 
-	t.Run("Workspace", func(t *testing.T) {
+	// Support bundle tests can share a single coderdtest instance.
+	var dc codersdk.DeploymentConfig
+	dc.Values = coderdtest.DeploymentValues(t)
+	dc.Values.Prometheus.Enable = true
+	secretValue := uuid.NewString()
+	seedSecretDeploymentOptions(t, &dc, secretValue)
+	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:   dc.Values,
+		HealthcheckTimeout: testutil.WaitSuperLong,
+	})
+
+	t.Cleanup(func() { closer.Close() })
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// Set up test fixtures
+	setupCtx := testutil.Context(t, testutil.WaitSuperLong)
+	workspaceWithAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+		// This should not show up in the bundle output
+		agents[0].Env["SECRET_VALUE"] = secretValue
+		return agents
+	})
+	workspaceWithoutAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, nil)
+	memberWorkspace := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, member.ID, nil)
+
+	// Wait for healthcheck to complete successfully before continuing with sub-tests.
+	// The result is cached so subsequent requests will be fast.
+	healthcheckDone := make(chan *healthsdk.HealthcheckReport)
+	go func() {
+		defer close(healthcheckDone)
+		hc, err := healthsdk.New(client).DebugHealth(setupCtx)
+		if err != nil {
+			assert.NoError(t, err, "seed healthcheck cache")
+			return
+		}
+		healthcheckDone <- &hc
+	}()
+	if _, ok := testutil.AssertReceive(setupCtx, t, healthcheckDone); !ok {
+		t.Fatal("healthcheck did not complete in time -- this may be a transient issue")
+	}
+
+	t.Run("WorkspaceWithAgent", func(t *testing.T) {
 		t.Parallel()
 
-		var dc codersdk.DeploymentConfig
-		secretValue := uuid.NewString()
-		seedSecretDeploymentOptions(t, &dc, secretValue)
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitSuperLong,
-		})
-		owner := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        owner.UserID,
-		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-			// This should not show up in the bundle output
-			agents[0].Env["SECRET_VALUE"] = secretValue
-			return agents
-		}).Do()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ws, err := client.Workspace(ctx, r.Workspace.ID)
-		require.NoError(t, err)
 		tempDir := t.TempDir()
 		logPath := filepath.Join(tempDir, "coder-agent.log")
 		require.NoError(t, os.WriteFile(logPath, []byte("hello from the agent"), 0o600))
-		agt := agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+		agt := agenttest.New(t, client.URL, workspaceWithAgent.AgentToken, func(o *agent.Options) {
 			o.LogDir = tempDir
 		})
 		defer agt.Close()
-		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
-
-		ctx = testutil.Context(t, testutil.WaitShort) // Reset timeout after waiting for agent.
-
-		// Insert a provisioner job log
-		_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
-			JobID:     r.Build.JobID,
-			CreatedAt: []time.Time{dbtime.Now()},
-			Source:    []database.LogSource{database.LogSourceProvisionerDaemon},
-			Level:     []database.LogLevel{database.LogLevelInfo},
-			Stage:     []string{"provision"},
-			Output:    []string{"done"},
-		})
-		require.NoError(t, err)
-		// Insert an agent log
-		_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-			AgentID:      ws.LatestBuild.Resources[0].Agents[0].ID,
-			CreatedAt:    dbtime.Now(),
-			Output:       []string{"started up"},
-			Level:        []database.LogLevel{database.LogLevelInfo},
-			LogSourceID:  r.Build.JobID,
-			OutputLength: 10,
-		})
-		require.NoError(t, err)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspaceWithAgent.Workspace.ID).Wait()
 
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output-file", path, "--yes")
+		inv, root := clitest.New(t, "support", "bundle", workspaceWithAgent.Workspace.Name, "--output-file", path, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
-		err = inv.Run()
+		err := inv.Run()
 		require.NoError(t, err)
 		assertBundleContents(t, path, true, true, []string{secretValue})
 	})
 
 	t.Run("NoWorkspace", func(t *testing.T) {
 		t.Parallel()
-		var dc codersdk.DeploymentConfig
-		secretValue := uuid.NewString()
-		seedSecretDeploymentOptions(t, &dc, secretValue)
-		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitSuperLong,
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
 
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
@@ -131,21 +122,9 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoAgent", func(t *testing.T) {
 		t.Parallel()
-		var dc codersdk.DeploymentConfig
-		secretValue := uuid.NewString()
-		seedSecretDeploymentOptions(t, &dc, secretValue)
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:   dc.Values,
-			HealthcheckTimeout: testutil.WaitSuperLong,
-		})
-		admin := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: admin.OrganizationID,
-			OwnerID:        admin.UserID,
-		}).Do() // without agent!
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output-file", path, "--yes")
+		inv, root := clitest.New(t, "support", "bundle", workspaceWithoutAgent.Workspace.Name, "--output-file", path, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
@@ -155,14 +134,7 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("NoPrivilege", func(t *testing.T) {
 		t.Parallel()
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        member.ID,
-		}).WithAgent().Do()
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
+		inv, root := clitest.New(t, "support", "bundle", memberWorkspace.Workspace.Name, "--yes")
 		clitest.SetupConfig(t, memberClient, root)
 		err := inv.Run()
 		require.ErrorContains(t, err, "failed authorization check")
@@ -233,6 +205,10 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			var v codersdk.DeploymentConfig
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "deployment config should not be empty")
+		case "deployment/entitlements.json":
+			var v codersdk.Entitlements
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "entitlements should not be nil")
 		case "deployment/experiments.json":
 			var v codersdk.Experiments
 			decodeJSONFromZip(t, f, &v)
@@ -241,6 +217,22 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			var v healthsdk.HealthcheckReport
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "health report should not be empty")
+		case "deployment/health_settings.json":
+			var v healthsdk.HealthSettings
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "health settings should not be empty")
+		case "deployment/stats.json":
+			var v codersdk.DeploymentStats
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "deployment stats should not be nil")
+		case "deployment/workspaces.json":
+			var v codersdk.Workspace
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "deployment workspaces should not be nil")
+		case "deployment/prometheus.txt":
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "prometheus metrics should not be empty")
+			require.Contains(t, string(bs), "go_goroutines", "prometheus metrics should contain go runtime metrics")
 		case "network/connection_info.json":
 			var v workspacesdk.AgentConnectionInfo
 			decodeJSONFromZip(t, f, &v)
@@ -269,7 +261,7 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			require.NotEmpty(t, v, "workspace should not be empty")
 		case "workspace/build_logs.txt":
 			bs := readBytesFromZip(t, f)
-			if !wantWorkspace || !wantAgent {
+			if !wantWorkspace {
 				require.Empty(t, bs, "expected workspace build logs to be empty")
 				continue
 			}
@@ -432,4 +424,55 @@ func seedSecretDeploymentOptions(t *testing.T, dc *codersdk.DeploymentConfig, se
 			opt.Value.Set(secretValue)
 		}
 	}
+}
+
+func setupSupportBundleTestFixture(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	orgID, ownerID uuid.UUID,
+	withAgent func([]*proto.Agent) []*proto.Agent,
+) dbfake.WorkspaceResponse {
+	t.Helper()
+	// nolint: gocritic // Used for seeding test data only.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	b := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
+	})
+	if withAgent != nil {
+		b = b.WithAgent(withAgent)
+	}
+	r := b.Do()
+	_, err := db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+		JobID:     r.Build.JobID,
+		CreatedAt: []time.Time{dbtime.Now()},
+		Source:    []database.LogSource{database.LogSourceProvisionerDaemon},
+		Level:     []database.LogLevel{database.LogLevelInfo},
+		Stage:     []string{"provision"},
+		Output:    []string{"done"},
+	})
+	require.NoError(t, err)
+	if withAgent != nil {
+		res, err := db.GetWorkspaceResourcesByJobID(ctx, r.Build.JobID)
+		require.NoError(t, err)
+		var resIDs []uuid.UUID
+		for _, res := range res {
+			resIDs = append(resIDs, res.ID)
+		}
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, resIDs)
+		require.NoError(t, err)
+		for _, agt := range agents {
+			_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+				AgentID:      agt.ID,
+				CreatedAt:    dbtime.Now(),
+				Output:       []string{"started up"},
+				Level:        []database.LogLevel{database.LogLevelInfo},
+				LogSourceID:  r.Build.JobID,
+				OutputLength: 10,
+			})
+			require.NoError(t, err)
+		}
+	}
+	return r
 }

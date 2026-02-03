@@ -123,4 +123,5 @@ message IsAuthorizedRequest {
 message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
+  string username = 3;
 }

@@ -12,13 +12,12 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -43,9 +42,10 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		stopAfter       time.Duration
 		workspaceName   string
 
-		parameterFlags     workspaceParameterFlags
-		autoUpdates        string
-		copyParametersFrom string
+		parameterFlags       workspaceParameterFlags
+		autoUpdates          string
+		copyParametersFrom   string
+		useParameterDefaults bool
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -309,7 +309,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				displayAppliedPreset(inv, preset, presetParameters)
 			} else {
 				// Inform the user that no preset was applied
-				_, _ = fmt.Fprintf(inv.Stdout, "%s", cliui.Bold("No preset applied."))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Bold("No preset applied."))
 			}
 
 			if opts.BeforeCreate != nil {
@@ -330,6 +330,8 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				RichParameterDefaults: cliBuildParameterDefaults,
 
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
+
+				UseParameterDefaults: useParameterDefaults,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -436,6 +438,12 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Description: "Specify the source workspace name to copy parameters from.",
 			Value:       serpent.StringOf(&copyParametersFrom),
 		},
+		serpent.Option{
+			Flag:        "use-parameter-defaults",
+			Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
+			Description: "Automatically accept parameter defaults when no value is provided.",
+			Value:       serpent.BoolOf(&useParameterDefaults),
+		},
 		cliui.SkipPromptOption(),
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
@@ -460,6 +468,8 @@ type prepWorkspaceBuildArgs struct {
 	RichParameters        []codersdk.WorkspaceBuildParameter
 	RichParameterFile     string
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
+
+	UseParameterDefaults bool
 }
 
 // resolvePreset returns the preset matching the given presetName (if specified),
@@ -562,7 +572,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).
-		WithRichParametersDefaults(args.RichParameterDefaults)
+		WithRichParametersDefaults(args.RichParameterDefaults).
+		WithUseParameterDefaults(args.UseParameterDefaults)
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err

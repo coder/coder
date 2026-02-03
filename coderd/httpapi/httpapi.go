@@ -16,12 +16,12 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 var Validate *validator.Validate
@@ -419,91 +419,97 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 // open a workspace in multiple tabs, the entire UI can start to lock up.
 // WebSockets have no such limitation, no matter what HTTP protocol was used to
 // establish the connection.
-func OneWayWebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
+func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r *http.Request) (
 	func(event codersdk.ServerSentEvent) error,
 	<-chan struct{},
 	error,
 ) {
-	ctx, cancel := context.WithCancel(r.Context())
-	r = r.WithContext(ctx)
-	socket, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		cancel()
-		return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
-	}
-	go Heartbeat(ctx, socket)
-
-	eventC := make(chan codersdk.ServerSentEvent)
-	socketErrC := make(chan websocket.CloseError, 1)
-	closed := make(chan struct{})
-	go func() {
-		defer cancel()
-		defer close(closed)
-
-		for {
-			select {
-			case event := <-eventC:
-				writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				err := wsjson.Write(writeCtx, socket, event)
-				cancel()
-				if err == nil {
-					continue
-				}
-				_ = socket.Close(websocket.StatusInternalError, "Unable to send newest message")
-			case err := <-socketErrC:
-				_ = socket.Close(err.Code, err.Reason)
-			case <-ctx.Done():
-				_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
-			}
-			return
-		}
-	}()
-
-	// We have some tools in the UI code to help enforce one-way WebSocket
-	// connections, but there's still the possibility that the client could send
-	// a message when it's not supposed to. If that happens, the client likely
-	// forgot to use those tools, and communication probably can't be trusted.
-	// Better to just close the socket and force the UI to fix its mess
-	go func() {
-		_, _, err := socket.Read(ctx)
-		if errors.Is(err, context.Canceled) {
-			return
-		}
+	return func(rw http.ResponseWriter, r *http.Request) (
+		func(event codersdk.ServerSentEvent) error,
+		<-chan struct{},
+		error,
+	) {
+		ctx, cancel := context.WithCancel(r.Context())
+		r = r.WithContext(ctx)
+		socket, err := websocket.Accept(rw, r, nil)
 		if err != nil {
-			socketErrC <- websocket.CloseError{
-				Code:   websocket.StatusInternalError,
-				Reason: "Unable to process invalid message from client",
+			cancel()
+			return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
+		}
+		go HeartbeatClose(ctx, log, cancel, socket)
+
+		eventC := make(chan codersdk.ServerSentEvent)
+		socketErrC := make(chan websocket.CloseError, 1)
+		closed := make(chan struct{})
+		go func() {
+			defer cancel()
+			defer close(closed)
+
+			for {
+				select {
+				case event := <-eventC:
+					writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					err := wsjson.Write(writeCtx, socket, event)
+					cancel()
+					if err == nil {
+						continue
+					}
+					_ = socket.Close(websocket.StatusInternalError, "Unable to send newest message")
+				case err := <-socketErrC:
+					_ = socket.Close(err.Code, err.Reason)
+				case <-ctx.Done():
+					_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
+				}
+				return
 			}
-			return
-		}
-		socketErrC <- websocket.CloseError{
-			Code:   websocket.StatusProtocolError,
-			Reason: "Clients cannot send messages for one-way WebSockets",
-		}
-	}()
+		}()
 
-	sendEvent := func(event codersdk.ServerSentEvent) error {
-		select {
-		case eventC <- event:
-		case <-ctx.Done():
-			return ctx.Err()
+		// We have some tools in the UI code to help enforce one-way WebSocket
+		// connections, but there's still the possibility that the client could send
+		// a message when it's not supposed to. If that happens, the client likely
+		// forgot to use those tools, and communication probably can't be trusted.
+		// Better to just close the socket and force the UI to fix its mess
+		go func() {
+			_, _, err := socket.Read(ctx)
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				socketErrC <- websocket.CloseError{
+					Code:   websocket.StatusInternalError,
+					Reason: "Unable to process invalid message from client",
+				}
+				return
+			}
+			socketErrC <- websocket.CloseError{
+				Code:   websocket.StatusProtocolError,
+				Reason: "Clients cannot send messages for one-way WebSockets",
+			}
+		}()
+
+		sendEvent := func(event codersdk.ServerSentEvent) error {
+			select {
+			case eventC <- event:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			return nil
 		}
-		return nil
+
+		return sendEvent, closed, nil
 	}
-
-	return sendEvent, closed, nil
-}
-
-// OAuth2Error represents an OAuth2-compliant error response per RFC 6749.
-type OAuth2Error struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description,omitempty"`
 }
 
 // WriteOAuth2Error writes an OAuth2-compliant error response per RFC 6749.
 // This should be used for all OAuth2 endpoints (/oauth2/*) to ensure compliance.
-func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode, description string) {
-	Write(ctx, rw, status, OAuth2Error{
+func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode codersdk.OAuth2ErrorCode, description string) {
+	// RFC 6749 §5.2: invalid_client SHOULD use 401 and MUST include a
+	// WWW-Authenticate response header.
+	if status == http.StatusUnauthorized && errorCode == codersdk.OAuth2ErrorCodeInvalidClient {
+		rw.Header().Set("WWW-Authenticate", `Basic realm="coder"`)
+	}
+
+	Write(ctx, rw, status, codersdk.OAuth2Error{
 		Error:            errorCode,
 		ErrorDescription: description,
 	})

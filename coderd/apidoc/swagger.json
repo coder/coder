@@ -2304,7 +2304,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code"],
+						"enum": ["code", "token"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
@@ -2355,7 +2355,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code"],
+						"enum": ["code", "token"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
@@ -2555,7 +2555,13 @@
 						"in": "formData"
 					},
 					{
-						"enum": ["authorization_code", "refresh_token"],
+						"enum": [
+							"authorization_code",
+							"refresh_token",
+							"password",
+							"client_credentials",
+							"implicit"
+						],
 						"type": "string",
 						"description": "Grant type",
 						"name": "grant_type",
@@ -2935,8 +2941,8 @@
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Members"],
-				"summary": "Upsert a custom organization role",
-				"operationId": "upsert-a-custom-organization-role",
+				"summary": "Update a custom organization role",
+				"operationId": "update-a-custom-organization-role",
 				"parameters": [
 					{
 						"type": "string",
@@ -2947,7 +2953,7 @@
 						"required": true
 					},
 					{
-						"description": "Upsert role request",
+						"description": "Update role request",
 						"name": "request",
 						"in": "body",
 						"required": true,
@@ -3332,6 +3338,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -3436,6 +3443,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -4029,6 +4037,76 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/codersdk.RoleSyncSettings"
+						}
+					}
+				}
+			}
+		},
+		"/organizations/{organization}/settings/workspace-sharing": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get workspace sharing settings for organization",
+				"operationId": "get-workspace-sharing-settings-for-organization",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+						}
+					}
+				}
+			},
+			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Update workspace sharing settings for organization",
+				"operationId": "update-workspace-sharing-settings-for-organization",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Workspace sharing settings",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
 						}
 					}
 				}
@@ -5867,6 +5945,13 @@
 						"description": "Follow log stream",
 						"name": "follow",
 						"in": "query"
+					},
+					{
+						"enum": ["json", "text"],
+						"type": "string",
+						"description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+						"name": "format",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -6101,6 +6186,13 @@
 						"type": "boolean",
 						"description": "Follow log stream",
 						"name": "follow",
+						"in": "query"
+					},
+					{
+						"enum": ["json", "text"],
+						"type": "string",
+						"description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+						"name": "format",
 						"in": "query"
 					}
 				],
@@ -8371,6 +8463,51 @@
 				}
 			}
 		},
+		"/workspaceagents/me/tasks/{task}/log-snapshot": {
+			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"tags": ["Tasks"],
+				"summary": "Upload task log snapshot",
+				"operationId": "upload-task-log-snapshot",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Task ID",
+						"name": "task",
+						"in": "path",
+						"required": true
+					},
+					{
+						"enum": ["agentapi"],
+						"type": "string",
+						"description": "Snapshot format",
+						"name": "format",
+						"in": "query",
+						"required": true
+					},
+					{
+						"description": "Raw snapshot payload (structure depends on format parameter)",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"type": "object"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
 		"/workspaceagents/{workspaceagent}": {
 			"get": {
 				"security": [
@@ -8468,6 +8605,40 @@
 						"schema": {
 							"$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
 						}
+					}
+				}
+			}
+		},
+		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
+			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Agents"],
+				"summary": "Delete devcontainer for workspace agent",
+				"operationId": "delete-devcontainer-for-workspace-agent",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Devcontainer ID",
+						"name": "devcontainer",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
 					}
 				}
 			}
@@ -8641,6 +8812,13 @@
 						"type": "boolean",
 						"description": "Disable compression for WebSocket connection",
 						"name": "no_compression",
+						"in": "query"
+					},
+					{
+						"enum": ["json", "text"],
+						"type": "string",
+						"description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+						"name": "format",
 						"in": "query"
 					}
 				],
@@ -8910,6 +9088,13 @@
 						"description": "Follow log stream",
 						"name": "follow",
 						"in": "query"
+					},
+					{
+						"enum": ["json", "text"],
+						"type": "string",
+						"description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+						"name": "format",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -9018,6 +9203,41 @@
 						"schema": {
 							"$ref": "#/definitions/codersdk.WorkspaceBuild"
 						}
+					}
+				}
+			},
+			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"tags": ["Builds"],
+				"summary": "Update workspace build state",
+				"operationId": "update-workspace-build-state",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace build ID",
+						"name": "workspacebuild",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Request body",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateWorkspaceBuildStateRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
 					}
 				}
 			}
@@ -10523,6 +10743,9 @@
 				"access_key_secret": {
 					"type": "string"
 				},
+				"base_url": {
+					"type": "string"
+				},
 				"model": {
 					"type": "string"
 				},
@@ -10543,6 +10766,22 @@
 				"bedrock": {
 					"$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
 				},
+				"circuit_breaker_enabled": {
+					"description": "Circuit breaker protects against cascading failures from upstream AI\nprovider rate limits (429, 503, 529 overloaded).",
+					"type": "boolean"
+				},
+				"circuit_breaker_failure_threshold": {
+					"type": "integer"
+				},
+				"circuit_breaker_interval": {
+					"type": "integer"
+				},
+				"circuit_breaker_max_requests": {
+					"type": "integer"
+				},
+				"circuit_breaker_timeout": {
+					"type": "integer"
+				},
 				"enabled": {
 					"type": "boolean"
 				},
@@ -10560,6 +10799,12 @@
 				},
 				"retention": {
 					"type": "integer"
+				},
+				"send_actor_headers": {
+					"type": "boolean"
+				},
+				"structured_logging": {
+					"type": "boolean"
 				}
 			}
 		},
@@ -10635,6 +10880,35 @@
 					"type": "string"
 				},
 				"key": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIBridgeProxyConfig": {
+			"type": "object",
+			"properties": {
+				"cert_file": {
+					"type": "string"
+				},
+				"domain_allowlist": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"enabled": {
+					"type": "boolean"
+				},
+				"key_file": {
+					"type": "string"
+				},
+				"listen_addr": {
+					"type": "string"
+				},
+				"upstream_proxy": {
+					"type": "string"
+				},
+				"upstream_proxy_ca": {
 					"type": "string"
 				}
 			}
@@ -10738,6 +11012,9 @@
 		"codersdk.AIConfig": {
 			"type": "object",
 			"properties": {
+				"aibridge_proxy": {
+					"$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
+				},
 				"bridge": {
 					"$ref": "#/definitions/codersdk.AIBridgeConfig"
 				}
@@ -10856,6 +11133,10 @@
 				"audit_log:*",
 				"audit_log:create",
 				"audit_log:read",
+				"boundary_usage:*",
+				"boundary_usage:delete",
+				"boundary_usage:read",
+				"boundary_usage:update",
 				"coder:all",
 				"coder:apikeys.manage_self",
 				"coder:application_connect",
@@ -11054,6 +11335,10 @@
 				"APIKeyScopeAuditLogAll",
 				"APIKeyScopeAuditLogCreate",
 				"APIKeyScopeAuditLogRead",
+				"APIKeyScopeBoundaryUsageAll",
+				"APIKeyScopeBoundaryUsageDelete",
+				"APIKeyScopeBoundaryUsageRead",
+				"APIKeyScopeBoundaryUsageUpdate",
 				"APIKeyScopeCoderAll",
 				"APIKeyScopeCoderApikeysManageSelf",
 				"APIKeyScopeCoderApplicationConnect",
@@ -12868,6 +13153,12 @@
 				"pg_auth": {
 					"type": "string"
 				},
+				"pg_conn_max_idle": {
+					"type": "string"
+				},
+				"pg_conn_max_open": {
+					"type": "integer"
+				},
 				"pg_connection_url": {
 					"type": "string"
 				},
@@ -12913,6 +13204,9 @@
 				"ssh_keygen_algorithm": {
 					"type": "string"
 				},
+				"stats_collection": {
+					"$ref": "#/definitions/codersdk.StatsCollectionConfig"
+				},
 				"strict_transport_security": {
 					"type": "integer"
 				},
@@ -12930,9 +13224,6 @@
 				},
 				"telemetry": {
 					"$ref": "#/definitions/codersdk.TelemetryConfig"
-				},
-				"template_insights": {
-					"$ref": "#/definitions/codersdk.TemplateInsightsConfig"
 				},
 				"terms_of_service_url": {
 					"type": "string"
@@ -13100,8 +13391,7 @@
 				"web-push",
 				"oauth2",
 				"mcp-server-http",
-				"workspace-sharing",
-				"terraform-directory-reuse"
+				"workspace-sharing"
 			],
 			"x-enum-comments": {
 				"ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -13109,7 +13399,6 @@
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
 				"ExperimentOAuth2": "Enables OAuth2 provider functionality.",
-				"ExperimentTerraformWorkspace": "Enables reuse of existing terraform directory for builds",
 				"ExperimentWebPush": "Enables web push notifications through the browser.",
 				"ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
 				"ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -13122,8 +13411,7 @@
 				"ExperimentWebPush",
 				"ExperimentOAuth2",
 				"ExperimentMCPServerHTTP",
-				"ExperimentWorkspaceSharing",
-				"ExperimentTerraformWorkspace"
+				"ExperimentWorkspaceSharing"
 			]
 		},
 		"codersdk.ExternalAPIKeyScopes": {
@@ -14180,13 +14468,13 @@
 				"code_challenge_methods_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2PKCECodeChallengeMethod"
 					}
 				},
 				"grant_types_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"issuer": {
@@ -14198,7 +14486,7 @@
 				"response_types_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"revocation_endpoint": {
@@ -14216,7 +14504,7 @@
 				"token_endpoint_auth_methods_supported": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 					}
 				}
 			}
@@ -14248,7 +14536,7 @@
 				"grant_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"jwks": {
@@ -14270,10 +14558,7 @@
 					}
 				},
 				"registration_access_token": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
+					"type": "string"
 				},
 				"registration_client_uri": {
 					"type": "string"
@@ -14281,7 +14566,7 @@
 				"response_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"scope": {
@@ -14294,7 +14579,7 @@
 					"type": "string"
 				},
 				"token_endpoint_auth_method": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 				},
 				"tos_uri": {
 					"type": "string"
@@ -14319,7 +14604,7 @@
 				"grant_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"jwks": {
@@ -14343,7 +14628,7 @@
 				"response_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"scope": {
@@ -14359,7 +14644,7 @@
 					"type": "string"
 				},
 				"token_endpoint_auth_method": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 				},
 				"tos_uri": {
 					"type": "string"
@@ -14396,7 +14681,7 @@
 				"grant_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
 					}
 				},
 				"jwks": {
@@ -14426,7 +14711,7 @@
 				"response_types": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
 					}
 				},
 				"scope": {
@@ -14439,7 +14724,7 @@
 					"type": "string"
 				},
 				"token_endpoint_auth_method": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.OAuth2TokenEndpointAuthMethod"
 				},
 				"tos_uri": {
 					"type": "string"
@@ -14491,6 +14776,14 @@
 					"type": "string"
 				}
 			}
+		},
+		"codersdk.OAuth2PKCECodeChallengeMethod": {
+			"type": "string",
+			"enum": ["S256", "plain"],
+			"x-enum-varnames": [
+				"OAuth2PKCECodeChallengeMethodS256",
+				"OAuth2PKCECodeChallengeMethodPlain"
+			]
 		},
 		"codersdk.OAuth2ProtectedResourceMetadata": {
 			"type": "object",
@@ -14570,6 +14863,40 @@
 					"format": "uuid"
 				}
 			}
+		},
+		"codersdk.OAuth2ProviderGrantType": {
+			"type": "string",
+			"enum": [
+				"authorization_code",
+				"refresh_token",
+				"password",
+				"client_credentials",
+				"implicit"
+			],
+			"x-enum-varnames": [
+				"OAuth2ProviderGrantTypeAuthorizationCode",
+				"OAuth2ProviderGrantTypeRefreshToken",
+				"OAuth2ProviderGrantTypePassword",
+				"OAuth2ProviderGrantTypeClientCredentials",
+				"OAuth2ProviderGrantTypeImplicit"
+			]
+		},
+		"codersdk.OAuth2ProviderResponseType": {
+			"type": "string",
+			"enum": ["code", "token"],
+			"x-enum-varnames": [
+				"OAuth2ProviderResponseTypeCode",
+				"OAuth2ProviderResponseTypeToken"
+			]
+		},
+		"codersdk.OAuth2TokenEndpointAuthMethod": {
+			"type": "string",
+			"enum": ["client_secret_basic", "client_secret_post", "none"],
+			"x-enum-varnames": [
+				"OAuth2TokenEndpointAuthMethodClientSecretBasic",
+				"OAuth2TokenEndpointAuthMethodClientSecretPost",
+				"OAuth2TokenEndpointAuthMethodNone"
+			]
 		},
 		"codersdk.OAuthConversionResponse": {
 			"type": "object",
@@ -15891,6 +16218,7 @@
 				"assign_org_role",
 				"assign_role",
 				"audit_log",
+				"boundary_usage",
 				"connection_log",
 				"crypto_key",
 				"debug_info",
@@ -15935,6 +16263,7 @@
 				"ResourceAssignOrgRole",
 				"ResourceAssignRole",
 				"ResourceAuditLog",
+				"ResourceBoundaryUsage",
 				"ResourceConnectionLog",
 				"ResourceCryptoKey",
 				"ResourceDebugInfo",
@@ -16447,6 +16776,14 @@
 				}
 			}
 		},
+		"codersdk.StatsCollectionConfig": {
+			"type": "object",
+			"properties": {
+				"usage_stats": {
+					"$ref": "#/definitions/codersdk.UsageStatsConfig"
+				}
+			}
+		},
 		"codersdk.SupportConfig": {
 			"type": "object",
 			"properties": {
@@ -16674,6 +17011,12 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.TaskLogEntry"
 					}
+				},
+				"snapshot": {
+					"type": "boolean"
+				},
+				"snapshot_at": {
+					"type": "string"
 				}
 			}
 		},
@@ -16878,9 +17221,6 @@
 				},
 				"use_classic_parameter_flow": {
 					"type": "boolean"
-				},
-				"use_terraform_workspace_cache": {
-					"type": "boolean"
 				}
 			}
 		},
@@ -17077,14 +17417,6 @@
 				"total_member_count": {
 					"description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than `len(Group.Members)`.",
 					"type": "integer"
-				}
-			}
-		},
-		"codersdk.TemplateInsightsConfig": {
-			"type": "object",
-			"properties": {
-				"enable": {
-					"type": "boolean"
 				}
 			}
 		},
@@ -17781,10 +18113,6 @@
 				"use_classic_parameter_flow": {
 					"description": "UseClassicParameterFlow is a flag that switches the default behavior to use the classic\nparameter flow when creating a workspace. This only affects deployments with the experiment\n\"dynamic-parameters\" enabled. This setting will live for a period after the experiment is\nmade the default.\nAn \"opt-out\" is present in case the new feature breaks some existing templates.",
 					"type": "boolean"
-				},
-				"use_terraform_workspace_cache": {
-					"description": "UseTerraformWorkspaceCache allows optionally specifying whether to use cached\nterraform directories for workspaces created from this template. This field\nonly applies when the correct experiment is enabled. This field is subject to\nbeing removed in the future.",
-					"type": "boolean"
 				}
 			}
 		},
@@ -17889,6 +18217,17 @@
 				}
 			}
 		},
+		"codersdk.UpdateWorkspaceBuildStateRequest": {
+			"type": "object",
+			"properties": {
+				"state": {
+					"type": "array",
+					"items": {
+						"type": "integer"
+					}
+				}
+			}
+		},
 		"codersdk.UpdateWorkspaceDormancy": {
 			"type": "object",
 			"properties": {
@@ -17973,6 +18312,14 @@
 				"start": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"codersdk.UsageStatsConfig": {
+			"type": "object",
+			"properties": {
+				"enable": {
+					"type": "boolean"
 				}
 			}
 		},
@@ -19617,6 +19964,14 @@
 				"WorkspaceRoleUse",
 				"WorkspaceRoleDeleted"
 			]
+		},
+		"codersdk.WorkspaceSharingSettings": {
+			"type": "object",
+			"properties": {
+				"sharing_disabled": {
+					"type": "boolean"
+				}
+			}
 		},
 		"codersdk.WorkspaceStatus": {
 			"type": "string",

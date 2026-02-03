@@ -191,15 +191,15 @@ autobuildPollInterval: 1m0s
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
 introspection:
-  templateInsights:
-    # Enable the collection and display of template insights along with the associated
-    # API endpoints. This will also enable aggregating these insights into daily
-    # active users, application usage, and transmission rates for overall deployment
-    # stats. When disabled, these values will be zero, which will also affect what the
-    # bottom deployment overview bar displays. Disabling will also prevent Prometheus
-    # collection of these values.
-    # (default: true, type: bool)
-    enable: true
+  statsCollection:
+    usageStats:
+      # Enable the collection of application and workspace usage along with the
+      # associated API endpoints and the template insights page. Disabling this will
+      # also disable traffic and connection insights in the deployment stats shown to
+      # admins in the bottom bar of the Coder UI, and will prevent Prometheus collection
+      # of these values.
+      # (default: true, type: bool)
+      enable: true
   prometheus:
     # Serve prometheus metrics on the address defined by prometheus address.
     # (default: <unset>, type: bool)
@@ -483,6 +483,14 @@ ephemeralDeployment: false
 # authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
+# Maximum number of open connections to the database. Defaults to 10.
+# (default: 10, type: int)
+pgConnMaxOpen: 10
+# Maximum number of idle connections to the database. Set to "auto" (the default)
+# to use max open / 3. Value must be greater or equal to 0; 0 means explicitly no
+# idle connections.
+# (default: auto, type: string)
+pgConnMaxIdle: auto
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)
@@ -515,7 +523,8 @@ disableWorkspaceSharing: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
-  # The SSH deployment prefix is used in the Host of the ssh config.
+  # Deprecated: use workspace-hostname-suffix instead. The SSH deployment prefix is
+  # used in the Host of the ssh config.
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
   # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder
@@ -567,8 +576,10 @@ userQuietHoursSchedule:
   # change their quiet hours schedule and the site default is always used.
   # (default: true, type: bool)
   allowCustomQuietHours: true
-# DEPRECATED: Allow users to rename their workspaces. Use only for temporary
-# compatibility reasons, this will be removed in a future release.
+# Allow users to rename their workspaces. WARNING: Renaming a workspace can cause
+# Terraform resources that depend on the workspace name to be destroyed and
+# recreated, potentially causing data loss. Only enable this if your templates do
+# not use workspace names in resource identifiers, or if you understand the risks.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
 # Configure how emails are sent.
@@ -738,7 +749,12 @@ aibridge:
   # The base URL of the Anthropic API.
   # (default: https://api.anthropic.com/, type: string)
   anthropic_base_url: https://api.anthropic.com/
-  # The AWS Bedrock API region.
+  # The base URL to use for the AWS Bedrock API. Use this setting to specify an
+  # exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
+  # (default: <unset>, type: string)
+  bedrock_base_url: ""
+  # The AWS Bedrock API region to use. Constructs a base URL to use for the AWS
+  # Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
   # (default: <unset>, type: string)
   bedrock_region: ""
   # The model to use when making requests to the AWS Bedrock API.
@@ -760,11 +776,72 @@ aibridge:
   # Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
   # (unlimited).
   # (default: 0, type: int)
-  maxConcurrency: 0
+  max_concurrency: 0
   # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
   # (unlimited).
   # (default: 0, type: int)
-  rateLimit: 0
+  rate_limit: 0
+  # Emit structured logs for AI Bridge interception records. Use this for exporting
+  # these records to external SIEM or observability systems.
+  # (default: false, type: bool)
+  structured_logging: false
+  # Once enabled, extra headers will be added to upstream requests to identify the
+  # user (actor) making requests to AI Bridge. This is only needed if you are using
+  # a proxy between AI Bridge and an upstream AI provider. This will send
+  # X-Ai-Bridge-Actor-Id (the ID of the user making the request) and
+  # X-Ai-Bridge-Actor-Metadata-Username (their username).
+  # (default: false, type: bool)
+  send_actor_headers: false
+  # Enable the circuit breaker to protect against cascading failures from upstream
+  # AI provider rate limits (429, 503, 529 overloaded).
+  # (default: false, type: bool)
+  circuit_breaker_enabled: false
+  # Number of consecutive failures that triggers the circuit breaker to open.
+  # (default: 5, type: int)
+  circuit_breaker_failure_threshold: 5
+  # Cyclic period of the closed state for clearing internal failure counts.
+  # (default: 10s, type: duration)
+  circuit_breaker_interval: 10s
+  # How long the circuit breaker stays open before transitioning to half-open state.
+  # (default: 30s, type: duration)
+  circuit_breaker_timeout: 30s
+  # Maximum number of requests allowed in half-open state before deciding to close
+  # or re-open the circuit.
+  # (default: 3, type: int)
+  circuit_breaker_max_requests: 3
+aibridgeproxy:
+  # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
+  # requests.
+  # (default: false, type: bool)
+  enabled: false
+  # The address the AI Bridge Proxy will listen on.
+  # (default: :8888, type: string)
+  listen_addr: :8888
+  # Path to the CA certificate file for AI Bridge Proxy.
+  # (default: <unset>, type: string)
+  cert_file: ""
+  # Path to the CA private key file for AI Bridge Proxy.
+  # (default: <unset>, type: string)
+  key_file: ""
+  # Comma-separated list of AI provider domains for which HTTPS traffic will be
+  # decrypted and routed through AI Bridge. Requests to other domains will be
+  # tunneled directly without decryption. Supported domains: api.anthropic.com,
+  # api.openai.com, api.individual.githubcopilot.com.
+  # (default: api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,
+  # type: string-array)
+  domain_allowlist:
+    - api.anthropic.com
+    - api.openai.com
+    - api.individual.githubcopilot.com
+  # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
+  # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+  # (default: <unset>, type: string)
+  upstream_proxy: ""
+  # Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS
+  # connection. Only needed for HTTPS upstream proxies with certificates not trusted
+  # by the system. If not provided, the system certificate pool is used.
+  # (default: <unset>, type: string)
+  upstream_proxy_ca: ""
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

@@ -204,7 +204,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'task:delete',
     'task:*',
     'workspace:share',
-    'workspace_dormant:share'
+    'workspace_dormant:share',
+    'boundary_usage:*',
+    'boundary_usage:delete',
+    'boundary_usage:read',
+    'boundary_usage:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -248,7 +252,10 @@ CREATE TYPE build_reason AS ENUM (
     'cli',
     'ssh_connection',
     'vscode_connection',
-    'jetbrains_connection'
+    'jetbrains_connection',
+    'task_auto_pause',
+    'task_manual_pause',
+    'task_resume'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -746,6 +753,37 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION insert_org_member_system_role() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO custom_roles (
+        name,
+        display_name,
+        organization_id,
+        site_permissions,
+        org_permissions,
+        user_permissions,
+        member_permissions,
+        is_system,
+        created_at,
+        updated_at
+    ) VALUES (
+        'organization-member',
+        '',
+        NEW.id,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        true,
+        NOW(),
+        NOW()
+    );
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION insert_user_links_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -937,80 +975,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_agent_update', OLD.id::text);
-		RETURN NULL;
-	END IF;
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_agent_update', NEW.id::text);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_client_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-	var_client_id uuid;
-	var_coordinator_id uuid;
-	var_agent_ids uuid[];
-	var_agent_id uuid;
-BEGIN
-	IF (NEW.id IS NOT NULL) THEN
-		var_client_id = NEW.id;
-		var_coordinator_id = NEW.coordinator_id;
-	ELSIF (OLD.id IS NOT NULL) THEN
-		var_client_id = OLD.id;
-		var_coordinator_id = OLD.coordinator_id;
-	END IF;
-
-	-- Read all agents the client is subscribed to, so we can notify them.
-	SELECT
-		array_agg(agent_id)
-	INTO
-		var_agent_ids
-	FROM
-		tailnet_client_subscriptions subs
-	WHERE
-		subs.client_id = NEW.id AND
-		subs.coordinator_id = NEW.coordinator_id;
-
-	-- No agents to notify
-	if (var_agent_ids IS NULL) THEN
-		return NULL;
-	END IF;
-
-	-- pg_notify is limited to 8k bytes, which is approximately 221 UUIDs.
-	-- Instead of sending all agent ids in a single update, send one for each
-	-- agent id to prevent overflow.
-	FOREACH var_agent_id IN ARRAY var_agent_ids
-	LOOP
-		PERFORM pg_notify('tailnet_client_update', var_client_id || ',' || var_agent_id);
-	END LOOP;
-
-	return NULL;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_client_subscription_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', NEW.client_id || ',' || NEW.agent_id);
-		RETURN NULL;
-	ELSIF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', OLD.client_id || ',' || OLD.agent_id);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
 CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1158,6 +1122,32 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE boundary_usage_stats (
+    replica_id uuid NOT NULL,
+    unique_workspaces_count bigint DEFAULT 0 NOT NULL,
+    unique_users_count bigint DEFAULT 0 NOT NULL,
+    allowed_requests bigint DEFAULT 0 NOT NULL,
+    denied_requests bigint DEFAULT 0 NOT NULL,
+    window_start timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE boundary_usage_stats IS 'Per-replica boundary usage statistics for telemetry aggregation.';
+
+COMMENT ON COLUMN boundary_usage_stats.replica_id IS 'The unique identifier of the replica reporting stats.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_workspaces_count IS 'Count of unique workspaces that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_users_count IS 'Count of unique users that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.allowed_requests IS 'Total allowed requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
+
+COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
+
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
     connect_time timestamp with time zone NOT NULL,
@@ -1209,7 +1199,10 @@ CREATE TABLE custom_roles (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     organization_id uuid,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    is_system boolean DEFAULT false NOT NULL,
+    member_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
+    CONSTRAINT organization_id_not_zero CHECK ((organization_id <> '00000000-0000-0000-0000-000000000000'::uuid))
 );
 
 COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';
@@ -1217,6 +1210,8 @@ COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at r
 COMMENT ON COLUMN custom_roles.organization_id IS 'Roles can optionally be scoped to an organization';
 
 COMMENT ON COLUMN custom_roles.id IS 'Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.';
+
+COMMENT ON COLUMN custom_roles.is_system IS 'System roles are managed by Coder and cannot be modified or deleted by users.';
 
 CREATE TABLE dbcrypt_keys (
     number integer NOT NULL,
@@ -1601,7 +1596,8 @@ CREATE TABLE organizations (
     is_default boolean DEFAULT false NOT NULL,
     display_name text NOT NULL,
     icon text DEFAULT ''::text NOT NULL,
-    deleted boolean DEFAULT false NOT NULL
+    deleted boolean DEFAULT false NOT NULL,
+    workspace_sharing_disabled boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -1773,35 +1769,14 @@ CREATE TABLE site_configs (
     value text NOT NULL
 );
 
-CREATE TABLE tailnet_agents (
-    id uuid NOT NULL,
-    coordinator_id uuid NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    node jsonb NOT NULL
-);
-
-CREATE TABLE tailnet_client_subscriptions (
-    client_id uuid NOT NULL,
-    coordinator_id uuid NOT NULL,
-    agent_id uuid NOT NULL,
-    updated_at timestamp with time zone NOT NULL
-);
-
-CREATE TABLE tailnet_clients (
-    id uuid NOT NULL,
-    coordinator_id uuid NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    node jsonb NOT NULL
-);
-
-CREATE TABLE tailnet_coordinators (
+CREATE UNLOGGED TABLE tailnet_coordinators (
     id uuid NOT NULL,
     heartbeat_at timestamp with time zone NOT NULL
 );
 
 COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
 
-CREATE TABLE tailnet_peers (
+CREATE UNLOGGED TABLE tailnet_peers (
     id uuid NOT NULL,
     coordinator_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -1809,12 +1784,26 @@ CREATE TABLE tailnet_peers (
     status tailnet_status DEFAULT 'ok'::tailnet_status NOT NULL
 );
 
-CREATE TABLE tailnet_tunnels (
+CREATE UNLOGGED TABLE tailnet_tunnels (
     coordinator_id uuid NOT NULL,
     src_id uuid NOT NULL,
     dst_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL
 );
+
+CREATE TABLE task_snapshots (
+    task_id uuid NOT NULL,
+    log_snapshot jsonb NOT NULL,
+    log_snapshot_created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE task_snapshots IS 'Stores snapshots of task state when paused, currently limited to conversation history.';
+
+COMMENT ON COLUMN task_snapshots.task_id IS 'The task this snapshot belongs to.';
+
+COMMENT ON COLUMN task_snapshots.log_snapshot IS 'Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.';
+
+COMMENT ON COLUMN task_snapshots.log_snapshot_created_at IS 'When this log snapshot was captured.';
 
 CREATE TABLE task_workspace_apps (
     task_id uuid NOT NULL,
@@ -2050,7 +2039,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -2306,8 +2295,7 @@ CREATE TABLE templates (
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     use_classic_parameter_flow boolean DEFAULT false NOT NULL,
-    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
-    use_terraform_workspace_cache boolean DEFAULT false NOT NULL
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -2329,8 +2317,6 @@ COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of
 COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
 
 COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.';
-
-COMMENT ON COLUMN templates.use_terraform_workspace_cache IS 'Determines whether to keep terraform directories cached between runs for workspaces created from this template. When enabled, this can significantly speed up the `terraform init` step at the cost of increased disk usage. This is an opt-in experience, as it prevents modules from being updated, and therefore is a behavioral difference from the default.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -2363,7 +2349,6 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
     templates.cors_behavior,
-    templates.use_terraform_workspace_cache,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -2479,7 +2464,8 @@ CREATE TABLE workspace_agent_devcontainers (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_folder text NOT NULL,
     config_path text NOT NULL,
-    name text NOT NULL
+    name text NOT NULL,
+    subagent_id uuid
 );
 
 COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
@@ -2993,6 +2979,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY boundary_usage_stats
+    ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
+
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
 
@@ -3113,15 +3102,6 @@ ALTER TABLE ONLY provisioner_keys
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
-ALTER TABLE ONLY tailnet_agents
-    ADD CONSTRAINT tailnet_agents_pkey PRIMARY KEY (id, coordinator_id);
-
-ALTER TABLE ONLY tailnet_client_subscriptions
-    ADD CONSTRAINT tailnet_client_subscriptions_pkey PRIMARY KEY (client_id, coordinator_id, agent_id);
-
-ALTER TABLE ONLY tailnet_clients
-    ADD CONSTRAINT tailnet_clients_pkey PRIMARY KEY (id, coordinator_id);
-
 ALTER TABLE ONLY tailnet_coordinators
     ADD CONSTRAINT tailnet_coordinators_pkey PRIMARY KEY (id);
 
@@ -3130,6 +3110,9 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
+
+ALTER TABLE ONLY task_snapshots
+    ADD CONSTRAINT task_snapshots_pkey PRIMARY KEY (task_id);
 
 ALTER TABLE ONLY task_workspace_apps
     ADD CONSTRAINT task_workspace_apps_pkey PRIMARY KEY (task_id, workspace_build_number);
@@ -3342,7 +3325,7 @@ CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btr
 
 CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
-CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
+CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles USING btree (lower(name), COALESCE(organization_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
 
@@ -3361,10 +3344,6 @@ CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_da
 COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
 
 CREATE INDEX idx_provisioner_jobs_status ON provisioner_jobs USING btree (job_status);
-
-CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
-
-CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
 
 CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
 
@@ -3540,12 +3519,6 @@ CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_ro
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
-CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
-
-CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_change();
-
-CREATE TRIGGER tailnet_notify_client_subscription_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_client_subscriptions FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_subscription_change();
-
 CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
 
 CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
@@ -3559,6 +3532,8 @@ CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE O
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_insert_org_member_system_role AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_org_member_system_role();
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 
@@ -3681,20 +3656,14 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY provisioner_keys
     ADD CONSTRAINT provisioner_keys_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY tailnet_agents
-    ADD CONSTRAINT tailnet_agents_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tailnet_client_subscriptions
-    ADD CONSTRAINT tailnet_client_subscriptions_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY tailnet_clients
-    ADD CONSTRAINT tailnet_clients_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY tailnet_peers
     ADD CONSTRAINT tailnet_peers_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY task_snapshots
+    ADD CONSTRAINT task_snapshots_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY task_workspace_apps
     ADD CONSTRAINT task_workspace_apps_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
@@ -3779,6 +3748,9 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_subagent_id_fkey FOREIGN KEY (subagent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

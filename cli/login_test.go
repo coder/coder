@@ -11,14 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/pretty"
 )
 
 func TestLogin(t *testing.T) {
@@ -536,5 +535,33 @@ func TestLogin(t *testing.T) {
 		selected, err := cfg.Organization().Read()
 		require.NoError(t, err)
 		require.Equal(t, selected, first.OrganizationID.String())
+	})
+}
+
+func TestLoginToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PrintsToken", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "token", "--url", client.URL.String())
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		pty.ExpectMatch(client.SessionToken())
+	})
+
+	t.Run("NoTokenStored", func(t *testing.T) {
+		t.Parallel()
+		inv, _ := clitest.New(t, "login", "token")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "no session token found")
 	})
 }

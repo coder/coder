@@ -7,8 +7,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
+	"cdr.dev/slog/v3"
 	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
@@ -43,6 +44,9 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Remove the Coder token header so it's not forwarded to upstream providers.
+	r.Header.Del(agplaibridge.HeaderCoderAuth)
+
 	client, err := s.Client()
 	if err != nil {
 		logger.Warn(ctx, "failed to connect to coderd", slog.Error(err))
@@ -58,7 +62,13 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Rewire request context to include actor.
-	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), nil))
+	//
+	// [NOTE]
+	// The metadata provided here must NOT be sensitive as it could be included
+	// in requests to upstream services.
+	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
+		"Username": resp.GetUsername(),
+	}))
 
 	id, err := uuid.Parse(resp.GetOwnerId())
 	if err != nil {

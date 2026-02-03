@@ -18,14 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
-	"github.com/coder/coder/v2/testutil"
-
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func ctxAndLogger(t *testing.T) (context.Context, slog.Logger) {
@@ -932,6 +930,104 @@ func TestConvertResources(t *testing.T) {
 				{Name: "dev2", Type: "coder_devcontainer"},
 			},
 		},
+		"devcontainer-resources": {
+			resources: []*proto.Resource{
+				{Name: "dev", Type: "coder_devcontainer"},
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								Name:            "dev",
+								WorkspaceFolder: "/workspace",
+								Apps: []*proto.App{
+									{
+										Slug:        "devcontainer-app",
+										DisplayName: "devcontainer-app",
+										OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+									},
+								},
+								Scripts: []*proto.Script{
+									{
+										DisplayName: "Devcontainer Script",
+										Script:      "echo devcontainer",
+										RunOnStart:  true,
+										RunOnStop:   false,
+									},
+								},
+								Envs: []*proto.Env{
+									{
+										Name:  "DEVCONTAINER_ENV",
+										Value: "devcontainer-value",
+									},
+								},
+							},
+						},
+					}},
+				},
+				{Name: "devcontainer-env", Type: "coder_env"},
+			},
+		},
+		"devcontainer-multiple-agents": {
+			resources: []*proto.Resource{
+				{Name: "dev", Type: "coder_devcontainer"},
+				{
+					Name: "dev",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "main",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+						Devcontainers: []*proto.Devcontainer{
+							{
+								Name:            "dev",
+								WorkspaceFolder: "/workspace",
+								Apps: []*proto.App{
+									{
+										Slug:        "devcontainer-app",
+										DisplayName: "devcontainer-app",
+										OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
+									},
+								},
+							},
+							{
+								Name:            "other",
+								WorkspaceFolder: "/other",
+							},
+						},
+					}},
+				},
+				{Name: "other", Type: "coder_devcontainer"},
+				{
+					Name: "secondary",
+					Type: "null_resource",
+					Agents: []*proto.Agent{{
+						Name:                     "secondary",
+						OperatingSystem:          "linux",
+						Architecture:             "amd64",
+						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
+						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+					}},
+				},
+			},
+		},
 	} {
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
@@ -972,6 +1068,13 @@ func TestConvertResources(t *testing.T) {
 						}
 						for _, app := range agent.Apps {
 							app.Id = ""
+						}
+						for _, dc := range agent.Devcontainers {
+							dc.Id = ""
+							dc.SubagentId = ""
+							for _, app := range dc.Apps {
+								app.Id = ""
+							}
 						}
 					}
 				}
@@ -1045,6 +1148,13 @@ func TestConvertResources(t *testing.T) {
 						}
 						for _, app := range agent.Apps {
 							app.Id = ""
+						}
+						for _, dc := range agent.Devcontainers {
+							dc.Id = ""
+							dc.SubagentId = ""
+							for _, app := range dc.Apps {
+								app.Id = ""
+							}
 						}
 					}
 				}
@@ -1659,6 +1769,11 @@ func sortResources(resources []*proto.Resource) {
 			sort.Slice(agent.Devcontainers, func(i, j int) bool {
 				return agent.Devcontainers[i].Name < agent.Devcontainers[j].Name
 			})
+			for _, dc := range agent.Devcontainers {
+				sort.Slice(dc.Apps, func(i, j int) bool {
+					return dc.Apps[i].Slug < dc.Apps[j].Slug
+				})
+			}
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {
 			return resource.Agents[i].Name < resource.Agents[j].Name
@@ -1682,6 +1797,13 @@ func deterministicAppIDs(resources []*proto.Resource) {
 				data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
 				id, _ := uuid.FromBytes(data[:16])
 				app.Id = id.String()
+			}
+			for _, dc := range agent.Devcontainers {
+				for _, app := range dc.Apps {
+					data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
+					id, _ := uuid.FromBytes(data[:16])
+					app.Id = id.String()
+				}
 			}
 		}
 	}

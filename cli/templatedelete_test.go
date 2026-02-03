@@ -8,14 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/pretty"
 )
 
 func TestTemplateDelete(t *testing.T) {

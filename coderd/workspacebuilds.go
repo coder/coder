@@ -18,8 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -827,6 +826,7 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 // @Param before query int false "Before log id"
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
+// @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /workspacebuilds/{workspacebuild}/logs [get]
 func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
@@ -881,6 +881,63 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
+}
+
+// @Summary Update workspace build state
+// @ID update-workspace-build-state
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceBuildStateRequest true "Request body"
+// @Success 204
+// @Router /workspacebuilds/{workspacebuild}/state [put]
+func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "No workspace exists for this job.",
+		})
+		return
+	}
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get template",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// You must have update permissions on the template to update the state.
+	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.UpdateWorkspaceBuildStateRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Use system context since we've already verified authorization via template permissions.
+	// nolint:gocritic // System access required for provisioner state update.
+	err = api.Database.UpdateWorkspaceBuildProvisionerStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+		ID:               workspaceBuild.ID,
+		ProvisionerState: req.State,
+		UpdatedAt:        dbtime.Now(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update workspace build state.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get workspace build timings by ID
@@ -1196,7 +1253,7 @@ func (api *API) convertWorkspaceBuild(
 			statuses := statusesByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
