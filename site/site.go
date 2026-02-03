@@ -129,22 +129,82 @@ func New(opts *Options) (*Handler, error) {
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
 
-	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
+	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo, "install.sh")
 	if err != nil {
 		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
+	}
+
+	handler.installScriptWindows, err = parseInstallScript(opts.SiteFS, opts.BuildInfo, "install.ps1")
+	if err != nil {
+		opts.Logger.Warn(context.Background(), "could not parse install.ps1, it will be unavailable", slog.Error(err))
 	}
 
 	return handler, nil
 }
 
+func binHandler(binFS http.FileSystem, binMetadataCache *binMetadataCache) http.Handler {
+	return http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// Convert underscores in the filename to hyphens. We eventually want to
+		// change our hyphen-based filenames to underscores, but we need to
+		// support both for now.
+		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
+
+		// Set ETag header to the SHA1 hash of the file contents.
+		name := filePath(r.URL.Path)
+		if name == "" || name == "/" {
+			// Serve the directory listing. This intentionally allows directory listings to
+			// be served. This file system should not contain anything sensitive.
+			http.FileServer(binFS).ServeHTTP(rw, r)
+			return
+		}
+		if strings.Contains(name, "/") {
+			// We only serve files from the root of this directory, so avoid any
+			// shenanigans by blocking slashes in the URL path.
+			http.NotFound(rw, r)
+			return
+		}
+
+		metadata, err := binMetadataCache.getMetadata(name)
+		if xerrors.Is(err, os.ErrNotExist) {
+			http.NotFound(rw, r)
+			return
+		}
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// http.FileServer will not set Content-Length when performing chunked
+		// transport encoding, which is used for large files like our binaries
+		// so stream compression can be used.
+		//
+		// Clients like IDE extensions and the desktop apps can compare the
+		// value of this header with the amount of bytes written to disk after
+		// decompression to show progress. Without this, they cannot show
+		// progress without disabling compression.
+		//
+		// There isn't really a spec for a length header for the "inner" content
+		// size, but some nginx modules use this header.
+		rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", metadata.sizeBytes))
+
+		// Get and set ETag header. Must be quoted.
+		rw.Header().Set("ETag", fmt.Sprintf(`%q`, metadata.sha1Hash))
+
+		// http.FileServer will see the ETag header and automatically handle
+		// If-Match and If-None-Match headers on the request properly.
+		http.FileServer(binFS).ServeHTTP(rw, r)
+	}))
+}
+
 type Handler struct {
 	opts *Options
 
-	secureHeaders *secure.Secure
-	handler       http.HandlerFunc
-	htmlTemplates *template.Template
-	buildInfoJSON string
-	installScript []byte
+	secureHeaders        *secure.Secure
+	handler              http.HandlerFunc
+	htmlTemplates        *template.Template
+	buildInfoJSON        string
+	installScript        []byte
+	installScriptWindows []byte
 
 	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
 	// regions if the user does not have the correct permissions.
@@ -202,6 +262,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		http.ServeContent(rw, r, reqFile, time.Time{}, bytes.NewReader(h.installScript))
+		return
+	// If requesting the install.ps1 script (Windows), respond with the preprocessed version
+	// which contains the correct hostname and version information.
+	case reqFile == "install.ps1":
+		if h.installScriptWindows == nil {
+			http.NotFound(rw, r)
+			return
+		}
+		rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		http.ServeContent(rw, r, reqFile, time.Time{}, bytes.NewReader(h.installScriptWindows))
 		return
 	// If the original file path exists we serve it.
 	case h.exists(reqFile):
@@ -679,13 +749,13 @@ type installScriptState struct {
 	Version string
 }
 
-func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse) ([]byte, error) {
-	scriptFile, err := fs.ReadFile(files, "install.sh")
+func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse, filename string) ([]byte, error) {
+	scriptFile, err := fs.ReadFile(files, filename)
 	if err != nil {
 		return nil, err
 	}
 
-	script, err := template.New("install.sh").Parse(string(scriptFile))
+	script, err := template.New(filename).Parse(string(scriptFile))
 	if err != nil {
 		return nil, err
 	}
