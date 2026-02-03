@@ -60,6 +60,8 @@ If the proxy is exposed to an untrusted network, these credentials could be inte
 * **Open tunnel access:** Requests to non-allowlisted domains are tunneled through the proxy without restriction.
 An attacker with access to the proxy could use it to reach internal services or route traffic through the infrastructure.
 
+Note: These limitations are known and additional security hardening is planned on the roadmap.
+
 These risks apply only to the connection phase between AI tools and the proxy.
 Once connected:
 
