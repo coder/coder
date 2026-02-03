@@ -483,12 +483,10 @@ func TestListRoles(t *testing.T) {
 				return x, err
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
-				{Name: codersdk.RoleOwner}:           false,
-				{Name: codersdk.RoleAuditor}:         false,
-				{Name: codersdk.RoleTemplateAdmin}:   false,
-				{Name: codersdk.RoleUserAdmin}:       false,
-				{Name: codersdk.RoleAibridgeUser}:    false,
-				{Name: codersdk.RoleAibridgeAuditor}: false,
+				{Name: codersdk.RoleOwner}:         false,
+				{Name: codersdk.RoleAuditor}:       false,
+				{Name: codersdk.RoleTemplateAdmin}: false,
+				{Name: codersdk.RoleUserAdmin}:     false,
 			}),
 		},
 		{
@@ -502,6 +500,8 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        false,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            false,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: false,
+				{Name: codersdk.RoleOrganizationAibridgeUser, OrganizationID: owner.OrganizationID}:         false,
+				{Name: codersdk.RoleOrganizationAibridgeAuditor, OrganizationID: owner.OrganizationID}:      false,
 			}),
 		},
 		{
@@ -518,12 +518,10 @@ func TestListRoles(t *testing.T) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
-				{Name: codersdk.RoleOwner}:           false,
-				{Name: codersdk.RoleAuditor}:         false,
-				{Name: codersdk.RoleTemplateAdmin}:   false,
-				{Name: codersdk.RoleUserAdmin}:       false,
-				{Name: codersdk.RoleAibridgeUser}:    false,
-				{Name: codersdk.RoleAibridgeAuditor}: false,
+				{Name: codersdk.RoleOwner}:         false,
+				{Name: codersdk.RoleAuditor}:       false,
+				{Name: codersdk.RoleTemplateAdmin}: false,
+				{Name: codersdk.RoleUserAdmin}:     false,
 			}),
 		},
 		{
@@ -537,6 +535,8 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleOrganizationAibridgeUser, OrganizationID: owner.OrganizationID}:         true,
+				{Name: codersdk.RoleOrganizationAibridgeAuditor, OrganizationID: owner.OrganizationID}:      true,
 			}),
 		},
 		{
@@ -553,12 +553,10 @@ func TestListRoles(t *testing.T) {
 				return client.ListSiteRoles(ctx)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
-				{Name: codersdk.RoleOwner}:           true,
-				{Name: codersdk.RoleAuditor}:         true,
-				{Name: codersdk.RoleTemplateAdmin}:   true,
-				{Name: codersdk.RoleUserAdmin}:       true,
-				{Name: codersdk.RoleAibridgeUser}:    true,
-				{Name: codersdk.RoleAibridgeAuditor}: true,
+				{Name: codersdk.RoleOwner}:         true,
+				{Name: codersdk.RoleAuditor}:       true,
+				{Name: codersdk.RoleTemplateAdmin}: true,
+				{Name: codersdk.RoleUserAdmin}:     true,
 			}),
 		},
 		{
@@ -572,6 +570,8 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleOrganizationAibridgeUser, OrganizationID: owner.OrganizationID}:         true,
+				{Name: codersdk.RoleOrganizationAibridgeAuditor, OrganizationID: owner.OrganizationID}:      true,
 			}),
 		},
 	}

@@ -33,12 +33,10 @@ const (
 	orgUserAdmin            string = "organization-user-admin"
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
+	orgAibridgeUser         string = "organization-aibridge-user"
+	orgAibridgeAuditor      string = "organization-aibridge-auditor"
 
 	prebuildsOrchestrator string = "prebuilds-orchestrator"
-
-	// AI Bridge roles for granular access control.
-	aibridgeUser    string = "aibridge-user"
-	aibridgeAuditor string = "aibridge-auditor"
 )
 
 func init() {
@@ -141,12 +139,10 @@ func CustomSiteRole() RoleIdentifier { return RoleIdentifier{Name: customSiteRol
 func CustomOrganizationRole(orgID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: customOrganizationRole, OrganizationID: orgID}
 }
-func RoleTemplateAdmin() RoleIdentifier   { return RoleIdentifier{Name: templateAdmin} }
-func RoleUserAdmin() RoleIdentifier       { return RoleIdentifier{Name: userAdmin} }
-func RoleMember() RoleIdentifier          { return RoleIdentifier{Name: member} }
-func RoleAuditor() RoleIdentifier         { return RoleIdentifier{Name: auditor} }
-func RoleAibridgeUser() RoleIdentifier    { return RoleIdentifier{Name: aibridgeUser} }
-func RoleAibridgeAuditor() RoleIdentifier { return RoleIdentifier{Name: aibridgeAuditor} }
+func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAdmin} }
+func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
+func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
+func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -196,6 +192,17 @@ func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
 
 func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
+}
+
+func RoleOrgAibridgeUser() string    { return orgAibridgeUser }
+func RoleOrgAibridgeAuditor() string { return orgAibridgeAuditor }
+
+func ScopedRoleOrgAibridgeUser(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgAibridgeUser(), OrganizationID: organizationID}
+}
+
+func ScopedRoleOrgAibridgeAuditor(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgAibridgeAuditor(), OrganizationID: organizationID}
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -351,26 +358,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
 
-	aibridgeUserRole := Role{
-		Identifier:  RoleAibridgeUser(),
-		DisplayName: "AI Bridge User",
-		Site: Permissions(map[string][]policy.Action{
-			ResourceAibridge.Type: {policy.ActionUse},
-		}),
-		User:    []Permission{},
-		ByOrgID: map[string]OrgPermissions{},
-	}.withCachedRegoValue()
-
-	aibridgeAuditorRole := Role{
-		Identifier:  RoleAibridgeAuditor(),
-		DisplayName: "AI Bridge Auditor",
-		Site: Permissions(map[string][]policy.Action{
-			ResourceAibridgeInterception.Type: {policy.ActionRead},
-		}),
-		User:    []Permission{},
-		ByOrgID: map[string]OrgPermissions{},
-	}.withCachedRegoValue()
-
 	templateAdminRole := Role{
 		Identifier:  RoleTemplateAdmin(),
 		DisplayName: "Template Admin",
@@ -442,14 +429,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
-		},
-
-		aibridgeUser: func(_ uuid.UUID) Role {
-			return aibridgeUserRole
-		},
-
-		aibridgeAuditor: func(_ uuid.UUID) Role {
-			return aibridgeAuditorRole
 		},
 
 		// orgAdmin returns a role with all actions allows in a given
@@ -598,6 +577,36 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		orgAibridgeUser: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgAibridgeUser, OrganizationID: organizationID},
+				DisplayName: "Organization AI Bridge User",
+				Site:        []Permission{},
+				User:        []Permission{},
+				ByOrgID: map[string]OrgPermissions{
+					organizationID.String(): {
+						Org: Permissions(map[string][]policy.Action{
+							ResourceAibridge.Type: {policy.ActionUse},
+						}),
+					},
+				},
+			}
+		},
+		orgAibridgeAuditor: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgAibridgeAuditor, OrganizationID: organizationID},
+				DisplayName: "Organization AI Bridge Auditor",
+				Site:        []Permission{},
+				User:        []Permission{},
+				ByOrgID: map[string]OrgPermissions{
+					organizationID.String(): {
+						Org: Permissions(map[string][]policy.Action{
+							ResourceAibridgeInterception.Type: {policy.ActionRead},
+						}),
+					},
+				},
+			}
+		},
 	}
 }
 
@@ -617,10 +626,10 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
+		orgAibridgeUser:         true,
+		orgAibridgeAuditor:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
-		aibridgeUser:            true,
-		aibridgeAuditor:         true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
 	},
@@ -634,10 +643,10 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
+		orgAibridgeUser:         true,
+		orgAibridgeAuditor:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
-		aibridgeUser:            true,
-		aibridgeAuditor:         true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
 	},
@@ -652,6 +661,8 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
+		orgAibridgeUser:         true,
+		orgAibridgeAuditor:      true,
 		customOrganizationRole:  true,
 	},
 	orgUserAdmin: {

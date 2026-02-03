@@ -53,7 +53,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				if !api.Authorize(r, policy.ActionUse, rbac.ResourceAibridge) {
+				if !api.Authorize(r, policy.ActionUse, rbac.ResourceAibridge.AnyOrganization()) {
 					httpapi.Forbidden(rw)
 					return
 				}

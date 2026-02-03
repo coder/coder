@@ -179,14 +179,14 @@ func TestRolePermissions(t *testing.T) {
 	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
 	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
 	auditor := authSubject{Name: "auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAuditor()}}}
-	aibridgeUser := authSubject{Name: "aibridge-user", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAibridgeUser()}}}
-	aibridgeAuditor := authSubject{Name: "aibridge-auditor", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAibridgeAuditor()}}}
 
 	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)}}}
 	orgAuditor := authSubject{Name: "org_auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAuditor(orgID)}}}
 	orgUserAdmin := authSubject{Name: "org_user_admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(orgID)}}}
 	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(orgID)}}}
 	orgAdminBanWorkspace := authSubject{Name: "org_admin_workspace_ban", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}}}
+	orgAibridgeUser := authSubject{Name: "org_aibridge_user", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAibridgeUser(orgID)}}}
+	orgAibridgeAuditor := authSubject{Name: "org_aibridge_auditor", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAibridgeAuditor(orgID)}}}
 	setOrgNotMe := authSubjectSet{orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin}
 
 	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(otherOrg)}}}
@@ -1011,17 +1011,17 @@ func TestRolePermissions(t *testing.T) {
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
-					aibridgeUser,
+					orgAibridgeUser, orgAibridgeAuditor,
 				},
 			},
 		},
 		{
 			Name:     "AIBridgeInterceptionsRead",
 			Actions:  []policy.Action{policy.ActionRead},
-			Resource: rbac.ResourceAibridgeInterception,
+			Resource: rbac.ResourceAibridgeInterception.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, aibridgeAuditor},
-				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin, aibridgeUser},
+				true:  {owner, orgAdmin, orgAibridgeAuditor},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin, orgAibridgeUser},
 			},
 		},
 		{
@@ -1035,10 +1035,10 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "AIBridge",
 			Actions:  []policy.Action{policy.ActionUse},
-			Resource: rbac.ResourceAibridge,
+			Resource: rbac.ResourceAibridge.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, aibridgeUser},
-				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin, aibridgeAuditor},
+				true:  {owner, orgAdmin, orgAibridgeUser},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin, orgAibridgeAuditor},
 			},
 		},
 	}
@@ -1181,8 +1181,6 @@ func TestListRoles(t *testing.T) {
 		"auditor",
 		"template-admin",
 		"user-admin",
-		"aibridge-user",
-		"aibridge-auditor",
 	},
 		siteRoleNames)
 
@@ -1199,6 +1197,8 @@ func TestListRoles(t *testing.T) {
 		fmt.Sprintf("organization-user-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
+		fmt.Sprintf("organization-aibridge-user:%s", orgID.String()),
+		fmt.Sprintf("organization-aibridge-auditor:%s", orgID.String()),
 	},
 		orgRoleNames)
 }
