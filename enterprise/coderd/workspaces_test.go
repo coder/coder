@@ -1989,7 +1989,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2113,7 +2113,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2237,7 +2237,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2383,7 +2383,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2530,7 +2530,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2977,7 +2977,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		noop.NewTracerProvider(),
 		10,
 	)
-	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 	organizationName, err := client.Organization(ctx, owner.OrganizationID)
