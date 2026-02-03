@@ -12,7 +12,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -202,7 +201,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// determine if we have to do any group updates to sync the user's
 			// state.
 			existingGroups := userOrgs[orgID]
-			existingGroupsTyped := db2sdk.List(existingGroups, func(f database.GetGroupsRow) ExpectedGroup {
+			existingGroupsTyped := slice.List(existingGroups, func(f database.GetGroupsRow) ExpectedGroup {
 				return ExpectedGroup{
 					OrganizationID: orgID,
 					GroupID:        &f.Group.ID,

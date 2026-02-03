@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -947,7 +948,7 @@ func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, erro
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
 	}
-	b.templateVersionParameters = ptr.Ref(db2sdk.List(tvp, dynamicparameters.TemplateVersionParameter))
+	b.templateVersionParameters = ptr.Ref(slice.List(tvp, dynamicparameters.TemplateVersionParameter))
 	return *b.templateVersionParameters, nil
 }
 

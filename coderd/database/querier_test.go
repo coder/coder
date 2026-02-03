@@ -23,7 +23,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -2022,8 +2021,8 @@ func TestWorkspaceQuotas(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.ElementsMatch(t, db2sdk.List(everyoneMembers, groupMemberIDs),
-			db2sdk.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
+		require.ElementsMatch(t, slice.List(everyoneMembers, groupMemberIDs),
+			slice.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
 
 		// Check the quota is correct.
 		allowance, err := db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
@@ -2204,7 +2203,7 @@ func TestReadCustomRoles(t *testing.T) {
 		{
 			Name: "AllRolesByLookup",
 			Params: database.CustomRolesParams{
-				LookupRoles: db2sdk.List(allRoles, roleToLookup),
+				LookupRoles: slice.List(allRoles, roleToLookup),
 			},
 			Match: func(role database.CustomRole) bool {
 				return true
@@ -2270,8 +2269,8 @@ func TestReadCustomRoles(t *testing.T) {
 				}
 			}
 
-			a := db2sdk.List(filtered, normalizedRoleName)
-			b := db2sdk.List(found, normalizedRoleName)
+			a := slice.List(filtered, normalizedRoleName)
+			b := slice.List(found, normalizedRoleName)
 			require.Equal(t, a, b)
 		})
 	}
@@ -4260,7 +4259,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgA.ID, orgB.ID, // Everyone groups
 		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(userGroups, onlyGroupIDs))
+	}, slice.List(userGroups, onlyGroupIDs))
 
 	// Remove the user from org A
 	err = db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
@@ -4277,7 +4276,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgB.ID,                // Everyone group
 		groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(userGroups, onlyGroupIDs))
+	}, slice.List(userGroups, onlyGroupIDs))
 
 	// Verify extra user is unchanged
 	extraUserGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
@@ -4287,7 +4286,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgA.ID, orgB.ID, // Everyone groups
 		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(extraUserGroups, onlyGroupIDs))
+	}, slice.List(extraUserGroups, onlyGroupIDs))
 }
 
 func TestGetUserStatusCounts(t *testing.T) {

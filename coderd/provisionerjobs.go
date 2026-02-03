@@ -87,7 +87,7 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, convertProvisionerJobWithQueuePosition))
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(jobs, convertProvisionerJobWithQueuePosition))
 }
 
 // handleAuthAndFetchProvisionerJobs is an internal method shared by

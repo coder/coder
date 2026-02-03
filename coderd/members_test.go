@@ -9,8 +9,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -76,7 +76,7 @@ func TestListMembers(t *testing.T) {
 		require.Len(t, members, 3)
 		require.ElementsMatch(t,
 			[]uuid.UUID{owner.UserID, orgMember.ID, orgAdmin.ID},
-			db2sdk.List(members, onlyIDs))
+			slice.List(members, onlyIDs))
 	})
 
 	t.Run("UserID", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestListMembers(t *testing.T) {
 		require.Len(t, members, 1)
 		require.ElementsMatch(t,
 			[]uuid.UUID{orgMember.ID},
-			db2sdk.List(members, onlyIDs))
+			slice.List(members, onlyIDs))
 	})
 
 	t.Run("IncludeSystem", func(t *testing.T) {
@@ -100,7 +100,7 @@ func TestListMembers(t *testing.T) {
 		require.Len(t, members, 4)
 		require.ElementsMatch(t,
 			[]uuid.UUID{owner.UserID, orgMember.ID, orgAdmin.ID, database.PrebuildsSystemUserID},
-			db2sdk.List(members, onlyIDs))
+			slice.List(members, onlyIDs))
 	})
 
 	t.Run("GithubUserID", func(t *testing.T) {
@@ -112,7 +112,7 @@ func TestListMembers(t *testing.T) {
 		require.Len(t, members, 1)
 		require.ElementsMatch(t,
 			[]uuid.UUID{anotherUser.ID},
-			db2sdk.List(members, onlyIDs))
+			slice.List(members, onlyIDs))
 	})
 }
 
