@@ -76,7 +76,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = ({
 	return (
 		<SearchField
 			className={cn(
-				"w-full border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3",
+				"w-full border border-solid border-border [&_input]:text-sm",
 				className,
 			)}
 			autoFocus={true}
