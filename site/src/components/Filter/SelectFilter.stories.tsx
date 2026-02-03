@@ -130,7 +130,7 @@ export const SearchingOption: Story = {
 						value={search}
 						onChange={setSearch}
 						placeholder="Search options..."
-						inputProps={{ "aria-label": "Search options" }}
+						aria-label="Search options"
 					/>
 				}
 			/>

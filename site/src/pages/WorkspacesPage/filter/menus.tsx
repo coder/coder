@@ -85,10 +85,10 @@ export const TemplateMenu: FC<TemplateMenuProps> = ({ width, menu }) => {
 			selectedOption={menu.selectedOption ?? undefined}
 			selectFilterSearch={
 				<SelectFilterSearch
-					inputProps={{ "aria-label": "Search template" }}
 					placeholder="Search template..."
 					value={menu.query}
 					onChange={menu.setQuery}
+					aria-label="Search template"
 				/>
 			}
 		/>
