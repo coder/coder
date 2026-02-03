@@ -277,11 +277,6 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().DeleteApplicationConnectAPIKeysByUserID(gomock.Any(), a.UserID).Return(nil).AnyTimes()
 		check.Args(a.UserID).Asserts(rbac.ResourceApiKey.WithOwner(a.UserID.String()), policy.ActionDelete).Returns()
 	}))
-	s.Run("DeleteBoundaryUsageStatsByReplicaID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		replicaID := uuid.New()
-		dbm.EXPECT().DeleteBoundaryUsageStatsByReplicaID(gomock.Any(), replicaID).Return(nil).AnyTimes()
-		check.Args(replicaID).Asserts(rbac.ResourceBoundaryUsage, policy.ActionDelete)
-	}))
 	s.Run("DeleteExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
 		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Return(a, nil).AnyTimes()
@@ -532,9 +527,9 @@ func (s *MethodTestSuite) TestGroup() {
 		dbm.EXPECT().RemoveUserFromGroups(gomock.Any(), arg).Return(slice.New(g1.ID, g2.ID), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
 	}))
-	s.Run("ResetBoundaryUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().ResetBoundaryUsageStats(gomock.Any()).Return(nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceBoundaryUsage, policy.ActionDelete)
+	s.Run("GetAndResetBoundaryUsageSummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetAndResetBoundaryUsageSummary(gomock.Any(), int64(1000)).Return(database.GetAndResetBoundaryUsageSummaryRow{}, nil).AnyTimes()
+		check.Args(int64(1000)).Asserts(rbac.ResourceBoundaryUsage, policy.ActionDelete)
 	}))
 
 	s.Run("UpdateGroupByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -2979,10 +2974,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		dbm.EXPECT().GetAuthorizationUserRoles(gomock.Any(), u.ID).Return(database.GetAuthorizationUserRolesRow{}, nil).AnyTimes()
 		check.Args(u.ID).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
-	s.Run("GetBoundaryUsageSummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetBoundaryUsageSummary(gomock.Any(), int64(1000)).Return(database.GetBoundaryUsageSummaryRow{}, nil).AnyTimes()
-		check.Args(int64(1000)).Asserts(rbac.ResourceBoundaryUsage, policy.ActionRead)
 	}))
 	s.Run("GetDERPMeshKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetDERPMeshKey(gomock.Any()).Return("testing", nil).AnyTimes()

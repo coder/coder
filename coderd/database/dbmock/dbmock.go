@@ -511,20 +511,6 @@ func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, us
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
 }
 
-// DeleteBoundaryUsageStatsByReplicaID mocks base method.
-func (m *MockStore) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteBoundaryUsageStatsByReplicaID", ctx, replicaID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteBoundaryUsageStatsByReplicaID indicates an expected call of DeleteBoundaryUsageStatsByReplicaID.
-func (mr *MockStoreMockRecorder) DeleteBoundaryUsageStatsByReplicaID(ctx, replicaID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBoundaryUsageStatsByReplicaID", reflect.TypeOf((*MockStore)(nil).DeleteBoundaryUsageStatsByReplicaID), ctx, replicaID)
-}
-
 // DeleteCryptoKey mocks base method.
 func (m *MockStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -1453,6 +1439,21 @@ func (mr *MockStoreMockRecorder) GetAllTailnetTunnels(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetTunnels", reflect.TypeOf((*MockStore)(nil).GetAllTailnetTunnels), ctx)
 }
 
+// GetAndResetBoundaryUsageSummary mocks base method.
+func (m *MockStore) GetAndResetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetAndResetBoundaryUsageSummaryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAndResetBoundaryUsageSummary", ctx, maxStalenessMs)
+	ret0, _ := ret[0].(database.GetAndResetBoundaryUsageSummaryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAndResetBoundaryUsageSummary indicates an expected call of GetAndResetBoundaryUsageSummary.
+func (mr *MockStoreMockRecorder) GetAndResetBoundaryUsageSummary(ctx, maxStalenessMs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAndResetBoundaryUsageSummary", reflect.TypeOf((*MockStore)(nil).GetAndResetBoundaryUsageSummary), ctx, maxStalenessMs)
+}
+
 // GetAnnouncementBanners mocks base method.
 func (m *MockStore) GetAnnouncementBanners(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -1646,21 +1647,6 @@ func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Contex
 func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
-}
-
-// GetBoundaryUsageSummary mocks base method.
-func (m *MockStore) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetBoundaryUsageSummaryRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBoundaryUsageSummary", ctx, maxStalenessMs)
-	ret0, _ := ret[0].(database.GetBoundaryUsageSummaryRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBoundaryUsageSummary indicates an expected call of GetBoundaryUsageSummary.
-func (mr *MockStoreMockRecorder) GetBoundaryUsageSummary(ctx, maxStalenessMs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBoundaryUsageSummary", reflect.TypeOf((*MockStore)(nil).GetBoundaryUsageSummary), ctx, maxStalenessMs)
 }
 
 // GetConnectionLogsOffset mocks base method.
@@ -6276,20 +6262,6 @@ func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.Remov
 func (mr *MockStoreMockRecorder) RemoveUserFromGroups(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserFromGroups", reflect.TypeOf((*MockStore)(nil).RemoveUserFromGroups), ctx, arg)
-}
-
-// ResetBoundaryUsageStats mocks base method.
-func (m *MockStore) ResetBoundaryUsageStats(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ResetBoundaryUsageStats", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ResetBoundaryUsageStats indicates an expected call of ResetBoundaryUsageStats.
-func (mr *MockStoreMockRecorder) ResetBoundaryUsageStats(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetBoundaryUsageStats", reflect.TypeOf((*MockStore)(nil).ResetBoundaryUsageStats), ctx)
 }
 
 // RevokeDBCryptKey mocks base method.

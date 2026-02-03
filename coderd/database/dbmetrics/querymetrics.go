@@ -335,14 +335,6 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
-func (m queryMetricsStore) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteBoundaryUsageStatsByReplicaID(ctx, replicaID)
-	m.queryLatencies.WithLabelValues("DeleteBoundaryUsageStatsByReplicaID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteBoundaryUsageStatsByReplicaID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteCryptoKey(ctx, arg)
@@ -854,6 +846,14 @@ func (m queryMetricsStore) GetAllTailnetTunnels(ctx context.Context) ([]database
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAndResetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetAndResetBoundaryUsageSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAndResetBoundaryUsageSummary(ctx, maxStalenessMs)
+	m.queryLatencies.WithLabelValues("GetAndResetBoundaryUsageSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAndResetBoundaryUsageSummary").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAnnouncementBanners(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAnnouncementBanners(ctx)
@@ -899,14 +899,6 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationUserRoles").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetBoundaryUsageSummaryRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetBoundaryUsageSummary(ctx, maxStalenessMs)
-	m.queryLatencies.WithLabelValues("GetBoundaryUsageSummary").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetBoundaryUsageSummary").Inc()
 	return r0, r1
 }
 
@@ -3332,14 +3324,6 @@ func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg databas
 	m.queryLatencies.WithLabelValues("RemoveUserFromGroups").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveUserFromGroups").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) ResetBoundaryUsageStats(ctx context.Context) error {
-	start := time.Now()
-	r0 := m.s.ResetBoundaryUsageStats(ctx)
-	m.queryLatencies.WithLabelValues("ResetBoundaryUsageStats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResetBoundaryUsageStats").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
