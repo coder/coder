@@ -1,7 +1,5 @@
 # OpenCode
 
-[OpenCode](https://opencode.ai/) is an open source agent that helps you write code in your terminal, IDE, or desktop.
-
 ## Configuration
 
 You can configure OpenCode to connect to AI Bridge by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
