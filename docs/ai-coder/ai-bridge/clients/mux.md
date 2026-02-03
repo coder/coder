@@ -1,5 +1,7 @@
 # Mux
 
+Mux makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic. For more background on Mux, see [Coder Research](https://coder.com/docs/coder-research#mux).
+
 Mux can be configured to route OpenAI- and Anthropic-compatible traffic through AI Bridge by setting a custom provider base URL and using a Coder-issued token for authentication.
 
 ## Prerequisites
