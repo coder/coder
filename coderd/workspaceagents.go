@@ -615,7 +615,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			lsids := make(map[uuid.UUID]string)
+			lsids := make(map[uuid.UUID]string, 0)
 			for _, sid := range sids {
 				lsids[sid.ID] = sid.DisplayName
 			}

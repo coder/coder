@@ -1039,7 +1039,7 @@ func TestTemplateVersionLogsFormat(t *testing.T) {
 			expectedStatus:      http.StatusOK,
 			expectedContentType: "application/json",
 			checkBody: func(t *testing.T, body string) {
-				assert.NotEmpty(t, body) // This is checked more thoroughly in the case above.
+				assert.NotEmpty(t, body) // This is checked more thoroughly in TestTemplateVersionLogs above.
 			},
 		},
 		{
