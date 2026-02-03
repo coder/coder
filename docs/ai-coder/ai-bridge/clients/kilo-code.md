@@ -1,7 +1,5 @@
 # Kilo Code
 
-[Kilo Code](https://kilocode.ai) supports both OpenAI and Anthropic providers, allowing full integration with AI Bridge.
-
 ## Configuration
 
 <div class="tabs">
