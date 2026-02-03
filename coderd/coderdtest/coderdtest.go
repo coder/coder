@@ -59,6 +59,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/chats"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -153,6 +154,8 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentValues            *codersdk.DeploymentValues
+
+	ChatRunner *chats.Runner
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -620,6 +623,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
+			ChatRunner:                         options.ChatRunner,
 		}
 }
 

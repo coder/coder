@@ -1,0 +1,72 @@
+package chats
+
+import (
+	"context"
+	"sync"
+
+	"github.com/google/uuid"
+)
+
+// Hub is an in-memory pub/sub for ephemeral chat streaming events.
+//
+// Important: Hub events are best-effort and are not persisted. The authoritative
+// chat transcript is stored in the database via chat_messages.
+//
+// This exists to support real-time streaming (token deltas, tool call deltas,
+// etc.) without having to persist every fragment.
+type Hub struct {
+	mu   sync.RWMutex
+	subs map[uuid.UUID]map[chan StreamEvent]struct{}
+}
+
+type StreamEvent struct {
+	RunID string
+	Part  any
+}
+
+func NewHub() *Hub {
+	return &Hub{subs: make(map[uuid.UUID]map[chan StreamEvent]struct{})}
+}
+
+func (h *Hub) Subscribe(ctx context.Context, chatID uuid.UUID) (<-chan StreamEvent, func()) {
+	ch := make(chan StreamEvent, 32)
+
+	h.mu.Lock()
+	if h.subs[chatID] == nil {
+		h.subs[chatID] = make(map[chan StreamEvent]struct{})
+	}
+	h.subs[chatID][ch] = struct{}{}
+	h.mu.Unlock()
+
+	cancel := func() {
+		h.mu.Lock()
+		if m := h.subs[chatID]; m != nil {
+			delete(m, ch)
+			if len(m) == 0 {
+				delete(h.subs, chatID)
+			}
+		}
+		h.mu.Unlock()
+		close(ch)
+	}
+
+	go func() {
+		<-ctx.Done()
+		cancel()
+	}()
+
+	return ch, cancel
+}
+
+func (h *Hub) Publish(chatID uuid.UUID, ev StreamEvent) {
+	h.mu.RLock()
+	m := h.subs[chatID]
+	h.mu.RUnlock()
+	for sub := range m {
+		select {
+		case sub <- ev:
+		default:
+			// Drop if the subscriber can't keep up.
+		}
+	}
+}

@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
+	"github.com/coder/coder/v2/coderd/chats"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -240,6 +241,10 @@ type Options struct {
 
 	HTTPClient *http.Client
 
+	// ChatRunner is used to execute control-plane chat agent runs.
+	// If nil, a default runner is created.
+	ChatRunner *chats.Runner
+
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
@@ -362,6 +367,15 @@ func New(options *Options) *API {
 		options.Logger.Named("authz_querier"),
 		options.AccessControlStore,
 	)
+
+	if options.ChatRunner == nil {
+		options.ChatRunner = chats.NewRunner(chats.RunnerOptions{
+			DB:         options.Database,
+			Logger:     options.Logger,
+			AccessURL:  options.AccessURL,
+			HTTPClient: options.HTTPClient,
+		})
+	}
 
 	if options.IDPSync == nil {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
@@ -1715,6 +1729,19 @@ func New(options *Options) *API {
 		})
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
+		})
+		r.Route("/chats", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Post("/", api.chatsCreate)
+			r.Route("/{chat}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Get("/", api.chatGet)
+				r.Route("/messages", func(r chi.Router) {
+					r.Get("/", api.chatMessages)
+					r.Post("/", api.chatMessageCreateAndRun)
+					r.Get("/watch-ws", api.chatMessagesWatchWS)
+				})
+			})
 		})
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

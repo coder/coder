@@ -1325,6 +1325,10 @@
 							"path": "./reference/api/builds.md"
 						},
 						{
+							"title": "Chats",
+							"path": "./reference/api/chats.md"
+						},
+						{
 							"title": "Debug",
 							"path": "./reference/api/debug.md"
 						},

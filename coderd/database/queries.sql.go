@@ -2088,6 +2088,242 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const getChatByID = `-- name: GetChatByID :one
+SELECT id, created_at, updated_at, organization_id, owner_id, workspace_id, title, provider, model, metadata FROM chats WHERE id = $1
+`
+
+func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, getChatByID, id)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Provider,
+		&i.Model,
+		&i.Metadata,
+	)
+	return i, err
+}
+
+const insertChat = `-- name: InsertChat :one
+INSERT INTO chats (
+	id,
+	created_at,
+	updated_at,
+	organization_id,
+	owner_id,
+	workspace_id,
+	title,
+	provider,
+	model,
+	metadata
+) VALUES (
+	$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+)
+RETURNING id, created_at, updated_at, organization_id, owner_id, workspace_id, title, provider, model, metadata
+`
+
+type InsertChatParams struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID       `db:"owner_id" json:"owner_id"`
+	WorkspaceID    uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	Title          sql.NullString  `db:"title" json:"title"`
+	Provider       string          `db:"provider" json:"provider"`
+	Model          string          `db:"model" json:"model"`
+	Metadata       json.RawMessage `db:"metadata" json:"metadata"`
+}
+
+func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, insertChat,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.WorkspaceID,
+		arg.Title,
+		arg.Provider,
+		arg.Model,
+		arg.Metadata,
+	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Provider,
+		&i.Model,
+		&i.Metadata,
+	)
+	return i, err
+}
+
+const insertChatMessage = `-- name: InsertChatMessage :one
+INSERT INTO chat_messages (
+	chat_id,
+	created_at,
+	role,
+	content
+) VALUES (
+	$1, $2, $3, $4
+)
+RETURNING chat_id, id, created_at, role, content
+`
+
+type InsertChatMessageParams struct {
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	Role      string          `db:"role" json:"role"`
+	Content   json.RawMessage `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, insertChatMessage,
+		arg.ChatID,
+		arg.CreatedAt,
+		arg.Role,
+		arg.Content,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ChatID,
+		&i.ID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+	)
+	return i, err
+}
+
+const listChatMessages = `-- name: ListChatMessages :many
+SELECT chat_id, id, created_at, role, content FROM chat_messages
+WHERE chat_id = $1
+ORDER BY id ASC
+`
+
+func (q *sqlQuerier) ListChatMessages(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, listChatMessages, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatMessagesAfter = `-- name: ListChatMessagesAfter :many
+SELECT chat_id, id, created_at, role, content FROM chat_messages
+WHERE chat_id = $1
+	AND id > $2
+ORDER BY id ASC
+`
+
+type ListChatMessagesAfterParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	ID     int64     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) ListChatMessagesAfter(ctx context.Context, arg ListChatMessagesAfterParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, listChatMessagesAfter, arg.ChatID, arg.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateChatWorkspaceID = `-- name: UpdateChatWorkspaceID :one
+UPDATE chats
+SET
+	workspace_id = $2,
+	updated_at = $3
+FROM
+	workspaces w
+WHERE
+	chats.id = $1
+	AND chats.workspace_id IS NULL
+	AND w.id = $2
+	AND w.organization_id = chats.organization_id
+	AND w.owner_id = chats.owner_id
+RETURNING
+	chats.id, chats.created_at, chats.updated_at, chats.organization_id, chats.owner_id, chats.workspace_id, chats.title, chats.provider, chats.model, chats.metadata
+`
+
+type UpdateChatWorkspaceIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateChatWorkspaceID(ctx context.Context, arg UpdateChatWorkspaceIDParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatWorkspaceID, arg.ID, arg.WorkspaceID, arg.UpdatedAt)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Provider,
+		&i.Model,
+		&i.Metadata,
+	)
+	return i, err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count

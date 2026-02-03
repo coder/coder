@@ -2278,6 +2278,31 @@ func (q *querier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs in
 	return q.db.GetBoundaryUsageSummary(ctx, maxStalenessMs)
 }
 
+func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
+	// Chats are user-private (owner-only) by default.
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(chat.OwnerID)); err != nil {
+		return database.Chat{}, err
+	}
+
+	// If a chat is linked to a workspace, additionally validate workspace access.
+	if chat.WorkspaceID.Valid {
+		obj := rbac.ResourceWorkspace.
+			WithID(chat.WorkspaceID.UUID).
+			WithOwner(chat.OwnerID.String()).
+			InOrg(chat.OrganizationID)
+		if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+			return database.Chat{}, err
+		}
+	}
+
+	return chat, nil
+}
+
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -4177,6 +4202,54 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(arg.OwnerID)); err != nil {
+		return database.Chat{}, err
+	}
+
+	if arg.WorkspaceID.Valid {
+		ws, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID.UUID)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if ws.OrganizationID != arg.OrganizationID || ws.OwnerID != arg.OwnerID {
+			return database.Chat{}, NotAuthorizedError{Err: xerrors.New("workspace does not match chat owner/org")}
+		}
+		obj := rbac.ResourceWorkspace.
+			WithID(ws.ID).
+			WithOwner(ws.OwnerID.String()).
+			InOrg(ws.OrganizationID)
+		if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+			return database.Chat{}, err
+		}
+	}
+
+	return q.db.InsertChat(ctx, arg)
+}
+
+func (q *querier) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(chat.OwnerID)); err != nil {
+		return database.ChatMessage{}, err
+	}
+
+	if chat.WorkspaceID.Valid {
+		obj := rbac.ResourceWorkspace.
+			WithID(chat.WorkspaceID.UUID).
+			WithOwner(chat.OwnerID.String()).
+			InOrg(chat.OrganizationID)
+		if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+			return database.ChatMessage{}, err
+		}
+	}
+
+	return q.db.InsertChatMessage(ctx, arg)
+}
+
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -4775,6 +4848,24 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
 }
 
+func (q *querier) ListChatMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	// GetChatByID enforces read authz (and validates workspace access if linked).
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return nil, err
+	}
+
+	return q.db.ListChatMessages(ctx, chatID)
+}
+
+func (q *querier) ListChatMessagesAfter(ctx context.Context, arg database.ListChatMessagesAfterParams) ([]database.ChatMessage, error) {
+	// GetChatByID enforces read authz (and validates workspace access if linked).
+	if _, err := q.GetChatByID(ctx, arg.ChatID); err != nil {
+		return nil, err
+	}
+
+	return q.db.ListChatMessagesAfter(ctx, arg)
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
@@ -4952,6 +5043,29 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatWorkspaceID(ctx context.Context, arg database.UpdateChatWorkspaceIDParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(chat.OwnerID)); err != nil {
+		return database.Chat{}, err
+	}
+
+	if arg.WorkspaceID.Valid {
+		obj := rbac.ResourceWorkspace.
+			WithID(arg.WorkspaceID.UUID).
+			WithOwner(chat.OwnerID.String()).
+			InOrg(chat.OrganizationID)
+		if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+			return database.Chat{}, err
+		}
+	}
+
+	return q.db.UpdateChatWorkspaceID(ctx, arg)
 }
 
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {

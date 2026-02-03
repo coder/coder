@@ -3732,6 +3732,27 @@ type BoundaryUsageStat struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type Chat struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID       `db:"owner_id" json:"owner_id"`
+	WorkspaceID    uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	Title          sql.NullString  `db:"title" json:"title"`
+	Provider       string          `db:"provider" json:"provider"`
+	Model          string          `db:"model" json:"model"`
+	Metadata       json.RawMessage `db:"metadata" json:"metadata"`
+}
+
+type ChatMessage struct {
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	ID        int64           `db:"id" json:"id"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	Role      string          `db:"role" json:"role"`
+	Content   json.RawMessage `db:"content" json:"content"`
+}
+
 type ConnectionLog struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`

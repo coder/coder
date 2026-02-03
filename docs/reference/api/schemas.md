@@ -1544,6 +1544,67 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.Chat
+
+```json
+{
+  "created_at": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "metadata": [
+    0
+  ],
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "provider": "string",
+  "title": "string",
+  "updated_at": "string",
+  "workspace_id": {
+    "uuid": "string",
+    "valid": true
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                           | Required | Restrictions | Description |
+|-------------------|--------------------------------|----------|--------------|-------------|
+| `created_at`      | string                         | false    |              |             |
+| `id`              | string                         | false    |              |             |
+| `metadata`        | array of integer               | false    |              |             |
+| `model`           | string                         | false    |              |             |
+| `organization_id` | string                         | false    |              |             |
+| `owner_id`        | string                         | false    |              |             |
+| `provider`        | string                         | false    |              |             |
+| `title`           | string                         | false    |              |             |
+| `updated_at`      | string                         | false    |              |             |
+| `workspace_id`    | [uuid.NullUUID](#uuidnulluuid) | false    |              |             |
+
+## codersdk.ChatMessage
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "content": [
+    0
+  ],
+  "created_at": "string",
+  "id": 0,
+  "role": "string"
+}
+```
+
+### Properties
+
+| Name         | Type             | Required | Restrictions | Description |
+|--------------|------------------|----------|--------------|-------------|
+| `chat_id`    | string           | false    |              |             |
+| `content`    | array of integer | false    |              |             |
+| `created_at` | string           | false    |              |             |
+| `id`         | integer          | false    |              |             |
+| `role`       | string           | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -1792,6 +1853,68 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
+
+## codersdk.CreateChatMessageRequest
+
+```json
+{
+  "content": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `content` | string | false    |              |             |
+
+## codersdk.CreateChatMessageResponse
+
+```json
+{
+  "message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      0
+    ],
+    "created_at": "string",
+    "id": 0,
+    "role": "string"
+  },
+  "run_id": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                                         | Required | Restrictions | Description |
+|-----------|----------------------------------------------|----------|--------------|-------------|
+| `message` | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
+| `run_id`  | string                                       | false    |              |             |
+
+## codersdk.CreateChatRequest
+
+```json
+{
+  "metadata": [
+    0
+  ],
+  "model": "string",
+  "provider": "string",
+  "title": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name           | Type             | Required | Restrictions | Description |
+|----------------|------------------|----------|--------------|-------------|
+| `metadata`     | array of integer | false    |              |             |
+| `model`        | string           | false    |              |             |
+| `provider`     | string           | false    |              |             |
+| `title`        | string           | false    |              |             |
+| `workspace_id` | string           | false    |              |             |
 
 ## codersdk.CreateFirstUserRequest
 

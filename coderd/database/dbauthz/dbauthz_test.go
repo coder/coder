@@ -2482,6 +2482,101 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	}))
 }
 
+func (s *MethodTestSuite) TestChats() {
+	s.Run("GetChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		chat.WorkspaceID = uuid.NullUUID{}
+
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+
+		check.Args(chat.ID).Asserts(
+			rbac.ResourceUserObject(chat.OwnerID), policy.ActionReadPersonal,
+		).Returns(chat)
+	}))
+
+	s.Run("InsertChat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		chat.WorkspaceID = uuid.NullUUID{}
+
+		arg := database.InsertChatParams{
+			ID:             chat.ID,
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+			OrganizationID: chat.OrganizationID,
+			OwnerID:        chat.OwnerID,
+			WorkspaceID:    uuid.NullUUID{},
+			Provider:       "openai",
+			Model:          "gpt-4o-mini",
+			Metadata:       json.RawMessage(`{}`),
+		}
+		dbm.EXPECT().InsertChat(gomock.Any(), arg).Return(chat, nil).AnyTimes()
+
+		check.Args(arg).Asserts(
+			rbac.ResourceUserObject(arg.OwnerID), policy.ActionUpdatePersonal,
+		).Returns(chat)
+	}))
+
+	s.Run("InsertChatMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		chat.WorkspaceID = uuid.NullUUID{}
+		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID, Role: "user"})
+		arg := database.InsertChatMessageParams{
+			ChatID:    chat.ID,
+			CreatedAt: msg.CreatedAt,
+			Role:      msg.Role,
+			Content:   msg.Content,
+		}
+
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().InsertChatMessage(gomock.Any(), arg).Return(msg, nil).AnyTimes()
+
+		check.Args(arg).Asserts(
+			rbac.ResourceUserObject(chat.OwnerID), policy.ActionUpdatePersonal,
+		).Returns(msg)
+	}))
+
+	s.Run("ListChatMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		chat.WorkspaceID = uuid.NullUUID{}
+		msgs := []database.ChatMessage{testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})}
+
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ListChatMessages(gomock.Any(), chat.ID).Return(msgs, nil).AnyTimes()
+
+		check.Args(chat.ID).Asserts(
+			rbac.ResourceUserObject(chat.OwnerID), policy.ActionReadPersonal,
+		).Returns(msgs)
+	}))
+
+	s.Run("UpdateChatWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		chat.WorkspaceID = uuid.NullUUID{}
+
+		wsID := uuid.New()
+		arg := database.UpdateChatWorkspaceIDParams{
+			ID:          chat.ID,
+			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
+			UpdatedAt:   dbtime.Now(),
+		}
+
+		updated := chat
+		updated.WorkspaceID = arg.WorkspaceID
+
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatWorkspaceID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+
+		workspaceObj := rbac.ResourceWorkspace.
+			WithID(wsID).
+			WithOwner(chat.OwnerID.String()).
+			InOrg(chat.OrganizationID)
+
+		check.Args(arg).Asserts(
+			rbac.ResourceUserObject(chat.OwnerID), policy.ActionUpdatePersonal,
+			workspaceObj, policy.ActionRead,
+		).Returns(updated)
+	}))
+}
+
 func (s *MethodTestSuite) TestTasks() {
 	s.Run("GetTaskByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		task := testutil.Fake(s.T(), faker, database.Task{})
