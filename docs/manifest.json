@@ -1035,13 +1035,78 @@
 								{
 									"title": "Client Configuration",
 									"description": "How to configure your AI coding tools to use AI Bridge",
-									"path": "./ai-coder/ai-bridge/client-config.md"
+									"path": "./ai-coder/ai-bridge/clients/index.md",
+									"children": [
+										{
+											"title": "Claude Code",
+											"description": "Configure Claude Code to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
+										},
+										{
+											"title": "Codex",
+											"description": "Configure Codex to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/codex.md"
+										},
+										{
+											"title": "OpenCode",
+											"description": "Configure OpenCode to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/opencode.md"
+										},
+										{
+											"title": "Factory",
+											"description": "Configure Factory to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/factory.md"
+										},
+										{
+											"title": "Cline",
+											"description": "Configure Cline to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/cline.md"
+										},
+										{
+											"title": "Kilo Code",
+											"description": "Configure Kilo Code to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/kilo-code.md"
+										},
+										{
+											"title": "Roo Code",
+											"description": "Configure Roo Code to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/roo-code.md"
+										},
+										{
+											"title": "VS Code",
+											"description": "Configure VS Code to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/vscode.md"
+										},
+										{
+											"title": "JetBrains",
+											"description": "Configure JetBrains IDEs to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/jetbrains.md"
+										},
+										{
+											"title": "Zed",
+											"description": "Configure Zed to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/zed.md"
+										}
+									]
 								},
 								{
 									"title": "MCP Tools Injection",
 									"description": "How to configure MCP servers for tools injection through AI Bridge",
 									"path": "./ai-coder/ai-bridge/mcp.md",
 									"state": ["early access"]
+								},
+								{
+									"title": "AI Bridge Proxy",
+									"description": "Proxy for AI coding tools without base URL override support",
+									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
+									"state": ["premium"],
+									"children": [
+										{
+											"title": "Setup",
+											"description": "How to set up and configure AI Bridge Proxy",
+											"path": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md"
+										}
+									]
 								},
 								{
 									"title": "Monitoring",
