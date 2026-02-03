@@ -251,9 +251,11 @@ export const Filter: FC<FilterProps> = ({
 							}}
 							placeholder="Search..."
 						/>
-						<span className="text-content-destructive text-sm">
-							{getValidationErrorMessage(error)}
-						</span>
+						{hasError(error) && (
+							<span className="text-content-destructive text-sm">
+								{getValidationErrorMessage(error)}
+							</span>
+						)}
 					</div>
 					{options}
 				</>
