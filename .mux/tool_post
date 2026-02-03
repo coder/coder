@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+# Mux tool post-hook to format Go files after edits.
+# It runs after file_edit_* tools and formats only .go files.
+
+set -euo pipefail
+
+if [[ "${MUX_TOOL:-}" != file_edit_* ]]; then
+	exit 0
+fi
+
+tool_input="${MUX_TOOL_INPUT:-}"
+if [[ -n "${MUX_TOOL_INPUT_PATH:-}" && -f "${MUX_TOOL_INPUT_PATH}" ]]; then
+	tool_input="$(cat "${MUX_TOOL_INPUT_PATH}")"
+fi
+
+if [[ -z "$tool_input" ]]; then
+	exit 0
+fi
+
+file_path="$(echo "$tool_input" | jq -r '.file_path // empty')"
+if [[ -z "$file_path" ]]; then
+	exit 0
+fi
+
+case "$file_path" in
+	*.go)
+		project_dir="${MUX_PROJECT_DIR:-$(pwd)}"
+		cd "$project_dir"
+		if command -v brew >/dev/null 2>&1; then
+			brew_prefix="$(brew --prefix gnu-getopt 2>/dev/null || true)"
+			if [[ -n "$brew_prefix" && -d "$brew_prefix/bin" ]]; then
+				export PATH="$brew_prefix/bin:$PATH"
+			fi
+		fi
+		if ! make fmt/go FILE="$file_path" >/dev/null 2>&1; then
+			if command -v gofmt >/dev/null 2>&1; then
+				gofmt -w "$file_path"
+			fi
+		fi
+		;;
+esac
