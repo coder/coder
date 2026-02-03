@@ -43,7 +43,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 			<DropdownMenuTrigger asChild>
 				<Button variant="outline" size="lg">
 					Admin settings
-					<ChevronDownIcon className="text-content-primary size-icon-sm text-white" />
+					<ChevronDownIcon className="text-content-primary !size-icon-sm" />
 				</Button>
 			</DropdownMenuTrigger>
 
