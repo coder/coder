@@ -28,12 +28,15 @@ Again, the exact environment variable or setting naming may differ from tool to 
 
 ### Retrieving your session token
 
-[Generate a long-lived API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) via the Coder dashboard and use it to configure your AI coding tool:
+If you're logged in with the Coder CLI, you can retrieve your current session
+token using [`coder login token`](../../../reference/cli/login_token.md):
 
 ```sh
-export ANTHROPIC_API_KEY="your-coder-session-token"
+export ANTHROPIC_API_KEY=$(coder login token)
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 ```
+
+Alternatively, [generate a long-lived API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) via the Coder dashboard.
 
 ## Compatibility
 
