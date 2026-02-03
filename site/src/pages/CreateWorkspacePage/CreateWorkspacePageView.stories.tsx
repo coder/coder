@@ -44,20 +44,33 @@ export const WebsocketError: Story = {
 export const WithViewSourceButton: Story = {
 	args: {
 		canUpdateTemplate: true,
-		versionId: "template-version-123",
+		versionName: "foobar-template-version",
 		template: {
 			...MockTemplate,
 			organization_name: "default",
 			name: "docker-template",
 		},
 	},
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"This story shows the View Source button that appears for template administrators in the experimental workspace creation page. The button allows quick navigation to the template editor.",
-			},
-		},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const viewSourceLink = canvas.getByRole("link", { name: /view source/i });
+		expect(viewSourceLink).toBeInTheDocument();
+		expect(viewSourceLink).toHaveAttribute(
+			"href",
+			"/templates/default/docker-template/versions/foobar-template-version/edit",
+		);
+	},
+};
+
+export const ViewSourceButtonHiddenWithoutPermission: Story = {
+	args: {
+		canUpdateTemplate: false,
+		versionName: "foobar-template-version",
+	},
+	play: async () => {
+		expect(
+			screen.queryByRole("link", { name: /view source/i }),
+		).not.toBeInTheDocument();
 	},
 };
 const parameterInput: PreviewParameter = {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -82,12 +81,12 @@ func (r *RootCmd) logs() *serpent.Command {
 				return err
 			}
 			for _, log := range logs {
-				_, _ = fmt.Fprintln(inv.Stdout, log.String())
+				_, _ = fmt.Fprintln(inv.Stdout, log.text)
 			}
 			if followArg {
 				_, _ = fmt.Fprintln(inv.Stdout, "--- Streaming logs ---")
 				for log := range logsCh {
-					_, _ = fmt.Fprintln(inv.Stdout, log.String())
+					_, _ = fmt.Fprintln(inv.Stdout, log.text)
 				}
 			}
 			return nil
@@ -97,15 +96,8 @@ func (r *RootCmd) logs() *serpent.Command {
 }
 
 type logLine struct {
-	ts      time.Time
-	Content string
-}
-
-func (l *logLine) String() string {
-	var sb strings.Builder
-	_, _ = sb.WriteString(l.ts.Format(time.RFC3339))
-	_, _ = sb.WriteString(l.Content)
-	return sb.String()
+	ts   time.Time // for sorting
+	text string
 }
 
 // workspaceLogs fetches logs for the given workspace build. If follow is true,
@@ -136,8 +128,8 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 		for log := range buildLogsC {
 			afterID = log.ID
 			logsCh <- logLine{
-				ts:      log.CreatedAt,
-				Content: buildLogToString(log),
+				ts:   log.CreatedAt,
+				text: log.Text(),
 			}
 		}
 		return nil
@@ -153,8 +145,8 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 			defer closer.Close()
 			for log := range buildLogsC {
 				followCh <- logLine{
-					ts:      log.CreatedAt,
-					Content: buildLogToString(log),
+					ts:   log.CreatedAt,
+					text: log.Text(),
 				}
 			}
 			return nil
@@ -185,8 +177,8 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 					for _, log := range logChunk {
 						afterID = log.ID
 						logsCh <- logLine{
-							ts:      log.CreatedAt,
-							Content: workspaceAgentLogToString(log, agt.Name, logSrcNames[log.SourceID]),
+							ts:   log.CreatedAt,
+							text: log.Text(agt.Name, logSrcNames[log.SourceID]),
 						}
 					}
 				}
@@ -204,8 +196,8 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 					for logChunk := range agentLogsCh {
 						for _, log := range logChunk {
 							followCh <- logLine{
-								ts:      log.CreatedAt,
-								Content: workspaceAgentLogToString(log, agt.Name, logSrcNames[log.SourceID]),
+								ts:   log.CreatedAt,
+								text: log.Text(agt.Name, logSrcNames[log.SourceID]),
 							}
 						}
 					}
@@ -241,30 +233,4 @@ func workspaceLogs(ctx context.Context, client *codersdk.Client, wb codersdk.Wor
 	}
 
 	return logs, followCh, err
-}
-
-func buildLogToString(log codersdk.ProvisionerJobLog) string {
-	var sb strings.Builder
-	_, _ = sb.WriteString(" [")
-	_, _ = sb.WriteString(string(log.Level))
-	_, _ = sb.WriteString("] [")
-	_, _ = sb.WriteString("provisioner|")
-	_, _ = sb.WriteString(log.Stage)
-	_, _ = sb.WriteString("] ")
-	_, _ = sb.WriteString(log.Output)
-	return sb.String()
-}
-
-func workspaceAgentLogToString(log codersdk.WorkspaceAgentLog, agtName, srcName string) string {
-	var sb strings.Builder
-	_, _ = sb.WriteString(" [")
-	_, _ = sb.WriteString(string(log.Level))
-	_, _ = sb.WriteString("] [")
-	_, _ = sb.WriteString("agent.")
-	_, _ = sb.WriteString(agtName)
-	_, _ = sb.WriteString("|")
-	_, _ = sb.WriteString(srcName)
-	_, _ = sb.WriteString("] ")
-	_, _ = sb.WriteString(log.Output)
-	return sb.String()
 }

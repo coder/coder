@@ -19,20 +19,52 @@ type message struct {
 
 func NewProviderStrategy(provider string) ProviderStrategy {
 	switch provider {
-	case "anthropic":
-		return &anthropicProvider{}
+	case "messages":
+		return &messagesProvider{}
+	case "completions":
+		return &chatCompletionsProvider{}
+	case "responses":
+		return &responsesProvider{}
 	default:
-		return &openAIProvider{}
+		return nil
 	}
 }
 
-type openAIProvider struct{}
+var _ ProviderStrategy = &responsesProvider{}
 
-func (*openAIProvider) DefaultModel() string {
+type responsesProvider struct{}
+
+type chatCompletionsProvider struct{}
+
+func (*responsesProvider) DefaultModel() string {
+	return "gpt-5"
+}
+
+func (*responsesProvider) formatMessages(messages []message) []any {
+	formatted := make([]any, 0, len(messages))
+	for _, msg := range messages {
+		formatted = append(formatted, map[string]any{
+			"type":    "message",
+			"role":    msg.Role,
+			"content": msg.Content,
+		})
+	}
+	return formatted
+}
+
+func (*responsesProvider) buildRequestBody(model string, messages []any, stream bool) map[string]any {
+	return map[string]any{
+		"model":  model,
+		"input":  messages,
+		"stream": stream,
+	}
+}
+
+func (*chatCompletionsProvider) DefaultModel() string {
 	return "gpt-4"
 }
 
-func (*openAIProvider) formatMessages(messages []message) []any {
+func (*chatCompletionsProvider) formatMessages(messages []message) []any {
 	formatted := make([]any, 0, len(messages))
 	for _, msg := range messages {
 		formatted = append(formatted, map[string]string{
@@ -43,7 +75,7 @@ func (*openAIProvider) formatMessages(messages []message) []any {
 	return formatted
 }
 
-func (*openAIProvider) buildRequestBody(model string, messages []any, stream bool) map[string]any {
+func (*chatCompletionsProvider) buildRequestBody(model string, messages []any, stream bool) map[string]any {
 	return map[string]any{
 		"model":    model,
 		"messages": messages,
@@ -51,13 +83,13 @@ func (*openAIProvider) buildRequestBody(model string, messages []any, stream boo
 	}
 }
 
-type anthropicProvider struct{}
+type messagesProvider struct{}
 
-func (*anthropicProvider) DefaultModel() string {
+func (*messagesProvider) DefaultModel() string {
 	return "claude-3-opus-20240229"
 }
 
-func (*anthropicProvider) formatMessages(messages []message) []any {
+func (*messagesProvider) formatMessages(messages []message) []any {
 	formatted := make([]any, 0, len(messages))
 	for _, msg := range messages {
 		formatted = append(formatted, map[string]any{
@@ -73,7 +105,7 @@ func (*anthropicProvider) formatMessages(messages []message) []any {
 	return formatted
 }
 
-func (*anthropicProvider) buildRequestBody(model string, messages []any, stream bool) map[string]any {
+func (*messagesProvider) buildRequestBody(model string, messages []any, stream bool) map[string]any {
 	return map[string]any{
 		"model":      model,
 		"messages":   messages,

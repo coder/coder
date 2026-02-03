@@ -1,6 +1,5 @@
 import type { SerpentOption } from "api/typesGenerated";
-import { aiBridgePaywallConfig } from "components/Paywall/AIBridgePaywallConfig";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -49,7 +48,7 @@ export const AIGovernanceSettingsPageView: FC<
 					/>
 				</div>
 			) : (
-				<Paywall {...aiBridgePaywallConfig} />
+				<PaywallAIGovernance />
 			)}
 		</Stack>
 	);

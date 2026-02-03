@@ -2457,7 +2457,8 @@ CREATE TABLE workspace_agent_devcontainers (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_folder text NOT NULL,
     config_path text NOT NULL,
-    name text NOT NULL
+    name text NOT NULL,
+    subagent_id uuid
 );
 
 COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
@@ -3736,6 +3737,9 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_subagent_id_fkey FOREIGN KEY (subagent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

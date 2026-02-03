@@ -70,6 +70,7 @@ interface CreateWorkspacePageViewProps {
 	presets: TypesGen.Preset[];
 	template: TypesGen.Template;
 	versionId?: string;
+	versionName?: string;
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
@@ -100,6 +101,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	presets = [],
 	template,
 	versionId,
+	versionName,
 	onSubmit,
 	onCancel,
 	resetMutation,
@@ -386,10 +388,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								</Badge>
 							)}
 						</span>
-						{canUpdateTemplate && (
+						{canUpdateTemplate && versionName && (
 							<Button asChild size="sm" variant="outline">
 								<RouterLink
-									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionName}/edit`}
 								>
 									<ExternalLinkIcon />
 									View source

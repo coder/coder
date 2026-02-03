@@ -103,6 +103,7 @@ export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 					placeholder="Search user..."
 					value={menu.query}
 					onValueChange={menu.setQuery}
+					aria-label="Search user"
 				/>
 			}
 		/>

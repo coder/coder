@@ -111,6 +111,7 @@ export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({
 					placeholder="Search organization..."
 					value={menu.query}
 					onValueChange={menu.setQuery}
+					aria-label="Search organization"
 				/>
 			}
 			width={width}

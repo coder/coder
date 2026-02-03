@@ -7,7 +7,7 @@
  */
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronRight, Circle } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	type ElementRef,
@@ -26,7 +26,7 @@ const _DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 
 const _DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
-const _DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
+export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 const DropdownMenuSubTrigger = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
@@ -154,7 +154,7 @@ const DropdownMenuCheckboxItem = forwardRef<
 DropdownMenuCheckboxItem.displayName =
 	DropdownMenuPrimitive.CheckboxItem.displayName;
 
-const DropdownMenuRadioItem = forwardRef<
+export const DropdownMenuRadioItem = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
 	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
 >(({ className, children, ...props }, ref) => (
@@ -162,19 +162,20 @@ const DropdownMenuRadioItem = forwardRef<
 		ref={ref}
 		className={cn(
 			[
-				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors",
+				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none transition-colors",
 				"focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"data-[state=checked]:bg-surface-secondary data-[state=checked]:text-content-primary",
 			],
 			className,
 		)}
 		{...props}
 	>
-		<span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+		{children}
+		<span className="absolute top-3.5 right-2 flex h-3.5 w-3.5 items-center justify-center">
 			<DropdownMenuPrimitive.ItemIndicator>
-				<Circle className="h-2 w-2 fill-current" />
+				<Check className="h-4 w-4" />
 			</DropdownMenuPrimitive.ItemIndicator>
 		</span>
-		{children}
 	</DropdownMenuPrimitive.RadioItem>
 ));
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;

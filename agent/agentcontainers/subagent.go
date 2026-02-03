@@ -146,12 +146,12 @@ type SubAgentClient interface {
 // agent API client.
 type subAgentAPIClient struct {
 	logger slog.Logger
-	api    agentproto.DRPCAgentClient27
+	api    agentproto.DRPCAgentClient28
 }
 
 var _ SubAgentClient = (*subAgentAPIClient)(nil)
 
-func NewSubAgentClientFromAPI(logger slog.Logger, agentAPI agentproto.DRPCAgentClient27) SubAgentClient {
+func NewSubAgentClientFromAPI(logger slog.Logger, agentAPI agentproto.DRPCAgentClient28) SubAgentClient {
 	if agentAPI == nil {
 		panic("developer error: agentAPI cannot be nil")
 	}

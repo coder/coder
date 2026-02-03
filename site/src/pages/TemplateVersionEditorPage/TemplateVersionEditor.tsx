@@ -582,13 +582,28 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									</button>
 								</div>
 
+								{selectedTab === "logs" && gotBuildLogs && (
+									<a
+										href={`/api/v2/templateversions/${templateVersion.id}/logs?format=text`}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="flex items-center gap-1 px-3 text-xs text-content-secondary hover:text-content-primary"
+									>
+										View raw logs
+										<ExternalLinkIcon className="size-3" />
+									</a>
+								)}
+
 								{selectedTab && (
 									<IconButton
 										onClick={() => {
 											setSelectedTab(undefined);
 										}}
 										css={{
-											marginLeft: "auto",
+											marginLeft:
+												selectedTab !== "logs" || !gotBuildLogs
+													? "auto"
+													: undefined,
 											width: 36,
 											height: 36,
 											borderRadius: 0,

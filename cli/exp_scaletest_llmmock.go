@@ -62,6 +62,7 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Mock LLM API server started on %s\n", srv.APIAddress())
 			_, _ = fmt.Fprintf(inv.Stdout, "  OpenAI endpoint: %s/v1/chat/completions\n", srv.APIAddress())
+			_, _ = fmt.Fprintf(inv.Stdout, "  OpenAI responses endpoint: %s/v1/responses\n", srv.APIAddress())
 			_, _ = fmt.Fprintf(inv.Stdout, "  Anthropic endpoint: %s/v1/messages\n", srv.APIAddress())
 
 			<-ctx.Done()

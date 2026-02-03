@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -1642,6 +1644,53 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			})
 			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
 		}
+	})
+
+	t.Run("SkipsCanceledPendingJobs", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			now   = dbtime.Now()
+		)
+
+		// Insert a pending job (started_at is NULL).
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             uuid.New(),
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			InitiatorID:    uuid.New(),
+			OrganizationID: org.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         uuid.New(),
+			Input:          json.RawMessage(`{}`),
+			Tags:           database.StringMap{},
+			TraceMetadata:  pqtype.NullRawMessage{},
+		})
+		require.NoError(t, err)
+
+		// Cancel it while still pending. In production (workspacebuilds.go), canceling
+		// a pending build sets completed_at but leaves started_at NULL since no
+		// provisioner ever started the job.
+		err = db.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID:          job.ID,
+			CanceledAt:  sql.NullTime{Time: now, Valid: true},
+			CompletedAt: sql.NullTime{Time: now, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// AcquireProvisionerJob should skip this job since it's already completed.
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  org.ID,
+			StartedAt:       sql.NullTime{Time: now, Valid: true},
+			WorkerID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: json.RawMessage(`{}`),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
 
@@ -8481,4 +8530,104 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate when latest build is not STOP")
 	})
+}
+
+// Our `InsertWorkspaceAgentDevcontainers` query should ideally be `[]uuid.NullUUID` but unfortunately
+// sqlc infers it as `[]uuid.UUID`. To ensure we don't insert a `uuid.Nil`, the query inserts NULL when
+// passed with `uuid.Nil`. This test ensures we keep this behavior without regression.
+func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		validSubagent []bool
+	}{
+		{"BothValid", []bool{true, true}},
+		{"FirstValidSecondInvalid", []bool{true, false}},
+		{"FirstInvalidSecondValid", []bool{false, true}},
+		{"BothInvalid", []bool{false, false}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				db, _ = dbtestutil.NewDB(t)
+				org   = dbgen.Organization(t, db, database.Organization{})
+				job   = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					Type:           database.ProvisionerJobTypeTemplateVersionImport,
+					OrganizationID: org.ID,
+				})
+				resource = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+				agent    = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+			)
+
+			ids := make([]uuid.UUID, len(tc.validSubagent))
+			names := make([]string, len(tc.validSubagent))
+			workspaceFolders := make([]string, len(tc.validSubagent))
+			configPaths := make([]string, len(tc.validSubagent))
+			subagentIDs := make([]uuid.UUID, len(tc.validSubagent))
+
+			for i, valid := range tc.validSubagent {
+				ids[i] = uuid.New()
+				names[i] = fmt.Sprintf("test-devcontainer-%d", i)
+				workspaceFolders[i] = fmt.Sprintf("/workspace%d", i)
+				configPaths[i] = fmt.Sprintf("/workspace%d/.devcontainer/devcontainer.json", i)
+
+				if valid {
+					subagentIDs[i] = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ResourceID: resource.ID,
+						ParentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
+					}).ID
+				} else {
+					subagentIDs[i] = uuid.Nil
+				}
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Given: We insert multiple devcontainer records.
+			devcontainers, err := db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
+				WorkspaceAgentID: agent.ID,
+				CreatedAt:        dbtime.Now(),
+				ID:               ids,
+				Name:             names,
+				WorkspaceFolder:  workspaceFolders,
+				ConfigPath:       configPaths,
+				SubagentID:       subagentIDs,
+			})
+			require.NoError(t, err)
+			require.Len(t, devcontainers, len(tc.validSubagent))
+
+			// Then: Verify each devcontainer has the correct SubagentID validity.
+			// - When we pass `uuid.Nil`, we get a `uuid.NullUUID{Valid: false}`
+			// - When we pass a valid UUID, we get a `uuid.NullUUID{Valid: true}`
+			for i, valid := range tc.validSubagent {
+				require.Equal(t, valid, devcontainers[i].SubagentID.Valid, "devcontainer %d: subagent_id validity mismatch", i)
+				if valid {
+					require.Equal(t, subagentIDs[i], devcontainers[i].SubagentID.UUID, "devcontainer %d: subagent_id UUID mismatch", i)
+				}
+			}
+
+			// Perform the same check on data returned by
+			// `GetWorkspaceAgentDevcontainersByAgentID` to ensure the fix is at
+			// the data storage layer, instead of just at a query level.
+			fetched, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
+			require.NoError(t, err)
+			require.Len(t, fetched, len(tc.validSubagent))
+
+			// Sort fetched by name to ensure consistent ordering for comparison.
+			slices.SortFunc(fetched, func(a, b database.WorkspaceAgentDevcontainer) int {
+				return strings.Compare(a.Name, b.Name)
+			})
+
+			for i, valid := range tc.validSubagent {
+				require.Equal(t, valid, fetched[i].SubagentID.Valid, "fetched devcontainer %d: subagent_id validity mismatch", i)
+				if valid {
+					require.Equal(t, subagentIDs[i], fetched[i].SubagentID.UUID, "fetched devcontainer %d: subagent_id UUID mismatch", i)
+				}
+			}
+		})
+	}
 }
