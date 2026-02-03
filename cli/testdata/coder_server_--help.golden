@@ -215,9 +215,6 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           commas.Using this incorrectly can break SSH to your deployment, use
           cautiously.
 
-      --ssh-hostname-prefix string, $CODER_SSH_HOSTNAME_PREFIX (default: coder.)
-          The SSH deployment prefix is used in the Host of the ssh config.
-
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
           The renderer to use when opening a web terminal. Valid values are
           'canvas', 'webgl', or 'dom'.

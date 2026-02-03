@@ -66,3 +66,33 @@ export const ConfirmingOIDCConversion: Story = {
 		defaultArgs,
 	),
 };
+
+export const AuthenticatedWithGithub: Story = {
+	args: {
+		...defaultArgs,
+		oidc: {
+			section: {
+				...defaultArgs.oidc!.section,
+				userLoginType: {
+					login_type: "github",
+				},
+				authMethods: MockAuthMethodsAll,
+			},
+		},
+	},
+};
+
+export const AuthenticatedWithOIDC: Story = {
+	args: {
+		...defaultArgs,
+		oidc: {
+			section: {
+				...defaultArgs.oidc!.section,
+				userLoginType: {
+					login_type: "oidc",
+				},
+				authMethods: MockAuthMethodsAll,
+			},
+		},
+	},
+};

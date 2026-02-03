@@ -41,3 +41,7 @@ func (l *LimitWriter) Write(p []byte) (int, error) {
 	l.N += int64(n)
 	return n, err
 }
+
+func (l *LimitWriter) Remaining() int64 {
+	return l.Limit - l.N
+}

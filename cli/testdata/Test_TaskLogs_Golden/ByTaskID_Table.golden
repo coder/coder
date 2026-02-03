@@ -1,0 +1,3 @@
+out: TYPE    CONTENT         
+out: input   What is 1 + 1?  
+out: output  2               

@@ -754,6 +754,49 @@ func TestSearchUsers(t *testing.T) {
 			},
 		},
 
+		// Name filter tests
+		{
+			Name:  "NameFilter",
+			Query: "name:John",
+			Expected: database.GetUsersParams{
+				Name:      "john",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "NameFilterQuoted",
+			Query: `name:"John Doe"`,
+			Expected: database.GetUsersParams{
+				Name:      "john doe",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "NameFilterWithSearch",
+			Query: "name:John search:johnd",
+			Expected: database.GetUsersParams{
+				Search:    "johnd",
+				Name:      "john",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "NameFilterWithOtherParams",
+			Query: "name:John status:active role:owner",
+			Expected: database.GetUsersParams{
+				Name:      "john",
+				Status:    []database.UserStatus{database.UserStatusActive},
+				RbacRole:  []string{codersdk.RoleOwner},
+				LoginType: []database.LoginType{},
+			},
+		},
+
 		// Failures
 		{
 			Name:                  "ExtraColon",

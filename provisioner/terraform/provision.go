@@ -136,10 +136,22 @@ func (s *server) Init(
 	// a workspace build. This removes some added costs of sending the modules
 	// payload back to coderd if coderd is just going to ignore it.
 	if !request.OmitModuleFiles {
-		moduleFiles, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
+		var skipped []string
+		moduleFiles, skipped, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
 		if err != nil {
-			// TODO: we probably want to persist this error or make it louder eventually
-			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
+			// Making this a fatal error would block the template from functioning. This
+			// error means the template has some reduced functionality, which will be raised
+			// on the workspace create page. This is not ideal, but it is better to have
+			// limited functionality, then none.
+			e.logger.Error(ctx, "failed to archive modules: %v", slog.Error(err))
+		}
+
+		if len(skipped) > 0 {
+			// TODO: This information needs to be raised on the template page somehow.
+			// Essentially some of the modules were not archived because they were too large.
+			e.logger.Warn(ctx, "some (or all) terraform modules were not archived, template will have reduced function",
+				slog.F("skipped_modules", strings.Join(skipped, ", ")),
+			)
 		}
 	}
 

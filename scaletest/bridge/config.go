@@ -32,7 +32,7 @@ type Config struct {
 	// Only used in direct mode.
 	UpstreamURL string `json:"upstream_url"`
 
-	// Provider is the API provider to use: "openai" or "anthropic".
+	// Provider is the API provider to use: "completions", "messages", or "responses".
 	Provider string `json:"provider"`
 
 	// RequestCount is the number of requests to make per runner.
@@ -77,8 +77,8 @@ func (c Config) Validate() error {
 	}
 
 	// Validate provider
-	if c.Provider != "openai" && c.Provider != "anthropic" {
-		return xerrors.New("provider must be either 'openai' or 'anthropic'")
+	if c.Provider != "completions" && c.Provider != "messages" && c.Provider != "responses" {
+		return xerrors.New("provider must be 'completions', 'messages', or 'responses'")
 	}
 
 	if c.Mode == RequestModeDirect {
