@@ -48,7 +48,8 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 				<span
 					role="presentation"
 					aria-label="latency"
-					css={{ cursor: "pointer", color: latency.color }}
+					css={{ cursor: "pointer" }}
+					className={latency.color}
 				>
 					{Math.round(latency.latency_ms)}ms
 				</span>

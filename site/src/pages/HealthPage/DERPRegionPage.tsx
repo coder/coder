@@ -190,9 +190,9 @@ const StatusCircle: FC<StatusCircleProps> = ({ background }) => {
 				css={{
 					width: 8,
 					height: 8,
-					backgroundColor: background,
 					borderRadius: 9999,
 				}}
+				className={background}
 			/>
 		</div>
 	);

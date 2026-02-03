@@ -38,10 +38,7 @@ export const Latency: FC<LatencyProps> = ({
 							className,
 						)}
 					>
-						<CircularProgress
-							className="!size-icon-xs"
-							style={{ color: latencyColor }}
-						/>
+						<CircularProgress className={cn("!size-icon-xs", latencyColor)} />
 					</div>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Loading latency...</TooltipContent>
