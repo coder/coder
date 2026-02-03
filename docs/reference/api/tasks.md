@@ -365,6 +365,38 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Pause task
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /tasks/{user}/{task}/pause`
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description                                           |
+|--------|------|--------------|----------|-------------------------------------------------------|
+| `user` | path | string       | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string(uuid) | true     | Task ID                                               |
+
+### Example responses
+
+> 202 Response
+
+### Responses
+
+| Status | Meaning                                                       | Description | Schema                                                       |
+|--------|---------------------------------------------------------------|-------------|--------------------------------------------------------------|
+| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Send input to AI task
 
 ### Code samples

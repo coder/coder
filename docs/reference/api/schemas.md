@@ -2184,9 +2184,9 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Value(s)                                                                          |
-|-----------------------------------------------------------------------------------|
-| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| Value(s)                                                                                               |
+|--------------------------------------------------------------------------------------------------------|
+| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `task_manual_pause`, `vscode_connection` |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
