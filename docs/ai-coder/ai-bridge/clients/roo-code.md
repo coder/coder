@@ -1,7 +1,5 @@
 # Roo Code
 
-[Roo Code](https://roocode.com) is an AI coding assistant that supports both OpenAI and Anthropic providers, making it fully compatible with AI Bridge.
-
 ## Configuration
 
 Roo Code allows you to configure providers via the UI.
