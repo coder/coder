@@ -44,7 +44,7 @@ func newPty(opt ...Option) (PTY, error) {
 	//
 	// When Start() is called, it creates its own ConPTY with the process properly
 	// attached, so this pipe-based PTY is only for the Attach() use case.
-	return newPipePty()
+	return newTestPTY()
 }
 
 // newConPty creates a PTY backed by a Windows PseudoConsole (ConPTY). This
@@ -101,10 +101,9 @@ func newConPty(opt ...Option) (*ptyWindows, error) {
 	return pty, nil
 }
 
-// pipePty is a simple pipe-based PTY implementation for Windows that doesn't
-// use ConPTY. It's used for in-process CLI testing where no real process is
-// attached to the PTY.
-type pipePty struct {
+// testPTY is a pipe-based PTY implementation for in-process CLI testing on
+// Windows. It's used by ptytest.New() when no real process will be attached.
+type testPTY struct {
 	// The pipe for "input" - what would be stdin for a process.
 	// Test writes to inputWriter, CLI reads from inputReader.
 	inputReader *os.File
@@ -119,8 +118,8 @@ type pipePty struct {
 	closed     bool
 }
 
-func newPipePty() (*pipePty, error) {
-	p := &pipePty{}
+func newTestPTY() (*testPTY, error) {
+	p := &testPTY{}
 
 	var err error
 	p.inputReader, p.inputWriter, err = os.Pipe()
@@ -137,13 +136,13 @@ func newPipePty() (*pipePty, error) {
 	return p, nil
 }
 
-func (*pipePty) Name() string {
+func (*testPTY) Name() string {
 	return ""
 }
 
 // Input returns a ReadWriter for the input pipe. The test writes to this
 // (simulating user input), and the CLI reads from it.
-func (p *pipePty) Input() ReadWriter {
+func (p *testPTY) Input() ReadWriter {
 	return ReadWriter{
 		Reader: p.inputReader,
 		Writer: p.inputWriter,
@@ -152,19 +151,19 @@ func (p *pipePty) Input() ReadWriter {
 
 // Output returns a ReadWriter for the output pipe. The CLI writes to this,
 // and the test reads from it to verify output.
-func (p *pipePty) Output() ReadWriter {
+func (p *testPTY) Output() ReadWriter {
 	return ReadWriter{
 		Reader: p.outputReader,
 		Writer: p.outputWriter,
 	}
 }
 
-func (*pipePty) Resize(uint16, uint16) error {
+func (*testPTY) Resize(uint16, uint16) error {
 	// Resize is a no-op for pipe-based PTY since there's no real terminal.
 	return nil
 }
 
-func (p *pipePty) Close() error {
+func (p *testPTY) Close() error {
 	p.closeMutex.Lock()
 	defer p.closeMutex.Unlock()
 	if p.closed {
