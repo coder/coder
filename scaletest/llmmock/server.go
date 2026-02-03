@@ -77,6 +77,27 @@ type openAIResponse struct {
 	} `json:"usage"`
 }
 
+type responsesResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	Model   string `json:"model"`
+	Output  []struct {
+		ID      string `json:"id,omitempty"`
+		Type    string `json:"type"`
+		Role    string `json:"role"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	} `json:"output"`
+	Usage struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+		TotalTokens  int `json:"total_tokens"`
+	} `json:"usage"`
+}
+
 type anthropicResponse struct {
 	ID      string `json:"id"`
 	Type    string `json:"type"`
@@ -152,6 +173,7 @@ func (s *Server) startAPIServer(ctx context.Context) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAI)
+	mux.HandleFunc("POST /v1/responses", s.handleResponses)
 	mux.HandleFunc("POST /v1/messages", s.handleAnthropic)
 
 	var handler http.Handler = mux
@@ -260,6 +282,93 @@ func (s *Server) handleAnthropic(w http.ResponseWriter, r *http.Request) {
 	pproflabel.Do(r.Context(), pproflabel.Service("llm-mock"), func(ctx context.Context) {
 		s.handleAnthropicWithLabels(w, r.WithContext(ctx))
 	})
+}
+
+func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
+	pproflabel.Do(r.Context(), pproflabel.Service("llm-mock"), func(ctx context.Context) {
+		s.handleResponsesWithLabels(w, r.WithContext(ctx))
+	})
+}
+
+func (s *Server) handleResponsesWithLabels(w http.ResponseWriter, r *http.Request) {
+	s.logger.Debug(r.Context(), "handling OpenAI responses request")
+	defer s.logger.Debug(r.Context(), "handled OpenAI responses request")
+
+	ctx := r.Context()
+	requestID := uuid.New()
+	now := time.Now()
+
+	var req llmRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error(ctx, "failed to parse OpenAI responses request", slog.Error(err))
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if s.artificialLatency > 0 {
+		time.Sleep(s.artificialLatency)
+	}
+
+	var resp responsesResponse
+	resp.ID = fmt.Sprintf("resp_%s", requestID.String()[:8])
+	resp.Object = "response"
+	resp.Created = now.Unix()
+	resp.Model = req.Model
+
+	var responseContent string
+	if s.responsePayloadSize > 0 {
+		pattern := "x"
+		repeated := strings.Repeat(pattern, s.responsePayloadSize)
+		responseContent = repeated[:s.responsePayloadSize]
+	} else {
+		responseContent = "This is a mock response from OpenAI Responses."
+	}
+
+	resp.Output = []struct {
+		ID      string `json:"id,omitempty"`
+		Type    string `json:"type"`
+		Role    string `json:"role"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}{
+		{
+			ID:   fmt.Sprintf("msg_%s", requestID.String()[:8]),
+			Type: "message",
+			Role: "assistant",
+			Content: []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			}{
+				{
+					Type: "output_text",
+					Text: responseContent,
+				},
+			},
+		},
+	}
+
+	resp.Usage.InputTokens = 10
+	resp.Usage.OutputTokens = 5
+	resp.Usage.TotalTokens = 15
+
+	responseBody, _ := json.Marshal(resp)
+
+	if req.Stream {
+		s.sendResponsesStream(ctx, w, resp)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(responseBody); err != nil {
+			s.logger.Error(ctx, "failed to write OpenAI responses response",
+				slog.F("request_id", requestID),
+				slog.Error(err),
+				slog.F("error_type", "write_error"),
+				slog.F("likely_cause", "network_error"),
+			)
+		}
+	}
 }
 
 func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Request) {
@@ -391,6 +500,69 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 	}
 	finalChunkBytes, _ := json.Marshal(finalChunk)
 	if !writeChunk(fmt.Sprintf("data: %s\n\n", finalChunkBytes)) {
+		return
+	}
+	writeChunk("data: [DONE]\n\n")
+}
+
+func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter, resp responsesResponse) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		s.logger.Error(ctx, "responseWriter does not support flushing",
+			slog.F("response_id", resp.ID),
+		)
+		return
+	}
+
+	writeChunk := func(data string) bool {
+		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
+			s.logger.Error(ctx, "failed to write OpenAI responses stream chunk",
+				slog.F("response_id", resp.ID),
+				slog.Error(err),
+				slog.F("error_type", "write_error"),
+				slog.F("likely_cause", "network_error"),
+			)
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	deltaChunk := map[string]interface{}{
+		"id":            resp.ID,
+		"object":        "response.output_text.delta",
+		"created":       resp.Created,
+		"model":         resp.Model,
+		"output_index":  0,
+		"content_index": 0,
+		"delta":         resp.Output[0].Content[0].Text,
+	}
+	deltaBytes, _ := json.Marshal(deltaChunk)
+	if !writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes)) {
+		return
+	}
+
+	finalChunk := map[string]interface{}{
+		"id":      resp.ID,
+		"object":  "response.completed",
+		"created": resp.Created,
+		"model":   resp.Model,
+		"response": map[string]interface{}{
+			"id":      resp.ID,
+			"object":  resp.Object,
+			"created": resp.Created,
+			"model":   resp.Model,
+			"output":  resp.Output,
+			"usage":   resp.Usage,
+		},
+	}
+	finalBytes, _ := json.Marshal(finalChunk)
+	if !writeChunk(fmt.Sprintf("data: %s\n\n", finalBytes)) {
 		return
 	}
 	writeChunk("data: [DONE]\n\n")
