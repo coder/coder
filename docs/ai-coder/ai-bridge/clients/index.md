@@ -57,9 +57,9 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | Kiro                             | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 | Gemini CLI                       | ❌      | ❌         | No Gemini API support. Upvote [this issue](https://github.com/coder/aibridge/issues/27).                                                               |
 | Antigravity                      | ❌      | ❌         | No option to override base URL.                                                                                                                        |
-| Goose                            | ⚠️     | ⚠️        |                                                                                                                                                        |
+|
 
-*Legend: ✅ works, ⚠️ limited support or not tested, ❌ not supported, - not applicable.*
+*Legend: ✅ supported, ❌ not supported, - not applicable.*
 
 ## Configuring In-Workspace Tools
 
