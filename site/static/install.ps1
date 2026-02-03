@@ -48,8 +48,7 @@ function Get-CoderArch {
         "X64" { return "amd64" }
         "Arm64" { return "arm64" }
         default {
-            Write-CoderError "Unsupported architecture: $arch"
-            exit 1
+            throw "Unsupported architecture: $arch"
         }
     }
 }
@@ -224,8 +223,7 @@ function Install-CoderCLI {
         Invoke-Download -Url $binaryUrl -OutFile $binaryFile -DryRun $dryRun
     }
     catch {
-        Write-CoderError "Failed to download Coder CLI: $_"
-        exit 1
+        throw "Failed to download Coder CLI: $_"
     }
 
     $installPath = Join-Path $installDir "$binaryName.exe"
