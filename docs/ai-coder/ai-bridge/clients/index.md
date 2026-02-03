@@ -2,14 +2,19 @@
 
 Once AI Bridge is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Bridge.
 
+There are two ways to connect AI tools to AI Bridge:
+
+* Base URL configuration: Most AI tools allow customizing the base URL for API requests. This is the preferred approach when supported.
+* AI Bridge Proxy: For tools that don't support base URL configuration, [AI Bridge Proxy](../ai-bridge-proxy/index.md) can intercept traffic and forward it to AI Bridge.
+
 ## Base URLs
 
 Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/aibridge/openai/v1`.
 
 The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
 
-- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/openai/v1`
-- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/anthropic`
+* **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/openai/v1`
+* **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/anthropic`
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
@@ -17,8 +22,8 @@ Replace `coder.example.com` with your actual Coder deployment URL.
 
 Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Bridge using their **Coder session token** or **API key**:
 
-- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
-- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
+* **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
+* **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
 
 > [!NOTE]
 > Only Coder-issued tokens can authenticate users against AI Bridge.
@@ -55,6 +60,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | [VS Code](./vscode.md)           | ✅      | ❌         | Only supports Custom Base URL for OpenAI.                                                                                                              |
 | [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | Works in Chat mode via "Bring Your Own Key".                                                                                                           |
 | [Zed](./zed.md)                  | ✅      | ✅         |                                                                                                                                                        |
+| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | Requires [AI Bridge Proxy](../ai-bridge-proxy/index.md). Uses per-user GitHub tokens.                                                                  |
 | WindSurf                         | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 | Cursor                           | ❌      | ❌         | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
 | Sourcegraph Amp                  | ❌      | ❌         | No option to override base URL.                                                                                                                        |
@@ -63,7 +69,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 | Antigravity                      | ❌      | ❌         | No option to override base URL.                                                                                                                        |
 |
 
-*Legend: ✅ supported, ❌ not supported, - not applicable.*
+*Legend: ✅ supported, ⚙️ requires AI Bridge Proxy, ❌ not supported, - not applicable.*
 
 ## Configuring In-Workspace Tools
 
