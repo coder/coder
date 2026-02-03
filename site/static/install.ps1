@@ -108,7 +108,13 @@ function Add-ToUserPath {
     )
 
     $currentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-    if ($currentPath -split ";" -contains $PathToAdd) {
+    # Normalize the path to add (resolve full path and remove trailing slashes)
+    $normalizedPathToAdd = [System.IO.Path]::GetFullPath($PathToAdd).TrimEnd('\', '/')
+    # Normalize all existing PATH entries for comparison
+    $pathEntries = $currentPath -split ";" | ForEach-Object {
+        if ($_) { [System.IO.Path]::GetFullPath($_).TrimEnd('\', '/') }
+    }
+    if ($pathEntries -contains $normalizedPathToAdd) {
         Write-CoderLog "Directory already in PATH: $PathToAdd"
         return
     }
@@ -149,8 +155,11 @@ function Write-PostInstall {
 
     $coderCommand = Get-Command $BinaryName -ErrorAction SilentlyContinue
     if (-not $coderCommand) {
-        Write-Host "Note: You may need to restart your terminal or log out and back in"
-        Write-Host "for the PATH changes to take effect."
+        Write-Host "Extend your path to use Coder:"
+        Write-Host ""
+        Write-Host "  `$env:PATH = `"$InstallDir;`$env:PATH`""
+        Write-Host ""
+        Write-Host "Or restart your terminal for the PATH changes to take effect."
         Write-Host ""
         Write-Host "To run a Coder server:"
         Write-Host ""
