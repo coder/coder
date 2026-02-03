@@ -46,6 +46,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 |----------------------------------|--------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Claude Code](./claude-code.md)  | -      | ✅         |                                                                                                                                                        |
 | [Codex CLI](./codex.md)          | ✅      | -         |                                                                                                                                                        |
+| [Mux](./mux.md)                  | ✅      | ✅         |                                                                                                                                                        |
 | [OpenCode](./opencode.md)        | ✅      | ✅         |                                                                                                                                                        |
 | [Factory](./factory.md)          | ✅      | ✅         |                                                                                                                                                        |
 | [Cline](./cline.md)              | ✅      | ✅         |                                                                                                                                                        |
