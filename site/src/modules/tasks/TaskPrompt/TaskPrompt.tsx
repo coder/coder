@@ -408,7 +408,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 		return (
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
-					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-white"
+					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-content-primary"
 					size="sm"
 					disabled={isPollingExternalAuth || auth.authenticated}
 					onClick={() => {
