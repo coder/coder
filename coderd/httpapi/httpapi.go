@@ -503,6 +503,12 @@ func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r 
 // WriteOAuth2Error writes an OAuth2-compliant error response per RFC 6749.
 // This should be used for all OAuth2 endpoints (/oauth2/*) to ensure compliance.
 func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode codersdk.OAuth2ErrorCode, description string) {
+	// RFC 6749 §5.2: invalid_client SHOULD use 401 and MUST include a
+	// WWW-Authenticate response header.
+	if status == http.StatusUnauthorized && errorCode == codersdk.OAuth2ErrorCodeInvalidClient {
+		rw.Header().Set("WWW-Authenticate", `Basic realm="coder"`)
+	}
+
 	Write(ctx, rw, status, codersdk.OAuth2Error{
 		Error:            errorCode,
 		ErrorDescription: description,

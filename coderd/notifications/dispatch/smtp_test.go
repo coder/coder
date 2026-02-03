@@ -515,3 +515,124 @@ func TestSMTP(t *testing.T) {
 		})
 	}
 }
+
+// TestSMTPEnvelopeAndHeaders verifies that SMTP envelope addresses (used in
+// MAIL FROM and RCPT TO commands) contain only bare email addresses, while
+// email headers preserve the full address including display names.
+//
+// This is important because RFC 5321 requires envelope addresses to be bare
+// emails, while RFC 5322 allows headers to include display names.
+//
+// See: https://github.com/coder/coder/issues/20727
+func TestSMTPEnvelopeAndHeaders(t *testing.T) {
+	t.Parallel()
+
+	const (
+		hello = "localhost"
+		to    = "bob@bob.com"
+
+		subject = "This is the subject"
+		body    = "This is the body"
+	)
+
+	tests := []struct {
+		name               string
+		fromConfig         string // The configured From address (may include display name)
+		expectedEnvFrom    string // Expected envelope MAIL FROM (bare email)
+		expectedHeaderFrom string // Expected From header (preserves display name)
+	}{
+		{
+			name:               "bare email address",
+			fromConfig:         "system@coder.com",
+			expectedEnvFrom:    "system@coder.com",
+			expectedHeaderFrom: "system@coder.com",
+		},
+		{
+			name:               "email with display name",
+			fromConfig:         "Coder System <system@coder.com>",
+			expectedEnvFrom:    "system@coder.com",
+			expectedHeaderFrom: "Coder System <system@coder.com>",
+		},
+		{
+			name:               "email with quoted display name",
+			fromConfig:         `"Coder Notifications" <notifications@coder.com>`,
+			expectedEnvFrom:    "notifications@coder.com",
+			expectedHeaderFrom: `"Coder Notifications" <notifications@coder.com>`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+			cfg := codersdk.NotificationsEmailConfig{
+				Hello: serpent.String(hello),
+				From:  serpent.String(tc.fromConfig),
+			}
+
+			backend := smtptest.NewBackend(smtptest.Config{
+				AuthMechanisms: []string{},
+			})
+
+			srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				assert.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
+			})
+
+			var hp serpent.HostPort
+			require.NoError(t, hp.Set(listen.Addr().String()))
+			cfg.Smarthost = serpent.String(hp.String())
+
+			handler := dispatch.NewSMTPHandler(cfg, logger.Named("smtp"))
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				assert.NoError(t, srv.Serve(listen))
+			}()
+
+			require.Eventually(t, func() bool {
+				cl, err := smtptest.PingClient(listen, false, false)
+				if err != nil {
+					return false
+				}
+				_ = cl.Close()
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			payload := types.MessagePayload{
+				Version:   "1.0",
+				UserEmail: to,
+				Labels:    make(map[string]string),
+			}
+
+			dispatchFn, err := handler.Dispatcher(payload, subject, body, helpers())
+			require.NoError(t, err)
+
+			msgID := uuid.New()
+			retryable, err := dispatchFn(ctx, msgID)
+
+			require.NoError(t, err)
+			require.False(t, retryable)
+
+			msg := backend.LastMessage()
+			require.NotNil(t, msg)
+
+			// Verify envelope address (MAIL FROM) contains only the bare email.
+			require.Equal(t, tc.expectedEnvFrom, msg.From,
+				"SMTP envelope MAIL FROM should contain only the bare email address")
+
+			// Verify header From preserves the display name.
+			require.Contains(t, msg.Contents, fmt.Sprintf("From: %s\r\n", tc.expectedHeaderFrom),
+				"Email From header should preserve the display name if present")
+
+			require.NoError(t, srv.Shutdown(ctx))
+			wg.Wait()
+		})
+	}
+}

@@ -49,6 +49,9 @@ Examples:
   # Test OpenAI API through bridge
   coder scaletest bridge --mode bridge --provider openai --concurrent-users 10 --request-count 5 --num-messages 10
 
+  # Test OpenAI Responses API through bridge
+  coder scaletest bridge --mode bridge --provider responses --concurrent-users 10 --request-count 5 --num-messages 10
+
   # Test Anthropic API through bridge
   coder scaletest bridge --mode bridge --provider anthropic --concurrent-users 10 --request-count 5 --num-messages 10
 
@@ -219,9 +222,9 @@ Examples:
 		{
 			Flag:        "provider",
 			Env:         "CODER_SCALETEST_BRIDGE_PROVIDER",
-			Default:     "openai",
+			Required:    true,
 			Description: "API provider to use.",
-			Value:       serpent.EnumOf(&provider, "openai", "anthropic"),
+			Value:       serpent.EnumOf(&provider, "completions", "messages", "responses"),
 		},
 		{
 			Flag:        "request-count",
