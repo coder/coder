@@ -50,6 +50,32 @@ export ANTHROPIC_API_KEY="<your-coder-session-token>"
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 ```
 
+## Running Mux in a Coder workspace
+
+If you want to run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Bridge via environment variables on the agent:
+
+```tf
+data "coder_workspace" "me" {}
+
+data "coder_workspace_owner" "me" {}
+
+resource "coder_agent" "main" {
+  # ... other agent configuration
+  env = {
+    OPENAI_API_KEY     = data.coder_workspace_owner.me.session_token
+    OPENAI_BASE_URL    = "${data.coder_workspace.me.access_url}/api/v2/aibridge/openai/v1"
+    ANTHROPIC_API_KEY  = data.coder_workspace_owner.me.session_token
+    ANTHROPIC_BASE_URL = "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic"
+  }
+}
+
+module "mux" {
+  source   = "registry.coder.com/coder/mux/coder"
+  version  = "~> 1.0" # See the module page for the latest version.
+  agent_id = coder_agent.main.id
+}
+```
+
 ## Advanced: providers.jsonc
 
 If you prefer a file-based config, edit `~/.mux/providers.jsonc`:
