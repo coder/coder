@@ -5,7 +5,7 @@ While AI Bridge requires clients to support custom base URLs, many popular AI co
 
 AI Bridge Proxy solves this by acting as an HTTP proxy that intercepts traffic to supported AI providers and forwards it to AI Bridge. Since most clients respect proxy configurations even when they don't support base URL overrides, this provides a universal compatibility layer for AI Bridge.
 
-For a list of clients supported through AI Bridge Proxy, see [Client Configuration](../client-config.md).
+For a list of clients supported through AI Bridge Proxy, see [Client Configuration](../clients/index.md).
 
 ## How it works
 
