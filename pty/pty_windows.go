@@ -22,7 +22,7 @@ var (
 )
 
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session
-func newPty(opt ...Option) (*ptyWindows, error) {
+func newPty(opt ...Option) (PTY, error) {
 	var opts ptyOptions
 	for _, o := range opt {
 		o(&opts)
@@ -35,6 +35,24 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 		// If the CreatePseudoConsole API is not available, we fall back to a simpler
 		// implementation that doesn't create an actual PTY - just uses os.Pipe
 		return nil, xerrors.Errorf("pty not supported")
+	}
+
+	// For cases where no process will be attached (e.g., ptytest.New() used with
+	// Attach() for in-process CLI testing), we use a pipe-based implementation
+	// that doesn't require ConPTY. ConPTY requires an attached process to function
+	// correctly - without one, the pipe handles become invalid intermittently.
+	//
+	// When Start() is called, it creates its own ConPTY with the process properly
+	// attached, so this pipe-based PTY is only for the Attach() use case.
+	return newPipePty()
+}
+
+// newConPty creates a PTY backed by a Windows PseudoConsole (ConPTY). This
+// should only be used when a process will be attached via Start().
+func newConPty(opt ...Option) (*ptyWindows, error) {
+	var opts ptyOptions
+	for _, o := range opt {
+		o(&opts)
 	}
 
 	pty := &ptyWindows{
@@ -81,6 +99,93 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 	}
 
 	return pty, nil
+}
+
+// pipePty is a simple pipe-based PTY implementation for Windows that doesn't
+// use ConPTY. It's used for in-process CLI testing where no real process is
+// attached to the PTY.
+type pipePty struct {
+	// The pipe for "input" - what would be stdin for a process.
+	// Test writes to inputWriter, CLI reads from inputReader.
+	inputReader *os.File
+	inputWriter *os.File
+
+	// The pipe for "output" - what would be stdout for a process.
+	// CLI writes to outputWriter, test reads from outputReader.
+	outputReader *os.File
+	outputWriter *os.File
+
+	closeMutex sync.Mutex
+	closed     bool
+}
+
+func newPipePty() (*pipePty, error) {
+	p := &pipePty{}
+
+	var err error
+	p.inputReader, p.inputWriter, err = os.Pipe()
+	if err != nil {
+		return nil, xerrors.Errorf("create input pipe: %w", err)
+	}
+	p.outputReader, p.outputWriter, err = os.Pipe()
+	if err != nil {
+		_ = p.inputReader.Close()
+		_ = p.inputWriter.Close()
+		return nil, xerrors.Errorf("create output pipe: %w", err)
+	}
+
+	return p, nil
+}
+
+func (*pipePty) Name() string {
+	return ""
+}
+
+// Input returns a ReadWriter for the input pipe. The test writes to this
+// (simulating user input), and the CLI reads from it.
+func (p *pipePty) Input() ReadWriter {
+	return ReadWriter{
+		Reader: p.inputReader,
+		Writer: p.inputWriter,
+	}
+}
+
+// Output returns a ReadWriter for the output pipe. The CLI writes to this,
+// and the test reads from it to verify output.
+func (p *pipePty) Output() ReadWriter {
+	return ReadWriter{
+		Reader: p.outputReader,
+		Writer: p.outputWriter,
+	}
+}
+
+func (*pipePty) Resize(uint16, uint16) error {
+	// Resize is a no-op for pipe-based PTY since there's no real terminal.
+	return nil
+}
+
+func (p *pipePty) Close() error {
+	p.closeMutex.Lock()
+	defer p.closeMutex.Unlock()
+	if p.closed {
+		return nil
+	}
+	p.closed = true
+
+	var firstErr error
+	if err := p.outputWriter.Close(); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	if err := p.outputReader.Close(); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	if err := p.inputWriter.Close(); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	if err := p.inputReader.Close(); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return firstErr
 }
 
 type ptyWindows struct {
