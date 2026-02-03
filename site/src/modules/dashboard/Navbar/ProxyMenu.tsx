@@ -131,7 +131,6 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 								<DropdownMenuRadioItem
 									value={proxy.id}
 									key={proxy.id}
-									className="data-[state=checked]:bg-content-link/10 hover:data-[state=checked]:bg-content-link/20 data-[state=checked]:text-content-primary"
 									onClick={(e) => {
 										e.preventDefault();
 										if (!proxy.healthy) {
