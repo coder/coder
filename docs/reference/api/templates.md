@@ -2239,13 +2239,20 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description           |
-|-------------------|-------|--------------|----------|-----------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID   |
-| `jobID`           | path  | string(uuid) | true     | Job ID                |
-| `before`          | query | integer      | false    | Before Unix timestamp |
-| `after`           | query | integer      | false    | After Unix timestamp  |
-| `follow`          | query | boolean      | false    | Follow log stream     |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `jobID`           | path  | string(uuid) | true     | Job ID                                                                                                                                      |
+| `before`          | query | integer      | false    | Before Unix timestamp                                                                                                                       |
+| `after`           | query | integer      | false    | After Unix timestamp                                                                                                                        |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 
@@ -2847,12 +2854,19 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description         |
-|-------------------|-------|--------------|----------|---------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID |
-| `before`          | query | integer      | false    | Before log id       |
-| `after`           | query | integer      | false    | After log id        |
-| `follow`          | query | boolean      | false    | Follow log stream   |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `before`          | query | integer      | false    | Before log id                                                                                                                               |
+| `after`           | query | integer      | false    | After log id                                                                                                                                |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 

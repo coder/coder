@@ -623,6 +623,27 @@ func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAp
 	}
 }
 
+func ProvisionerJobLog(log database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
+	return codersdk.ProvisionerJobLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Source:    codersdk.LogSource(log.Source),
+		Level:     codersdk.LogLevel(log.Level),
+		Stage:     log.Stage,
+		Output:    log.Output,
+	}
+}
+
+func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLog {
+	return codersdk.WorkspaceAgentLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Output:    log.Output,
+		Level:     codersdk.LogLevel(log.Level),
+		SourceID:  log.LogSourceID,
+	}
+}
+
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
 		ID:             dbDaemon.ID,
