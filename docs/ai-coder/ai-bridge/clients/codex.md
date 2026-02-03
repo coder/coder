@@ -1,6 +1,6 @@
 # Codex CLI
 
-Codex CLI can be configued to use AI Bridge by setting up a custom model provider.
+Codex CLI can be configured to use AI Bridge by setting up a custom model provider.
 
 ## Configuration
 
