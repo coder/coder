@@ -1,6 +1,6 @@
 # VS Code
 
-[VS Code](https://code.visualstudio.com) can be configured to use AI Bridge with the GitHub Copilot Chat extension's custom language model support.
+VS Code's native chat can be configured to use AI Bridge with the GitHub Copilot Chat extension's custom language model support.
 
 ## Configuration
 

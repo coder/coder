@@ -1,5 +1,6 @@
 # Factory
 
+Factort's Droid agent can be configured to use AI Bridge by setting up custom models for OpenAI and Anthropic.
 
 ## Configuration
 

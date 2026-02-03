@@ -1,6 +1,6 @@
 # Codex CLI
 
-[Codex CLI](https://developers.openai.com/codex/cli) is OpenAI’s coding agent that you can run locally from your terminal.
+Codex CLI can be configued to use AI Bridge by setting up a custom model provider.
 
 ## Configuration
 

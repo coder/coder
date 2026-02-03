@@ -1,5 +1,7 @@
 # OpenCode
 
+OpenCode supports both OpenAI and Anthropic models and can be configured to use AI Bridge by setting custom base URLs for each provider.
+
 ## Configuration
 
 You can configure OpenCode to connect to AI Bridge by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):

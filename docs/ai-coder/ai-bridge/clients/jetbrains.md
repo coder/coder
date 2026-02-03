@@ -1,6 +1,6 @@
 # JetBrains IDEs
 
-[JetBrains IDEs](https://www.jetbrains.com/ides/) (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Bridge via the ["Bring Your Own Key" (BYOK)](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key) feature.
+JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Bridge via the ["Bring Your Own Key" (BYOK)](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key) feature.
 
 ## Prerequisites
 

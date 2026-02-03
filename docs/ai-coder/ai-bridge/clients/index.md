@@ -22,9 +22,9 @@ Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to us
 
 > [!NOTE]
 > Only Coder-issued tokens can authenticate users against AI Bridge.
-> AI Bridge will use provider-specific API keys to authenticate against upstream AI services.
+> AI Bridge will use provider-specific API keys to [authenticate against upstream AI services](https://coder.com/docs/ai-coder/ai-bridge/setup#configure-providers).
 
-Again, the exact environment variable or setting naming may differ from tool to tool; consult your tool's documentation.
+Again, the exact environment variable or setting naming may differ from tool to tool. See a list of [supported clients](#all-supported-clients) below and consult your tool's documentation for details.
 
 ### Retrieving your session token
 
@@ -83,32 +83,6 @@ resource "coder_agent" "dev" {
         ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
     }
     ... # other agent configuration
-}
-```
-
-### Using Coder Tasks
-
-Agents like Claude Code can be configured to route through AI Bridge in any template by pre-configuring the agent with the session token. [Coder Tasks](../../tasks.md) is particularly useful for this pattern, providing a framework for agents to complete background development operations autonomously. To route agents through AI Bridge in a Coder Tasks template, pre-configure it to install Claude Code and configure it with the session token:
-
-```hcl
-data "coder_task" "me" {}
-
-# See https://registry.coder.com/modules/coder/claude-code for more information
-module "claude-code" {
-    count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-    source              = "dev.registry.coder.com/coder/claude-code/coder"
-    version             = ">= 4.7.3"
-    agent_id            = coder_agent.dev.id
-    workdir             = "/path/to/project"  # Set to your project directory
-    enable_aibridge     = true                  # Enable routing through AI Bridge
-    ai_prompt           = data.coder_task.me.prompt
-    ... # other claude-code configuration
-}
-
-# The coder_ai_task resource associates the task to the app.
-resource "coder_ai_task" "task" {
-    count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-    app_id = module.claude-code[0].task_app_id
 }
 ```
 

@@ -1,6 +1,6 @@
 # Zed
 
-[Zed](https://zed.dev) IDE supports AI Bridge via its `language_models` configuration in `settings.json`.
+Zed IDE supports AI Bridge via its `language_models` configuration in `settings.json`.
 
 ## Configuration
 
