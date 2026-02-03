@@ -92,7 +92,13 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 };
 
 export const ChartSearch = (props: SearchFieldProps) => {
-	return <SearchField css={styles.searchField} {...props} />;
+	return (
+		<SearchField
+			className="flex-1 h-12 rounded-none border-y-0 border-r-0 mr-4"
+			css={styles.searchField}
+			{...props}
+		/>
+	);
 };
 
 export type ChartLegend = {
