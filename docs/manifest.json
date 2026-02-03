@@ -1096,6 +1096,19 @@
 									"state": ["early access"]
 								},
 								{
+									"title": "AI Bridge Proxy",
+									"description": "Proxy for AI coding tools without base URL override support",
+									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
+									"state": ["premium"],
+									"children": [
+										{
+											"title": "Setup",
+											"description": "How to set up and configure AI Bridge Proxy",
+											"path": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md"
+										}
+									]
+								},
+								{
 									"title": "Monitoring",
 									"description": "How to monitor AI Bridge",
 									"path": "./ai-coder/ai-bridge/monitoring.md"
