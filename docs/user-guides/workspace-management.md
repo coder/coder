@@ -68,7 +68,7 @@ The following filters are supported:
   and deleted workspaces don't have agents. List of supported values
   `connecting|connected|timeout|disconnected`, e.g, `has-agent:connecting`
 - `id` - Workspace UUID
-- `health` - Only applicable for workspaces in "start" transition. `healthy:false` is an alias for `has-agent:timeout,disconnected`, `healthy:true` is an alias for `has-agent:connected`.
+- `healthy` - Only applicable for workspaces in "start" transition. `healthy:false` is an alias for `has-agent:timeout,disconnected`, `healthy:true` is an alias for `has-agent:connected`.
 
 ## Updating workspaces
 
