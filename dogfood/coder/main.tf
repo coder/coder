@@ -379,6 +379,7 @@ module "mux" {
   agent_id     = coder_agent.dev.id
   subdomain    = true
   display_name = "Mux"
+  add-project  = local.repo_dir
 }
 
 module "code-server" {
