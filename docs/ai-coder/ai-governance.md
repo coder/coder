@@ -95,6 +95,11 @@ options, reach out to your
 
 ## How Coder Tasks usage is measured
 
+> [!NOTE]
+> There is a known issue with how Agent Workspace Builds are tallied in v2.28
+> and v2.29. We recommend updating to v2.28.9, v2.29.4, or v2.30 to resolve
+> this issue.
+
 The usage metric used to measure Coder Tasks consumption is called **Agent
 Workspace Builds** (prev. "managed agents").
 
