@@ -279,12 +279,10 @@ const PresetMenu: FC<PresetMenuProps> = ({
 	learnMoreLink2,
 	onSelect,
 }) => {
-	const anchorRef = useRef<HTMLButtonElement>(null);
-
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button ref={anchorRef} variant="outline">
+				<Button variant="outline">
 					<SlidersHorizontal className="size-icon-xs" />
 					Filters
 				</Button>
