@@ -50,10 +50,24 @@ envFrom:
 env:
 - name: CODER_HTTP_ADDRESS
   value: "0.0.0.0:8080"
+{{- $hasPrometheusAddress := false }}
+{{- $hasPprofAddress := false }}
+{{- range .Values.coder.env }}
+{{- if eq .name "CODER_PROMETHEUS_ADDRESS" }}
+{{- $hasPrometheusAddress = true }}
+{{- end }}
+{{- if eq .name "CODER_PPROF_ADDRESS" }}
+{{- $hasPprofAddress = true }}
+{{- end }}
+{{- end }}
+{{- if not $hasPrometheusAddress }}
 - name: CODER_PROMETHEUS_ADDRESS
   value: "0.0.0.0:2112"
+{{- end }}
+{{- if not $hasPprofAddress }}
 - name: CODER_PPROF_ADDRESS
   value: "0.0.0.0:6060"
+{{- end }}
 {{- if .Values.provisionerDaemon.pskSecretName }}
 - name: CODER_PROVISIONER_DAEMON_PSK
   valueFrom:
