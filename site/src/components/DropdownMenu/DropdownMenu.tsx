@@ -7,6 +7,7 @@
  */
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import { cva, type VariantProps } from "class-variance-authority";
 import { Check, ChevronRight } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
@@ -99,29 +100,44 @@ export const DropdownMenuContent = forwardRef<
 ));
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
+const dropdownMenuItemVariants = cva(
+	`
+	relative flex cursor-default select-none items-center gap-2 rounded-sm
+	px-2 py-1.5 text-sm font-medium outline-none no-underline
+	data-[disabled]:pointer-events-none data-[disabled]:opacity-50
+	[&_svg]:size-icon-sm [&>svg]:shrink-0
+	[&_img]:size-icon-sm [&>img]:shrink-0
+	`,
+	{
+		variants: {
+			variant: {
+				default: `
+					text-content-secondary
+					focus:bg-surface-secondary focus:text-content-primary
+				`,
+				destructive: `
+					text-content-destructive
+					focus:bg-surface-destructive
+				`,
+			},
+			inset: {
+				true: "pl-8",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
+		},
+	},
+);
+
 export const DropdownMenuItem = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.Item>,
-	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
-		inset?: boolean;
-	}
->(({ className, inset, ...props }, ref) => (
+	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> &
+		VariantProps<typeof dropdownMenuItemVariants>
+>(({ className, variant, inset, ...props }, ref) => (
 	<DropdownMenuPrimitive.Item
 		ref={ref}
-		className={cn(
-			[
-				`
-				relative flex cursor-default select-none items-center gap-2 rounded-sm
-				px-2 py-1.5 text-sm text-content-secondary font-medium outline-none
-				no-underline
-				focus:bg-surface-secondary focus:text-content-primary
-				data-[disabled]:pointer-events-none data-[disabled]:opacity-50
-				[&_svg]:size-icon-sm [&>svg]:shrink-0
-				[&_img]:size-icon-sm [&>img]:shrink-0
-				`,
-				inset && "pl-8",
-			],
-			className,
-		)}
+		className={cn(dropdownMenuItemVariants({ variant, inset }), className)}
 		{...props}
 	/>
 ));
