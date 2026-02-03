@@ -69,14 +69,18 @@ export const SelectMenuButton = forwardRef<
 	);
 });
 
-export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
+export const SelectMenuSearch: FC<SearchFieldProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<SearchField
-			className="w-full border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3"
+			className={cn(
+				"w-full border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3",
+				className,
+			)}
 			autoFocus={true}
 			{...props}
-			// size="medium"
-			// inputProps={{ ...props.inputProps }}
 		/>
 	);
 };
