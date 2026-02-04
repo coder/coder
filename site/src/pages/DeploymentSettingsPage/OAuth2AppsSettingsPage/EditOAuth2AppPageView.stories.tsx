@@ -9,6 +9,11 @@ import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
 const meta: Meta = {
 	title: "pages/DeploymentSettingsPage/EditOAuth2AppPageView",
 	component: EditOAuth2AppPageView,
+	args: {
+		canEditApp: true,
+		canDeleteApp: true,
+		canViewAppSecrets: true,
+	},
 };
 export default meta;
 

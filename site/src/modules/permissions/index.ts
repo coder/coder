@@ -176,6 +176,30 @@ export const permissionChecks = {
 		},
 		action: "read",
 	},
+	createOAuth2App: {
+		object: {
+			resource_type: "oauth2_app",
+		},
+		action: "create",
+	},
+	editOAuth2App: {
+		object: {
+			resource_type: "oauth2_app",
+		},
+		action: "update",
+	},
+	deleteOAuth2App: {
+		object: {
+			resource_type: "oauth2_app",
+		},
+		action: "delete",
+	},
+	viewOAuth2AppSecrets: {
+		object: {
+			resource_type: "oauth2_app_secret",
+		},
+		action: "read",
+	},
 } as const satisfies Record<string, AuthorizationCheck>;
 
 export const canViewDeploymentSettings = (
