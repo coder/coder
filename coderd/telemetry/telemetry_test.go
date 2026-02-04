@@ -1205,8 +1205,8 @@ func TestTasksTelemetry(t *testing.T) {
 					CreatedAt:            task.CreatedAt,
 					Status:               string(task.Status),
 					LastPausedAt:         &latestPauseTime,
-					LastResumedAt:        &firstResumeTime,       // -2.5 hours
-					PauseReason:          ptr.Ref("manual"),      // Latest pause reason
+					LastResumedAt:        &firstResumeTime,  // -2.5 hours
+					PauseReason:          ptr.Ref("manual"), // Latest pause reason
 					IdleDurationMS:       nil,
 					PausedDurationMS:     nil, // Resume was > 1hr ago
 					TimeToFirstStatusMS:  nil,
