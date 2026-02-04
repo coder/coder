@@ -740,7 +740,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		tasks, err := CollectTasks(ctx, r.options.Database)
+		tasks, err := CollectTasks(ctx, r.options.Database, r.options.Clock)
 		if err != nil {
 			return xerrors.Errorf("collect tasks telemetry: %w", err)
 		}
@@ -896,8 +896,14 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 	}, nil
 }
 
-func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
+func CollectTasks(ctx context.Context, db database.Store, clock quartz.Clock) ([]Task, error) {
 	return nil, nil
+}
+
+// HashContent returns a SHA256 hash of the content as a hex string.
+// This is useful for hashing sensitive content like prompts for telemetry.
+func HashContent(content string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 }
 
 // ConvertAPIKey anonymizes an API key.
