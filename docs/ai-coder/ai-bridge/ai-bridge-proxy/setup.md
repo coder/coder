@@ -192,8 +192,8 @@ If the system already trusts the upstream proxy's CA certificate, [`CODER_AIBRID
 
 To use AI Bridge Proxy, AI tools must be configured to:
 
-1) Route traffic through the proxy
-1) Trust the proxy's CA certificate
+1. Route traffic through the proxy
+1. Trust the proxy's CA certificate
 
 ### Configuring the proxy
 

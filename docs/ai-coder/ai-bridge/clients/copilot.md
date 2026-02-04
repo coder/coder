@@ -60,6 +60,7 @@ Or add directly to your `settings.json`:
 }
 ```
 
+The `http.proxy` setting is used for both HTTP and HTTPS requests.
 Replace `<proxy-host>` with your AI Bridge Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
 
 For more details, see [Configuring proxy settings for Copilot](https://docs.github.com/en/copilot/how-tos/configure-personal-settings/configure-network-settings?tool=vscode) in the GitHub documentation.
