@@ -18,8 +18,6 @@ export const Popover = PopoverPrimitive.Root;
 
 export const PopoverTrigger = PopoverPrimitive.Trigger;
 
-export const PopoverClose = PopoverPrimitive.PopoverClose;
-
 export const PopoverContent = forwardRef<
 	ElementRef<typeof PopoverPrimitive.Content>,
 	ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
