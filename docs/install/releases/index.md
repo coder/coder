@@ -75,7 +75,7 @@ pages.
 | [2.27](https://coder.com/changelog/coder-2-27) | October 02, 2025   | Not Supported            | [v2.27.11](https://github.com/coder/coder/releases/tag/v2.27.11) |
 | [2.28](https://coder.com/changelog/coder-2-28) | November 04, 2025  | Security Support         | [v2.28.10](https://github.com/coder/coder/releases/tag/v2.28.10) |
 | [2.29](https://coder.com/changelog/coder-2-29) | December 02, 2025  | Stable + ESR             | [v2.29.5](https://github.com/coder/coder/releases/tag/v2.29.5)   |
-| [2.30](https://coder.com/changelog/coder-2-30) | February 03, 2026  | Mainline                 | [v2.30.0](https://github.com/coder/coder/releases/tag/v2.30.0)   |
+| [2.30](https://coder.com/changelog/2-30)       | February 03, 2026  | Mainline                 | [v2.30.0](https://github.com/coder/coder/releases/tag/v2.30.0)   |
 | 2.31                                           |                    | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
 
