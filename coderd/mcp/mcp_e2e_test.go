@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -181,8 +182,6 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 }
 
 func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
-	t.Parallel()
-
 	// Setup Coder server with full workspace environment
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
@@ -193,7 +192,7 @@ func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 
 	// Create template and workspace for testing
 	version := coderdtest.CreateTemplateVersion(t, coderClient, user.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, coderClient, version.ID)
+	awaitTemplateVersionJobCompleted(t, coderClient, version.ID)
 	template := coderdtest.CreateTemplate(t, coderClient, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, coderClient, template.ID)
 
@@ -273,9 +272,7 @@ func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server
-	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-	})
+	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
 	defer closer.Close()
 
 	_ = coderdtest.CreateFirstUser(t, coderClient)
@@ -332,9 +329,7 @@ func TestMCPHTTP_E2E_ConcurrentRequests(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server
-	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-	})
+	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
 	defer closer.Close()
 
 	_ = coderdtest.CreateFirstUser(t, coderClient)
@@ -1218,8 +1213,6 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 }
 
 func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
-	t.Parallel()
-
 	// Setup Coder server with authentication
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
@@ -1230,7 +1223,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 
 	// Create template and workspace for testing search functionality
 	version := coderdtest.CreateTemplateVersion(t, coderClient, user.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, coderClient, version.ID)
+	awaitTemplateVersionJobCompleted(t, coderClient, version.ID)
 	template := coderdtest.CreateTemplate(t, coderClient, user.OrganizationID, version.ID)
 
 	// Create MCP client pointing to the ChatGPT endpoint
@@ -1364,6 +1357,52 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	}
 
 	t.Logf("ChatGPT endpoint E2E test successful: search and fetch tools working correctly")
+}
+
+// awaitTemplateVersionJobCompleted waits for the template version provisioner job
+// to complete. CI environments can be slower and more contended, so we use a
+// longer timeout when CI is detected.
+func awaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, versionID uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
+	timeout := testutil.WaitLong
+	if testutil.InCI() {
+		timeout = testutil.WaitSuperLong
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	t.Logf("waiting for template version %s build job to complete (timeout: %s)", versionID.String(), timeout)
+
+	var (
+		templateVersion codersdk.TemplateVersion
+		lastStatus      codersdk.ProvisionerJobStatus
+		lastErr         error
+	)
+
+	require.Eventually(t, func() bool {
+		var err error
+		templateVersion, err = client.TemplateVersion(ctx, versionID)
+		if err != nil {
+			lastErr = err
+			return false
+		}
+		lastErr = nil
+
+		if templateVersion.Job.Status != lastStatus {
+			lastStatus = templateVersion.Job.Status
+			t.Logf("template version job status: %s", templateVersion.Job.Status)
+		}
+
+		return templateVersion.Job.CompletedAt != nil
+	}, timeout, testutil.IntervalMedium,
+		"template version %s build job did not complete within %s (lastStatus=%s lastErr=%v); make sure you set `IncludeProvisionerDaemon`!",
+		versionID.String(), timeout, lastStatus, lastErr,
+	)
+
+	t.Logf("template version %s job has completed", versionID.String())
+	return templateVersion
 }
 
 // Helper function to parse URL safely in tests
