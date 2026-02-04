@@ -24,7 +24,7 @@ type ComboboxContextProps = {
 	onValueChange: ((value: string | undefined) => void) | undefined;
 };
 
-export const ComboboxContext = createContext<ComboboxContextProps | null>(null);
+const ComboboxContext = createContext<ComboboxContextProps | null>(null);
 
 function useCombobox() {
 	const context = useContext(ComboboxContext);
