@@ -693,8 +693,8 @@ github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5/go.mod h1:lmUJ/7eu/Q8
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/ProtonMail/go-crypto v1.3.0 h1:ILq8+Sf5If5DCpHQp4PbZdS1J7HDFRXz/+xKBiRGFrw=
 github.com/ProtonMail/go-crypto v1.3.0/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR2e7GWU1R+/PE=
-github.com/SasSwart/openai-go/v3 v3.0.0-20260202093810-72af3b857f95 h1:HVJp3FanNaeFAlwg0/lkdkSnwFemHnwwjXBM8KRj540=
-github.com/SasSwart/openai-go/v3 v3.0.0-20260202093810-72af3b857f95/go.mod h1:cdufnVK14cWcT9qA1rRtrXx4FTRsgbDPW7Ia7SS5cZo=
+github.com/SasSwart/openai-go/v3 v3.0.0-20260204134041-fb987b42a728 h1:FOjd3xOH+arcrtz1e5P6WZ/VtRD5KQHHRg4kc4BZers=
+github.com/SasSwart/openai-go/v3 v3.0.0-20260204134041-fb987b42a728/go.mod h1:cdufnVK14cWcT9qA1rRtrXx4FTRsgbDPW7Ia7SS5cZo=
 github.com/SherClockHolmes/webpush-go v1.4.0 h1:ocnzNKWN23T9nvHi6IfyrQjkIc0oJWv1B1pULsf9i3s=
 github.com/SherClockHolmes/webpush-go v1.4.0/go.mod h1:XSq8pKX11vNV8MJEMwjrlTkxhAj1zKfxmyhdV7Pd6UA=
 github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d h1:licZJFw2RwpHMqeKTCYkitsPqHNxTmd4SNR5r94FGM8=
@@ -927,8 +927,8 @@ github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f h1:Y8xYupdHxryycyPlc9Y
 github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f/go.mod h1:HlzOvOjVBOfTGSRXRyY0OiCS/3J1akRGQQpRO/7zyF4=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225 h1:tRIViZ5JRmzdOEo5wUWngaGEFBG8OaE1o2GIHN5ujJ8=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225/go.mod h1:rNLVpYgEVeu1Zk29K64z6Od8RBP9DwqCu9OfCzh8MR4=
-github.com/coder/aibridge v1.0.1 h1:l6MgNVLvyu9EFp/Q00OItymTlGVK16XXT/KfSuDmxBM=
-github.com/coder/aibridge v1.0.1/go.mod h1:M1aoiK6qmybTjD2nzcTCRPXzA/I0Ned+MAxUmz4Ju+k=
+github.com/coder/aibridge v1.0.2-0.20260204153447-fc99cd835341 h1:auhVmi16oMocN9a+FJ4SlmP3dgHitFXgaZLWZ1fPDMY=
+github.com/coder/aibridge v1.0.2-0.20260204153447-fc99cd835341/go.mod h1:c7Of2xfAksZUrPWN180Eh60fiKgzs7dyOjniTjft6AE=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
 github.com/coder/boundary v0.6.1 h1:hLnrincIFA8Wak5SrH/xQDIIhkKQpnHVotLwC585z7g=

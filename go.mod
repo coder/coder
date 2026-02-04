@@ -473,7 +473,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.0.1
+	github.com/coder/aibridge v1.0.2-0.20260204153447-fc99cd835341
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.6.1
 	github.com/coder/preview v1.0.4
@@ -596,4 +596,4 @@ tool (
 replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
 
 // https://github.com/openai/openai-go/pull/602
-replace github.com/openai/openai-go/v3 => github.com/SasSwart/openai-go/v3 v3.0.0-20260202093810-72af3b857f95
+replace github.com/openai/openai-go/v3 => github.com/SasSwart/openai-go/v3 v3.0.0-20260204134041-fb987b42a728
