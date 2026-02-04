@@ -683,10 +683,6 @@ func (c *ProvisionerdCloser) Close() error {
 	return closeErr
 }
 
-type TestProvisionerOptions struct {
-	HeartbeatFn func(context.Context) error
-}
-
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
