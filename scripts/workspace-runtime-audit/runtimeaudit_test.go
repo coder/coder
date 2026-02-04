@@ -408,7 +408,7 @@ func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []worksp
 			builder = builder.Canceled()
 		case database.ProvisionerJobStatusFailed:
 			builder = builder.Failed("fake error", "")
-		// default: Succeeded (the builder's default)
+			// default: Succeeded (the builder's default)
 		}
 
 		builder.Do()
