@@ -1,38 +1,16 @@
 import { chats, createChat } from "api/queries/chats";
-import type { Chat, CreateChatRequest } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "components/Dialog/Dialog";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Margins } from "components/Margins/Margins";
-import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+import type { Chat } from "api/typesGenerated";
 import { Spinner } from "components/Spinner/Spinner";
+import { MessageSquareIcon, SendIcon } from "lucide-react";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import { MessageSquareIcon, PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+	type FC,
+	type KeyboardEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link } from "components/Link/Link";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 
 const ChatsPage: FC = () => {
@@ -40,112 +18,76 @@ const ChatsPage: FC = () => {
 	const navigate = useNavigate();
 	const chatsQuery = useQuery(chats());
 	const createChatMutation = useMutation(createChat(queryClient));
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [newChat, setNewChat] = useState<CreateChatRequest>({
-		title: "",
-		provider: "anthropic",
-		model: "claude-opus-4-5",
-	});
+	const [message, setMessage] = useState("");
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 
-	const handleCreateChat = async () => {
+	// Auto-focus the input on mount
+	useEffect(() => {
+		inputRef.current?.focus();
+	}, []);
+
+	const handleSend = async () => {
+		if (!message.trim() || createChatMutation.isPending) return;
+
 		try {
-			const created = await createChatMutation.mutateAsync(newChat);
-			setIsCreateOpen(false);
-			setNewChat({
-				title: "",
+			// Create a new chat with the message as the initial content
+			const created = await createChatMutation.mutateAsync({
+				title: "", // Let the backend/UI generate a title
 				provider: "anthropic",
-				model: "claude-opus-4-5",
+				model: "claude-sonnet-4-20250514",
 			});
-			// Navigate to the new chat
-			navigate(`/chats/${created.id}`);
-		} catch {
-			displayError("Failed to create chat");
+
+			// Navigate to the chat and let it send the message
+			navigate(`/chats/${created.id}?message=${encodeURIComponent(message)}`);
+		} catch (error) {
+			console.error("Failed to create chat:", error);
+		}
+	};
+
+	const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+		if (e.key === "Enter" && !e.shiftKey) {
+			e.preventDefault();
+			handleSend();
 		}
 	};
 
 	return (
 		<>
 			<title>{pageTitle("Chats")}</title>
-			<Margins>
-				<PageHeader
-					actions={
-						<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-							<DialogTrigger asChild>
-								<Button>
-									<PlusIcon className="size-4" />
-									New Chat
-								</Button>
-							</DialogTrigger>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>Create New Chat</DialogTitle>
-									<DialogDescription>
-										Start a new conversation with an AI assistant.
-									</DialogDescription>
-								</DialogHeader>
-								<div className="flex flex-col gap-4 py-4">
-									<div className="flex flex-col gap-2">
-										<Label htmlFor="title">Title (optional)</Label>
-										<Input
-											id="title"
-											value={newChat.title ?? ""}
-											onChange={(e) =>
-												setNewChat({ ...newChat, title: e.target.value })
-											}
-											placeholder="My chat"
-										/>
-									</div>
-									<div className="flex flex-col gap-2">
-										<Label htmlFor="provider">Provider</Label>
-										<Input
-											id="provider"
-											value={newChat.provider}
-											onChange={(e) =>
-												setNewChat({ ...newChat, provider: e.target.value })
-											}
-											placeholder="anthropic"
-										/>
-									</div>
-									<div className="flex flex-col gap-2">
-										<Label htmlFor="model">Model</Label>
-										<Input
-											id="model"
-											value={newChat.model}
-											onChange={(e) =>
-												setNewChat({ ...newChat, model: e.target.value })
-											}
-											placeholder="claude-opus-4-5"
-										/>
-									</div>
-								</div>
-								<DialogFooter>
-									<Button
-										variant="outline"
-										onClick={() => setIsCreateOpen(false)}
-									>
-										Cancel
-									</Button>
-									<Button
-										onClick={handleCreateChat}
-										disabled={createChatMutation.isPending}
-									>
-										<Spinner loading={createChatMutation.isPending}>
-											<PlusIcon className="size-4" />
-										</Spinner>
-										Create
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-					}
-				>
-					<PageHeaderTitle>Chats</PageHeaderTitle>
-					<PageHeaderSubtitle>
-						Chat with AI assistants that can execute tools
-					</PageHeaderSubtitle>
-				</PageHeader>
+			<div className="flex flex-col h-full max-w-4xl mx-auto px-4 py-8">
+				{/* Chat input at top */}
+				<div className="mb-8">
+					<div className="relative">
+						<textarea
+							ref={inputRef}
+							value={message}
+							onChange={(e) => setMessage(e.target.value)}
+							onKeyDown={handleKeyDown}
+							placeholder="Send a message to start a new chat..."
+							className="w-full min-h-[100px] p-4 pr-12 rounded-lg border border-border bg-surface-primary text-content-primary placeholder:text-content-secondary resize-none focus:outline-none focus:ring-2 focus:ring-border-active"
+							disabled={createChatMutation.isPending}
+						/>
+						<button
+							type="button"
+							onClick={handleSend}
+							disabled={!message.trim() || createChatMutation.isPending}
+							className="absolute right-3 bottom-3 p-2 rounded-md bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{createChatMutation.isPending ? (
+								<Spinner size="sm" loading />
+							) : (
+								<SendIcon className="size-5" />
+							)}
+						</button>
+					</div>
+				</div>
 
-				<main className="pb-8">
+				{/* Recent chats section */}
+				<div className="flex-1">
+					<h2 className="text-lg font-semibold text-content-primary mb-4">
+						Recent Chats
+					</h2>
+
 					{chatsQuery.isLoading && (
 						<div className="flex items-center justify-center py-8">
 							<Spinner loading />
@@ -159,47 +101,40 @@ const ChatsPage: FC = () => {
 					)}
 
 					{chatsQuery.isSuccess && chatsQuery.data.length === 0 && (
-						<div className="flex flex-col items-center justify-center py-16 text-content-secondary">
-							<MessageSquareIcon className="size-12 mb-4" />
-							<p className="text-lg font-medium">No chats yet</p>
-							<p className="text-sm">
-								Create a new chat to start a conversation.
-							</p>
+						<div className="flex flex-col items-center justify-center py-12 text-content-secondary">
+							<MessageSquareIcon className="size-10 mb-3" />
+							<p className="text-sm">No chats yet. Send a message to start!</p>
 						</div>
 					)}
 
 					{chatsQuery.isSuccess && chatsQuery.data.length > 0 && (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Title</TableHead>
-									<TableHead>Provider</TableHead>
-									<TableHead>Model</TableHead>
-									<TableHead>Created</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{chatsQuery.data.map((chat: Chat) => (
-									<TableRow key={chat.id}>
-										<TableCell>
-											<Link href={`/chats/${chat.id}`} showExternalIcon={false}>
+						<div className="space-y-2">
+							{chatsQuery.data.map((chat: Chat) => (
+								<Link
+									key={chat.id}
+									to={`/chats/${chat.id}`}
+									className="block p-4 rounded-lg border border-border hover:bg-surface-secondary transition-colors"
+								>
+									<div className="flex items-center justify-between">
+										<div className="flex items-center gap-3">
+											<MessageSquareIcon className="size-5 text-content-secondary" />
+											<span className="font-medium text-content-primary">
 												{chat.title || "Untitled Chat"}
-											</Link>
-										</TableCell>
-										<TableCell>{chat.provider}</TableCell>
-										<TableCell>
-											<code className="text-xs">{chat.model}</code>
-										</TableCell>
-										<TableCell>
+											</span>
+										</div>
+										<span className="text-sm text-content-secondary">
 											{new Date(chat.created_at).toLocaleDateString()}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
+										</span>
+									</div>
+									<div className="mt-1 text-sm text-content-secondary ml-8">
+										{chat.provider} / {chat.model}
+									</div>
+								</Link>
+							))}
+						</div>
 					)}
-				</main>
-			</Margins>
+				</div>
+			</div>
 		</>
 	);
 };

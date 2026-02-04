@@ -12,92 +12,94 @@ test.beforeEach(async ({ page }) => {
 // Skip LLM-dependent tests if ANTHROPIC_API_KEY is not set
 const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY);
 
-test("create a chat and navigate to chat detail", async ({ page }) => {
-	// Navigate to chats page
+test("chats page has input textarea ready for immediate use", async ({
+	page,
+}) => {
 	await page.goto("/chats");
-	await expect(page.getByRole("heading", { name: "Chats" })).toBeVisible();
 
-	// Click create chat button
-	await page.getByRole("button", { name: "New Chat" }).click();
-
-	// Fill in the dialog - use claude-haiku-4-5 for faster/cheaper e2e tests
-	await expect(page.getByRole("dialog")).toBeVisible();
-	await page.getByLabel("Title").fill("Test Chat E2E");
-	await page.getByLabel("Model").fill("claude-haiku-4-5");
-	await page.getByRole("button", { name: "Create" }).click();
-
-	// Should navigate to the chat detail page
-	await expect(page).toHaveURL(/\/chats\/[a-f0-9-]+$/);
-
-	// Should see the chat title
-	await expect(
-		page.getByRole("heading", { name: "Test Chat E2E" }),
-	).toBeVisible();
-
-	// Should see the provider/model info
-	await expect(page.getByText("anthropic")).toBeVisible();
+	// Should see a textarea/input ready to type - no dialogs needed
+	const chatInput = page.getByPlaceholder(/message/i);
+	await expect(chatInput).toBeVisible();
+	await expect(chatInput).toBeFocused();
 });
 
-test("send a message and receive a response", async ({ page }) => {
+test("typing a message and pressing enter creates chat and sends message", async ({
+	page,
+}) => {
 	// This test requires a real LLM API key
 	test.skip(!hasAnthropicKey, "ANTHROPIC_API_KEY not set");
-
-	// Increase timeout for this test since LLM responses can take a while
 	test.setTimeout(180000);
 
-	// Navigate to chats page
 	await page.goto("/chats");
-	await expect(page.getByRole("heading", { name: "Chats" })).toBeVisible();
 
-	// Create a new chat - use claude-haiku-4-5 for faster/cheaper e2e tests
-	await page.getByRole("button", { name: "New Chat" }).click();
-	await expect(page.getByRole("dialog")).toBeVisible();
-	await page.getByLabel("Title").fill("Message Test Chat");
-	await page.getByLabel("Model").fill("claude-haiku-4-5");
-	await page.getByRole("button", { name: "Create" }).click();
+	// Type directly into the chat input
+	const chatInput = page.getByPlaceholder(/message/i);
+	await expect(chatInput).toBeVisible();
+	await chatInput.fill("Say hello");
+	await chatInput.press("Enter");
 
-	// Wait for navigation to chat detail
-	await expect(page).toHaveURL(/\/chats\/[a-f0-9-]+$/);
+	// Should navigate to a chat detail page
+	await expect(page).toHaveURL(/\/chats\/[a-f0-9-]+$/, { timeout: 10000 });
 
-	// Send a simple message
-	const messageInput = page.getByPlaceholder(/Type your message/);
-	await expect(messageInput).toBeVisible();
-	await messageInput.fill("Hello, please respond with just the word 'Hello'");
-
-	// Click send button
-	await page.getByRole("button", { name: "Send" }).click();
-
-	// Wait for the user message to appear
+	// Should see the message and eventually an assistant response
 	await expect(page.getByText("You").first()).toBeVisible({ timeout: 10000 });
-
-	// Wait for an assistant response - be liberal with expectations since it's a real LLM
-	// We just check that an "Assistant" label appears, indicating a response was received.
-	// Give it a long timeout because LLM responses can take time.
 	await expect(page.getByText("Assistant").first()).toBeVisible({
 		timeout: 120000,
 	});
 });
 
-test("chat list shows created chats", async ({ page }) => {
-	// Navigate to chats page
+test("recent chats are shown below the input", async ({ page }) => {
+	// This test requires a real LLM API key to create a chat
+	test.skip(!hasAnthropicKey, "ANTHROPIC_API_KEY not set");
+	test.setTimeout(180000);
+
 	await page.goto("/chats");
-	await expect(page.getByRole("heading", { name: "Chats" })).toBeVisible();
 
-	// Create a chat with a unique name - use claude-haiku-4-5 for faster/cheaper e2e tests
-	const chatTitle = `List Test ${Date.now()}`;
-	await page.getByRole("button", { name: "New Chat" }).click();
-	await expect(page.getByRole("dialog")).toBeVisible();
-	await page.getByLabel("Title").fill(chatTitle);
-	await page.getByLabel("Model").fill("claude-haiku-4-5");
-	await page.getByRole("button", { name: "Create" }).click();
+	// Create a chat by typing a message
+	const chatInput = page.getByPlaceholder(/message/i);
+	const uniqueMessage = `Test message ${Date.now()}`;
+	await chatInput.fill(uniqueMessage);
+	await chatInput.press("Enter");
 
-	// Wait for navigation to chat detail
+	// Wait for chat to be created and navigate
+	await expect(page).toHaveURL(/\/chats\/[a-f0-9-]+$/, { timeout: 10000 });
+
+	// Go back to chats list
+	await page.goto("/chats");
+
+	// Should see recent chats section below the input
+	await expect(page.getByText("Recent Chats")).toBeVisible();
+
+	// The chat should appear in the recent list - look for links that go to /chats/uuid
+	await expect(
+		page.getByRole("link", { name: /Untitled Chat/i }).first(),
+	).toBeVisible();
+});
+
+test("clicking a recent chat navigates to chat detail", async ({ page }) => {
+	// This test requires a real LLM API key to create a chat
+	test.skip(!hasAnthropicKey, "ANTHROPIC_API_KEY not set");
+	test.setTimeout(180000);
+
+	await page.goto("/chats");
+
+	// Create a chat first
+	const chatInput = page.getByPlaceholder(/message/i);
+	await chatInput.fill("Hello for navigation test");
+	await chatInput.press("Enter");
+
+	// Wait for chat creation
+	await expect(page).toHaveURL(/\/chats\/[a-f0-9-]+$/, { timeout: 10000 });
+
+	// Go back to chats list
+	await page.goto("/chats");
+
+	// Click on a recent chat (look for links with "Untitled Chat" text)
+	const recentChatLink = page
+		.getByRole("link", { name: /Untitled Chat/i })
+		.first();
+	await recentChatLink.click();
+
+	// Should be on a chat detail page
 	await expect(page).toHaveURL(/\/chats\/[a-f0-9-]+$/);
-
-	// Navigate back to chats list
-	await page.getByRole("link", { name: "Back to Chats" }).click();
-	await expect(page).toHaveURL("/chats");
-
-	// The chat should appear in the list
-	await expect(page.getByRole("link", { name: chatTitle })).toBeVisible();
 });

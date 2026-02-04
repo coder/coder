@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useParams } from "react-router";
+import { Link as RouterLink, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import type { ServerSentEvent } from "api/typesGenerated";
@@ -53,6 +53,7 @@ interface StreamingPart {
 
 const ChatPage: FC = () => {
 	const { chatId } = useParams() as { chatId: string };
+	const [searchParams, setSearchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const chatQuery = useQuery(chat(chatId));
 	const messagesQuery = useQuery(chatMessages(chatId));
@@ -60,6 +61,7 @@ const ChatPage: FC = () => {
 	const [isSending, setIsSending] = useState(false);
 	const [streamingText, setStreamingText] = useState<string>("");
 	const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+	const [initialMessageSent, setInitialMessageSent] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const wsRef = useRef<OneWayWebSocket<ServerSentEvent> | null>(null);
 
@@ -69,6 +71,29 @@ const ChatPage: FC = () => {
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messagesQuery.data, streamingText]);
+
+	// Handle initial message from URL query param
+	useEffect(() => {
+		const initialMessage = searchParams.get("message");
+		if (initialMessage && !initialMessageSent && !isSending) {
+			setInitialMessageSent(true);
+			// Clear the query param
+			setSearchParams({}, { replace: true });
+			// Send the message
+			(async () => {
+				setIsSending(true);
+				try {
+					const req: CreateChatMessageRequest = { content: initialMessage };
+					const response = await API.createChatMessage(chatId, req);
+					setCurrentRunId(response.run_id);
+				} catch {
+					displayError("Failed to send message");
+				} finally {
+					setIsSending(false);
+				}
+			})();
+		}
+	}, [searchParams, setSearchParams, chatId, initialMessageSent, isSending]);
 
 	// Connect to WebSocket for real-time updates
 	useEffect(() => {
