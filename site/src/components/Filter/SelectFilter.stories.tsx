@@ -62,7 +62,7 @@ export const WithSearch: Story = {
 	args: {
 		selectedOption: options[25],
 	},
-	render: function SelectFilterWithSearch(args) {
+	render: (args) => {
 		const [selectedOption, setSelectedOption] = useState<
 			SelectFilterOption | undefined
 		>(args.selectedOption);
