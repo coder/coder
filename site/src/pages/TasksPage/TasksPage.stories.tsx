@@ -6,6 +6,7 @@ import {
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
+	MockWorkspaceBuildStop,
 	mockApiError,
 } from "testHelpers/entities";
 import {
@@ -360,7 +361,7 @@ export const PauseTask: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{ ...MockTask, status: "active" },
 		]);
-		spyOn(API, "stopWorkspace").mockResolvedValue({} as never);
+		spyOn(API, "stopWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -393,7 +394,7 @@ export const ResumeTask: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{ ...MockTask, status: "paused" },
 		]);
-		spyOn(API, "startWorkspace").mockResolvedValue({} as never);
+		spyOn(API, "startWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

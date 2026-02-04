@@ -173,6 +173,16 @@ const TasksEmpty: FC = () => {
 	);
 };
 
+const pauseStatuses: TaskStatusType[] = [
+	"active",
+	"initializing",
+	"pending",
+	"error",
+	"unknown",
+];
+const pauseDisabledStatuses: TaskStatusType[] = ["pending", "initializing"];
+const resumeStatuses: TaskStatusType[] = ["paused", "error", "unknown"];
+
 type TaskRowProps = {
 	task: Task;
 	checked: boolean;
@@ -190,16 +200,6 @@ const TaskRow: FC<TaskRowProps> = ({
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-
-	const pauseStatuses: TaskStatusType[] = [
-		"active",
-		"initializing",
-		"pending",
-		"error",
-		"unknown",
-	];
-	const pauseDisabledStatuses: TaskStatusType[] = ["pending", "initializing"];
-	const resumeStatuses: TaskStatusType[] = ["paused", "error", "unknown"];
 
 	const showPause = pauseStatuses.includes(task.status);
 	const pauseDisabled = pauseDisabledStatuses.includes(task.status);
@@ -311,14 +311,14 @@ const TaskRow: FC<TaskRowProps> = ({
 								action="pause"
 								disabled={pauseDisabled}
 								loading={pauseMutation.isPending}
-								onClick={() => pauseMutation.mutate()}
+								onClick={pauseMutation.mutate}
 							/>
 						)}
 						{showResume && (
 							<TaskActionButton
 								action="resume"
 								loading={resumeMutation.isPending}
-								onClick={() => resumeMutation.mutate()}
+								onClick={resumeMutation.mutate}
 							/>
 						)}
 						<DropdownMenu>
