@@ -1830,19 +1830,24 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 					expiredCount++
 				}
 
-				workspace, _ := setupTestDBPrebuild(
-					t,
-					clock,
-					db,
-					pubSub,
-					database.WorkspaceTransitionStart,
-					database.ProvisionerJobStatusSucceeded,
-					org.ID,
-					preset,
-					template.ID,
-					templateVersionID,
-					withCreatedAt(clock.Now().Add(createdAt)),
-				)
+				// Use dbfake.WorkspaceBuild directly to control job timestamps for
+				// expiration testing via WithJobCreatedAt.
+				jobCreatedAt := clock.Now().Add(createdAt)
+				resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: org.ID,
+					TemplateID:     template.ID,
+					CreatedAt:      jobCreatedAt,
+				}).Pubsub(pubSub).Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+					Transition:              database.WorkspaceTransitionStart,
+				}).Params(database.WorkspaceBuildParameter{
+					Name:  "test",
+					Value: "test",
+				}).WithJobCreatedAt(jobCreatedAt).Do()
+				workspace := resp.Workspace
 				if isExpired {
 					expiredWorkspaces = append(expiredWorkspaces, workspace)
 				} else {
@@ -2791,21 +2796,6 @@ func setupTestDBPresetWithScheduling(
 	return preset
 }
 
-// prebuildOptions holds optional parameters for creating a prebuild workspace.
-type prebuildOptions struct {
-	createdAt *time.Time
-}
-
-// prebuildOption defines a function type to apply optional settings to prebuildOptions.
-type prebuildOption func(*prebuildOptions)
-
-// withCreatedAt returns a prebuildOption that sets the CreatedAt timestamp.
-func withCreatedAt(createdAt time.Time) prebuildOption {
-	return func(opts *prebuildOptions) {
-		opts.createdAt = &createdAt
-	}
-}
-
 func setupTestDBPrebuild(
 	t *testing.T,
 	clock quartz.Clock,
@@ -2817,10 +2807,9 @@ func setupTestDBPrebuild(
 	preset database.TemplateVersionPreset,
 	templateID uuid.UUID,
 	templateVersionID uuid.UUID,
-	opts ...prebuildOption,
 ) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
-	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, database.PrebuildsSystemUserID, database.PrebuildsSystemUserID, opts...)
+	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, database.PrebuildsSystemUserID, database.PrebuildsSystemUserID)
 }
 
 func setupTestDBWorkspace(
@@ -2836,7 +2825,6 @@ func setupTestDBWorkspace(
 	templateVersionID uuid.UUID,
 	initiatorID uuid.UUID,
 	ownerID uuid.UUID,
-	opts ...prebuildOption,
 ) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
 	cancelledAt := sql.NullTime{}
@@ -2864,19 +2852,7 @@ func setupTestDBWorkspace(
 	default:
 	}
 
-	// Apply all provided prebuild options.
-	prebuiltOptions := &prebuildOptions{}
-	for _, opt := range opts {
-		opt(prebuiltOptions)
-	}
-
-	// Set createdAt to default value if not overridden by options.
 	createdAt := clock.Now().Add(muchEarlier)
-	if prebuiltOptions.createdAt != nil {
-		createdAt = *prebuiltOptions.createdAt
-		// Ensure startedAt matches createdAt for consistency.
-		startedAt = sql.NullTime{Time: createdAt, Valid: true}
-	}
 
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID:     templateID,
