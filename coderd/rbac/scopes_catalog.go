@@ -64,6 +64,14 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"organization:update": {},
 	"organization:delete": {},
 	"organization:*":      {},
+
+	// AI Bridge
+	"aibridge:use":                  {},
+	"aibridge:*":                    {},
+	"aibridge_interception:create": {},
+	"aibridge_interception:read":   {},
+	"aibridge_interception:update": {},
+	"aibridge_interception:*":      {},
 }
 
 // Public composite coder:* scopes exposed to users.
