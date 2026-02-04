@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
 import { visuallyHidden } from "@mui/utils";
 import { getErrorMessage } from "api/errors";
@@ -8,6 +7,7 @@ import {
 	workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
 import type { Template, Workspace } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
@@ -209,17 +209,17 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 		<div css={styles.scheduleControls}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<IconButton
+					<Button
 						disabled={!deadlineMinusEnabled}
-						size="small"
-						css={styles.scheduleButton}
+						variant="outline"
+						size="icon"
 						onClick={() => {
 							handleDeadlineChange(deadline.subtract(1, "h"));
 						}}
 					>
-						<MinusIcon className="size-icon-xs" />
+						<MinusIcon />
 						<span style={visuallyHidden}>Subtract 1 hour from deadline</span>
-					</IconButton>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">
 					Subtract 1 hour from deadline
@@ -227,17 +227,17 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 			</Tooltip>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<IconButton
+					<Button
 						disabled={!deadlinePlusEnabled}
-						size="small"
-						css={styles.scheduleButton}
+						variant="outline"
+						size="icon"
 						onClick={() => {
 							handleDeadlineChange(deadline.add(1, "h"));
 						}}
 					>
-						<PlusIcon className="size-icon-xs" />
+						<PlusIcon />
 						<span style={visuallyHidden}>Add 1 hour to deadline</span>
-					</IconButton>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Add 1 hour to deadline</TooltipContent>
 			</Tooltip>
@@ -327,16 +327,4 @@ const styles = {
 		alignItems: "center",
 		gap: 4,
 	},
-
-	scheduleButton: (theme) => ({
-		border: `1px solid ${theme.palette.divider}`,
-		borderRadius: 4,
-		width: 20,
-		height: 20,
-
-		"& svg.MuiSvgIcon-root": {
-			width: 12,
-			height: 12,
-		},
-	}),
 } satisfies Record<string, Interpolation<Theme>>;
