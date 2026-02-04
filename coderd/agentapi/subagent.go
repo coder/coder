@@ -76,7 +76,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	if req.Id != nil {
 		id, err := uuid.FromBytes(req.Id)
 		if err != nil {
-			return nil, xerrors.Errorf("parse id: %w", err)
+			return nil, xerrors.Errorf("parse agent id: %w", err)
 		}
 
 		subAgent, err := a.Database.GetWorkspaceAgentByID(ctx, id)
