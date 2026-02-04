@@ -42,17 +42,20 @@ const meta: Meta<typeof SelectFilter> = {
 export default meta;
 type Story = StoryObj<typeof SelectFilter>;
 
-export const Closed: Story = {
-	play: () => {},
-};
+export const Closed: Story = {};
 
-export const Open: Story = {};
+export const Open: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button");
+		await userEvent.click(button);
+	},
+};
 
 export const Selected: Story = {
 	args: {
 		selectedOption: options[25],
 	},
-	play: () => {},
 };
 
 export const WithSearch: Story = {
