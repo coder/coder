@@ -21,14 +21,18 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/cachecompress"
 )
+
+const CompressionLevel = 5
 
 // errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
 var errHashMismatch = xerrors.New("hash mismatch")
 
 type binHandler struct {
 	metadataCache *binMetadataCache
-	binFS         http.FileSystem
+	handler       http.Handler
 }
 
 func (h *binHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -48,7 +52,7 @@ func (h *binHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if name == "" || name == "/" {
 		// Serve the directory listing. This intentionally allows directory listings to
 		// be served. This file system should not contain anything sensitive.
-		http.FileServer(h.binFS).ServeHTTP(rw, r)
+		h.handler.ServeHTTP(rw, r)
 		return
 	}
 	if strings.Contains(name, "/") {
@@ -86,25 +90,48 @@ func (h *binHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	// http.FileServer will see the ETag header and automatically handle
 	// If-Match and If-None-Match headers on the request properly.
-	http.FileServer(h.binFS).ServeHTTP(rw, r)
+	h.handler.ServeHTTP(rw, r)
 }
 
 func newBinHandler(options *Options) (*binHandler, error) {
-	binFS, binHashes, err := ExtractOrReadBinFS(options.CacheDir, options.SiteFS)
+	cacheDir := options.CacheDir
+	compressedCacheDir := ""
+	if cacheDir != "" {
+		// split the cache dir into ./compressed and ./orig containing the compressed files and the original
+		// uncompressed files respectively.
+		compressedCacheDir = filepath.Join(cacheDir, "compressed")
+		err := os.MkdirAll(compressedCacheDir, 0o700)
+		if err != nil {
+			// cached dir was provided, but we can't write to it
+			return nil, xerrors.Errorf("failed to create compressed directory in cache dir: %w", err)
+		}
+		cacheDir = filepath.Join(cacheDir, "orig")
+		err = os.MkdirAll(cacheDir, 0o700)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to create orig directory in cache dir: %w", err)
+		}
+	}
+	// note that ExtractOrReadBinFS handles an empty cacheDir; this often arises in testing.
+	binFS, binHashes, err := ExtractOrReadBinFS(cacheDir, options.SiteFS)
 	if err != nil {
 		return nil, xerrors.Errorf("extract or read bin filesystem: %w", err)
 	}
-	return &binHandler{
-		binFS:         binFS,
+	h := &binHandler{
 		metadataCache: newBinMetadataCache(binFS, binHashes),
-	}, nil
+	}
+	if compressedCacheDir != "" {
+		h.handler = cachecompress.NewCompressor(options.Logger, CompressionLevel, compressedCacheDir, binFS)
+	} else {
+		h.handler = http.FileServer(binFS)
+	}
+	return h, nil
 }
 
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and
 // extracts them into dest/bin if found. As a fallback, the provided FS is
 // checked for a /bin directory, if it is non-empty it is returned. Finally
 // dest/bin is returned as a fallback allowing binaries to be manually placed in
-// dest (usually ${CODER_CACHE_DIRECTORY}/site/bin).
+// dest (usually ${CODER_CACHE_DIRECTORY}/site/orig/bin).
 //
 // Returns a http.FileSystem that serves unpacked binaries, and a map of binary
 // name to SHA1 hash. The returned hash map may be incomplete or contain hashes
