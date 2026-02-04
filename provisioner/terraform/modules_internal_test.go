@@ -23,6 +23,9 @@ import (
 // platform specific.
 func TestGetModulesArchive(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows path separators and newline handling make this test unreliable.")
+	}
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()

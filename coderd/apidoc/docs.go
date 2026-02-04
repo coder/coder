@@ -3482,6 +3482,45 @@ const docTemplate = `{
             }
         },
         "/organizations/{organization}/members/{user}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Get organization member",
+                "operationId": "get-organization-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -6722,6 +6761,16 @@ const docTemplate = `{
                         "description": "Follow log stream",
                         "name": "follow",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6980,6 +7029,16 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Follow log stream",
                         "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
                         "in": "query"
                     }
                 ],
@@ -9944,6 +10003,16 @@ const docTemplate = `{
                         "description": "Disable compression for WebSocket connection",
                         "name": "no_compression",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -10238,6 +10307,16 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Follow log stream",
                         "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
                         "in": "query"
                     }
                 ],

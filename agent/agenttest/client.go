@@ -124,8 +124,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC27(ctx context.Context) (
-	agentproto.DRPCAgentClient27, proto.DRPCTailnetClient27, error,
+func (c *Client) ConnectRPC28(ctx context.Context) (
+	agentproto.DRPCAgentClient28, proto.DRPCTailnetClient28, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {

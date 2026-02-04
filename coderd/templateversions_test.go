@@ -3,6 +3,9 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -16,9 +19,13 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -996,6 +1003,103 @@ func TestTemplateVersionLogs(t *testing.T) {
 	}
 }
 
+func TestTemplateVersionLogsFormat(t *testing.T) {
+	t.Parallel()
+
+	// Setup: Create template version with logs using dbfake.
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	tv := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).
+		Do()
+
+	// Insert test log directly into database.
+	jl := dbgen.ProvisionerJobLog(t, db, database.ProvisionerJobLog{
+		JobID:  tv.TemplateVersion.JobID,
+		Stage:  "Planning",
+		Source: database.LogSourceProvisioner,
+		Level:  database.LogLevelInfo,
+		Output: "test log output",
+	})
+
+	tests := []struct {
+		name                string
+		queryParams         string
+		expectedStatus      int
+		expectedContentType string
+		checkBody           func(t *testing.T, body string)
+	}{
+		{
+			name:                "JSON",
+			queryParams:         "",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "application/json",
+			checkBody: func(t *testing.T, body string) {
+				assert.NotEmpty(t, body) // This is checked more thoroughly in TestTemplateVersionLogs above.
+			},
+		},
+		{
+			name:                "Text",
+			queryParams:         "?format=text",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "text/plain",
+			checkBody: func(t *testing.T, body string) {
+				expected := db2sdk.ProvisionerJobLog(jl).Text()
+				assert.Contains(t, body, expected)
+			},
+		},
+		{
+			name:           "InvalidFormat",
+			queryParams:    "?format=invalid",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				t.Log(body)
+				var sdkErr codersdk.Error
+				assert.NoError(t, json.NewDecoder(strings.NewReader(body)).Decode(&sdkErr))
+				assert.Equal(t, "Invalid format parameter.", sdkErr.Message)
+			},
+		},
+		{
+			name:           "TextWithFollowFails",
+			queryParams:    "?format=text&follow",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				t.Log(body)
+				var sdkErr codersdk.Error
+				assert.NoError(t, json.NewDecoder(strings.NewReader(body)).Decode(&sdkErr))
+				assert.Equal(t, "Text format is not supported with follow mode.", sdkErr.Message)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			urlPath := fmt.Sprintf("/api/v2/templateversions/%s/logs%s", tv.TemplateVersion.ID, tt.queryParams)
+
+			res, err := client.Request(ctx, http.MethodGet, urlPath, nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, tt.expectedStatus, res.StatusCode)
+			if tt.expectedContentType != "" {
+				require.Contains(t, res.Header.Get("Content-Type"), tt.expectedContentType)
+			}
+			if assert.NotNil(t, tt.checkBody) {
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+				tt.checkBody(t, string(body))
+			}
+		})
+	}
+}
+
 func TestTemplateVersionsByTemplate(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
@@ -1285,7 +1389,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		// This import job will never finish
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
+			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
@@ -1459,6 +1563,111 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Equal(t, 0, matched.Available)
 		require.Zero(t, matched.MostRecentlySeen.Time)
 	})
+}
+
+func TestTemplateVersionDryRunLogsFormat(t *testing.T) {
+	t.Parallel()
+
+	// Setup: Create template version and dry-run job with logs using dbfake.
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	tv := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).
+		Do()
+
+	// Create a dry-run provisioner job.
+	dryRunInput, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+		TemplateVersionID: tv.TemplateVersion.ID,
+	})
+	require.NoError(t, err)
+
+	dryRunJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+		Input:          dryRunInput,
+	})
+
+	// Insert test log directly into database.
+	jl := dbgen.ProvisionerJobLog(t, db, database.ProvisionerJobLog{
+		JobID:  dryRunJob.ID,
+		Stage:  "Planning",
+		Source: database.LogSourceProvisioner,
+		Level:  database.LogLevelInfo,
+		Output: "test dry-run log output",
+	})
+
+	tests := []struct {
+		name                string
+		queryParams         string
+		expectedStatus      int
+		expectedContentType string
+		checkBody           func(t *testing.T, body string)
+	}{
+		{
+			name:                "JSON",
+			queryParams:         "",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "application/json",
+			checkBody: func(t *testing.T, body string) {
+				assert.NotEmpty(t, body)
+			},
+		},
+		{
+			name:                "Text",
+			queryParams:         "?format=text",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "text/plain",
+			checkBody: func(t *testing.T, body string) {
+				expected := db2sdk.ProvisionerJobLog(jl).Text()
+				assert.Contains(t, body, expected)
+			},
+		},
+		{
+			name:           "InvalidFormat",
+			queryParams:    "?format=invalid",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				assert.Contains(t, body, "Invalid format")
+			},
+		},
+		{
+			name:           "TextWithFollowFails",
+			queryParams:    "?format=text&follow",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				assert.Contains(t, body, "not supported with follow mode")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			urlPath := fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/logs%s", tv.TemplateVersion.ID, dryRunJob.ID, tt.queryParams)
+
+			res, err := client.Request(ctx, http.MethodGet, urlPath, nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, tt.expectedStatus, res.StatusCode)
+			if tt.expectedContentType != "" {
+				require.Contains(t, res.Header.Get("Content-Type"), tt.expectedContentType)
+			}
+
+			if assert.NotNil(t, tt.checkBody) {
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+				tt.checkBody(t, string(body))
+			}
+		})
+	}
 }
 
 // TestPaginatedTemplateVersions creates a list of template versions and paginate.
