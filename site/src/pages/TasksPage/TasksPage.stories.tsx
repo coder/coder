@@ -341,6 +341,77 @@ export const AllTaskStatuses: Story = {
 	},
 };
 
+export const PauseTask: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [{ ...MockTask, status: "active" }],
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock APIs for refetch after mutation invalidates queries
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTasks").mockResolvedValue([
+			{ ...MockTask, status: "active" },
+		]);
+		spyOn(API, "stopWorkspace").mockResolvedValue({} as never);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pauseButton = await canvas.findByRole("button", {
+			name: /pause task/i,
+		});
+		await userEvent.click(pauseButton);
+		await waitFor(() => {
+			expect(API.stopWorkspace).toHaveBeenCalledWith(MockTask.workspace_id);
+		});
+	},
+};
+
+export const ResumeTask: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [{ ...MockTask, status: "paused" }],
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock APIs for refetch after mutation invalidates queries
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTasks").mockResolvedValue([
+			{ ...MockTask, status: "paused" },
+		]);
+		spyOn(API, "startWorkspace").mockResolvedValue({} as never);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const resumeButton = await canvas.findByRole("button", {
+			name: /resume task/i,
+		});
+		await userEvent.click(resumeButton);
+		await waitFor(() => {
+			expect(API.startWorkspace).toHaveBeenCalledWith(
+				MockTask.workspace_id,
+				MockTask.template_version_id,
+				undefined,
+				undefined,
+			);
+		});
+	},
+};
+
 export const BatchActionsEnabled: Story = {
 	parameters: {
 		features: ["task_batch_actions"],
