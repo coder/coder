@@ -677,15 +677,26 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 	}
 }
 
-func TestTasksTelemetry(t *testing.T) {
-	t.Parallel()
+// taskTelemetryHelper provides builder methods for creating test fixtures
+// for task telemetry tests. Each subtest gets its own helper to ensure
+// isolation between test cases.
+type taskTelemetryHelper struct {
+	t   *testing.T
+	ctx context.Context
+	db  database.Store
+
+	// Shared resources created in newTaskTelemetryHelper.
+	org  database.Organization
+	user database.User
+	tv   database.TemplateVersion
+	tpl  database.Template
+}
+
+func newTaskTelemetryHelper(t *testing.T) *taskTelemetryHelper {
+	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _ := dbtestutil.NewDB(t)
 
-	// Define a fixed time for deterministic testing.
-	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
-
-	// Setup shared resources.
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
 
@@ -716,860 +727,596 @@ func TestTasksTelemetry(t *testing.T) {
 		HasAITask:      sql.NullBool{Bool: true, Valid: true},
 	})
 
-	// Helper function to create a provisioner job for workspace builds.
-	createJob := func() database.ProvisionerJob {
-		return dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Provisioner:    database.ProvisionerTypeTerraform,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			OrganizationID: org.ID,
-		})
+	return &taskTelemetryHelper{
+		t:    t,
+		ctx:  ctx,
+		db:   db,
+		org:  org,
+		user: user,
+		tv:   tv,
+		tpl:  tpl,
+	}
+}
+
+func (h *taskTelemetryHelper) createJob() database.ProvisionerJob {
+	return dbgen.ProvisionerJob(h.t, h.db, nil, database.ProvisionerJob{
+		Provisioner:    database.ProvisionerTypeTerraform,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		OrganizationID: h.org.ID,
+	})
+}
+
+func (h *taskTelemetryHelper) createWorkspace() database.WorkspaceTable {
+	return dbgen.Workspace(h.t, h.db, database.WorkspaceTable{
+		OwnerID:        h.user.ID,
+		OrganizationID: h.org.ID,
+		TemplateID:     h.tpl.ID,
+	})
+}
+
+func (h *taskTelemetryHelper) createBuild(ws database.WorkspaceTable, job database.ProvisionerJob, transition database.WorkspaceTransition, reason database.BuildReason, buildNumber int32, createdAt time.Time) database.WorkspaceBuild {
+	return dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: h.tv.ID,
+		JobID:             job.ID,
+		Transition:        transition,
+		Reason:            reason,
+		BuildNumber:       buildNumber,
+		CreatedAt:         createdAt,
+	})
+}
+
+func (h *taskTelemetryHelper) createAgent(jobID uuid.UUID) database.WorkspaceAgent {
+	res := dbgen.WorkspaceResource(h.t, h.db, database.WorkspaceResource{
+		JobID: jobID,
+	})
+	return dbgen.WorkspaceAgent(h.t, h.db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+}
+
+func (h *taskTelemetryHelper) createApp(agentID uuid.UUID) database.WorkspaceApp {
+	return dbgen.WorkspaceApp(h.t, h.db, database.WorkspaceApp{
+		SharingLevel: database.AppSharingLevelOwner,
+		Health:       database.WorkspaceAppHealthDisabled,
+		OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+		AgentID:      agentID,
+	})
+}
+
+func (h *taskTelemetryHelper) createTask(wsID uuid.NullUUID, prompt string, createdAt time.Time) database.Task {
+	return dbgen.Task(h.t, h.db, database.TaskTable{
+		OwnerID:           h.user.ID,
+		OrganizationID:    h.org.ID,
+		WorkspaceID:       wsID,
+		TemplateVersionID: h.tv.ID,
+		Prompt:            prompt,
+		CreatedAt:         createdAt,
+	})
+}
+
+func (h *taskTelemetryHelper) createTaskWorkspaceApp(taskID uuid.UUID, agentID, appID uuid.UUID, buildNumber int32) {
+	_ = dbgen.TaskWorkspaceApp(h.t, h.db, database.TaskWorkspaceApp{
+		TaskID:               taskID,
+		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: agentID},
+		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: appID},
+		WorkspaceBuildNumber: buildNumber,
+	})
+}
+
+func (h *taskTelemetryHelper) createAppStatus(wsID uuid.UUID, agentID, appID uuid.UUID, state database.WorkspaceAppStatusState, message string, createdAt time.Time) {
+	_, err := h.db.InsertWorkspaceAppStatus(h.ctx, database.InsertWorkspaceAppStatusParams{
+		ID:          uuid.New(),
+		CreatedAt:   createdAt,
+		WorkspaceID: wsID,
+		AgentID:     agentID,
+		AppID:       appID,
+		State:       state,
+		Message:     message,
+	})
+	require.NoError(h.t, err)
+}
+
+func (h *taskTelemetryHelper) deleteTask(taskID uuid.UUID, deletedAt time.Time) {
+	_, err := h.db.DeleteTask(h.ctx, database.DeleteTaskParams{
+		DeletedAt: deletedAt,
+		ID:        taskID,
+	})
+	require.NoError(h.t, err)
+}
+
+func (h *taskTelemetryHelper) refreshTask(taskID uuid.UUID) database.Task {
+	task, err := h.db.GetTaskByID(h.ctx, taskID)
+	require.NoError(h.t, err)
+	return task
+}
+
+func TestTasksTelemetry(t *testing.T) {
+	t.Parallel()
+
+	// Define a fixed reference time for deterministic testing.
+	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task)
+	}{
+		{
+			name: "no workspace - all lifecycle fields nil",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				task := h.createTask(uuid.NullUUID{}, "pending task prompt", now.Add(-1*time.Hour))
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          nil,
+					WorkspaceBuildNumber: nil,
+					WorkspaceAgentID:     nil,
+					WorkspaceAppID:       nil,
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         nil,
+					LastResumedAt:        nil,
+					PauseReason:          nil,
+					IdleDurationMS:       nil,
+					PausedDurationMS:     nil,
+					TimeToFirstStatusMS:  nil,
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "running workspace - no pause/resume events",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job := h.createJob()
+				build := h.createBuild(ws, job, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-30*time.Minute))
+				agent := h.createAgent(job.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "running task prompt", now.Add(-45*time.Minute))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, build.BuildNumber)
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(build.BuildNumber)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         nil,
+					LastResumedAt:        nil,
+					PauseReason:          nil,
+					IdleDurationMS:       nil,
+					PausedDurationMS:     nil,
+					TimeToFirstStatusMS:  nil,
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "with app status - TimeToFirstStatusMS populated",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job := h.createJob()
+				build := h.createBuild(ws, job, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-2*time.Hour))
+				agent := h.createAgent(job.ID)
+				app := h.createApp(agent.ID)
+
+				taskCreatedAt := now.Add(-90 * time.Minute)
+				firstStatusAt := now.Add(-85 * time.Minute) // 5 minutes after task creation
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "running task with status prompt", taskCreatedAt)
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, build.BuildNumber)
+				h.createAppStatus(ws.ID, agent.ID, app.ID, database.WorkspaceAppStatusStateWorking, "Task started", firstStatusAt)
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(build.BuildNumber)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         nil,
+					LastResumedAt:        nil,
+					PauseReason:          nil,
+					IdleDurationMS:       nil,
+					PausedDurationMS:     nil,
+					TimeToFirstStatusMS:  ptr.Ref(int64(5 * 60 * 1000)), // 5 minutes in ms
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "auto paused - LastPausedAt and PauseReason=auto",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job1 := h.createJob()
+				h.createBuild(ws, job1, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-3*time.Hour))
+
+				job2 := h.createJob()
+				pauseTime := now.Add(-20 * time.Minute)
+				h.createBuild(ws, job2, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, 2, pauseTime)
+
+				agent := h.createAgent(job1.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "auto paused task prompt", now.Add(-3*time.Hour))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         &pauseTime,
+					LastResumedAt:        nil,
+					PauseReason:          ptr.Ref("auto"),
+					IdleDurationMS:       nil,
+					PausedDurationMS:     nil,
+					TimeToFirstStatusMS:  nil,
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "manual paused - LastPausedAt and PauseReason=manual",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job1 := h.createJob()
+				h.createBuild(ws, job1, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-4*time.Hour))
+
+				job2 := h.createJob()
+				pauseTime := now.Add(-15 * time.Minute)
+				h.createBuild(ws, job2, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, 2, pauseTime)
+
+				agent := h.createAgent(job1.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "manually paused task prompt", now.Add(-4*time.Hour))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         &pauseTime,
+					LastResumedAt:        nil,
+					PauseReason:          ptr.Ref("manual"),
+					IdleDurationMS:       nil,
+					PausedDurationMS:     nil,
+					TimeToFirstStatusMS:  nil,
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "paused with idle time - IdleDurationMS calculated",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job1 := h.createJob()
+				h.createBuild(ws, job1, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-5*time.Hour))
+
+				agent := h.createAgent(job1.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "paused with idle time prompt", now.Add(-5*time.Hour))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+
+				// Working status at -40 minutes.
+				h.createAppStatus(ws.ID, agent.ID, app.ID, database.WorkspaceAppStatusStateWorking, "Working on something", now.Add(-40*time.Minute))
+				// Idle status at -35 minutes (5 minutes after working).
+				h.createAppStatus(ws.ID, agent.ID, app.ID, database.WorkspaceAppStatusStateIdle, "Idle now", now.Add(-35*time.Minute))
+
+				// Pause at -25 minutes (10 minutes after idle, 15 minutes after last working).
+				pauseTime := now.Add(-25 * time.Minute)
+				job2 := h.createJob()
+				h.createBuild(ws, job2, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, 2, pauseTime)
+
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         &pauseTime,
+					LastResumedAt:        nil,
+					PauseReason:          ptr.Ref("auto"),
+					IdleDurationMS:       ptr.Ref(int64(15 * 60 * 1000)), // 15 minutes in ms
+					PausedDurationMS:     nil,
+					TimeToFirstStatusMS:  ptr.Ref(int64(260 * 60 * 1000)), // -5hr to -40min = 260 min
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "recently resumed - PausedDurationMS calculated",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job1 := h.createJob()
+				h.createBuild(ws, job1, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-6*time.Hour))
+
+				// Pause at -50 minutes.
+				pauseTime := now.Add(-50 * time.Minute)
+				job2 := h.createJob()
+				h.createBuild(ws, job2, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, 2, pauseTime)
+
+				// Resume at -10 minutes (40 minutes of paused time).
+				resumeTime := now.Add(-10 * time.Minute)
+				job3 := h.createJob()
+				h.createBuild(ws, job3, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, 3, resumeTime)
+
+				agent := h.createAgent(job1.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "recently resumed task prompt", now.Add(-6*time.Hour))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         &pauseTime,
+					LastResumedAt:        &resumeTime,
+					PauseReason:          ptr.Ref("auto"),
+					IdleDurationMS:       nil,
+					PausedDurationMS:     ptr.Ref(int64(40 * 60 * 1000)), // 40 minutes in ms
+					TimeToFirstStatusMS:  nil,
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "resumed long ago - PausedDurationMS nil",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job1 := h.createJob()
+				h.createBuild(ws, job1, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-10*time.Hour))
+
+				// Pause at -5 hours.
+				pauseTime := now.Add(-5 * time.Hour)
+				job2 := h.createJob()
+				h.createBuild(ws, job2, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, 2, pauseTime)
+
+				// Resume at -2 hours (> 1hr ago, so PausedDurationMS should be nil).
+				resumeTime := now.Add(-2 * time.Hour)
+				job3 := h.createJob()
+				h.createBuild(ws, job3, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, 3, resumeTime)
+
+				agent := h.createAgent(job1.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "resumed long ago task prompt", now.Add(-10*time.Hour))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         &pauseTime,
+					LastResumedAt:        &resumeTime,
+					PauseReason:          ptr.Ref("auto"),
+					IdleDurationMS:       nil,
+					PausedDurationMS:     nil, // Resume was > 1hr ago
+					TimeToFirstStatusMS:  nil,
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "multiple cycles - captures latest pause/resume",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job1 := h.createJob()
+				h.createBuild(ws, job1, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-8*time.Hour))
+
+				// First pause at -3 hours (auto).
+				job2 := h.createJob()
+				h.createBuild(ws, job2, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, 2, now.Add(-3*time.Hour))
+
+				// First resume at -2.5 hours.
+				firstResumeTime := now.Add(-150 * time.Minute) // -2.5 hours
+				job3 := h.createJob()
+				h.createBuild(ws, job3, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, 3, firstResumeTime)
+
+				// Second pause at -30 minutes (manual).
+				latestPauseTime := now.Add(-30 * time.Minute)
+				job4 := h.createJob()
+				h.createBuild(ws, job4, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, 4, latestPauseTime)
+
+				agent := h.createAgent(job1.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "multiple pause resume cycles prompt", now.Add(-8*time.Hour))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         &latestPauseTime,
+					LastResumedAt:        &firstResumeTime,       // -2.5 hours
+					PauseReason:          ptr.Ref("manual"),      // Latest pause reason
+					IdleDurationMS:       nil,
+					PausedDurationMS:     nil, // Resume was > 1hr ago
+					TimeToFirstStatusMS:  nil,
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "all fields populated - full lifecycle",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job1 := h.createJob()
+				h.createBuild(ws, job1, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-7*time.Hour))
+
+				agent := h.createAgent(job1.ID)
+				app := h.createApp(agent.ID)
+
+				taskCreatedAt := now.Add(-7 * time.Hour)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "task with all fields prompt", taskCreatedAt)
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+
+				// First status at -6.5 hours (30 minutes after creation).
+				h.createAppStatus(ws.ID, agent.ID, app.ID, database.WorkspaceAppStatusStateWorking, "Started working", now.Add(-390*time.Minute))
+				// Last working status at -45 minutes.
+				h.createAppStatus(ws.ID, agent.ID, app.ID, database.WorkspaceAppStatusStateWorking, "Still working", now.Add(-45*time.Minute))
+
+				// Pause at -35 minutes (10 minutes idle duration).
+				pauseTime := now.Add(-35 * time.Minute)
+				job2 := h.createJob()
+				h.createBuild(ws, job2, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, 2, pauseTime)
+
+				// Resume at -5 minutes (30 minutes paused duration).
+				resumeTime := now.Add(-5 * time.Minute)
+				job3 := h.createJob()
+				h.createBuild(ws, job3, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, 3, resumeTime)
+
+				task = h.refreshTask(task.ID)
+
+				expected := telemetry.Task{
+					ID:                   task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 task.Name,
+					WorkspaceID:          ptr.Ref(ws.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(agent.ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    h.tv.ID.String(),
+					PromptHash:           telemetry.HashContent(task.Prompt),
+					CreatedAt:            task.CreatedAt,
+					Status:               string(task.Status),
+					LastPausedAt:         &pauseTime,
+					LastResumedAt:        &resumeTime,
+					PauseReason:          ptr.Ref("auto"),
+					IdleDurationMS:       ptr.Ref(int64(10 * 60 * 1000)), // 10 minutes in ms
+					PausedDurationMS:     ptr.Ref(int64(30 * 60 * 1000)), // 30 minutes in ms
+					TimeToFirstStatusMS:  ptr.Ref(int64(30 * 60 * 1000)), // 30 minutes in ms
+				}
+				return task, expected
+			},
+		},
+		{
+			name: "deleted task - excluded from results",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
+				ws := h.createWorkspace()
+				job := h.createJob()
+				h.createBuild(ws, job, database.WorkspaceTransitionStart, database.BuildReasonInitiator, 1, now.Add(-1*time.Hour))
+
+				agent := h.createAgent(job.ID)
+				app := h.createApp(agent.ID)
+				task := h.createTask(uuid.NullUUID{UUID: ws.ID, Valid: true}, "deleted task prompt", now.Add(-1*time.Hour))
+				h.createTaskWorkspaceApp(task.ID, agent.ID, app.ID, 1)
+
+				// Soft delete the task.
+				h.deleteTask(task.ID, now)
+
+				// Return empty expected - this task should not appear in results.
+				// The test logic handles this case specially.
+				return task, telemetry.Task{}
+			},
+		},
 	}
 
-	// Helper to create a workspace.
-	createWorkspace := func() database.WorkspaceTable {
-		return dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newTaskTelemetryHelper(t)
+			dbTask, expected := tt.setup(t, h, now)
+
+			// Special case for deleted task test.
+			if tt.name == "deleted task - excluded from results" {
+				actual, err := telemetry.CollectTasks(h.ctx, h.db, now.Add(-1*time.Hour))
+				require.NoError(t, err, "unexpected error collecting tasks telemetry")
+				// Verify the deleted task is not in the results.
+				for _, task := range actual {
+					assert.NotEqual(t, dbTask.ID.String(), task.ID, "deleted task should not appear in results")
+				}
+				return
+			}
+
+			// Call CollectTasks.
+			actual, err := telemetry.CollectTasks(h.ctx, h.db, now.Add(-1*time.Hour))
+			require.NoError(t, err, "unexpected error collecting tasks telemetry")
+			require.Len(t, actual, 1, "expected exactly one task")
+
+			if diff := cmp.Diff(expected, actual[0]); diff != "" {
+				t.Fatalf("unexpected diff (-want +got):\n%s", diff)
+			}
 		})
-	}
-
-	// Helper to create workspace resource and agent for app status.
-	createResourceAndAgent := func(jobID uuid.UUID) (database.WorkspaceResource, database.WorkspaceAgent) {
-		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: jobID,
-		})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: res.ID,
-		})
-		return res, agent
-	}
-
-	// Helper to create a workspace app.
-	createApp := func(agentID uuid.UUID) database.WorkspaceApp {
-		return dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-			SharingLevel: database.AppSharingLevelOwner,
-			Health:       database.WorkspaceAppHealthDisabled,
-			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
-			AgentID:      agentID,
-		})
-	}
-
-	// =====================================================
-	// FIXTURE 1: pendingTask
-	// No workspace, all lifecycle fields nil.
-	// =====================================================
-	pendingTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{}, // No workspace
-		TemplateVersionID: tv.ID,
-		Prompt:            "pending task prompt",
-		CreatedAt:         now.Add(-1 * time.Hour),
-	})
-
-	// =====================================================
-	// FIXTURE 2: runningTask
-	// Workspace running, no pause/resume, all lifecycle fields nil.
-	// =====================================================
-	runningWs := createWorkspace()
-	runningJob := createJob()
-	runningBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       runningWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             runningJob.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-30 * time.Minute),
-	})
-	_, runningAgent := createResourceAndAgent(runningJob.ID)
-	runningApp := createApp(runningAgent.ID)
-	runningTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: runningWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "running task prompt",
-		CreatedAt:         now.Add(-45 * time.Minute),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               runningTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: runningAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: runningApp.ID},
-		WorkspaceBuildNumber: runningBuild.BuildNumber,
-	})
-
-	// =====================================================
-	// FIXTURE 3: runningTaskWithStatus
-	// Running with app status history → TimeToFirstStatusMS populated.
-	// =====================================================
-	statusWs := createWorkspace()
-	statusJob := createJob()
-	statusBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       statusWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             statusJob.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-2 * time.Hour),
-	})
-	_, statusAgent := createResourceAndAgent(statusJob.ID)
-	statusApp := createApp(statusAgent.ID)
-	taskCreatedAt := now.Add(-90 * time.Minute)
-	firstStatusAt := now.Add(-85 * time.Minute) // 5 minutes after task creation
-	runningTaskWithStatus := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: statusWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "running task with status prompt",
-		CreatedAt:         taskCreatedAt,
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               runningTaskWithStatus.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: statusAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: statusApp.ID},
-		WorkspaceBuildNumber: statusBuild.BuildNumber,
-	})
-	// Insert first app status.
-	_, err = db.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   firstStatusAt,
-		WorkspaceID: statusWs.ID,
-		AgentID:     statusAgent.ID,
-		AppID:       statusApp.ID,
-		State:       database.WorkspaceAppStatusStateWorking,
-		Message:     "Task started",
-	})
-	require.NoError(t, err)
-
-	// =====================================================
-	// FIXTURE 4: autoPausedTask
-	// Stop build with task_auto_pause → LastPausedAt, PauseReason="auto".
-	// =====================================================
-	autoPauseWs := createWorkspace()
-	autoPauseJob1 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       autoPauseWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             autoPauseJob1.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-3 * time.Hour),
-	})
-	autoPauseJob2 := createJob()
-	autoPauseBuildTime := now.Add(-20 * time.Minute)
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       autoPauseWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             autoPauseJob2.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskAutoPause,
-		BuildNumber:       2,
-		CreatedAt:         autoPauseBuildTime,
-	})
-	_, autoPauseAgent := createResourceAndAgent(autoPauseJob1.ID)
-	autoPauseApp := createApp(autoPauseAgent.ID)
-	autoPausedTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: autoPauseWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "auto paused task prompt",
-		CreatedAt:         now.Add(-3 * time.Hour),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               autoPausedTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: autoPauseAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: autoPauseApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-
-	// =====================================================
-	// FIXTURE 5: manuallyPausedTask
-	// Stop build with task_manual_pause → LastPausedAt, PauseReason="manual".
-	// =====================================================
-	manualPauseWs := createWorkspace()
-	manualPauseJob1 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       manualPauseWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             manualPauseJob1.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-4 * time.Hour),
-	})
-	manualPauseJob2 := createJob()
-	manualPauseBuildTime := now.Add(-15 * time.Minute)
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       manualPauseWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             manualPauseJob2.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskManualPause,
-		BuildNumber:       2,
-		CreatedAt:         manualPauseBuildTime,
-	})
-	_, manualPauseAgent := createResourceAndAgent(manualPauseJob1.ID)
-	manualPauseApp := createApp(manualPauseAgent.ID)
-	manuallyPausedTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: manualPauseWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "manually paused task prompt",
-		CreatedAt:         now.Add(-4 * time.Hour),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               manuallyPausedTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: manualPauseAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: manualPauseApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-
-	// =====================================================
-	// FIXTURE 6: pausedWithIdleTime
-	// Auto-paused with working status before → IdleDurationMS calculated.
-	// =====================================================
-	idleTimeWs := createWorkspace()
-	idleTimeJob1 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       idleTimeWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             idleTimeJob1.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-5 * time.Hour),
-	})
-	_, idleTimeAgent := createResourceAndAgent(idleTimeJob1.ID)
-	idleTimeApp := createApp(idleTimeAgent.ID)
-	idleTimePausedTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: idleTimeWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "paused with idle time prompt",
-		CreatedAt:         now.Add(-5 * time.Hour),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               idleTimePausedTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: idleTimeAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: idleTimeApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-	// Insert working status at -40 minutes.
-	lastWorkingStatusTime := now.Add(-40 * time.Minute)
-	_, err = db.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   lastWorkingStatusTime,
-		WorkspaceID: idleTimeWs.ID,
-		AgentID:     idleTimeAgent.ID,
-		AppID:       idleTimeApp.ID,
-		State:       database.WorkspaceAppStatusStateWorking,
-		Message:     "Working on something",
-	})
-	require.NoError(t, err)
-	// Insert idle status at -35 minutes (5 minutes after working).
-	_, err = db.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   now.Add(-35 * time.Minute),
-		WorkspaceID: idleTimeWs.ID,
-		AgentID:     idleTimeAgent.ID,
-		AppID:       idleTimeApp.ID,
-		State:       database.WorkspaceAppStatusStateIdle,
-		Message:     "Idle now",
-	})
-	require.NoError(t, err)
-	// Pause at -25 minutes (10 minutes after idle, 15 minutes after last working).
-	idleTimePauseBuildTime := now.Add(-25 * time.Minute)
-	idleTimeJob2 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       idleTimeWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             idleTimeJob2.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskAutoPause,
-		BuildNumber:       2,
-		CreatedAt:         idleTimePauseBuildTime,
-	})
-
-	// =====================================================
-	// FIXTURE 7: recentlyResumedTask
-	// Paused then resumed < 1hr ago → LastResumedAt, PausedDurationMS.
-	// =====================================================
-	recentResumeWs := createWorkspace()
-	recentResumeJob1 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       recentResumeWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             recentResumeJob1.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-6 * time.Hour),
-	})
-	// Pause at -50 minutes.
-	recentResumePauseTime := now.Add(-50 * time.Minute)
-	recentResumeJob2 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       recentResumeWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             recentResumeJob2.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskAutoPause,
-		BuildNumber:       2,
-		CreatedAt:         recentResumePauseTime,
-	})
-	// Resume at -10 minutes (40 minutes of paused time).
-	recentResumeTime := now.Add(-10 * time.Minute)
-	recentResumeJob3 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       recentResumeWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             recentResumeJob3.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonTaskResume,
-		BuildNumber:       3,
-		CreatedAt:         recentResumeTime,
-	})
-	_, recentResumeAgent := createResourceAndAgent(recentResumeJob1.ID)
-	recentResumeApp := createApp(recentResumeAgent.ID)
-	recentlyResumedTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: recentResumeWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "recently resumed task prompt",
-		CreatedAt:         now.Add(-6 * time.Hour),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               recentlyResumedTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: recentResumeAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: recentResumeApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-
-	// =====================================================
-	// FIXTURE 8: multiplePauseResumeCycles
-	// pause1 → resume1 → pause2 → captures latest of each.
-	// =====================================================
-	multiCycleWs := createWorkspace()
-	multiCycleJob1 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       multiCycleWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             multiCycleJob1.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-8 * time.Hour),
-	})
-	// First pause at -3 hours (auto).
-	multiCycleJob2 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       multiCycleWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             multiCycleJob2.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskAutoPause,
-		BuildNumber:       2,
-		CreatedAt:         now.Add(-3 * time.Hour),
-	})
-	// First resume at -2.5 hours.
-	multiCycleJob3 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       multiCycleWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             multiCycleJob3.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonTaskResume,
-		BuildNumber:       3,
-		CreatedAt:         now.Add(-150 * time.Minute), // -2.5 hours
-	})
-	// Second pause at -30 minutes (manual).
-	multiCycleLatestPauseTime := now.Add(-30 * time.Minute)
-	multiCycleJob4 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       multiCycleWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             multiCycleJob4.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskManualPause,
-		BuildNumber:       4,
-		CreatedAt:         multiCycleLatestPauseTime,
-	})
-	_, multiCycleAgent := createResourceAndAgent(multiCycleJob1.ID)
-	multiCycleApp := createApp(multiCycleAgent.ID)
-	multiplePauseResumeCyclesTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: multiCycleWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "multiple pause resume cycles prompt",
-		CreatedAt:         now.Add(-8 * time.Hour),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               multiplePauseResumeCyclesTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: multiCycleAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: multiCycleApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-
-	// =====================================================
-	// FIXTURE 9: resumedLongAgo
-	// Resumed > 1hr ago → LastResumedAt set, PausedDurationMS = nil.
-	// =====================================================
-	longAgoWs := createWorkspace()
-	longAgoJob1 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       longAgoWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             longAgoJob1.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-10 * time.Hour),
-	})
-	// Pause at -5 hours.
-	longAgoPauseTime := now.Add(-5 * time.Hour)
-	longAgoJob2 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       longAgoWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             longAgoJob2.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskAutoPause,
-		BuildNumber:       2,
-		CreatedAt:         longAgoPauseTime,
-	})
-	// Resume at -2 hours (> 1hr ago, so PausedDurationMS should be nil).
-	longAgoResumeTime := now.Add(-2 * time.Hour)
-	longAgoJob3 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       longAgoWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             longAgoJob3.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonTaskResume,
-		BuildNumber:       3,
-		CreatedAt:         longAgoResumeTime,
-	})
-	_, longAgoAgent := createResourceAndAgent(longAgoJob1.ID)
-	longAgoApp := createApp(longAgoAgent.ID)
-	resumedLongAgoTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: longAgoWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "resumed long ago task prompt",
-		CreatedAt:         now.Add(-10 * time.Hour),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               resumedLongAgoTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: longAgoAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: longAgoApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-
-	// =====================================================
-	// FIXTURE 10: taskWithAllFields
-	// Full lifecycle with ALL fields populated.
-	// =====================================================
-	allFieldsWs := createWorkspace()
-	allFieldsJob1 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       allFieldsWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             allFieldsJob1.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-7 * time.Hour),
-	})
-	_, allFieldsAgent := createResourceAndAgent(allFieldsJob1.ID)
-	allFieldsApp := createApp(allFieldsAgent.ID)
-	allFieldsTaskCreatedAt := now.Add(-7 * time.Hour)
-	taskWithAllFields := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: allFieldsWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "task with all fields prompt",
-		CreatedAt:         allFieldsTaskCreatedAt,
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               taskWithAllFields.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: allFieldsAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: allFieldsApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-	// First status at -6.5 hours (30 minutes after creation).
-	allFieldsFirstStatusTime := now.Add(-390 * time.Minute) // -6.5 hours
-	_, err = db.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   allFieldsFirstStatusTime,
-		WorkspaceID: allFieldsWs.ID,
-		AgentID:     allFieldsAgent.ID,
-		AppID:       allFieldsApp.ID,
-		State:       database.WorkspaceAppStatusStateWorking,
-		Message:     "Started working",
-	})
-	require.NoError(t, err)
-	// Last working status at -45 minutes.
-	allFieldsLastWorkingTime := now.Add(-45 * time.Minute)
-	_, err = db.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   allFieldsLastWorkingTime,
-		WorkspaceID: allFieldsWs.ID,
-		AgentID:     allFieldsAgent.ID,
-		AppID:       allFieldsApp.ID,
-		State:       database.WorkspaceAppStatusStateWorking,
-		Message:     "Still working",
-	})
-	require.NoError(t, err)
-	// Pause at -35 minutes (10 minutes idle duration).
-	allFieldsPauseTime := now.Add(-35 * time.Minute)
-	allFieldsJob2 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       allFieldsWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             allFieldsJob2.ID,
-		Transition:        database.WorkspaceTransitionStop,
-		Reason:            database.BuildReasonTaskAutoPause,
-		BuildNumber:       2,
-		CreatedAt:         allFieldsPauseTime,
-	})
-	// Resume at -5 minutes (30 minutes paused duration).
-	allFieldsResumeTime := now.Add(-5 * time.Minute)
-	allFieldsJob3 := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       allFieldsWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             allFieldsJob3.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonTaskResume,
-		BuildNumber:       3,
-		CreatedAt:         allFieldsResumeTime,
-	})
-
-	// =====================================================
-	// FIXTURE 11: deletedTask
-	// Soft-deleted task → NOT in results.
-	// =====================================================
-	deletedTaskWs := createWorkspace()
-	deletedTaskJob := createJob()
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       deletedTaskWs.ID,
-		TemplateVersionID: tv.ID,
-		JobID:             deletedTaskJob.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-		BuildNumber:       1,
-		CreatedAt:         now.Add(-1 * time.Hour),
-	})
-	_, deletedTaskAgent := createResourceAndAgent(deletedTaskJob.ID)
-	deletedTaskApp := createApp(deletedTaskAgent.ID)
-	deletedTask := dbgen.Task(t, db, database.TaskTable{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: deletedTaskWs.ID, Valid: true},
-		TemplateVersionID: tv.ID,
-		Prompt:            "deleted task prompt",
-		CreatedAt:         now.Add(-1 * time.Hour),
-	})
-	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               deletedTask.ID,
-		WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: deletedTaskAgent.ID},
-		WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: deletedTaskApp.ID},
-		WorkspaceBuildNumber: 1,
-	})
-	// Soft delete the task.
-	_, err = db.DeleteTask(ctx, database.DeleteTaskParams{
-		DeletedAt: now,
-		ID:        deletedTask.ID,
-	})
-	require.NoError(t, err)
-
-	// =====================================================
-	// Re-fetch tasks to get computed status from the view.
-	// The status is computed from workspace build state, so we need fresh data.
-	// =====================================================
-	pendingTask, err = db.GetTaskByID(ctx, pendingTask.ID)
-	require.NoError(t, err)
-	runningTask, err = db.GetTaskByID(ctx, runningTask.ID)
-	require.NoError(t, err)
-	runningTaskWithStatus, err = db.GetTaskByID(ctx, runningTaskWithStatus.ID)
-	require.NoError(t, err)
-	autoPausedTask, err = db.GetTaskByID(ctx, autoPausedTask.ID)
-	require.NoError(t, err)
-	manuallyPausedTask, err = db.GetTaskByID(ctx, manuallyPausedTask.ID)
-	require.NoError(t, err)
-	idleTimePausedTask, err = db.GetTaskByID(ctx, idleTimePausedTask.ID)
-	require.NoError(t, err)
-	recentlyResumedTask, err = db.GetTaskByID(ctx, recentlyResumedTask.ID)
-	require.NoError(t, err)
-	multiplePauseResumeCyclesTask, err = db.GetTaskByID(ctx, multiplePauseResumeCyclesTask.ID)
-	require.NoError(t, err)
-	resumedLongAgoTask, err = db.GetTaskByID(ctx, resumedLongAgoTask.ID)
-	require.NoError(t, err)
-	taskWithAllFields, err = db.GetTaskByID(ctx, taskWithAllFields.ID)
-	require.NoError(t, err)
-
-	// =====================================================
-	// Build expected results.
-	// =====================================================
-	expected := []telemetry.Task{
-		// Fixture 1: pendingTask - no workspace, all lifecycle fields nil.
-		{
-			ID:                   pendingTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 pendingTask.Name,
-			WorkspaceID:          nil,
-			WorkspaceBuildNumber: nil,
-			WorkspaceAgentID:     nil,
-			WorkspaceAppID:       nil,
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(pendingTask.Prompt),
-			CreatedAt:            pendingTask.CreatedAt,
-			Status:               string(pendingTask.Status),
-			LastPausedAt:         nil,
-			LastResumedAt:        nil,
-			PauseReason:          nil,
-			IdleDurationMS:       nil,
-			PausedDurationMS:     nil,
-			TimeToFirstStatusMS:  nil,
-		},
-		// Fixture 2: runningTask - workspace running, all lifecycle fields nil.
-		{
-			ID:                   runningTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 runningTask.Name,
-			WorkspaceID:          ptr.Ref(runningWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(runningBuild.BuildNumber)),
-			WorkspaceAgentID:     ptr.Ref(runningAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(runningApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(runningTask.Prompt),
-			CreatedAt:            runningTask.CreatedAt,
-			Status:               string(runningTask.Status),
-			LastPausedAt:         nil,
-			LastResumedAt:        nil,
-			PauseReason:          nil,
-			IdleDurationMS:       nil,
-			PausedDurationMS:     nil,
-			TimeToFirstStatusMS:  nil,
-		},
-		// Fixture 3: runningTaskWithStatus - TimeToFirstStatusMS populated.
-		{
-			ID:                   runningTaskWithStatus.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 runningTaskWithStatus.Name,
-			WorkspaceID:          ptr.Ref(statusWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(statusBuild.BuildNumber)),
-			WorkspaceAgentID:     ptr.Ref(statusAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(statusApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(runningTaskWithStatus.Prompt),
-			CreatedAt:            runningTaskWithStatus.CreatedAt,
-			Status:               string(runningTaskWithStatus.Status),
-			LastPausedAt:         nil,
-			LastResumedAt:        nil,
-			PauseReason:          nil,
-			IdleDurationMS:       nil,
-			PausedDurationMS:     nil,
-			TimeToFirstStatusMS:  ptr.Ref(int64(5 * 60 * 1000)), // 5 minutes in ms
-		},
-		// Fixture 4: autoPausedTask - LastPausedAt, PauseReason="auto".
-		{
-			ID:                   autoPausedTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 autoPausedTask.Name,
-			WorkspaceID:          ptr.Ref(autoPauseWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(1)),
-			WorkspaceAgentID:     ptr.Ref(autoPauseAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(autoPauseApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(autoPausedTask.Prompt),
-			CreatedAt:            autoPausedTask.CreatedAt,
-			Status:               string(autoPausedTask.Status),
-			LastPausedAt:         &autoPauseBuildTime,
-			LastResumedAt:        nil,
-			PauseReason:          ptr.Ref("auto"),
-			IdleDurationMS:       nil,
-			PausedDurationMS:     nil,
-			TimeToFirstStatusMS:  nil,
-		},
-		// Fixture 5: manuallyPausedTask - LastPausedAt, PauseReason="manual".
-		{
-			ID:                   manuallyPausedTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 manuallyPausedTask.Name,
-			WorkspaceID:          ptr.Ref(manualPauseWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(1)),
-			WorkspaceAgentID:     ptr.Ref(manualPauseAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(manualPauseApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(manuallyPausedTask.Prompt),
-			CreatedAt:            manuallyPausedTask.CreatedAt,
-			Status:               string(manuallyPausedTask.Status),
-			LastPausedAt:         &manualPauseBuildTime,
-			LastResumedAt:        nil,
-			PauseReason:          ptr.Ref("manual"),
-			IdleDurationMS:       nil,
-			PausedDurationMS:     nil,
-			TimeToFirstStatusMS:  nil,
-		},
-		// Fixture 6: pausedWithIdleTime - IdleDurationMS calculated.
-		// Idle duration = pause time - last working status time = 15 minutes.
-		{
-			ID:                   idleTimePausedTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 idleTimePausedTask.Name,
-			WorkspaceID:          ptr.Ref(idleTimeWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(1)),
-			WorkspaceAgentID:     ptr.Ref(idleTimeAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(idleTimeApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(idleTimePausedTask.Prompt),
-			CreatedAt:            idleTimePausedTask.CreatedAt,
-			Status:               string(idleTimePausedTask.Status),
-			LastPausedAt:         &idleTimePauseBuildTime,
-			LastResumedAt:        nil,
-			PauseReason:          ptr.Ref("auto"),
-			IdleDurationMS:       ptr.Ref(int64(15 * 60 * 1000)), // 15 minutes in ms
-			PausedDurationMS:     nil,
-			TimeToFirstStatusMS:  ptr.Ref(int64(260 * 60 * 1000)), // -5hr to -40min = 260 min
-		},
-		// Fixture 7: recentlyResumedTask - LastResumedAt, PausedDurationMS.
-		// Paused duration = resume time - pause time = 40 minutes.
-		{
-			ID:                   recentlyResumedTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 recentlyResumedTask.Name,
-			WorkspaceID:          ptr.Ref(recentResumeWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(1)),
-			WorkspaceAgentID:     ptr.Ref(recentResumeAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(recentResumeApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(recentlyResumedTask.Prompt),
-			CreatedAt:            recentlyResumedTask.CreatedAt,
-			Status:               string(recentlyResumedTask.Status),
-			LastPausedAt:         &recentResumePauseTime,
-			LastResumedAt:        &recentResumeTime,
-			PauseReason:          ptr.Ref("auto"),
-			IdleDurationMS:       nil,
-			PausedDurationMS:     ptr.Ref(int64(40 * 60 * 1000)), // 40 minutes in ms
-			TimeToFirstStatusMS:  nil,
-		},
-		// Fixture 8: multiplePauseResumeCycles - captures latest pause/resume.
-		// Latest pause is manual at -30 minutes, latest resume is at -2.5 hours.
-		{
-			ID:                   multiplePauseResumeCyclesTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 multiplePauseResumeCyclesTask.Name,
-			WorkspaceID:          ptr.Ref(multiCycleWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(1)),
-			WorkspaceAgentID:     ptr.Ref(multiCycleAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(multiCycleApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(multiplePauseResumeCyclesTask.Prompt),
-			CreatedAt:            multiplePauseResumeCyclesTask.CreatedAt,
-			Status:               string(multiplePauseResumeCyclesTask.Status),
-			LastPausedAt:         &multiCycleLatestPauseTime,
-			LastResumedAt:        ptr.Ref(now.Add(-150 * time.Minute)), // -2.5 hours
-			PauseReason:          ptr.Ref("manual"),                    // Latest pause reason
-			IdleDurationMS:       nil,
-			PausedDurationMS:     nil, // Resume was > 1hr ago
-			TimeToFirstStatusMS:  nil,
-		},
-		// Fixture 9: resumedLongAgo - LastResumedAt set, PausedDurationMS = nil.
-		{
-			ID:                   resumedLongAgoTask.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 resumedLongAgoTask.Name,
-			WorkspaceID:          ptr.Ref(longAgoWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(1)),
-			WorkspaceAgentID:     ptr.Ref(longAgoAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(longAgoApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(resumedLongAgoTask.Prompt),
-			CreatedAt:            resumedLongAgoTask.CreatedAt,
-			Status:               string(resumedLongAgoTask.Status),
-			LastPausedAt:         &longAgoPauseTime,
-			LastResumedAt:        &longAgoResumeTime,
-			PauseReason:          ptr.Ref("auto"),
-			IdleDurationMS:       nil,
-			PausedDurationMS:     nil, // Resume was > 1hr ago
-			TimeToFirstStatusMS:  nil,
-		},
-		// Fixture 10: taskWithAllFields - all fields populated.
-		{
-			ID:                   taskWithAllFields.ID.String(),
-			OrganizationID:       org.ID.String(),
-			OwnerID:              user.ID.String(),
-			Name:                 taskWithAllFields.Name,
-			WorkspaceID:          ptr.Ref(allFieldsWs.ID.String()),
-			WorkspaceBuildNumber: ptr.Ref(int64(1)),
-			WorkspaceAgentID:     ptr.Ref(allFieldsAgent.ID.String()),
-			WorkspaceAppID:       ptr.Ref(allFieldsApp.ID.String()),
-			TemplateVersionID:    tv.ID.String(),
-			PromptHash:           telemetry.HashContent(taskWithAllFields.Prompt),
-			CreatedAt:            taskWithAllFields.CreatedAt,
-			Status:               string(taskWithAllFields.Status),
-			LastPausedAt:         &allFieldsPauseTime,
-			LastResumedAt:        &allFieldsResumeTime,
-			PauseReason:          ptr.Ref("auto"),
-			IdleDurationMS:       ptr.Ref(int64(10 * 60 * 1000)), // 10 minutes in ms
-			PausedDurationMS:     ptr.Ref(int64(30 * 60 * 1000)), // 30 minutes in ms
-			TimeToFirstStatusMS:  ptr.Ref(int64(30 * 60 * 1000)), // 30 minutes in ms
-		},
-		// Note: deletedTask (Fixture 11) should NOT appear in results.
-	}
-
-	// Sort expected by ID for deterministic comparison.
-	slices.SortFunc(expected, func(a, b telemetry.Task) int {
-		if a.ID < b.ID {
-			return -1
-		}
-		if a.ID > b.ID {
-			return 1
-		}
-		return 0
-	})
-
-	// Call CollectTasks.
-	createdAfter := now.Add(-1 * time.Hour)
-	actual, err := telemetry.CollectTasks(ctx, db, createdAfter)
-	require.NoError(t, err, "unexpected error collecting tasks telemetry")
-
-	// Sort actual by ID for deterministic comparison.
-	slices.SortFunc(actual, func(a, b telemetry.Task) int {
-		if a.ID < b.ID {
-			return -1
-		}
-		if a.ID > b.ID {
-			return 1
-		}
-		return 0
-	})
-
-	if diff := cmp.Diff(expected, actual); diff != "" {
-		t.Fatalf("unexpected diff (-want +got):\n%s", diff)
 	}
 }
 
