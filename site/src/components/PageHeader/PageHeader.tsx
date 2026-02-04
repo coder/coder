@@ -1,5 +1,5 @@
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { Stack } from "../Stack/Stack";
+import { cn } from "utils/cn";
 
 interface PageHeaderProps {
 	actions?: ReactNode;
@@ -14,36 +14,18 @@ export const PageHeader: FC<PageHeaderProps> = ({
 }) => {
 	return (
 		<header
-			className={className}
-			css={(theme) => ({
-				display: "flex",
-				alignItems: "center",
-				paddingTop: 48,
-				paddingBottom: 48,
-				gap: 32,
-
-				[theme.breakpoints.down("md")]: {
-					flexDirection: "column",
-					alignItems: "flex-start",
-				},
-			})}
+			className={cn(
+				"flex flex-start flex-col md:flex-row md:items-center gap-8",
+				"py-12 gap-8",
+				className,
+			)}
 			data-testid="header"
 		>
-			<hgroup>{children}</hgroup>
+			<hgroup className="flex flex-col gap-2">{children}</hgroup>
 			{actions && (
-				<Stack
-					direction="row"
-					css={(theme) => ({
-						marginLeft: "auto",
-
-						[theme.breakpoints.down("md")]: {
-							marginLeft: "initial",
-							width: "100%",
-						},
-					})}
-				>
+				<div className="flex ml-[initial] md:ml-auto w-full md:w-auto">
 					{actions}
-				</Stack>
+				</div>
 			)}
 		</header>
 	);
@@ -52,14 +34,9 @@ export const PageHeader: FC<PageHeaderProps> = ({
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<h1
-			css={{
-				fontSize: 24,
-				fontWeight: 400,
-				margin: 0,
-				display: "flex",
-				alignItems: "center",
-				lineHeight: "140%",
-			}}
+			className={cn(
+				"text-3xl font-semibold m-0 flex items-center leading-snug",
+			)}
 		>
 			{children}
 		</h1>
@@ -73,19 +50,12 @@ interface PageHeaderSubtitleProps {
 
 export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	children,
-	condensed,
 }) => {
 	return (
 		<h2
-			css={(theme) => ({
-				fontSize: 16,
-				color: theme.palette.text.secondary,
-				fontWeight: 400,
-				display: "block",
-				margin: 0,
-				marginTop: condensed ? 4 : 8,
-				lineHeight: "140%",
-			})}
+			className={cn(
+				"text-sm text-content-secondary font-normal block m-0 leading-snug",
+			)}
 		>
 			{children}
 		</h2>
@@ -94,15 +64,7 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 
 export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<span
-			css={(theme) => ({
-				fontSize: 12,
-				color: theme.palette.text.secondary,
-				fontWeight: 600,
-				textTransform: "uppercase",
-				letterSpacing: "0.1em",
-			})}
-		>
+		<span className="text-sm text-content-secondary font-medium uppercase tracking-widest">
 			{children}
 		</span>
 	);
