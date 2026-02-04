@@ -15,7 +15,7 @@ export const PageHeader: FC<PageHeaderProps> = ({
 	return (
 		<header
 			className={cn(
-				"flex flex-start flex-col md:flex-row md:items-center gap-8",
+				"flex items-start flex-col md:flex-row md:items-center gap-8",
 				"py-12 gap-8",
 				className,
 			)}
