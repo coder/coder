@@ -49,7 +49,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 				});
 			}}
 		>
-			<div className="flex flex-col gap-10">
+			<div className="flex flex-col gap-5">
 				<TextField
 					name="name"
 					label="Application name"
