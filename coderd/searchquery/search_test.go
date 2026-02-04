@@ -334,6 +334,13 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "HealthyAndHasAgent",
+			Query: "has-agent:connecting healthy:true",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{"connecting", "connected"},
+			},
+		},
+		{
 			Name:  "SharedWithUser",
 			Query: `shared_with_user:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
 			Setup: func(t *testing.T, db database.Store) {
