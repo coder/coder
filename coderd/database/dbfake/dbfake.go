@@ -58,6 +58,10 @@ type WorkspaceBuildBuilder struct {
 	jobStatus  database.ProvisionerJobStatus
 	taskAppID  uuid.UUID
 	taskSeed   database.TaskTable
+
+	jobCreatedAt   time.Time // When the provisioner job was created
+	jobStartedAt   time.Time // When the job started running (acquired)
+	jobCompletedAt time.Time // When the job completed
 }
 
 // WorkspaceBuild generates a workspace build for the provided workspace.
@@ -153,6 +157,32 @@ func (b WorkspaceBuildBuilder) Pending() WorkspaceBuildBuilder {
 
 func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
 	b.jobStatus = database.ProvisionerJobStatusCanceled
+	return b
+}
+
+// WithJobCreatedAt sets the provisioner job's CreatedAt timestamp.
+// If not called, defaults to dbtime.Now().
+func (b WorkspaceBuildBuilder) WithJobCreatedAt(t time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobCreatedAt = t
+	return b
+}
+
+// WithJobStartedAt sets when the provisioner job was acquired/started.
+// Only applies when job status is Running, Canceled, or Succeeded.
+// If not called, defaults to dbtime.Now().
+func (b WorkspaceBuildBuilder) WithJobStartedAt(t time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobStartedAt = t
+	return b
+}
+
+// WithJobCompletedAt sets when the provisioner job completed.
+// Only applies when job status is Canceled or Succeeded (default).
+// If not called, defaults to dbtime.Now().
+func (b WorkspaceBuildBuilder) WithJobCompletedAt(t time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobCompletedAt = t
 	return b
 }
 
@@ -267,8 +297,8 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 	job, err := b.db.InsertProvisionerJob(ownerCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
-		CreatedAt:      dbtime.Now(),
-		UpdatedAt:      dbtime.Now(),
+		CreatedAt:      takeFirst(b.jobCreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(b.jobCreatedAt, dbtime.Now()),
 		OrganizationID: b.ws.OrganizationID,
 		InitiatorID:    b.ws.OwnerID,
 		Provisioner:    database.ProvisionerTypeEcho,
@@ -295,7 +325,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
 				OrganizationID: job.OrganizationID,
 				StartedAt: sql.NullTime{
-					Time:  dbtime.Now(),
+					Time:  takeFirst(b.jobStartedAt, dbtime.Now()),
 					Valid: true,
 				},
 				WorkerID: uuid.NullUUID{
@@ -314,15 +344,15 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	case database.ProvisionerJobStatusCanceled:
 		// Set provisioner job status to 'canceled'
 		b.logger.Debug(context.Background(), "canceling the provisioner job")
-		now := dbtime.Now()
+		completedAt := takeFirst(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCancelByID(ownerCtx, database.UpdateProvisionerJobWithCancelByIDParams{
 			ID: jobID,
 			CanceledAt: sql.NullTime{
-				Time:  now,
+				Time:  completedAt,
 				Valid: true,
 			},
 			CompletedAt: sql.NullTime{
-				Time:  now,
+				Time:  completedAt,
 				Valid: true,
 			},
 		})
@@ -330,13 +360,14 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	default:
 		// By default, consider jobs in 'succeeded' status
 		b.logger.Debug(context.Background(), "completing the provisioner job")
+		completedAt := takeFirst(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
-			UpdatedAt: dbtime.Now(),
+			UpdatedAt: completedAt,
 			Error:     sql.NullString{},
 			ErrorCode: sql.NullString{},
 			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  completedAt,
 				Valid: true,
 			},
 		})
