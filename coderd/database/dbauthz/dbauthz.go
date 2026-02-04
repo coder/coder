@@ -2557,14 +2557,6 @@ func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, id
 	return q.db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
 }
 
-func (q *querier) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) ([]database.GetTaskLifecycleBuildsByWorkspaceIDsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
-		return nil, err
-	}
-
-	return q.db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIDs)
-}
-
 func (q *querier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {
 	return fetch(q.log, q.auth, q.db.GetLicenseByID)(ctx, id)
 }
@@ -3106,6 +3098,14 @@ func (q *querier) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetT
 
 func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
 	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
+}
+
+func (q *querier) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) ([]database.GetTaskLifecycleBuildsByWorkspaceIDsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+
+	return q.db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIDs)
 }
 
 func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
