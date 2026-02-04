@@ -10,6 +10,7 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/proto"
 )
 
@@ -86,13 +87,13 @@ func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
 	// use a separate goroutine to monitor the context so that we notice immediately, rather than
 	// waiting for the next callback (which might never come if we are closing!)
 	ctxDone := false
-	go func() {
+	agentutil.Go(ctx, s.logger, func() {
 		<-ctx.Done()
 		s.L.Lock()
 		defer s.L.Unlock()
 		ctxDone = true
 		s.Broadcast()
-	}()
+	})
 	defer s.logger.Debug(ctx, "reportLoop exiting")
 
 	s.L.Lock()

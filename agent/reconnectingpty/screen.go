@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -141,7 +142,7 @@ func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Lo
 	logger.Debug(ctx, "reconnecting pty ready")
 	rpty.state.setState(StateReady, nil)
 
-	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing)
+	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing, logger)
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
 		// means the agent is shutting down) so move into the closing phase.
@@ -166,7 +167,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
+	state, err := rpty.state.waitForStateOrContext(ctx, StateReady, logger)
 	if state != StateReady {
 		return err
 	}
@@ -256,7 +257,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	// We do not need to separately monitor for the process exiting.  When it
 	// exits, our ptty.OutputReader() will return EOF after reading all process
 	// output.
-	go func() {
+	agentutil.Go(ctx, logger, func() {
 		defer versionCancel()
 		defer func() {
 			err := conn.Close()
@@ -298,7 +299,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 				break
 			}
 		}
-	}()
+	})
 
 	// Version seems to be the only command without a side effect (other than
 	// making the version pop up briefly) so use it to wait for the session to

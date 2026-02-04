@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentutil"
 )
 
 // streamLocalForwardPayload describes the extra data sent in a
@@ -130,11 +131,11 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		log.Debug(ctx, "SSH unix forward added to cache")
 
 		ctx, cancel := context.WithCancel(ctx)
-		go func() {
+		agentutil.Go(ctx, log, func() {
 			<-ctx.Done()
 			_ = ln.Close()
-		}()
-		go func() {
+		})
+		agentutil.Go(ctx, log, func() {
 			defer cancel()
 
 			for {
@@ -152,7 +153,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 					SocketPath: addr,
 				})
 
-				go func() {
+				agentutil.Go(ctx, log, func() {
 					ch, reqs, err := conn.OpenChannel("forwarded-streamlocal@openssh.com", payload)
 					if err != nil {
 						h.log.Warn(ctx, "open SSH unix forward channel to client", slog.Error(err))
@@ -161,7 +162,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 					}
 					go gossh.DiscardRequests(reqs)
 					Bicopy(ctx, ch, c)
-				}()
+				})
 			}
 
 			h.Lock()
@@ -171,7 +172,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			h.Unlock()
 			log.Debug(ctx, "SSH unix forward listener removed from cache")
 			_ = ln.Close()
-		}()
+		})
 
 		return true, nil
 

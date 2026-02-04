@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
@@ -473,10 +474,10 @@ func (r *Runner) trackCommandGoroutine(fn func()) error {
 		return xerrors.New("track command goroutine: closed")
 	}
 	r.cmdCloseWait.Add(1)
-	go func() {
+	agentutil.Go(r.cronCtx, r.Logger, func() {
 		defer r.cmdCloseWait.Done()
 		fn()
-	}()
+	})
 	return nil
 }
 

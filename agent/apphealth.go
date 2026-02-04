@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/quartz"
@@ -69,7 +70,7 @@ func NewAppHealthReporterWithClock(
 				continue
 			}
 			app := nextApp
-			go func() {
+			agentutil.Go(ctx, logger, func() {
 				_ = clk.TickerFunc(ctx, time.Duration(app.Healthcheck.Interval)*time.Second, func() error {
 					// We time out at the healthcheck interval to prevent getting too backed up, but
 					// set it 1ms early so that it's not simultaneous with the next tick in testing,
@@ -133,7 +134,7 @@ func NewAppHealthReporterWithClock(
 					}
 					return nil
 				}, "healthcheck", app.Slug)
-			}()
+			})
 		}
 
 		mu.Lock()

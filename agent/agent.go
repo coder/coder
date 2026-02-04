@@ -39,6 +39,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentscripts"
@@ -553,7 +554,7 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient28
 	// Set up collect and report as a single ticker with two channels,
 	// this is to allow collection and reporting to be triggered
 	// independently of each other.
-	go func() {
+	agentutil.Go(ctx, a.logger, func() {
 		t := time.NewTicker(a.reportMetadataInterval)
 		defer func() {
 			t.Stop()
@@ -578,9 +579,9 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient28
 				wake(collect)
 			}
 		}
-	}()
+	})
 
-	go func() {
+	agentutil.Go(ctx, a.logger, func() {
 		defer close(collectDone)
 
 		var (
@@ -627,7 +628,7 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient28
 				// We send the result to the channel in the goroutine to avoid
 				// sending the same result multiple times. So, we don't care about
 				// the return values.
-				go flight.Do(md.Key, func() {
+				agentutil.Go(ctx, a.logger, func() { flight.Do(md.Key, func() {
 					ctx := slog.With(ctx, slog.F("key", md.Key))
 					lastCollectedAtMu.RLock()
 					collectedAt, ok := lastCollectedAts[md.Key]
@@ -680,10 +681,10 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient28
 						lastCollectedAts[md.Key] = now
 						lastCollectedAtMu.Unlock()
 					}
-				})
+				}) })
 			}
 		}
-	}()
+	})
 
 	// Gather metadata updates and report them once every interval. If a
 	// previous report is in flight, wait for it to complete before
@@ -734,14 +735,14 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient28
 			}
 
 			reportInFlight = true
-			go func() {
+			agentutil.Go(ctx, a.logger, func() {
 				a.logger.Debug(ctx, "batch updating metadata")
 				ctx, cancel := context.WithTimeout(ctx, reportTimeout)
 				defer cancel()
 
 				_, err := aAPI.BatchUpdateMetadata(ctx, &proto.BatchUpdateMetadataRequest{Metadata: metadata})
 				reportError <- err
-			}()
+			})
 		}
 	}
 }
@@ -1518,10 +1519,10 @@ func (a *agent) trackGoroutine(fn func()) error {
 		return xerrors.Errorf("track conn goroutine: %w", ErrAgentClosing)
 	}
 	a.closeWaitGroup.Add(1)
-	go func() {
+	agentutil.Go(a.hardCtx, a.logger, func() {
 		defer a.closeWaitGroup.Done()
 		fn()
-	}()
+	})
 	return nil
 }
 
@@ -1625,15 +1626,15 @@ func (a *agent) createTailnet(
 			clog.Info(ctx, "accepted conn")
 			wg.Add(1)
 			closed := make(chan struct{})
-			go func() {
+			agentutil.Go(ctx, clog, func() {
 				select {
 				case <-closed:
 				case <-a.hardCtx.Done():
 					_ = conn.Close()
 				}
 				wg.Done()
-			}()
-			go func() {
+			})
+			agentutil.Go(ctx, clog, func() {
 				defer close(closed)
 				sErr := speedtest.ServeConn(conn)
 				if sErr != nil {
@@ -1641,7 +1642,7 @@ func (a *agent) createTailnet(
 					return
 				}
 				clog.Info(ctx, "test ended")
-			}()
+			})
 		}
 		wg.Wait()
 	}); err != nil {
@@ -1668,13 +1669,13 @@ func (a *agent) createTailnet(
 			WriteTimeout:      20 * time.Second,
 			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("http_api_server"), slog.LevelInfo),
 		}
-		go func() {
+		agentutil.Go(ctx, a.logger, func() {
 			select {
 			case <-ctx.Done():
 			case <-a.hardCtx.Done():
 			}
 			_ = server.Close()
-		}()
+		})
 
 		apiServErr := server.Serve(apiListener)
 		if apiServErr != nil && !xerrors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
@@ -1716,7 +1717,7 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 	coordination := ctrl.New(coordinate)
 
 	errCh := make(chan error, 1)
-	go func() {
+	agentutil.Go(ctx, a.logger, func() {
 		defer close(errCh)
 		select {
 		case <-ctx.Done():
@@ -1728,7 +1729,7 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 		case err := <-coordination.Wait():
 			errCh <- err
 		}
-	}()
+	})
 	return <-errCh
 }
 
@@ -1819,7 +1820,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 			continue
 		}
 		wg.Add(1)
-		go func() {
+		agentutil.Go(pingCtx, a.logger, func() {
 			defer wg.Done()
 			duration, p2p, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
 			if err != nil {
@@ -1833,7 +1834,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 			} else {
 				derpConns++
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	sort.Float64s(durations)
@@ -2031,13 +2032,13 @@ func (a *agent) Close() error {
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so
 	// that we don't break user expectations.
-	go func() {
+	agentutil.Go(a.hardCtx, a.logger, func() {
 		defer a.hardCancel()
 		select {
 		case <-a.hardCtx.Done():
 		case <-time.After(5 * time.Second):
 		}
-	}()
+	})
 
 	// Wait for lifecycle to be reported
 lifecycleWaitLoop:
@@ -2127,13 +2128,13 @@ const EnvAgentSubsystem = "CODER_AGENT_SUBSYSTEM"
 // eitherContext returns a context that is canceled when either context ends.
 func eitherContext(a, b context.Context) context.Context {
 	ctx, cancel := context.WithCancel(a)
-	go func() {
+	agentutil.Go(ctx, slog.Logger{}, func() {
 		defer cancel()
 		select {
 		case <-a.Done():
 		case <-b.Done():
 		}
-	}()
+	})
 	return ctx
 }
 

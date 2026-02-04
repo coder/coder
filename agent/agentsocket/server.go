@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
@@ -79,10 +80,10 @@ func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
 	server.logger.Info(server.ctx, "agent socket server started", slog.F("path", server.path))
 
 	server.wg.Add(1)
-	go func() {
+	agentutil.Go(server.ctx, server.logger, func() {
 		defer server.wg.Done()
 		server.acceptConnections()
-	}()
+	})
 
 	return server, nil
 }

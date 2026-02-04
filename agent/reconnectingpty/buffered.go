@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -76,7 +77,7 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 	// We do not need to separately monitor for the process exiting.  When it
 	// exits, our ptty.OutputReader() will return EOF after reading all process
 	// output.
-	go func() {
+	agentutil.Go(ctx, logger, func() {
 		buffer := make([]byte, 1024)
 		for {
 			read, err := ptty.OutputReader().Read(buffer)
@@ -118,7 +119,7 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 			}
 			rpty.state.cond.L.Unlock()
 		}
-	}()
+	})
 
 	return rpty
 }
@@ -133,7 +134,7 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 	logger.Debug(ctx, "reconnecting pty ready")
 	rpty.state.setState(StateReady, nil)
 
-	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing)
+	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing, logger)
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
 		// means the agent is shutting down) so move into the closing phase.
@@ -190,7 +191,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 		delete(rpty.activeConns, connID)
 	}()
 
-	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
+	state, err := rpty.state.waitForStateOrContext(ctx, StateReady, logger)
 	if state != StateReady {
 		return err
 	}

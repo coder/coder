@@ -4,6 +4,9 @@ import (
 	"context"
 	"io"
 	"sync"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentutil"
 )
 
 // Bicopy copies all of the data between the two connections and will close them
@@ -35,10 +38,10 @@ func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 
 	// Convert waitgroup to a channel so we can also wait on the context.
 	done := make(chan struct{})
-	go func() {
+	agentutil.Go(ctx, slog.Logger{}, func() {
 		defer close(done)
 		wg.Wait()
-	}()
+	})
 
 	select {
 	case <-ctx.Done():

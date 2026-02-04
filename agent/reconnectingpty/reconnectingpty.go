@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
 )
@@ -177,20 +178,20 @@ func (s *ptyState) waitForState(state State) (State, error) {
 
 // waitForStateOrContext blocks until the state or a greater one is reached or
 // the provided context ends.
-func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (State, error) {
+func (s *ptyState) waitForStateOrContext(ctx context.Context, state State, logger slog.Logger) (State, error) {
 	s.cond.L.Lock()
 	defer s.cond.L.Unlock()
 
 	nevermind := make(chan struct{})
 	defer close(nevermind)
-	go func() {
+	agentutil.Go(ctx, logger, func() {
 		select {
 		case <-ctx.Done():
 			// Wake up when the context ends.
 			s.cond.Broadcast()
 		case <-nevermind:
 		}
-	}()
+	})
 
 	for ctx.Err() == nil && state > s.state {
 		s.cond.Wait()

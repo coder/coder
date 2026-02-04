@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/boundarylogproxy/codec"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 )
@@ -133,11 +134,11 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	defer cancel()
 
 	s.wg.Add(1)
-	go func() {
+	agentutil.Go(ctx, s.logger, func() {
 		defer s.wg.Done()
 		<-ctx.Done()
 		_ = conn.Close()
-	}()
+	})
 
 	// This is intended to be a sane starting point for the read buffer size. It may be
 	// grown by codec.ReadFrame if necessary.

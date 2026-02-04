@@ -28,6 +28,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontainers/ignore"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
@@ -563,11 +564,11 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 
 				if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
 					api.asyncWg.Add(1)
-					go func() {
+					agentutil.Go(api.ctx, api.logger, func() {
 						defer api.asyncWg.Done()
 
 						_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
-					}()
+					})
 				}
 			}
 			api.mu.Unlock()
@@ -1423,9 +1424,9 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.broadcastUpdatesLocked()
 
-	go func() {
+	agentutil.Go(ctx, api.logger, func() {
 		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
-	}()
+	})
 
 	api.mu.Unlock()
 

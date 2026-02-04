@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -90,7 +91,7 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 		wg.Add(1)
 		disconnected := s.reportConnection(uuid.New(), remoteAddrString)
 		closed := make(chan struct{})
-		go func() {
+		agentutil.Go(ctx, clog, func() {
 			defer wg.Done()
 			select {
 			case <-closed:
@@ -98,9 +99,9 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 				disconnected(1, "server shut down")
 				_ = conn.Close()
 			}
-		}()
+		})
 		wg.Add(1)
-		go func() {
+		agentutil.Go(ctx, clog, func() {
 			defer close(closed)
 			defer wg.Done()
 			err := s.handleConn(ctx, clog, conn)
@@ -113,7 +114,7 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			} else {
 				disconnected(0, "")
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	return retErr
@@ -226,18 +227,18 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		)
 
 		done := make(chan struct{})
-		go func() {
+		agentutil.Go(ctx, connLogger, func() {
 			select {
 			case <-done:
 			case <-ctx.Done():
 				rpty.Close(ctx.Err())
 			}
-		}()
+		})
 
-		go func() {
+		agentutil.Go(ctx, connLogger, func() {
 			rpty.Wait()
 			s.reconnectingPTYs.Delete(msg.ID)
-		}()
+		})
 
 		connected = true
 		sendConnected <- rpty

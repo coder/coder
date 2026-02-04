@@ -29,6 +29,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentutil"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentrsa"
 	"github.com/coder/coder/v2/agent/usershell"
@@ -634,13 +635,13 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_pipe").Add(1)
 		return xerrors.Errorf("create stdin pipe: %w", err)
 	}
-	go func() {
+	agentutil.Go(session.Context(), logger, func() {
 		_, err := io.Copy(stdinPipe, session)
 		if err != nil {
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_io_copy").Add(1)
 		}
 		_ = stdinPipe.Close()
-	}()
+	})
 	err = cmd.Start()
 	if err != nil {
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "start_command").Add(1)
@@ -662,11 +663,11 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 		session.Signals(nil)
 		close(sigs)
 	}()
-	go func() {
+	agentutil.Go(session.Context(), logger, func() {
 		for sig := range sigs {
 			handleSignal(logger, sig, cmd.Process, s.metrics, magicTypeLabel)
 		}
-	}()
+	})
 	return cmd.Wait()
 }
 
@@ -737,7 +738,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		session.Signals(nil)
 		close(sigs)
 	}()
-	go func() {
+	agentutil.Go(ctx, logger, func() {
 		for {
 			if sigs == nil && windowSize == nil {
 				return
@@ -764,14 +765,14 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 				}
 			}
 		}
-	}()
+	})
 
-	go func() {
+	agentutil.Go(ctx, logger, func() {
 		_, err := io.Copy(ptty.InputWriter(), session)
 		if err != nil {
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "input_io_copy").Add(1)
 		}
-	}()
+	})
 
 	// We need to wait for the command output to finish copying.  It's safe to
 	// just do this copy on the main handler goroutine because one of two things
@@ -1213,11 +1214,11 @@ func (s *Server) Close() error {
 // but Close() may not have completed.
 func (s *Server) Shutdown(ctx context.Context) error {
 	ch := make(chan error, 1)
-	go func() {
+	agentutil.Go(ctx, s.logger, func() {
 		// TODO(mafredri): Implement shutdown, SIGHUP running commands, etc.
 		// For now we just close the server.
 		ch <- s.Close()
-	}()
+	})
 	var err error
 	select {
 	case <-ctx.Done():

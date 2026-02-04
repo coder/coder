@@ -22,6 +22,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentutil"
 )
 
 const (
@@ -122,10 +123,10 @@ func (x *x11Forwarder) x11Handler(sshCtx ssh.Context, sshSession ssh.Session) (d
 	}
 
 	// clean up the X11 session if the SSH session completes.
-	go func() {
+	agentutil.Go(ctx, x.logger, func() {
 		<-ctx.Done()
 		x.closeAndRemoveSession(x11session)
-	}()
+	})
 
 	go x.listenForConnections(ctx, x11session, serverConn, x11)
 	x.logger.Debug(ctx, "X11 forwarding started", slog.F("display", x11session.display))
@@ -206,10 +207,10 @@ func (x *x11Forwarder) listenForConnections(
 			_ = conn.Close()
 			continue
 		}
-		go func() {
+		agentutil.Go(ctx, x.logger, func() {
 			defer x.trackConn(conn, false)
 			Bicopy(ctx, conn, channel)
-		}()
+		})
 	}
 }
 
