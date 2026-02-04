@@ -2380,6 +2380,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Group:      &deploymentGroupTelemetry,
 			UseInstead: []serpent.Option{telemetryEnable},
 		},
+		// For local development testing, see scripts/telemetry-server which
+		// provides a mock server that prints received telemetry as JSON.
 		{
 			Name:        "Telemetry URL",
 			Description: "URL to send telemetry.",
