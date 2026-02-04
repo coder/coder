@@ -38,16 +38,21 @@ func (h *Hub) Subscribe(ctx context.Context, chatID uuid.UUID) (<-chan StreamEve
 	h.subs[chatID][ch] = struct{}{}
 	h.mu.Unlock()
 
+	// Use sync.Once to ensure the channel is only closed once, since cancel
+	// can be called both explicitly by the caller and by the context goroutine.
+	var once sync.Once
 	cancel := func() {
-		h.mu.Lock()
-		if m := h.subs[chatID]; m != nil {
-			delete(m, ch)
-			if len(m) == 0 {
-				delete(h.subs, chatID)
+		once.Do(func() {
+			h.mu.Lock()
+			if m := h.subs[chatID]; m != nil {
+				delete(m, ch)
+				if len(m) == 0 {
+					delete(h.subs, chatID)
+				}
 			}
-		}
-		h.mu.Unlock()
-		close(ch)
+			h.mu.Unlock()
+			close(ch)
+		})
 	}
 
 	go func() {

@@ -2796,6 +2796,44 @@ class ApiMethods {
 		});
 	};
 
+	// Chat methods
+	getChats = async (): Promise<TypesGen.Chat[]> => {
+		const response = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
+		return response.data;
+	};
+
+	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.get<TypesGen.Chat>(
+			`/api/v2/chats/${chatId}`,
+		);
+		return response.data;
+	};
+
+	createChat = async (
+		req: TypesGen.CreateChatRequest,
+	): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>("/api/v2/chats", req);
+		return response.data;
+	};
+
+	getChatMessages = async (chatId: string): Promise<TypesGen.ChatMessage[]> => {
+		const response = await this.axios.get<TypesGen.ChatMessage[]>(
+			`/api/v2/chats/${chatId}/messages`,
+		);
+		return response.data;
+	};
+
+	createChatMessage = async (
+		chatId: string,
+		req: TypesGen.CreateChatMessageRequest,
+	): Promise<TypesGen.CreateChatMessageResponse> => {
+		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
+			`/api/v2/chats/${chatId}/messages`,
+			req,
+		);
+		return response.data;
+	};
+
 	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(
 			"/api/v2/aibridge/interceptions",

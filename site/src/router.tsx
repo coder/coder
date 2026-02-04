@@ -344,6 +344,8 @@ const ProvisionerJobsPage = lazy(
 );
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
+const ChatsPage = lazy(() => import("./pages/ChatsPage/ChatsPage"));
+const ChatPage = lazy(() => import("./pages/ChatPage/ChatPage"));
 const AIBridgeLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );
@@ -460,6 +462,9 @@ export const router = createBrowserRouter(
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
 					<Route path="/tasks" element={<TasksPage />} />
+
+					<Route path="/chats" element={<ChatsPage />} />
+					<Route path="/chats/:chatId" element={<ChatPage />} />
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />

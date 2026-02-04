@@ -4,7 +4,7 @@
 #
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
 # Coder enterprise features).
-
+#
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck source=scripts/lib.sh
 source "${SCRIPT_DIR}/lib.sh"
@@ -79,12 +79,31 @@ fi
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
 dependencies curl git go jq make pnpm
 
-if curl --silent --fail http://127.0.0.1:3000; then
+# Clean up any leftover processes from previous runs
+cleanup_previous_run() {
+	echo "== Cleaning up leftover processes from previous runs..."
+	# Kill any coder server processes from this project
+	pkill -f "coder.*/server" 2>/dev/null || true
+	# Kill any vite/node dev servers on our ports
+	for port in 3000 8080; do
+		local pid
+		pid=$(lsof -ti :"$port" 2>/dev/null) || true
+		if [ -n "$pid" ]; then
+			echo "== Killing process on port $port (pid: $pid)"
+			kill -9 "$pid" 2>/dev/null || true
+		fi
+	done
+	# Give processes a moment to die
+	sleep 1
+}
+
+if curl --silent --fail http://127.0.0.1:3000 >/dev/null 2>&1; then
 	# Check if this is the Coder development server.
 	if curl --silent --fail http://127.0.0.1:3000/api/v2/buildinfo 2>&1 | jq -r '.version' >/dev/null 2>&1; then
 		echo '== INFO: Coder development server is already running on port 3000!' && exit 0
 	else
-		echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
+		echo '== INFO: Something is listening on port 3000, cleaning up...'
+		cleanup_previous_run
 	fi
 fi
 
@@ -93,7 +112,8 @@ if curl --fail http://127.0.0.1:8080 >/dev/null 2>&1; then
 	if curl --silent --fail http://127.0.0.1:8080/api/v2/buildinfo 2>&1 | jq -r '.version' >/dev/null 2>&1; then
 		echo '== INFO: Coder development frontend is already running on port 8080!' && exit 0
 	else
-		echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
+		echo '== INFO: Something is listening on port 8080, cleaning up...'
+		cleanup_previous_run
 	fi
 fi
 
@@ -189,20 +209,43 @@ fatal() {
 	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 
 	if ! "${CODER_DEV_SHIM}" whoami >/dev/null 2>&1; then
-		# Try to create the initial admin user.
-		echo "Login required; use admin@coder.com and password '${password}'" >&2
+		# Check if first user already exists
+		has_first_user=$(curl -s http://127.0.0.1:3000/api/v2/users/first | jq -r '.message // empty')
 
-		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=false; then
-			# Only create this file if an admin user was successfully
-			# created, otherwise we won't retry on a later attempt.
-			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
+		if [ -z "${has_first_user}" ]; then
+			# No first user yet, create one
+			echo "Creating first user: admin@coder.com with password '${password}'" >&2
+
+			if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=false; then
+				# Only create this file if an admin user was successfully
+				# created, otherwise we won't retry on a later attempt.
+				touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
+			else
+				echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
+			fi
+
+			# Try to create a regular user.
+			"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --full-name "Regular User" --password="${password}" ||
+				echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
 		else
-			echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
-		fi
+			# First user exists, login with password via API
+			echo "Logging in as admin@coder.com..." >&2
 
-		# Try to create a regular user.
-		"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --full-name "Regular User" --password="${password}" ||
-			echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
+			session_token=$(curl -s -X POST http://127.0.0.1:3000/api/v2/users/login \
+				-H "Content-Type: application/json" \
+				-d "{\"email\": \"admin@coder.com\", \"password\": \"${password}\"}" | jq -r '.session_token // empty')
+
+			if [ -n "${session_token}" ]; then
+				# Write the session token to the dev config
+				mkdir -p "${PROJECT_ROOT}/.coderv2"
+				echo "http://127.0.0.1:3000" > "${PROJECT_ROOT}/.coderv2/url"
+				echo "${session_token}" > "${PROJECT_ROOT}/.coderv2/session"
+				echo "Successfully logged in!" >&2
+			else
+				echo "Failed to login. The admin password may have changed from '${password}'." >&2
+				echo "Try deleting ${PROJECT_ROOT}/.coderv2 and re-running, or set CODER_DEV_ADMIN_PASSWORD." >&2
+			fi
+		fi
 	fi
 
 	# Create a new organization and add the member user to it.

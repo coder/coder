@@ -187,6 +187,7 @@ const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 				Templates
 			</NavLink>
 			<TasksNavItem user={user} />
+			<ChatsNavItem />
 		</nav>
 	);
 };
@@ -250,6 +251,31 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
+
+const ChatsNavItem: FC = () => {
+	const { metadata } = useEmbeddedMetadata();
+	// Show chats in development or if explicitly enabled
+	const canSeeChats = Boolean(
+		metadata["tasks-tab-visible"]?.value ||
+			process.env.NODE_ENV === "development" ||
+			process.env.STORYBOOK,
+	);
+
+	if (!canSeeChats) {
+		return null;
+	}
+
+	return (
+		<NavLink
+			to="/chats"
+			className={({ isActive }) => {
+				return cn(linkStyles.default, { [linkStyles.active]: isActive });
+			}}
+		>
+			Chats
+		</NavLink>
+	);
+};
 
 function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";
