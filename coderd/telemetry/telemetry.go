@@ -918,17 +918,21 @@ func CollectTasks(ctx context.Context, db database.Store, clock quartz.Clock) ([
 		}
 	}
 
-	// 3. Batch query workspace builds for all workspaces.
-	workspaceBuilds := make(map[uuid.UUID][]database.WorkspaceBuild)
-	for wsID := range workspaceIDs {
-		builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
-			WorkspaceID: wsID,
-			Since:       time.Time{}, // Get all builds.
-		})
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get workspace builds for workspace %s: %w", wsID, err)
+	// 3. Batch query task lifecycle builds for all workspaces.
+	workspaceBuilds := make(map[uuid.UUID][]database.GetTaskLifecycleBuildsByWorkspaceIDsRow)
+	if len(workspaceIDs) > 0 {
+		wsIDSlice := make([]uuid.UUID, 0, len(workspaceIDs))
+		for wsID := range workspaceIDs {
+			wsIDSlice = append(wsIDSlice, wsID)
 		}
-		workspaceBuilds[wsID] = builds
+		builds, err := db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, wsIDSlice)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get task lifecycle builds: %w", err)
+		}
+		// Group builds by workspace ID. Builds are ordered by workspace_id and created_at DESC.
+		for _, build := range builds {
+			workspaceBuilds[build.WorkspaceID] = append(workspaceBuilds[build.WorkspaceID], build)
+		}
 	}
 
 	// 4. Batch query app statuses for all apps.
@@ -962,8 +966,8 @@ func CollectTasks(ctx context.Context, db database.Store, clock quartz.Clock) ([
 		builds := workspaceBuilds[wsID]
 
 		// Find latest pause and resume builds.
-		var latestPauseBuild *database.WorkspaceBuild
-		var latestResumeBuild *database.WorkspaceBuild
+		var latestPauseBuild *database.GetTaskLifecycleBuildsByWorkspaceIDsRow
+		var latestResumeBuild *database.GetTaskLifecycleBuildsByWorkspaceIDsRow
 
 		// Builds are ordered by created_at DESC, so first match is latest.
 		for i := range builds {

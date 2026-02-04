@@ -3269,6 +3269,21 @@ func (mr *MockStoreMockRecorder) GetTaskByWorkspaceID(ctx, workspaceID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetTaskByWorkspaceID), ctx, workspaceID)
 }
 
+// GetTaskLifecycleBuildsByWorkspaceIDs mocks base method.
+func (m *MockStore) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.GetTaskLifecycleBuildsByWorkspaceIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskLifecycleBuildsByWorkspaceIDs", ctx, workspaceIds)
+	ret0, _ := ret[0].([]database.GetTaskLifecycleBuildsByWorkspaceIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTaskLifecycleBuildsByWorkspaceIDs indicates an expected call of GetTaskLifecycleBuildsByWorkspaceIDs.
+func (mr *MockStoreMockRecorder) GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskLifecycleBuildsByWorkspaceIDs", reflect.TypeOf((*MockStore)(nil).GetTaskLifecycleBuildsByWorkspaceIDs), ctx, workspaceIds)
+}
+
 // GetTaskSnapshot mocks base method.
 func (m *MockStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	m.ctrl.T.Helper()

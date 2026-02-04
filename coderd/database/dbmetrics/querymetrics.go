@@ -1766,6 +1766,14 @@ func (m queryMetricsStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.GetTaskLifecycleBuildsByWorkspaceIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIds)
+	m.queryLatencies.WithLabelValues("GetTaskLifecycleBuildsByWorkspaceIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskLifecycleBuildsByWorkspaceIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTaskSnapshot(ctx, taskID)

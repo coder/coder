@@ -21,6 +21,23 @@ LIMIT
 -- name: GetWorkspaceBuildsCreatedAfter :many
 SELECT * FROM workspace_build_with_user WHERE created_at > $1;
 
+-- name: GetTaskLifecycleBuildsByWorkspaceIDs :many
+-- Returns workspace builds relevant to task lifecycle telemetry (pause/resume events).
+-- Results are ordered by workspace_id and created_at DESC for efficient processing.
+SELECT
+    id,
+    workspace_id,
+    created_at,
+    transition,
+    reason
+FROM
+    workspace_builds
+WHERE
+    workspace_id = ANY(@workspace_ids :: uuid[])
+    AND reason IN ('task_auto_pause', 'task_manual_pause', 'task_resume')
+ORDER BY
+    workspace_id, created_at DESC;
+
 -- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
 	*

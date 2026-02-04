@@ -358,6 +358,9 @@ type sqlcQuerier interface {
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) (Task, error)
 	GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error)
+	// Returns workspace builds relevant to task lifecycle telemetry (pause/resume events).
+	// Results are ordered by workspace_id and created_at DESC for efficient processing.
+	GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]GetTaskLifecycleBuildsByWorkspaceIDsRow, error)
 	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
 	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)

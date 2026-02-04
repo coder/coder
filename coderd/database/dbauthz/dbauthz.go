@@ -3100,6 +3100,15 @@ func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUI
 	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
 }
 
+func (q *querier) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) ([]database.GetTaskLifecycleBuildsByWorkspaceIDsRow, error) {
+	// This function is a system function until we implement a join for workspace builds.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+
+	return q.db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIDs)
+}
+
 func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	// Fetch task to build RBAC object for authorization.
 	task, err := q.GetTaskByID(ctx, taskID)

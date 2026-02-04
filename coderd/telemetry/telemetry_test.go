@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -27,8 +27,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -1536,9 +1536,9 @@ func TestTasksTelemetry(t *testing.T) {
 			LastPausedAt:         &allFieldsPauseTime,
 			LastResumedAt:        &allFieldsResumeTime,
 			PauseReason:          ptr.Ref("auto"),
-			IdleDurationMS:       ptr.Ref(int64(10 * 60 * 1000)),  // 10 minutes in ms
-			PausedDurationMS:     ptr.Ref(int64(30 * 60 * 1000)),  // 30 minutes in ms
-			TimeToFirstStatusMS:  ptr.Ref(int64(30 * 60 * 1000)),  // 30 minutes in ms
+			IdleDurationMS:       ptr.Ref(int64(10 * 60 * 1000)), // 10 minutes in ms
+			PausedDurationMS:     ptr.Ref(int64(30 * 60 * 1000)), // 30 minutes in ms
+			TimeToFirstStatusMS:  ptr.Ref(int64(30 * 60 * 1000)), // 30 minutes in ms
 		},
 		// Note: deletedTask (Fixture 11) should NOT appear in results.
 	}
