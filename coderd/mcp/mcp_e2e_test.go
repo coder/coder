@@ -181,6 +181,7 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	require.Error(t, err, "Should fail during MCP initialization without authentication")
 }
 
+//nolint:paralleltest // This test provisions templates/workspaces and is resource-heavy in CI.
 func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 	// Setup Coder server with full workspace environment
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -1212,6 +1213,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // This test provisions templates and is resource-heavy in CI.
 func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	// Setup Coder server with authentication
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -1359,23 +1361,42 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	t.Logf("ChatGPT endpoint E2E test successful: search and fetch tools working correctly")
 }
 
+type dynamicStringer func() string
+
+func (d dynamicStringer) String() string {
+	if d == nil {
+		return "<nil>"
+	}
+	return d()
+}
+
 // awaitTemplateVersionJobCompleted waits for the template version provisioner job
 // to complete. CI environments can be slower and more contended, so we use a
 // longer timeout when CI is detected.
 func awaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, versionID uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
+	inCI := testutil.InCI()
+
 	timeout := testutil.WaitLong
 	timeoutKind := "standard"
-	if testutil.InCI() {
+	if inCI {
 		timeout = testutil.WaitSuperLong
 		timeoutKind = "CI"
-		t.Logf("detected CI environment; using extended template version job timeout: %s", timeout)
+		t.Logf("detected CI environment; using extended template version job timeout: %v", timeout)
 	} else {
-		t.Logf("using standard template version job timeout: %s", timeout)
+		t.Logf("using standard template version job timeout: %v", timeout)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
+	if inCI {
+		ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	} else {
+		ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
+	}
 	defer cancel()
 
 	t.Logf("waiting for template version %s build job to complete (%s timeout)", versionID.String(), timeoutKind)
@@ -1386,7 +1407,7 @@ func awaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 		lastErr         error
 	)
 
-	require.Eventually(t, func() bool {
+	cond := func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, versionID)
 		if err != nil {
@@ -1401,10 +1422,26 @@ func awaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 		}
 
 		return templateVersion.Job.CompletedAt != nil
-	}, timeout, testutil.IntervalMedium,
-		"template version %s build job did not complete within %s (%s timeout, lastStatus=%s lastErr=%v); make sure you set `IncludeProvisionerDaemon`!",
-		versionID.String(), timeout, timeoutKind, lastStatus, lastErr,
-	)
+	}
+
+	lastStatusString := dynamicStringer(func() string { return string(lastStatus) })
+	lastErrString := dynamicStringer(func() string {
+		if lastErr == nil {
+			return "<nil>"
+		}
+		return lastErr.Error()
+	})
+
+	msg := "template version %s build job did not complete within %v (%s timeout, lastStatus=%v lastErr=%v); make sure you set `IncludeProvisionerDaemon`!"
+	if inCI {
+		require.Eventually(t, cond, testutil.WaitSuperLong, testutil.IntervalMedium, msg,
+			versionID.String(), timeout, timeoutKind, lastStatusString, lastErrString,
+		)
+	} else {
+		require.Eventually(t, cond, testutil.WaitLong, testutil.IntervalMedium, msg,
+			versionID.String(), timeout, timeoutKind, lastStatusString, lastErrString,
+		)
+	}
 
 	t.Logf("template version %s job has completed", versionID.String())
 	return templateVersion
