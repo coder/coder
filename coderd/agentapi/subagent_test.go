@@ -1246,7 +1246,7 @@ func TestSubAgentAPI(t *testing.T) {
 						Id: []byte("short"),
 					}
 				},
-				wantErr: "parse id",
+				wantErr: "parse agent id",
 			},
 			{
 				name: "Error/AgentNotFound",
