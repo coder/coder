@@ -100,6 +100,27 @@ Examples:
 		ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, xerrors.New("MCP handler timeout after 5 min"))
 		defer cancel()
 
+		// coder_workspace_bash relies on POSIX shell behavior (e.g. nohup and
+		// redirections) and is not supported for Windows workspace agents.
+		workspaceIdentifier := NormalizeWorkspaceInput(args.Workspace)
+		parts := strings.Split(workspaceIdentifier, ".")
+		agentName := ""
+		if len(parts) >= 2 {
+			agentName = parts[1]
+			workspaceIdentifier = parts[0]
+		}
+		workspace, err := namedWorkspace(ctx, deps.coderClient, workspaceIdentifier)
+		if err != nil {
+			return WorkspaceBashResult{}, xerrors.Errorf("failed to find workspace: %w", err)
+		}
+		workspaceAgent, err := getWorkspaceAgent(workspace, agentName)
+		if err != nil {
+			return WorkspaceBashResult{}, xerrors.Errorf("failed to find workspace: %w", err)
+		}
+		if strings.EqualFold(workspaceAgent.OperatingSystem, "windows") {
+			return WorkspaceBashResult{}, xerrors.New("coder_workspace_bash is not supported on Windows workspaces")
+		}
+
 		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
 		if err != nil {
 			return WorkspaceBashResult{}, err
