@@ -318,6 +318,16 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
 // @Success 200 {object} codersdk.WorkspaceBuild
+// maxRunningWorkspacesPerUser limits how many workspaces a user can have running at once.
+// This is a global limit across all organizations.
+//
+// TODO: If multi-organization support expands beyond the default single organization,
+// consider changing this to a per-organization limit. This would require:
+// - Adding GetRunningWorkspaceCountByOwnerIDAndOrg function
+// - Passing organization_id in the API calls
+// - Updating error messages to clarify the limit is per-organization
+const maxRunningWorkspacesPerUser = 3
+
 // @Router /workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -326,6 +336,24 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
+	}
+
+	if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+		count, err := api.Database.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error checking running workspace limit.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if count >= maxRunningWorkspacesPerUser {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Running workspace limit reached (max 3 per user). Stop one or more workspaces to start another.",
+			})
+			return
+		}
 	}
 
 	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).

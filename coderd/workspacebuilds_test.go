@@ -1434,6 +1434,62 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			assert.True(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
 	})
+
+	t.Run("RunningWorkspaceLimit", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create workspace 1 and 2 (auto-started)
+		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
+		ws2 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
+
+		// Stop workspace 1 to make room for workspace 3
+		stopBuild1, err := client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild1.ID)
+
+		// Create workspace 3 and 4 (auto-started)
+		ws3 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws3.LatestBuild.ID)
+		ws4 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws4.LatestBuild.ID)
+
+		// Now we have: ws1 (stopped), ws2 (running), ws3 (running), ws4 (running)
+		// Try to start ws1 - should fail because limit is reached (3 running)
+		_, err = client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Running workspace limit reached")
+
+		// Stop ws2 to make room
+		stopBuild2, err := client.CreateWorkspaceBuild(ctx, ws2.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild2.ID)
+
+		// Now starting ws1 should succeed (we have ws3, ws4 running, and ws1 will be the 3rd)
+		startBuild, err := client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, startBuild)
+	})
 }
 
 func TestWorkspaceBuildTimings(t *testing.T) {

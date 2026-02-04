@@ -1,5 +1,5 @@
 import { API, MissingBuildParameters } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { getErrorMessage, isApiError } from "api/errors";
 import { buildInfo } from "api/queries/buildInfo";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion, templateVersions } from "api/queries/templates";
@@ -19,6 +19,7 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
@@ -144,9 +145,21 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	);
 
 	// Start workspace
-	const startWorkspaceMutation = useMutation(
-		startWorkspace(workspace, queryClient),
-	);
+	const startWorkspaceMutation = useMutation({
+		...startWorkspace(workspace, queryClient),
+		onError: (err) => {
+			displayError(getErrorMessage(err, "Error starting workspace."));
+		},
+	});
+
+	const isRunningWorkspaceLimitError =
+		startWorkspaceMutation.isError &&
+		startWorkspaceMutation.error &&
+		isApiError(startWorkspaceMutation.error) &&
+		startWorkspaceMutation.error.response?.status === 403 &&
+		startWorkspaceMutation.error.response?.data?.message?.includes(
+			"Running workspace limit",
+		);
 
 	// Toggle workspace favorite
 	const toggleFavoriteMutation = useMutation(
@@ -228,6 +241,20 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					href={`/favicons/${favicon}-${faviconTheme}.svg`}
 				/>
 			</Helmet>
+
+			{isRunningWorkspaceLimitError && (
+				<Stack css={{ padding: 24 }}>
+					<Alert severity="warning">
+						<AlertTitle>Running workspace limit reached</AlertTitle>
+						<AlertDetail>
+							{startWorkspaceMutation.error &&
+							isApiError(startWorkspaceMutation.error)
+								? startWorkspaceMutation.error.response.data.message
+								: "Running workspace limit reached (max 3 per user). Stop one or more workspaces to start another."}
+						</AlertDetail>
+					</Alert>
+				</Stack>
+			)}
 
 			<Workspace
 				permissions={permissions}

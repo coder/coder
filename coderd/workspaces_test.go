@@ -3949,3 +3949,75 @@ func TestWorkspaceTimings(t *testing.T) {
 		require.Contains(t, err.Error(), "not found")
 	})
 }
+
+func TestPostWorkspaceWithRunningLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EnforceLimit", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create and start 3 workspaces (the limit)
+		for i := 0; i < 3; i++ {
+			ws := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		}
+
+		// Try to create a 4th workspace - should fail because limit is reached
+		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			Name:              "workspace-4",
+			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
+			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Running workspace limit reached")
+	})
+
+	t.Run("AllowAfterStop", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create and start 3 workspaces (the limit)
+		workspaces := make([]codersdk.Workspace, 3)
+		for i := 0; i < 3; i++ {
+			ws := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+			workspaces[i] = ws
+		}
+
+		// Stop one workspace
+		stopBuild, err := client.CreateWorkspaceBuild(ctx, workspaces[0].ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+
+		// Now creating a new workspace should succeed
+		ws4, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			Name:              "workspace-4",
+			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
+			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, ws4)
+	})
+}

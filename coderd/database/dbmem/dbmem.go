@@ -4300,6 +4300,33 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 	return replicas, nil
 }
 
+func (q *FakeQuerier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var count int64
+	for _, workspace := range q.workspaces {
+		if workspace.Deleted || workspace.OwnerID != ownerID {
+			continue
+		}
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+		if err != nil {
+			continue
+		}
+		if build.Transition != database.WorkspaceTransitionStart {
+			continue
+		}
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err != nil {
+			continue
+		}
+		if job.CompletedAt.Valid && !job.CanceledAt.Valid && !job.Error.Valid {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
