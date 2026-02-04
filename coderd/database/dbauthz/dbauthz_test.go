@@ -1939,7 +1939,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpdateWorkspaceAgentDisplayAppsByID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate).Returns()
+		check.Args(arg).Asserts(w, policy.ActionUpdateAgent).Returns()
 	}))
 	s.Run("GetWorkspaceAgentLogsAfter", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})

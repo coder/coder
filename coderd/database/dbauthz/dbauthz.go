@@ -412,7 +412,7 @@ var (
 					ByOrgID: map[string]rbac.OrgPermissions{
 						orgID.String(): {
 							Member: rbac.Permissions(map[string][]policy.Action{
-								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 							}),
 						},
 					},
@@ -442,7 +442,7 @@ var (
 					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 					rbac.ResourceWorkspaceProxy.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationMessage.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
@@ -5732,7 +5732,7 @@ func (q *querier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg d
 		return err
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace); err != nil {
 		return err
 	}
 
