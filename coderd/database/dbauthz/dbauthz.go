@@ -2055,6 +2055,10 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 }
 
 func (q *querier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead,
+		rbac.ResourceWorkspace.WithOwner(ownerID.String())); err != nil {
+		return 0, err
+	}
 	return q.db.GetRunningWorkspaceCountByOwnerID(ctx, ownerID)
 }
 

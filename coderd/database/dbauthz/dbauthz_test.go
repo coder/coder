@@ -1742,8 +1742,8 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetRunningWorkspaceCountByOwnerID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		// No asserts here because the dbauthz wrapper delegates directly.
-		check.Args(u.ID).Asserts()
+		// Verify authorization check for reading workspaces owned by the user.
+		check.Args(u.ID).Asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()), policy.ActionRead)
 	}))
 	s.Run("GetWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
