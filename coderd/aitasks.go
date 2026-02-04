@@ -1255,9 +1255,11 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 // @Success 202 {object} codersdk.WorkspaceBuild
 // @Router /tasks/{user}/{task}/pause [post]
 func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	task := httpmw.TaskParam(r)
-	apiKey := httpmw.APIKey(r)
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+		task   = httpmw.TaskParam(r)
+	)
 
 	if !task.WorkspaceID.Valid {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1273,7 +1275,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching task workspace before pausing task.",
+			Message: "Internal error fetching task workspace.",
 			Detail:  err.Error(),
 		})
 		return
