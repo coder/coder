@@ -21,11 +21,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
-	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -1972,16 +1970,13 @@ func compressHandler(h http.Handler) http.Handler {
 		"application/*",
 		"image/*",
 	)
-	cmp.SetEncoder("br", func(w io.Writer, level int) io.Writer {
-		return brotli.NewWriterLevel(w, level)
-	})
-	cmp.SetEncoder("zstd", func(w io.Writer, level int) io.Writer {
-		zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
-		if err != nil {
-			panic("invalid zstd compressor: " + err.Error())
-		}
-		return zw
-	})
+	for encoding := range site.StandardEncoders {
+		writeCloserFn := site.StandardEncoders[encoding]
+		cmp.SetEncoder(encoding, func(w io.Writer, level int) io.Writer {
+			writeCloser := writeCloserFn(w, level)
+			return writeCloser
+		})
+	}
 
 	return cmp.Handler(h)
 }
