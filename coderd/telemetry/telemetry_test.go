@@ -682,10 +682,8 @@ func TestTasksTelemetry(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _ := dbtestutil.NewDB(t)
 
-	// Use quartz mock for deterministic time.
-	mClock := quartz.NewMock(t)
+	// Define a fixed time for deterministic testing.
 	now := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
-	mClock.Set(now)
 
 	// Setup shared resources.
 	org, err := db.GetDefaultOrganization(ctx)
@@ -1555,7 +1553,8 @@ func TestTasksTelemetry(t *testing.T) {
 	})
 
 	// Call CollectTasks.
-	actual, err := telemetry.CollectTasks(ctx, db, mClock)
+	createdAfter := now.Add(-1 * time.Hour)
+	actual, err := telemetry.CollectTasks(ctx, db, createdAfter)
 	require.NoError(t, err, "unexpected error collecting tasks telemetry")
 
 	// Sort actual by ID for deterministic comparison.

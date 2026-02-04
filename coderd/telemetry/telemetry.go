@@ -740,7 +740,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		tasks, err := CollectTasks(ctx, r.options.Database, r.options.Clock)
+		tasks, err := CollectTasks(ctx, r.options.Database, createdAfter)
 		if err != nil {
 			return xerrors.Errorf("collect tasks telemetry: %w", err)
 		}
@@ -896,7 +896,7 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 	}, nil
 }
 
-func CollectTasks(ctx context.Context, db database.Store, clock quartz.Clock) ([]Task, error) {
+func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time) ([]Task, error) {
 	// 1. Get all non-deleted tasks.
 	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{})
 	if err != nil {
@@ -948,8 +948,6 @@ func CollectTasks(ctx context.Context, db database.Store, clock quartz.Clock) ([
 		}
 	}
 
-	now := clock.Now()
-	oneHourAgo := now.Add(-1 * time.Hour)
 	tasks := make([]Task, 0, len(dbTasks))
 
 	for _, dbTask := range dbTasks {
@@ -1033,9 +1031,9 @@ func CollectTasks(ctx context.Context, db database.Store, clock quartz.Clock) ([
 			}
 		}
 
-		// Calculate PausedDurationMS for tasks resumed within 1 hour.
+		// Calculate PausedDurationMS for tasks resumed within the reporting window.
 		// PausedDurationMS = LastResumedAt - LastPausedAt
-		if latestResumeBuild != nil && latestPauseBuild != nil && latestResumeBuild.CreatedAt.After(oneHourAgo) {
+		if latestResumeBuild != nil && latestPauseBuild != nil && latestResumeBuild.CreatedAt.After(createdAfter) {
 			pausedDuration := latestResumeBuild.CreatedAt.Sub(latestPauseBuild.CreatedAt)
 			task.PausedDurationMS = ptr.Ref(pausedDuration.Milliseconds())
 		}

@@ -2977,7 +2977,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		wsID := uuid.New()
 		b := testutil.Fake(s.T(), faker, database.GetTaskLifecycleBuildsByWorkspaceIDsRow{})
 		dbm.EXPECT().GetTaskLifecycleBuildsByWorkspaceIDs(gomock.Any(), []uuid.UUID{wsID}).Return([]database.GetTaskLifecycleBuildsByWorkspaceIDsRow{b}, nil).AnyTimes()
-		check.Args([]uuid.UUID{wsID}).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(b))
+		check.Args([]uuid.UUID{wsID}).Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).Returns(slice.New(b))
 	}))
 	s.Run("UpsertDefaultProxy", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.UpsertDefaultProxyParams{}
