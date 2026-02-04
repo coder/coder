@@ -14,7 +14,6 @@ const meta: Meta = {
 		canDeleteApp: true,
 		canViewAppSecrets: true,
 	},
-	},
 };
 export default meta;
 
