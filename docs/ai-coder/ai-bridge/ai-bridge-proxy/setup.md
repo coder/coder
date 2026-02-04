@@ -112,7 +112,7 @@ CODER_AIBRIDGE_PROXY_CERT_FILE=/path/to/ca.crt
 CODER_AIBRIDGE_PROXY_KEY_FILE=/path/to/ca.key
 ```
 
-### Organization-signed certificate
+### Corporate CA certificate
 
 If your organization has an internal CA that clients already trust, you can have it issue an intermediate CA certificate for AI Bridge Proxy.
 This simplifies deployment since AI tools that already trust your organization's root CA will automatically trust certificates signed by the intermediate.
@@ -145,7 +145,7 @@ For **self-signed certificates**, AI tools must be configured to trust the CA ce
 https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
 ```
 
-For **organization-signed certificates**, if the systems where AI tools run already trust your organization's root CA, and the intermediate certificate chains correctly to that root, no additional certificate distribution is needed.
+For **corporate CA certificates**, if the systems where AI tools run already trust your organization's root CA, and the intermediate certificate chains correctly to that root, no additional certificate distribution is needed.
 Otherwise, AI tools must be configured to trust the intermediate CA certificate from the endpoint above.
 
 How you configure AI tools to trust the certificate depends on the tool and operating system. See [Client Configuration](#client-configuration) for details.
@@ -200,7 +200,7 @@ To use AI Bridge Proxy, AI tools must be configured to:
 The preferred approach is to configure the proxy directly in the AI tool's settings, as this avoids routing unnecessary traffic through the proxy.
 Consult the tool's documentation for specific instructions.
 
-Alternatively, you can use the standard proxy environment variables:
+Alternatively, most tools support the standard proxy environment variables, though this is not guaranteed for all tools:
 
 ```shell
 export HTTP_PROXY="http://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
@@ -218,7 +218,7 @@ The preferred approach is to configure the CA certificate directly in the AI too
 Consult the tool's documentation for specific instructions.
 
 > [!NOTE]
-> If using an [organization-signed certificate](#organization-signed-certificate) and the system already trusts your organization's root CA, no additional certificate configuration is required.
+> If using a [corporate CA certificate](#corporate-ca-certificate) and the system already trusts your organization's root CA, no additional certificate configuration is required.
 
 Download the certificate:
 
