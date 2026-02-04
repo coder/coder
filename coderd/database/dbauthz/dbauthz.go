@@ -2055,6 +2055,9 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 }
 
 func (q *querier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	// Note: This counts workspaces across ALL organizations. If multi-organization
+	// support expands, consider implementing GetRunningWorkspaceCountByOwnerIDAndOrg
+	// to enforce per-organization limits instead of global per-user limits.
 	if err := q.authorizeContext(ctx, policy.ActionRead,
 		rbac.ResourceWorkspace.WithOwner(ownerID.String())); err != nil {
 		return 0, err

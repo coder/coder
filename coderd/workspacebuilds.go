@@ -319,6 +319,13 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
 // @Success 200 {object} codersdk.WorkspaceBuild
 // maxRunningWorkspacesPerUser limits how many workspaces a user can have running at once.
+// This is a global limit across all organizations.
+//
+// TODO: If multi-organization support expands beyond the default single organization,
+// consider changing this to a per-organization limit. This would require:
+// - Adding GetRunningWorkspaceCountByOwnerIDAndOrg function
+// - Passing organization_id in the API calls
+// - Updating error messages to clarify the limit is per-organization
 const maxRunningWorkspacesPerUser = 3
 
 // @Router /workspaces/{workspace}/builds [post]
