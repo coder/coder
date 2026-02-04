@@ -70,7 +70,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<span>Account</span>
 				</Link>
 			</DropdownMenuItem>
-			<DropdownMenuItem variant="destructive" onClick={onSignOut}>
+			<DropdownMenuItem onClick={onSignOut}>
 				<LogOutIcon />
 				<span>Sign Out</span>
 			</DropdownMenuItem>
