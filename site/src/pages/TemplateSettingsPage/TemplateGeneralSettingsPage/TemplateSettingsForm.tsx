@@ -51,6 +51,7 @@ export const validationSchema = Yup.object({
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
 	use_classic_parameter_flow: Yup.boolean(),
+	disable_module_cache: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
 	cors_behavior: Yup.string().oneOf(Object.values(CORSBehaviors)),
@@ -96,6 +97,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			max_port_share_level: template.max_port_share_level,
 			use_classic_parameter_flow: template.use_classic_parameter_flow,
 			cors_behavior: template.cors_behavior,
+			disable_module_cache: template.disable_module_cache,
 		},
 		validationSchema,
 		onSubmit,
@@ -266,6 +268,29 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 									>
 										Learn more
 									</Link>
+								</StackLabelHelperText>
+							</StackLabel>
+						}
+					/>
+					<FormControlLabel
+						control={
+							<Checkbox
+								size="small"
+								id="disable_module_cache"
+								name="disable_module_cache"
+								checked={form.values.disable_module_cache}
+								onChange={form.handleChange}
+								disabled={isSubmitting}
+							/>
+						}
+						label={
+							<StackLabel>
+								Disable Terraform module caching
+								<StackLabelHelperText>
+									When enabled, Terraform modules are re-downloaded for each
+									workspace build instead of using cached versions. This is
+									useful for templates that reference frequently updated
+									modules.
 								</StackLabelHelperText>
 							</StackLabel>
 						}

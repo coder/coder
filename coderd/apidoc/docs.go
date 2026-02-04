@@ -18807,6 +18807,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning.",
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -19761,6 +19765,10 @@ const docTemplate = `{
                 },
                 "disable_everyone_group_access": {
                     "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+                    "type": "boolean"
+                },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is recommended not to disable this.",
                     "type": "boolean"
                 },
                 "display_name": {

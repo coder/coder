@@ -5165,6 +5165,11 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
+	/**
+	 * DisableModuleCache disables the use of cached Terraform modules during
+	 * provisioning.
+	 */
+	readonly disable_module_cache: boolean;
 }
 
 // From codersdk/templates.go
@@ -5694,6 +5699,11 @@ export interface UpdateTemplateMeta {
 	 * An "opt-out" is present in case the new feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
+	/**
+	 * DisableModuleCache disables the using of cached Terraform modules during
+	 * provisioning. It is recommended not to disable this.
+	 */
+	readonly disable_module_cache?: boolean;
 }
 
 // From codersdk/users.go
