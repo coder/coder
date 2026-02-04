@@ -16,6 +16,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -40,10 +43,29 @@ func getCacheKey(encoding string, r *http.Request) cacheKey {
 	}
 }
 
-type ref struct {
-	key  cacheKey
-	done chan struct{}
-	err  chan error
+type compressorMetrics struct {
+	// requestsTotal is the total number of requests to getRef.
+	requestsTotal *prometheus.CounterVec
+	// compressionsTotal is the total number of actual compression operations started.
+	compressionsTotal *prometheus.CounterVec
+}
+
+func newCompressorMetrics(reg prometheus.Registerer) compressorMetrics {
+	f := promauto.With(reg)
+	return compressorMetrics{
+		requestsTotal: f.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "cachecompress",
+			Name:      "requests_total",
+			Help:      "Total number of requests to get a compressed file reference.",
+		}, []string{"encoding", "hit"}),
+		compressionsTotal: f.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "cachecompress",
+			Name:      "compressions_total",
+			Help:      "Total number of compression operations started.",
+		}, []string{"encoding"}),
+	}
 }
 
 // Compressor represents a set of encoding configurations.
@@ -59,15 +81,21 @@ type Compressor struct {
 	cacheDir           string
 	orig               http.FileSystem
 
-	mu    sync.Mutex
-	cache map[cacheKey]ref
+	// sfGroup deduplicates concurrent compression requests for the same file.
+	sfGroup singleflight.Group
+	// cache stores successfully compressed file paths. Once a file is compressed,
+	// subsequent requests can serve directly from the cache without going through
+	// singleflight.
+	cacheMu sync.RWMutex
+	cache   map[cacheKey]string // cacheKey -> cachePath
+	metrics compressorMetrics
 }
 
 // NewCompressor creates a new Compressor that will handle encoding responses.
 //
 // The level should be one of the ones defined in the flate package.
 // The types are the content types that are allowed to be compressed.
-func NewCompressor(logger slog.Logger, level int, cacheDir string, orig http.FileSystem) *Compressor {
+func NewCompressor(logger slog.Logger, reg prometheus.Registerer, level int, cacheDir string, orig http.FileSystem) *Compressor {
 	c := &Compressor{
 		logger:         logger.Named("cachecompress"),
 		level:          level,
@@ -75,7 +103,8 @@ func NewCompressor(logger slog.Logger, level int, cacheDir string, orig http.Fil
 		pooledEncoders: make(map[string]*sync.Pool),
 		cacheDir:       cacheDir,
 		orig:           orig,
-		cache:          make(map[cacheKey]ref),
+		cache:          make(map[cacheKey]string),
+		metrics:        newCompressorMetrics(reg),
 	}
 
 	// Set the default encoders.  The precedence order uses the reverse
@@ -208,105 +237,113 @@ func (c *Compressor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cref := c.getRef(encoding, r)
-	c.serveRef(w, r, headRW.headers, cref)
+	cref, cachePath := c.getRef(encoding, r)
+	c.serveRef(w, r, headRW.headers, cref, cachePath)
 }
 
-func (c *Compressor) serveRef(w http.ResponseWriter, r *http.Request, headers http.Header, cref ref) {
-	select {
-	case <-r.Context().Done():
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
-	case <-cref.done:
-		cachePath := cref.key.filePath(c.cacheDir)
-		cacheFile, err := os.Open(cachePath)
-		if err != nil {
-			c.logger.Error(context.Background(), "failed to open compressed cache file",
-				slog.F("cache_path", cachePath), slog.F("url_path", cref.key.urlPath), slog.Error(err))
-			// fall back to uncompressed
-			http.FileServer(c.orig).ServeHTTP(w, r)
-		}
-		defer cacheFile.Close()
-
-		// we need to remove or modify the Content-Length, if any, set by the FileServer because it will be for
-		// uncompressed data and wrong.
-		info, err := cacheFile.Stat()
-		if err != nil {
-			c.logger.Error(context.Background(), "failed to stat compressed cache file",
-				slog.F("cache_path", cachePath), slog.F("url_path", cref.key.urlPath), slog.Error(err))
-			headers.Del("Content-Length")
-		} else {
-			headers.Set("Content-Length", fmt.Sprintf("%d", info.Size()))
-		}
-
-		for key, values := range headers {
-			for _, value := range values {
-				w.Header().Add(key, value)
-			}
-		}
-		w.Header().Set("Content-Encoding", cref.key.encoding)
-		w.Header().Add("Vary", "Accept-Encoding")
-		w.WriteHeader(http.StatusOK)
-		_, err = io.Copy(w, cacheFile)
-		if err != nil {
-			// most commonly, the writer will hang up before we are done.
-			c.logger.Debug(context.Background(), "failed to write compressed cache file", slog.Error(err))
-		}
-		return
-	case <-cref.err:
-		// fall back to uncompressed
+func (c *Compressor) serveRef(w http.ResponseWriter, r *http.Request, headers http.Header, ck cacheKey, cachePath string) {
+	if cachePath == "" {
+		// Compression failed, fall back to uncompressed.
 		http.FileServer(c.orig).ServeHTTP(w, r)
 		return
 	}
-}
 
-func (c *Compressor) getRef(encoding string, r *http.Request) ref {
-	ck := getCacheKey(encoding, r)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	cref, ok := c.cache[ck]
-	if ok {
-		return cref
+	cacheFile, err := os.Open(cachePath)
+	if err != nil {
+		c.logger.Error(r.Context(), "failed to open compressed cache file",
+			slog.F("cache_path", cachePath), slog.F("url_path", r.URL.Path), slog.Error(err))
+		// Fall back to uncompressed.
+		http.FileServer(c.orig).ServeHTTP(w, r)
+		return
 	}
-	// we are the first to encode
-	cref = ref{
-		key: ck,
+	defer cacheFile.Close()
 
-		done: make(chan struct{}),
-		err:  make(chan error),
+	// We need to remove or modify the Content-Length, if any, set by the FileServer because it will be for
+	// uncompressed data and wrong.
+	info, err := cacheFile.Stat()
+	if err != nil {
+		c.logger.Error(r.Context(), "failed to stat compressed cache file",
+			slog.F("cache_path", cachePath), slog.F("url_path", r.URL.Path), slog.Error(err))
+		headers.Del("Content-Length")
+	} else {
+		headers.Set("Content-Length", fmt.Sprintf("%d", info.Size()))
 	}
-	c.cache[ck] = cref
-	go c.compress(context.Background(), encoding, cref, r)
-	return cref
-}
 
-func (c *Compressor) compress(ctx context.Context, encoding string, cref ref, r *http.Request) {
-	cachePath := cref.key.filePath(c.cacheDir)
-	var err error
-	// we want to handle closing either cref.done or cref.err in a defer at the bottom of the stack so that the encoder
-	// and cache file are both closed first (higher in the defer stack). This prevents data races where waiting HTTP
-	// handlers start reading the file before all the data has been flushed.
-	defer func() {
-		if err != nil {
-			if rErr := os.Remove(cachePath); rErr != nil {
-				// nolint: gocritic // best effort, just debug log any errors
-				c.logger.Debug(ctx, "failed to remove cache file",
-					slog.F("main_err", err), slog.F("remove_err", rErr), slog.F("cache_path", cachePath))
-			}
-			c.mu.Lock()
-			delete(c.cache, cref.key)
-			c.mu.Unlock()
-			close(cref.err)
-			return
+	for key, values := range headers {
+		for _, value := range values {
+			w.Header().Add(key, value)
 		}
-		close(cref.done)
-	}()
+	}
+	w.Header().Set("Content-Encoding", ck.encoding)
+	w.Header().Add("Vary", "Accept-Encoding")
+	w.WriteHeader(http.StatusOK)
+	_, err = io.Copy(w, cacheFile)
+	if err != nil {
+		// Most commonly, the writer will hang up before we are done.
+		c.logger.Debug(r.Context(), "failed to write compressed cache file", slog.Error(err))
+	}
+}
+
+// getRef returns the cache key and path to the compressed cache file for the given encoding and request.
+// If compression fails, it returns an empty cachePath.
+func (c *Compressor) getRef(encoding string, r *http.Request) (cacheKey, string) {
+	ck := getCacheKey(encoding, r)
+	sfKey := ck.encoding + ":" + ck.urlPath
+
+	// Fast path: check if already cached.
+	c.cacheMu.RLock()
+	if cachePath, ok := c.cache[ck]; ok {
+		c.cacheMu.RUnlock()
+		c.metrics.requestsTotal.WithLabelValues(encoding, "true").Inc()
+		return ck, cachePath
+	}
+	c.cacheMu.RUnlock()
+
+	// Slow path: use singleflight to deduplicate concurrent compression requests.
+	// Any request going through this path is a cache "miss", regardless of whether
+	// it does the compression or waits for another goroutine to finish.
+	c.metrics.requestsTotal.WithLabelValues(encoding, "false").Inc()
+
+	result, err, _ := c.sfGroup.Do(sfKey, func() (interface{}, error) {
+		// Double-check cache in case another goroutine just finished.
+		c.cacheMu.RLock()
+		if cachePath, ok := c.cache[ck]; ok {
+			c.cacheMu.RUnlock()
+			return cachePath, nil
+		}
+		c.cacheMu.RUnlock()
+
+		// We are the one doing the compression.
+		c.metrics.compressionsTotal.WithLabelValues(encoding).Inc()
+		cachePath, err := c.compress(r.Context(), encoding, ck, r)
+		if err != nil {
+			return "", err
+		}
+
+		// Store in cache for future requests.
+		c.cacheMu.Lock()
+		c.cache[ck] = cachePath
+		c.cacheMu.Unlock()
+
+		return cachePath, nil
+	})
+
+	if err != nil {
+		// Compression failed, return empty path to trigger fallback to uncompressed.
+		return ck, ""
+	}
+
+	cachePath, _ := result.(string)
+	return ck, cachePath
+}
+
+func (c *Compressor) compress(ctx context.Context, encoding string, ck cacheKey, r *http.Request) (string, error) {
+	cachePath := ck.filePath(c.cacheDir)
 
 	cacheDir := filepath.Dir(cachePath)
-	err = os.MkdirAll(cacheDir, 0o700)
-	if err != nil {
-		c.logger.Error(ctx, "failed to create cache directory", slog.F("cache_dir", cacheDir))
-		return
+	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
+		c.logger.Error(ctx, "failed to create cache directory", slog.F("cache_dir", cacheDir), slog.Error(err))
+		return "", err
 	}
 
 	// We will truncate and overwrite any existing files. This is important in the case that we get restarted
@@ -315,18 +352,18 @@ func (c *Compressor) compress(ctx context.Context, encoding string, cref ref, r 
 	if err != nil {
 		c.logger.Error(ctx, "failed to open compression cache file",
 			slog.F("path", cachePath), slog.Error(err))
-		return
+		return "", err
 	}
 	defer cacheFile.Close()
+
 	encoder, cleanup := c.getEncoder(encoding, cacheFile)
 	if encoder == nil {
-		// can only hit this if there is a programming error
+		// Can only hit this if there is a programming error.
 		c.logger.Critical(ctx, "got nil encoder", slog.F("encoding", encoding))
-		err = xerrors.New("nil encoder")
-		return
+		return "", xerrors.New("nil encoder")
 	}
 	defer cleanup()
-	defer encoder.Close() // ensures we flush, needs to be called before cleanup(), so we defer after it.
+	defer encoder.Close() // Ensures we flush, needs to be called before cleanup(), so we defer after it.
 
 	cw := &compressResponseWriter{
 		w:       encoder,
@@ -334,14 +371,17 @@ func (c *Compressor) compress(ctx context.Context, encoding string, cref ref, r 
 	}
 	http.FileServer(c.orig).ServeHTTP(cw, r)
 	if cw.code != http.StatusOK {
-		// log at debug because this is likely just a 404
+		// Log at debug because this is likely just a 404.
 		c.logger.Debug(ctx, "file server failed to serve",
-			slog.F("encoding", encoding), slog.F("url_path", cref.key.urlPath), slog.F("http_code", cw.code))
-		// mark the error so that we clean up correctly
-		err = xerrors.New("file server failed to serve")
-		return
+			slog.F("encoding", encoding), slog.F("url_path", ck.urlPath), slog.F("http_code", cw.code))
+		// Clean up the partial file.
+		if rErr := os.Remove(cachePath); rErr != nil {
+			c.logger.Debug(ctx, "failed to remove cache file", slog.F("remove_err", rErr), slog.F("cache_path", cachePath))
+		}
+		return "", xerrors.New("file server failed to serve")
 	}
-	// success!
+
+	return cachePath, nil
 }
 
 // selectEncoder returns the name of the encoder

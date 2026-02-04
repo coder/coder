@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/testutil"
@@ -73,7 +75,7 @@ func TestCompressorEncodings(t *testing.T) {
 			err = os.WriteFile(filepath.Join(srcDir, "file.html"), []byte("textstring"), 0o600)
 			require.NoError(t, err)
 
-			compressor := NewCompressor(logger, 5, cacheDir, http.FS(os.DirFS(srcDir)))
+			compressor := NewCompressor(logger, prometheus.NewRegistry(), 5, cacheDir, http.FS(os.DirFS(srcDir)))
 			if len(compressor.encoders) != 0 || len(compressor.pooledEncoders) != 2 {
 				t.Errorf("gzip and deflate should be pooled")
 			}
@@ -169,7 +171,7 @@ func TestCompressorHeadings(t *testing.T) {
 	err = os.WriteFile(filepath.Join(srcDir, "file.html"), []byte("textstring"), 0o600)
 	require.NoError(t, err)
 
-	compressor := NewCompressor(logger, 5, cacheDir, http.FS(os.DirFS(srcDir)))
+	compressor := NewCompressor(logger, prometheus.NewRegistry(), 5, cacheDir, http.FS(os.DirFS(srcDir)))
 
 	ts := httptest.NewServer(compressor)
 	defer ts.Close()
@@ -224,4 +226,50 @@ func TestCompressorHeadings(t *testing.T) {
 	files, err := os.ReadDir(srcDir)
 	require.NoError(t, err)
 	require.Len(t, files, 1)
+}
+
+func TestCompressor_SingleFlight(t *testing.T) {
+	t.Parallel()
+	logger := testutil.Logger(t)
+	tempDir := t.TempDir()
+	cacheDir := filepath.Join(tempDir, "cache")
+	err := os.MkdirAll(cacheDir, 0o700)
+	require.NoError(t, err)
+	srcDir := filepath.Join(tempDir, "src")
+	err = os.MkdirAll(srcDir, 0o700)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(srcDir, "file.html"), []byte("textstring"), 0o600)
+	require.NoError(t, err)
+
+	reg := prometheus.NewRegistry()
+	compressor := NewCompressor(logger, reg, 5, cacheDir, http.FS(os.DirFS(srcDir)))
+
+	ts := httptest.NewServer(compressor)
+	defer ts.Close()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Make 10 requests for the same file.
+	for range 10 {
+		req, err := http.NewRequestWithContext(ctx, "GET", ts.URL+"/file.html", nil)
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DisableCompression = true
+		resp, err := (&http.Client{Transport: transport}).Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	// We should have 10 total requests: 1 miss + 9 hits.
+	requestsHit := promtest.ToFloat64(compressor.metrics.requestsTotal.WithLabelValues("gzip", "true"))
+	requestsMiss := promtest.ToFloat64(compressor.metrics.requestsTotal.WithLabelValues("gzip", "false"))
+	require.Equal(t, float64(9), requestsHit, "expected 9 cache hits")
+	require.Equal(t, float64(1), requestsMiss, "expected 1 cache miss")
+
+	// We should have only 1 compression operation.
+	compressions := promtest.ToFloat64(compressor.metrics.compressionsTotal.WithLabelValues("gzip"))
+	require.Equal(t, float64(1), compressions, "expected only 1 compression")
 }
