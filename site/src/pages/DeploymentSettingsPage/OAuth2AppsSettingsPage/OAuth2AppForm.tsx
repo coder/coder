@@ -86,7 +86,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					fullWidth
 				/>
 
-				<div className="flex flex-row gap-2">
+				<div className="flex flex-row gap-4">
 					<Button disabled={isUpdating || disabled} type="submit">
 						<Spinner loading={isUpdating} />
 						{app ? "Update application" : "Create application"}
