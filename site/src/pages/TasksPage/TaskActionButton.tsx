@@ -51,8 +51,9 @@ export const TaskActionButton: FC<TaskActionButtonProps> = ({
 							onClick();
 						}}
 					>
-						<Spinner loading={loading} />
-						{!loading && <Icon aria-hidden="true" />}
+						<Spinner loading={loading}>
+							<Icon aria-hidden="true" />
+						</Spinner>
 						<span className="sr-only">{config.label}</span>
 					</Button>
 				</TooltipTrigger>

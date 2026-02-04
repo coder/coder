@@ -1,6 +1,6 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import type { Task } from "api/typesGenerated";
+import type { Task, TaskStatus as TaskStatusType } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
@@ -191,18 +191,24 @@ const TaskRow: FC<TaskRowProps> = ({
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 
-	const showPause =
-		task.status === "active" ||
-		task.status === "initializing" ||
-		task.status === "pending";
-	const pauseDisabled =
-		task.status === "pending" || task.status === "initializing";
-	const showResume = task.status === "paused" || task.status === "error";
+	const pauseStatuses: TaskStatusType[] = [
+		"active",
+		"initializing",
+		"pending",
+		"error",
+		"unknown",
+	];
+	const pauseDisabledStatuses: TaskStatusType[] = ["pending", "initializing"];
+	const resumeStatuses: TaskStatusType[] = ["paused", "error", "unknown"];
+
+	const showPause = pauseStatuses.includes(task.status);
+	const pauseDisabled = pauseDisabledStatuses.includes(task.status);
+	const showResume = resumeStatuses.includes(task.status);
 
 	const pauseMutation = useMutation({
 		mutationFn: async () => {
 			if (!task.workspace_id) {
-				throw new Error("Workspace ID is not available");
+				throw new Error("Task has no workspace");
 			}
 			return API.stopWorkspace(task.workspace_id);
 		},
@@ -217,7 +223,7 @@ const TaskRow: FC<TaskRowProps> = ({
 	const resumeMutation = useMutation({
 		mutationFn: async () => {
 			if (!task.workspace_id) {
-				throw new Error("Workspace ID is not available");
+				throw new Error("Task has no workspace");
 			}
 			return API.startWorkspace(
 				task.workspace_id,

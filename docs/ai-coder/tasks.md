@@ -133,17 +133,6 @@ If a workspace app has the special `"preview"` slug, a navbar will appear above 
 
 We plan to introduce more customization options in future releases.
 
-## Pausing and Resuming Tasks
-
-You can pause and resume tasks directly from the Tasks table using the action
-buttons. Pausing a task stops the underlying workspace, freeing up compute
-resources while preserving task state. This is useful for long-running tasks
-you want to pause during periods of inactivity.
-
-Running tasks show a pause button, while paused or errored tasks show a resume
-button. Resuming restarts the workspace, which takes time while it starts up
-and the agent reconnects.
-
 ## Automatically name your tasks
 
 Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API_KEY` environment variable on the Coder server. Otherwise, tasks will be given randomly generated names.
