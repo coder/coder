@@ -24,7 +24,7 @@ type ComboboxContextProps = {
 	onValueChange: ((value: string | undefined) => void) | undefined;
 };
 
-const ComboboxContext = createContext<ComboboxContextProps | null>(null);
+export const ComboboxContext = createContext<ComboboxContextProps | null>(null);
 
 function useCombobox() {
 	const context = useContext(ComboboxContext);
@@ -39,7 +39,7 @@ interface ComboboxProps extends React.ComponentProps<typeof Popover> {
 	onValueChange?: (value: string | undefined) => void;
 }
 
-function Combobox({
+export function Combobox({
 	children,
 	open: controlledOpen,
 	onOpenChange: controlledOnOpenChange,
@@ -62,7 +62,7 @@ function Combobox({
 	);
 }
 
-const ComboboxTrigger = PopoverTrigger;
+export const ComboboxTrigger = PopoverTrigger;
 
 interface ComboboxButtonProps extends React.ComponentProps<"button"> {
 	width?: number;
@@ -70,7 +70,7 @@ interface ComboboxButtonProps extends React.ComponentProps<"button"> {
 	placeholder?: string;
 }
 
-function ComboboxButton({
+export function ComboboxButton({
 	children,
 	className,
 	width,
@@ -96,7 +96,7 @@ function ComboboxButton({
 	);
 }
 
-function ComboboxContent({
+export function ComboboxContent({
 	children,
 	className,
 	ref,
@@ -118,10 +118,10 @@ function ComboboxContent({
 	);
 }
 
-const ComboboxInput = CommandInput;
-const ComboboxList = CommandList;
+export const ComboboxInput = CommandInput;
+export const ComboboxList = CommandList;
 
-function ComboboxItem({
+export function ComboboxItem({
 	children,
 	className,
 	onSelect,
@@ -158,15 +158,5 @@ function ComboboxItem({
 		</CommandItem>
 	);
 }
-const ComboboxEmpty = CommandEmpty;
 
-export {
-	Combobox,
-	ComboboxTrigger,
-	ComboboxButton,
-	ComboboxContent,
-	ComboboxInput,
-	ComboboxList,
-	ComboboxItem,
-	ComboboxEmpty,
-};
+export const ComboboxEmpty = CommandEmpty;
