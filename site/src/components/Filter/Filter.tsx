@@ -11,6 +11,8 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
@@ -223,6 +225,7 @@ export const Filter: FC<FilterProps> = ({
 			) : (
 				<>
 					<PresetMenu
+						value={filter.query}
 						onSelect={(query) => filter.update(query)}
 						presets={presets}
 						learnMoreLink={learnMoreLink}
@@ -265,6 +268,7 @@ export const Filter: FC<FilterProps> = ({
 };
 
 interface PresetMenuProps {
+	value: string;
 	presets: PresetFilter[];
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
@@ -273,6 +277,7 @@ interface PresetMenuProps {
 }
 
 const PresetMenu: FC<PresetMenuProps> = ({
+	value,
 	presets,
 	learnMoreLink,
 	learnMoreLabel2,
@@ -288,14 +293,17 @@ const PresetMenu: FC<PresetMenuProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent side="bottom" align="start">
-				{presets.map((presetFilter) => (
-					<DropdownMenuItem
-						onSelect={() => onSelect(presetFilter.query)}
-						key={presetFilter.name}
-					>
-						{presetFilter.name}
-					</DropdownMenuItem>
-				))}
+				<DropdownMenuRadioGroup value={value}>
+					{presets.map((presetFilter) => (
+						<DropdownMenuRadioItem
+							value={presetFilter.query}
+							onSelect={() => onSelect(presetFilter.query)}
+							key={presetFilter.name}
+						>
+							{presetFilter.name}
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
 				{(learnMoreLink || learnMoreLink2) && <DropdownMenuSeparator />}
 				{learnMoreLink && (
 					<DropdownMenuItem asChild>
