@@ -2154,17 +2154,22 @@ func NormalizeWorkspaceInput(input string) string {
 	return normalized
 }
 
-// newAgentConn returns a connection to the agent specified by the workspace,
-// which must be in the format [owner/]workspace[.agent].
-func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+// resolveWorkspaceAgent finds workspace and agent by name with auto-start
+// support. The workspace identifier must be in the format
+// [owner/]workspace[.agent].
+func resolveWorkspaceAgent(ctx context.Context, client *codersdk.Client, workspace string) (codersdk.WorkspaceAgent, error) {
 	workspaceName := NormalizeWorkspaceInput(workspace)
 	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to find workspace: %w", err)
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("failed to find workspace: %w", err)
 	}
 
+	return workspaceAgent, nil
+}
+
+func dialAgentConn(ctx context.Context, client *codersdk.Client, agentID uuid.UUID) (workspacesdk.AgentConn, error) {
 	// Wait for agent to be ready.
-	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+	if err := cliui.Agent(ctx, io.Discard, agentID, cliui.AgentOptions{
 		FetchInterval: 0,
 		Fetch:         client.WorkspaceAgent,
 		FetchLogs:     client.WorkspaceAgentLogsAfter,
@@ -2175,7 +2180,7 @@ func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string
 
 	wsClient := workspacesdk.New(client)
 
-	conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+	conn, err := wsClient.DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
 		BlockEndpoints: false,
 	})
 	if err != nil {
@@ -2187,6 +2192,17 @@ func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string
 		return nil, xerrors.New("agent connection not reachable")
 	}
 	return conn, nil
+}
+
+// newAgentConn returns a connection to the agent specified by the workspace,
+// which must be in the format [owner/]workspace[.agent].
+func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+	workspaceAgent, err := resolveWorkspaceAgent(ctx, client, workspace)
+	if err != nil {
+		return nil, err
+	}
+
+	return dialAgentConn(ctx, client, workspaceAgent.ID)
 }
 
 const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."

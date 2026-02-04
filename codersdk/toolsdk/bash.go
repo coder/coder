@@ -39,6 +39,8 @@ This tool provides the same functionality as the 'coder ssh <workspace> <command
 It automatically starts the workspace if it's stopped and waits for the agent to be ready.
 The output is trimmed of leading and trailing whitespace.
 
+This tool is not supported for Windows workspace agents.
+
 The workspace parameter supports various formats:
 - workspace (uses current user)
 - owner/workspace
@@ -102,26 +104,15 @@ Examples:
 
 		// coder_workspace_bash relies on POSIX shell behavior (e.g. nohup and
 		// redirections) and is not supported for Windows workspace agents.
-		workspaceIdentifier := NormalizeWorkspaceInput(args.Workspace)
-		parts := strings.Split(workspaceIdentifier, ".")
-		agentName := ""
-		if len(parts) >= 2 {
-			agentName = parts[1]
-			workspaceIdentifier = parts[0]
-		}
-		workspace, err := namedWorkspace(ctx, deps.coderClient, workspaceIdentifier)
+		workspaceAgent, err := resolveWorkspaceAgent(ctx, deps.coderClient, args.Workspace)
 		if err != nil {
-			return WorkspaceBashResult{}, xerrors.Errorf("failed to find workspace: %w", err)
-		}
-		workspaceAgent, err := getWorkspaceAgent(workspace, agentName)
-		if err != nil {
-			return WorkspaceBashResult{}, xerrors.Errorf("failed to find workspace: %w", err)
+			return WorkspaceBashResult{}, err
 		}
 		if strings.EqualFold(workspaceAgent.OperatingSystem, "windows") {
 			return WorkspaceBashResult{}, xerrors.New("coder_workspace_bash is not supported on Windows workspaces")
 		}
 
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := dialAgentConn(ctx, deps.coderClient, workspaceAgent.ID)
 		if err != nil {
 			return WorkspaceBashResult{}, err
 		}
