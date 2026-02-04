@@ -14,7 +14,7 @@ import {
 } from "components/Popover/Popover";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import type React from "react";
-import { createContext, forwardRef, useContext, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { cn } from "utils/cn";
 
 type ComboboxContextProps = {
@@ -70,14 +70,16 @@ interface ComboboxButtonProps extends React.ComponentProps<"button"> {
 	placeholder?: string;
 }
 
-const ComboboxButton = forwardRef<
-	HTMLButtonElement,
-	React.ComponentProps<"button"> & ComboboxButtonProps
->(
-	(
-		{ children, className, width, selectedOption, placeholder, ...props },
-		ref,
-	) => (
+function ComboboxButton({
+	children,
+	className,
+	width,
+	selectedOption,
+	placeholder,
+	ref,
+	...props
+}: ComboboxButtonProps & { ref?: React.Ref<HTMLButtonElement> }) {
+	return (
 		<Button
 			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
 			style={{ flexBasis: width }}
@@ -91,32 +93,44 @@ const ComboboxButton = forwardRef<
 			</span>
 			<ChevronDownIcon className="size-icon-sm" />
 		</Button>
-	),
-);
+	);
+}
 
-const ComboboxContent = forwardRef<
-	HTMLDivElement,
-	React.ComponentProps<typeof PopoverContent>
->(({ children, className, ...props }, ref) => (
-	<PopoverContent
-		ref={ref}
-		className={cn(
-			"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
-			className,
-		)}
-		{...props}
-	>
-		<Command className="bg-surface-secondary">{children}</Command>
-	</PopoverContent>
-));
+function ComboboxContent({
+	children,
+	className,
+	ref,
+	...props
+}: React.ComponentProps<typeof PopoverContent> & {
+	ref?: React.Ref<HTMLDivElement>;
+}) {
+	return (
+		<PopoverContent
+			ref={ref}
+			className={cn(
+				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
+				className,
+			)}
+			{...props}
+		>
+			<Command className="bg-surface-secondary">{children}</Command>
+		</PopoverContent>
+	);
+}
 
 const ComboboxInput = CommandInput;
 const ComboboxList = CommandList;
 
-const ComboboxItem = forwardRef<
-	HTMLDivElement,
-	React.ComponentProps<typeof CommandItem>
->(({ children, className, onSelect, value, ...props }, ref) => {
+function ComboboxItem({
+	children,
+	className,
+	onSelect,
+	value,
+	ref,
+	...props
+}: React.ComponentProps<typeof CommandItem> & {
+	ref?: React.Ref<HTMLDivElement>;
+}) {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
 	const isSelected = value === selectedValue;
 
@@ -143,7 +157,7 @@ const ComboboxItem = forwardRef<
 			/>
 		</CommandItem>
 	);
-});
+}
 const ComboboxEmpty = CommandEmpty;
 
 export {
