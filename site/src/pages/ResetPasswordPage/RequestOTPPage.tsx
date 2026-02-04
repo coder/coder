@@ -8,13 +8,15 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { useMutation } from "react-query";
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { pageTitle } from "utils/page";
 
 const RequestOTPPage: FC = () => {
 	const applicationName = getApplicationName();
 	const requestOTPMutation = useMutation(requestOneTimePassword());
+	const [searchParams] = useSearchParams();
+	const initialEmail = searchParams.get("email") ?? "";
 
 	return (
 		<>
@@ -30,6 +32,7 @@ const RequestOTPPage: FC = () => {
 					<RequestOTP
 						error={requestOTPMutation.error}
 						isRequesting={requestOTPMutation.isPending}
+						initialEmail={initialEmail}
 						onRequest={(email) => {
 							requestOTPMutation.mutate({ email });
 						}}
@@ -44,12 +47,14 @@ type RequestOTPProps = {
 	error: unknown;
 	onRequest: (email: string) => void;
 	isRequesting: boolean;
+	initialEmail: string;
 };
 
 const RequestOTP: FC<RequestOTPProps> = ({
 	error,
 	onRequest,
 	isRequesting,
+	initialEmail,
 }) => {
 	return (
 		<div css={styles.container}>
@@ -83,6 +88,7 @@ const RequestOTP: FC<RequestOTPProps> = ({
 								autoFocus
 								required
 								fullWidth
+								defaultValue={initialEmail}
 							/>
 
 							<Stack spacing={1}>

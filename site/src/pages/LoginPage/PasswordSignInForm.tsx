@@ -71,7 +71,11 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 				</Button>
 				<Link
 					component={RouterLink}
-					to="/reset-password"
+					to={
+						form.values.email
+							? `/reset-password?email=${encodeURIComponent(form.values.email)}`
+							: "/reset-password"
+					}
 					css={{
 						fontSize: 12,
 						fontWeight: 500,
