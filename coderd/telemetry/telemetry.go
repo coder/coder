@@ -898,7 +898,11 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 
 func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time) ([]Task, error) {
 	// 1. Get all non-deleted tasks.
-	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{})
+	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{
+		OwnerID:        uuid.Nil,
+		OrganizationID: uuid.Nil,
+		Status:         "",
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("list tasks: %w", err)
 	}
