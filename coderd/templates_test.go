@@ -1616,6 +1616,39 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.False(t, updated.UseClassicParameterFlow, "expected false")
 	})
 
+	t.Run("DisableModuleCache", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.False(t, template.DisableModuleCache, "default is false")
+
+		req := codersdk.UpdateTemplateMeta{
+			DisableModuleCache: ptr.Ref(true),
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// set to true
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.DisableModuleCache, "expected true")
+
+		// noop - should stay true when not specified
+		req.DisableModuleCache = nil
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.DisableModuleCache, "expected true")
+
+		// back to false
+		req.DisableModuleCache = ptr.Ref(false)
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.False(t, updated.DisableModuleCache, "expected false")
+	})
+
 	t.Run("SupportEmptyOrDefaultFields", func(t *testing.T) {
 		t.Parallel()
 
