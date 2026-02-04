@@ -7,7 +7,7 @@ development environments. As adoption grows, many enterprises also need
 observability, management, and policy controls to support secure and auditable
 AI rollouts.
 
-Coder’s AI Governance Add-On for Premium licenses includes a set of features
+The AI Governance Add-On is a per-user license that can be added to Premium seats. Each user with the add-on gets access to a set of features
 that help organizations safely roll out AI tooling at scale:
 
 - [AI Bridge](./ai-bridge/index.md): LLM gateway to audit AI sessions, central
@@ -95,6 +95,11 @@ options, reach out to your
 
 ## How Coder Tasks usage is measured
 
+> [!NOTE]
+> There is a known issue with how Agent Workspace Builds are tallied in v2.28
+> and v2.29. We recommend updating to v2.28.9, v2.29.4, or v2.30 to resolve
+> this issue.
+
 The usage metric used to measure Coder Tasks consumption is called **Agent
 Workspace Builds** (prev. "managed agents").
 
@@ -133,8 +138,18 @@ workflows.
 Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of
 Agent Workspace Builds for automated workflows, along with limits that scale
 proportionately with user count. Usage counts are measured and sent to Coder via
-[usage data reporting](./usage-data-reporting.md). Coder Tasks or other AI
-features do not break when you run over the limit.
+[usage data reporting](./usage-data-reporting.md). Coder Tasks and other AI
+features continue to function normally even if the limit is breached. Admins
+will receive a warning to [contact their account team](https://coder.com/contact)
+to remediate.
 
-If you are approaching your deployment-wide limits,
-[contact us](https://coder.com/contact) to discuss your use case with our team.
+### Tracking Agent Workspace Builds
+
+Admins can monitor Agent Workspace Build usage from the Coder dashboard.
+Navigate to **Deployment** > **Licenses** to view current usage against your
+entitlement limits.
+
+![Agent Workspace Build usage](../images/admin/ai-governance-awb-usage.png)
+
+<small>Agent Workspace Build usage showing current consumption against
+entitlement limits in the Licenses page.</small>

@@ -61,7 +61,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	const webPush = useWebpushNotifications();
 
 	return (
-		<div className="border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
+		<div className="sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">
 				{logo_url ? (
 					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />

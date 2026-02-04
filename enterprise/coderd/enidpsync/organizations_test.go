@@ -12,7 +12,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -21,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/testutil"
@@ -61,7 +61,7 @@ func TestOrganizationSync(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		foundIDs := db2sdk.List(members, func(m database.OrganizationMembersRow) uuid.UUID {
+		foundIDs := slice.List(members, func(m database.OrganizationMembersRow) uuid.UUID {
 			return m.OrganizationMember.OrganizationID
 		})
 		require.ElementsMatch(t, expected, foundIDs, "match user organizations")
