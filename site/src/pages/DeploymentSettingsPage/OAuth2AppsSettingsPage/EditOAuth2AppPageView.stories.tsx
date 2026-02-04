@@ -10,9 +10,10 @@ const meta: Meta = {
 	title: "pages/DeploymentSettingsPage/EditOAuth2AppPageView",
 	component: EditOAuth2AppPageView,
 	args: {
-		canViewApp: true,
 		canEditApp: true,
+		canDeleteApp: true,
 		canViewAppSecrets: true,
+	},
 	},
 };
 export default meta;
