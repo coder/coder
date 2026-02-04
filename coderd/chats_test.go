@@ -37,8 +37,12 @@ func TestChats_CreateChatAndRun(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	client, _, api := coderdtest.NewWithAPI(t, nil)
-	coderdtest.CreateFirstUser(t, client)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 	api.ChatRunner = chats.NewRunner(chats.RunnerOptions{
 		DB:         api.Database,
@@ -82,8 +86,12 @@ func TestChats_ListChats(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	client, _, _ := coderdtest.NewWithAPI(t, nil)
+	client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		Provider: "anthropic",

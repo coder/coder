@@ -91,6 +91,12 @@ export default defineConfig({
 			...process.env,
 			// Otherwise, the runner fails on Mac with: could not determine kind of name for C.uuid_string_t
 			CGO_ENABLED: "0",
+			// ALWAYS use a separate database for e2e tests to avoid corrupting dev data.
+			// This intentionally overrides any CODER_PG_CONNECTION_URL from the environment.
+			// To use a different test database, set CODER_E2E_PG_CONNECTION_URL instead.
+			CODER_PG_CONNECTION_URL:
+				process.env.CODER_E2E_PG_CONNECTION_URL ||
+				"postgresql://postgres:postgres@localhost:5432/coder_e2e?sslmode=disable",
 
 			// This is the test provider for git auth with devices!
 			CODER_GITAUTH_0_ID: gitAuth.deviceProvider,

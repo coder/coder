@@ -48,6 +48,18 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	};
 };
 
+export const workspaceByIdKey = (workspaceId: string) => [
+	"workspace",
+	workspaceId,
+];
+
+export const workspaceById = (workspaceId: string) => {
+	return {
+		queryKey: workspaceByIdKey(workspaceId),
+		queryFn: () => API.getWorkspace(workspaceId),
+	};
+};
+
 const workspaceACLKey = (workspaceId: string) => ["workspaceAcl", workspaceId];
 
 export const workspaceACL = (workspaceId: string) => {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,63 +68,12 @@ func (r *Runner) Run(ctx context.Context, chat database.Chat, coderSessionToken 
 		return xerrors.New("runID is required")
 	}
 
-	steps := 0
-	finishReason := "unknown"
-
-	defer func() {
-		env := StreamEventEnvelope{
-			Type:         EnvelopeTypeStreamEvent,
-			RunID:        runID,
-			Event:        "run_finished",
-			FinishReason: finishReason,
-			Steps:        steps,
-		}
-		content, err := MarshalEnvelope(env)
-		if err != nil {
-			log.Error(ctx, "marshal run_finished envelope", slog.Error(err))
-			return
-		}
-		_, err = r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:    chat.ID,
-			CreatedAt: time.Now().UTC(),
-			Role:      "system",
-			Content:   content,
-		})
-		if err != nil {
-			log.Error(ctx, "persist run_finished", slog.Error(err))
-		}
-	}()
-
-	// Persist run_started.
-	{
-		env := StreamEventEnvelope{Type: EnvelopeTypeStreamEvent, RunID: runID, Event: "run_started"}
-		content, err := MarshalEnvelope(env)
-		if err != nil {
-			finishReason = "error"
-			_ = r.persistError(ctx, chat.ID, runID, "marshal_error", err.Error(), false)
-			return err
-		}
-		_, err = r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:    chat.ID,
-			CreatedAt: time.Now().UTC(),
-			Role:      "system",
-			Content:   content,
-		})
-		if err != nil {
-			finishReason = "error"
-			return err
-		}
-	}
-
 	if r.opts.AccessURL == nil {
-		finishReason = "error"
 		return xerrors.New("chat runner access url is nil")
 	}
 
 	llm, err := r.opts.LLMFactory.New(chat.Provider, r.httpClient())
 	if err != nil {
-		finishReason = "error"
-		_ = r.persistError(ctx, chat.ID, runID, "llm_init_failed", err.Error(), false)
 		return err
 	}
 
@@ -139,18 +89,14 @@ func (r *Runner) Run(ctx context.Context, chat database.Chat, coderSessionToken 
 
 	rows, err := r.opts.DB.ListChatMessages(ctx, chat.ID)
 	if err != nil {
-		finishReason = "error"
 		return xerrors.Errorf("list chat messages: %w", err)
 	}
 	messages, err := MessagesFromDB(rows)
 	if err != nil {
-		finishReason = "error"
 		return xerrors.Errorf("reconstruct messages from db: %w", err)
 	}
 
-	for step := 0; ; step++ {
-		steps = step + 1
-
+	for {
 		req := LLMRequest{
 			Model:    chat.Model,
 			Messages: messages,
@@ -159,36 +105,40 @@ func (r *Runner) Run(ctx context.Context, chat database.Chat, coderSessionToken 
 
 		stream, err := llm.StreamChat(ctx, req)
 		if err != nil {
-			finishReason = "error"
-			_ = r.persistError(ctx, chat.ID, runID, "upstream_error", err.Error(), true)
 			return err
 		}
 
 		stream = stream.WithToolCalling(func(call aisdk.ToolCall) any {
 			tool, ok := toolByName[call.Name]
 			if !ok {
-				_ = r.persistToolResult(ctx, chat.ID, runID, steps, call.ID, call.Name, json.RawMessage("null"), fmt.Sprintf("unknown tool: %s", call.Name), 0)
 				return map[string]any{"error": fmt.Sprintf("unknown tool: %s", call.Name)}
+			}
+
+			if toolRequiresWorkspace(call.Name) {
+				workspaceID, err := workspaceIDForToolCall(ctx, coderClient, chat, call)
+				if err != nil {
+					return map[string]any{"error": err.Error()}
+				}
+				if workspaceID != uuid.Nil {
+					log.Debug(ctx, "waiting for workspace before tool call",
+						slog.F("tool", call.Name),
+						slog.F("workspace_id", workspaceID),
+					)
+					if err := waitForWorkspaceReady(ctx, coderClient, workspaceID); err != nil {
+						return map[string]any{"error": err.Error()}
+					}
+				}
 			}
 
 			argsJSON, err := json.Marshal(call.Args)
 			if err != nil {
-				_ = r.persistToolResult(ctx, chat.ID, runID, steps, call.ID, call.Name, json.RawMessage("null"), fmt.Sprintf("marshal tool args: %v", err), 0)
 				return map[string]any{"error": fmt.Sprintf("marshal tool args: %v", err)}
 			}
 
-			_ = r.persistToolCall(ctx, chat.ID, runID, steps, call.ID, call.Name, argsJSON)
-
-			start := time.Now()
 			out, err := tool.Handler(ctx, deps, argsJSON)
-			dur := time.Since(start).Milliseconds()
-
 			if err != nil {
-				_ = r.persistToolResult(ctx, chat.ID, runID, steps, call.ID, call.Name, json.RawMessage("null"), err.Error(), dur)
 				return map[string]any{"error": err.Error()}
 			}
-
-			_ = r.persistToolResult(ctx, chat.ID, runID, steps, call.ID, call.Name, out, "", dur)
 
 			var v any
 			if err := json.Unmarshal(out, &v); err != nil {
@@ -202,8 +152,6 @@ func (r *Runner) Run(ctx context.Context, chat database.Chat, coderSessionToken 
 
 		for part, err := range stream {
 			if err != nil {
-				finishReason = "error"
-				_ = r.persistError(ctx, chat.ID, runID, "stream_error", err.Error(), true)
 				return err
 			}
 			r.opts.Hub.Publish(chat.ID, StreamEvent{RunID: runID, Part: part})
@@ -213,101 +161,119 @@ func (r *Runner) Run(ctx context.Context, chat database.Chat, coderSessionToken 
 			env := MessageEnvelope{Type: EnvelopeTypeMessage, RunID: runID, Message: msg}
 			content, err := MarshalEnvelope(env)
 			if err != nil {
-				finishReason = "error"
 				return err
 			}
-			_, err = r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			row, err := r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
 				ChatID:    chat.ID,
 				CreatedAt: time.Now().UTC(),
 				Role:      "assistant",
 				Content:   content,
 			})
 			if err != nil {
-				finishReason = "error"
 				return err
 			}
-		}
-
-		usageEnv := StreamEventEnvelope{Type: EnvelopeTypeStreamEvent, RunID: runID, Event: "usage", Usage: acc.Usage(), Step: steps}
-		if usageContent, err := MarshalEnvelope(usageEnv); err == nil {
-			_, _ = r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
-				ChatID:    chat.ID,
-				CreatedAt: time.Now().UTC(),
-				Role:      "system",
-				Content:   usageContent,
-			})
+			r.opts.Hub.PublishMessage(chat.ID, row)
 		}
 
 		messages = append(messages, acc.Messages()...)
 		if acc.FinishReason() != aisdk.FinishReasonToolCalls {
-			finishReason = string(acc.FinishReason())
-			if finishReason == "" {
-				finishReason = "stop"
-			}
 			return nil
 		}
 	}
 }
 
-func (r *Runner) persistError(ctx context.Context, chatID uuid.UUID, runID, code, msg string, retryable bool) error {
-	env := StreamEventEnvelope{Type: EnvelopeTypeStreamEvent, RunID: runID, Event: "error", Code: code, Message: msg, Retryable: retryable}
-	content, err := MarshalEnvelope(env)
-	if err != nil {
-		return err
+func toolRequiresWorkspace(name string) bool {
+	switch name {
+	case toolsdk.ToolNameWorkspaceBash,
+		toolsdk.ToolNameWorkspaceLS,
+		toolsdk.ToolNameWorkspaceReadFile,
+		toolsdk.ToolNameWorkspaceWriteFile,
+		toolsdk.ToolNameWorkspaceEditFile,
+		toolsdk.ToolNameWorkspaceEditFiles,
+		toolsdk.ToolNameWorkspacePortForward,
+		toolsdk.ToolNameWorkspaceListApps:
+		return true
+	default:
+		return false
 	}
-	_, err = r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:    chatID,
-		CreatedAt: time.Now().UTC(),
-		Role:      "system",
-		Content:   content,
-	})
-	return err
 }
 
-func (r *Runner) persistToolCall(ctx context.Context, chatID uuid.UUID, runID string, step int, toolCallID, toolName string, args json.RawMessage) error {
-	env := ToolCallEnvelope{
-		Type:       EnvelopeTypeToolCall,
-		RunID:      runID,
-		Step:       step,
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Args:       args,
+func workspaceIDForToolCall(
+	ctx context.Context,
+	client *codersdk.Client,
+	chat database.Chat,
+	call aisdk.ToolCall,
+) (uuid.UUID, error) {
+	if workspaceName, ok := call.Args["workspace"].(string); ok && workspaceName != "" {
+		return resolveWorkspaceID(ctx, client, workspaceName)
 	}
-	content, err := MarshalEnvelope(env)
-	if err != nil {
-		return err
+	if workspaceID, ok := call.Args["workspace_id"].(string); ok && workspaceID != "" {
+		return resolveWorkspaceID(ctx, client, workspaceID)
 	}
-	_, err = r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:    chatID,
-		CreatedAt: time.Now().UTC(),
-		Role:      "tool_call",
-		Content:   content,
-	})
-	return err
+	if chat.WorkspaceID.Valid {
+		return chat.WorkspaceID.UUID, nil
+	}
+	return uuid.Nil, nil
 }
 
-func (r *Runner) persistToolResult(ctx context.Context, chatID uuid.UUID, runID string, step int, toolCallID, toolName string, result json.RawMessage, toolErr string, durationMS int64) error {
-	env := ToolResultEnvelope{
-		Type:       EnvelopeTypeToolResult,
-		RunID:      runID,
-		Step:       step,
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Result:     result,
-		Error:      toolErr,
-		DurationMS: durationMS,
+func resolveWorkspaceID(ctx context.Context, client *codersdk.Client, identifier string) (uuid.UUID, error) {
+	if identifier == "" {
+		return uuid.Nil, nil
 	}
-	content, err := MarshalEnvelope(env)
+	if workspaceID, err := uuid.Parse(identifier); err == nil {
+		return workspaceID, nil
+	}
+
+	normalized := toolsdk.NormalizeWorkspaceInput(identifier)
+	owner, workspaceName := splitOwnerAndName(normalized)
+	workspaceName = strings.SplitN(workspaceName, ".", 2)[0]
+
+	workspace, err := client.WorkspaceByOwnerAndName(ctx, owner, workspaceName, codersdk.WorkspaceOptions{})
 	if err != nil {
-		return err
+		return uuid.Nil, err
 	}
-	_, err = r.opts.DB.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:    chatID,
-		CreatedAt: time.Now().UTC(),
-		Role:      "tool_result",
-		Content:   content,
-	})
-	return err
+	return workspace.ID, nil
+}
+
+func splitOwnerAndName(identifier string) (owner string, name string) {
+	parts := strings.SplitN(identifier, "/", 2)
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return "me", identifier
+}
+
+func waitForWorkspaceReady(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) error {
+	if workspaceID == uuid.Nil {
+		return nil
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		workspace, err := client.Workspace(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+
+		switch workspace.LatestBuild.Status {
+		case codersdk.WorkspaceStatusRunning:
+			return nil
+		case codersdk.WorkspaceStatusStopped:
+			return nil
+		case codersdk.WorkspaceStatusFailed,
+			codersdk.WorkspaceStatusCanceled,
+			codersdk.WorkspaceStatusDeleted:
+			return xerrors.Errorf("workspace %q is %s", workspace.Name, workspace.LatestBuild.Status)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (r *Runner) httpClient() *http.Client {

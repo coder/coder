@@ -3,25 +3,27 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/aisdk-go"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/chats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-const chatMessagesPollInterval = 250 * time.Millisecond
 
 // @Summary Create chat
 // @ID create-chat
@@ -47,7 +49,9 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 
 	ownerID := key.UserID
 	workspaceID := uuid.NullUUID{}
+	workspaceName := ""
 	var orgID uuid.UUID
+	id := uuid.New()
 	if req.WorkspaceID != nil {
 		ws, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
 		if httpapi.Is404Error(err) {
@@ -59,6 +63,7 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		workspaceID = uuid.NullUUID{UUID: ws.ID, Valid: true}
+		workspaceName = ws.Name
 		orgID = ws.OrganizationID
 		if ws.OwnerID != ownerID {
 			httpapi.Forbidden(rw)
@@ -71,9 +76,16 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		orgID = org.ID
-	}
 
-	id := uuid.New()
+		ws, err := api.createChatWorkspace(ctx, rw, r, ownerID, orgID, id)
+		if err != nil {
+			httperror.WriteResponseError(ctx, rw, err)
+			return
+		}
+		workspaceID = uuid.NullUUID{UUID: ws.ID, Valid: true}
+		workspaceName = ws.Name
+		orgID = ws.OrganizationID
+	}
 	now := time.Now().UTC()
 	metadata := req.Metadata
 	if len(metadata) == 0 {
@@ -103,10 +115,16 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 	// solely from chat_messages.
 	systemPrompt := chats.DefaultSystemPrompt
 	if workspaceID.Valid {
-		// Fetch workspace details to build a context-aware prompt.
-		ws, wsErr := api.Database.GetWorkspaceByID(ctx, workspaceID.UUID)
-		if wsErr == nil {
-			systemPrompt = buildWorkspaceSystemPrompt(ws.Name)
+		name := workspaceName
+		if name == "" {
+			// Fetch workspace details to build a context-aware prompt.
+			ws, wsErr := api.Database.GetWorkspaceByID(ctx, workspaceID.UUID)
+			if wsErr == nil {
+				name = ws.Name
+			}
+		}
+		if name != "" {
+			systemPrompt = buildWorkspaceSystemPrompt(name)
 		}
 	}
 	promptEnv := chats.SystemPromptEnvelope{Type: chats.EnvelopeTypeSystemPrompt, Content: systemPrompt}
@@ -240,6 +258,10 @@ func (api *API) chatMessageCreateAndRun(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if api.ChatRunner != nil {
+		api.ChatRunner.Hub().PublishMessage(chat.ID, row)
+	}
+
 	// Run the agentic loop in the background. All authoritative state is persisted
 	// to chat_messages, so the client can watch the transcript (or re-fetch it) to
 	// observe progress.
@@ -312,11 +334,6 @@ func (api *API) chatMessagesWatch(
 		return nil
 	}
 
-	if err := sendNewRows(); err != nil {
-		api.Logger.Warn(ctx, "chat watch failed to send initial rows", slog.Error(err))
-		return
-	}
-
 	if api.ChatRunner == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "chat runner not configured"})
 		return
@@ -325,8 +342,10 @@ func (api *API) chatMessagesWatch(
 	sub, unsub := api.ChatRunner.Hub().Subscribe(ctx, chat.ID)
 	defer unsub()
 
-	ticker := time.NewTicker(chatMessagesPollInterval)
-	defer ticker.Stop()
+	if err := sendNewRows(); err != nil {
+		api.Logger.Warn(ctx, "chat watch failed to send initial rows", slog.Error(err))
+		return
+	}
 
 	for {
 		select {
@@ -337,6 +356,17 @@ func (api *API) chatMessagesWatch(
 		case ev, ok := <-sub:
 			if !ok {
 				return
+			}
+
+			if ev.Message != nil {
+				if ev.Message.ID <= afterID {
+					continue
+				}
+				afterID = ev.Message.ID
+				if err := sendEvent(codersdk.ServerSentEvent{Type: codersdk.ServerSentEventTypeData, Data: db2sdk.ChatMessage(*ev.Message)}); err != nil {
+					return
+				}
+				continue
 			}
 
 			part, ok := ev.Part.(aisdk.DataStreamPart)
@@ -357,13 +387,121 @@ func (api *API) chatMessagesWatch(
 				return
 			}
 
-		case <-ticker.C:
-			if err := sendNewRows(); err != nil {
-				api.Logger.Warn(ctx, "chat watch failed to poll", slog.Error(err))
-				return
-			}
 		}
 	}
+}
+
+func (api *API) createChatWorkspace(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	r *http.Request,
+	ownerID uuid.UUID,
+	orgID uuid.UUID,
+	chatID uuid.UUID,
+) (codersdk.Workspace, error) {
+	owner, err := api.Database.GetUserByID(ctx, ownerID)
+	if err != nil {
+		return codersdk.Workspace{}, err
+	}
+
+	template, err := selectChatTemplate(ctx, api.Database, orgID)
+	if err != nil {
+		return codersdk.Workspace{}, err
+	}
+
+	shortID := strings.SplitN(chatID.String(), "-", 2)[0]
+	workspaceName := fmt.Sprintf("chat-%s", shortID)
+
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionCreate,
+		AdditionalFields: audit.AdditionalFields{
+			WorkspaceOwner: owner.Username,
+		},
+		OrganizationID: orgID,
+	})
+	defer commitAudit()
+
+	return createWorkspace(ctx, aReq, ownerID, api, workspaceOwner{
+		ID:        owner.ID,
+		Username:  owner.Username,
+		AvatarURL: owner.AvatarURL,
+	}, codersdk.CreateWorkspaceRequest{
+		TemplateID: template.ID,
+		Name:       workspaceName,
+	}, r, nil)
+}
+
+func selectChatTemplate(ctx context.Context, db database.Store, orgID uuid.UUID) (database.Template, error) {
+	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		Deleted:        false,
+		OrganizationID: orgID,
+		HasAITask:      sql.NullBool{Bool: true, Valid: true},
+	})
+	if err != nil {
+		return database.Template{}, err
+	}
+	if template, ok, pickErr := pickChatTemplate(ctx, db, templates); pickErr != nil {
+		return database.Template{}, pickErr
+	} else if ok {
+		return template, nil
+	}
+
+	templates, err = db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		Deleted:        false,
+		OrganizationID: orgID,
+	})
+	if err != nil {
+		return database.Template{}, err
+	}
+	if template, ok, pickErr := pickChatTemplate(ctx, db, templates); pickErr != nil {
+		return database.Template{}, pickErr
+	} else if ok {
+		return template, nil
+	}
+	if len(templates) == 0 {
+		return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "No templates available to create a chat workspace.",
+			Detail:  "Create a template or pass workspace_id when creating a chat.",
+		})
+	}
+	return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+		Message: "No templates with a successfully imported version are available to create a chat workspace.",
+		Detail:  "Wait for a template version to finish importing or pass workspace_id when creating a chat.",
+	})
+}
+
+func pickChatTemplate(
+	ctx context.Context,
+	db database.Store,
+	templates []database.Template,
+) (database.Template, bool, error) {
+	for _, template := range templates {
+		if template.ActiveVersionID == uuid.Nil {
+			continue
+		}
+		version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return database.Template{}, false, err
+		}
+		job, err := db.GetProvisionerJobByID(ctx, version.JobID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return database.Template{}, false, err
+		}
+		if job.JobStatus == database.ProvisionerJobStatusSucceeded {
+			return template, true, nil
+		}
+	}
+	return database.Template{}, false, nil
 }
 
 func nullString(s *string) sql.NullString {

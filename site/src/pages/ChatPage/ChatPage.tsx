@@ -1,6 +1,12 @@
 import { API } from "api/api";
 import { chat, chatMessages } from "api/queries/chats";
-import type { ChatMessage, CreateChatMessageRequest } from "api/typesGenerated";
+import { template as templateQueryOptions } from "api/queries/templates";
+import { workspaceById } from "api/queries/workspaces";
+import type {
+	ChatMessage,
+	CreateChatMessageRequest,
+	ServerSentEvent,
+} from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -10,21 +16,35 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
+import { Textarea } from "components/Textarea/Textarea";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
+	BotIcon,
 	SendIcon,
 	UserIcon,
-	BotIcon,
 	WrenchIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import {
+	WorkspaceBuildProgress,
+	getActiveTransitionStats,
+} from "pages/WorkspacePage/WorkspaceBuildProgress";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useParams, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
-import type { ServerSentEvent } from "api/typesGenerated";
-import { Textarea } from "components/Textarea/Textarea";
+
+import { pageTitle } from "utils/page";
 
 // Message envelope types from the backend
 interface MessageEnvelope {
@@ -51,19 +71,113 @@ interface StreamingPart {
 	part: unknown;
 }
 
+const textDeltaTypeID = "0".charCodeAt(0);
+
+const dedupeMessages = (messages: ChatMessage[]) => {
+	const seen = new Set<number>();
+	return messages.filter((msg) => {
+		if (seen.has(msg.id)) {
+			return false;
+		}
+		seen.add(msg.id);
+		return true;
+	});
+};
+
+const getMessageRunId = (msg: ChatMessage): string | null => {
+	try {
+		const envelope = JSON.parse(
+			JSON.stringify(msg.content),
+		) as MessageEnvelope;
+		if (envelope.type === "message" && envelope.run_id) {
+			return envelope.run_id;
+		}
+	} catch {
+		return null;
+	}
+	return null;
+};
+
 const ChatPage: FC = () => {
 	const { chatId } = useParams() as { chatId: string };
 	const [searchParams, setSearchParams] = useSearchParams();
 	const queryClient = useQueryClient();
+	const [pendingRunId, setPendingRunId] = useState<string | null>(null);
 	const chatQuery = useQuery(chat(chatId));
-	const messagesQuery = useQuery(chatMessages(chatId));
+	const messagesQuery = useQuery({
+		...chatMessages(chatId),
+		refetchInterval: pendingRunId ? 2_000 : false,
+	});
+	const dedupedMessages = dedupeMessages(messagesQuery.data || []);
+	const workspaceId = chatQuery.data?.workspace_id ?? undefined;
+	const workspaceQuery = useQuery({
+		...workspaceById(workspaceId ?? ""),
+		enabled: Boolean(workspaceId),
+		refetchInterval: ({ state }) => {
+			const status = state.data?.latest_build.status;
+			return status && status !== "running" ? 2_000 : false;
+		},
+	});
+	const workspace = workspaceQuery.data;
+
+	const templateQuery = useQuery({
+		...templateQueryOptions(workspace?.template_id ?? ""),
+		enabled: Boolean(workspace),
+	});
+	const template = templateQuery.data;
+
+	const workspaceStatus = workspace?.latest_build.status;
+	const shouldShowBuildLogs = Boolean(
+		workspaceStatus &&
+			workspaceStatus !== "running" &&
+			workspaceStatus !== "stopped" &&
+			workspaceStatus !== "deleted",
+	);
+	const buildLogs = useWorkspaceBuildLogs(
+		workspace?.latest_build.id,
+		Boolean(workspace?.latest_build.id),
+	);
+	const showBuildLogs = shouldShowBuildLogs || buildLogs !== undefined;
 	const [inputValue, setInputValue] = useState("");
 	const [isSending, setIsSending] = useState(false);
+	const isSendingRef = useRef(false);
 	const [streamingText, setStreamingText] = useState<string>("");
-	const [currentRunId, setCurrentRunId] = useState<string | null>(null);
-	const [initialMessageSent, setInitialMessageSent] = useState(false);
+	const currentRunIdRef = useRef<string | null>(null);
+	const initialMessageSentRef = useRef(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
+	const buildLogsScrollRef = useRef<HTMLDivElement>(null);
 	const wsRef = useRef<OneWayWebSocket<ServerSentEvent> | null>(null);
+	const setRunId = useCallback((runId: string | null) => {
+		currentRunIdRef.current = runId;
+	}, []);
+
+	const sendMessage = useCallback(
+		async (content: string) => {
+			const trimmed = content.trim();
+			if (!trimmed || isSendingRef.current) return;
+
+			isSendingRef.current = true;
+			setIsSending(true);
+			setStreamingText("");
+			setRunId(null);
+
+			try {
+				const req: CreateChatMessageRequest = { content: trimmed };
+				const response = await API.createChatMessage(chatId, req);
+				setRunId(response.run_id);
+				setPendingRunId(response.run_id);
+				queryClient.invalidateQueries({
+					queryKey: ["chat", chatId, "messages"],
+				});
+			} catch {
+				displayError("Failed to send message");
+			} finally {
+				isSendingRef.current = false;
+				setIsSending(false);
+			}
+		},
+		[chatId, queryClient, setPendingRunId, setRunId],
+	);
 
 	// Scroll to bottom when messages change or streaming text updates.
 	// The dependencies are intentional triggers, not references used in the effect.
@@ -72,112 +186,191 @@ const ChatPage: FC = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messagesQuery.data, streamingText]);
 
+	// If we have a pending run and miss WebSocket events, poll until the
+	// persisted assistant message is visible.
+	useEffect(() => {
+		if (!pendingRunId || !messagesQuery.data) {
+			return;
+		}
+		const hasAssistantForRun = messagesQuery.data.some((msg) => {
+			if (msg.role !== "assistant") {
+				return false;
+			}
+			const runId = getMessageRunId(msg);
+			return !runId || runId === pendingRunId;
+		});
+		if (hasAssistantForRun) {
+			setPendingRunId(null);
+			setStreamingText("");
+			setRunId(null);
+		}
+	}, [messagesQuery.data, pendingRunId, setRunId]);
+
+	// Keep build logs scrolled to the latest entry while logs are visible.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Trigger on log updates
+	useLayoutEffect(() => {
+		if (!showBuildLogs || buildLogs === undefined) {
+			return;
+		}
+		const scrollAreaEl = buildLogsScrollRef.current;
+		const scrollViewportEl = scrollAreaEl?.querySelector<HTMLDivElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (scrollViewportEl) {
+			scrollViewportEl.scrollTop = scrollViewportEl.scrollHeight;
+		}
+	}, [buildLogs, showBuildLogs]);
+
+	useEffect(() => {
+		initialMessageSentRef.current = false;
+		setPendingRunId(null);
+		setStreamingText("");
+		setRunId(null);
+	}, [chatId, setRunId]);
+
 	// Handle initial message from URL query param
 	useEffect(() => {
 		const initialMessage = searchParams.get("message");
-		if (initialMessage && !initialMessageSent && !isSending) {
-			setInitialMessageSent(true);
-			// Clear the query param
-			setSearchParams({}, { replace: true });
-			// Send the message
-			(async () => {
-				setIsSending(true);
-				try {
-					const req: CreateChatMessageRequest = { content: initialMessage };
-					const response = await API.createChatMessage(chatId, req);
-					setCurrentRunId(response.run_id);
-				} catch {
-					displayError("Failed to send message");
-				} finally {
-					setIsSending(false);
-				}
-			})();
+		if (!initialMessage?.trim() || initialMessageSentRef.current || isSending) {
+			return;
 		}
-	}, [searchParams, setSearchParams, chatId, initialMessageSent, isSending]);
 
-	// Connect to WebSocket for real-time updates
+		initialMessageSentRef.current = true;
+		setSearchParams({}, { replace: true });
+		void sendMessage(initialMessage);
+	}, [searchParams, setSearchParams, sendMessage, isSending]);
+
+	// Connect to WebSocket for real-time updates with automatic reconnection.
 	useEffect(() => {
 		if (!chatId) return;
 
-		const ws = new OneWayWebSocket<ServerSentEvent>({
-			apiRoute: `/api/v2/chats/${chatId}/messages/watch-ws`,
-		});
-		wsRef.current = ws;
+		let cancelled = false;
+		let reconnectAttempts = 0;
+		let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+		const maxReconnectDelay = 30_000;
 
-		ws.addEventListener("message", (event) => {
-			if (event.parseError) {
-				console.error("WebSocket parse error:", event.parseError);
-				return;
-			}
+		const connect = () => {
+			if (cancelled) return;
 
-			const sse = event.parsedMessage;
-			if (!sse || sse.type !== "data") return;
+			const ws = new OneWayWebSocket<ServerSentEvent>({
+				apiRoute: `/api/v2/chats/${chatId}/messages/watch-ws`,
+			});
+			wsRef.current = ws;
 
-			const data = sse.data;
-
-			// Handle ChatMessage (persisted message from polling)
-			if (
-				data &&
-				typeof data === "object" &&
-				"chat_id" in data &&
-				"role" in data
-			) {
-				// New persisted message - refresh the query
+			ws.addEventListener("open", () => {
+				// Reset backoff on successful connection.
+				reconnectAttempts = 0;
+				// Immediately refresh messages in case we missed events.
 				queryClient.invalidateQueries({
 					queryKey: ["chat", chatId, "messages"],
 				});
-				// Clear streaming text if this message is from the current run
-				if (currentRunId) {
-					setStreamingText("");
-					setCurrentRunId(null);
-				}
-				return;
-			}
+			});
 
-			// Handle streaming part (real-time from LLM)
-			if (
-				data &&
-				typeof data === "object" &&
-				"run_id" in data &&
-				"type_id" in data
-			) {
-				const part = data as StreamingPart;
-				// Type 0 is text delta in the AI SDK
-				if (part.type_id === 0 && typeof part.part === "string") {
-					setStreamingText((prev) => prev + part.part);
-					setCurrentRunId(part.run_id);
+			ws.addEventListener("message", (event) => {
+				if (event.parseError) {
+					console.error("WebSocket parse error:", event.parseError);
+					return;
 				}
-			}
-		});
 
-		ws.addEventListener("error", (event) => {
-			console.error("WebSocket error:", event);
-		});
+				const sse = event.parsedMessage;
+				if (!sse || sse.type !== "data") return;
+
+				const data = sse.data;
+
+				// Handle ChatMessage (persisted message from the server)
+				if (
+					data &&
+					typeof data === "object" &&
+					"chat_id" in data &&
+					"role" in data
+				) {
+					// New persisted message - refresh the query
+					queryClient.invalidateQueries({
+						queryKey: ["chat", chatId, "messages"],
+					});
+					const message = data as ChatMessage;
+					if (message.role === "assistant") {
+						const messageRunId = getMessageRunId(message);
+						setPendingRunId((prev) => {
+							if (!prev) {
+								return prev;
+							}
+							if (!messageRunId || prev === messageRunId) {
+								return null;
+							}
+							return prev;
+						});
+						if (!messageRunId || messageRunId === currentRunIdRef.current) {
+							setStreamingText("");
+							setRunId(null);
+						}
+					}
+					return;
+				}
+
+				// Handle streaming part (real-time from LLM)
+				if (
+					data &&
+					typeof data === "object" &&
+					"run_id" in data &&
+					"type_id" in data
+				) {
+					const part = data as StreamingPart;
+					// Text deltas use type ID "0" (ASCII 48) in the AI SDK stream.
+					if (part.type_id === textDeltaTypeID) {
+						let delta: string | undefined;
+						if (typeof part.part === "string") {
+							delta = part.part;
+						} else if (part.part && typeof part.part === "object") {
+							const maybeContent =
+								(part.part as { Content?: string; content?: string }).Content ??
+								(part.part as { content?: string }).content;
+							if (typeof maybeContent === "string") {
+								delta = maybeContent;
+							}
+						}
+						if (delta) {
+							setStreamingText((prev) => prev + delta);
+							setRunId(part.run_id);
+							setPendingRunId(part.run_id);
+						}
+					}
+				}
+			});
+
+			ws.addEventListener("close", () => {
+				if (cancelled) return;
+				// Schedule reconnection with exponential backoff.
+				const delay = Math.min(1000 * 2 ** reconnectAttempts, maxReconnectDelay);
+				reconnectAttempts++;
+				reconnectTimeout = setTimeout(connect, delay);
+			});
+
+			ws.addEventListener("error", (event) => {
+				console.error("WebSocket error:", event);
+			});
+		};
+
+		connect();
 
 		return () => {
-			ws.close();
+			cancelled = true;
+			if (reconnectTimeout) {
+				clearTimeout(reconnectTimeout);
+			}
+			wsRef.current?.close();
 			wsRef.current = null;
 		};
-	}, [chatId, queryClient, currentRunId]);
+	}, [chatId, queryClient, setRunId]);
 
 	const handleSendMessage = async () => {
-		if (!inputValue.trim() || isSending) return;
+		if (isSending) return;
 
 		const content = inputValue.trim();
-		setInputValue("");
-		setIsSending(true);
-		setStreamingText("");
+		if (!content) return;
 
-		try {
-			const req: CreateChatMessageRequest = { content };
-			const response = await API.createChatMessage(chatId, req);
-			setCurrentRunId(response.run_id);
-			// The message will appear via WebSocket
-		} catch {
-			displayError("Failed to send message");
-		} finally {
-			setIsSending(false);
-		}
+		setInputValue("");
+		await sendMessage(content);
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -300,7 +493,14 @@ const ChatPage: FC = () => {
 	}
 
 	const chatData = chatQuery.data;
-	const messages = messagesQuery.data || [];
+	const transitionStats = workspace
+		? (template && getActiveTransitionStats(template, workspace)) || {
+				P50: 0,
+				P95: null,
+			}
+		: undefined;
+	const workspaceStatusLabel = workspaceStatus ?? "starting";
+	const workspaceName = workspace?.name ?? "workspace";
 
 	return (
 		<>
@@ -322,56 +522,95 @@ const ChatPage: FC = () => {
 					</PageHeaderSubtitle>
 				</PageHeader>
 
-				<main className="flex flex-col h-[calc(100vh-200px)]">
+				<main className="flex flex-col h-[calc(100vh-200px)] pb-8 gap-6">
+					{showBuildLogs && workspace && (
+						<section className="rounded-xl border border-border bg-surface-secondary p-4 shadow-sm">
+							<div className="flex flex-col gap-4">
+								<div className="flex flex-col gap-1">
+									<p className="m-0 text-sm font-medium text-content-primary">
+										Workspace {workspaceStatusLabel}...
+									</p>
+									<p className="m-0 text-xs text-content-secondary">
+										Tools will be available once {workspaceName} is running.
+									</p>
+								</div>
+
+								{transitionStats && (
+									<WorkspaceBuildProgress
+										workspace={workspace}
+										transitionStats={transitionStats}
+									/>
+								)}
+
+								<div className="rounded-lg border border-border bg-surface-primary">
+									{buildLogs === undefined ? (
+										<div className="h-64">
+											<Loader />
+										</div>
+									) : (
+										<ScrollArea ref={buildLogsScrollRef} className="h-64">
+											<WorkspaceBuildLogs
+												sticky
+												className="border-0 rounded-none"
+												logs={buildLogs}
+											/>
+										</ScrollArea>
+									)}
+								</div>
+							</div>
+						</section>
+					)}
+					<div className="flex flex-1 flex-col rounded-xl border border-border bg-surface-primary shadow-sm overflow-hidden">
 					{/* Messages area */}
-					<div className="flex-1 overflow-y-auto pb-4 space-y-4">
-						{messages.map((msg) => {
+					<div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+						{dedupedMessages.map((msg) => {
 							// Skip system messages in the UI (they're internal)
 							if (msg.role === "system") return null;
 
 							const { text, toolCalls } = parseMessageContent(msg);
+							const isUser = msg.role === "user";
 
 							return (
 								<div
 									key={msg.id}
-									className={`flex gap-3 ${
-										msg.role === "user" ? "justify-end" : "justify-start"
+									className={`flex ${
+										isUser ? "justify-end" : "justify-start"
 									}`}
 								>
 									<div
-										className={`flex gap-3 max-w-[80%] ${
-											msg.role === "user" ? "flex-row-reverse" : "flex-row"
+										className={`flex max-w-[75%] gap-3 ${
+											isUser ? "flex-row-reverse" : "flex-row"
 										}`}
 									>
 										<div
-											className={`flex items-center justify-center size-8 rounded-full shrink-0 ${
-												msg.role === "user"
-													? "bg-surface-secondary"
-													: "bg-surface-tertiary"
+											className={`flex size-9 shrink-0 items-center justify-center rounded-full border border-border ${
+												isUser
+													? "bg-surface-invert-primary text-content-invert border-transparent"
+													: "bg-surface-secondary text-content-secondary"
 											}`}
 										>
 											{getRoleIcon(msg.role)}
 										</div>
 										<div className="flex flex-col gap-1">
-											<span className="text-xs text-content-secondary">
+											<span className="text-[11px] uppercase tracking-wide text-content-secondary">
 												{getRoleLabel(msg.role)}
 											</span>
 											<div
-												className={`rounded-lg px-4 py-2 ${
-													msg.role === "user"
-														? "bg-surface-secondary"
-														: "bg-surface-tertiary"
+												className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+													isUser
+														? "bg-surface-invert-primary text-content-invert"
+														: "bg-surface-secondary text-content-primary border border-border"
 												}`}
 											>
 												{text && (
-													<p className="whitespace-pre-wrap text-sm">{text}</p>
+													<p className="whitespace-pre-wrap text-sm leading-relaxed">{text}</p>
 												)}
 												{toolCalls.length > 0 && (
-													<div className="mt-2 space-y-2">
+													<div className="mt-3 space-y-2 text-content-primary">
 														{toolCalls.map((tc, idx) => (
 															<details
 																key={idx}
-																className="text-xs bg-surface-primary rounded p-2"
+																className="text-xs rounded-md border border-border bg-surface-primary p-2 text-content-primary"
 															>
 																<summary className="cursor-pointer flex items-center gap-1 text-content-secondary">
 																	<WrenchIcon className="size-3" />
@@ -410,17 +649,17 @@ const ChatPage: FC = () => {
 
 						{/* Streaming response */}
 						{streamingText && (
-							<div className="flex gap-3 justify-start">
-								<div className="flex gap-3 max-w-[80%]">
-									<div className="flex items-center justify-center size-8 rounded-full shrink-0 bg-surface-tertiary">
+							<div className="flex justify-start">
+								<div className="flex max-w-[75%] gap-3">
+									<div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-secondary text-content-secondary">
 										<BotIcon className="size-5" />
 									</div>
 									<div className="flex flex-col gap-1">
-										<span className="text-xs text-content-secondary">
+										<span className="text-[11px] uppercase tracking-wide text-content-secondary">
 											Assistant
 										</span>
-										<div className="rounded-lg px-4 py-2 bg-surface-tertiary">
-											<p className="whitespace-pre-wrap text-sm">
+										<div className="rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm border border-border bg-surface-secondary text-content-primary">
+											<p className="whitespace-pre-wrap text-sm leading-relaxed">
 												{streamingText}
 												<span className="animate-pulse">▌</span>
 											</p>
@@ -434,14 +673,14 @@ const ChatPage: FC = () => {
 					</div>
 
 					{/* Input area */}
-					<div className="border-t border-border pt-4">
-						<div className="flex gap-2">
+					<div className="border-t border-border bg-surface-secondary p-4">
+						<div className="flex flex-col gap-3 md:flex-row md:items-end">
 							<Textarea
 								value={inputValue}
 								onChange={(e) => setInputValue(e.target.value)}
 								onKeyDown={handleKeyDown}
 								placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-								className="flex-1 min-h-[60px] max-h-[200px] resize-none"
+								className="flex-1 min-h-[80px] max-h-[200px] resize-none bg-surface-primary"
 								disabled={isSending}
 							/>
 							<Button
@@ -455,6 +694,10 @@ const ChatPage: FC = () => {
 								Send
 							</Button>
 						</div>
+						<p className="mt-2 text-xs text-content-secondary">
+							Press Enter to send. Shift+Enter for a new line.
+						</p>
+					</div>
 					</div>
 				</main>
 			</Margins>

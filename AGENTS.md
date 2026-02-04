@@ -239,6 +239,15 @@ ANTHROPIC_API_KEY="..." \
 pnpm playwright:test --grep "chats"
 ```
 
+In general when changing expansive behavior to the chats feature, ensure the expected behavior is captured
+in the e2e tests and only report success to the user when the e2e tests pass. Freely run the e2e tests
+with the ANTHROPIC_API_KEY environment variable.
+
+### Models
+Use Anthropic Opus 4.5 as the default model in the production app.
+
+Use Anthropic Haiku 4.5 in tests. 
+
 ---
 
 *This file stays lean and actionable. Detailed workflows and explanations are imported automatically.*

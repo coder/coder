@@ -11,6 +11,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chats"
@@ -93,33 +94,44 @@ func TestChats_WorkspaceBash_E2E(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.RunID)
 
-	// Wait for the tool result to appear.
+	// Wait for the assistant message that includes the tool invocation result.
 	require.Eventually(t, func() bool {
 		msgs, err := client.ChatMessages(ctx, chat.ID)
 		if err != nil {
 			return false
 		}
 		for _, msg := range msgs {
-			if msg.Role != "tool_result" {
+			if msg.Role != "assistant" {
 				continue
 			}
-			var env chats.ToolResultEnvelope
+			var env chats.MessageEnvelope
 			if err := json.Unmarshal(msg.Content, &env); err != nil {
 				continue
 			}
-			if env.RunID != resp.RunID || env.ToolName != toolsdk.ToolNameWorkspaceBash {
+			if env.RunID != resp.RunID {
 				continue
 			}
-			if env.Error != "" {
-				t.Logf("tool error: %s", env.Error)
-				return false
+			for _, part := range env.Message.Parts {
+				if part.Type != aisdk.PartTypeToolInvocation || part.ToolInvocation == nil {
+					continue
+				}
+				if part.ToolInvocation.ToolName != toolsdk.ToolNameWorkspaceBash {
+					continue
+				}
+				if part.ToolInvocation.State != aisdk.ToolInvocationStateResult {
+					continue
+				}
+				resultJSON, err := json.Marshal(part.ToolInvocation.Result)
+				if err != nil {
+					continue
+				}
+				var result toolsdk.WorkspaceBashResult
+				if err := json.Unmarshal(resultJSON, &result); err != nil {
+					continue
+				}
+				t.Logf("tool result: exit_code=%d output=%q", result.ExitCode, result.Output)
+				return result.ExitCode == 0 && strings.Contains(strings.ToLower(result.Output), "pong")
 			}
-			var result toolsdk.WorkspaceBashResult
-			if err := json.Unmarshal(env.Result, &result); err != nil {
-				return false
-			}
-			t.Logf("tool result: exit_code=%d output=%q", result.ExitCode, result.Output)
-			return result.ExitCode == 0 && strings.Contains(strings.ToLower(result.Output), "pong")
 		}
 		return false
 	}, chatWait, testutil.IntervalSlow)

@@ -5,23 +5,27 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/database"
 )
 
-// Hub is an in-memory pub/sub for ephemeral chat streaming events.
+// Hub is an in-memory pub/sub for chat events (streaming parts and persisted
+// messages).
 //
 // Important: Hub events are best-effort and are not persisted. The authoritative
 // chat transcript is stored in the database via chat_messages.
 //
 // This exists to support real-time streaming (token deltas, tool call deltas,
-// etc.) without having to persist every fragment.
+// etc.) without having to poll the database.
 type Hub struct {
 	mu   sync.RWMutex
 	subs map[uuid.UUID]map[chan StreamEvent]struct{}
 }
 
 type StreamEvent struct {
-	RunID string
-	Part  any
+	RunID   string
+	Part    any
+	Message *database.ChatMessage
 }
 
 func NewHub() *Hub {
@@ -74,4 +78,12 @@ func (h *Hub) Publish(chatID uuid.UUID, ev StreamEvent) {
 			// Drop if the subscriber can't keep up.
 		}
 	}
+}
+
+func (h *Hub) PublishMessage(chatID uuid.UUID, message database.ChatMessage) {
+	if h == nil {
+		return
+	}
+	msg := message
+	h.Publish(chatID, StreamEvent{Message: &msg})
 }
