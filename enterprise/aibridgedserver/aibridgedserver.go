@@ -334,6 +334,47 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	return &proto.RecordToolUsageResponse{}, nil
 }
 
+func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	intcID, err := uuid.Parse(in.GetInterceptionId())
+	if err != nil {
+		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
+	}
+
+	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "model_thought"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("tool_usage_id", in.GetToolUsageId()),
+			slog.F("content", in.GetContent()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
+	// out, err := json.Marshal(metadata)
+	// if err != nil {
+	// 	s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	// }
+
+	// _, err = s.store.InsertAIBridgeModelThought(ctx, database.InsertAIBridgeModelThoughtParams{
+	// 	ID:             uuid.New(),
+	// 	InterceptionID: intcID,
+	// 	ToolUsageId:    in.GetToolUsageId(),
+	// 	Metadata:       out,
+	// 	CreatedAt:      in.GetCreatedAt().AsTime(),
+	// })
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("insert model thought: %w", err)
+	// }
+
+	return &proto.RecordModelThoughtResponse{}, nil
+}
+
 func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
 	cfgs := make([]*proto.MCPServerConfig, 0, len(s.externalAuthConfigs))
 	for _, eac := range s.externalAuthConfigs {

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/recorder"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
@@ -100,6 +101,17 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		InvocationError: invErr,
 		Metadata:        marshalForProto(req.Metadata),
 		CreatedAt:       timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
+func (t *recorderTranslation) RecordModelThought(ctx context.Context, req *recorder.ModelThoughtRecord) error {
+	_, err := t.client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+		InterceptionId: req.InterceptionID,
+		ToolUsageId:    req.ToolUsageID,
+		Content:        req.Content,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err
 }
