@@ -209,27 +209,21 @@ fatal() {
 	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 
 	if ! "${CODER_DEV_SHIM}" whoami >/dev/null 2>&1; then
-		# Check if first user already exists
-		has_first_user=$(curl -s http://127.0.0.1:3000/api/v2/users/first | jq -r '.message // empty')
+		# Try to create the initial admin user first
+		echo "Attempting to create first user: admin@coder.com..." >&2
 
-		if [ -z "${has_first_user}" ]; then
-			# No first user yet, create one
-			echo "Creating first user: admin@coder.com with password '${password}'" >&2
-
-			if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=false; then
-				# Only create this file if an admin user was successfully
-				# created, otherwise we won't retry on a later attempt.
-				touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
-			else
-				echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
-			fi
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=false 2>&1; then
+			# Successfully created first user
+			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
+			echo "Created admin user successfully!" >&2
 
 			# Try to create a regular user.
 			"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --full-name "Regular User" --password="${password}" ||
 				echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
 		else
-			# First user exists, login with password via API
-			echo "Logging in as admin@coder.com..." >&2
+			# First user creation failed - user probably already exists
+			# Try to login with password via API
+			echo "First user already exists, logging in as admin@coder.com..." >&2
 
 			session_token=$(curl -s -X POST http://127.0.0.1:3000/api/v2/users/login \
 				-H "Content-Type: application/json" \

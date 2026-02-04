@@ -225,6 +225,20 @@ These files may be gitignored, read manually if not auto-loaded.
 3. **Race conditions** → Use unique test identifiers
 4. **Missing newlines** → Ensure files end with newline
 
+## Context: Chats
+
+The "Chats" feature is a proof-of-concept simplified flow for using Coder workspaces as background
+agents. This code does not have to be production-ready.
+
+In general, use the e2e tests to guide your development, e.g.:
+
+```
+CODER_PG_CONNECTION_URL="postgresql://postgres:postgres@localhost:5432/coder_e2e?sslmode=disable" \
+ANTHROPIC_API_KEY="..." \
+pnpm playwright:test --grep "chats"
+```
+
+Avoid clobbering or disrupting the user database at localhost:5432.
 ---
 
 *This file stays lean and actionable. Detailed workflows and explanations are imported automatically.*
