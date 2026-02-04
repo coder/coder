@@ -1135,7 +1135,7 @@ func TestSubAgentAPI(t *testing.T) {
 	t.Run("CreateSubAgentUpdatesExisting", func(t *testing.T) {
 		t.Parallel()
 
-		childAgent := database.WorkspaceAgent{
+		baseChildAgent := database.WorkspaceAgent{
 			Name:            "existing-child-agent",
 			Directory:       "/workspaces/test",
 			Architecture:    "amd64",
@@ -1158,11 +1158,11 @@ func TestSubAgentAPI(t *testing.T) {
 					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 						ResourceID:      agent.ResourceID,
-						Name:            childAgent.Name,
-						Directory:       childAgent.Directory,
-						Architecture:    childAgent.Architecture,
-						OperatingSystem: childAgent.OperatingSystem,
-						DisplayApps:     childAgent.DisplayApps,
+						Name:            baseChildAgent.Name,
+						Directory:       baseChildAgent.Directory,
+						Architecture:    baseChildAgent.Architecture,
+						OperatingSystem: baseChildAgent.OperatingSystem,
+						DisplayApps:     baseChildAgent.DisplayApps,
 					})
 
 					// When: We call CreateSubAgent with the existing agent's ID and new display apps.
@@ -1177,7 +1177,7 @@ func TestSubAgentAPI(t *testing.T) {
 				check: func(t *testing.T, ctx context.Context, db database.Store, resp *proto.CreateSubAgentResponse, agent database.WorkspaceAgent) {
 					// Then: The response contains the existing agent's details.
 					require.NotNil(t, resp.Agent)
-					require.Equal(t, childAgent.Name, resp.Agent.Name)
+					require.Equal(t, baseChildAgent.Name, resp.Agent.Name)
 
 					agentID, err := uuid.FromBytes(resp.Agent.Id)
 					require.NoError(t, err)
@@ -1197,11 +1197,11 @@ func TestSubAgentAPI(t *testing.T) {
 					childAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 						ParentID:        uuid.NullUUID{Valid: true, UUID: agent.ID},
 						ResourceID:      agent.ResourceID,
-						Name:            childAgent.Name,
-						Directory:       childAgent.Directory,
-						Architecture:    childAgent.Architecture,
-						OperatingSystem: childAgent.OperatingSystem,
-						DisplayApps:     childAgent.DisplayApps,
+						Name:            baseChildAgent.Name,
+						Directory:       baseChildAgent.Directory,
+						Architecture:    baseChildAgent.Architecture,
+						OperatingSystem: baseChildAgent.OperatingSystem,
+						DisplayApps:     baseChildAgent.DisplayApps,
 					})
 
 					// When: We call CreateSubAgent with different values for name, directory, arch, and OS.
@@ -1219,7 +1219,7 @@ func TestSubAgentAPI(t *testing.T) {
 				check: func(t *testing.T, ctx context.Context, db database.Store, resp *proto.CreateSubAgentResponse, agent database.WorkspaceAgent) {
 					// Then: The response contains the original agent name, not the new one.
 					require.NotNil(t, resp.Agent)
-					require.Equal(t, childAgent.Name, resp.Agent.Name)
+					require.Equal(t, baseChildAgent.Name, resp.Agent.Name)
 
 					agentID, err := uuid.FromBytes(resp.Agent.Id)
 					require.NoError(t, err)
@@ -1227,10 +1227,10 @@ func TestSubAgentAPI(t *testing.T) {
 					// And: The database agent's other fields are unchanged.
 					updatedAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 					require.NoError(t, err)
-					require.Equal(t, childAgent.Name, updatedAgent.Name)
-					require.Equal(t, childAgent.Directory, updatedAgent.Directory)
-					require.Equal(t, childAgent.Architecture, updatedAgent.Architecture)
-					require.Equal(t, childAgent.OperatingSystem, updatedAgent.OperatingSystem)
+					require.Equal(t, baseChildAgent.Name, updatedAgent.Name)
+					require.Equal(t, baseChildAgent.Directory, updatedAgent.Directory)
+					require.Equal(t, baseChildAgent.Architecture, updatedAgent.Architecture)
+					require.Equal(t, baseChildAgent.OperatingSystem, updatedAgent.OperatingSystem)
 
 					// But display apps should be updated.
 					require.Len(t, updatedAgent.DisplayApps, 1)
