@@ -212,6 +212,12 @@ const (
 
 // PublicAPIKeyScopes lists all public low-level API key scopes.
 var PublicAPIKeyScopes = []APIKeyScope{
+	APIKeyScopeAibridgeAll,
+	APIKeyScopeAibridgeUse,
+	APIKeyScopeAibridgeInterceptionAll,
+	APIKeyScopeAibridgeInterceptionCreate,
+	APIKeyScopeAibridgeInterceptionRead,
+	APIKeyScopeAibridgeInterceptionUpdate,
 	APIKeyScopeApiKeyAll,
 	APIKeyScopeApiKeyCreate,
 	APIKeyScopeApiKeyDelete,
