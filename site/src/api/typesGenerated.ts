@@ -1025,6 +1025,37 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 	readonly one_time_passcode: string;
 }
 
+// From codersdk/chats.go
+/**
+ * Chat represents a persisted chat transcript owned by a user.
+ */
+export interface Chat {
+	readonly id: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly workspace_id: string | null;
+	readonly title?: string;
+	readonly provider: string;
+	readonly model: string;
+	readonly metadata: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMessage is an append-only row in chat_messages.
+ *
+ * Content is a JSON envelope. The role determines how to interpret the envelope.
+ */
+export interface ChatMessage {
+	readonly chat_id: string;
+	readonly id: number;
+	readonly created_at: string;
+	readonly role: string;
+	readonly content: Record<string, string>;
+}
+
 // From codersdk/client.go
 /**
  * CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
@@ -1153,6 +1184,26 @@ export interface ConvertLoginRequest {
 	 */
 	readonly to_type: LoginType;
 	readonly password: string;
+}
+
+// From codersdk/chats.go
+export interface CreateChatMessageRequest {
+	readonly content: string;
+}
+
+// From codersdk/chats.go
+export interface CreateChatMessageResponse {
+	readonly run_id: string;
+	readonly message: ChatMessage;
+}
+
+// From codersdk/chats.go
+export interface CreateChatRequest {
+	readonly workspace_id?: string;
+	readonly title?: string;
+	readonly provider: string;
+	readonly model: string;
+	readonly metadata?: Record<string, string>;
 }
 
 // From codersdk/users.go

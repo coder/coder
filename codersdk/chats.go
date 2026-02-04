@@ -84,6 +84,22 @@ func (c *Client) Chat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	return out, nil
 }
 
+func (c *Client) Chats(ctx context.Context) ([]Chat, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var out []Chat
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *Client) ChatMessages(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/messages", chatID), nil)
 	if err != nil {

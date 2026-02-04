@@ -18,6 +18,11 @@ RETURNING *;
 -- name: GetChatByID :one
 SELECT * FROM chats WHERE id = $1;
 
+-- name: ListChatsByOwner :many
+SELECT * FROM chats
+WHERE owner_id = $1
+ORDER BY updated_at DESC, id DESC;
+
 -- name: UpdateChatWorkspaceID :one
 UPDATE chats
 SET

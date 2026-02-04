@@ -637,6 +637,7 @@ type sqlcQuerier interface {
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListChatMessages(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	ListChatMessagesAfter(ctx context.Context, arg ListChatMessagesAfterParams) ([]ChatMessage, error)
+	ListChatsByOwner(ctx context.Context, ownerID uuid.UUID) ([]Chat, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)

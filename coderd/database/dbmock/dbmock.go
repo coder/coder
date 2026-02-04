@@ -6116,6 +6116,21 @@ func (mr *MockStoreMockRecorder) ListChatMessagesAfter(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatMessagesAfter", reflect.TypeOf((*MockStore)(nil).ListChatMessagesAfter), ctx, arg)
 }
 
+// ListChatsByOwner mocks base method.
+func (m *MockStore) ListChatsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChatsByOwner", ctx, ownerID)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChatsByOwner indicates an expected call of ListChatsByOwner.
+func (mr *MockStoreMockRecorder) ListChatsByOwner(ctx, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatsByOwner", reflect.TypeOf((*MockStore)(nil).ListChatsByOwner), ctx, ownerID)
+}
+
 // ListProvisionerKeysByOrganization mocks base method.
 func (m *MockStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()

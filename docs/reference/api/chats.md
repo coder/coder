@@ -1,5 +1,72 @@
 # Chats
 
+## List chats
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /chats`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "metadata": [
+      0
+    ],
+    "model": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "provider": "string",
+    "title": "string",
+    "updated_at": "string",
+    "workspace_id": {
+      "uuid": "string",
+      "valid": true
+    }
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                            |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Chat](schemas.md#codersdkchat) |
+
+<h3 id="list-chats-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type                                     | Required | Restrictions | Description                       |
+|---------------------|------------------------------------------|----------|--------------|-----------------------------------|
+| `[array item]`      | array                                    | false    |              |                                   |
+| `» created_at`      | string                                   | false    |              |                                   |
+| `» id`              | string(uuid)                             | false    |              |                                   |
+| `» metadata`        | array                                    | false    |              |                                   |
+| `» model`           | string                                   | false    |              |                                   |
+| `» organization_id` | string(uuid)                             | false    |              |                                   |
+| `» owner_id`        | string(uuid)                             | false    |              |                                   |
+| `» provider`        | string                                   | false    |              |                                   |
+| `» title`           | string                                   | false    |              |                                   |
+| `» updated_at`      | string                                   | false    |              |                                   |
+| `» workspace_id`    | [uuid.NullUUID](schemas.md#uuidnulluuid) | false    |              |                                   |
+| `»» uuid`           | string                                   | false    |              |                                   |
+| `»» valid`          | boolean                                  | false    |              | Valid is true if UUID is not NULL |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Create chat
 
 ### Code samples

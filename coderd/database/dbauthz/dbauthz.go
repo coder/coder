@@ -4866,6 +4866,36 @@ func (q *querier) ListChatMessagesAfter(ctx context.Context, arg database.ListCh
 	return q.db.ListChatMessagesAfter(ctx, arg)
 }
 
+func (q *querier) ListChatsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(ownerID)); err != nil {
+		return nil, err
+	}
+
+	rows, err := q.db.ListChatsByOwner(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := rows[:0]
+	for _, chat := range rows {
+		if chat.WorkspaceID.Valid {
+			obj := rbac.ResourceWorkspace.
+				WithID(chat.WorkspaceID.UUID).
+				WithOwner(chat.OwnerID.String()).
+				InOrg(chat.OrganizationID)
+			if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+				if IsNotAuthorizedError(err) {
+					continue
+				}
+				return nil, err
+			}
+		}
+		filtered = append(filtered, chat)
+	}
+
+	return filtered, nil
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }

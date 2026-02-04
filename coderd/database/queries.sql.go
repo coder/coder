@@ -2283,6 +2283,46 @@ func (q *sqlQuerier) ListChatMessagesAfter(ctx context.Context, arg ListChatMess
 	return items, nil
 }
 
+const listChatsByOwner = `-- name: ListChatsByOwner :many
+SELECT id, created_at, updated_at, organization_id, owner_id, workspace_id, title, provider, model, metadata FROM chats
+WHERE owner_id = $1
+ORDER BY updated_at DESC, id DESC
+`
+
+func (q *sqlQuerier) ListChatsByOwner(ctx context.Context, ownerID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, listChatsByOwner, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Provider,
+			&i.Model,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateChatWorkspaceID = `-- name: UpdateChatWorkspaceID :one
 UPDATE chats
 SET

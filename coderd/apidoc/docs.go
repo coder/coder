@@ -454,6 +454,32 @@ const docTemplate = `{
             }
         },
         "/chats": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chats",
+                "operationId": "list-chats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Chat"
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {

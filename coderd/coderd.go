@@ -1732,6 +1732,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Get("/", api.chatsList)
 			r.Post("/", api.chatsCreate)
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))

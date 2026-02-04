@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -74,6 +75,11 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 
 	id := uuid.New()
 	now := time.Now().UTC()
+	metadata := req.Metadata
+	if len(metadata) == 0 {
+		metadata = []byte("{}")
+	}
+
 	arg := database.InsertChatParams{
 		ID:             id,
 		CreatedAt:      now,
@@ -84,7 +90,7 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 		Title:          nullString(req.Title),
 		Provider:       req.Provider,
 		Model:          req.Model,
-		Metadata:       req.Metadata,
+		Metadata:       metadata,
 	}
 
 	chat, err := api.Database.InsertChat(ctx, arg)
@@ -95,7 +101,15 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 
 	// Persist a system prompt as durable state so the agent loop can be restarted
 	// solely from chat_messages.
-	promptEnv := chats.SystemPromptEnvelope{Type: chats.EnvelopeTypeSystemPrompt, Content: chats.DefaultSystemPrompt}
+	systemPrompt := chats.DefaultSystemPrompt
+	if workspaceID.Valid {
+		// Fetch workspace details to build a context-aware prompt.
+		ws, wsErr := api.Database.GetWorkspaceByID(ctx, workspaceID.UUID)
+		if wsErr == nil {
+			systemPrompt = buildWorkspaceSystemPrompt(ws.Name)
+		}
+	}
+	promptEnv := chats.SystemPromptEnvelope{Type: chats.EnvelopeTypeSystemPrompt, Content: systemPrompt}
 	promptContent, err := chats.MarshalEnvelope(promptEnv)
 	if err == nil {
 		_, _ = api.Database.InsertChatMessage(ctx, database.InsertChatMessageParams{
@@ -107,6 +121,31 @@ func (api *API) chatsCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat))
+}
+
+// @Summary List chats
+// @ID list-chats
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Success 200 {array} codersdk.Chat
+// @Router /chats [get]
+func (api *API) chatsList(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	key := httpmw.APIKey(r)
+
+	rows, err := api.Database.ListChatsByOwner(ctx, key.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Internal error listing chats.", Detail: err.Error()})
+		return
+	}
+
+	out := make([]codersdk.Chat, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, db2sdk.Chat(row))
+	}
+	//nolint:gosimple // Keep stable JSON shape.
+	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
 // @Summary Get chat
@@ -332,4 +371,12 @@ func nullString(s *string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: *s, Valid: true}
+}
+
+func buildWorkspaceSystemPrompt(workspaceName string) string {
+	return fmt.Sprintf(`You are a helpful coding assistant with access to a Coder workspace named %q.
+
+When you need to execute commands, read files, or perform other operations in the workspace, use the available tools with workspace=%q. Refer to the tool descriptions for details about each tool.
+
+Be concise and helpful. When executing commands, explain what you're doing and interpret the results.`, workspaceName, workspaceName)
 }

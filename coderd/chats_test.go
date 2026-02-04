@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/aisdk-go"
@@ -46,12 +47,11 @@ func TestChats_CreateChatAndRun(t *testing.T) {
 		HTTPClient: api.HTTPClient,
 		LLMFactory: fakeLLMFactory{stream: simpleAssistantStream("hello from assistant")},
 		Tools:      []toolsdk.GenericTool{},
-		MaxSteps:   1,
 	})
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		Provider: "openai",
-		Model:    "gpt-4o-mini",
+		Provider: "anthropic",
+		Model:    string(anthropic.ModelClaudeOpus4_5),
 	})
 	require.NoError(t, err)
 
@@ -76,6 +76,32 @@ func TestChats_CreateChatAndRun(t *testing.T) {
 		}
 		return false
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestChats_ListChats(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	client, _, _ := coderdtest.NewWithAPI(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Provider: "anthropic",
+		Model:    string(anthropic.ModelClaudeOpus4_5),
+	})
+	require.NoError(t, err)
+
+	otherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	_, err = otherClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		Provider: "anthropic",
+		Model:    string(anthropic.ModelClaudeOpus4_5),
+	})
+	require.NoError(t, err)
+
+	chatsList, err := client.Chats(ctx)
+	require.NoError(t, err)
+	require.Len(t, chatsList, 1)
+	require.Equal(t, chat.ID, chatsList[0].ID)
 }
 
 func simpleAssistantStream(text string) aisdk.DataStream {
