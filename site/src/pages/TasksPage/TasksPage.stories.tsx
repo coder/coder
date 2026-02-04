@@ -2,9 +2,11 @@ import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
 	MockSystemNotificationTemplates,
+	MockTask,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
+	MockWorkspaceBuildStop,
 	mockApiError,
 } from "testHelpers/entities";
 import {
@@ -285,6 +287,129 @@ export const InitializingTasks: Story = {
 				data: [MockTemplate],
 			},
 		],
+	},
+};
+
+export const AllTaskStatuses: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [
+					{
+						...MockTask,
+						id: "active-task",
+						display_name: "Active Task",
+						status: "active",
+					},
+					{
+						...MockTask,
+						id: "initializing-task",
+						display_name: "Initializing Task",
+						status: "initializing",
+					},
+					{
+						...MockTask,
+						id: "pending-task",
+						display_name: "Pending Task",
+						status: "pending",
+					},
+					{
+						...MockTask,
+						id: "paused-task",
+						display_name: "Paused Task",
+						status: "paused",
+					},
+					{
+						...MockTask,
+						id: "error-task",
+						display_name: "Error Task",
+						status: "error",
+					},
+					{
+						...MockTask,
+						id: "unknown-task",
+						display_name: "Unknown Task",
+						status: "unknown",
+					},
+				],
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+};
+
+export const PauseTask: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [{ ...MockTask, status: "active" }],
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock APIs for refetch after mutation invalidates queries
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTasks").mockResolvedValue([
+			{ ...MockTask, status: "active" },
+		]);
+		spyOn(API, "stopWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pauseButton = await canvas.findByRole("button", {
+			name: /pause task/i,
+		});
+		await userEvent.click(pauseButton);
+		await waitFor(() => {
+			expect(API.stopWorkspace).toHaveBeenCalledWith(MockTask.workspace_id);
+		});
+	},
+};
+
+export const ResumeTask: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [{ ...MockTask, status: "paused" }],
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock APIs for refetch after mutation invalidates queries
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTasks").mockResolvedValue([
+			{ ...MockTask, status: "paused" },
+		]);
+		spyOn(API, "startWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const resumeButton = await canvas.findByRole("button", {
+			name: /resume task/i,
+		});
+		await userEvent.click(resumeButton);
+		await waitFor(() => {
+			expect(API.startWorkspace).toHaveBeenCalledWith(
+				MockTask.workspace_id,
+				MockTask.template_version_id,
+				undefined,
+				undefined,
+			);
+		});
 	},
 };
 
