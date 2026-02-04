@@ -470,6 +470,7 @@ require (
 )
 
 require (
+	cdr.dev/slog v1.6.2-0.20251120224544-40ff19937ff2
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225

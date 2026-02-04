@@ -104,6 +104,17 @@ func testingWithOwnerUser(m dsl.Matcher) {
 		Report(`This client is operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
 }
 
+// doNotUseRawGoInAgent detects raw `go func()` in agent package.
+// Use agentutil.Go() instead for panic recovery.
+//
+//nolint:unused,deadcode,varnamelen
+func doNotUseRawGoInAgent(m dsl.Matcher) {
+	m.Match(`go func() { $*_ }()`, `go func($*_) { $*_ }($*_)`).
+		Where(m.File().PkgPath.Matches(`github\.com/coder/coder/v2/agent(/.*)?`) &&
+			!m.File().Name.Matches(`_test\.go$`)).
+		Report("Use agentutil.Go() instead of raw go func() for panic recovery")
+}
+
 // Use xerrors everywhere! It provides additional stacktrace info!
 //
 //nolint:unused,deadcode,varnamelen
