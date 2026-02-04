@@ -225,7 +225,7 @@ export const Filter: FC<FilterProps> = ({
 			) : (
 				<>
 					<PresetMenu
-						value={queryCopy}
+						value={filter.query}
 						onSelect={(query) => filter.update(query)}
 						presets={presets}
 						learnMoreLink={learnMoreLink}
