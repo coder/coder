@@ -897,7 +897,149 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 }
 
 func CollectTasks(ctx context.Context, db database.Store, clock quartz.Clock) ([]Task, error) {
-	return nil, nil
+	// 1. Get all non-deleted tasks.
+	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{})
+	if err != nil {
+		return nil, xerrors.Errorf("list tasks: %w", err)
+	}
+	if len(dbTasks) == 0 {
+		return []Task{}, nil
+	}
+
+	// 2. Collect all workspace IDs and app IDs from tasks.
+	workspaceIDs := make(map[uuid.UUID]struct{})
+	appIDs := make([]uuid.UUID, 0)
+	for _, task := range dbTasks {
+		if task.WorkspaceID.Valid {
+			workspaceIDs[task.WorkspaceID.UUID] = struct{}{}
+		}
+		if task.WorkspaceAppID.Valid {
+			appIDs = append(appIDs, task.WorkspaceAppID.UUID)
+		}
+	}
+
+	// 3. Batch query workspace builds for all workspaces.
+	workspaceBuilds := make(map[uuid.UUID][]database.WorkspaceBuild)
+	for wsID := range workspaceIDs {
+		builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+			WorkspaceID: wsID,
+			Since:       time.Time{}, // Get all builds.
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get workspace builds for workspace %s: %w", wsID, err)
+		}
+		workspaceBuilds[wsID] = builds
+	}
+
+	// 4. Batch query app statuses for all apps.
+	appStatuses := make(map[uuid.UUID][]database.WorkspaceAppStatus)
+	if len(appIDs) > 0 {
+		statuses, err := db.GetWorkspaceAppStatusesByAppIDs(ctx, appIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get workspace app statuses: %w", err)
+		}
+		// Group statuses by app ID. Statuses are ordered by created_at DESC.
+		for _, status := range statuses {
+			appStatuses[status.AppID] = append(appStatuses[status.AppID], status)
+		}
+	}
+
+	now := clock.Now()
+	oneHourAgo := now.Add(-1 * time.Hour)
+	tasks := make([]Task, 0, len(dbTasks))
+
+	for _, dbTask := range dbTasks {
+		// Convert base task.
+		task := ConvertTask(dbTask)
+
+		// If no workspace, all lifecycle fields remain nil.
+		if !dbTask.WorkspaceID.Valid {
+			tasks = append(tasks, task)
+			continue
+		}
+
+		wsID := dbTask.WorkspaceID.UUID
+		builds := workspaceBuilds[wsID]
+
+		// Find latest pause and resume builds.
+		var latestPauseBuild *database.WorkspaceBuild
+		var latestResumeBuild *database.WorkspaceBuild
+
+		// Builds are ordered by created_at DESC, so first match is latest.
+		for i := range builds {
+			build := &builds[i]
+			// Check for pause builds (stop with task_auto_pause or task_manual_pause).
+			if build.Transition == database.WorkspaceTransitionStop &&
+				(build.Reason == database.BuildReasonTaskAutoPause || build.Reason == database.BuildReasonTaskManualPause) {
+				if latestPauseBuild == nil {
+					latestPauseBuild = build
+				}
+			}
+			// Check for resume builds (start with task_resume).
+			if build.Transition == database.WorkspaceTransitionStart &&
+				build.Reason == database.BuildReasonTaskResume {
+				if latestResumeBuild == nil {
+					latestResumeBuild = build
+				}
+			}
+		}
+
+		// Set LastPausedAt, LastResumedAt, PauseReason from builds.
+		if latestPauseBuild != nil {
+			task.LastPausedAt = &latestPauseBuild.CreatedAt
+			if latestPauseBuild.Reason == database.BuildReasonTaskAutoPause {
+				task.PauseReason = ptr.Ref("auto")
+			} else {
+				task.PauseReason = ptr.Ref("manual")
+			}
+		}
+		if latestResumeBuild != nil {
+			task.LastResumedAt = &latestResumeBuild.CreatedAt
+		}
+
+		// Get app statuses for this task's app.
+		if dbTask.WorkspaceAppID.Valid {
+			statuses := appStatuses[dbTask.WorkspaceAppID.UUID]
+
+			// Find first (oldest) status and last working status.
+			// Statuses are ordered by created_at DESC.
+			var firstStatus *database.WorkspaceAppStatus
+			var lastWorkingStatus *database.WorkspaceAppStatus
+			for i := len(statuses) - 1; i >= 0; i-- {
+				status := &statuses[i]
+				if firstStatus == nil {
+					firstStatus = status
+				}
+				if status.State == database.WorkspaceAppStatusStateWorking {
+					lastWorkingStatus = status
+				}
+			}
+
+			// Calculate TimeToFirstStatusMS.
+			if firstStatus != nil {
+				timeToFirst := firstStatus.CreatedAt.Sub(dbTask.CreatedAt)
+				task.TimeToFirstStatusMS = ptr.Ref(timeToFirst.Milliseconds())
+			}
+
+			// Calculate IdleDurationMS for paused tasks with a working status.
+			// IdleDurationMS = LastPausedAt - last_working_status_time
+			if latestPauseBuild != nil && lastWorkingStatus != nil {
+				idleDuration := latestPauseBuild.CreatedAt.Sub(lastWorkingStatus.CreatedAt)
+				task.IdleDurationMS = ptr.Ref(idleDuration.Milliseconds())
+			}
+		}
+
+		// Calculate PausedDurationMS for tasks resumed within 1 hour.
+		// PausedDurationMS = LastResumedAt - LastPausedAt
+		if latestResumeBuild != nil && latestPauseBuild != nil && latestResumeBuild.CreatedAt.After(oneHourAgo) {
+			pausedDuration := latestResumeBuild.CreatedAt.Sub(latestPauseBuild.CreatedAt)
+			task.PausedDurationMS = ptr.Ref(pausedDuration.Milliseconds())
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	return tasks, nil
 }
 
 // HashContent returns a SHA256 hash of the content as a hex string.

@@ -1299,6 +1299,31 @@ func TestTasksTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	// =====================================================
+	// Re-fetch tasks to get computed status from the view.
+	// The status is computed from workspace build state, so we need fresh data.
+	// =====================================================
+	pendingTask, err = db.GetTaskByID(ctx, pendingTask.ID)
+	require.NoError(t, err)
+	runningTask, err = db.GetTaskByID(ctx, runningTask.ID)
+	require.NoError(t, err)
+	runningTaskWithStatus, err = db.GetTaskByID(ctx, runningTaskWithStatus.ID)
+	require.NoError(t, err)
+	autoPausedTask, err = db.GetTaskByID(ctx, autoPausedTask.ID)
+	require.NoError(t, err)
+	manuallyPausedTask, err = db.GetTaskByID(ctx, manuallyPausedTask.ID)
+	require.NoError(t, err)
+	idleTimePausedTask, err = db.GetTaskByID(ctx, idleTimePausedTask.ID)
+	require.NoError(t, err)
+	recentlyResumedTask, err = db.GetTaskByID(ctx, recentlyResumedTask.ID)
+	require.NoError(t, err)
+	multiplePauseResumeCyclesTask, err = db.GetTaskByID(ctx, multiplePauseResumeCyclesTask.ID)
+	require.NoError(t, err)
+	resumedLongAgoTask, err = db.GetTaskByID(ctx, resumedLongAgoTask.ID)
+	require.NoError(t, err)
+	taskWithAllFields, err = db.GetTaskByID(ctx, taskWithAllFields.ID)
+	require.NoError(t, err)
+
+	// =====================================================
 	// Build expected results.
 	// =====================================================
 	expected := []telemetry.Task{
