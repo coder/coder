@@ -288,9 +288,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								Disable Terraform module caching
 								<StackLabelHelperText>
 									When enabled, Terraform modules are re-downloaded for each
-									workspace build instead of using cached versions. This is
-									useful for templates that reference frequently updated
-									modules.
+									workspace build instead of using cached versions.{" "}
+									<strong>
+										Warning: This makes workspace builds less predictable and is
+										not recommended for production templates.
+									</strong>
 								</StackLabelHelperText>
 							</StackLabel>
 						}
