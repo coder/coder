@@ -2467,6 +2467,15 @@ func TestPauseTask(t *testing.T) {
 
 	t.Run("Task not found", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.PauseTask(ctx, codersdk.Me, uuid.New())
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
 	t.Run("Task lookup forbidden", func(t *testing.T) {
