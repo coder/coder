@@ -740,17 +740,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
-			OwnerID:        uuid.Nil,
-			OrganizationID: uuid.Nil,
-			Status:         "",
-		})
+		tasks, err := CollectTasks(ctx, r.options.Database)
 		if err != nil {
-			return err
+			return xerrors.Errorf("collect tasks telemetry: %w", err)
 		}
-		for _, dbTask := range dbTasks {
-			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
-		}
+		snapshot.Tasks = tasks
 		return nil
 	})
 	eg.Go(func() error {
@@ -900,6 +894,10 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 		PeriodStart:                now.Add(-r.options.SnapshotFrequency),
 		PeriodDurationMilliseconds: r.options.SnapshotFrequency.Milliseconds(),
 	}, nil
+}
+
+func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
+	return nil, nil
 }
 
 // ConvertAPIKey anonymizes an API key.
@@ -1921,18 +1919,24 @@ type Organization struct {
 }
 
 type Task struct {
-	ID                   string    `json:"id"`
-	OrganizationID       string    `json:"organization_id"`
-	OwnerID              string    `json:"owner_id"`
-	Name                 string    `json:"name"`
-	WorkspaceID          *string   `json:"workspace_id"`
-	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
-	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
-	WorkspaceAppID       *string   `json:"workspace_app_id"`
-	TemplateVersionID    string    `json:"template_version_id"`
-	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
-	CreatedAt            time.Time `json:"created_at"`
-	Status               string    `json:"status"`
+	ID                   string     `json:"id"`
+	OrganizationID       string     `json:"organization_id"`
+	OwnerID              string     `json:"owner_id"`
+	Name                 string     `json:"name"`
+	WorkspaceID          *string    `json:"workspace_id"`
+	WorkspaceBuildNumber *int64     `json:"workspace_build_number"`
+	WorkspaceAgentID     *string    `json:"workspace_agent_id"`
+	WorkspaceAppID       *string    `json:"workspace_app_id"`
+	TemplateVersionID    string     `json:"template_version_id"`
+	PromptHash           string     `json:"prompt_hash"` // Prompt is hashed for privacy.
+	CreatedAt            time.Time  `json:"created_at"`
+	Status               string     `json:"status"`
+	LastPausedAt         *time.Time `json:"last_paused_at"`
+	LastResumedAt        *time.Time `json:"last_resumed_at"`
+	PauseReason          *string    `json:"pause_reason"`
+	IdleDurationMS       *int64     `json:"idle_duration_ms"`
+	PausedDurationMS     *int64     `json:"paused_duration_ms"`
+	TimeToFirstStatusMS  *int64     `json:"time_to_first_status"`
 }
 
 // ConvertTask anonymizes a Task.

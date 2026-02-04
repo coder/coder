@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -672,6 +673,22 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 			require.Equal(t, tc.expectedFailed, eventCounts[telemetry.PrebuiltWorkspaceEventTypeFailed])
 			require.Equal(t, tc.expectedClaimed, eventCounts[telemetry.PrebuiltWorkspaceEventTypeClaimed])
 		})
+	}
+}
+
+func TestTasksTelemetry(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	expected := []telemetry.Task{
+
+	}
+
+	actual, err := telemetry.CollectTasks(ctx, db)
+	require.NoError(t, err, "unexpected error collecting tasks telemetry")
+	if diff := cmp.Diff(expected, actual); diff != "" {
+		t.Fatalf("unexpected diff (-want +got):\n%s", diff)
 	}
 }
 
