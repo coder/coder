@@ -1,5 +1,6 @@
 import { postApp } from "api/queries/oauth2";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -9,8 +10,10 @@ import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 const CreateOAuth2AppPage: FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
+	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const postAppMutation = useMutation(postApp(queryClient));
+	const canCreateApp = permissions.createOAuth2App;
 
 	const defaultValues = {
 		name: searchParams.get("name") ?? "",
@@ -37,6 +40,7 @@ const CreateOAuth2AppPage: FC = () => {
 						displayError("Failed to create OAuth2 application");
 					}
 				}}
+				canCreateApp={canCreateApp}
 			/>
 		</>
 	);

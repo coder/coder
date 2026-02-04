@@ -5,6 +5,9 @@ import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 const meta: Meta = {
 	title: "pages/DeploymentSettingsPage/OAuth2AppsSettingsPageView",
 	component: OAuth2AppsSettingsPageView,
+	args: {
+		canCreateApp: true,
+	},
 };
 export default meta;
 
@@ -33,5 +36,11 @@ export const Apps: Story = {
 export const Empty: Story = {
 	args: {
 		isLoading: false,
+	},
+};
+
+export const NoCreatePermissions: Story = {
+	args: {
+		canCreateApp: false,
 	},
 };

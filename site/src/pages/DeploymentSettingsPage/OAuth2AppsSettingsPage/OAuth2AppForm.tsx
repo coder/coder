@@ -21,6 +21,7 @@ type OAuth2AppFormProps = {
 		callback_url: string;
 		icon: string;
 	};
+	disabled: boolean;
 };
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
@@ -30,6 +31,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	isUpdating,
 	actions,
 	defaultValues,
+	disabled,
 }) => {
 	const apiValidationErrors = isApiValidationError(error)
 		? mapApiErrorToFieldErrors(error.response.data)
@@ -57,6 +59,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					helperText={
 						apiValidationErrors?.name || "The name of your Coder app."
 					}
+					disabled={disabled}
 					autoFocus
 					fullWidth
 				/>
@@ -69,6 +72,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 						apiValidationErrors?.callback_url ||
 						"The full URL to redirect to after a user authorizes an installation."
 					}
+					disabled={disabled}
 					fullWidth
 				/>
 				<TextField
@@ -79,11 +83,12 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					helperText={
 						apiValidationErrors?.icon || "A full or relative URL to an icon."
 					}
+					disabled={disabled}
 					fullWidth
 				/>
 
 				<Stack direction="row">
-					<Button disabled={isUpdating} type="submit">
+					<Button disabled={isUpdating || disabled} type="submit">
 						<Spinner loading={isUpdating} />
 						{app ? "Update application" : "Create application"}
 					</Button>
