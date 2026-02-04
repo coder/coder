@@ -160,33 +160,40 @@ jobs:
           # Build context based on trigger type
           case "${TRIGGER_TYPE}" in
             new_pr)
-              CONTEXT="This is a NEW PR. Perform a thorough documentation review."
+              CONTEXT="This is a NEW PR. Perform initial documentation review."
               ;;
             pr_updated)
-              CONTEXT="This PR was UPDATED with new commits. Only comment if the changes affect documentation needs or address previous feedback."
+              CONTEXT="This PR was UPDATED with new commits. Check if previous feedback was addressed or if new doc needs arose."
               ;;
             label_requested)
-              CONTEXT="A documentation review was REQUESTED via label. Perform a thorough documentation review."
+              CONTEXT="A documentation review was REQUESTED via label. Perform a thorough review."
               ;;
             ready_for_review)
-              CONTEXT="This PR was marked READY FOR REVIEW (converted from draft). Perform a thorough documentation review."
+              CONTEXT="This PR was marked READY FOR REVIEW. Perform a thorough review."
               ;;
             manual)
-              CONTEXT="This is a MANUAL review request. Perform a thorough documentation review."
+              CONTEXT="This is a MANUAL review request. Perform a thorough review."
               ;;
             *)
-              CONTEXT="Perform a thorough documentation review."
+              CONTEXT="Perform a documentation review."
               ;;
           esac
 
-          # Build task prompt with PR-specific context
+          # Build task prompt with sticky comment logic
           TASK_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
 
           ${CONTEXT}
 
-          Use \`gh\` to get PR details, diff, and all comments. Check for previous doc-check comments (from coder-doc-check) and only post a new comment if it adds value.
+          Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
           **Do not comment if no documentation changes are needed.**
+
+          If a sticky comment already exists, compare your current findings against it:
+          - Check off \`[x]\` items that are now addressed
+          - Strikethrough items no longer needed (e.g., code was reverted)
+          - Add new unchecked \`[ ]\` items for newly discovered needs
+          - If an item is checked but you can't verify the docs were added, add a warning note below it
+          - If nothing meaningful changed, don't update the comment at all
 
           ## Comment format
 
@@ -195,18 +202,21 @@ jobs:
           \`\`\`
           ## Documentation Check
 
-          ### Previous Feedback
-          [For re-reviews only: Addressed | Partially addressed | Not yet addressed]
-
           ### Updates Needed
-          - [ ] \`docs/path/file.md\` - [what needs to change]
+          - [ ] \\\`docs/path/file.md\\\` - What needs to change
+          - [x] \\\`docs/other/file.md\\\` - This was addressed
+          - ~~\\\`docs/removed.md\\\` - No longer needed~~ *(reverted in abc123)*
 
           ### New Documentation Needed
-          - [ ] \`docs/suggested/path.md\` - [what should be documented]
+          - [ ] \\\`docs/suggested/path.md\\\` - What should be documented
+            > ⚠️ *Checked but no corresponding documentation changes found in this PR*
 
           ---
           *Automated review via [Coder Tasks](https://coder.com/docs/ai-coder/tasks)*
-          \`\`\`"
+          <!-- doc-check-sticky -->
+          \`\`\`
+
+          The \`<!-- doc-check-sticky -->\` marker must be at the end so future runs can find and update this comment."
 
           # Output the prompt
           {
