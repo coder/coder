@@ -176,8 +176,15 @@ func TestAgent_Stats_SSH(t *testing.T) {
 				echoErr string
 			}
 
+			type lastStats struct {
+				ConnectionCount int64
+				RxBytes         int64
+				TxBytes         int64
+				SessionCountSSH int64
+			}
+
 			var (
-				last  proto.Stats
+				last  lastStats
 				seen  seenStats
 				write writeState
 			)
@@ -199,8 +206,15 @@ func TestAgent_Stats_SSH(t *testing.T) {
 					if !ok {
 						return false
 					}
-					if s != nil {
-						last = *s
+					if s == nil {
+						write.echoErr = "received nil stats"
+						return false
+					}
+					last = lastStats{
+						ConnectionCount: s.ConnectionCount,
+						RxBytes:         s.RxBytes,
+						TxBytes:         s.TxBytes,
+						SessionCountSSH: s.SessionCountSsh,
 					}
 					if last.ConnectionCount > 0 {
 						seen.connectionCount = true
@@ -211,7 +225,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 					if last.TxBytes > 0 {
 						seen.txBytes = true
 					}
-					if last.SessionCountSsh == 1 {
+					if last.SessionCountSSH == 1 {
 						seen.sessionCountSSH = true
 					}
 
