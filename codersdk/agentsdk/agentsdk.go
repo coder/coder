@@ -267,6 +267,18 @@ func (c *Client) ConnectRPC27(ctx context.Context) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
+// ConnectRPC28 returns a dRPC client to the Agent API v2.8.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.31+
+func (c *Client) ConnectRPC28(ctx context.Context) (
+	proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 8))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
 // ConnectRPC connects to the workspace agent API and tailnet API
 func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 	return c.connectRPCVersion(ctx, proto.CurrentVersion)

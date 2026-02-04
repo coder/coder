@@ -81,7 +81,7 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 
 				agentAPI := agenttest.NewClient(t, logger, uuid.New(), agentsdk.Manifest{}, statsCh, tailnet.NewCoordinator(logger))
 
-				agentClient, _, err := agentAPI.ConnectRPC27(ctx)
+				agentClient, _, err := agentAPI.ConnectRPC28(ctx)
 				require.NoError(t, err)
 
 				subAgentClient := agentcontainers.NewSubAgentClientFromAPI(logger, agentClient)
@@ -245,7 +245,7 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 
 				agentAPI := agenttest.NewClient(t, logger, uuid.New(), agentsdk.Manifest{}, statsCh, tailnet.NewCoordinator(logger))
 
-				agentClient, _, err := agentAPI.ConnectRPC27(ctx)
+				agentClient, _, err := agentAPI.ConnectRPC28(ctx)
 				require.NoError(t, err)
 
 				subAgentClient := agentcontainers.NewSubAgentClientFromAPI(logger, agentClient)

@@ -22,7 +22,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -1630,11 +1629,11 @@ func (s *MethodTestSuite) TestUser() {
 			Name:           "",
 			OrganizationID: uuid.NullUUID{UUID: uuid.Nil, Valid: false},
 			DisplayName:    "Test Name",
-			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			SitePermissions: slice.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionDelete, codersdk.ActionViewInsights},
 			}), convertSDKPerm),
 			OrgPermissions: nil,
-			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			UserPermissions: slice.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}), convertSDKPerm),
 		}
@@ -1646,7 +1645,7 @@ func (s *MethodTestSuite) TestUser() {
 			Name:           "name",
 			DisplayName:    "Test Name",
 			OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
-			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			OrgPermissions: slice.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
 			}), convertSDKPerm),
 		}
@@ -1668,11 +1667,11 @@ func (s *MethodTestSuite) TestUser() {
 		arg := database.InsertCustomRoleParams{
 			Name:        "test",
 			DisplayName: "Test Name",
-			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			SitePermissions: slice.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionDelete, codersdk.ActionViewInsights},
 			}), convertSDKPerm),
 			OrgPermissions: nil,
-			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			UserPermissions: slice.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}), convertSDKPerm),
 		}
@@ -1684,7 +1683,7 @@ func (s *MethodTestSuite) TestUser() {
 			Name:           "test",
 			DisplayName:    "Test Name",
 			OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
-			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			OrgPermissions: slice.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
 			}), convertSDKPerm),
 		}

@@ -23,7 +23,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -1645,6 +1644,53 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
 		}
 	})
+
+	t.Run("SkipsCanceledPendingJobs", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			now   = dbtime.Now()
+		)
+
+		// Insert a pending job (started_at is NULL).
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             uuid.New(),
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			InitiatorID:    uuid.New(),
+			OrganizationID: org.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         uuid.New(),
+			Input:          json.RawMessage(`{}`),
+			Tags:           database.StringMap{},
+			TraceMetadata:  pqtype.NullRawMessage{},
+		})
+		require.NoError(t, err)
+
+		// Cancel it while still pending. In production (workspacebuilds.go), canceling
+		// a pending build sets completed_at but leaves started_at NULL since no
+		// provisioner ever started the job.
+		err = db.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID:          job.ID,
+			CanceledAt:  sql.NullTime{Time: now, Valid: true},
+			CompletedAt: sql.NullTime{Time: now, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// AcquireProvisionerJob should skip this job since it's already completed.
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  org.ID,
+			StartedAt:       sql.NullTime{Time: now, Valid: true},
+			WorkerID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: json.RawMessage(`{}`),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
 }
 
 func TestUserLastSeenFilter(t *testing.T) {
@@ -1975,8 +2021,8 @@ func TestWorkspaceQuotas(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.ElementsMatch(t, db2sdk.List(everyoneMembers, groupMemberIDs),
-			db2sdk.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
+		require.ElementsMatch(t, slice.List(everyoneMembers, groupMemberIDs),
+			slice.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
 
 		// Check the quota is correct.
 		allowance, err := db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
@@ -2157,7 +2203,7 @@ func TestReadCustomRoles(t *testing.T) {
 		{
 			Name: "AllRolesByLookup",
 			Params: database.CustomRolesParams{
-				LookupRoles: db2sdk.List(allRoles, roleToLookup),
+				LookupRoles: slice.List(allRoles, roleToLookup),
 			},
 			Match: func(role database.CustomRole) bool {
 				return true
@@ -2223,8 +2269,8 @@ func TestReadCustomRoles(t *testing.T) {
 				}
 			}
 
-			a := db2sdk.List(filtered, normalizedRoleName)
-			b := db2sdk.List(found, normalizedRoleName)
+			a := slice.List(filtered, normalizedRoleName)
+			b := slice.List(found, normalizedRoleName)
 			require.Equal(t, a, b)
 		})
 	}
@@ -4213,7 +4259,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgA.ID, orgB.ID, // Everyone groups
 		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(userGroups, onlyGroupIDs))
+	}, slice.List(userGroups, onlyGroupIDs))
 
 	// Remove the user from org A
 	err = db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
@@ -4230,7 +4276,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgB.ID,                // Everyone group
 		groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(userGroups, onlyGroupIDs))
+	}, slice.List(userGroups, onlyGroupIDs))
 
 	// Verify extra user is unchanged
 	extraUserGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
@@ -4240,7 +4286,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgA.ID, orgB.ID, // Everyone groups
 		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(extraUserGroups, onlyGroupIDs))
+	}, slice.List(extraUserGroups, onlyGroupIDs))
 }
 
 func TestGetUserStatusCounts(t *testing.T) {

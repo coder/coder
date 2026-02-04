@@ -15,13 +15,13 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -590,7 +590,7 @@ func TestApplyGroupDifference(t *testing.T) {
 			require.NoError(t, err)
 
 			// assert
-			found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
+			found := slice.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
 				return g.Group.ID
 			})
 
@@ -910,14 +910,14 @@ func (o *orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store
 	})
 
 	if len(o.ExpectedGroupNames) > 0 {
-		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) string {
+		found := slice.List(userGroups, func(g database.GetGroupsRow) string {
 			return g.Group.Name
 		})
 		require.ElementsMatch(t, o.ExpectedGroupNames, found, "user groups by name")
 		require.Len(t, o.ExpectedGroups, 0, "ExpectedGroups should be empty")
 	} else {
 		// Check by ID, recommended
-		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
+		found := slice.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
 			return g.Group.ID
 		})
 		require.ElementsMatch(t, o.ExpectedGroups, found, "user groups")

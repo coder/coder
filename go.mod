@@ -437,7 +437,7 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.121.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.123.0 // indirect
 	go.opentelemetry.io/contrib v1.19.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.64.0
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -473,7 +473,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.0.1-0.20260202135542-9e2857aaac8f
+	github.com/coder/aibridge v1.0.1
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.6.1
 	github.com/coder/preview v1.0.4

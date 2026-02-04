@@ -31,16 +31,6 @@ import (
 	previewtypes "github.com/coder/preview/types"
 )
 
-// Deprecated: use slice.List
-func List[F any, T any](list []F, convert func(F) T) []T {
-	return slice.List[F, T](list, convert)
-}
-
-// Deprecated: use slice.ListLazy
-func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
-	return slice.ListLazy[F, T](convert)
-}
-
 func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget {
 	return codersdk.APIAllowListTarget{
 		Type: codersdk.RBACResource(entry.Type),
@@ -81,7 +71,7 @@ func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.Worksp
 }
 
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
-	return List(params, WorkspaceBuildParameter)
+	return slice.List(params, WorkspaceBuildParameter)
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
@@ -115,7 +105,7 @@ func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk
 		Icon:                 param.Icon,
 		Required:             param.Required,
 		Ephemeral:            param.Ephemeral,
-		Options:              List(param.Options, TemplateVersionParameterOptionFromPreview),
+		Options:              slice.List(param.Options, TemplateVersionParameterOptionFromPreview),
 		// Validation set after
 	}
 	if len(param.Validations) > 0 {
@@ -237,11 +227,11 @@ func ReducedUserFromGroupMember(member database.GroupMember) codersdk.ReducedUse
 }
 
 func ReducedUsersFromGroupMembers(members []database.GroupMember) []codersdk.ReducedUser {
-	return List(members, ReducedUserFromGroupMember)
+	return slice.List(members, ReducedUserFromGroupMember)
 }
 
 func ReducedUsers(users []database.User) []codersdk.ReducedUser {
-	return List(users, ReducedUser)
+	return slice.List(users, ReducedUser)
 }
 
 func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
@@ -255,7 +245,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 }
 
 func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []codersdk.User {
-	return List(users, func(user database.User) codersdk.User {
+	return slice.List(users, func(user database.User) codersdk.User {
 		return User(user, organizationIDs[user.ID])
 	})
 }
@@ -388,7 +378,7 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 }
 
 func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
-	return List(dbApps, func(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+	return slice.List(dbApps, func(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 		return OAuth2ProviderApp(accessURL, dbApp)
 	})
 }
@@ -607,7 +597,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 }
 
 func WorkspaceAppStatuses(statuses []database.WorkspaceAppStatus) []codersdk.WorkspaceAppStatus {
-	return List(statuses, WorkspaceAppStatus)
+	return slice.List(statuses, WorkspaceAppStatus)
 }
 
 func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAppStatus {
@@ -620,6 +610,27 @@ func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAp
 		URI:         status.Uri.String,
 		Message:     status.Message,
 		State:       codersdk.WorkspaceAppStatusState(status.State),
+	}
+}
+
+func ProvisionerJobLog(log database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
+	return codersdk.ProvisionerJobLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Source:    codersdk.LogSource(log.Source),
+		Level:     codersdk.LogLevel(log.Level),
+		Stage:     log.Stage,
+		Output:    log.Output,
+	}
+}
+
+func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLog {
+	return codersdk.WorkspaceAgentLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Output:    log.Output,
+		Level:     codersdk.LogLevel(log.Level),
+		SourceID:  log.LogSourceID,
 	}
 }
 
@@ -707,10 +718,10 @@ func RBACRole(role rbac.Role) codersdk.Role {
 		Name:                          slim.Name,
 		OrganizationID:                slim.OrganizationID,
 		DisplayName:                   slim.DisplayName,
-		SitePermissions:               List(role.Site, RBACPermission),
-		UserPermissions:               List(role.User, RBACPermission),
-		OrganizationPermissions:       List(orgPerms.Org, RBACPermission),
-		OrganizationMemberPermissions: List(orgPerms.Member, RBACPermission),
+		SitePermissions:               slice.List(role.Site, RBACPermission),
+		UserPermissions:               slice.List(role.User, RBACPermission),
+		OrganizationPermissions:       slice.List(orgPerms.Org, RBACPermission),
+		OrganizationMemberPermissions: slice.List(orgPerms.Member, RBACPermission),
 	}
 }
 
@@ -724,9 +735,9 @@ func Role(role database.CustomRole) codersdk.Role {
 		Name:                    role.Name,
 		OrganizationID:          orgID,
 		DisplayName:             role.DisplayName,
-		SitePermissions:         List(role.SitePermissions, Permission),
-		UserPermissions:         List(role.UserPermissions, Permission),
-		OrganizationPermissions: List(role.OrgPermissions, Permission),
+		SitePermissions:         slice.List(role.SitePermissions, Permission),
+		UserPermissions:         slice.List(role.UserPermissions, Permission),
+		OrganizationPermissions: slice.List(role.OrgPermissions, Permission),
 	}
 }
 
@@ -762,7 +773,7 @@ func Organization(organization database.Organization) codersdk.Organization {
 }
 
 func CryptoKeys(keys []database.CryptoKey) []codersdk.CryptoKey {
-	return List(keys, CryptoKey)
+	return slice.List(keys, CryptoKey)
 }
 
 func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
@@ -873,8 +884,8 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 			Mutable:      param.Mutable,
 			DefaultValue: PreviewHCLString(param.DefaultValue),
 			Icon:         param.Icon,
-			Options:      List(param.Options, PreviewParameterOption),
-			Validations:  List(param.Validations, PreviewParameterValidation),
+			Options:      slice.List(param.Options, PreviewParameterOption),
+			Validations:  slice.List(param.Validations, PreviewParameterValidation),
 			Required:     param.Required,
 			Order:        param.Order,
 			Ephemeral:    param.Ephemeral,
@@ -890,7 +901,7 @@ func HCLDiagnostics(d hcl.Diagnostics) []codersdk.FriendlyDiagnostic {
 
 func PreviewDiagnostics(d previewtypes.Diagnostics) []codersdk.FriendlyDiagnostic {
 	f := d.FriendlyDiagnostics()
-	return List(f, func(f previewtypes.FriendlyDiagnostic) codersdk.FriendlyDiagnostic {
+	return slice.List(f, func(f previewtypes.FriendlyDiagnostic) codersdk.FriendlyDiagnostic {
 		return codersdk.FriendlyDiagnostic{
 			Severity: codersdk.DiagnosticSeverityString(f.Severity),
 			Summary:  f.Summary,
@@ -938,17 +949,17 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 }
 
 func AIBridgeInterception(interception database.AIBridgeInterception, initiator database.VisibleUser, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
-	sdkTokenUsages := List(tokenUsages, AIBridgeTokenUsage)
+	sdkTokenUsages := slice.List(tokenUsages, AIBridgeTokenUsage)
 	sort.Slice(sdkTokenUsages, func(i, j int) bool {
 		// created_at ASC
 		return sdkTokenUsages[i].CreatedAt.Before(sdkTokenUsages[j].CreatedAt)
 	})
-	sdkUserPrompts := List(userPrompts, AIBridgeUserPrompt)
+	sdkUserPrompts := slice.List(userPrompts, AIBridgeUserPrompt)
 	sort.Slice(sdkUserPrompts, func(i, j int) bool {
 		// created_at ASC
 		return sdkUserPrompts[i].CreatedAt.Before(sdkUserPrompts[j].CreatedAt)
 	})
-	sdkToolUsages := List(toolUsages, AIBridgeToolUsage)
+	sdkToolUsages := slice.List(toolUsages, AIBridgeToolUsage)
 	sort.Slice(sdkToolUsages, func(i, j int) bool {
 		// created_at ASC
 		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)

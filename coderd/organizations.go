@@ -7,6 +7,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -32,7 +33,7 @@ func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(organizations, db2sdk.Organization))
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(organizations, db2sdk.Organization))
 }
 
 // @Summary Get organization by ID

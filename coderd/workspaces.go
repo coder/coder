@@ -959,7 +959,7 @@ func claimPrebuild(
 	nextStartAt sql.NullTime,
 	ttl sql.NullInt64,
 ) (*database.Workspace, error) {
-	claimedID, err := claimer.Claim(ctx, now, owner.ID, name, templateVersionPresetID, autostartSchedule, nextStartAt, ttl)
+	claimedID, err := claimer.Claim(ctx, db, now, owner.ID, name, templateVersionPresetID, autostartSchedule, nextStartAt, ttl)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
@@ -2350,6 +2350,17 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateWorkspaceACL
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Don't allow adding new groups or users to a workspace associated with a
+	// task. Sharing a task workspace without sharing the task itself is a broken
+	// half measure that we don't want to support right now. To be fixed!
+	if workspace.TaskID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Task workspaces cannot be shared.",
+			Detail:  "This workspace is managed by a task. Task sharing has not yet been implemented.",
+		})
 		return
 	}
 
