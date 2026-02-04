@@ -33,11 +33,7 @@ export const PageHeader: FC<PageHeaderProps> = ({
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<h1
-			className={cn(
-				"text-3xl font-semibold m-0 flex items-center leading-snug",
-			)}
-		>
+		<h1 className="text-3xl font-semibold m-0 flex items-center leading-snug">
 			{children}
 		</h1>
 	);
@@ -52,11 +48,7 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	children,
 }) => {
 	return (
-		<h2
-			className={cn(
-				"text-sm text-content-secondary font-normal block m-0 leading-snug",
-			)}
-		>
+		<h2 className="text-sm text-content-secondary font-normal block m-0 leading-snug">
 			{children}
 		</h2>
 	);
