@@ -3,7 +3,6 @@ import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
 
 type OAuth2AppFormProps = {
@@ -39,7 +38,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 
 	return (
 		<form
-			css={{ marginTop: 10 }}
+			className="mt-2.5"
 			onSubmit={(event) => {
 				event.preventDefault();
 				const formData = new FormData(event.target as HTMLFormElement);
@@ -50,7 +49,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 				});
 			}}
 		>
-			<Stack spacing={2.5}>
+			<div className="flex flex-col gap-10">
 				<TextField
 					name="name"
 					label="Application name"
@@ -87,14 +86,14 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					fullWidth
 				/>
 
-				<Stack direction="row">
+				<div className="flex flex-row gap-2">
 					<Button disabled={isUpdating || disabled} type="submit">
 						<Spinner loading={isUpdating} />
 						{app ? "Update application" : "Create application"}
 					</Button>
 					{actions}
-				</Stack>
-			</Stack>
+				</div>
+			</div>
 		</form>
 	);
 };
