@@ -1,5 +1,4 @@
 import type * as TypesGen from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
 import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
@@ -50,7 +49,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				asChild
 			>
 				<Link to="/settings/account">
-					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
 					<div className="flex flex-col">
 						<span className="text-white">{user.username}</span>
 						<span className="text-xs font-semibold">{user.email}</span>
