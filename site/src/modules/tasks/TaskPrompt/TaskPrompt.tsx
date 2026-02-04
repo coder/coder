@@ -270,9 +270,18 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									{templates.map((template) => {
 										return (
 											<SelectItem value={template.id} key={template.id}>
-												<span className="overflow-hidden text-ellipsis block">
-													{template.display_name || template.name}
-												</span>
+												<div className="flex items-center gap-2">
+													{template.icon && (
+														<img
+															src={template.icon}
+															alt={template.name}
+															className="size-icon-sm flex-shrink-0"
+														/>
+													)}
+													<span className="overflow-hidden text-ellipsis block">
+														{template.display_name || template.name}
+													</span>
+												</div>
 											</SelectItem>
 										);
 									})}
