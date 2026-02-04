@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -92,8 +93,12 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Workspaces
 		w1 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 
-		w1wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			Do()
 
 		// When: first run
 		notifEnq.Clear()
@@ -178,27 +183,60 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		now := clk.Now()
 
 		// Workspace builds
-		w1wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-		w1wb2pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 2, TemplateVersionID: t1v2.ID, JobID: w1wb2pj.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-		w1wb3pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-4 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 3, TemplateVersionID: t1v2.ID, JobID: w1wb3pj.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			Do()
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 2, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			WithJobCompletedAt(now.Add(-5 * dayDuration)).
+			Do()
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 3, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-4 * dayDuration)).
+			Do()
 
-		w2wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w2.ID, BuildNumber: 4, TemplateVersionID: t2v1.ID, JobID: w2wb1pj.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-		w2wb2pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-4 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w2.ID, BuildNumber: 5, TemplateVersionID: t2v2.ID, JobID: w2wb2pj.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-		w2wb3pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-3 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w2.ID, BuildNumber: 6, TemplateVersionID: t2v2.ID, JobID: w2wb3pj.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w2).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 4, TemplateVersionID: t2v1.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			WithJobCompletedAt(now.Add(-5 * dayDuration)).
+			Do()
+		_ = dbfake.WorkspaceBuild(t, db, w2).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 5, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-4 * dayDuration)).
+			Do()
+		_ = dbfake.WorkspaceBuild(t, db, w2).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 6, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-3 * dayDuration)).
+			Do()
 
-		w3wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-3 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w3.ID, BuildNumber: 7, TemplateVersionID: t1v1.ID, JobID: w3wb1pj.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w3).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 7, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-3 * dayDuration)).
+			Do()
 
-		w4wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w4.ID, BuildNumber: 8, TemplateVersionID: t2v1.ID, JobID: w4wb1pj.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-		w4wb2pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w4.ID, BuildNumber: 9, TemplateVersionID: t2v2.ID, JobID: w4wb2pj.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w4).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 8, TemplateVersionID: t2v1.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			Do()
+		_ = dbfake.WorkspaceBuild(t, db, w4).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 9, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			WithJobCompletedAt(now.Add(-dayDuration)).
+			Do()
 
 		// When
 		notifEnq.Clear()
@@ -275,8 +313,12 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		clk.Advance(6 * dayDuration).MustWait(context.Background())
 		now = clk.Now()
 
-		w1wb4pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 77, TemplateVersionID: t1v2.ID, JobID: w1wb4pj.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 77, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			Failed(jobError.String, jobErrorCode.String).
+			WithJobCompletedAt(now.Add(-dayDuration)).
+			Do()
 
 		// When
 		notifEnq.Clear()
@@ -380,17 +422,28 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		now := clk.Now()
 
 		// Workspace builds
-		pj0 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-24 * time.Hour), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 777, TemplateVersionID: t1v1.ID, JobID: pj0.ID, CreatedAt: now.Add(-24 * time.Hour), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 777, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-24 * time.Hour), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			WithJobCompletedAt(now.Add(-24 * time.Hour)).
+			Do()
 
 		for i := 1; i <= 23; i++ {
 			at := now.Add(-time.Duration(i) * time.Hour)
 
-			pj1 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: at, Valid: true}})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i), TemplateVersionID: t1v1.ID, JobID: pj1.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}) // nolint:gosec
+			_ = dbfake.WorkspaceBuild(t, db, w1).
+				Pubsub(ps).
+				Seed(database.WorkspaceBuild{BuildNumber: int32(i), TemplateVersionID: t1v1.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}). // nolint:gosec
+				Failed(jobError.String, jobErrorCode.String).
+				WithJobCompletedAt(at).
+				Do()
 
-			pj2 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: at, Valid: true}})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i) + 100, TemplateVersionID: t1v2.ID, JobID: pj2.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}) // nolint:gosec
+			_ = dbfake.WorkspaceBuild(t, db, w1).
+				Pubsub(ps).
+				Seed(database.WorkspaceBuild{BuildNumber: int32(i) + 100, TemplateVersionID: t1v2.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}). // nolint:gosec
+				Failed(jobError.String, jobErrorCode.String).
+				WithJobCompletedAt(at).
+				Do()
 		}
 
 		// When
@@ -486,10 +539,16 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		now := clk.Now()
 
 		// Workspace builds
-		w1wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-		w1wb2pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 2, TemplateVersionID: t1v1.ID, JobID: w1wb2pj.ID, CreatedAt: now.Add(-1 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			Do()
+		_ = dbfake.WorkspaceBuild(t, db, w1).
+			Pubsub(ps).
+			Seed(database.WorkspaceBuild{BuildNumber: 2, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-1 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
+			WithJobCompletedAt(now.Add(-5 * dayDuration)).
+			Do()
 
 		// When
 		notifEnq.Clear()

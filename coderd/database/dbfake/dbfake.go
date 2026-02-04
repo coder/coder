@@ -62,6 +62,8 @@ type WorkspaceBuildBuilder struct {
 	jobCreatedAt   time.Time // When the provisioner job was created
 	jobStartedAt   time.Time // When the job started running (acquired)
 	jobCompletedAt time.Time // When the job completed
+	jobError       string    // Error message for failed jobs
+	jobErrorCode   string    // Error code for failed jobs
 }
 
 // WorkspaceBuild generates a workspace build for the provided workspace.
@@ -157,6 +159,19 @@ func (b WorkspaceBuildBuilder) Pending() WorkspaceBuildBuilder {
 
 func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
 	b.jobStatus = database.ProvisionerJobStatusCanceled
+	return b
+}
+
+// Failed sets the provisioner job to a failed state with the given error
+// message and error code. If error is empty, a default error message is used.
+func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobStatus = database.ProvisionerJobStatusFailed
+	if jobError == "" {
+		jobError = "failed"
+	}
+	b.jobError = jobError
+	b.jobErrorCode = jobErrorCode
 	return b
 }
 
@@ -357,6 +372,21 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 			},
 		})
 		require.NoError(b.t, err, "cancel job")
+	case database.ProvisionerJobStatusFailed:
+		// Set provisioner job status to 'failed' with error
+		b.logger.Debug(context.Background(), "failing the provisioner job")
+		completedAt := takeFirst(b.jobCompletedAt, dbtime.Now())
+		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        job.ID,
+			UpdatedAt: completedAt,
+			Error:     sql.NullString{String: b.jobError, Valid: b.jobError != ""},
+			ErrorCode: sql.NullString{String: b.jobErrorCode, Valid: b.jobErrorCode != ""},
+			CompletedAt: sql.NullTime{
+				Time:  completedAt,
+				Valid: true,
+			},
+		})
+		require.NoError(b.t, err, "fail job")
 	default:
 		// By default, consider jobs in 'succeeded' status
 		b.logger.Debug(context.Background(), "completing the provisioner job")
