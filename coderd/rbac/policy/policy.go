@@ -27,6 +27,7 @@ const (
 
 	ActionCreateAgent Action = "create_agent"
 	ActionDeleteAgent Action = "delete_agent"
+	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
 )
@@ -63,6 +64,7 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	ActionCreateAgent: "create a new workspace agent",
 	ActionDeleteAgent: "delete an existing workspace agent",
+	ActionUpdateAgent: "update an existing workspace agent",
 
 	// Sharing a workspace
 	ActionShare: "share a workspace with other users or groups",

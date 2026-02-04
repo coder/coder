@@ -353,6 +353,7 @@ export type APIKeyScope =
 	| "workspace_dormant:start"
 	| "workspace_dormant:stop"
 	| "workspace_dormant:update"
+	| "workspace_dormant:update_agent"
 	| "workspace_proxy:*"
 	| "workspace_proxy:create"
 	| "workspace_proxy:delete"
@@ -363,7 +364,8 @@ export type APIKeyScope =
 	| "workspace:ssh"
 	| "workspace:start"
 	| "workspace:stop"
-	| "workspace:update";
+	| "workspace:update"
+	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
 	"aibridge_interception:*",
@@ -555,6 +557,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:start",
 	"workspace_dormant:stop",
 	"workspace_dormant:update",
+	"workspace_dormant:update_agent",
 	"workspace_proxy:*",
 	"workspace_proxy:create",
 	"workspace_proxy:delete",
@@ -566,6 +569,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace:start",
 	"workspace:stop",
 	"workspace:update",
+	"workspace:update_agent",
 ];
 
 // From codersdk/apikey.go
@@ -4032,6 +4036,7 @@ export type RBACAction =
 	| "share"
 	| "unassign"
 	| "update"
+	| "update_agent"
 	| "update_personal"
 	| "use"
 	| "view_insights"
@@ -4051,6 +4056,7 @@ export const RBACActions: RBACAction[] = [
 	"share",
 	"unassign",
 	"update",
+	"update_agent",
 	"update_personal",
 	"use",
 	"view_insights",
