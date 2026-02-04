@@ -1366,14 +1366,19 @@ func awaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 	t.Helper()
 
 	timeout := testutil.WaitLong
+	timeoutKind := "standard"
 	if testutil.InCI() {
 		timeout = testutil.WaitSuperLong
+		timeoutKind = "CI"
+		t.Logf("detected CI environment; using extended template version job timeout: %s", timeout)
+	} else {
+		t.Logf("using standard template version job timeout: %s", timeout)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	t.Logf("waiting for template version %s build job to complete (timeout: %s)", versionID.String(), timeout)
+	t.Logf("waiting for template version %s build job to complete (%s timeout)", versionID.String(), timeoutKind)
 
 	var (
 		templateVersion codersdk.TemplateVersion
@@ -1397,8 +1402,8 @@ func awaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 
 		return templateVersion.Job.CompletedAt != nil
 	}, timeout, testutil.IntervalMedium,
-		"template version %s build job did not complete within %s (lastStatus=%s lastErr=%v); make sure you set `IncludeProvisionerDaemon`!",
-		versionID.String(), timeout, lastStatus, lastErr,
+		"template version %s build job did not complete within %s (%s timeout, lastStatus=%s lastErr=%v); make sure you set `IncludeProvisionerDaemon`!",
+		versionID.String(), timeout, timeoutKind, lastStatus, lastErr,
 	)
 
 	t.Logf("template version %s job has completed", versionID.String())
