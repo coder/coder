@@ -137,6 +137,19 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			//nolint:dogsled
 			conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
+			// Wait until the stats reporter has negotiated a reporting interval and
+			// installed the tailnet connection-stats callback. Otherwise, an early and
+			// mostly-idle SSH session can complete before any bytes/connCount are
+			// observed, causing this test to flake.
+			require.Eventuallyf(t, func() bool {
+				select {
+				case s := <-stats:
+					return s != nil
+				default:
+					return false
+				}
+			}, testutil.WaitLong, testutil.IntervalFast, "timed out waiting for initial stats report")
+
 			sshClient, err := conn.SSHClientOnPort(ctx, port)
 			require.NoError(t, err)
 			defer sshClient.Close()
@@ -148,32 +161,71 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			err = session.Shell()
 			require.NoError(t, err)
 
-			var s *proto.Stats
+			// Generate some deterministic, bi-directional SSH traffic so the connstats
+			// window reliably observes the connection and byte counters.
+			_, err = stdin.Write([]byte("echo mux-stats-test\n"))
+			require.NoError(t, err, "writing echo to stdin")
+
+			type seenStats struct {
+				connectionCount bool
+				rxBytes         bool
+				txBytes         bool
+				sessionCountSSH bool
+			}
+			type writeState struct {
+				echoErr string
+			}
+
+			var (
+				last  proto.Stats
+				seen  seenStats
+				write writeState
+			)
+			writeEcho := func() {
+				if write.echoErr != "" {
+					return
+				}
+				_, err := stdin.Write([]byte("echo mux-stats-test\n"))
+				if err != nil {
+					write.echoErr = err.Error()
+				}
+			}
+
 			// We are looking for four different stats to be reported. They might not all
 			// arrive at the same time, so we loop until we've seen them all.
-			var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen bool
 			require.Eventuallyf(t, func() bool {
-				var ok bool
-				s, ok = <-stats
-				if !ok {
+				select {
+				case s, ok := <-stats:
+					if !ok {
+						return false
+					}
+					if s != nil {
+						last = *s
+					}
+					if last.ConnectionCount > 0 {
+						seen.connectionCount = true
+					}
+					if last.RxBytes > 0 {
+						seen.rxBytes = true
+					}
+					if last.TxBytes > 0 {
+						seen.txBytes = true
+					}
+					if last.SessionCountSsh == 1 {
+						seen.sessionCountSSH = true
+					}
+
+					if (!seen.connectionCount || !seen.rxBytes || !seen.txBytes) && write.echoErr == "" {
+						writeEcho()
+					}
+
+					return seen.connectionCount && seen.rxBytes && seen.txBytes && seen.sessionCountSSH
+				default:
 					return false
 				}
-				if s.ConnectionCount > 0 {
-					connectionCountSeen = true
-				}
-				if s.RxBytes > 0 {
-					rxBytesSeen = true
-				}
-				if s.TxBytes > 0 {
-					txBytesSeen = true
-				}
-				if s.SessionCountSsh == 1 {
-					sessionCountSSHSeen = true
-				}
-				return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
 			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountSsh: %t",
-				s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen,
+				"never saw all stats: last=%+v seen=%+v write=%+v",
+				&last, &seen, &write,
 			)
 			_, err = stdin.Write([]byte("exit 0\n"))
 			require.NoError(t, err, "writing exit to stdin")
