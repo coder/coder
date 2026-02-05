@@ -4426,18 +4426,6 @@ export const RoleOrganizationAdmin = "organization-admin";
 /**
  * Ideally this roles would be generated from the rbac/roles.go package.
  */
-export const RoleOrganizationAibridgeAuditor = "organization-aibridge-auditor";
-
-// From codersdk/rbacroles.go
-/**
- * Ideally this roles would be generated from the rbac/roles.go package.
- */
-export const RoleOrganizationAibridgeUser = "organization-aibridge-user";
-
-// From codersdk/rbacroles.go
-/**
- * Ideally this roles would be generated from the rbac/roles.go package.
- */
 export const RoleOrganizationAuditor = "organization-auditor";
 
 // From codersdk/rbacroles.go
