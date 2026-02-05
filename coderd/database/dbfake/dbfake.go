@@ -387,10 +387,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// might need to do this multiple times if we got a template version
 		// import job as well
 		b.logger.Debug(context.Background(), "looping to acquire provisioner job")
-		startedAt := b.jobStartedAt
-		if startedAt.IsZero() {
-			startedAt = dbtime.Now()
-		}
+		startedAt := takeFirstTime(b.jobStartedAt, dbtime.Now())
 		for {
 			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
 				OrganizationID: job.OrganizationID,
@@ -421,10 +418,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	case database.ProvisionerJobStatusCanceled:
 		// Set provisioner job status to 'canceled'
 		b.logger.Debug(context.Background(), "canceling the provisioner job")
-		completedAt := b.jobCompletedAt
-		if completedAt.IsZero() {
-			completedAt = dbtime.Now()
-		}
+		completedAt := takeFirstTime(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCancelByID(ownerCtx, database.UpdateProvisionerJobWithCancelByIDParams{
 			ID: jobID,
 			CanceledAt: sql.NullTime{
@@ -439,10 +433,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		require.NoError(b.t, err, "cancel job")
 	case database.ProvisionerJobStatusFailed:
 		b.logger.Debug(context.Background(), "failing the provisioner job")
-		completedAt := b.jobCompletedAt
-		if completedAt.IsZero() {
-			completedAt = dbtime.Now()
-		}
+		completedAt := takeFirstTime(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
 			UpdatedAt: completedAt,
@@ -457,10 +448,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	default:
 		// By default, consider jobs in 'succeeded' status
 		b.logger.Debug(context.Background(), "completing the provisioner job")
-		completedAt := b.jobCompletedAt
-		if completedAt.IsZero() {
-			completedAt = dbtime.Now()
-		}
+		completedAt := takeFirstTime(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
 			UpdatedAt: completedAt,
