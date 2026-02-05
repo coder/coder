@@ -3,7 +3,6 @@ package agentapi
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"slices"
 	"time"
 
@@ -137,7 +136,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		case database.WorkspaceAgentLifecycleStateReady,
 			database.WorkspaceAgentLifecycleStateStartTimeout,
 			database.WorkspaceAgentLifecycleStateStartError:
-			a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
+			emitBuildDurationMetric(ctx, a.Log, a.Database, workspaceAgent.ResourceID)
 			a.buildDurationEmitted = true
 		}
 	}
@@ -203,44 +202,3 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 	return req.Startup, nil
 }
 
-// emitBuildDurationMetric records the end-to-end workspace build duration
-// from build creation to when all agents are ready.
-func (a *LifecycleAPI) emitBuildDurationMetric(
-	ctx context.Context,
-	resourceID uuid.UUID,
-) {
-	buildInfo, err := a.Database.GetWorkspaceBuildMetricsByResourceID(ctx, resourceID)
-	if err != nil {
-		a.Log.Warn(ctx, "failed to get build info for metrics", slog.Error(err))
-		return
-	}
-
-	// Wait until all agents have reached a terminal startup state.
-	if !buildInfo.AllAgentsReady {
-		return
-	}
-
-	// LastAgentReadyAt is the MAX(ready_at) across all agents. Since we only
-	// get here when AllAgentsReady is true, this should always be valid.
-	lastReadyAt, ok := buildInfo.LastAgentReadyAt.(time.Time)
-	if !ok {
-		a.Log.Warn(ctx, "unexpected type for last_agent_ready_at",
-			slog.F("type", fmt.Sprintf("%T", buildInfo.LastAgentReadyAt)))
-		return
-	}
-
-	duration := lastReadyAt.Sub(buildInfo.CreatedAt).Seconds()
-
-	prebuild := "false"
-	if buildInfo.IsPrebuild {
-		prebuild = "true"
-	}
-
-	WorkspaceBuildDurationSeconds.WithLabelValues(
-		buildInfo.TemplateName,
-		buildInfo.OrganizationName,
-		string(buildInfo.Transition),
-		buildInfo.WorstStatus,
-		prebuild,
-	).Observe(duration)
-}

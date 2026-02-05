@@ -2041,6 +2041,18 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
 		check.Args(res.ID).Asserts(ws, policy.ActionRead).Returns(res)
 	}))
+	s.Run("GetWorkspaceBuildMetricsByResourceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		job := testutil.Fake(s.T(), faker, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{JobID: build.JobID})
+		dbm.EXPECT().GetWorkspaceResourceByID(gomock.Any(), res.ID).Return(res, nil).AnyTimes()
+		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), res.JobID).Return(job, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), res.JobID).Return(build, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), res.ID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{}, nil).AnyTimes()
+		check.Args(res.ID).Asserts(ws, policy.ActionRead).Returns(database.GetWorkspaceBuildMetricsByResourceIDRow{})
+	}))
 	s.Run("Build/GetWorkspaceResourcesByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
