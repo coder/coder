@@ -35,7 +35,7 @@ var WorkspaceBuildDurationSeconds = prometheus.NewHistogramVec(prometheus.Histog
 	NativeHistogramBucketFactor:     1.1,
 	NativeHistogramMaxBucketNumber:  100,
 	NativeHistogramMinResetDuration: time.Hour,
-}, []string{"template_name", "organization_name", "workspace_transition", "status", "prebuild"})
+}, []string{"template_name", "organization_name", "transition", "status", "is_prebuild"})
 
 // emitBuildDurationMetric records the end-to-end workspace build duration
 // from build creation to when all agents are ready.
