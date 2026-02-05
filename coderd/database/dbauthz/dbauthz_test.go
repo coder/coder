@@ -2517,8 +2517,8 @@ func (s *MethodTestSuite) TestTasks() {
 			DeletedAt: dbtime.Now(),
 		}
 		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
-		dbm.EXPECT().DeleteTask(gomock.Any(), arg).Return(database.TaskTable{}, nil).AnyTimes()
-		check.Args(arg).Asserts(task, policy.ActionDelete).Returns(database.TaskTable{})
+		dbm.EXPECT().DeleteTask(gomock.Any(), arg).Return(task.ID, nil).AnyTimes()
+		check.Args(arg).Asserts(task, policy.ActionDelete).Returns(task.ID)
 	}))
 	s.Run("InsertTask", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
