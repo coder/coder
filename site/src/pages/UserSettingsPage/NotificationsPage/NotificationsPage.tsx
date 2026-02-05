@@ -1,11 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Card from "@mui/material/Card";
-import Divider from "@mui/material/Divider";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
-import Switch from "@mui/material/Switch";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -22,7 +14,7 @@ import {
 import type { NotificationTemplate } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
+import { Switch } from "components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
@@ -122,7 +114,7 @@ const NotificationsPage: FC = () => {
 				layout="fluid"
 			>
 				{ready ? (
-					<Stack spacing={4}>
+					<div className="flex flex-col gap-8">
 						{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
 							if (!canSeeNotificationGroup(group, permissions)) {
 								return null;
@@ -133,46 +125,49 @@ const NotificationsPage: FC = () => {
 							});
 
 							return (
-								<Card
-									variant="outlined"
-									css={{ background: "transparent" }}
+								<article
+									className="border border-solid rounded-lg overflow-hidden"
 									key={group}
 								>
-									<List>
-										<ListItem css={styles.listHeader}>
-											<ListItemIcon>
+									<div className="flex flex-col">
+										<header className="flex items-center justify-start gap-2 bg-surface-secondary border-0 border-b border-solid px-4 py-3">
+											<div className="flex items-center gap-2">
 												<Switch
 													id={group}
-													size="small"
 													checked={!allDisabled}
-													onChange={async (_, checked) => {
+													onCheckedChange={async (checked) => {
 														const updated = { ...disabledPreferences.data };
 														for (const tpl of templates) {
 															updated[tpl.id] = !checked;
 														}
-														await updatePreferences.mutateAsync({
-															template_disabled_map: updated,
-														});
-														displaySuccess("Notification preferences updated");
+														await updatePreferences.mutateAsync(
+															{
+																template_disabled_map: updated,
+															},
+															{
+																onSuccess: () => {
+																	displaySuccess(
+																		"Notification preferences updated",
+																	);
+																},
+																onError: () => {
+																	displayError(
+																		"Error updating notification preferences",
+																	);
+																},
+															},
+														);
 													}}
 												/>
-											</ListItemIcon>
-											<ListItemText
-												css={styles.listItemText}
-												primary={group}
-												primaryTypographyProps={{
-													component: "label",
-													htmlFor: group,
-												}}
-											/>
-										</ListItem>
-										{templates.map((tmpl, i) => {
+											</div>
+											<div className="font-medium text-sm">{group}</div>
+										</header>
+										{templates.map((tmpl) => {
 											const method = castNotificationMethod(
 												tmpl.method || dispatchMethods.data.default,
 											);
 											const Icon = methodIcons[method];
 											const label = methodLabels[method];
-											const isLastItem = i === templates.length - 1;
 
 											const disabled = notificationIsDisabled(
 												disabledPreferences.data,
@@ -181,19 +176,32 @@ const NotificationsPage: FC = () => {
 
 											return (
 												<Fragment key={tmpl.id}>
-													<ListItem>
-														<ListItemIcon>
+													<div className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid">
+														<div className="flex items-center gap-2">
 															<Switch
-																size="small"
 																id={tmpl.id}
 																checked={!disabled}
-																onChange={async (_, checked) => {
-																	await updatePreferences.mutateAsync({
-																		template_disabled_map: {
-																			...disabledPreferences.data,
-																			[tmpl.id]: !checked,
+																onCheckedChange={async (checked) => {
+																	await updatePreferences.mutateAsync(
+																		{
+																			template_disabled_map: {
+																				...disabledPreferences.data,
+																				[tmpl.id]: !checked,
+																			},
 																		},
-																	});
+																		{
+																			onSuccess: () => {
+																				displaySuccess(
+																					"Notification preferences updated",
+																				);
+																			},
+																			onError: () => {
+																				displayError(
+																					"Error updating notification preferences",
+																				);
+																			},
+																		},
+																	);
 
 																	// Clear the Tasks page warning dismissal when enabling a task notification
 																	// This ensures that if the user disables task notifications again later,
@@ -207,44 +215,33 @@ const NotificationsPage: FC = () => {
 																			task_notification_alert_dismissed: false,
 																		});
 																	}
-
-																	displaySuccess(
-																		"Notification preferences updated",
-																	);
 																}}
 															/>
-														</ListItemIcon>
-														<ListItemText
-															primaryTypographyProps={{
-																component: "label",
-																htmlFor: tmpl.id,
-															}}
-															css={styles.listItemText}
-															primary={tmpl.name}
-														/>
-														<ListItemIcon
-															css={styles.listItemEndIcon}
-															aria-label="Delivery method"
-														>
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<Icon aria-label={label} />
-																</TooltipTrigger>
-																<TooltipContent side="bottom">
-																	Delivery via {label}
-																</TooltipContent>
-															</Tooltip>
-														</ListItemIcon>
-													</ListItem>
-													{!isLastItem && <Divider />}
+															<div className="font-medium text-sm">
+																{tmpl.name}
+															</div>
+														</div>
+
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<Icon
+																	className="size-icon-sm text-content-secondary"
+																	aria-label={label}
+																/>
+															</TooltipTrigger>
+															<TooltipContent side="bottom">
+																Delivery via {label}
+															</TooltipContent>
+														</Tooltip>
+													</div>
 												</Fragment>
 											);
 										})}
-									</List>
-								</Card>
+									</div>
+								</article>
 							);
 						})}
-					</Stack>
+					</div>
 				) : (
 					<Loader />
 				)}
@@ -272,29 +269,3 @@ function canSeeNotificationGroup(
 			return false;
 	}
 }
-
-const styles = {
-	listHeader: (theme) => ({
-		background: theme.palette.background.paper,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-	}),
-	listItemText: {
-		[`& .${listItemTextClasses.primary}`]: {
-			fontSize: 14,
-			fontWeight: 500,
-			textTransform: "capitalize",
-		},
-		[`& .${listItemTextClasses.secondary}`]: {
-			fontSize: 14,
-		},
-	},
-	listItemEndIcon: (theme) => ({
-		minWidth: 0,
-		fontSize: 20,
-		color: theme.palette.text.secondary,
-
-		"& svg": {
-			fontSize: "inherit",
-		},
-	}),
-} as Record<string, Interpolation<Theme>>;
