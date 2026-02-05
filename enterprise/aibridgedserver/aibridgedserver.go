@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"slices"
 	"sync"
@@ -49,7 +48,7 @@ var (
 
 const (
 	InterceptionLogMarker = "interception log"
-	MetadataUserAgentKey  = "aib-request-user-agent"
+	MetadataUserAgentKey  = "request_user_agent"
 )
 
 var _ aibridged.DRPCServer = &Server{}
@@ -135,7 +134,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 
 	if in.UserAgent != "" {
 		if _, ok := metadata[MetadataUserAgentKey]; ok {
-			s.logger.Warn(ctx, fmt.Sprintf("interception metadata contains user agent key, will be overwritten"))
+			s.logger.Warn(ctx, "interception metadata contains user agent key, will be overwritten")
 		}
 		metadata[MetadataUserAgentKey] = in.UserAgent
 	}
