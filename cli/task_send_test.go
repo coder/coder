@@ -23,9 +23,9 @@ func Test_TaskSend(t *testing.T) {
 
 	t.Run("ByTaskName_WithArgument", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 		userClient := client
 
 		var stdout strings.Builder
@@ -33,15 +33,16 @@ func Test_TaskSend(t *testing.T) {
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
 
 	t.Run("ByTaskID_WithArgument", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 		userClient := client
 
 		var stdout strings.Builder
@@ -49,15 +50,16 @@ func Test_TaskSend(t *testing.T) {
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
 
 	t.Run("ByTaskName_WithStdin", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 		userClient := client
 
 		var stdout strings.Builder
@@ -66,6 +68,7 @@ func Test_TaskSend(t *testing.T) {
 		inv.Stdin = strings.NewReader("carry on with the task")
 		clitest.SetupConfig(t, userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
@@ -108,15 +111,16 @@ func Test_TaskSend(t *testing.T) {
 
 	t.Run("SendError", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		userClient, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
 
 		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "send", task.Name, "some task input")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, assert.AnError.Error())
 	})
