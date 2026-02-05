@@ -196,7 +196,7 @@ func (b WorkspaceBuildBuilder) Succeeded(ts ...time.Time) WorkspaceBuildBuilder 
 
 // Failed sets the provisioner job to a failed state with the given error
 // message and error code. If error is empty, a default error message is used.
-// If timestamp provided, it's used for CanceledAt and CompletedAt.
+// If timestamp provided, it's used for CompletedAt and UpdatedAt.
 func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string, ts ...time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusFailed
