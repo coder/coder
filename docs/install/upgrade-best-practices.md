@@ -6,9 +6,9 @@ particularly with database migrations in high availability (HA) deployments.
 
 ## Before you upgrade
 
-- **Schedule upgrades during off-peak hours.** Upgrades cause a noticeable
+- **Schedule upgrades during off-peak hours.** Upgrades can cause a noticeable
   disruption to the developer experience. Plan your maintenance window when
-  fewest developers are actively using their workspaces.
+  the fewest developers are actively using their workspaces.
 - **The larger the version jump, the more migrations will run.** If you are
   upgrading across multiple minor versions, expect longer migration times.
 - **Large upgrades should complete in minutes** (typically 4-7 minutes). If your
@@ -63,7 +63,10 @@ the pod prematurely.
 ### Configuration example
 
 Increase the liveness probe threshold to cover a reasonable duration (for
-example, 15 minutes):
+example, 15 minutes). Note that the Coder Helm chart only exposes
+`initialDelaySeconds` for liveness probes. To configure `failureThreshold` and
+`periodSeconds`, you must modify the Deployment directly after Helm renders it,
+or use a post-renderer or Kustomize overlay.
 
 ```yaml
 livenessProbe:
@@ -80,10 +83,9 @@ livenessProbe:
 ### Workaround steps
 
 1. **Adjust liveness probes:** Temporarily increase the `failureThreshold` in
-   your `values.yaml` (liveness probe) or Deployment configuration (for example,
-   set to 200-300 with intervals greater than 10 seconds). This ensures the
-   `coderd` instance is not restarted by Kubernetes while the migration is
-   running.
+   your Deployment configuration (for example, set to 200-300 with intervals
+   greater than 10 seconds). This ensures the `coderd` instance is not
+   restarted by Kubernetes while the migration is running.
 
 1. **Isolate the migration:** Ensure all extra replica sets are shut down. If
    you have clear evidence of database locks from old pods, scale the deployment
@@ -143,7 +145,9 @@ If you encounter any of the following issues, contact
 [Coder support](../support/index.md):
 
 - Locking issues that cannot be mitigated by the steps in this guide
-- Migrations taking significantly longer than expected (more than 10-15 minutes)
+- Migrations taking significantly longer than expected (more than 15 minutes)
+  without evidence of lock contention—this may indicate database resource
+  constraints requiring investigation
 - Resource consumption issues (excessive memory, CPU, or OOM kills) during
   upgrades
 - Any other upgrade problems not covered by this documentation

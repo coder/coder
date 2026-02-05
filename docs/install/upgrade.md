@@ -7,7 +7,7 @@ This article describes how to upgrade your Coder server.
 > Coder does not support rollbacks.
 
 For upgrade recommendations and troubleshooting, see
-[Upgrading Best Practices](./upgrade-troubleshooting.md).
+[Upgrading Best Practices](./upgrade-best-practices.md).
 
 ## Reinstall Coder to upgrade
 
