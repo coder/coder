@@ -1,4 +1,9 @@
-import { ConnectionLogStatuses, ConnectionTypes } from "api/typesGenerated";
+import {
+	type ConnectionLogStatus,
+	ConnectionLogStatuses,
+	type ConnectionType,
+	ConnectionTypes,
+} from "api/typesGenerated";
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
@@ -22,12 +27,30 @@ import type { FC } from "react";
 import { connectionTypeToFriendlyName } from "utils/connection";
 import { docs } from "utils/docs";
 
-const PRESET_FILTERS = [
+type ConnectionLogFilterValues = {
+	status?: ConnectionLogStatus;
+	type?: ConnectionType;
+	workspace_owner?: string;
+	organization?: string;
+};
+
+const buildConnectionLogFilterQuery = (
+	v: ConnectionLogFilterValues,
+): string => {
+	const parts: string[] = [];
+	if (v.status) parts.push(`status:${v.status}`);
+	if (v.type) parts.push(`type:${v.type}`);
+	if (v.workspace_owner) parts.push(`workspace_owner:${v.workspace_owner}`);
+	if (v.organization) parts.push(`organization:${v.organization}`);
+	return parts.join(" ");
+};
+
+const CONNECTION_LOG_PRESET_FILTERS = [
 	{
-		query: "status:connected type:ssh",
+		query: buildConnectionLogFilterQuery({ status: "ongoing", type: "ssh" }),
 		name: "Active SSH connections",
 	},
-];
+] satisfies { name: string; query: string }[];
 
 interface ConnectionLogFilterProps {
 	filter: ReturnType<typeof useFilter>;
@@ -52,7 +75,7 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 			learnMoreLink={docs(
 				"/admin/monitoring/connection-logs#how-to-filter-connection-logs",
 			)}
-			presets={PRESET_FILTERS}
+			presets={CONNECTION_LOG_PRESET_FILTERS}
 			isLoading={menus.user.isInitializing}
 			filter={filter}
 			error={error}
