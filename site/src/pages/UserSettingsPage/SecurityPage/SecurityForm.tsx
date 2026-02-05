@@ -1,13 +1,19 @@
-import TextField from "@mui/material/TextField";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
+import {
+	Field,
+	FieldError,
+	FieldGroup,
+	FieldLabel,
+	FieldSet,
+} from "components/Field/Field";
 import { Form, FormFields } from "components/Form/Form";
-import { PasswordField } from "components/PasswordField/PasswordField";
+import { Input } from "components/Input/Input";
 import { Spinner } from "components/Spinner/Spinner";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
+import { getFieldHelpers } from "utils/formUtils";
 import * as Yup from "yup";
 
 interface SecurityFormValues {
@@ -62,7 +68,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 			validationSchema,
 			onSubmit,
 		});
-	const getFieldHelpers = getFormHelpers<SecurityFormValues>(form, error);
+	const fieldHelper = getFieldHelpers(form);
 
 	if (disabled) {
 		return (
@@ -76,26 +82,40 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
 				{Boolean(error) && <ErrorAlert error={error} />}
-				<TextField
-					{...getFieldHelpers("old_password")}
-					autoComplete="old_password"
-					fullWidth
-					label={Language.oldPasswordLabel}
-					type="password"
-				/>
-				<PasswordField
-					{...getFieldHelpers("password")}
-					autoComplete="password"
-					fullWidth
-					label={Language.newPasswordLabel}
-				/>
-				<TextField
-					{...getFieldHelpers("confirm_password")}
-					autoComplete="confirm_password"
-					fullWidth
-					label={Language.confirmPasswordLabel}
-					type="password"
-				/>
+
+				<FieldSet>
+					<FieldGroup>
+						<Field>
+							<FieldLabel htmlFor="old_password">Old Password</FieldLabel>
+							<Input
+								{...fieldHelper("old_password")}
+								type="password"
+								disabled={isLoading}
+							/>
+							<FieldError>{form.errors.old_password}</FieldError>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="password">New Password</FieldLabel>
+							<Input
+								{...fieldHelper("password")}
+								type="password"
+								disabled={isLoading}
+							/>
+							<FieldError>{form.errors.password}</FieldError>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="confirm_password">
+								Confirm Password
+							</FieldLabel>
+							<Input
+								{...fieldHelper("confirm_password")}
+								type="password"
+								disabled={isLoading}
+							/>
+							<FieldError>{form.errors.confirm_password}</FieldError>
+						</Field>
+					</FieldGroup>
+				</FieldSet>
 
 				<div>
 					<Button disabled={isLoading} type="submit">

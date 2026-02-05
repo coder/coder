@@ -20,6 +20,8 @@ export const Input = forwardRef<
 				focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 				disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-inherit
 				`,
+				// Invalid state
+				"aria-[invalid=true]:border-border-destructive",
 				className,
 			)}
 			ref={ref}

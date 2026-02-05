@@ -1,13 +1,21 @@
-import TextField from "@mui/material/TextField";
 import type { UpdateUserProfileRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
+import {
+	Field,
+	FieldDescription,
+	FieldError,
+	FieldGroup,
+	FieldLabel,
+	FieldSet,
+} from "components/Field/Field";
 import { Form, FormFields } from "components/Form/Form";
+import { Input } from "components/Input/Input";
 import { Spinner } from "components/Spinner/Spinner";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import {
-	getFormHelpers,
+	getFieldHelpers,
 	nameValidator,
 	onChangeTrimmed,
 } from "utils/formUtils";
@@ -51,7 +59,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 		onSubmit,
 		initialTouched,
 	});
-	const getFieldHelpers = getFormHelpers(form, updateProfileError);
+	const fieldHelper = getFieldHelpers(form);
 
 	return (
 		<Form onSubmit={form.handleSubmit}>
@@ -60,31 +68,46 @@ export const AccountForm: FC<AccountFormProps> = ({
 					<ErrorAlert error={updateProfileError} />
 				)}
 
-				<TextField
-					disabled
-					fullWidth
-					label={Language.emailLabel}
-					value={email}
-				/>
-				<TextField
-					{...getFieldHelpers("username")}
-					onChange={onChangeTrimmed(form)}
-					aria-disabled={!editable}
-					autoComplete="username"
-					disabled={!editable}
-					fullWidth
-					label={Language.usernameLabel}
-				/>
-				<TextField
-					{...getFieldHelpers("name")}
-					fullWidth
-					onBlur={(e) => {
-						e.target.value = e.target.value.trim();
-						form.handleChange(e);
-					}}
-					label={Language.nameLabel}
-					helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
-				/>
+				<FieldSet>
+					<FieldGroup>
+						<Field>
+							<FieldLabel htmlFor="email">Email</FieldLabel>
+							<Input
+								{...fieldHelper("email")}
+								value={email}
+								autoComplete="none"
+								disabled
+							/>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="username">Username</FieldLabel>
+							<Input
+								{...fieldHelper("username")}
+								onChange={onChangeTrimmed(form)}
+								aria-disabled={!editable}
+								autoComplete="none"
+								disabled={!editable}
+							/>
+							<FieldError>{form.errors.username}</FieldError>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="name">Name</FieldLabel>
+							<Input
+								{...fieldHelper("name")}
+								onBlur={(e) => {
+									e.target.value = e.target.value.trim();
+									form.handleChange(e);
+								}}
+							/>
+							<FieldError>{form.errors.name}</FieldError>
+							<FieldDescription>
+								The human-readable name is optional and can be accessed in a
+								template via the "data.coder_workspace_owner.me.full_name"
+								property.
+							</FieldDescription>
+						</Field>
+					</FieldGroup>
+				</FieldSet>
 
 				<div>
 					<Button disabled={isLoading} type="submit">

@@ -101,6 +101,19 @@ export const getFormHelpers =
 		};
 	};
 
+export const getFieldHelpers =
+	<TFormValues>(form: FormikContextType<TFormValues>) =>
+	(fieldName: string, _options: GetFormHelperOptions = {}) => {
+		const fieldProps = form.getFieldProps(fieldName);
+		const formError = getIn(form.errors, fieldName);
+
+		return {
+			...fieldProps,
+			id: fieldName.toString(),
+			...(formError && { "aria-invalid": true }),
+		};
+	};
+
 export const onChangeTrimmed =
 	<T>(form: FormikContextType<T>, callback?: (value: string) => void) =>
 	(event: ChangeEvent<HTMLInputElement>): void => {

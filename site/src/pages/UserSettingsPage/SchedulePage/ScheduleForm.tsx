@@ -1,5 +1,3 @@
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import type {
 	UpdateUserQuietHoursScheduleRequest,
 	UserQuietHoursScheduleResponse,
@@ -7,12 +5,26 @@ import type {
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
+import {
+	Field,
+	FieldError,
+	FieldGroup,
+	FieldLabel,
+	FieldSet,
+} from "components/Field/Field";
 import { Form, FormFields } from "components/Form/Form";
+import { Input } from "components/Input/Input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
-import { getFormHelpers } from "utils/formUtils";
+import { getFieldHelpers, getFormHelpers } from "utils/formUtils";
 import { quietHoursDisplay, timeToCron, validTime } from "utils/schedule";
 import { getPreferredTimezone, timeZones } from "utils/timeZones";
 import * as Yup from "yup";
@@ -79,7 +91,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 				});
 			},
 		});
-	const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, submitError);
+	const fieldHelper = getFieldHelpers(form);
 	const browserLocale = navigator.language || "en-US";
 
 	return (
@@ -102,7 +114,53 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 					</Alert>
 				)}
 
-				<Stack direction="row">
+				<FieldSet>
+					<FieldGroup className="grid md:grid-cols-2">
+						<Field>
+							<FieldLabel htmlFor="time">Start time</FieldLabel>
+							<Input
+								{...fieldHelper("time")}
+								type="time"
+								disabled={isLoading || !initialValues.user_can_set}
+							/>
+							<FieldError>{form.errors.time}</FieldError>
+						</Field>
+						<Field>
+							<FieldLabel>Timezone</FieldLabel>
+							<Select
+								{...fieldHelper("timezone")}
+								value={form.values.timezone}
+								onValueChange={(value) => form.setFieldValue("timezone", value)}
+							>
+								<SelectTrigger>{form.values.timezone}</SelectTrigger>
+								<SelectContent>
+									{timeZones.map((zone) => (
+										<SelectItem key={zone} value={zone}>
+											{zone}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<FieldError>{form.errors.timezone}</FieldError>
+						</Field>
+					</FieldGroup>
+					<FieldGroup>
+						<Field>
+							<FieldLabel>Next occurrence</FieldLabel>
+							<Input
+								disabled
+								value={quietHoursDisplay(
+									browserLocale,
+									form.values.time,
+									form.values.timezone,
+									now,
+								)}
+							/>
+						</Field>
+					</FieldGroup>
+				</FieldSet>
+
+				{/* <Stack direction="row">
 					<TextField
 						{...getFieldHelpers("time")}
 						disabled={isLoading || !initialValues.user_can_set}
@@ -135,7 +193,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 						form.values.timezone,
 						now,
 					)}
-				/>
+				/> */}
 
 				<div>
 					<Button
