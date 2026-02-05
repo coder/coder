@@ -581,7 +581,6 @@ func logSignalNotifyContext(parent context.Context, logger slog.Logger, signals 
 			cancel()
 		case <-ctx.Done():
 		}
-		signal.Stop(c)
 	}()
 
 	return ctx, func() {
