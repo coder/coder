@@ -96,7 +96,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-6*dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}}).
 			Do()
 
 		// When: first run
@@ -185,50 +185,50 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-6*dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}}).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 2, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Succeeded(now.Add(-5 * dayDuration)).
+			Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}}).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 3, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-4*dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-4 * dayDuration), Valid: true}}).
 			Do()
 
 		_ = dbfake.WorkspaceBuild(t, db, w2).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 4, TemplateVersionID: t2v1.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Succeeded(now.Add(-5 * dayDuration)).
+			Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}}).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w2).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 5, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-4*dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-4 * dayDuration), Valid: true}}).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w2).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 6, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-3*dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-3 * dayDuration), Valid: true}}).
 			Do()
 
 		_ = dbfake.WorkspaceBuild(t, db, w3).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 7, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-3*dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-3 * dayDuration), Valid: true}}).
 			Do()
 
 		_ = dbfake.WorkspaceBuild(t, db, w4).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 8, TemplateVersionID: t2v1.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-6*dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}}).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w4).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 9, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Succeeded(now.Add(-dayDuration)).
+			Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-dayDuration), Valid: true}}).
 			Do()
 
 		// When
@@ -309,7 +309,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 77, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String, now.Add(-dayDuration)).
+			Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-dayDuration), Valid: true}}).
 			Do()
 
 		// When
@@ -417,7 +417,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 777, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-24 * time.Hour), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Succeeded(now.Add(-24 * time.Hour)).
+			Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-24 * time.Hour), Valid: true}}).
 			Do()
 
 		for i := 1; i <= 23; i++ {
@@ -426,13 +426,13 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 			_ = dbfake.WorkspaceBuild(t, db, w1).
 				Pubsub(ps).
 				Seed(database.WorkspaceBuild{BuildNumber: int32(i), TemplateVersionID: t1v1.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}). // nolint:gosec
-				Failed(jobError.String, jobErrorCode.String, at).
+				Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: at, Valid: true}}).
 				Do()
 
 			_ = dbfake.WorkspaceBuild(t, db, w1).
 				Pubsub(ps).
 				Seed(database.WorkspaceBuild{BuildNumber: int32(i) + 100, TemplateVersionID: t1v2.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}). // nolint:gosec
-				Failed(jobError.String, jobErrorCode.String, at).
+				Failed(jobError.String, jobErrorCode.String).UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: at, Valid: true}}).
 				Do()
 		}
 
@@ -532,12 +532,12 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Succeeded(now.Add(-6 * dayDuration)).
+			Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}}).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 2, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-1 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Succeeded(now.Add(-5 * dayDuration)).
+			Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}}).
 			Do()
 
 		// When
