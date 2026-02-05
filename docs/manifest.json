@@ -1628,6 +1628,11 @@
 							"path": "reference/cli/organizations_create.md"
 						},
 						{
+							"title": "organizations delete",
+							"description": "Delete an organization",
+							"path": "reference/cli/organizations_delete.md"
+						},
+						{
 							"title": "organizations members",
 							"description": "Manage organization members",
 							"path": "reference/cli/organizations_members.md"
