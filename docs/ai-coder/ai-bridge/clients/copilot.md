@@ -32,7 +32,7 @@ Replace `<proxy-host>` with your AI Bridge Proxy hostname.
 Copilot CLI is built on Node.js and uses the `NODE_EXTRA_CA_CERTS` environment variable for custom certificates:
 
 ```shell
-export NODE_EXTRA_CA_CERTS="/path/to/aiproxy-ca.pem"
+export NODE_EXTRA_CA_CERTS="/path/to/coder-aibridge-proxy-ca.pem"
 ```
 
 See [Client Configuration CA certificate trust](../ai-bridge-proxy/setup.md#trusting-the-ca-certificate) for details on how to obtain the certificate file.
@@ -106,15 +106,15 @@ For installation instructions, see [Installing the GitHub Copilot extension in J
 
 Configure the proxy directly in JetBrains IDE settings:
 
-1) Open Settings (`Ctrl+Alt+S` for Windows or `Cmd+,` for macOS)
-1) Navigate to `Appearance & Behavior` > `System Settings` > `HTTP Proxy`
-1) Select `Manual proxy configuration` and `HTTP`
-1) Enter the proxy hostname and port (default: 8888)
-1) Select `Proxy authentication` and enter:
-   1) Login: `coder` (this value is ignored)
-   1) Password: Your Coder session token
-   1) Check `Remember` to save the password
-1) Restart the IDE for changes to take effect
+1. Open Settings (`Ctrl+Alt+S` for Windows or `Cmd+,` for macOS)
+1. Navigate to `Appearance & Behavior` > `System Settings` > `HTTP Proxy`
+1. Select `Manual proxy configuration` and `HTTP`
+1. Enter the proxy hostname and port (default: 8888)
+1. Select `Proxy authentication` and enter:
+   1. Login: `coder` (this value is ignored)
+   1. Password: Your Coder session token
+   1. Check `Remember` to save the password
+1. Restart the IDE for changes to take effect
 
 For more details, see [Configuring proxy settings for Copilot](https://docs.github.com/en/copilot/how-tos/configure-personal-settings/configure-network-settings?tool=jetbrains) in the GitHub documentation.
 
@@ -125,11 +125,11 @@ If the certificate is in the system trust store, no additional IDE configuration
 
 Alternatively, you can configure the IDE to accept the certificate:
 
-1) Open Settings (`Ctrl+Alt+S` for Windows or `Cmd+,` for macOS)
-1) Navigate to `Appearance & Behavior` > `System Settings` > `Server Certificates`
-1) Under `Accepted certificates`, click `+` and select the CA certificate file
-1) Check `Accept non-trusted certificates automatically`
-1) Restart the IDE for changes to take effect
+1. Open Settings (`Ctrl+Alt+S` for Windows or `Cmd+,` for macOS)
+1. Navigate to `Appearance & Behavior` > `System Settings` > `Server Certificates`
+1. Under `Accepted certificates`, click `+` and select the CA certificate file
+1. Check `Accept non-trusted certificates automatically`
+1. Restart the IDE for changes to take effect
 
 For more details, see [Trusted root certificates](https://www.jetbrains.com/help/idea/ssl-certificates.html) in the JetBrains documentation.
 

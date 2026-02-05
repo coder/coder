@@ -223,7 +223,7 @@ Consult the tool's documentation for specific instructions.
 Download the certificate:
 
 ```shell
-curl -o aiproxy-ca.pem \
+curl -o coder-aibridge-proxy-ca.pem \
   -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
   https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
 ```
@@ -245,10 +245,10 @@ Set the environment variables associated with the AI tool's runtime.
 If you're unsure which runtime the tool uses, or if you use multiple AI tools, the simplest approach is to set all of them:
 
 ```shell
-export NODE_EXTRA_CA_CERTS="/path/to/aiproxy-ca.pem"
-export SSL_CERT_FILE="/path/to/aiproxy-ca.pem"
-export REQUESTS_CA_BUNDLE="/path/to/aiproxy-ca.pem"
-export CURL_CA_BUNDLE="/path/to/aiproxy-ca.pem"
+export NODE_EXTRA_CA_CERTS="/path/to/coder-aibridge-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
+export REQUESTS_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
+export CURL_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
 ```
 
 #### System trust store
@@ -259,7 +259,7 @@ This makes the certificate trusted by all applications on the system.
 On Linux:
 
 ```shell
-sudo cp aiproxy-ca.pem /usr/local/share/ca-certificates/aiproxy-ca.crt
+sudo cp coder-aibridge-proxy-ca.pem /usr/local/share/ca-certificates/
 sudo update-ca-certificates
 ```
 
