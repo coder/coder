@@ -6,9 +6,7 @@
 # native suggestion syntax, allowing one-click commits of suggested changes.
 #
 # Triggers:
-#   - New PR opened: Initial code review
-#   - Label "code-review" added: Re-run review on demand
-#   - PR marked ready for review: Review when draft is promoted
+#   - Label "code-review" added: Run review on demand
 #   - Workflow dispatch: Manual run with PR URL
 #
 # Note: This workflow requires access to secrets and will be skipped for:
@@ -20,9 +18,7 @@ name: AI Code Review
 on:
   pull_request:
     types:
-      - opened
       - labeled
-      - ready_for_review
   workflow_dispatch:
     inputs:
       pr_url:
@@ -44,9 +40,7 @@ jobs:
       cancel-in-progress: true
     if: |
       (
-        github.event.action == 'opened' ||
         github.event.label.name == 'code-review' ||
-        github.event.action == 'ready_for_review' ||
         github.event_name == 'workflow_dispatch'
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
@@ -127,14 +121,8 @@ jobs:
 
             # Set trigger type based on action
             case "${GITHUB_EVENT_ACTION}" in
-              opened)
-                echo "trigger_type=new_pr" >> "${GITHUB_OUTPUT}"
-                ;;
               labeled)
                 echo "trigger_type=label_requested" >> "${GITHUB_OUTPUT}"
-                ;;
-              ready_for_review)
-                echo "trigger_type=ready_for_review" >> "${GITHUB_OUTPUT}"
                 ;;
               *)
                 echo "trigger_type=unknown" >> "${GITHUB_OUTPUT}"
@@ -157,14 +145,8 @@ jobs:
 
           # Build context based on trigger type
           case "${TRIGGER_TYPE}" in
-            new_pr)
-              CONTEXT="This is a NEW PR. Perform a thorough code review."
-              ;;
             label_requested)
               CONTEXT="A code review was REQUESTED via label. Perform a thorough code review."
-              ;;
-            ready_for_review)
-              CONTEXT="This PR was marked READY FOR REVIEW. Perform a thorough code review."
               ;;
             manual)
               CONTEXT="This is a MANUAL review request. Perform a thorough code review."

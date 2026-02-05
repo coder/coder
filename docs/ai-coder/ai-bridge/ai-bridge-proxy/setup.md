@@ -7,7 +7,7 @@ Once enabled, `coderd` runs the `aibridgeproxyd` in-memory and intercepts traffi
 
 1. AI Bridge must be enabled and configured (requires a **Premium** license with the [AI Governance Add-On](../../ai-governance.md)). See [AI Bridge Setup](../setup.md) for further information.1. AI Bridge Proxy must be [enabled](#proxy-configuration) using the server flag.
 1. A [CA certificate](#ca-certificate) must be configured for MITM interception.
-1. Clients must be configured to trust the CA certificate and use the proxy.
+1. [Clients](#client-configuration) must be configured to use the proxy and trust the CA certificate.
 
 > [!WARNING]
 > AI Bridge Proxy should only be accessible within a trusted network and **must not** be directly exposed to the public internet.
@@ -112,7 +112,7 @@ CODER_AIBRIDGE_PROXY_CERT_FILE=/path/to/ca.crt
 CODER_AIBRIDGE_PROXY_KEY_FILE=/path/to/ca.key
 ```
 
-### Organization-signed certificate
+### Corporate CA certificate
 
 If your organization has an internal CA that clients already trust, you can have it issue an intermediate CA certificate for AI Bridge Proxy.
 This simplifies deployment since AI tools that already trust your organization's root CA will automatically trust certificates signed by the intermediate.
@@ -145,10 +145,10 @@ For **self-signed certificates**, AI tools must be configured to trust the CA ce
 https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
 ```
 
-For **organization-signed certificates**, if the systems where AI tools run already trust your organization's root CA, and the intermediate certificate chains correctly to that root, no additional certificate distribution is needed.
+For **corporate CA certificates**, if the systems where AI tools run already trust your organization's root CA, and the intermediate certificate chains correctly to that root, no additional certificate distribution is needed.
 Otherwise, AI tools must be configured to trust the intermediate CA certificate from the endpoint above.
 
-How you configure AI tools to trust the certificate depends on the tool and operating system. See Client Configuration for details.
+How you configure AI tools to trust the certificate depends on the tool and operating system. See [Client Configuration](#client-configuration) for details.
 
 ## Upstream proxy
 
@@ -187,3 +187,89 @@ If the system already trusts the upstream proxy's CA certificate, [`CODER_AIBRID
 <!-- TODO(ssncferreira): Add Client Configuration section -->
 
 <!-- TODO(ssncferreira): Add Troubleshooting section -->
+
+## Client Configuration
+
+To use AI Bridge Proxy, AI tools must be configured to:
+
+1. Route traffic through the proxy
+1. Trust the proxy's CA certificate
+
+### Configuring the proxy
+
+The preferred approach is to configure the proxy directly in the AI tool's settings, as this avoids routing unnecessary traffic through the proxy.
+Consult the tool's documentation for specific instructions.
+
+Alternatively, most tools support the standard proxy environment variables, though this is not guaranteed for all tools:
+
+```shell
+export HTTP_PROXY="http://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
+export HTTPS_PROXY="http://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
+```
+
+* `HTTP_PROXY`: Used for requests to `http://` URLs
+* `HTTPS_PROXY`: Used for requests to `https://` URLs (this is the one used for AI provider domains)
+
+In order for AI tools that communicate with AI Bridge Proxy to authenticate with Coder via AI Bridge, the Coder session token needs to be passed in the proxy credentials as the password field.
+
+### Trusting the CA certificate
+
+The preferred approach is to configure the CA certificate directly in the AI tool's settings, as this limits the scope of the trusted certificate to that specific application.
+Consult the tool's documentation for specific instructions.
+
+> [!NOTE]
+> If using a [corporate CA certificate](#corporate-ca-certificate) and the system already trusts your organization's root CA, no additional certificate configuration is required.
+
+Download the certificate:
+
+```shell
+curl -o coder-aibridge-proxy-ca.pem \
+  -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+  https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
+```
+
+Replace `<coder-url>` with your Coder deployment URL.
+
+#### Environment variables
+
+Different AI tools use different runtimes, each with their own environment variable for CA certificates:
+
+| Environment Variable  | Runtime                   |
+|-----------------------|---------------------------|
+| `NODE_EXTRA_CA_CERTS` | Node.js                   |
+| `SSL_CERT_FILE`       | OpenSSL, Python, curl     |
+| `REQUESTS_CA_BUNDLE`  | Python `requests` library |
+| `CURL_CA_BUNDLE`      | curl                      |
+
+Set the environment variables associated with the AI tool's runtime.
+If you're unsure which runtime the tool uses, or if you use multiple AI tools, the simplest approach is to set all of them:
+
+```shell
+export NODE_EXTRA_CA_CERTS="/path/to/coder-aibridge-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
+export REQUESTS_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
+export CURL_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
+```
+
+#### System trust store
+
+When tool-specific or environment variable configuration is not possible, you can add the certificate to the system trust store.
+This makes the certificate trusted by all applications on the system.
+
+On Linux:
+
+```shell
+sudo cp coder-aibridge-proxy-ca.pem /usr/local/share/ca-certificates/
+sudo update-ca-certificates
+```
+
+For other operating systems, refer to the system's documentation for instructions on adding trusted certificates.
+
+### Coder workspaces
+
+For AI tools running inside Coder workspaces, template administrators can pre-configure the proxy settings and CA certificate in the workspace template.
+This provides a seamless experience where users don't need to configure anything manually.
+
+<!-- TODO(ssncferreira): Add registry link for AI Bridge Proxy module for Coder workspaces: https://github.com/coder/internal/issues/1187 -->
+
+For tool-specific configuration details, check the [client compatibility table](../clients/index.md#compatibility) for clients that require proxy-based integration.

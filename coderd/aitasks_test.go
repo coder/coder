@@ -997,12 +997,12 @@ func TestTasks(t *testing.T) {
 			wantErrStatusCode  int
 		}{
 			{
-				name: "TaskStatusInitializing",
+				name: "TaskStatusPending",
 				// We want to disable the provisioner so that the task
-				// never gets provisioned (ensuring it stays in Initializing).
+				// never gets picked up (ensuring it stays in Pending).
 				disableProvisioner: true,
 				taskInput:          "Valid prompt",
-				wantStatus:         codersdk.TaskStatusInitializing,
+				wantStatus:         codersdk.TaskStatusPending,
 				wantErr:            "Unable to update",
 				wantErrStatusCode:  http.StatusConflict,
 			},
