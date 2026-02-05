@@ -114,135 +114,108 @@ func TestWorkspaceAgentLogTextSpecialChars(t *testing.T) {
 func TestWorkspaceAgentDevcontainerEquals(t *testing.T) {
 	t.Parallel()
 
-	baseID := uuid.New()
-	subagentID := uuid.New()
-	containerID := "container-123"
 	agentID := uuid.New()
 
 	base := codersdk.WorkspaceAgentDevcontainer{
-		ID:              baseID,
+		ID:              uuid.New(),
 		Name:            "test-dc",
 		WorkspaceFolder: "/workspace",
 		Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
 		Dirty:           false,
-		Container:       &codersdk.WorkspaceAgentContainer{ID: containerID},
+		Container:       &codersdk.WorkspaceAgentContainer{ID: "container-123"},
 		Agent:           &codersdk.WorkspaceAgentDevcontainerAgent{ID: agentID, Name: "agent-1"},
 		Error:           "",
 	}
 
 	tests := []struct {
-		name        string
-		modify      func(codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer
-		expectEqual bool
+		name      string
+		modify    func(*codersdk.WorkspaceAgentDevcontainer)
+		wantEqual bool
 	}{
 		{
-			name:        "identical",
-			modify:      func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer { return d },
-			expectEqual: true,
+			name:      "identical",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) {},
+			wantEqual: true,
 		},
 		{
-			name: "different ID",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.ID = uuid.New()
-				return d
-			},
-			expectEqual: false,
+			name:      "different ID",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.ID = uuid.New() },
+			wantEqual: false,
 		},
 		{
-			name: "different Name",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.Name = "other-dc"
-				return d
-			},
-			expectEqual: false,
+			name:      "different Name",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Name = "other-dc" },
+			wantEqual: false,
 		},
 		{
-			name: "different WorkspaceFolder",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.WorkspaceFolder = "/other"
-				return d
-			},
-			expectEqual: false,
+			name:      "different WorkspaceFolder",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.WorkspaceFolder = "/other" },
+			wantEqual: false,
 		},
 		{
 			name: "different SubagentID (one valid, one nil)",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.SubagentID = uuid.NullUUID{Valid: true, UUID: subagentID}
-				return d
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
+				d.SubagentID = uuid.NullUUID{Valid: true, UUID: uuid.New()}
 			},
-			expectEqual: false,
+			wantEqual: false,
 		},
 		{
 			name: "different SubagentID UUIDs",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
 				d.SubagentID = uuid.NullUUID{Valid: true, UUID: uuid.New()}
-				return d
 			},
-			expectEqual: false,
+			wantEqual: false,
 		},
 		{
 			name: "different Status",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
 				d.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
-				return d
 			},
-			expectEqual: false,
+			wantEqual: false,
 		},
 		{
-			name: "different Dirty",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.Dirty = true
-				return d
-			},
-			expectEqual: false,
+			name:      "different Dirty",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Dirty = true },
+			wantEqual: false,
 		},
 		{
-			name: "different Container (one nil)",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.Container = nil
-				return d
-			},
-			expectEqual: false,
+			name:      "different Container (one nil)",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Container = nil },
+			wantEqual: false,
 		},
 		{
 			name: "different Container IDs",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
 				d.Container = &codersdk.WorkspaceAgentContainer{ID: "different-container"}
-				return d
 			},
-			expectEqual: false,
+			wantEqual: false,
 		},
 		{
-			name: "different Agent (one nil)",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.Agent = nil
-				return d
-			},
-			expectEqual: false,
+			name:      "different Agent (one nil)",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Agent = nil },
+			wantEqual: false,
 		},
 		{
 			name: "different Agent values",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
 				d.Agent = &codersdk.WorkspaceAgentDevcontainerAgent{ID: agentID, Name: "agent-2"}
-				return d
 			},
-			expectEqual: false,
+			wantEqual: false,
 		},
 		{
-			name: "different Error",
-			modify: func(d codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentDevcontainer {
-				d.Error = "some error"
-				return d
-			},
-			expectEqual: false,
+			name:      "different Error",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Error = "some error" },
+			wantEqual: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			other := tt.modify(base)
-			require.Equal(t, tt.expectEqual, base.Equals(other))
+
+			modified := base
+			tt.modify(&modified)
+			require.Equal(t, tt.wantEqual, base.Equals(modified))
 		})
 	}
 }
