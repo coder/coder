@@ -188,15 +188,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				onSubmit={form.handleSubmit}
 				css={{ padding: "16px 0" }}
 			>
-				{isRunningWorkspaceLimitError ? (
-					<Alert severity="warning">
-						{error && isApiError(error)
-							? error.response.data.message
-							: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another."}
-					</Alert>
-				) : (
-					Boolean(error) && <ErrorAlert error={error} />
-				)}
+			{isRunningWorkspaceLimitError ? (
+				<Alert severity="warning">
+					{error && isApiError(error)
+						? error.response.data.message
+						: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to create and start another."}
+				</Alert>
+			) : (
+				Boolean(error) && <ErrorAlert error={error} />
+			)}
 
 				{mode === "duplicate" && (
 					<Alert severity="info" dismissible data-testid="duplication-warning">
