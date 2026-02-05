@@ -4,7 +4,7 @@ import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
-import { isApiError } from "api/errors";
+import { isApiError, getErrorMessage } from "api/errors";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
@@ -259,10 +259,10 @@ export const Workspace: FC<WorkspaceProps> = ({
 						<Alert severity="warning">
 							<AlertTitle>Running workspace limit reached</AlertTitle>
 							<AlertDetail>
-							{startWorkspaceError &&
-							isApiError(startWorkspaceError)
-								? startWorkspaceError.response.data.message
-								: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another."}
+								{getErrorMessage(
+									startWorkspaceError,
+									"Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
+								)}
 							</AlertDetail>
 						</Alert>
 					)}
