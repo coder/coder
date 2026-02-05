@@ -185,8 +185,6 @@ func TestRolePermissions(t *testing.T) {
 	orgUserAdmin := authSubject{Name: "org_user_admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(orgID)}}}
 	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(orgID)}}}
 	orgAdminBanWorkspace := authSubject{Name: "org_admin_workspace_ban", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}}}
-	orgAibridgeUser := authSubject{Name: "org_aibridge_user", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAibridgeUser(orgID)}}}
-	orgAibridgeAuditor := authSubject{Name: "org_aibridge_auditor", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAibridgeAuditor(orgID)}}}
 	setOrgNotMe := authSubjectSet{orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin}
 
 	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(otherOrg)}}}
@@ -1011,7 +1009,6 @@ func TestRolePermissions(t *testing.T) {
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
-					orgAibridgeUser, orgAibridgeAuditor,
 				},
 			},
 		},
@@ -1020,8 +1017,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceAibridgeInterception.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgAibridgeAuditor},
-				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin, orgAibridgeUser},
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -1035,10 +1032,11 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "AIBridge",
 			Actions:  []policy.Action{policy.ActionUse},
-			Resource: rbac.ResourceAibridge.InOrg(orgID),
+			Resource: rbac.ResourceAibridge,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgAibridgeUser},
-				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin, orgAibridgeAuditor},
+				// All authenticated members can use AI Bridge (site-scoped, granted via member role).
+				true:  {owner, memberMe, orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin, setOtherOrg},
+				false: {},
 			},
 		},
 	}
@@ -1197,8 +1195,6 @@ func TestListRoles(t *testing.T) {
 		fmt.Sprintf("organization-user-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
-		fmt.Sprintf("organization-aibridge-user:%s", orgID.String()),
-		fmt.Sprintf("organization-aibridge-auditor:%s", orgID.String()),
 	},
 		orgRoleNames)
 }

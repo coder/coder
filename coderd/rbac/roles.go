@@ -33,8 +33,6 @@ const (
 	orgUserAdmin            string = "organization-user-admin"
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
-	orgAibridgeUser         string = "organization-aibridge-user"
-	orgAibridgeAuditor      string = "organization-aibridge-auditor"
 
 	prebuildsOrchestrator string = "prebuilds-orchestrator"
 )
@@ -194,17 +192,6 @@ func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier 
 	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
 }
 
-func RoleOrgAibridgeUser() string    { return orgAibridgeUser }
-func RoleOrgAibridgeAuditor() string { return orgAibridgeAuditor }
-
-func ScopedRoleOrgAibridgeUser(organizationID uuid.UUID) RoleIdentifier {
-	return RoleIdentifier{Name: RoleOrgAibridgeUser(), OrganizationID: organizationID}
-}
-
-func ScopedRoleOrgAibridgeAuditor(organizationID uuid.UUID) RoleIdentifier {
-	return RoleIdentifier{Name: RoleOrgAibridgeAuditor(), OrganizationID: organizationID}
-}
-
 func allPermsExcept(excepts ...Objecter) []Permission {
 	resources := AllResources()
 	var perms []Permission
@@ -321,6 +308,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// All users can see OAuth2 provider applications.
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
+			// All members can use AI Bridge endpoints.
+			ResourceAibridge.Type: {policy.ActionUse},
 		}),
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage),
 			Permissions(map[string][]policy.Action{
@@ -577,36 +566,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		orgAibridgeUser: func(organizationID uuid.UUID) Role {
-			return Role{
-				Identifier:  RoleIdentifier{Name: orgAibridgeUser, OrganizationID: organizationID},
-				DisplayName: "Organization AI Bridge User",
-				Site:        []Permission{},
-				User:        []Permission{},
-				ByOrgID: map[string]OrgPermissions{
-					organizationID.String(): {
-						Org: Permissions(map[string][]policy.Action{
-							ResourceAibridge.Type: {policy.ActionUse},
-						}),
-					},
-				},
-			}
-		},
-		orgAibridgeAuditor: func(organizationID uuid.UUID) Role {
-			return Role{
-				Identifier:  RoleIdentifier{Name: orgAibridgeAuditor, OrganizationID: organizationID},
-				DisplayName: "Organization AI Bridge Auditor",
-				Site:        []Permission{},
-				User:        []Permission{},
-				ByOrgID: map[string]OrgPermissions{
-					organizationID.String(): {
-						Org: Permissions(map[string][]policy.Action{
-							ResourceAibridgeInterception.Type: {policy.ActionRead},
-						}),
-					},
-				},
-			}
-		},
 	}
 }
 
@@ -626,8 +585,6 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
-		orgAibridgeUser:         true,
-		orgAibridgeAuditor:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -643,8 +600,6 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
-		orgAibridgeUser:         true,
-		orgAibridgeAuditor:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -661,8 +616,6 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
-		orgAibridgeUser:         true,
-		orgAibridgeAuditor:      true,
 		customOrganizationRole:  true,
 	},
 	orgUserAdmin: {

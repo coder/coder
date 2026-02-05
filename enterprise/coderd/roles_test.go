@@ -500,8 +500,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        false,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            false,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: false,
-				{Name: codersdk.RoleOrganizationAibridgeUser, OrganizationID: owner.OrganizationID}:         false,
-				{Name: codersdk.RoleOrganizationAibridgeAuditor, OrganizationID: owner.OrganizationID}:      false,
 			}),
 		},
 		{
@@ -535,8 +533,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
-				{Name: codersdk.RoleOrganizationAibridgeUser, OrganizationID: owner.OrganizationID}:         true,
-				{Name: codersdk.RoleOrganizationAibridgeAuditor, OrganizationID: owner.OrganizationID}:      true,
 			}),
 		},
 		{
@@ -570,8 +566,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationTemplateAdmin, OrganizationID: owner.OrganizationID}:        true,
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
-				{Name: codersdk.RoleOrganizationAibridgeUser, OrganizationID: owner.OrganizationID}:         true,
-				{Name: codersdk.RoleOrganizationAibridgeAuditor, OrganizationID: owner.OrganizationID}:      true,
 			}),
 		},
 	}
