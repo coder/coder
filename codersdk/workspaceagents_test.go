@@ -224,6 +224,8 @@ func TestWorkspaceAgentDevcontainerIsTerraformDefined(t *testing.T) {
 	t.Parallel()
 
 	t.Run("SubagentID Valid", func(t *testing.T) {
+		t.Parallel()
+
 		dc := codersdk.WorkspaceAgentDevcontainer{
 			ID:              uuid.New(),
 			Name:            "test-dc",
@@ -235,6 +237,8 @@ func TestWorkspaceAgentDevcontainerIsTerraformDefined(t *testing.T) {
 	})
 
 	t.Run("SubagentID Null", func(t *testing.T) {
+		t.Parallel()
+
 		dc := codersdk.WorkspaceAgentDevcontainer{
 			ID:              uuid.New(),
 			Name:            "test-dc",
