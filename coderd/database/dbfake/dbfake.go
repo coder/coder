@@ -59,9 +59,46 @@ type WorkspaceBuildBuilder struct {
 	taskAppID  uuid.UUID
 	taskSeed   database.TaskTable
 
-	jobOverrides database.ProvisionerJob // Custom job field overrides
-	jobError     string                  // Error message for failed jobs
-	jobErrorCode string                  // Error code for failed jobs
+	// Individual timestamp fields for job customization.
+	jobCreatedAt   time.Time
+	jobStartedAt   time.Time
+	jobUpdatedAt   time.Time
+	jobCompletedAt time.Time
+
+	jobError     string // Error message for failed jobs
+	jobErrorCode string // Error code for failed jobs
+}
+
+// BuilderOption is a functional option for customizing job timestamps
+// on status methods.
+type BuilderOption func(*WorkspaceBuildBuilder)
+
+// WithJobCreatedAt sets the CreatedAt timestamp for the provisioner job.
+func WithJobCreatedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobCreatedAt = t
+	}
+}
+
+// WithJobStartedAt sets the StartedAt timestamp for the provisioner job.
+func WithJobStartedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobStartedAt = t
+	}
+}
+
+// WithJobUpdatedAt sets the UpdatedAt timestamp for the provisioner job.
+func WithJobUpdatedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobUpdatedAt = t
+	}
+}
+
+// WithJobCompletedAt sets the CompletedAt timestamp for the provisioner job.
+func WithJobCompletedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobCompletedAt = t
+	}
 }
 
 // WorkspaceBuild generates a workspace build for the provided workspace.
@@ -146,37 +183,49 @@ func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sd
 }
 
 // Starting sets the job to running status.
-func (b WorkspaceBuildBuilder) Starting() WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) Starting(opts ...BuilderOption) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusRunning
+	for _, opt := range opts {
+		opt(&b)
+	}
 	return b
 }
 
 // Pending sets the job to pending status.
-func (b WorkspaceBuildBuilder) Pending() WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) Pending(opts ...BuilderOption) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusPending
+	for _, opt := range opts {
+		opt(&b)
+	}
 	return b
 }
 
 // Canceled sets the job to canceled status.
-func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) Canceled(opts ...BuilderOption) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusCanceled
+	for _, opt := range opts {
+		opt(&b)
+	}
 	return b
 }
 
 // Succeeded sets the job to succeeded status.
 // This is the default status.
-func (b WorkspaceBuildBuilder) Succeeded() WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) Succeeded(opts ...BuilderOption) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusSucceeded
+	for _, opt := range opts {
+		opt(&b)
+	}
 	return b
 }
 
 // Failed sets the provisioner job to a failed state with the given error
 // message and error code. If error is empty, a default error message is used.
-func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string) WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string, opts ...BuilderOption) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusFailed
 	if jobError == "" {
@@ -184,14 +233,9 @@ func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string) WorkspaceBu
 	}
 	b.jobError = jobError
 	b.jobErrorCode = jobErrorCode
-	return b
-}
-
-// UpdateJob allows customizing provisioner job fields. Non-zero fields
-// will be applied after the job is created/acquired.
-func (b WorkspaceBuildBuilder) UpdateJob(job database.ProvisionerJob) WorkspaceBuildBuilder {
-	//nolint: revive // returns modified struct
-	b.jobOverrides = job
+	for _, opt := range opts {
+		opt(&b)
+	}
 	return b
 }
 
@@ -306,8 +350,8 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 	job, err := b.db.InsertProvisionerJob(ownerCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
-		CreatedAt:      takeFirstTime(b.jobOverrides.CreatedAt, b.ws.CreatedAt, dbtime.Now()),
-		UpdatedAt:      takeFirstTime(b.jobOverrides.CreatedAt, b.ws.CreatedAt, dbtime.Now()),
+		CreatedAt:      takeFirstTime(b.jobCreatedAt, b.ws.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirstTime(b.jobCreatedAt, b.ws.CreatedAt, dbtime.Now()),
 		OrganizationID: b.ws.OrganizationID,
 		InitiatorID:    b.ws.OwnerID,
 		Provisioner:    database.ProvisionerTypeEcho,
@@ -330,7 +374,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// might need to do this multiple times if we got a template version
 		// import job as well
 		b.logger.Debug(context.Background(), "looping to acquire provisioner job")
-		startedAt := b.jobOverrides.StartedAt.Time
+		startedAt := b.jobStartedAt
 		if startedAt.IsZero() {
 			startedAt = dbtime.Now()
 		}
@@ -354,17 +398,17 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 				break
 			}
 		}
-		if !b.jobOverrides.UpdatedAt.IsZero() {
+		if !b.jobUpdatedAt.IsZero() {
 			err = b.db.UpdateProvisionerJobByID(ownerCtx, database.UpdateProvisionerJobByIDParams{
 				ID:        job.ID,
-				UpdatedAt: b.jobOverrides.UpdatedAt,
+				UpdatedAt: b.jobUpdatedAt,
 			})
 			require.NoError(b.t, err, "update job updated_at")
 		}
 	case database.ProvisionerJobStatusCanceled:
 		// Set provisioner job status to 'canceled'
 		b.logger.Debug(context.Background(), "canceling the provisioner job")
-		completedAt := b.jobOverrides.CompletedAt.Time
+		completedAt := b.jobCompletedAt
 		if completedAt.IsZero() {
 			completedAt = dbtime.Now()
 		}
@@ -382,7 +426,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		require.NoError(b.t, err, "cancel job")
 	case database.ProvisionerJobStatusFailed:
 		b.logger.Debug(context.Background(), "failing the provisioner job")
-		completedAt := b.jobOverrides.CompletedAt.Time
+		completedAt := b.jobCompletedAt
 		if completedAt.IsZero() {
 			completedAt = dbtime.Now()
 		}
@@ -400,7 +444,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	default:
 		// By default, consider jobs in 'succeeded' status
 		b.logger.Debug(context.Background(), "completing the provisioner job")
-		completedAt := b.jobOverrides.CompletedAt.Time
+		completedAt := b.jobCompletedAt
 		if completedAt.IsZero() {
 			completedAt = dbtime.Now()
 		}

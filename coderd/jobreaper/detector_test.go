@@ -128,14 +128,14 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 		OwnerID:        user.ID,
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: expectedWorkspaceBuildState,
-	}).Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: twentyMinAgo, Valid: true}}).
+	}).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
 		Do()
 
 	// Current build (hung - running job with UpdatedAt > 5 min ago).
 	currentBuild := dbfake.WorkspaceBuild(t, db, previousBuild.Workspace).
 		Pubsub(pubsub).
 		Seed(database.WorkspaceBuild{BuildNumber: 2}).
-		Starting().UpdateJob(database.ProvisionerJob{StartedAt: sql.NullTime{Time: tenMinAgo, Valid: true}, UpdatedAt: sixMinAgo}).
+		Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
 		Do()
 
 	t.Log("previous job ID: ", previousBuild.Build.JobID)
@@ -196,7 +196,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 		OwnerID:        user.ID,
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: []byte(`{"dean":"NOT cool","colin":"also NOT cool"}`),
-	}).Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: twentyMinAgo, Valid: true}}).
+	}).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
 		Do()
 
 	// Current build (hung - running job with UpdatedAt > 5 min ago).
@@ -207,7 +207,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 			BuildNumber:      2,
 			ProvisionerState: expectedWorkspaceBuildState,
 		}).
-		Starting().UpdateJob(database.ProvisionerJob{StartedAt: sql.NullTime{Time: tenMinAgo, Valid: true}, UpdatedAt: sixMinAgo}).
+		Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
 		Do()
 
 	t.Log("previous job ID: ", previousBuild.Build.JobID)
@@ -268,7 +268,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 		OwnerID:        user.ID,
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: expectedWorkspaceBuildState,
-	}).Starting().UpdateJob(database.ProvisionerJob{StartedAt: sql.NullTime{Time: tenMinAgo, Valid: true}, UpdatedAt: sixMinAgo}).
+	}).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
 		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
@@ -327,7 +327,7 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 		OwnerID:        user.ID,
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: expectedWorkspaceBuildState,
-	}).Pending().UpdateJob(database.ProvisionerJob{CreatedAt: thirtyFiveMinAgo, UpdatedAt: thirtyFiveMinAgo}).
+	}).Pending(dbfake.WithJobCreatedAt(thirtyFiveMinAgo), dbfake.WithJobUpdatedAt(thirtyFiveMinAgo)).
 		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
@@ -400,7 +400,7 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 		},
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: expectedWorkspaceBuildState,
-	}).Starting().UpdateJob(database.ProvisionerJob{StartedAt: sql.NullTime{Time: tenMinAgo, Valid: true}, UpdatedAt: sixMinAgo}).
+	}).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
 		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
