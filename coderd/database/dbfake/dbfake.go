@@ -204,7 +204,7 @@ func (b WorkspaceBuildBuilder) WithJobUpdatedAt(t time.Time) WorkspaceBuildBuild
 }
 
 // WithJobCompletedAt sets when the provisioner job completed.
-// Only applies when job status is Canceled or Succeeded (default).
+// Only applies when job status is Canceled, Failed, or Succeeded (default).
 // If not called, defaults to dbtime.Now().
 func (b WorkspaceBuildBuilder) WithJobCompletedAt(t time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
