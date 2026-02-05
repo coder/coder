@@ -117,7 +117,7 @@ WHERE
 	END
 	-- Filter client
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'unknown') = @client::text
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -161,7 +161,7 @@ WHERE
 	END
 	-- Filter client
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'unknown') = @client::text
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
 		ELSE true
 	END
 	-- Cursor pagination
@@ -229,7 +229,7 @@ SELECT
     DISTINCT ON (provider, model, client)
     provider,
     model,
-    COALESCE(client, 'unknown') AS client
+    COALESCE(client, 'Unknown') AS client
 FROM
     aibridge_interceptions
 WHERE
@@ -251,7 +251,7 @@ WITH interceptions_in_range AS (
     WHERE
         provider = @provider::text
         AND model = @model::text
-        AND COALESCE(client, 'unknown') = @client::text
+        AND COALESCE(client, 'Unknown') = @client::text
         AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
         AND ended_at >= @ended_at_after::timestamptz
         AND ended_at < @ended_at_before::timestamptz

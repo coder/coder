@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	aiblib "github.com/coder/aibridge"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -433,7 +434,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    "two",
 			Model:       "two",
 			StartedAt:   now.Add(-time.Hour),
-			Client:      sql.NullString{String: "cursor", Valid: true},
+			Client:      sql.NullString{String: aiblib.ClientCursor, Valid: true},
 		}, &now)
 		i3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000003"),
@@ -441,7 +442,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    "three",
 			Model:       "three",
 			StartedAt:   now.Add(-2 * time.Hour),
-			Client:      sql.NullString{String: "claude-code", Valid: true},
+			Client:      sql.NullString{String: aiblib.ClientClaude, Valid: true},
 		}, &now)
 
 		// Convert to SDK types for response comparison. We don't care about the
@@ -502,12 +503,12 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			},
 			{
 				name:   "Client/Unknown",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: "unknown"},
+				filter: codersdk.AIBridgeListInterceptionsFilter{Client: "Unknown"},
 				want:   []codersdk.AIBridgeInterception{i1SDK},
 			},
 			{
 				name:   "Client/Match",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: "cursor"},
+				filter: codersdk.AIBridgeListInterceptionsFilter{Client: aiblib.ClientCursor},
 				want:   []codersdk.AIBridgeInterception{i2SDK},
 			},
 			{
