@@ -14,13 +14,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
-
-	"github.com/coder/coder/v2/coderd/telemetry"
 )
 
 func main() {
@@ -31,39 +30,27 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /snapshot", func(w http.ResponseWriter, r *http.Request) {
-		var snapshot telemetry.Snapshot
-		if err := json.NewDecoder(r.Body).Decode(&snapshot); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+	handleTelemetry := func(telemetryType string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			output := map[string]any{
+				"type":    telemetryType,
+				"version": r.Header.Get("X-Telemetry-Version"),
+				"data":    json.RawMessage(body),
+			}
+			_ = enc.Encode(output)
+
+			w.WriteHeader(http.StatusAccepted)
 		}
+	}
 
-		output := map[string]any{
-			"type":    "snapshot",
-			"version": r.Header.Get(telemetry.VersionHeader),
-			"data":    snapshot,
-		}
-		_ = enc.Encode(output)
-
-		w.WriteHeader(http.StatusAccepted)
-	})
-
-	mux.HandleFunc("POST /deployment", func(w http.ResponseWriter, r *http.Request) {
-		var deployment telemetry.Deployment
-		if err := json.NewDecoder(r.Body).Decode(&deployment); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		output := map[string]any{
-			"type":    "deployment",
-			"version": r.Header.Get(telemetry.VersionHeader),
-			"data":    deployment,
-		}
-		_ = enc.Encode(output)
-
-		w.WriteHeader(http.StatusAccepted)
-	})
+	mux.HandleFunc("POST /snapshot", handleTelemetry("snapshot"))
+	mux.HandleFunc("POST /deployment", handleTelemetry("deployment"))
 
 	addr := net.JoinHostPort("127.0.0.1", *port)
 	server := &http.Server{
