@@ -25,6 +25,24 @@ curl -X GET "https://coder.example.com/api/v2/aibridge/interceptions?q=initiator
 
 Available query filters:
 
+- `client` - Filter by client name.
+  <details>
+  <summary>Possible <code>client</code> values</summary>
+
+  > [!NOTE]
+  > AI tools are not setting user agent reliably. Client classification is done on best effort basis.
+
+  - `Claude Code`
+  - `Codex`
+  - `Zed`
+  - `GitHub Copilot (VS Code)`
+  - `GitHub Copilot (CLI)`
+  - `Kilo Code`
+  - `Roo Code`
+  - `Cursor`
+  - `Unknown`
+
+  </details><br>
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name
