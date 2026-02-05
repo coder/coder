@@ -2781,3 +2781,47 @@ func TestPauseTask(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode())
 	})
 }
+
+func TestResumeTask(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Task not found", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Task lookup forbidden", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Workspace lookup forbidden", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("No Workspace for Task", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Workspace not found", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Workspace lookup internal error", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Build Forbidden", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Job already in progress", func(t *testing.T) {
+		t.Parallel()
+	})
+
+	t.Run("Build Internal Error", func(t *testing.T) {
+		t.Parallel()
+	})
+}
