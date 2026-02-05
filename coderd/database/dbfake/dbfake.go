@@ -198,20 +198,18 @@ func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string, ts ...time.
 	return b
 }
 
-// WithJobUpdatedAt sets the last update time for the provisioner job.
+// JobUpdatedAt sets the last update time for the provisioner job.
 // Only applies when job status is Running. This allows testing hung job
 // detection where UpdatedAt differs from StartedAt.
-// If not called, defaults to the value set in Starting().
-func (b WorkspaceBuildBuilder) WithJobUpdatedAt(t time.Time) WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) JobUpdatedAt(t time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobUpdatedAt = t
 	return b
 }
 
-// WithJobCompletedAt sets when the provisioner job completed.
+// JobCompletedAt sets when the provisioner job completed.
 // Only applies when job status is Canceled, Failed, or Succeeded (default).
-// If not called, defaults to dbtime.Now().
-func (b WorkspaceBuildBuilder) WithJobCompletedAt(t time.Time) WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) JobCompletedAt(t time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobCompletedAt = t
 	return b
@@ -372,8 +370,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 				break
 			}
 		}
-		// If jobUpdatedAt is set, update the job's UpdatedAt to differ from StartedAt.
-		// This is useful for testing hung job detection where UpdatedAt matters.
 		if !b.jobUpdatedAt.IsZero() {
 			err = b.db.UpdateProvisionerJobByID(ownerCtx, database.UpdateProvisionerJobByIDParams{
 				ID:        job.ID,
@@ -398,7 +394,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		})
 		require.NoError(b.t, err, "cancel job")
 	case database.ProvisionerJobStatusFailed:
-		// Set provisioner job status to 'failed' with error
 		b.logger.Debug(context.Background(), "failing the provisioner job")
 		completedAt := takeFirst(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{

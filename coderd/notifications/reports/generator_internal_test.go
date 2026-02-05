@@ -190,7 +190,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 2, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			WithJobCompletedAt(now.Add(-5 * dayDuration)).
+			JobCompletedAt(now.Add(-5 * dayDuration)).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
@@ -201,7 +201,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w2).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 4, TemplateVersionID: t2v1.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			WithJobCompletedAt(now.Add(-5 * dayDuration)).
+			JobCompletedAt(now.Add(-5 * dayDuration)).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w2).
 			Pubsub(ps).
@@ -228,7 +228,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w4).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 9, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			WithJobCompletedAt(now.Add(-dayDuration)).
+			JobCompletedAt(now.Add(-dayDuration)).
 			Do()
 
 		// When
@@ -417,7 +417,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 777, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-24 * time.Hour), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			WithJobCompletedAt(now.Add(-24 * time.Hour)).
+			JobCompletedAt(now.Add(-24 * time.Hour)).
 			Do()
 
 		for i := 1; i <= 23; i++ {
@@ -532,12 +532,12 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			JobCompletedAt(now.Add(-6 * dayDuration)).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 2, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-1 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			WithJobCompletedAt(now.Add(-5 * dayDuration)).
+			JobCompletedAt(now.Add(-5 * dayDuration)).
 			Do()
 
 		// When
