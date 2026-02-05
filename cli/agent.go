@@ -154,14 +154,6 @@ func workspaceAgent() *serpent.Command {
 				return ExitError(exitCode, nil)
 			}
 
-			// Handle interrupt signals to allow for graceful shutdown,
-			// note that calling stopNotify disables the signal handler
-			// and the next interrupt will terminate the program (you
-			// probably want cancel instead).
-			//
-			// Note that we don't want to handle these signals in the
-			// process that runs as PID 1, that's why we do this after
-			// the reaper forked.
 			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
@@ -174,6 +166,14 @@ func workspaceAgent() *serpent.Command {
 			sinks = append(sinks, sloghuman.Sink(logWriter))
 			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
+			// Handle interrupt signals to allow for graceful shutdown,
+			// note that calling stopNotify disables the signal handler
+			// and the next interrupt will terminate the program (you
+			// probably want cancel instead).
+			//
+			// Note that we also handle these signals in the
+			// process that runs as PID 1, mainly to forward it to the agent child
+			// so that it can shutdown gracefully.
 			ctx, stopNotify := logSignalNotifyContext(ctx, logger, StopSignals...)
 			defer stopNotify()
 
@@ -574,7 +574,7 @@ func urlPort(u string) (int, error) {
 // logSignalNotifyContext is like signal.NotifyContext but logs the received
 // signal before canceling the context.
 func logSignalNotifyContext(parent context.Context, logger slog.Logger, signals ...os.Signal) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(parent)
+	ctx, cancel := context.WithCancelCause(parent)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, signals...)
 
@@ -582,13 +582,14 @@ func logSignalNotifyContext(parent context.Context, logger slog.Logger, signals 
 		select {
 		case sig := <-c:
 			logger.Info(ctx, "agent received signal", slog.F("signal", sig.String()))
-			cancel()
+			cancel(xerrors.Errorf("signal: %s", sig.String()))
 		case <-ctx.Done():
+			logger.Info(ctx, "ctx canceled, stopping signal handler")
 		}
 	}()
 
 	return ctx, func() {
-		cancel()
+		cancel(context.Canceled)
 		signal.Stop(c)
 	}
 }
