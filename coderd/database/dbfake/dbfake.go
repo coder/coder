@@ -101,6 +101,20 @@ func WithJobCompletedAt(t time.Time) BuilderOption {
 	}
 }
 
+// WithJobError sets the error message for the provisioner job.
+func WithJobError(msg string) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobError = msg
+	}
+}
+
+// WithJobErrorCode sets the error code for the provisioner job.
+func WithJobErrorCode(code string) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobErrorCode = code
+	}
+}
+
 // WorkspaceBuild generates a workspace build for the provided workspace.
 // Pass a database.Workspace{} with a nil ID to also generate a new workspace.
 // Omitting the template ID on a workspace will also generate a new template
@@ -223,18 +237,17 @@ func (b WorkspaceBuildBuilder) Succeeded(opts ...BuilderOption) WorkspaceBuildBu
 	return b
 }
 
-// Failed sets the provisioner job to a failed state with the given error
-// message and error code. If error is empty, a default error message is used.
-func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string, opts ...BuilderOption) WorkspaceBuildBuilder {
+// Failed sets the provisioner job to a failed state. Use WithJobError and
+// WithJobErrorCode options to set the error message and code. If no error
+// message is provided, "failed" is used as the default.
+func (b WorkspaceBuildBuilder) Failed(opts ...BuilderOption) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusFailed
-	if jobError == "" {
-		jobError = "failed"
-	}
-	b.jobError = jobError
-	b.jobErrorCode = jobErrorCode
 	for _, opt := range opts {
 		opt(&b)
+	}
+	if b.jobError == "" {
+		b.jobError = "failed"
 	}
 	return b
 }
