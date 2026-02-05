@@ -210,7 +210,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'boundary_usage:read',
     'boundary_usage:update',
     'workspace:update_agent',
-    'workspace_dormant:update_agent'
+    'workspace_dormant:update_agent',
+    'aibridge:*',
+    'aibridge:use'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
