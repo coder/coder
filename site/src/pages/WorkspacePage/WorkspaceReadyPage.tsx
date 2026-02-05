@@ -145,12 +145,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	);
 
 	// Start workspace
-	const startWorkspaceMutation = useMutation({
-		...startWorkspace(workspace, queryClient),
-		onError: (err) => {
-			displayError(getErrorMessage(err, "Error starting workspace."));
-		},
-	});
+	const startWorkspaceMutation = useMutation(
+		startWorkspace(workspace, queryClient),
+	);
 
 	const isRunningWorkspaceLimitError =
 		startWorkspaceMutation.isError &&
