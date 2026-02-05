@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -1485,6 +1486,84 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, startBuild)
+	})
+
+	t.Run("RejectStartWhenWorkspaceAIsStarting", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		file := dbgen.File(t, db, database.File{CreatedBy: user.UserID})
+		versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			OrganizationID: user.OrganizationID,
+			InitiatorID:    user.UserID,
+			FileID:         file.ID,
+			StartedAt:      sql.NullTime{Time: time.Now().Add(-2 * time.Second), Valid: true},
+			CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Second), Valid: true},
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			JobID:          versionJob.ID,
+			CreatedBy:      user.UserID,
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:   user.OrganizationID,
+			ActiveVersionID: version.ID,
+			CreatedBy:       user.UserID,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		wsA := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+			TemplateID:     template.ID,
+			Name:           "workspace-a",
+		})
+		jobA := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			OrganizationID: user.OrganizationID,
+			InitiatorID:    user.UserID,
+			StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Second), Valid: true},
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsA.ID,
+			TemplateVersionID: version.ID,
+			JobID:             jobA.ID,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+
+		wsB := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+			TemplateID:     template.ID,
+			Name:           "workspace-b",
+		})
+		jobB := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			OrganizationID: user.OrganizationID,
+			InitiatorID:    user.UserID,
+			StartedAt:      sql.NullTime{Time: time.Now().Add(-2 * time.Second), Valid: true},
+			CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Second), Valid: true},
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsB.ID,
+			TemplateVersionID: version.ID,
+			JobID:             jobB.ID,
+			Transition:        database.WorkspaceTransitionStop,
+		})
+
+		_, err := client.CreateWorkspaceBuild(ctx, wsB.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Running workspace limit reached")
 	})
 }
 

@@ -4320,7 +4320,7 @@ func (q *FakeQuerier) GetRunningWorkspaceCountByOwnerID(ctx context.Context, own
 		if err != nil {
 			continue
 		}
-		if job.CompletedAt.Valid && !job.CanceledAt.Valid && !job.Error.Valid {
+		if !job.CanceledAt.Valid && !job.Error.Valid {
 			count++
 		}
 	}
