@@ -360,103 +360,74 @@ func TestSubAgent_CloneConfig(t *testing.T) {
 func TestSubAgent_EqualConfig(t *testing.T) {
 	t.Parallel()
 
-	t.Run("TrueWhenFieldsMatch", func(t *testing.T) {
-		t.Parallel()
+	base := agentcontainers.SubAgent{
+		ID:              uuid.New(),
+		Name:            "test-agent",
+		Directory:       "/workspace",
+		Architecture:    "amd64",
+		OperatingSystem: "linux",
+		DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
+		Apps: []agentcontainers.SubAgentApp{
+			{Slug: "test-app", DisplayName: "Test App"},
+		},
+	}
 
-		a := agentcontainers.SubAgent{
-			ID:              uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
-			Name:            "test-agent",
-			Directory:       "/workspace",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
-			Apps:            []agentcontainers.SubAgentApp{{Slug: "app1"}},
-		}
-		// Different ID but same config fields.
-		b := agentcontainers.SubAgent{
-			ID:              uuid.MustParse("660e8400-e29b-41d4-a716-446655440000"),
-			Name:            "test-agent",
-			Directory:       "/workspace",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
-			Apps:            []agentcontainers.SubAgentApp{{Slug: "app1"}},
-		}
+	tests := []struct {
+		name      string
+		modify    func(*agentcontainers.SubAgent)
+		wantEqual bool
+	}{
+		{
+			name:      "identical",
+			modify:    func(s *agentcontainers.SubAgent) {},
+			wantEqual: true,
+		},
+		{
+			name:      "different ID",
+			modify:    func(s *agentcontainers.SubAgent) { s.ID = uuid.New() },
+			wantEqual: true,
+		},
+		{
+			name:      "different Name",
+			modify:    func(s *agentcontainers.SubAgent) { s.Name = "different-name" },
+			wantEqual: false,
+		},
+		{
+			name:      "different Directory",
+			modify:    func(s *agentcontainers.SubAgent) { s.Directory = "/different/path" },
+			wantEqual: false,
+		},
+		{
+			name:      "different Architecture",
+			modify:    func(s *agentcontainers.SubAgent) { s.Architecture = "arm64" },
+			wantEqual: false,
+		},
+		{
+			name:      "different OperatingSystem",
+			modify:    func(s *agentcontainers.SubAgent) { s.OperatingSystem = "windows" },
+			wantEqual: false,
+		},
+		{
+			name:      "different DisplayApps",
+			modify:    func(s *agentcontainers.SubAgent) { s.DisplayApps = []codersdk.DisplayApp{codersdk.DisplayAppSSH} },
+			wantEqual: false,
+		},
+		{
+			name: "different Apps",
+			modify: func(s *agentcontainers.SubAgent) {
+				s.Apps = []agentcontainers.SubAgentApp{{Slug: "different-app", DisplayName: "Different App"}}
+			},
+			wantEqual: false,
+		},
+	}
 
-		assert.True(t, a.EqualConfig(b), "EqualConfig compares config fields, not ID")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("FalseWhenFieldsDiffer", func(t *testing.T) {
-		t.Parallel()
-
-		base := agentcontainers.SubAgent{
-			Name:            "test-agent",
-			Directory:       "/workspace",
-			Architecture:    "amd64",
-			OperatingSystem: "linux",
-			DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
-			Apps: []agentcontainers.SubAgentApp{
-				{Slug: "test-app", DisplayName: "Test App"},
-			},
-		}
-
-		tests := []struct {
-			name   string
-			modify func(agentcontainers.SubAgent) agentcontainers.SubAgent
-		}{
-			{
-				name: "Name",
-				modify: func(s agentcontainers.SubAgent) agentcontainers.SubAgent {
-					s.Name = "different-name"
-					return s
-				},
-			},
-			{
-				name: "Directory",
-				modify: func(s agentcontainers.SubAgent) agentcontainers.SubAgent {
-					s.Directory = "/different/path"
-					return s
-				},
-			},
-			{
-				name: "Architecture",
-				modify: func(s agentcontainers.SubAgent) agentcontainers.SubAgent {
-					s.Architecture = "arm64"
-					return s
-				},
-			},
-			{
-				name: "OperatingSystem",
-				modify: func(s agentcontainers.SubAgent) agentcontainers.SubAgent {
-					s.OperatingSystem = "windows"
-					return s
-				},
-			},
-			{
-				name: "DisplayApps",
-				modify: func(s agentcontainers.SubAgent) agentcontainers.SubAgent {
-					s.DisplayApps = []codersdk.DisplayApp{codersdk.DisplayAppSSH}
-					return s
-				},
-			},
-			{
-				name: "Apps",
-				modify: func(s agentcontainers.SubAgent) agentcontainers.SubAgent {
-					s.Apps = []agentcontainers.SubAgentApp{
-						{Slug: "different-app", DisplayName: "Different App"},
-					}
-					return s
-				},
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
-				modified := tt.modify(base)
-				assert.False(t, base.EqualConfig(modified), "EqualConfig should return false when %s differs", tt.name)
-			})
-		}
-	})
+			modified := base
+			tt.modify(&modified)
+			assert.Equal(t, tt.wantEqual, base.EqualConfig(modified))
+		})
+	}
 }
