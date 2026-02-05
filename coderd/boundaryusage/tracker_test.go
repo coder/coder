@@ -546,6 +546,17 @@ type trackDuringUpsertDB struct {
 	userID      uuid.UUID
 }
 
+func (s *trackDuringUpsertDB) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&trackDuringUpsertDB{
+			Store:       tx,
+			tracker:     s.tracker,
+			workspaceID: s.workspaceID,
+			userID:      s.userID,
+		})
+	}, opts)
+}
+
 func (s *trackDuringUpsertDB) UpsertBoundaryUsageStats(ctx context.Context, arg database.UpsertBoundaryUsageStatsParams) (bool, error) {
 	s.tracker.Track(s.workspaceID, s.userID, 20, 10)
 	return s.Store.UpsertBoundaryUsageStats(ctx, arg)
