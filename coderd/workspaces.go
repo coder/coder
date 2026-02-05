@@ -632,7 +632,7 @@ func createWorkspace(
 	}
 	if count >= maxRunningWorkspacesPerUser {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
+			Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to create another.",
 		})
 		return
 	}
