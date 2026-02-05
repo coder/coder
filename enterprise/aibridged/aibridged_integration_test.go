@@ -227,7 +227,7 @@ func TestIntegration(t *testing.T) {
     }
   ]
 }`))
-	userAgent := "userAgent123"
+	userAgent := "codex_cli_rs/0.87.0"
 	require.NoError(t, err, "make request to test server")
 	req.Header.Add("Authorization", "Bearer "+apiKey.Key)
 	req.Header.Add("Accept", "application/json")
@@ -255,7 +255,7 @@ func TestIntegration(t *testing.T) {
 	require.False(t, intc0.EndedAt.Time.Before(intc0.StartedAt), "EndedAt should not be before StartedAt")
 	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
 	require.True(t, intc0.Client.Valid)
-	require.Equal(t, "unknown", intc0.Client.String)
+	require.Equal(t, aibridge.ClientCodex, intc0.Client.String)
 
 	intc0Metadata := gjson.GetBytes(intc0.Metadata.RawMessage, aibridgedserver.MetadataUserAgentKey)
 	require.Equal(t, userAgent, intc0Metadata.String(), "interception metadata user agent should match request user agent")
