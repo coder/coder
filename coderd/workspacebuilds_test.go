@@ -1446,27 +1446,23 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Create workspace 1 and 2 (auto-started)
+		// Create workspace 1 (auto-started)
 		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
-		ws2 := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
 
-		// Stop workspace 1 to make room for workspace 3
+		// Stop workspace 1 to make room for workspace 2
 		stopBuild1, err := client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: codersdk.WorkspaceTransitionStop,
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild1.ID)
 
-		// Create workspace 3 and 4 (auto-started)
-		ws3 := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws3.LatestBuild.ID)
-		ws4 := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws4.LatestBuild.ID)
+		// Create workspace 2 (auto-started)
+		ws2 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
 
-		// Now we have: ws1 (stopped), ws2 (running), ws3 (running), ws4 (running)
-		// Try to start ws1 - should fail because limit is reached (3 running)
+		// Now we have: ws1 (stopped), ws2 (running)
+		// Try to start ws1 - should fail because limit is reached (1 running)
 		_, err = client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: codersdk.WorkspaceTransitionStart,
 		})
@@ -1483,7 +1479,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild2.ID)
 
-		// Now starting ws1 should succeed (we have ws3, ws4 running, and ws1 will be the 3rd)
+		// Now starting ws1 should succeed (no running workspaces)
 		startBuild, err := client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: codersdk.WorkspaceTransitionStart,
 		})

@@ -326,7 +326,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // - Adding GetRunningWorkspaceCountByOwnerIDAndOrg function
 // - Passing organization_id in the API calls
 // - Updating error messages to clarify the limit is per-organization
-const maxRunningWorkspacesPerUser = 3
+const maxRunningWorkspacesPerUser = 1
 
 // @Router /workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -350,7 +350,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 		if count >= maxRunningWorkspacesPerUser {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Running workspace limit reached (max 3 per user). Stop one or more workspaces to start another.",
+				Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
 			})
 			return
 		}
