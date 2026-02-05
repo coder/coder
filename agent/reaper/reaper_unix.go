@@ -3,12 +3,15 @@
 package reaper
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/hashicorp/go-reap"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 // IsInitProcess returns true if the current process's PID is 1.
@@ -16,7 +19,7 @@ func IsInitProcess() bool {
 	return os.Getpid() == 1
 }
 
-func catchSignals(pid int, sigs []os.Signal) {
+func catchSignals(logger slog.Logger, pid int, sigs []os.Signal) {
 	if len(sigs) == 0 {
 		return
 	}
@@ -25,10 +28,19 @@ func catchSignals(pid int, sigs []os.Signal) {
 	signal.Notify(sc, sigs...)
 	defer signal.Stop(sc)
 
+	logger.Info(context.Background(), "reaper catching signals",
+		slog.F("signals", sigs),
+		slog.F("child_pid", pid),
+	)
+
 	for {
 		s := <-sc
 		sig, ok := s.(syscall.Signal)
 		if ok {
+			logger.Info(context.Background(), "reaper caught signal, killing child process",
+				slog.F("signal", sig.String()),
+				slog.F("child_pid", pid),
+			)
 			_ = syscall.Kill(pid, sig)
 		}
 	}
@@ -78,7 +90,7 @@ func ForkReap(opt ...Option) (int, error) {
 		return 1, xerrors.Errorf("fork exec: %w", err)
 	}
 
-	go catchSignals(pid, opts.CatchSignals)
+	go catchSignals(opts.Logger, pid, opts.CatchSignals)
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)

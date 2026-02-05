@@ -131,6 +131,7 @@ func workspaceAgent() *serpent.Command {
 
 				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+				logger = logger.Named("reaper")
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -140,13 +141,16 @@ func workspaceAgent() *serpent.Command {
 				exitCode, err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
 					reaper.WithCatchSignals(StopSignals...),
+					reaper.WithLogger(logger),
 				)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
-				logger.Info(ctx, "reaper child process exited", slog.F("exit_code", exitCode))
+				logger.Info(ctx, "child process exited, propagating exit code",
+					slog.F("exit_code", exitCode),
+				)
 				return ExitError(exitCode, nil)
 			}
 
