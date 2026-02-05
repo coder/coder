@@ -217,9 +217,12 @@ const NotificationsPage: FC = () => {
 																	}
 																}}
 															/>
-															<div className="font-medium text-sm">
+															<label
+																htmlFor={tmpl.id}
+																className="font-medium text-sm"
+															>
 																{tmpl.name}
-															</div>
+															</label>
 														</div>
 
 														<Tooltip>
