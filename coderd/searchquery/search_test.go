@@ -313,6 +313,34 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "HealthyTrue",
+			Query: "healthy:true",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{"connected"},
+			},
+		},
+		{
+			Name:  "HealthyFalse",
+			Query: "healthy:false",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{"disconnected", "timeout"},
+			},
+		},
+		{
+			Name:  "HealthyMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{},
+			},
+		},
+		{
+			Name:  "HealthyAndHasAgent",
+			Query: "has-agent:connecting healthy:true",
+			Expected: database.GetWorkspacesParams{
+				HasAgentStatuses: []string{"connecting", "connected"},
+			},
+		},
+		{
 			Name:  "SharedWithUser",
 			Query: `shared_with_user:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
 			Setup: func(t *testing.T, db database.Store) {
@@ -473,6 +501,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.HasParam) == len(values.HasParam) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.HasParam = values.HasParam
+				}
+				if len(c.Expected.HasAgentStatuses) == len(values.HasAgentStatuses) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.HasAgentStatuses = values.HasAgentStatuses
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
