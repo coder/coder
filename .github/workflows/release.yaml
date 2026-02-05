@@ -78,14 +78,8 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Setup build tools
-        run: |
-          brew install bash gnu-getopt make
-          {
-            echo "$(brew --prefix bash)/bin"
-            echo "$(brew --prefix gnu-getopt)/bin"
-            echo "$(brew --prefix make)/libexec/gnubin"
-          } >> "$GITHUB_PATH"
+      - name: Setup GNU tools (macOS)
+        uses: ./.github/actions/setup-gnu-tools
 
       - name: Switch XCode Version
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0

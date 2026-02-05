@@ -1,0 +1,18 @@
+name: "Setup GNU tools (macOS)"
+description: |
+  Installs GNU versions of bash, getopt, and make on macOS runners.
+  Required because lib.sh needs bash 4+, GNU getopt, and make 4+.
+  This is a no-op on non-macOS runners.
+runs:
+  using: "composite"
+  steps:
+    - name: Setup GNU tools (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install bash gnu-getopt make
+        {
+          echo "$(brew --prefix bash)/bin"
+          echo "$(brew --prefix gnu-getopt)/bin"
+          echo "$(brew --prefix make)/libexec/gnubin"
+        } >> "$GITHUB_PATH"
