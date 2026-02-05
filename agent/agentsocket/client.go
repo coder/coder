@@ -99,7 +99,10 @@ func (c *Client) SyncReady(ctx context.Context, unitName unit.ID) (bool, error) 
 	resp, err := c.client.SyncReady(ctx, &proto.SyncReadyRequest{
 		Unit: string(unitName),
 	})
-	return resp.Ready, err
+	if err != nil {
+		return false, xerrors.Errorf("sync ready: %w", err)
+	}
+	return resp.Ready, nil
 }
 
 // SyncStatus gets the status of a unit and its dependencies.
