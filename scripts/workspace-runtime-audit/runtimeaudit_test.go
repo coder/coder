@@ -380,7 +380,6 @@ func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []worksp
 		}).
 		Do()
 
-	// Create workspace with the first build's timestamp
 	wrk := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        s.usr.ID,
 		OrganizationID: s.org.ID,
@@ -399,15 +398,14 @@ func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []worksp
 				Transition:  b.transition,
 				InitiatorID: s.usr.ID,
 			}).
-			WithJobCreatedAt(b.at).
 			WithJobCompletedAt(b.at)
 
 		// Set job status based on the build args
 		switch b.jobStatus {
 		case database.ProvisionerJobStatusCanceled:
-			builder = builder.Canceled()
+			builder = builder.Canceled(b.at)
 		case database.ProvisionerJobStatusFailed:
-			builder = builder.Failed("fake error", "")
+			builder = builder.Failed("fake error", "", b.at)
 			// default: Succeeded (the builder's default)
 		}
 

@@ -96,8 +96,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-6*dayDuration)).
 			Do()
 
 		// When: first run
@@ -186,8 +185,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 1, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-6*dayDuration)).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
@@ -197,8 +195,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 3, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-4 * dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-4*dayDuration)).
 			Do()
 
 		_ = dbfake.WorkspaceBuild(t, db, w2).
@@ -209,28 +206,24 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w2).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 5, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-4 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-4 * dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-4*dayDuration)).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w2).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 6, TemplateVersionID: t2v2.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-3 * dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-3*dayDuration)).
 			Do()
 
 		_ = dbfake.WorkspaceBuild(t, db, w3).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 7, TemplateVersionID: t1v1.ID, CreatedAt: now.Add(-3 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-3 * dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-3*dayDuration)).
 			Do()
 
 		_ = dbfake.WorkspaceBuild(t, db, w4).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 8, TemplateVersionID: t2v1.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-6 * dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-6*dayDuration)).
 			Do()
 		_ = dbfake.WorkspaceBuild(t, db, w4).
 			Pubsub(ps).
@@ -316,8 +309,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbfake.WorkspaceBuild(t, db, w1).
 			Pubsub(ps).
 			Seed(database.WorkspaceBuild{BuildNumber: 77, TemplateVersionID: t1v2.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}).
-			Failed(jobError.String, jobErrorCode.String).
-			WithJobCompletedAt(now.Add(-dayDuration)).
+			Failed(jobError.String, jobErrorCode.String, now.Add(-dayDuration)).
 			Do()
 
 		// When
@@ -434,15 +426,13 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 			_ = dbfake.WorkspaceBuild(t, db, w1).
 				Pubsub(ps).
 				Seed(database.WorkspaceBuild{BuildNumber: int32(i), TemplateVersionID: t1v1.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}). // nolint:gosec
-				Failed(jobError.String, jobErrorCode.String).
-				WithJobCompletedAt(at).
+				Failed(jobError.String, jobErrorCode.String, at).
 				Do()
 
 			_ = dbfake.WorkspaceBuild(t, db, w1).
 				Pubsub(ps).
 				Seed(database.WorkspaceBuild{BuildNumber: int32(i) + 100, TemplateVersionID: t1v2.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator}). // nolint:gosec
-				Failed(jobError.String, jobErrorCode.String).
-				WithJobCompletedAt(at).
+				Failed(jobError.String, jobErrorCode.String, at).
 				Do()
 		}
 

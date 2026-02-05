@@ -148,24 +148,43 @@ func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sd
 	})
 }
 
-func (b WorkspaceBuildBuilder) Starting() WorkspaceBuildBuilder {
+// Starting sets the job to running status with optional timestamp.
+// If timestamp provided, it's used for both StartedAt and UpdatedAt.
+func (b WorkspaceBuildBuilder) Starting(ts ...time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusRunning
+	if len(ts) > 0 {
+		b.jobStartedAt = ts[0]
+	}
 	return b
 }
 
-func (b WorkspaceBuildBuilder) Pending() WorkspaceBuildBuilder {
+// Pending sets the job to pending status with optional timestamp.
+// If timestamp provided, it's used for CreatedAt/UpdatedAt.
+func (b WorkspaceBuildBuilder) Pending(ts ...time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusPending
+	if len(ts) > 0 {
+		b.jobCreatedAt = ts[0]
+	}
 	return b
 }
 
-func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
+// Canceled sets the job to canceled status with optional timestamp.
+// If timestamp provided, it's used for CompletedAt.
+func (b WorkspaceBuildBuilder) Canceled(ts ...time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusCanceled
+	if len(ts) > 0 {
+		b.jobCompletedAt = ts[0]
+	}
 	return b
 }
 
 // Failed sets the provisioner job to a failed state with the given error
 // message and error code. If error is empty, a default error message is used.
-func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string) WorkspaceBuildBuilder {
+// If timestamp provided, it's used for CompletedAt.
+func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string, ts ...time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusFailed
 	if jobError == "" {
@@ -173,30 +192,16 @@ func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string) WorkspaceBu
 	}
 	b.jobError = jobError
 	b.jobErrorCode = jobErrorCode
-	return b
-}
-
-// WithJobCreatedAt sets the provisioner job's CreatedAt timestamp.
-// If not called, defaults to dbtime.Now().
-func (b WorkspaceBuildBuilder) WithJobCreatedAt(t time.Time) WorkspaceBuildBuilder {
-	//nolint: revive // returns modified struct
-	b.jobCreatedAt = t
-	return b
-}
-
-// WithJobStartedAt sets when the provisioner job was acquired/started.
-// Only applies when job status is Running, Canceled, or Succeeded.
-// If not called, defaults to dbtime.Now().
-func (b WorkspaceBuildBuilder) WithJobStartedAt(t time.Time) WorkspaceBuildBuilder {
-	//nolint: revive // returns modified struct
-	b.jobStartedAt = t
+	if len(ts) > 0 {
+		b.jobCompletedAt = ts[0]
+	}
 	return b
 }
 
 // WithJobUpdatedAt sets the last update time for the provisioner job.
 // Only applies when job status is Running. This allows testing hung job
 // detection where UpdatedAt differs from StartedAt.
-// If not called, defaults to the value set by WithJobStartedAt.
+// If not called, defaults to the value set in Starting().
 func (b WorkspaceBuildBuilder) WithJobUpdatedAt(t time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobUpdatedAt = t
@@ -323,8 +328,8 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 	job, err := b.db.InsertProvisionerJob(ownerCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
-		CreatedAt:      takeFirst(b.jobCreatedAt, dbtime.Now()),
-		UpdatedAt:      takeFirst(b.jobCreatedAt, dbtime.Now()),
+		CreatedAt:      takeFirst(b.jobCreatedAt, b.ws.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(b.jobCreatedAt, b.ws.CreatedAt, dbtime.Now()),
 		OrganizationID: b.ws.OrganizationID,
 		InitiatorID:    b.ws.OwnerID,
 		Provisioner:    database.ProvisionerTypeEcho,

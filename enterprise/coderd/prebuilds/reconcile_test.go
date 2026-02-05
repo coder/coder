@@ -1830,8 +1830,6 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 					expiredCount++
 				}
 
-				// Use dbfake.WorkspaceBuild directly to control job timestamps for
-				// expiration testing via WithJobCreatedAt.
 				jobCreatedAt := clock.Now().Add(createdAt)
 				resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 					OwnerID:        database.PrebuildsSystemUserID,
@@ -1846,14 +1844,13 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 				}).Params(database.WorkspaceBuildParameter{
 					Name:  "test",
 					Value: "test",
-				}).WithJobCreatedAt(jobCreatedAt).Do()
-				workspace := resp.Workspace
+				}).Do()
 				if isExpired {
-					expiredWorkspaces = append(expiredWorkspaces, workspace)
+					expiredWorkspaces = append(expiredWorkspaces, resp.Workspace)
 				} else {
-					nonExpiredWorkspaces = append(nonExpiredWorkspaces, workspace)
+					nonExpiredWorkspaces = append(nonExpiredWorkspaces, resp.Workspace)
 				}
-				runningWorkspaces[workspace.ID.String()] = workspace
+				runningWorkspaces[resp.Workspace.ID.String()] = resp.Workspace
 			}
 
 			getJobStatusMap := func(workspaces []database.WorkspaceTable) map[database.ProvisionerJobStatus]int {
