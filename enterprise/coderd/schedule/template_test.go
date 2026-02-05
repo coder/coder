@@ -254,7 +254,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			}).Seed(database.WorkspaceBuild{
 				TemplateVersionID: templateVersion.ID,
 				ProvisionerState:  []byte(must(cryptorand.String(64))),
-			}).Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: buildTime, Valid: true}}).Do()
+			}).Succeeded(dbfake.WithJobCompletedAt(buildTime)).Do()
 
 			// Assert test invariant: workspace build state must not be empty
 			require.NotEmpty(t, buildResp.Build.ProvisionerState, "provisioner state must not be empty")

@@ -5,7 +5,6 @@
 package runtimeaudit_test
 
 import (
-	"database/sql"
 	_ "embed"
 	"math"
 	"strings"
@@ -399,14 +398,14 @@ func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []worksp
 				Transition:  b.transition,
 				InitiatorID: s.usr.ID,
 			}).
-			Succeeded().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: b.at, Valid: true}})
+			Succeeded(dbfake.WithJobCompletedAt(b.at))
 
 		// Set job status based on the build args
 		switch b.jobStatus {
 		case database.ProvisionerJobStatusCanceled:
-			builder = builder.Canceled().UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: b.at, Valid: true}})
+			builder = builder.Canceled(dbfake.WithJobCompletedAt(b.at))
 		case database.ProvisionerJobStatusFailed:
-			builder = builder.Failed("fake error", "").UpdateJob(database.ProvisionerJob{CompletedAt: sql.NullTime{Time: b.at, Valid: true}})
+			builder = builder.Failed("fake error", "", dbfake.WithJobCompletedAt(b.at))
 			// default: Succeeded (the builder's default)
 		}
 
