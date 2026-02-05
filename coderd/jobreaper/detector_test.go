@@ -128,7 +128,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 		OwnerID:        user.ID,
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: expectedWorkspaceBuildState,
-	}).JobCompletedAt(twentyMinAgo).
+	}).Succeeded(twentyMinAgo).
 		Do()
 
 	// Current build (hung - running job with UpdatedAt > 5 min ago).
@@ -197,7 +197,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 		OwnerID:        user.ID,
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: []byte(`{"dean":"NOT cool","colin":"also NOT cool"}`),
-	}).JobCompletedAt(twentyMinAgo).
+	}).Succeeded(twentyMinAgo).
 		Do()
 
 	// Current build (hung - running job with UpdatedAt > 5 min ago).

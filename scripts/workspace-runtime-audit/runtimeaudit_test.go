@@ -398,7 +398,7 @@ func (s *setup) createWorkspace(t *testing.T, db database.Store, builds []worksp
 				Transition:  b.transition,
 				InitiatorID: s.usr.ID,
 			}).
-			JobCompletedAt(b.at)
+			Succeeded(b.at)
 
 		// Set job status based on the build args
 		switch b.jobStatus {

@@ -171,7 +171,7 @@ func (b WorkspaceBuildBuilder) Pending(ts ...time.Time) WorkspaceBuildBuilder {
 }
 
 // Canceled sets the job to canceled status with optional timestamp.
-// If timestamp provided, it's used for CompletedAt.
+// If timestamp provided, it's used for CanceledAt and CompletedAt.
 func (b WorkspaceBuildBuilder) Canceled(ts ...time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusCanceled
@@ -181,9 +181,22 @@ func (b WorkspaceBuildBuilder) Canceled(ts ...time.Time) WorkspaceBuildBuilder {
 	return b
 }
 
+// Succeeded sets the job to succeeded status with optional timestamp.
+// If timestamp provided, it's used for CompletedAt.
+// This is the default status, so calling this is only needed to set a specific
+// completion timestamp.
+func (b WorkspaceBuildBuilder) Succeeded(ts ...time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobStatus = database.ProvisionerJobStatusSucceeded
+	if len(ts) > 0 {
+		b.jobCompletedAt = ts[0]
+	}
+	return b
+}
+
 // Failed sets the provisioner job to a failed state with the given error
 // message and error code. If error is empty, a default error message is used.
-// If timestamp provided, it's used for CompletedAt.
+// If timestamp provided, it's used for CanceledAt and CompletedAt.
 func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string, ts ...time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusFailed
@@ -204,14 +217,6 @@ func (b WorkspaceBuildBuilder) Failed(jobError, jobErrorCode string, ts ...time.
 func (b WorkspaceBuildBuilder) JobUpdatedAt(t time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobUpdatedAt = t
-	return b
-}
-
-// JobCompletedAt sets when the provisioner job completed.
-// Only applies when job status is Canceled, Failed, or Succeeded (default).
-func (b WorkspaceBuildBuilder) JobCompletedAt(t time.Time) WorkspaceBuildBuilder {
-	//nolint: revive // returns modified struct
-	b.jobCompletedAt = t
 	return b
 }
 
