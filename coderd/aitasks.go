@@ -1252,7 +1252,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 // @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID" format(uuid)
-// @Success 202 {object} codersdk.WorkspaceBuild
+// @Success 202 {object} codersdk.PauseTaskResponse
 // @Router /tasks/{user}/{task}/pause [post]
 func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1300,5 +1300,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusAccepted, build)
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.PauseTaskResponse{
+		WorkspaceBuildID: build.ID,
+	})
 }

@@ -2511,7 +2511,9 @@ func TestPauseTask(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		build, err := client.PauseTask(ctx, codersdk.Me, task.ID)
+		resp, err := client.PauseTask(ctx, codersdk.Me, task.ID)
+		require.NoError(t, err)
+		build, err := client.WorkspaceBuild(ctx, resp.WorkspaceBuildID)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
 		require.Equal(t, task.WorkspaceID.UUID, build.WorkspaceID)
