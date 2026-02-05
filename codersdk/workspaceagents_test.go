@@ -223,33 +223,25 @@ func TestWorkspaceAgentDevcontainerEquals(t *testing.T) {
 func TestWorkspaceAgentDevcontainerIsTerraformDefined(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name                     string
-		subagentID               uuid.NullUUID
-		expectIsTerraformDefined bool
-	}{
-		{
-			name:                     "false when SubagentID is not valid",
-			subagentID:               uuid.NullUUID{},
-			expectIsTerraformDefined: false,
-		},
-		{
-			name:                     "true when SubagentID is valid",
-			subagentID:               uuid.NullUUID{Valid: true, UUID: uuid.New()},
-			expectIsTerraformDefined: true,
-		},
-	}
+	t.Run("SubagentID Valid", func(t *testing.T) {
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			ID:              uuid.New(),
+			Name:            "test-dc",
+			WorkspaceFolder: "/workspace",
+			SubagentID:      uuid.NullUUID{Valid: true, UUID: uuid.New()},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			dc := codersdk.WorkspaceAgentDevcontainer{
-				ID:              uuid.New(),
-				Name:            "test-dc",
-				WorkspaceFolder: "/workspace",
-				SubagentID:      tt.subagentID,
-			}
-			require.Equal(t, tt.expectIsTerraformDefined, dc.IsTerraformDefined())
-		})
-	}
+		require.True(t, dc.IsTerraformDefined())
+	})
+
+	t.Run("SubagentID Null", func(t *testing.T) {
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			ID:              uuid.New(),
+			Name:            "test-dc",
+			WorkspaceFolder: "/workspace",
+			SubagentID:      uuid.NullUUID{Valid: false},
+		}
+
+		require.False(t, dc.IsTerraformDefined())
+	})
 }
