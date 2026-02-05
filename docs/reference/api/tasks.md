@@ -391,9 +391,9 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
 
 ### Responses
 
-| Status | Meaning                                                       | Description | Schema                                                       |
-|--------|---------------------------------------------------------------|-------------|--------------------------------------------------------------|
-| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+| Status | Meaning                                                       | Description | Schema                                                             |
+|--------|---------------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.PauseTaskResponse](schemas.md#codersdkpausetaskresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

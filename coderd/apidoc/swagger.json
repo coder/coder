@@ -5179,7 +5179,7 @@
 					"202": {
 						"description": "Accepted",
 						"schema": {
-							"$ref": "#/definitions/codersdk.WorkspaceBuild"
+							"$ref": "#/definitions/codersdk.PauseTaskResponse"
 						}
 					}
 				}
@@ -15514,6 +15514,15 @@
 				},
 				"regenerate_token": {
 					"type": "boolean"
+				}
+			}
+		},
+		"codersdk.PauseTaskResponse": {
+			"type": "object",
+			"properties": {
+				"workspace_build_id": {
+					"type": "string",
+					"format": "uuid"
 				}
 			}
 		},

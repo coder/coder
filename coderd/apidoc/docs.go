@@ -5860,7 +5860,7 @@ const docTemplate = `{
                     "202": {
                         "description": "Accepted",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                            "$ref": "#/definitions/codersdk.PauseTaskResponse"
                         }
                     }
                 }
@@ -17055,6 +17055,15 @@ const docTemplate = `{
                 },
                 "regenerate_token": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PauseTaskResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_build_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

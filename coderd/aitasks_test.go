@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent"
@@ -2643,7 +2643,7 @@ func TestPauseTask(t *testing.T) {
 			Store: db,
 			getWorkspaceByID: func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 				if id == workspaceID && id != uuid.Nil {
-					return database.Workspace{}, errors.New("boom")
+					return database.Workspace{}, xerrors.New("boom")
 				}
 				return db.GetWorkspaceByID(ctx, id)
 			},
@@ -2711,7 +2711,7 @@ func TestPauseTask(t *testing.T) {
 		wrapped := storeWrapper{
 			Store: db,
 			insertWorkspaceBuild: func(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
-				return errors.New("insert failed")
+				return xerrors.New("insert failed")
 			},
 		}
 		client := setupClient(t, wrapped, ps, nil)

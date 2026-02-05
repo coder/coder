@@ -6178,6 +6178,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `name`             | string  | true     |              |             |
 | `regenerate_token` | boolean | false    |              |             |
 
+## codersdk.PauseTaskResponse
+
+```json
+{
+  "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+|----------------------|--------|----------|--------------|-------------|
+| `workspace_build_id` | string | false    |              |             |
+
 ## codersdk.Permission
 
 ```json

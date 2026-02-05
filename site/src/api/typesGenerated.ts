@@ -3585,6 +3585,14 @@ export interface PatchWorkspaceProxy {
  */
 export const PathAppSessionTokenCookie = "coder_path_app_session_token";
 
+// From codersdk/aitasks.go
+/**
+ * PauseTaskResponse represents the response from pausing a task.
+ */
+export interface PauseTaskResponse {
+	readonly workspace_build_id: string;
+}
+
 // From codersdk/roles.go
 /**
  * Permission is the format passed into the rego.
