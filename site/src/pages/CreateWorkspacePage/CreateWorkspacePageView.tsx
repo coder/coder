@@ -192,7 +192,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<Alert severity="warning">
 					{error && isApiError(error)
 						? error.response.data.message
-						: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to create and start another."}
+						: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to create another."}
 				</Alert>
 			) : (
 				Boolean(error) && <ErrorAlert error={error} />
