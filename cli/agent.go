@@ -569,8 +569,8 @@ func urlPort(u string) (int, error) {
 
 // logSignalNotifyContext is like signal.NotifyContext but logs the received
 // signal before canceling the context.
-func logSignalNotifyContext(ctx context.Context, logger slog.Logger, signals ...os.Signal) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(ctx)
+func logSignalNotifyContext(parent context.Context, logger slog.Logger, signals ...os.Signal) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, signals...)
 
