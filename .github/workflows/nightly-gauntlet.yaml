@@ -59,6 +59,9 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup GNU tools (macOS)
+        uses: ./.github/actions/setup-gnu-tools
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
