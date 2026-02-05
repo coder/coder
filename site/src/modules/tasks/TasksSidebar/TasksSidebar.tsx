@@ -7,11 +7,13 @@ import {
 	DropdownMenuContent,
 	DropdownMenuGroup,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { Spinner } from "components/Spinner/Spinner";
 import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
@@ -21,13 +23,22 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { EditIcon, EllipsisIcon, PanelLeftIcon, TrashIcon } from "lucide-react";
+import {
+	EditIcon,
+	EllipsisIcon,
+	PanelLeftIcon,
+	PauseIcon,
+	PlayIcon,
+	TrashIcon,
+} from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
+import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";
+import { usePauseTask, useResumeTask } from "../useTaskActions";
 import { UserCombobox } from "./UserCombobox";
 
 export const TasksSidebar: FC = () => {
@@ -180,6 +191,12 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const isActive = task.id === taskId;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const navigate = useNavigate();
+	const pauseMutation = usePauseTask(task);
+	const resumeMutation = useResumeTask(task);
+
+	const showPause = canPauseTask(task.status) && task.workspace_id;
+	const pauseDisabled = isPauseDisabled(task.status);
+	const showResume = canResumeTask(task.status) && task.workspace_id;
 
 	return (
 		<>
@@ -227,6 +244,35 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 
 						<DropdownMenuContent align="end">
 							<DropdownMenuGroup>
+								{showPause && (
+									<DropdownMenuItem
+										disabled={pauseDisabled || pauseMutation.isPending}
+										onClick={(e) => {
+											e.stopPropagation();
+											pauseMutation.mutate();
+										}}
+									>
+										<Spinner loading={pauseMutation.isPending}>
+											<PauseIcon />
+										</Spinner>
+										Pause
+									</DropdownMenuItem>
+								)}
+								{showResume && (
+									<DropdownMenuItem
+										disabled={resumeMutation.isPending}
+										onClick={(e) => {
+											e.stopPropagation();
+											resumeMutation.mutate();
+										}}
+									>
+										<Spinner loading={resumeMutation.isPending}>
+											<PlayIcon />
+										</Spinner>
+										Resume
+									</DropdownMenuItem>
+								)}
+								{(showPause || showResume) && <DropdownMenuSeparator />}
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									onClick={(e) => {

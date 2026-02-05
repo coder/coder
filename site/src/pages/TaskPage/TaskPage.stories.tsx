@@ -1,9 +1,13 @@
 import {
+	MockCanceledWorkspace,
+	MockCancelingWorkspace,
 	MockDeletedWorkspace,
+	MockDeletingWorkspace,
 	MockDisplayNameTasks,
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockStoppingWorkspace,
 	MockTask,
 	MockTasks,
 	MockUserOwner,
@@ -14,6 +18,7 @@ import {
 	MockWorkspaceAgentStarting,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
+	MockWorkspaceBuildStop,
 	MockWorkspaceResource,
 	mockApiError,
 } from "testHelpers/entities";
@@ -176,6 +181,77 @@ export const DeletedWorkspace: Story = {
 		spyOn(API, "getTask").mockResolvedValue(MockTask);
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockDeletedWorkspace,
+		);
+	},
+};
+
+export const TaskPausing: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "active",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppingWorkspace,
+		);
+	},
+};
+
+export const TaskPaused: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+	},
+};
+
+export const TaskPausedTimeout: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockStoppedWorkspace,
+			latest_build: {
+				...MockWorkspaceBuildStop,
+				status: "stopped",
+				reason: "autostop",
+			},
+		});
+	},
+};
+
+export const TaskCanceled: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockCanceledWorkspace,
+		);
+	},
+};
+
+export const TaskCanceling: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockCancelingWorkspace,
+		);
+	},
+};
+
+export const TaskDeleting: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockDeletingWorkspace,
 		);
 	},
 };
@@ -403,7 +479,7 @@ export const MainAppHealthy: Story = mainAppHealthStory("healthy");
 export const MainAppInitializing: Story = mainAppHealthStory("initializing");
 export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
 
-export const OutdatedWorkspace: Story = {
+export const TaskPausedOutdated: Story = {
 	// Given: an 'outdated' workspace (that is, the latest build does not use template's active version)
 	parameters: {
 		queries: [
@@ -487,10 +563,13 @@ export const ActivePreview: Story = {
 	},
 };
 
-export const WorkspaceStarting: Story = {
+export const TaskRestarting: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
-		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
@@ -514,10 +593,10 @@ export const WorkspaceStarting: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const restartButton = await canvas.findByText("Restart");
+		expect(restartButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(restartButton);
 
 		await waitFor(async () => {
 			expect(API.startWorkspace).toBeCalled();
@@ -525,10 +604,13 @@ export const WorkspaceStarting: Story = {
 	},
 };
 
-export const WorkspaceStartFailure: Story = {
+export const TaskRestartFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
-		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
@@ -552,10 +634,10 @@ export const WorkspaceStartFailure: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const restartButton = await canvas.findByText("Restart");
+		expect(restartButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(restartButton);
 
 		await waitFor(async () => {
 			const errorMessage = await canvas.findByText("Some unexpected error");
@@ -564,7 +646,7 @@ export const WorkspaceStartFailure: Story = {
 	},
 };
 
-export const WorkspaceStartFailureWithDialog: Story = {
+export const TaskRestartFailureWithDialog: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue(MockTask);
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
@@ -594,10 +676,10 @@ export const WorkspaceStartFailureWithDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const restartButton = await canvas.findByText("Restart");
+		expect(restartButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(restartButton);
 
 		await waitFor(async () => {
 			const body = within(canvasElement.ownerDocument.body);
