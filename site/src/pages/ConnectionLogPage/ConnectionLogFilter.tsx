@@ -1,8 +1,8 @@
 import {
-	ConnectionLogStatuses,
-	ConnectionTypes,
 	type ConnectionLogStatus,
+	ConnectionLogStatuses,
 	type ConnectionType,
+	ConnectionTypes,
 } from "api/typesGenerated";
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
@@ -34,7 +34,9 @@ type ConnectionLogFilterValues = {
 	organization?: string;
 };
 
-const buildConnectionLogFilterQuery = (v: ConnectionLogFilterValues): string => {
+const buildConnectionLogFilterQuery = (
+	v: ConnectionLogFilterValues,
+): string => {
 	const parts: string[] = [];
 	if (v.status) parts.push(`status:${v.status}`);
 	if (v.type) parts.push(`type:${v.type}`);
