@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -960,5 +962,97 @@ func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
 		// The second snapshot should have nil because another "replica" already
 		// claimed the lock for this period.
 		require.Nil(t, snapshot2.BoundaryUsageSummary)
+	})
+
+	t.Run("ConcurrentGetAndResetWithWriters", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
+
+		stopCtx, stopCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer stopCancel()
+
+		const (
+			writerCount = 5
+			readerCount = 5
+			maxStaleMs  = 60000
+		)
+
+		var (
+			wg       sync.WaitGroup
+			errMu    sync.Mutex
+			firstErr error
+		)
+
+		recordErr := func(err error) {
+			if err == nil {
+				return
+			}
+			errMu.Lock()
+			if firstErr == nil {
+				firstErr = err
+			}
+			errMu.Unlock()
+		}
+
+		for i := 0; i < writerCount; i++ {
+			replicaID := uuid.New()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				var uniqueCount int64
+				for {
+					select {
+					case <-stopCtx.Done():
+						return
+					default:
+					}
+
+					uniqueCount++
+					_, err := db.UpsertBoundaryUsageStats(boundaryCtx, database.UpsertBoundaryUsageStatsParams{
+						ReplicaID:             replicaID,
+						UniqueWorkspacesDelta: 1,
+						UniqueUsersDelta:      1,
+						AllowedRequests:       1,
+						DeniedRequests:        0,
+						UniqueWorkspacesCount: uniqueCount,
+						UniqueUsersCount:      uniqueCount,
+					})
+					if err != nil {
+						recordErr(err)
+						return
+					}
+				}
+			}()
+		}
+
+		for i := 0; i < readerCount; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					select {
+					case <-stopCtx.Done():
+						return
+					default:
+					}
+
+					_, err := db.GetAndResetBoundaryUsageSummary(boundaryCtx, maxStaleMs)
+					if err != nil {
+						recordErr(err)
+						return
+					}
+				}
+			}()
+		}
+
+		wg.Wait()
+
+		errMu.Lock()
+		err := firstErr
+		errMu.Unlock()
+		require.NoError(t, err)
 	})
 }
