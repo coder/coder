@@ -786,3 +786,19 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 	var credentials ExternalAgentCredentials
 	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
 }
+
+// WorkspaceAvailableUsers returns users available for workspace creation.
+// This is used to populate the owner dropdown when creating workspaces for
+// other users.
+func (c *Client) WorkspaceAvailableUsers(ctx context.Context, organizationID uuid.UUID, userID string) ([]MinimalUser, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspaces/available-users", organizationID, userID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var users []MinimalUser
+	return users, json.NewDecoder(res.Body).Decode(&users)
+}
