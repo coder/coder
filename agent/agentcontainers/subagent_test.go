@@ -333,7 +333,7 @@ func TestSubAgent_CloneConfig(t *testing.T) {
 		assert.Equal(t, expectedID, cloned.ID)
 		assert.Equal(t, dc.Name, cloned.Name)
 		assert.Equal(t, subAgent.Directory, cloned.Directory)
-		assert.Equal(t, uuid.Nil, cloned.AuthToken, "AuthToken should not be copied")
+		assert.Zero(t, cloned.AuthToken, "AuthToken should not be copied")
 	})
 
 	t.Run("HandlesNilSubagentID", func(t *testing.T) {
