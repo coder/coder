@@ -48,9 +48,9 @@ For environment variables, see [AI Bridge Proxy client configuration](../ai-brid
 
 Alternatively, you can configure the proxy directly in VS Code settings:
 
-1) Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
-1) Search for `http.proxy`
-1) Set the proxy URL using the format `http://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888`
+1. Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
+1. Search for `HTTP: Proxy`
+1. Set the proxy URL using the format `http://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888`
 
 Or add directly to your `settings.json`:
 
@@ -62,6 +62,8 @@ Or add directly to your `settings.json`:
 
 The `http.proxy` setting is used for both HTTP and HTTPS requests.
 Replace `<proxy-host>` with your AI Bridge Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+
+Restart VS Code for changes to take effect.
 
 For more details, see [Configuring proxy settings for Copilot](https://docs.github.com/en/copilot/how-tos/configure-personal-settings/configure-network-settings?tool=vscode) in the GitHub documentation.
 
@@ -75,11 +77,26 @@ See [Client Configuration CA certificate trust](../ai-bridge-proxy/setup.md#trus
 ### Using Coder Remote extension
 
 When connecting to a Coder workspace with the [Coder extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote), the Copilot extension runs inside the Coder workspace and not on your local machine.
+This means proxy and certificate configuration must be done in the Coder workspace environment.
 
-This means:
+#### Proxy configuration
 
-* Proxy configuration: Make sure the `HTTP_PROXY` and `HTTPS_PROXY` environment variables are properly set in your workspace, as the `http.proxy` VS Code setting is for the local machine.
-* CA certificate trust: Make sure the CA certificate is trusted in your workspace, as the local machine's trust store is not used.
+Configure the proxy in VS Code's remote settings:
+
+1. [Connect to your Coder workspace](../../../user-guides/workspace-access/vscode.md)
+1. Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
+1. Select the **Remote** tab
+1. Search for `HTTP: Proxy`
+1. Set the proxy URL using the format `http://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888`
+
+Replace `<proxy-host>` with your AI Bridge Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+
+#### CA certificate trust
+
+Since the Copilot extension runs inside the Coder workspace, add the [AI Bridge Proxy CA certificate](../ai-bridge-proxy/setup.md#trusting-the-ca-certificate) to the Coder workspace's system trust store.
+See [System trust store](../ai-bridge-proxy/setup.md#system-trust-store) for instructions on how to do this on Linux.
+
+Restart VS Code for changes to take effect.
 
 ## JetBrains IDEs
 
