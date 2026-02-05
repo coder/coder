@@ -4,6 +4,7 @@ import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
+import { isApiError } from "api/errors";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
@@ -54,6 +55,7 @@ export interface WorkspaceProps {
 	permissions: WorkspacePermissions;
 	isOwner: boolean;
 	timings?: TypesGen.WorkspaceBuildTimings;
+	startWorkspaceError?: unknown;
 }
 
 /**
@@ -87,6 +89,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	permissions,
 	isOwner,
 	timings,
+	startWorkspaceError,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -122,6 +125,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 	const { shouldShow: shouldShowWorkspaceReadyDelayAlert } =
 		useWorkspaceReadyDelayAlert(timings, workspaceRunning);
+
+	const isRunningWorkspaceLimitError =
+		startWorkspaceError &&
+		isApiError(startWorkspaceError) &&
+		startWorkspaceError.response?.status === 403 &&
+		startWorkspaceError.response?.data?.message?.includes(
+			"Running workspace limit",
+		);
 
 	return (
 		<div
@@ -240,6 +251,18 @@ export const Workspace: FC<WorkspaceProps> = ({
 							<AlertTitle>Workspace is still preparing</AlertTitle>
 							<AlertDetail>
 								Due to high demand, preparation may take a few minutes.
+							</AlertDetail>
+						</Alert>
+					)}
+
+					{isRunningWorkspaceLimitError && (
+						<Alert severity="warning">
+							<AlertTitle>Running workspace limit reached</AlertTitle>
+							<AlertDetail>
+							{startWorkspaceError &&
+							isApiError(startWorkspaceError)
+								? startWorkspaceError.response.data.message
+								: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another."}
 							</AlertDetail>
 						</Alert>
 					)}
