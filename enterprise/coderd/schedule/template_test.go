@@ -256,21 +256,18 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 				ProvisionerState:  []byte(must(cryptorand.String(64))),
 			}).WithJobCompletedAt(buildTime).Do()
 
-			_ = buildResp.Workspace
-			wsBuild := buildResp.Build
-
 			// Assert test invariant: workspace build state must not be empty
-			require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
+			require.NotEmpty(t, buildResp.Build.ProvisionerState, "provisioner state must not be empty")
 
 			err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-				ID:          wsBuild.ID,
+				ID:          buildResp.Build.ID,
 				UpdatedAt:   buildTime,
 				Deadline:    c.deadline,
 				MaxDeadline: c.maxDeadline,
 			})
 			require.NoError(t, err)
 
-			wsBuild, err = db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
+			wsBuild, err := db.GetWorkspaceBuildByID(ctx, buildResp.Build.ID)
 			require.NoError(t, err)
 
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
