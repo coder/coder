@@ -191,6 +191,7 @@ type Options struct {
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
+	WorkspaceBuilderMetrics   *wsbuilder.Metrics
 	UsageInserter             usage.Inserter
 }
 
@@ -399,7 +400,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
 		experiments,
-		options.ProvisionerdServerMetrics,
+		options.WorkspaceBuilderMetrics,
 	).WithStatsChannel(options.AutobuildStats)
 
 	lifecycleExecutor.Run()
@@ -621,6 +622,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
+			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
 		}
 }
 

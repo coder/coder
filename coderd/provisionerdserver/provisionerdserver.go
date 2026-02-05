@@ -589,7 +589,14 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 		jobTransition = string(workspaceBuild.Transition)
-		jobBuildReason = string(workspaceBuild.Reason)
+		// Prebuilds use BuildReasonInitiator in the database but we want to
+		// track them separately in metrics. Check the initiator ID to detect
+		// prebuild jobs.
+		if job.InitiatorID == database.PrebuildsSystemUserID {
+			jobBuildReason = BuildReasonPrebuild
+		} else {
+			jobBuildReason = string(workspaceBuild.Reason)
+		}
 
 		// A previous workspace build exists
 		var lastWorkspaceBuildParameters []database.WorkspaceBuildParameter

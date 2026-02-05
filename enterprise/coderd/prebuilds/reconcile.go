@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -63,8 +62,8 @@ type StoreReconciler struct {
 	// Prebuild state metrics
 	metrics *MetricsCollector
 	// Operational metrics
-	reconciliationDuration    prometheus.Histogram
-	provisionerdServerMetrics *provisionerdserver.Metrics
+	reconciliationDuration  prometheus.Histogram
+	workspaceBuilderMetrics *wsbuilder.Metrics
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -98,7 +97,7 @@ func NewStoreReconciler(store database.Store,
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 	tracerProvider trace.TracerProvider,
 	maxDBConnections int,
-	provisionerdServerMetrics *provisionerdserver.Metrics,
+	workspaceBuilderMetrics *wsbuilder.Metrics,
 ) *StoreReconciler {
 	reconciliationConcurrency := calculateReconciliationConcurrency(maxDBConnections)
 
@@ -120,7 +119,7 @@ func NewStoreReconciler(store database.Store,
 		done:                      make(chan struct{}, 1),
 		provisionNotifyCh:         make(chan database.ProvisionerJob, 10),
 		reconciliationConcurrency: reconciliationConcurrency,
-		provisionerdServerMetrics: provisionerdServerMetrics,
+		workspaceBuilderMetrics:   workspaceBuilderMetrics,
 	}
 
 	if registerer != nil {
@@ -1033,7 +1032,8 @@ func (c *StoreReconciler) provision(
 	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
-		MarkPrebuild()
+		MarkPrebuild().
+		BuildMetrics(c.workspaceBuilderMetrics)
 
 	if transition != database.WorkspaceTransitionDelete {
 		// We don't specify the version for a delete transition,
@@ -1066,9 +1066,6 @@ func (c *StoreReconciler) provision(
 		},
 		audit.WorkspaceBuildBaggage{},
 	)
-	if c.provisionerdServerMetrics != nil && provisionerJob != nil && provisionerJob.Provisioner.Valid() {
-		c.provisionerdServerMetrics.RecordWorkspaceBuildEnqueued(string(provisionerJob.Provisioner), provisionerdserver.BuildReasonPrebuild, string(transition), err)
-	}
 	if err != nil {
 		return nil, xerrors.Errorf("provision workspace: %w", err)
 	}

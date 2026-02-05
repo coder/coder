@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -5973,9 +5974,13 @@ func TestWorkspaceBuildsEnqueuedMetric(t *testing.T) {
 	err := metrics.Register(reg)
 	require.NoError(t, err)
 
+	wsBuilderMetrics, err := wsbuilder.NewMetrics(reg)
+	require.NoError(t, err)
+
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		IncludeProvisionerDaemon:  true,
 		ProvisionerdServerMetrics: metrics,
+		WorkspaceBuilderMetrics:   wsBuilderMetrics,
 		AutobuildTicker:           tickCh,
 		AutobuildStats:            statsCh,
 	})
@@ -6022,7 +6027,7 @@ func TestWorkspaceBuildsEnqueuedMetric(t *testing.T) {
 		"provisioner_type": string(database.ProvisionerTypeEcho),
 		"build_reason":     string(database.BuildReasonAutostart),
 		"transition":       string(database.WorkspaceTransitionStart),
-		"status":           provisionerdserver.BuildStatusSuccess,
+		"status":           wsbuilder.BuildStatusSuccess,
 	})
 	require.Equal(t, 1, autostartCount, "autostart should record 1 enqueue with build_reason=autostart")
 }

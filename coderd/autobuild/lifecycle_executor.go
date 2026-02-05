@@ -48,10 +48,10 @@ type Executor struct {
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
-	notificationsEnqueuer     notifications.Enqueuer
-	reg                       prometheus.Registerer
-	experiments               codersdk.Experiments
-	provisionerdServerMetrics *provisionerdserver.Metrics
+	notificationsEnqueuer   notifications.Enqueuer
+	reg                     prometheus.Registerer
+	experiments             codersdk.Experiments
+	workspaceBuilderMetrics *wsbuilder.Metrics
 
 	metrics executorMetrics
 }
@@ -68,24 +68,24 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, provisionerdServerMetrics *provisionerdserver.Metrics) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, workspaceBuilderMetrics *wsbuilder.Metrics) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
-		ctx:                       dbauthz.AsAutostart(ctx),
-		db:                        db,
-		ps:                        ps,
-		fileCache:                 fc,
-		templateScheduleStore:     tss,
-		tick:                      tick,
-		log:                       log.Named("autobuild"),
-		auditor:                   auditor,
-		accessControlStore:        acs,
-		buildUsageChecker:         buildUsageChecker,
-		notificationsEnqueuer:     enqueuer,
-		reg:                       reg,
-		experiments:               exp,
-		provisionerdServerMetrics: provisionerdServerMetrics,
+		ctx:                     dbauthz.AsAutostart(ctx),
+		db:                      db,
+		ps:                      ps,
+		fileCache:               fc,
+		templateScheduleStore:   tss,
+		tick:                    tick,
+		log:                     log.Named("autobuild"),
+		auditor:                 auditor,
+		accessControlStore:      acs,
+		buildUsageChecker:       buildUsageChecker,
+		notificationsEnqueuer:   enqueuer,
+		reg:                     reg,
+		experiments:             exp,
+		workspaceBuilderMetrics: workspaceBuilderMetrics,
 		metrics: executorMetrics{
 			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
 				Namespace: "coderd",
@@ -337,7 +337,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
-							Reason(reason)
+							Reason(reason).
+							BuildMetrics(e.workspaceBuilderMetrics)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&
 							useActiveVersion(accessControl, ws) {
@@ -352,9 +353,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						}
 
 						nextBuild, job, _, err = builder.Build(e.ctx, tx, e.fileCache, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
-						if e.provisionerdServerMetrics != nil && job != nil && job.Provisioner.Valid() {
-							e.provisionerdServerMetrics.RecordWorkspaceBuildEnqueued(string(job.Provisioner), string(reason), string(nextTransition), err)
-						}
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
