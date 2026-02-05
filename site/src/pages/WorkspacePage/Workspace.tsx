@@ -126,13 +126,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const { shouldShow: shouldShowWorkspaceReadyDelayAlert } =
 		useWorkspaceReadyDelayAlert(timings, workspaceRunning);
 
-	const isRunningWorkspaceLimitError =
+	const isRunningWorkspaceLimitError = Boolean(
 		startWorkspaceError &&
-		isApiError(startWorkspaceError) &&
-		startWorkspaceError.response?.status === 403 &&
-		startWorkspaceError.response?.data?.message?.includes(
-			"Running workspace limit",
-		);
+			isApiError(startWorkspaceError) &&
+			startWorkspaceError.response?.status === 403 &&
+			startWorkspaceError.response?.data?.message?.includes(
+				"Running workspace limit",
+			),
+	);
 
 	return (
 		<div
