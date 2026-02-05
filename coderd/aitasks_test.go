@@ -2522,6 +2522,60 @@ func TestPauseTask(t *testing.T) {
 		// require.Equal(t, codersdk.BuildReason(codersdk.CreateWorkspaceBuildReasonTaskManualPause), build.Reason)
 	})
 
+	t.Run("Non-owner role access", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, ps := dbtestutil.NewDB(t)
+		client := setupClient(t, storeWrapper{Store: db}, ps, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		cases := []struct {
+			name           string
+			roles          []rbac.RoleIdentifier
+			expectedStatus int
+		}{
+			{
+				name:           "org_member",
+				expectedStatus: http.StatusNotFound,
+			},
+			{
+				name:           "org_admin",
+				roles:          []rbac.RoleIdentifier{rbac.ScopedRoleOrgAdmin(owner.OrganizationID)},
+				expectedStatus: http.StatusAccepted,
+			},
+			{
+				name:           "sitewide_member",
+				roles:          []rbac.RoleIdentifier{rbac.RoleMember()},
+				expectedStatus: http.StatusNotFound,
+			},
+			{
+				name:           "sitewide_admin",
+				roles:          []rbac.RoleIdentifier{rbac.RoleOwner()},
+				expectedStatus: http.StatusAccepted,
+			},
+		}
+
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				task, _ := setupWorkspaceTask(t, db, owner)
+				userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, tc.roles...)
+
+				resp, err := userClient.PauseTask(ctx, codersdk.Me, task.ID)
+				if tc.expectedStatus == http.StatusAccepted {
+					require.NoError(t, err)
+					require.NotEqual(t, uuid.Nil, resp.WorkspaceBuildID)
+					return
+				}
+
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, tc.expectedStatus, apiErr.StatusCode())
+			})
+		}
+	})
+
 	t.Run("Task not found", func(t *testing.T) {
 		t.Parallel()
 
