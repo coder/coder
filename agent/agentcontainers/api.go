@@ -1407,7 +1407,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	}
 	if dc.SubagentID.Valid {
 		api.mu.Unlock()
-		httpapi.Write(ctx, w, http.StatusForbidden, codersdk.Response{
+		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
 			Message: "Cannot rebuild Terraform-defined devcontainer",
 			Detail:  fmt.Sprintf("Devcontainer %q has resources defined in Terraform and cannot be rebuilt from the UI. Update the workspace template to modify this devcontainer.", dc.Name),
 		})

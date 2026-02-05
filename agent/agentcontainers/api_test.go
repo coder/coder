@@ -1060,7 +1060,7 @@ func TestAPI(t *testing.T) {
 					arch: "<none>",
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
-				wantStatus:      []int{http.StatusForbidden},
+				wantStatus:      []int{http.StatusConflict},
 				wantBody:        []string{"Cannot rebuild Terraform-defined devcontainer"},
 			},
 		}
