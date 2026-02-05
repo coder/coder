@@ -115,6 +115,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	var (
 		now                         = time.Now()
 		twentyMinAgo                = now.Add(-time.Minute * 20)
+		tenMinAgo                   = now.Add(-time.Minute * 10)
 		sixMinAgo                   = now.Add(-time.Minute * 6)
 		org                         = dbgen.Organization(t, db, database.Organization{})
 		user                        = dbgen.User(t, db, database.User{})
@@ -136,7 +137,9 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 		Pubsub(pubsub).
 		Seed(database.WorkspaceBuild{BuildNumber: 2}).
 		Starting().
-		WithJobStartedAt(sixMinAgo).
+		WithJobCreatedAt(tenMinAgo).
+		WithJobStartedAt(tenMinAgo).
+		WithJobUpdatedAt(sixMinAgo).
 		Do()
 
 	t.Log("previous job ID: ", previousBuild.Build.JobID)
@@ -184,6 +187,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	var (
 		now                         = time.Now()
 		twentyMinAgo                = now.Add(-time.Minute * 20)
+		tenMinAgo                   = now.Add(-time.Minute * 10)
 		sixMinAgo                   = now.Add(-time.Minute * 6)
 		org                         = dbgen.Organization(t, db, database.Organization{})
 		user                        = dbgen.User(t, db, database.User{})
@@ -209,7 +213,9 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 			ProvisionerState: expectedWorkspaceBuildState,
 		}).
 		Starting().
-		WithJobStartedAt(sixMinAgo).
+		WithJobCreatedAt(tenMinAgo).
+		WithJobStartedAt(tenMinAgo).
+		WithJobUpdatedAt(sixMinAgo).
 		Do()
 
 	t.Log("previous job ID: ", previousBuild.Build.JobID)
@@ -256,6 +262,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 
 	var (
 		now                         = time.Now()
+		tenMinAgo                   = now.Add(-time.Minute * 10)
 		sixMinAgo                   = now.Add(-time.Minute * 6)
 		org                         = dbgen.Organization(t, db, database.Organization{})
 		user                        = dbgen.User(t, db, database.User{})
@@ -270,7 +277,9 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
 		ProvisionerState: expectedWorkspaceBuildState,
 	}).Starting().
-		WithJobStartedAt(sixMinAgo).
+		WithJobCreatedAt(tenMinAgo).
+		WithJobStartedAt(tenMinAgo).
+		WithJobUpdatedAt(sixMinAgo).
 		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
@@ -384,6 +393,7 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 
 	var (
 		now                         = time.Now()
+		tenMinAgo                   = now.Add(-time.Minute * 10)
 		sixMinAgo                   = now.Add(-time.Minute * 6)
 		org                         = dbgen.Organization(t, db, database.Organization{})
 		user                        = dbgen.User(t, db, database.User{})
@@ -392,34 +402,27 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 
 	// First build (hung - running job with UpdatedAt > 5 min ago).
 	// This build has provisioner state, which should NOT be overridden.
+	// The workspace is dormant from the start.
 	currentBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
-		ProvisionerState: expectedWorkspaceBuildState,
-	}).Starting().
-		WithJobStartedAt(sixMinAgo).
-		Do()
-
-	// Mark the workspace as dormant after the build is created.
-	_, err := db.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
-		ID: currentBuild.Workspace.ID,
 		DormantAt: sql.NullTime{
 			Time:  now.Add(-time.Hour),
 			Valid: true,
 		},
-	})
-	require.NoError(t, err)
-
-	// Refetch the workspace to get the updated dormant status.
-	workspace, err := db.GetWorkspaceByID(ctx, currentBuild.Workspace.ID)
-	require.NoError(t, err)
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
+		ProvisionerState: expectedWorkspaceBuildState,
+	}).Starting().
+		WithJobCreatedAt(tenMinAgo).
+		WithJobStartedAt(tenMinAgo).
+		WithJobUpdatedAt(sixMinAgo).
+		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
 
 	// Ensure the RBAC is the dormant type to ensure we're testing the right
 	// thing.
-	require.Equal(t, rbac.ResourceWorkspaceDormant.Type, workspace.RBACObject().Type)
+	require.Equal(t, rbac.ResourceWorkspaceDormant.Type, currentBuild.Workspace.RBACObject().Type)
 
 	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
