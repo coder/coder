@@ -640,7 +640,6 @@ FROM
 	workspaces_with_latest_build
 WHERE
 	transition = 'start'::workspace_transition
-	AND completed_at IS NOT NULL
 	AND canceled_at IS NULL
 	AND error IS NULL;
 
