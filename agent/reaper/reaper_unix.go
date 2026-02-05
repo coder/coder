@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-reap"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
+	"cdr.dev/slog"
 )
 
 // IsInitProcess returns true if the current process's PID is 1.

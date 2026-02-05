@@ -5,7 +5,7 @@ import (
 
 	"github.com/hashicorp/go-reap"
 
-	"cdr.dev/slog/v3"
+	"cdr.dev/slog"
 )
 
 type Option func(o *options)
