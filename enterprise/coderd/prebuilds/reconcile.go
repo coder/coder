@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -1090,9 +1089,6 @@ func (c *StoreReconciler) provision(
 		},
 		audit.WorkspaceBuildBaggage{},
 	)
-	if c.provisionerdServerMetrics != nil && provisionerJob != nil && provisionerJob.Provisioner.Valid() {
-		c.provisionerdServerMetrics.RecordWorkspaceBuildEnqueued(string(provisionerJob.Provisioner), provisionerdserver.BuildReasonPrebuild, string(transition), err)
-	}
 	if err != nil {
 		return nil, xerrors.Errorf("provision workspace: %w", err)
 	}
