@@ -3964,16 +3964,14 @@ func TestPostWorkspaceWithRunningLimit(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Create and start 3 workspaces (the limit)
-		for i := 0; i < 3; i++ {
-			ws := coderdtest.CreateWorkspace(t, client, template.ID)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		}
+		// Create and start 1 workspace (the limit)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-		// Try to create a 4th workspace - should fail because limit is reached
+		// Try to create a 2nd workspace - should fail because limit is reached
 		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID:        template.ID,
-			Name:              "workspace-4",
+			Name:              "workspace-2",
 			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 		})
@@ -3995,29 +3993,25 @@ func TestPostWorkspaceWithRunningLimit(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Create and start 3 workspaces (the limit)
-		workspaces := make([]codersdk.Workspace, 3)
-		for i := 0; i < 3; i++ {
-			ws := coderdtest.CreateWorkspace(t, client, template.ID)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-			workspaces[i] = ws
-		}
+		// Create and start 1 workspace (the limit)
+		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
 
-		// Stop one workspace
-		stopBuild, err := client.CreateWorkspaceBuild(ctx, workspaces[0].ID, codersdk.CreateWorkspaceBuildRequest{
+		// Stop the workspace
+		stopBuild, err := client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: codersdk.WorkspaceTransitionStop,
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
 
 		// Now creating a new workspace should succeed
-		ws4, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		ws2, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID:        template.ID,
-			Name:              "workspace-4",
+			Name:              "workspace-2",
 			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 		})
 		require.NoError(t, err)
-		require.NotNil(t, ws4)
+		require.NotNil(t, ws2)
 	})
 }

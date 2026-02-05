@@ -247,10 +247,10 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					<Alert severity="warning">
 						<AlertTitle>Running workspace limit reached</AlertTitle>
 						<AlertDetail>
-							{startWorkspaceMutation.error &&
-							isApiError(startWorkspaceMutation.error)
-								? startWorkspaceMutation.error.response.data.message
-								: "Running workspace limit reached (max 3 per user). Stop one or more workspaces to start another."}
+						{startWorkspaceMutation.error &&
+						isApiError(startWorkspaceMutation.error)
+							? startWorkspaceMutation.error.response.data.message
+							: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another."}
 						</AlertDetail>
 					</Alert>
 				</Stack>
