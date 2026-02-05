@@ -123,7 +123,7 @@ WITH interceptions_in_range AS (
     WHERE
         provider = $1::text
         AND model = $2::text
-        AND COALESCE(client, 'unknown') = $3::text
+        AND COALESCE(client, 'Unknown') = $3::text
         AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
         AND ended_at >= $4::timestamptz
         AND ended_at < $5::timestamptz
@@ -302,7 +302,7 @@ WHERE
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'unknown') = $6::text
+		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -786,7 +786,7 @@ WHERE
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'unknown') = $6::text
+		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
 		ELSE true
 	END
 	-- Cursor pagination
@@ -883,7 +883,7 @@ SELECT
     DISTINCT ON (provider, model, client)
     provider,
     model,
-    COALESCE(client, 'unknown') AS client
+    COALESCE(client, 'Unknown') AS client
 FROM
     aibridge_interceptions
 WHERE

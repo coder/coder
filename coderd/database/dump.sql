@@ -1024,7 +1024,7 @@ CREATE TABLE aibridge_interceptions (
     metadata jsonb,
     ended_at timestamp with time zone,
     api_key_id text,
-    client character varying(64)
+    client character varying(64) DEFAULT 'Unknown'::character varying
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -3274,6 +3274,8 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
