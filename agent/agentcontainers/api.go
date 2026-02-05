@@ -1638,13 +1638,13 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 	// Collect all subagent IDs that should be kept:
 	// 1. Subagents currently tracked by injectedSubAgentProcs
 	// 2. Subagents referenced by known devcontainers from the manifest
-	keep := make(map[uuid.UUID]bool, len(api.injectedSubAgentProcs)+len(api.knownDevcontainers))
+	var keep []uuid.UUID
 	for _, proc := range api.injectedSubAgentProcs {
-		keep[proc.agent.ID] = true
+		keep = append(keep, proc.agent.ID)
 	}
 	for _, dc := range api.knownDevcontainers {
 		if dc.SubagentID.Valid {
-			keep[dc.SubagentID.UUID] = true
+			keep = append(keep, dc.SubagentID.UUID)
 		}
 	}
 
@@ -1653,7 +1653,7 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 
 	var errs []error
 	for _, agent := range agents {
-		if keep[agent.ID] {
+		if slices.Contains(keep, agent.ID) {
 			continue
 		}
 		client := *api.subAgentClient.Load()
