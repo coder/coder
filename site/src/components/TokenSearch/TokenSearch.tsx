@@ -2,7 +2,6 @@ import { Command as CommandPrimitive } from "cmdk";
 import { Badge } from "components/Badge/Badge";
 import {
 	Command,
-	CommandEmpty,
 	CommandGroup,
 	CommandItem,
 	CommandList,
@@ -76,6 +75,7 @@ export const TokenSearch: FC<TokenSearchProps> = ({
 	className,
 }) => {
 	const inputRef = useRef<HTMLInputElement>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
 	const [inputValue, setInputValue] = useState("");
 	const [isOpen, setIsOpen] = useState(false);
 	const [suggestionMode, setSuggestionMode] = useState<SuggestionMode>("filters");
@@ -154,6 +154,7 @@ export const TokenSearch: FC<TokenSearchProps> = ({
 		setInputValue(`${filter.key}:`);
 		setSuggestionMode("values");
 		setActiveFilterKey(filter.key);
+		setIsOpen(true);
 		inputRef.current?.focus();
 	}, []);
 
@@ -185,6 +186,7 @@ export const TokenSearch: FC<TokenSearchProps> = ({
 			setInputValue("");
 			setSuggestionMode("filters");
 			setActiveFilterKey(null);
+			setIsOpen(false);
 			inputRef.current?.focus();
 		},
 		[activeFilterKey, filters, tokens, onTokensChange],
@@ -255,50 +257,40 @@ export const TokenSearch: FC<TokenSearchProps> = ({
 	const handleBlur = useCallback(() => {
 		setTimeout(() => {
 			setIsOpen(false);
-		}, 200);
+		}, 150);
 	}, []);
 
-	// Get the filter label for a token
-	const getFilterLabel = useCallback(
-		(key: string) => {
-			const filter = filters.find((f) => f.key === key);
-			return filter?.label || key;
-		},
-		[filters],
-	);
-
 	return (
-		<div className={cn("relative w-full", className)}>
+		<div className={cn("relative w-full", className)} ref={containerRef}>
+			{/* Main search container */}
 			<div
 				className={cn(
-					"flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface-primary",
-					"focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent",
-					"transition-all",
+					"flex items-center rounded-md border border-solid border-border bg-surface-primary",
+					"focus-within:border-border-hover",
+					"transition-colors",
 				)}
 				onClick={() => inputRef.current?.focus()}
 			>
-				<Search className="h-4 w-4 shrink-0 text-content-secondary" />
+				{/* Left section: search icon + tokens + input */}
+				<div className="flex items-center gap-2 flex-1 px-3 py-2">
+					<Search className="h-4 w-4 shrink-0 text-content-secondary" />
 
-				{/* Active tokens */}
-				<div className="flex flex-wrap items-center gap-1.5 flex-1">
+					{/* Tokens */}
 					{tokens.map((token) => (
 						<Badge
 							key={token.key}
 							variant="default"
-							className="gap-1 pr-1 font-normal"
+							className="gap-1.5 pr-1.5 font-normal bg-surface-secondary text-content-primary text-sm"
 						>
-							<span className="text-content-secondary">
-								{getFilterLabel(token.key)}:
-							</span>
-							<span>{token.label}</span>
+							<span>{token.key}:{token.value}</span>
 							<button
 								type="button"
-								className="ml-0.5 rounded-full p-0.5 hover:bg-surface-tertiary transition-colors"
+								className="rounded-sm hover:bg-surface-tertiary transition-colors p-0.5"
 								onClick={(e) => {
 									e.stopPropagation();
 									handleRemoveToken(token.key);
 								}}
-								aria-label={`Remove ${getFilterLabel(token.key)} filter`}
+								aria-label={`Remove ${token.key} filter`}
 							>
 								<X className="h-3 w-3" />
 							</button>
@@ -306,87 +298,72 @@ export const TokenSearch: FC<TokenSearchProps> = ({
 					))}
 
 					{/* Input */}
-					<CommandPrimitive
-						className="flex-1 min-w-[120px]"
-						shouldFilter={false}
-					>
-						<CommandPrimitive.Input
-							ref={inputRef}
-							value={inputValue}
-							onValueChange={handleInputChange}
-							onKeyDown={handleKeyDown}
-							onFocus={handleFocus}
-							onBlur={handleBlur}
-							placeholder={tokens.length === 0 ? placeholder : "Add filter..."}
-							className="w-full bg-transparent border-none outline-none text-sm text-content-primary placeholder:text-content-secondary"
-							aria-label="Search with filters"
-						/>
-					</CommandPrimitive>
+					<input
+						ref={inputRef}
+						value={inputValue}
+						onChange={(e) => handleInputChange(e.target.value)}
+						onKeyDown={handleKeyDown}
+						onFocus={handleFocus}
+						onBlur={handleBlur}
+						placeholder={tokens.length === 0 ? placeholder : ""}
+						className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm text-content-primary placeholder:text-content-secondary"
+						aria-label="Search with filters"
+					/>
 				</div>
 
-				{/* Filter dropdown button */}
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<button
-							type="button"
-							className={cn(
-								"flex items-center gap-1 px-2 py-1 rounded text-sm",
-								"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-								"transition-colors",
-							)}
-						>
-							<SlidersHorizontal className="h-4 w-4" />
-							<span>Filter</span>
-							<ChevronDown className="h-3 w-3" />
-						</button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-48">
-						{filters.map((filter) => (
-							<DropdownMenuItem
-								key={filter.key}
-								onClick={() => handleFilterSelect(filter)}
+				{/* Right section: Filter dropdown button */}
+				<div className="border-l border-solid border-border">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								className={cn(
+									"flex items-center gap-2 px-3 py-2 h-full",
+									"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
+									"transition-colors text-sm",
+								)}
 							>
-								{filter.label}
-							</DropdownMenuItem>
-						))}
-					</DropdownMenuContent>
-				</DropdownMenu>
+								<SlidersHorizontal className="h-4 w-4" />
+								<span>Filter</span>
+								<ChevronDown className="h-3 w-3" />
+							</button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="min-w-[140px]">
+							{filters.map((filter) => (
+								<DropdownMenuItem
+									key={filter.key}
+									onClick={() => handleFilterSelect(filter)}
+									className="text-sm"
+								>
+									{filter.label}
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
 			</div>
 
-			{/* Suggestions dropdown */}
-			{isOpen && suggestions.length > 0 && (
+			{/* Suggestions dropdown - full width below search box */}
+			{isOpen && suggestions.length > 0 && suggestionMode === "values" && (
 				<div
 					className={cn(
 						"absolute left-0 right-0 top-full mt-1 z-50",
-						"rounded-lg border border-border bg-surface-primary shadow-lg",
+						"rounded-md border border-solid border-border bg-surface-primary shadow-lg",
 						"overflow-hidden",
 					)}
 				>
 					<Command shouldFilter={false}>
-						<CommandList className="max-h-64">
-							<CommandGroup
-								heading={
-									suggestionMode === "filters"
-										? "Filter by"
-										: `${getFilterLabel(activeFilterKey || "")} options`
-								}
-							>
-								{suggestions.map((suggestion) => (
-									<CommandItem
-										key={suggestion.value}
-										onSelect={() => handleSuggestionSelect(suggestion)}
-										className="cursor-pointer"
-									>
-										{suggestion.icon}
-										<span>{suggestion.label}</span>
-										{suggestionMode === "filters" && (
-											<span className="ml-auto text-xs text-content-secondary">
-												{suggestion.value}:
-											</span>
-										)}
-									</CommandItem>
-								))}
-							</CommandGroup>
+						<CommandList className="max-h-[280px] overflow-y-auto py-2">
+							{suggestions.map((suggestion) => (
+								<CommandItem
+									key={suggestion.value}
+									onSelect={() => handleSuggestionSelect(suggestion)}
+									className="cursor-pointer px-4 py-2.5 text-sm text-content-primary hover:bg-surface-secondary mx-0 rounded-none"
+								>
+									{suggestion.icon}
+									<span>{suggestion.label}</span>
+								</CommandItem>
+							))}
 						</CommandList>
 					</Command>
 				</div>
