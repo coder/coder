@@ -2,10 +2,9 @@ import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
-import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
 import { isApiError, getErrorMessage } from "api/errors";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
@@ -126,13 +125,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const { shouldShow: shouldShowWorkspaceReadyDelayAlert } =
 		useWorkspaceReadyDelayAlert(timings, workspaceRunning);
 
-	const isRunningWorkspaceLimitError =
+	const isRunningWorkspaceLimitError = Boolean(
 		startWorkspaceError &&
-		isApiError(startWorkspaceError) &&
-		startWorkspaceError.response?.status === 403 &&
-		startWorkspaceError.response?.data?.message?.includes(
-			"Running workspace limit",
-		);
+			isApiError(startWorkspaceError) &&
+			startWorkspaceError.response?.status === 403 &&
+			startWorkspaceError.response?.data?.message?.includes(
+				"Running workspace limit",
+			),
+	);
 
 	return (
 		<div
