@@ -61,6 +61,7 @@ type WorkspaceBuildBuilder struct {
 
 	jobCreatedAt   time.Time // When the provisioner job was created
 	jobStartedAt   time.Time // When the job started running (acquired)
+	jobUpdatedAt   time.Time // When the job was last updated (if different from started)
 	jobCompletedAt time.Time // When the job completed
 	jobError       string    // Error message for failed jobs
 	jobErrorCode   string    // Error code for failed jobs
@@ -189,6 +190,16 @@ func (b WorkspaceBuildBuilder) WithJobCreatedAt(t time.Time) WorkspaceBuildBuild
 func (b WorkspaceBuildBuilder) WithJobStartedAt(t time.Time) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.jobStartedAt = t
+	return b
+}
+
+// WithJobUpdatedAt sets the last update time for the provisioner job.
+// Only applies when job status is Running. This allows testing hung job
+// detection where UpdatedAt differs from StartedAt.
+// If not called, defaults to the value set by WithJobStartedAt.
+func (b WorkspaceBuildBuilder) WithJobUpdatedAt(t time.Time) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobUpdatedAt = t
 	return b
 }
 
@@ -355,6 +366,15 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 				b.logger.Debug(context.Background(), "acquired provisioner job", slog.F("job_id", job.ID))
 				break
 			}
+		}
+		// If jobUpdatedAt is set, update the job's UpdatedAt to differ from StartedAt.
+		// This is useful for testing hung job detection where UpdatedAt matters.
+		if !b.jobUpdatedAt.IsZero() {
+			err = b.db.UpdateProvisionerJobByID(ownerCtx, database.UpdateProvisionerJobByIDParams{
+				ID:        job.ID,
+				UpdatedAt: b.jobUpdatedAt,
+			})
+			require.NoError(b.t, err, "update job updated_at")
 		}
 	case database.ProvisionerJobStatusCanceled:
 		// Set provisioner job status to 'canceled'
