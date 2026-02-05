@@ -9,6 +9,7 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -157,13 +158,6 @@ func workspaceAgent() *serpent.Command {
 			// Note that we don't want to handle these signals in the
 			// process that runs as PID 1, that's why we do this after
 			// the reaper forked.
-			ctx, stopNotify := inv.SignalNotifyContext(ctx, StopSignals...)
-			defer stopNotify()
-
-			// DumpHandler does signal handling, so we call it after the
-			// reaper.
-			go DumpHandler(ctx, "agent")
-
 			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
@@ -175,6 +169,13 @@ func workspaceAgent() *serpent.Command {
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
 			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+
+			ctx, stopNotify := logSignalNotifyContext(ctx, logger, StopSignals...)
+			defer stopNotify()
+
+			// DumpHandler does signal handling, so we call it after the
+			// reaper.
+			go DumpHandler(ctx, "agent")
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
@@ -564,4 +565,27 @@ func urlPort(u string) (int, error) {
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
+}
+
+// logSignalNotifyContext is like signal.NotifyContext but logs the received
+// signal before canceling the context.
+func logSignalNotifyContext(ctx context.Context, logger slog.Logger, signals ...os.Signal) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, signals...)
+
+	go func() {
+		select {
+		case sig := <-c:
+			logger.Info(ctx, "agent received signal", slog.F("signal", sig.String()))
+			cancel()
+		case <-ctx.Done():
+		}
+		signal.Stop(c)
+	}()
+
+	return ctx, func() {
+		cancel()
+		signal.Stop(c)
+	}
 }
