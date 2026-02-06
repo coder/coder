@@ -1,5 +1,6 @@
 import type { InboxNotification } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import {
 	Popover,
 	PopoverContent,
@@ -7,7 +8,7 @@ import {
 } from "components/Popover/Popover";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
-import { RefreshCwIcon, SettingsIcon } from "lucide-react";
+import { CheckIcon, RefreshCwIcon, SettingsIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
@@ -18,6 +19,7 @@ import { UnreadBadge } from "./UnreadBadge";
 type InboxPopoverProps = {
 	notifications: readonly InboxNotification[] | undefined;
 	unreadCount: number;
+	readStatus: "read" | "unread" | "all";
 	error: unknown;
 	isLoadingMoreNotifications: boolean;
 	hasMoreNotifications: boolean;
@@ -25,12 +27,15 @@ type InboxPopoverProps = {
 	onMarkAllAsRead: () => void;
 	onMarkNotificationAsRead: (notificationId: string) => void;
 	onLoadMoreNotifications: () => void;
+	onViewAllNotifications: () => void;
+	onClose?: () => void;
 	defaultOpen?: boolean;
 };
 
 export const InboxPopover: FC<InboxPopoverProps> = ({
 	defaultOpen,
 	unreadCount,
+	readStatus,
 	notifications,
 	error,
 	isLoadingMoreNotifications,
@@ -39,17 +44,28 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 	onMarkAllAsRead,
 	onMarkNotificationAsRead,
 	onLoadMoreNotifications,
+	onViewAllNotifications,
+	onClose,
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultOpen);
 
+	const handleOpenChange = (open: boolean) => {
+		setIsOpen(open);
+		if (!open) {
+			onClose?.();
+		}
+	};
+
 	return (
-		<Popover open={isOpen} onOpenChange={setIsOpen}>
+		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
 			<PopoverContent
 				className="w-[var(--radix-popper-available-width)] max-w-[466px]"
 				align="end"
+				sideOffset={8}
+				alignOffset={-16}
 			>
 				{/*
 				 * data-radix-scroll-area-viewport is used to set the max-height of the ScrollArea
@@ -64,12 +80,12 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 				>
 					<div
 						className={cn([
-							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
+							"flex items-center justify-between py-3 px-5 border-0 border-b border-solid border-border",
 							"sticky top-0 bg-surface-primary z-10 rounded-t",
 						])}
 					>
 						<div className="flex items-center gap-2">
-							<span className="text-xl font-semibold">Inbox</span>
+							<span className="text-lg font-semibold">Inbox</span>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
 						</div>
 
@@ -123,19 +139,26 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 								)}
 							</div>
 						) : (
-							<div className="p-6 flex items-center justify-center min-h-48">
-								<div className="text-sm text-center flex flex-col">
-									<span className="font-medium">No notifications</span>
-									<span className="text-xs text-content-secondary">
-										New notifications will be displayed here.
-									</span>
-								</div>
-							</div>
+							<EmptyState
+								icon={CheckIcon}
+								message="No new notifications"
+								description="You're all caught up!"
+								cta={
+									readStatus === "unread" ? (
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={onViewAllNotifications}
+										>
+											View all notifications
+										</Button>
+									) : null
+								}
+							/>
 						)
 					) : error === undefined ? (
 						<div className="p-6 flex items-center justify-center min-h-48">
 							<Spinner loading />
-							<span className="sr-only">Loading notifications...</span>
 						</div>
 					) : (
 						<div className="p-6 flex items-center justify-center min-h-48">
