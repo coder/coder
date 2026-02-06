@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
@@ -100,6 +101,8 @@ type Options struct {
 	Experiments               codersdk.Experiments
 
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
+
+	BuildDurationHistogram *prometheus.HistogramVec
 }
 
 func New(opts Options, workspace database.Workspace) *API {
@@ -170,7 +173,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database:                        opts.Database,
 		Log:                             opts.Log,
 		PublishWorkspaceUpdateFn:        api.publishWorkspaceUpdate,
-		WorkspaceBuildDurationHistogram: WorkspaceBuildDurationSeconds,
+		WorkspaceBuildDurationHistogram: opts.BuildDurationHistogram,
 	}
 
 	api.AppsAPI = &AppsAPI{

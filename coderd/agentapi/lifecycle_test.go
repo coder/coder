@@ -28,20 +28,6 @@ import (
 // (namespace + name) used for gathering in tests.
 const fullMetricName = "coderd_" + agentapi.BuildDurationMetricName
 
-// newBuildDurationHistogram creates a fresh histogram for testing, registered
-// with the given registry so metrics can be gathered and validated.
-func newBuildDurationHistogram(t *testing.T, reg *prometheus.Registry) *prometheus.HistogramVec {
-	t.Helper()
-	h := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "coderd",
-		Name:      agentapi.BuildDurationMetricName,
-		Help:      "Duration from workspace build creation to agent ready, by template.",
-		Buckets:   prometheus.DefBuckets,
-	}, []string{"template_name", "organization_name", "transition", "status", "is_prebuild"})
-	reg.MustRegister(h)
-	return h
-}
-
 func TestUpdateLifecycle(t *testing.T) {
 	t.Parallel()
 
@@ -143,7 +129,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := newBuildDurationHistogram(t, reg)
+		hist := agentapi.NewBuildDurationHistogram(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -210,7 +196,7 @@ func TestUpdateLifecycle(t *testing.T) {
 
 		publishCalled := false
 		reg := prometheus.NewRegistry()
-		hist := newBuildDurationHistogram(t, reg)
+		hist := agentapi.NewBuildDurationHistogram(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -280,7 +266,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := newBuildDurationHistogram(t, reg)
+		hist := agentapi.NewBuildDurationHistogram(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -327,7 +313,7 @@ func TestUpdateLifecycle(t *testing.T) {
 
 		var publishCalled int64
 		reg := prometheus.NewRegistry()
-		hist := newBuildDurationHistogram(t, reg)
+		hist := agentapi.NewBuildDurationHistogram(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -463,7 +449,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := newBuildDurationHistogram(t, reg)
+		hist := agentapi.NewBuildDurationHistogram(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -514,7 +500,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := newBuildDurationHistogram(t, reg)
+		hist := agentapi.NewBuildDurationHistogram(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -567,7 +553,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := newBuildDurationHistogram(t, reg)
+		hist := agentapi.NewBuildDurationHistogram(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {

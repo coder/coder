@@ -161,6 +161,8 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
+
+		BuildDurationHistogram: api.buildDurationHistogram,
 	}, workspace)
 
 	streamID := tailnet.StreamID{

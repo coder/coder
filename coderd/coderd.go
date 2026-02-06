@@ -759,7 +759,7 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
-		options.PrometheusRegistry.MustRegister(agentapi.WorkspaceBuildDurationSeconds)
+		api.buildDurationHistogram = agentapi.NewBuildDurationHistogram(options.PrometheusRegistry)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
@@ -1894,8 +1894,9 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter   *workspacestats.Reporter
-	metadataBatcher *metadatabatcher.Batcher
+	statsReporter              *workspacestats.Reporter
+	metadataBatcher            *metadatabatcher.Batcher
+	buildDurationHistogram     *prometheus.HistogramVec
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
