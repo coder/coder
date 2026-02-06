@@ -2,9 +2,11 @@ import Skeleton from "@mui/material/Skeleton";
 import {
 	type CellContext,
 	type ColumnDef,
-	type HeaderContext,
 	flexRender,
 	getCoreRowModel,
+	type HeaderContext,
+	type Table as ReactTable,
+	type Row,
 	useReactTable,
 } from "@tanstack/react-table";
 import { templateVersion } from "api/queries/templates";
@@ -51,8 +53,11 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useAuthenticated } from "hooks";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
+import {
+	useAuthenticated,
+	useClickableTableRow,
+	useRowRangeSelection,
+} from "hooks";
 import {
 	BanIcon,
 	CloudIcon,
@@ -98,6 +103,11 @@ interface WorkspacesTableMeta {
 	checkedWorkspaces: readonly Workspace[];
 	canCheckWorkspaces: boolean;
 	onCheckChange: (workspaces: readonly Workspace[]) => void;
+	onRowShiftClick: (
+		event: React.MouseEvent<HTMLButtonElement>,
+		row: Row<Workspace>,
+		table: ReactTable<Workspace>,
+	) => Array<Row<Workspace>> | null;
 	showOrganizations: boolean;
 	organizations: readonly { id: string; display_name: string }[];
 	onActionSuccess: () => Promise<void>;
@@ -108,8 +118,12 @@ function NameCell({
 	row,
 	table,
 }: CellContext<Workspace, unknown>): React.ReactNode {
-	const { checkedWorkspaces, canCheckWorkspaces, onCheckChange } = table.options
-		.meta as WorkspacesTableMeta;
+	const {
+		checkedWorkspaces,
+		canCheckWorkspaces,
+		onCheckChange,
+		onRowShiftClick,
+	} = table.options.meta as WorkspacesTableMeta;
 	const workspace = row.original;
 	const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
 
@@ -123,6 +137,33 @@ function NameCell({
 						checked={checked}
 						onClick={(e) => {
 							e.stopPropagation();
+							const rowsToToggle = onRowShiftClick(e, row, table);
+							if (rowsToToggle) {
+								// Shift+click: toggle all rows in range
+								const shouldSelect = !checked;
+								if (shouldSelect) {
+									// Add all rows in range that aren't already selected
+									const newWorkspaces = [...checkedWorkspaces];
+									for (const r of rowsToToggle) {
+										if (
+											!cantBeChecked(r.original) &&
+											!checkedWorkspaces.some((w) => w.id === r.original.id)
+										) {
+											newWorkspaces.push(r.original);
+										}
+									}
+									onCheckChange(newWorkspaces);
+								} else {
+									// Remove all rows in range from selection
+									const idsToRemove = new Set(
+										rowsToToggle.map((r) => r.original.id),
+									);
+									onCheckChange(
+										checkedWorkspaces.filter((w) => !idsToRemove.has(w.id)),
+									);
+								}
+								e.preventDefault(); // Prevent onCheckedChange from firing
+							}
 						}}
 						onCheckedChange={(checked) => {
 							if (checked) {
@@ -338,6 +379,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
+	const { handleShiftClick: onRowShiftClick } =
+		useRowRangeSelection<Workspace>();
 
 	const table = useReactTable({
 		data: workspaces as Workspace[],
@@ -347,6 +390,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 			checkedWorkspaces,
 			canCheckWorkspaces,
 			onCheckChange,
+			onRowShiftClick,
 			showOrganizations: dashboard.showOrganizations,
 			organizations: dashboard.organizations,
 			onActionSuccess,
