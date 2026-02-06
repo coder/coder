@@ -185,7 +185,7 @@ export const WithPortForwarding: Story = {
 	],
 };
 
-export const PrecreatedSubAgent: Story = {
+export const TerraformManaged: Story = {
 	args: {
 		devcontainer: {
 			...MockWorkspaceAgentDevcontainer,
@@ -194,13 +194,13 @@ export const PrecreatedSubAgent: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = canvas.getByTestId("precreated-subagent-rebuild-trigger");
-		await userEvent.hover(trigger);
+		const label = canvas.getByText("dev container (terraform)");
+		await userEvent.hover(label);
 		await screen.findByRole("tooltip");
 	},
 };
 
-export const PrecreatedSubAgentDirty: Story = {
+export const TerraformManagedDirty: Story = {
 	args: {
 		devcontainer: {
 			...MockWorkspaceAgentDevcontainer,

@@ -1402,14 +1402,6 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 		httperror.WriteResponseError(ctx, w, err)
 		return
 	}
-	if dc.SubagentID.Valid {
-		api.mu.Unlock()
-		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
-			Message: "Cannot rebuild Terraform-defined devcontainer",
-			Detail:  fmt.Sprintf("Devcontainer %q has resources defined in Terraform and cannot be rebuilt from the UI. Update the workspace template to modify this devcontainer.", dc.Name),
-		})
-		return
-	}
 	if dc.Status.Transitioning() {
 		api.mu.Unlock()
 
@@ -2040,7 +2032,12 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		proc.agent = SubAgent{} // Clear agent to signal that we need to create a new one.
 	}
 
-	if proc.agent.ID == uuid.Nil {
+	// Re-create (upsert) terraform-managed subagents when the config
+	// changes so that display apps and other settings are updated
+	// without deleting the agent.
+	recreateTerraformSubAgent := !isNotTerraformManaged && maybeRecreateSubAgent && configHasChanged
+
+	if proc.agent.ID == uuid.Nil || recreateTerraformSubAgent {
 		logger.Debug(ctx, "creating new subagent",
 			slog.F("directory", subAgentConfig.Directory),
 			slog.F("display_apps", subAgentConfig.DisplayApps),

@@ -1040,7 +1040,7 @@ func TestAPI(t *testing.T) {
 				wantBody:        []string{"Devcontainer recreation initiated", "is currently starting and cannot be restarted"},
 			},
 			{
-				name:           "Terraform-defined devcontainer cannot be rebuilt",
+				name:           "Terraform-defined devcontainer can be rebuilt",
 				devcontainerID: devcontainerID1.String(),
 				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
 					{
@@ -1060,8 +1060,8 @@ func TestAPI(t *testing.T) {
 					arch: "<none>",
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
-				wantStatus:      []int{http.StatusConflict},
-				wantBody:        []string{"Cannot rebuild Terraform-defined devcontainer"},
+				wantStatus:      []int{http.StatusAccepted, http.StatusConflict},
+				wantBody:        []string{"Devcontainer recreation initiated", "is currently starting and cannot be restarted"},
 			},
 		}
 
@@ -2653,13 +2653,16 @@ func TestAPI(t *testing.T) {
 
 		mSAC.EXPECT().List(gomock.Any()).Return([]agentcontainers.SubAgent{}, nil).AnyTimes()
 
-		// EXPECT: Create to be called exactly once with the terraform-defined ID.
+		// EXPECT: Create is called twice with the terraform-defined ID:
+		// once for the initial creation and once after the rebuild with
+		// config changes (upsert).
 		mSAC.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, agent agentcontainers.SubAgent) (agentcontainers.SubAgent, error) {
+			func(_ context.Context, agent agentcontainers.SubAgent) (agentcontainers.SubAgent, error) {
 				assert.Equal(t, terraformAgentID, agent.ID, "agent should have terraform-defined ID")
+				agent.AuthToken = uuid.New()
 				return agent, nil
 			},
-		).Times(1)
+		).Times(2)
 
 		// EXPECT: Delete may be called during Close, but not before.
 		mSAC.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, _ uuid.UUID) error {
@@ -2698,6 +2701,153 @@ func TestAPI(t *testing.T) {
 		// Then: Mock expectations verify that Create was called once and Delete was not called during recreation.
 		closed = true
 		api.Close()
+	})
+
+	// Verify that rebuilding a terraform-defined devcontainer via the
+	// HTTP API does not delete the sub agent. The sub agent should be
+	// preserved (Create called again with the same terraform ID) and
+	// display app changes should be picked up.
+	t.Run("TerraformDefinedSubAgentRebuildViaHTTP", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			mCtrl  = gomock.NewController(t)
+
+			terraformAgentID = uuid.New()
+			containerID      = "test-container-id"
+
+			terraformContainer = codersdk.WorkspaceAgentContainer{
+				ID:           containerID,
+				FriendlyName: "test-container",
+				Image:        "test-image",
+				Running:      true,
+				CreatedAt:    time.Now(),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
+					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/project/.devcontainer/devcontainer.json",
+				},
+			}
+			terraformDevcontainer = codersdk.WorkspaceAgentDevcontainer{
+				ID:              uuid.New(),
+				Name:            "terraform-devcontainer",
+				WorkspaceFolder: "/workspace/project",
+				ConfigPath:      "/workspace/project/.devcontainer/devcontainer.json",
+				SubagentID:      uuid.NullUUID{UUID: terraformAgentID, Valid: true},
+			}
+
+			fCCLI = &fakeContainerCLI{
+				containers: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{terraformContainer},
+				},
+				arch: runtime.GOARCH,
+			}
+
+			fDCCLI = &fakeDevcontainerCLI{
+				upID: containerID,
+				readConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
+							Coder: []agentcontainers.CoderCustomization{{
+								DisplayApps: map[codersdk.DisplayApp]bool{
+									codersdk.DisplayAppSSH:         true,
+									codersdk.DisplayAppWebTerminal: true,
+								},
+							}},
+						},
+					},
+				},
+			}
+
+			mSAC   = acmock.NewMockSubAgentClient(mCtrl)
+			closed bool
+
+			createCalled = make(chan agentcontainers.SubAgent, 2)
+		)
+
+		mSAC.EXPECT().List(gomock.Any()).Return([]agentcontainers.SubAgent{}, nil).AnyTimes()
+
+		// Create should be called twice: once for the initial injection
+		// and once after the rebuild picks up the new container.
+		mSAC.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, agent agentcontainers.SubAgent) (agentcontainers.SubAgent, error) {
+				assert.Equal(t, terraformAgentID, agent.ID, "agent should always use terraform-defined ID")
+				agent.AuthToken = uuid.New()
+				createCalled <- agent
+				return agent, nil
+			},
+		).Times(2)
+
+		// Delete must only be called during Close, never during rebuild.
+		mSAC.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, _ uuid.UUID) error {
+			assert.True(t, closed, "Delete should only be called after Close, not during rebuild")
+			return nil
+		}).AnyTimes()
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithContainerCLI(fCCLI),
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
+			agentcontainers.WithDevcontainers(
+				[]codersdk.WorkspaceAgentDevcontainer{terraformDevcontainer},
+				[]codersdk.WorkspaceAgentScript{{ID: terraformDevcontainer.ID, LogSourceID: uuid.New()}},
+			),
+			agentcontainers.WithSubAgentClient(mSAC),
+			agentcontainers.WithSubAgentURL("test-subagent-url"),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+		)
+		api.Start()
+		defer func() {
+			closed = true
+			api.Close()
+		}()
+
+		r := chi.NewRouter()
+		r.Mount("/", api.Routes())
+
+		// Perform the initial devcontainer creation directly to set up
+		// the subagent (mirrors the TerraformDefinedSubAgentNotRecreatedOnConfigChange
+		// test pattern).
+		err := api.CreateDevcontainer(terraformDevcontainer.WorkspaceFolder, terraformDevcontainer.ConfigPath)
+		require.NoError(t, err)
+
+		initialAgent := testutil.RequireReceive(ctx, t, createCalled)
+		assert.Equal(t, terraformAgentID, initialAgent.ID)
+
+		// Simulate container rebuild: new container ID, changed display apps.
+		newContainerID := "new-container-id"
+		terraformContainer.ID = newContainerID
+		fCCLI.containers.Containers = []codersdk.WorkspaceAgentContainer{terraformContainer}
+		fDCCLI.upID = newContainerID
+		fDCCLI.readConfig.MergedConfiguration.Customizations.Coder = []agentcontainers.CoderCustomization{{
+			DisplayApps: map[codersdk.DisplayApp]bool{
+				codersdk.DisplayAppSSH:            true,
+				codersdk.DisplayAppWebTerminal:    true,
+				codersdk.DisplayAppVSCodeDesktop:  true,
+				codersdk.DisplayAppVSCodeInsiders: true,
+			},
+		}}
+
+		// Issue the rebuild request via the HTTP API.
+		req := httptest.NewRequest(http.MethodPost, "/devcontainers/"+terraformDevcontainer.ID.String()+"/recreate", nil).
+			WithContext(ctx)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusAccepted, rec.Code)
+
+		// Wait for the post-rebuild injection to complete.
+		rebuiltAgent := testutil.RequireReceive(ctx, t, createCalled)
+		assert.Equal(t, terraformAgentID, rebuiltAgent.ID, "rebuilt agent should preserve terraform ID")
+
+		// Verify that the display apps were updated.
+		assert.Contains(t, rebuiltAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop,
+			"rebuilt agent should include updated display apps")
+		assert.Contains(t, rebuiltAgent.DisplayApps, codersdk.DisplayAppVSCodeInsiders,
+			"rebuilt agent should include updated display apps")
 	})
 
 	t.Run("Error", func(t *testing.T) {
