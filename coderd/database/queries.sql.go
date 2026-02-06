@@ -21344,6 +21344,62 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 	return i, err
 }
 
+const getWorkspaceBuildMetricsByResourceID = `-- name: GetWorkspaceBuildMetricsByResourceID :one
+SELECT
+    wb.created_at,
+    wb.transition,
+    t.name AS template_name,
+    o.name AS organization_name,
+    (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0') AS is_prebuild,
+    -- All agents must have ready_at set (terminal startup state)
+    COUNT(*) FILTER (WHERE wa.ready_at IS NULL) = 0 AS all_agents_ready,
+    -- Latest ready_at across all agents (for duration calculation)
+	MAX(wa.ready_at)::timestamptz AS last_agent_ready_at,
+    -- Worst status: error > timeout > ready
+    CASE
+        WHEN bool_or(wa.lifecycle_state = 'start_error') THEN 'error'
+        WHEN bool_or(wa.lifecycle_state = 'start_timeout') THEN 'timeout'
+        ELSE 'success'
+    END AS worst_status
+FROM workspace_builds wb
+JOIN workspaces w ON wb.workspace_id = w.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON t.organization_id = o.id
+JOIN workspace_resources wr ON wr.job_id = wb.job_id
+JOIN workspace_agents wa ON wa.resource_id = wr.id
+WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
+GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id
+`
+
+type GetWorkspaceBuildMetricsByResourceIDRow struct {
+	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
+	Transition       WorkspaceTransition `db:"transition" json:"transition"`
+	TemplateName     string              `db:"template_name" json:"template_name"`
+	OrganizationName string              `db:"organization_name" json:"organization_name"`
+	IsPrebuild       bool                `db:"is_prebuild" json:"is_prebuild"`
+	AllAgentsReady   bool                `db:"all_agents_ready" json:"all_agents_ready"`
+	LastAgentReadyAt time.Time           `db:"last_agent_ready_at" json:"last_agent_ready_at"`
+	WorstStatus      string              `db:"worst_status" json:"worst_status"`
+}
+
+// Returns build metadata for e2e workspace build duration metrics.
+// Also checks if all agents are ready and returns the worst status.
+func (q *sqlQuerier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildMetricsByResourceID, id)
+	var i GetWorkspaceBuildMetricsByResourceIDRow
+	err := row.Scan(
+		&i.CreatedAt,
+		&i.Transition,
+		&i.TemplateName,
+		&i.OrganizationName,
+		&i.IsPrebuild,
+		&i.AllAgentsReady,
+		&i.LastAgentReadyAt,
+		&i.WorstStatus,
+	)
+	return i, err
+}
+
 const getWorkspaceBuildStatsByTemplates = `-- name: GetWorkspaceBuildStatsByTemplates :many
 SELECT
     w.template_id,
