@@ -14,9 +14,12 @@ particularly with database migrations in high availability (HA) deployments.
 - **Large upgrades should complete in minutes** (typically 4-7 minutes). If your
   upgrade is taking significantly longer, there may be an issue requiring
   investigation.
-- **Upgrades from v2.26.0 to v2.27.8** may encounter specific issues with the
-  `api_keys` table. If you are upgrading within this range, consider upgrading
-  to v2.26.6 first to mitigate potential issues with this table.
+- **Check for known issues affecting your upgrade path.** Some version upgrades
+  have known issues that may require a larger maintenance window or additional
+  steps. For example, upgrades from v2.26.0 to v2.27.8 may encounter issues with
+  the `api_keys` table—upgrading to v2.26.6 first can help mitigate this.
+  Contact [Coder support](../support/index.md) for guidance on your specific
+  upgrade path.
 
 ## Pre-upgrade strategy for Kubernetes HA deployments
 
