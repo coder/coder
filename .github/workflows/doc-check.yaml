@@ -203,12 +203,12 @@ jobs:
           ## Documentation Check
 
           ### Updates Needed
-          - [ ] \\\`docs/path/file.md\\\` - What needs to change
-          - [x] \\\`docs/other/file.md\\\` - This was addressed
-          - ~~\\\`docs/removed.md\\\` - No longer needed~~ *(reverted in abc123)*
+          - [ ] \`docs/path/file.md\` - What needs to change
+          - [x] \`docs/other/file.md\` - This was addressed
+          - ~~\`docs/removed.md\` - No longer needed~~ *(reverted in abc123)*
 
           ### New Documentation Needed
-          - [ ] \\\`docs/suggested/path.md\\\` - What should be documented
+          - [ ] \`docs/suggested/path.md\` - What should be documented
             > ⚠️ *Checked but no corresponding documentation changes found in this PR*
 
           ---
