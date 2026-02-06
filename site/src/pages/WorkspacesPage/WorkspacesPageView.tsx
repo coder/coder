@@ -229,6 +229,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateTemplate={canCreateTemplate}
 					workspaces={workspaces ?? []}
 					isUsingFilter={filterState.filter.used}
+					isLoading={!workspaces}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					canCheckWorkspaces={canCheckWorkspaces}

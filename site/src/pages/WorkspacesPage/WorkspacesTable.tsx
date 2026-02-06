@@ -2,6 +2,7 @@ import Skeleton from "@mui/material/Skeleton";
 import {
 	type CellContext,
 	type ColumnDef,
+	type HeaderContext,
 	flexRender,
 	getCoreRowModel,
 	useReactTable,
@@ -243,10 +244,50 @@ function ActionsCell({
 	);
 }
 
+function NameHeader({
+	table,
+}: HeaderContext<Workspace, unknown>): React.ReactNode {
+	const { checkedWorkspaces, canCheckWorkspaces, onCheckChange } = table.options
+		.meta as WorkspacesTableMeta;
+	const workspaces = table.options.data;
+	const checkableWorkspaces = workspaces.filter((w) => !cantBeChecked(w));
+	const allChecked =
+		checkableWorkspaces.length > 0 &&
+		checkableWorkspaces.every((w) =>
+			checkedWorkspaces.some((cw) => cw.id === w.id),
+		);
+	const someChecked = !allChecked && checkedWorkspaces.length > 0;
+
+	return (
+		<TableHead className="w-1/3">
+			<div className="flex items-center gap-5">
+				{canCheckWorkspaces && (
+					<Checkbox
+						data-testid="checkbox-all"
+						checked={allChecked ? true : someChecked ? "indeterminate" : false}
+						onClick={(e) => {
+							e.stopPropagation();
+						}}
+						onCheckedChange={(checked) => {
+							if (checked) {
+								onCheckChange(checkableWorkspaces);
+							} else {
+								onCheckChange([]);
+							}
+						}}
+						aria-label="Select all workspaces"
+					/>
+				)}
+				<span>Name</span>
+			</div>
+		</TableHead>
+	);
+}
+
 const columns: ColumnDef<Workspace, unknown>[] = [
 	{
 		id: "name",
-		header: () => <TableHead className="w-1/3">Name</TableHead>,
+		header: NameHeader,
 		cell: NameCell,
 	},
 	{
@@ -275,6 +316,7 @@ interface WorkspacesTableProps {
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
+	isLoading?: boolean;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	canCheckWorkspaces: boolean;
 	templates?: Template[];
@@ -287,6 +329,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
+	isLoading,
 	onCheckChange,
 	canCheckWorkspaces,
 	templates,
@@ -330,7 +373,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 				))}
 			</TableHeader>
 			<TableBody className="[&_td]:h-[72px]">
-				{table.getRowModel().rows?.length ? (
+				{isLoading ? (
+					<TableLoader canCheckWorkspaces={canCheckWorkspaces} />
+				) : table.getRowModel().rows?.length ? (
 					table.getRowModel().rows.map((row) => (
 						<WorkspacesRow
 							key={row.id}
