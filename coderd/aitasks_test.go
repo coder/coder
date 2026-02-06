@@ -104,29 +104,29 @@ func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID,
 	}
 }
 
-type storeWrapper struct {
+type aiTaskStoreWrapper struct {
 	database.Store
 	getWorkspaceByID     func(ctx context.Context, id uuid.UUID) (database.Workspace, error)
 	insertWorkspaceBuild func(ctx context.Context, arg database.InsertWorkspaceBuildParams) error
 }
 
-func (s storeWrapper) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+func (s aiTaskStoreWrapper) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 	if s.getWorkspaceByID != nil {
 		return s.getWorkspaceByID(ctx, id)
 	}
 	return s.Store.GetWorkspaceByID(ctx, id)
 }
 
-func (s storeWrapper) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
+func (s aiTaskStoreWrapper) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
 	if s.insertWorkspaceBuild != nil {
 		return s.insertWorkspaceBuild(ctx, arg)
 	}
 	return s.Store.InsertWorkspaceBuild(ctx, arg)
 }
 
-func (s storeWrapper) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+func (s aiTaskStoreWrapper) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return fn(storeWrapper{
+		return fn(aiTaskStoreWrapper{
 			Store:                tx,
 			getWorkspaceByID:     s.getWorkspaceByID,
 			insertWorkspaceBuild: s.insertWorkspaceBuild,
@@ -2513,8 +2513,8 @@ func TestPauseTask(t *testing.T) {
 
 		resp, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		require.NoError(t, err)
-		build, err := client.WorkspaceBuild(ctx, resp.WorkspaceBuildID)
-		require.NoError(t, err)
+		build := *resp.WorkspaceBuild
+		require.NotNil(t, build)
 		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
 		require.Equal(t, task.WorkspaceID.UUID, build.WorkspaceID)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
@@ -2526,7 +2526,7 @@ func TestPauseTask(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
-		client := setupClient(t, storeWrapper{Store: db}, ps, nil)
+		client := setupClient(t, db, ps, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 
 		cases := []struct {
@@ -2564,7 +2564,8 @@ func TestPauseTask(t *testing.T) {
 				resp, err := userClient.PauseTask(ctx, codersdk.Me, task.ID)
 				if tc.expectedStatus == http.StatusAccepted {
 					require.NoError(t, err)
-					require.NotEqual(t, uuid.Nil, resp.WorkspaceBuildID)
+					require.NotNil(t, resp.WorkspaceBuild)
+					require.NotEqual(t, uuid.Nil, resp.WorkspaceBuild.ID)
 					return
 				}
 
@@ -2601,7 +2602,7 @@ func TestPauseTask(t *testing.T) {
 				return nil
 			},
 		}
-		client := setupClient(t, storeWrapper{Store: db}, ps, auth)
+		client := setupClient(t, db, ps, auth)
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
@@ -2624,7 +2625,7 @@ func TestPauseTask(t *testing.T) {
 				return nil
 			},
 		}
-		client := setupClient(t, storeWrapper{Store: db}, ps, auth)
+		client := setupClient(t, db, ps, auth)
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
@@ -2639,7 +2640,7 @@ func TestPauseTask(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
-		client := setupClient(t, storeWrapper{Store: db}, ps, nil)
+		client := setupClient(t, db, ps, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -2666,7 +2667,7 @@ func TestPauseTask(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		var workspaceID uuid.UUID
-		wrapped := storeWrapper{
+		wrapped := aiTaskStoreWrapper{
 			Store: db,
 			getWorkspaceByID: func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 				if id == workspaceID && id != uuid.Nil {
@@ -2692,7 +2693,7 @@ func TestPauseTask(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		var workspaceID uuid.UUID
-		wrapped := storeWrapper{
+		wrapped := aiTaskStoreWrapper{
 			Store: db,
 			getWorkspaceByID: func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 				if id == workspaceID && id != uuid.Nil {
@@ -2726,7 +2727,7 @@ func TestPauseTask(t *testing.T) {
 				return nil
 			},
 		}
-		client := setupClient(t, storeWrapper{Store: db}, ps, auth)
+		client := setupClient(t, db, ps, auth)
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
@@ -2741,14 +2742,17 @@ func TestPauseTask(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
-		client := setupClient(t, storeWrapper{Store: db}, ps, nil)
+		client := setupClient(t, db, ps, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
-		}).Starting().WithTask(database.TaskTable{
-			Prompt: "pause me",
-		}, nil).Do()
+		}).
+			WithTask(database.TaskTable{
+				Prompt: "pause me",
+			}, nil).
+			Starting().
+			Do()
 
 		_, err := client.PauseTask(ctx, codersdk.Me, workspaceBuild.Task.ID)
 		var apiErr *codersdk.Error
@@ -2761,7 +2765,7 @@ func TestPauseTask(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
-		wrapped := storeWrapper{
+		wrapped := aiTaskStoreWrapper{
 			Store: db,
 			insertWorkspaceBuild: func(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
 				return xerrors.New("insert failed")

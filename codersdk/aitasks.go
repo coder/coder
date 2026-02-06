@@ -331,7 +331,7 @@ func (c *Client) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID,
 
 // PauseTaskResponse represents the response from pausing a task.
 type PauseTaskResponse struct {
-	WorkspaceBuildID uuid.UUID `json:"workspace_build_id" format:"uuid"`
+	WorkspaceBuild *WorkspaceBuild `json:"workspace_build"`
 }
 
 // PauseTask pauses a task by stopping its workspace.

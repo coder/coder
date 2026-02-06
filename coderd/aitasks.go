@@ -1301,6 +1301,6 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.PauseTaskResponse{
-		WorkspaceBuildID: build.ID,
+		WorkspaceBuild: &build,
 	})
 }
