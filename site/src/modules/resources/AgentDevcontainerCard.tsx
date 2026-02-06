@@ -189,9 +189,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							<span>dev container (terraform agent)</span>
 						</TooltipTrigger>
 						<TooltipContent>
-							This dev container is defined in Terraform and has
-							limited configurability via the devcontainer.json
-							file.
+							This dev container is defined in Terraform and has limited
+							configurability via the devcontainer.json file.
 						</TooltipContent>
 					</Tooltip>
 				) : (
