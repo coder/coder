@@ -10,7 +10,7 @@ import (
 
 func (r *RootCmd) listOrganizations() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.Organization{}, []string{"name", "id", "default"}),
+		cliui.TableFormat([]codersdk.Organization{}, []string{"name", "display name", "id", "default"}),
 		cliui.JSONFormat(),
 	)
 

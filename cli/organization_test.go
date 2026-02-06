@@ -72,8 +72,9 @@ func TestOrganizationList(t *testing.T) {
 				_ = json.NewEncoder(w).Encode([]codersdk.Organization{
 					{
 						MinimalOrganization: codersdk.MinimalOrganization{
-							ID:   orgID,
-							Name: "my-org",
+							ID:          orgID,
+							Name:        "my-org",
+							DisplayName: "My Org",
 						},
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
@@ -95,6 +96,7 @@ func TestOrganizationList(t *testing.T) {
 
 		require.NoError(t, inv.Run())
 		require.Contains(t, buf.String(), "my-org")
+		require.Contains(t, buf.String(), "My Org")
 		require.Contains(t, buf.String(), orgID.String())
 	})
 }

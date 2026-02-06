@@ -11,7 +11,7 @@ USAGE:
   read.
 
 OPTIONS:
-  -c, --column [id|name|display name|icon|description|created at|updated at|default] (default: name,id,default)
+  -c, --column [id|name|display name|icon|description|created at|updated at|default] (default: name,display name,id,default)
           Columns to display in table output.
 
   -o, --output table|json (default: table)

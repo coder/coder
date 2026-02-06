@@ -26,7 +26,7 @@ List all organizations. Requires a role which grants ResourceOrganization: read.
 |         |                                                                                           |
 |---------|-------------------------------------------------------------------------------------------|
 | Type    | <code>[id\|name\|display name\|icon\|description\|created at\|updated at\|default]</code> |
-| Default | <code>name,id,default</code>                                                              |
+| Default | <code>name,display name,id,default</code>                                                 |
 
 Columns to display in table output.
 
