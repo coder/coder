@@ -124,8 +124,9 @@ Remove the `livenessProbe` section entirely, then proceed with the upgrade.
 
 1. **Clear database locks:** Monitor database activity. If the migration remains
    blocked by locks despite scaling down, you may need to manually terminate
-   existing connections. See [Clear connections](#clear-connections) below for
-   instructions.
+   existing connections. See
+   [Recovering from failed database migrations](#recovering-from-failed-database-migrations)
+   below for instructions.
 
 ## Recovering from failed database migrations
 
@@ -138,9 +139,9 @@ If an upgrade gets stuck in a restart loop due to database locks:
    kubectl scale deployment coder --replicas=0
    ```
 
-1. <a id="clear-connections"></a>**Clear connections:** Terminate existing
-   connections to the Coder database to release any lingering locks. This
-   PostgreSQL command drops all active connections to the database:
+1. **Clear connections:** Terminate existing connections to the Coder database
+   to release any lingering locks. This PostgreSQL command drops all active
+   connections to the database:
 
    > [!CAUTION]
    > This command is intrusive and should be used as a last resort. Contact
