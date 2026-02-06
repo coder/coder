@@ -144,22 +144,73 @@ during workspace initialization. This only applies to Dev Containers found via
 project discovery. Dev Containers defined with the `coder_devcontainer` resource
 always auto-start regardless of this setting.
 
-## Per-Container Customizations
+## Attach Resources to Dev Containers
 
-> [!NOTE]
->
-> Dev container sub-agents are created dynamically after workspace provisioning,
-> so Terraform resources like
-> [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
-> and [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-> cannot currently be attached to them. Modules from the
-> [Coder registry](https://registry.coder.com) that depend on these resources
-> are also not currently supported for sub-agents.
->
-> To add tools to dev containers, use
-> [dev container features](../../../user-guides/devcontainers/working-with-dev-containers.md#dev-container-features).
-> For Coder-specific apps, use the
-> [`apps` customization](../../../user-guides/devcontainers/customizing-dev-containers.md#custom-apps).
+You can attach
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app),
+[`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script),
+and [`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
+resources to a `coder_devcontainer` by referencing its `subagent_id` attribute
+as the `agent_id`:
+
+```terraform
+resource "coder_devcontainer" "my-repository" {
+  count            = data.coder_workspace.me.start_count
+  agent_id         = coder_agent.dev.id
+  workspace_folder = "/home/coder/my-repository"
+}
+
+resource "coder_app" "code-server" {
+  agent_id     = coder_devcontainer.my-repository[0].subagent_id
+  slug         = "code-server"
+  display_name = "Code Server"
+  url          = "http://localhost:13337"
+  icon         = "/icon/code.svg"
+}
+
+resource "coder_script" "dev-setup" {
+  agent_id     = coder_devcontainer.my-repository[0].subagent_id
+  display_name = "Dev Setup"
+  script       = "echo 'Setting up dev container...'"
+  run_on_start = true
+}
+
+resource "coder_env" "my-var" {
+  agent_id = coder_devcontainer.my-repository[0].subagent_id
+  name     = "MY_VAR"
+  value    = "my-value"
+}
+```
+
+This also enables using [Coder registry](https://registry.coder.com) modules
+that depend on `coder_script` or `coder_app` inside dev containers, by passing
+the `subagent_id` as the module's `agent_id`.
+
+### Terraform-managed dev containers
+
+When a `coder_devcontainer` has any `coder_app`, `coder_script`, or `coder_env`
+resources attached, it becomes a **terraform-managed** dev container. This
+changes how Coder handles the sub-agent:
+
+- The sub-agent is pre-defined during Terraform provisioning rather than created
+  dynamically.
+- On dev container configuration changes, Coder updates the sub-agent in-place
+  instead of deleting and recreating it.
+
+### Interaction with devcontainer.json customizations
+
+Terraform-defined resources and
+[`devcontainer.json` customizations](../../../user-guides/devcontainers/customizing-dev-containers.md)
+work together with some limitations. The `displayApps` settings from
+`devcontainer.json` are applied to terraform-managed dev containers, so you can
+control built-in app visibility (e.g., hide VS Code Insiders) via
+`devcontainer.json` even when using Terraform resources.
+
+However, custom `apps` defined in `devcontainer.json` are **not applied** to
+terraform-managed dev containers. If you need custom apps, define them as
+`coder_app` resources in Terraform instead.
+
+## Per-Container Customizations
 
 Developers can customize individual dev containers using the `customizations.coder`
 block in their `devcontainer.json` file. Available options include:
@@ -210,6 +261,15 @@ resource "coder_devcontainer" "my-repository" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.dev.id
   workspace_folder = "/home/coder/my-repository"
+}
+
+# Attach a custom app to the dev container sub-agent.
+resource "coder_app" "code-server" {
+  agent_id     = coder_devcontainer.my-repository[0].subagent_id
+  slug         = "code-server"
+  display_name = "Code Server"
+  url          = "http://localhost:13337"
+  icon         = "/icon/code.svg"
 }
 ```
 

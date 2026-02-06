@@ -4,6 +4,13 @@ Coder supports custom configuration in your `devcontainer.json` file through the
 `customizations.coder` block. These options let you control how Coder interacts
 with your dev container without requiring template changes.
 
+> [!TIP]
+>
+> Template administrators can also define apps, scripts, and environment
+> variables for dev containers directly in Terraform. See
+> [Attach resources to dev containers](../../admin/integrations/devcontainers/integration.md#attach-resources-to-dev-containers)
+> for details.
+
 ## Ignore a dev container
 
 Use the `ignore` option to hide a dev container from Coder completely:

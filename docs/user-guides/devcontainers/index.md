@@ -31,6 +31,7 @@ for setup details.
 - Seamless container startup during workspace initialization
 - Change detection with outdated status indicator
 - On-demand container rebuild via dashboard button
+- Template-defined apps, scripts, and environment variables via Terraform
 - Integrated IDE experience with VS Code
 - Direct SSH access to containers
 - Automatic port detection
@@ -101,6 +102,8 @@ When a workspace with Dev Containers integration starts:
 1. If auto-start is configured (via `coder_devcontainer` or autostart settings),
    the integration builds and starts the dev container automatically.
 1. Coder creates a sub-agent for the running container, enabling direct access.
+1. If the template defines `coder_app`, `coder_script`, or `coder_env` resources
+   attached to the dev container, those are applied to the sub-agent.
 
 Without auto-start, users can manually start discovered dev containers from the
 dashboard.
