@@ -186,10 +186,12 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				{devcontainer.subagent_id ? (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<span>dev container (terraform)</span>
+							<span>dev container (terraform agent)</span>
 						</TooltipTrigger>
 						<TooltipContent>
-							This dev container is defined in Terraform.
+							This dev container is defined in Terraform and has
+							limited configurability via the devcontainer.json
+							file.
 						</TooltipContent>
 					</Tooltip>
 				) : (
