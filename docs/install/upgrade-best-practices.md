@@ -64,8 +64,8 @@ prevent the new pod from acquiring necessary locks.
 ## Kubernetes liveness probes and long-running migrations
 
 Liveness probes can cause pods to be killed during long-running database
-migrations. Starting with Helm chart version 2.1.0, liveness probes are
-*disabled by default* for Coder deployments.
+migrations. Starting with Coder v2.30.0, liveness probes are *disabled by
+default* in the Helm chart.
 
 This change was made because:
 
@@ -105,10 +105,11 @@ kubectl edit deployment coder
 Remove the `livenessProbe` section entirely, then proceed with the upgrade.
 
 > [!NOTE]
-> For Helm chart versions prior to 2.1.0, liveness probes were enabled by
-> default. See the
+> For versions prior to v2.30.0, liveness probes were enabled by default. You
+> can disable them by editing the Deployment directly with `kubectl edit
+> deployment coder` or by using a ConfigMap override. See the
 > [Helm chart values](https://artifacthub.io/packages/helm/coder-v2/coder?modal=values&path=coder.livenessProbe)
-> for configuration options.
+> for configuration options available in v2.30.0+.
 
 ### Workaround steps
 
