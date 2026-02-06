@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -33,9 +32,9 @@ type LifecycleAPI struct {
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 
-	TimeNowFn                       func() time.Time // defaults to dbtime.Now()
-	WorkspaceBuildDurationHistogram *prometheus.HistogramVec
-	EmitMetricsOnce                 sync.Once
+	TimeNowFn       func() time.Time // defaults to dbtime.Now()
+	Metrics         *LifecycleMetrics
+	emitMetricsOnce sync.Once
 }
 
 func (a *LifecycleAPI) now() time.Time {
@@ -135,8 +134,8 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	case database.WorkspaceAgentLifecycleStateReady,
 		database.WorkspaceAgentLifecycleStateStartTimeout,
 		database.WorkspaceAgentLifecycleStateStartError:
-		a.EmitMetricsOnce.Do(func() {
-			emitBuildDurationMetric(ctx, a.Log, a.Database, a.WorkspaceBuildDurationHistogram, workspaceAgent.ResourceID)
+		a.emitMetricsOnce.Do(func() {
+			a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
 		})
 	}
 

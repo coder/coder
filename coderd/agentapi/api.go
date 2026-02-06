@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
@@ -90,6 +89,7 @@ type Options struct {
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
 	BoundaryUsageTracker              *boundaryusage.Tracker
+	LifecycleMetrics                  *LifecycleMetrics
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -101,8 +101,6 @@ type Options struct {
 	Experiments               codersdk.Experiments
 
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-
-	BuildDurationHistogram *prometheus.HistogramVec
 }
 
 func New(opts Options, workspace database.Workspace) *API {
@@ -168,12 +166,12 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
-		AgentFn:                         api.agent,
-		WorkspaceID:                     opts.WorkspaceID,
-		Database:                        opts.Database,
-		Log:                             opts.Log,
-		PublishWorkspaceUpdateFn:        api.publishWorkspaceUpdate,
-		WorkspaceBuildDurationHistogram: opts.BuildDurationHistogram,
+		AgentFn:                  api.agent,
+		WorkspaceID:              opts.WorkspaceID,
+		Database:                 opts.Database,
+		Log:                      opts.Log,
+		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Metrics:                  opts.LifecycleMetrics,
 	}
 
 	api.AppsAPI = &AppsAPI{

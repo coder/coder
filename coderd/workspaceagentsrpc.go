@@ -158,11 +158,10 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 		Experiments:               api.Experiments,
+		LifecycleMetrics:          api.lifecycleMetrics,
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
-
-		BuildDurationHistogram: api.buildDurationHistogram,
 	}, workspace)
 
 	streamID := tailnet.StreamID{

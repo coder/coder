@@ -129,16 +129,16 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := agentapi.NewBuildDurationHistogram(reg)
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID:                     workspaceID,
-			Database:                        dbM,
-			Log:                             testutil.Logger(t),
-			WorkspaceBuildDurationHistogram: hist,
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			Metrics:     metrics,
 			// Test that nil publish fn works.
 			PublishWorkspaceUpdateFn: nil,
 		}
@@ -196,16 +196,16 @@ func TestUpdateLifecycle(t *testing.T) {
 
 		publishCalled := false
 		reg := prometheus.NewRegistry()
-		hist := agentapi.NewBuildDurationHistogram(reg)
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceID:                     workspaceID,
-			Database:                        dbM,
-			Log:                             testutil.Logger(t),
-			WorkspaceBuildDurationHistogram: hist,
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			Metrics:     metrics,
 			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
@@ -266,17 +266,17 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := agentapi.NewBuildDurationHistogram(reg)
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceID:                     workspaceID,
-			Database:                        dbM,
-			Log:                             testutil.Logger(t),
-			WorkspaceBuildDurationHistogram: hist,
-			PublishWorkspaceUpdateFn:        nil,
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -313,16 +313,16 @@ func TestUpdateLifecycle(t *testing.T) {
 
 		var publishCalled int64
 		reg := prometheus.NewRegistry()
-		hist := agentapi.NewBuildDurationHistogram(reg)
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceID:                     workspaceID,
-			Database:                        dbM,
-			Log:                             testutil.Logger(t),
-			WorkspaceBuildDurationHistogram: hist,
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			Metrics:     metrics,
 			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				atomic.AddInt64(&publishCalled, 1)
 				return nil
@@ -449,17 +449,17 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := agentapi.NewBuildDurationHistogram(reg)
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID:                     workspaceID,
-			Database:                        dbM,
-			Log:                             testutil.Logger(t),
-			WorkspaceBuildDurationHistogram: hist,
-			PublishWorkspaceUpdateFn:        nil,
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
@@ -500,17 +500,17 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := agentapi.NewBuildDurationHistogram(reg)
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID:                     workspaceID,
-			Database:                        dbM,
-			Log:                             testutil.Logger(t),
-			WorkspaceBuildDurationHistogram: hist,
-			PublishWorkspaceUpdateFn:        nil,
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
@@ -553,17 +553,17 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		reg := prometheus.NewRegistry()
-		hist := agentapi.NewBuildDurationHistogram(reg)
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID:                     workspaceID,
-			Database:                        dbM,
-			Log:                             testutil.Logger(t),
-			WorkspaceBuildDurationHistogram: hist,
-			PublishWorkspaceUpdateFn:        nil,
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
