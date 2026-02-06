@@ -2012,16 +2012,16 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	// (ID == uuid.Nil). Terraform-defined subagents (subAgentConfig.ID !=
 	// uuid.Nil) must not be deleted because they have attached resources
 	// managed by terraform.
-	isNotTerraformManaged := subAgentConfig.ID == uuid.Nil
+	isTerraformManaged := subAgentConfig.ID != uuid.Nil
 	configHasChanged := !proc.agent.EqualConfig(subAgentConfig)
 
 	logger.Debug(ctx, "checking if sub agent should be deleted",
-		slog.F("is_not_terraform_managed", isNotTerraformManaged),
+		slog.F("is_terraform_managed", isTerraformManaged),
 		slog.F("maybe_recreate_sub_agent", maybeRecreateSubAgent),
 		slog.F("config_has_changed", configHasChanged),
 	)
 
-	deleteSubAgent := isNotTerraformManaged && maybeRecreateSubAgent && configHasChanged
+	deleteSubAgent := !isTerraformManaged && maybeRecreateSubAgent && configHasChanged
 	if deleteSubAgent {
 		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
 		client := *api.subAgentClient.Load()
@@ -2035,7 +2035,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	// Re-create (upsert) terraform-managed subagents when the config
 	// changes so that display apps and other settings are updated
 	// without deleting the agent.
-	recreateTerraformSubAgent := !isNotTerraformManaged && maybeRecreateSubAgent && configHasChanged
+	recreateTerraformSubAgent := isTerraformManaged && maybeRecreateSubAgent && configHasChanged
 
 	if proc.agent.ID == uuid.Nil || recreateTerraformSubAgent {
 		logger.Debug(ctx, "creating new subagent",
