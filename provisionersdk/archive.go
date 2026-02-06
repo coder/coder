@@ -62,7 +62,7 @@ func TarWithOptions(w io.Writer, logger slog.Logger, directory string, limit int
 
 	// The total bytes written must be under the limit, so use -1
 	w = xio.NewLimitWriter(w, limit-1)
-	tarWriter := tar.NewWriter(w)
+	tw := tar.NewWriter(w)
 
 	tfExts := []string{".tf", ".tf.json"}
 	hasTf, err := dirHasExt(directory, tfExts...)
@@ -95,236 +95,124 @@ func TarWithOptions(w io.Writer, logger slog.Logger, directory string, limit int
 		return xerrors.Errorf("abs directory: %w", err)
 	}
 
-	err = filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
+	// archiveDir recursively walks diskDir writing entries to the
+	// tar archive. archiveBase is the path that diskDir maps to
+	// inside the archive (relative to directory). When following
+	// symlinks, resolved directory symlinks are recursed into by
+	// calling archiveDir again with the resolved path on disk but
+	// the symlink's name in the archive.
+	var archiveDir func(diskDir, archiveBase string) error
+	archiveDir = func(diskDir, archiveBase string) error {
+		entries, err := os.ReadDir(diskDir)
 		if err != nil {
 			return err
 		}
+		for _, entry := range entries {
+			diskPath := filepath.Join(diskDir, entry.Name())
+			archivePath := filepath.Join(archiveBase, entry.Name())
+			rel := archivePath // already relative to directory
 
-		isSymlink := fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink
-
-		// When following symlinks, resolve the symlink and use the
-		// target's FileInfo so the archive contains the real content
-		// instead of a symlink entry.
-		if options.FollowSymlinks && isSymlink {
-			resolved, resolveErr := filepath.EvalSymlinks(file)
-			if resolveErr != nil {
-				// Skip broken symlinks instead of failing the
-				// entire archive.
-				logger.Warn(
-					context.Background(), "skipping broken symlink",
-					slog.F("path", file), slog.Error(resolveErr),
-				)
-				return nil
-			}
-			absResolved, resolveErr := filepath.Abs(resolved)
-			if resolveErr != nil {
-				return resolveErr
-			}
-			// Security: reject symlinks that escape the template
-			// directory to prevent accidentally bundling files
-			// from the broader filesystem.
-			if !isInsideDir(absResolved, absDirectory) {
-				logger.Warn(
-					context.Background(),
-					"skipping symlink that points outside the template directory",
-					slog.F("path", file),
-					slog.F("target", absResolved),
-				)
-				return nil
-			}
-
-			targetInfo, resolveErr := os.Stat(resolved)
-			if resolveErr != nil {
-				return resolveErr
-			}
-
-			// If the symlink points to a directory, filepath.Walk
-			// won't descend into it. We need to walk the target
-			// ourselves and write each entry under the symlink's
-			// name in the archive.
-			if targetInfo.IsDir() {
-				return walkDir(tarWriter, logger, resolved, directory, file, absDirectory, options, limit)
-			}
-
-			fileInfo = targetInfo
-			isSymlink = false
-		}
-
-		var link string
-		if isSymlink {
-			link, err = os.Readlink(file)
+			info, err := entry.Info()
 			if err != nil {
 				return err
 			}
-		}
-		header, err := tar.FileInfoHeader(fileInfo, link)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(directory, file)
-		if err != nil {
-			return err
-		}
-		if shouldSkipEntry(rel, logger) {
-			if fileInfo.IsDir() && rel != "." {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		// Use unix paths in the tar archive.
-		header.Name = filepath.ToSlash(rel)
-		// tar.FileInfoHeader() will do this, but filepath.Rel() calls filepath.Clean()
-		// which strips trailing path separators for directories.
-		if fileInfo.IsDir() {
-			header.Name += "/"
-		}
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return err
-		}
-		if !fileInfo.Mode().IsRegular() {
-			return nil
-		}
+			isSymlink := info.Mode()&os.ModeSymlink != 0
 
-		data, err := os.Open(file)
-		if err != nil {
-			return err
-		}
-		defer data.Close()
-		_, err = io.Copy(tarWriter, data)
-		if err != nil {
-			if xerrors.Is(err, xio.ErrLimitReached) {
-				return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+			// When following symlinks, resolve and replace info
+			// with the target's so the archive gets real content.
+			if options.FollowSymlinks && isSymlink {
+				resolved, err := filepath.EvalSymlinks(diskPath)
+				if err != nil {
+					// Broken symlink — skip gracefully.
+					logger.Warn(
+						context.Background(), "skipping broken symlink",
+						slog.F("path", diskPath), slog.Error(err),
+					)
+					continue
+				}
+				absResolved, err := filepath.Abs(resolved)
+				if err != nil {
+					return err
+				}
+				// Security: skip symlinks escaping the template
+				// directory.
+				if !isInsideDir(absResolved, absDirectory) {
+					logger.Warn(
+						context.Background(),
+						"skipping symlink that points outside the template directory",
+						slog.F("path", diskPath),
+						slog.F("target", absResolved),
+					)
+					continue
+				}
+				info, err = os.Stat(resolved)
+				if err != nil {
+					return err
+				}
+				// Point diskPath to the resolved target so
+				// directory recursion and file reads work.
+				diskPath = resolved
+				isSymlink = false
 			}
-			return err
-		}
 
-		return data.Close()
-	})
-	if err != nil {
+			if shouldSkipEntry(rel, logger) {
+				continue
+			}
+
+			// Write tar header.
+			var link string
+			if isSymlink {
+				link, err = os.Readlink(diskPath)
+				if err != nil {
+					return err
+				}
+			}
+			header, err := tar.FileInfoHeader(info, link)
+			if err != nil {
+				return err
+			}
+			header.Name = filepath.ToSlash(rel)
+			if info.IsDir() {
+				header.Name += "/"
+			}
+			if err := tw.WriteHeader(header); err != nil {
+				return err
+			}
+
+			// Recurse into directories.
+			if info.IsDir() {
+				if err := archiveDir(diskPath, archivePath); err != nil {
+					return err
+				}
+				continue
+			}
+
+			// Copy regular file content.
+			if info.Mode().IsRegular() {
+				f, err := os.Open(diskPath)
+				if err != nil {
+					return err
+				}
+				_, err = io.Copy(tw, f)
+				f.Close()
+				if err != nil {
+					if xerrors.Is(err, xio.ErrLimitReached) {
+						return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+					}
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	if err := archiveDir(directory, "."); err != nil {
 		if xerrors.Is(err, xio.ErrLimitReached) {
 			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
 		}
 		return err
 	}
-	err = tarWriter.Flush()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// walkDir recursively archives a directory tree (resolvedDir on disk)
-// into the tar archive, mapping entries so they appear under archivePath
-// relative to baseDir. This is used to inline the contents of a symlinked
-// directory when following symlinks.
-func walkDir(
-	tw *tar.Writer,
-	logger slog.Logger,
-	resolvedDir, baseDir, archivePath, absBaseDir string,
-	options *TarOptions,
-	limit int64,
-) error {
-	return filepath.Walk(resolvedDir, func(file string, fileInfo os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		isSymlink := fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink
-
-		if options.FollowSymlinks && isSymlink {
-			resolved, resolveErr := filepath.EvalSymlinks(file)
-			if resolveErr != nil {
-				logger.Warn(
-					context.Background(), "skipping broken symlink",
-					slog.F("path", file), slog.Error(resolveErr),
-				)
-				return nil
-			}
-			absResolved, resolveErr := filepath.Abs(resolved)
-			if resolveErr != nil {
-				return resolveErr
-			}
-			if !isInsideDir(absResolved, absBaseDir) {
-				logger.Warn(
-					context.Background(),
-					"skipping symlink that points outside the template directory",
-					slog.F("path", file),
-					slog.F("target", absResolved),
-				)
-				return nil
-			}
-
-			targetInfo, resolveErr := os.Stat(resolved)
-			if resolveErr != nil {
-				return resolveErr
-			}
-			if targetInfo.IsDir() {
-				relFromResolved, resolveErr := filepath.Rel(resolvedDir, file)
-				if resolveErr != nil {
-					return resolveErr
-				}
-				nestedArchivePath := filepath.Join(archivePath, relFromResolved)
-				return walkDir(tw, logger, resolved, baseDir, nestedArchivePath, absBaseDir, options, limit)
-			}
-			fileInfo = targetInfo
-			isSymlink = false
-		}
-
-		// Compute the relative path within the archive.
-		relFromResolved, err := filepath.Rel(resolvedDir, file)
-		if err != nil {
-			return err
-		}
-		archiveEntry := filepath.Join(archivePath, relFromResolved)
-		rel, err := filepath.Rel(baseDir, archiveEntry)
-		if err != nil {
-			return err
-		}
-
-		if shouldSkipEntry(rel, logger) {
-			if fileInfo.IsDir() && rel != "." {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		var link string
-		if isSymlink {
-			link, err = os.Readlink(file)
-			if err != nil {
-				return err
-			}
-		}
-		header, err := tar.FileInfoHeader(fileInfo, link)
-		if err != nil {
-			return err
-		}
-		header.Name = filepath.ToSlash(rel)
-		if fileInfo.IsDir() {
-			header.Name += "/"
-		}
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-		if !fileInfo.Mode().IsRegular() {
-			return nil
-		}
-
-		data, err := os.Open(file)
-		if err != nil {
-			return err
-		}
-		defer data.Close()
-		_, err = io.Copy(tw, data)
-		if err != nil {
-			if xerrors.Is(err, xio.ErrLimitReached) {
-				return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
-			}
-			return err
-		}
-
-		return data.Close()
-	})
+	return tw.Flush()
 }
 
 // shouldSkipEntry reports whether a file at the given relative path
