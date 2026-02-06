@@ -298,12 +298,7 @@ func enablePrometheus(
 	//nolint:revive
 	return ServeHandler(
 		ctx, logger, promhttp.InstrumentMetricHandler(
-			options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{
-				// EnableOpenMetrics allows Prometheus to scrape native
-				// histograms via protobuf format, required for the
-				// workspace build duration metric.
-				EnableOpenMetrics: true,
-			}),
+			options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
 		), vals.Prometheus.Address.String(), "prometheus",
 	), nil
 }
