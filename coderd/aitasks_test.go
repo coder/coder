@@ -2518,8 +2518,7 @@ func TestPauseTask(t *testing.T) {
 		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
 		require.Equal(t, task.WorkspaceID.UUID, build.WorkspaceID)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
-		// TODO: verify whether the assertion below is a requirement
-		// require.Equal(t, codersdk.BuildReason(codersdk.CreateWorkspaceBuildReasonTaskManualPause), build.Reason)
+		require.Equal(t, string(codersdk.CreateWorkspaceBuildReasonTaskManualPause), string(build.Reason))
 	})
 
 	t.Run("Non-owner role access", func(t *testing.T) {

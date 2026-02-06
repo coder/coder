@@ -130,7 +130,7 @@ type CreateWorkspaceBuildRequest struct {
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	// Reason sets the reason for the workspace build.
-	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
+	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection task_manual_pause"`
 }
 
 type WorkspaceOptions struct {
