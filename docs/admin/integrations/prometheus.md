@@ -212,6 +212,7 @@ The following metrics support native histograms:
 
 * `coderd_workspace_creation_duration_seconds`
 * `coderd_prebuilt_workspace_claim_duration_seconds`
+* `coderd_template_coderd_template_workspace_build_duration_seconds`
 
 Native histograms are an **experimental** Prometheus feature that removes the need to predefine bucket boundaries and allows higher-resolution buckets that adapt to deployment characteristics.
 Whether a metric is exposed as classic or native depends entirely on the Prometheus server configuration (see [Prometheus docs](https://prometheus.io/docs/specs/native_histograms/) for details):
