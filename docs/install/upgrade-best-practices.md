@@ -63,6 +63,22 @@ timeouts. If you observe pods restarting with `CrashLoopBackOff` during an
 upgrade and logs indicate a migration in progress, Kubernetes might be killing
 the pod prematurely.
 
+### Diagnosing liveness probe issues
+
+To confirm whether Kubernetes is killing pods due to liveness probe failures,
+check the Kubernetes events and pod logs:
+
+```shell
+# Check events for the Coder deployment
+kubectl get events --field-selector involvedObject.name=coder -n <namespace>
+
+# Check pod logs for migration progress
+kubectl logs -l app.kubernetes.io/name=coder -n <namespace> --previous
+```
+
+Look for events indicating `Liveness probe failed` or `Container coder failed
+liveness probe, will be restarted`.
+
 ### Recommended approach
 
 Temporarily remove the `livenessProbe` from the Coder Deployment before
