@@ -1,0 +1,17 @@
+coder:
+  image:
+    tag: latest
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    successThreshold: 2
+    failureThreshold: 6
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3

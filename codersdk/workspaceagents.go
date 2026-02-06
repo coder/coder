@@ -217,6 +217,26 @@ type WorkspaceAgentLog struct {
 	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
 }
 
+// Text formats the log entry as human-readable text.
+func (l WorkspaceAgentLog) Text(agentName, sourceName string) string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(l.CreatedAt.Format(time.RFC3339))
+	_, _ = sb.WriteString(" [")
+	_, _ = sb.WriteString(string(l.Level))
+	_, _ = sb.WriteString("] [agent")
+	if agentName != "" {
+		_, _ = sb.WriteString(".")
+		_, _ = sb.WriteString(agentName)
+	}
+	if sourceName != "" {
+		_, _ = sb.WriteString("|")
+		_, _ = sb.WriteString(sourceName)
+	}
+	_, _ = sb.WriteString("] ")
+	_, _ = sb.WriteString(l.Output)
+	return sb.String()
+}
+
 type AgentSubsystem string
 
 const (

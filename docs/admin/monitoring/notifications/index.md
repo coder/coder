@@ -109,11 +109,11 @@ existing one.
 
 **Server Settings:**
 
-| Required | CLI                 | Env                     | Type     | Description                                               | Default   |
-|:--------:|---------------------|-------------------------|----------|-----------------------------------------------------------|-----------|
-|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.                              |           |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages (format: `hostname:port`) |           |
-|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server.                 | localhost |
+| Required | CLI                 | Env                     | Type     | Description                                                       | Default   |
+|:--------:|---------------------|-------------------------|----------|-------------------------------------------------------------------|-----------|
+|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use (e.g. `"Coder <coder@example.com>"`). |           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages (format: `hostname:port`)         |           |
+|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server.                         | localhost |
 
 **Authentication Settings:**
 

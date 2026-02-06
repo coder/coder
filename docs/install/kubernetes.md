@@ -135,7 +135,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.29.1
+        --version 2.30.0
     ```
 
   - **OCI Registry**
@@ -146,7 +146,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.29.1
+        --version 2.30.0
     ```
 
 - **Stable** Coder release:
@@ -159,7 +159,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.28.6
+        --version 2.29.5
     ```
 
   - **OCI Registry**
@@ -170,7 +170,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.28.6
+        --version 2.29.5
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
@@ -257,15 +257,6 @@ reference, and not all security requirements may apply to your business.
 
    - Both the control plane and workspaces set resource request/limits by
      default.
-
-7. **All Kubernetes objects must define liveness and readiness probes**
-
-   - Control plane - The control plane Deployment has liveness and readiness
-     probes
-     [configured by default here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/templates/_coder.tpl#L98-L107).
-   - Workspaces - the Kubernetes Deployment template does not configure
-     liveness/readiness probes for the workspace, but this can be added to the
-     Terraform template, and is supported.
 
 ## Load balancing considerations
 

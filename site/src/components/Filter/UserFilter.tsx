@@ -99,10 +99,10 @@ export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 			selectedOption={menu.selectedOption ?? undefined}
 			selectFilterSearch={
 				<SelectFilterSearch
-					inputProps={{ "aria-label": "Search user" }}
 					placeholder="Search user..."
 					value={menu.query}
 					onChange={menu.setQuery}
+					aria-label="Search user"
 				/>
 			}
 			width={width}

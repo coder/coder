@@ -126,27 +126,6 @@ allowlist:
   - domain=goproxy.io
   - domain=pkg.go.dev
 
-  # Go Module Domains (from go.mod)
-  - domain=cdr.dev
-  - domain=cel.dev
-  - domain=dario.cat
-  - domain=git.sr.ht
-  - domain=go.mozilla.org
-  - domain=go.nhat.io
-  - domain=go.opentelemetry.io
-  - domain=go.uber.org
-  - domain=go.yaml.in
-  - domain=go4.org
-  - domain=golang.zx2c4.com
-  - domain=gonum.org
-  - domain=gopkg.in
-  - domain=gvisor.dev
-  - domain=howett.net
-  - domain=kernel.org
-  - domain=mvdan.cc
-  - domain=sigs.k8s.io
-  - domain=storj.io
-
   # Package Managers - JVM
   - domain=maven.org
   - domain=repo.maven.org

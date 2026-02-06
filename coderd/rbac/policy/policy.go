@@ -27,6 +27,7 @@ const (
 
 	ActionCreateAgent Action = "create_agent"
 	ActionDeleteAgent Action = "delete_agent"
+	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
 )
@@ -63,6 +64,7 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	ActionCreateAgent: "create a new workspace agent",
 	ActionDeleteAgent: "delete an existing workspace agent",
+	ActionUpdateAgent: "update an existing workspace agent",
 
 	// Sharing a workspace
 	ActionShare: "share a workspace with other users or groups",
@@ -378,6 +380,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read aibridge interceptions & related records",
 			ActionUpdate: "update aibridge interceptions & related records",
 			ActionCreate: "create aibridge interceptions & related records",
+		},
+	},
+	"boundary_usage": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read boundary usage statistics",
+			ActionUpdate: "upsert boundary usage statistics",
+			ActionDelete: "delete boundary usage statistics",
 		},
 	},
 }

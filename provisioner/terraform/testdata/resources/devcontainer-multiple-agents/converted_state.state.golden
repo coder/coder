@@ -1,0 +1,88 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "37a1bd80-851e-48cf-bd36-af4aab414203",
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "c95ffdc5-6456-464d-ae10-33126e7a0d6e"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "devcontainers": [
+            {
+              "workspace_folder": "/workspace",
+              "name": "dev",
+              "id": "bb802ac6-f83a-4687-9103-87f551c6f144",
+              "subagent_id": "523258bd-d830-4ff4-b3d0-a665496d8075",
+              "apps": [
+                {
+                  "slug": "devcontainer-app",
+                  "display_name": "devcontainer-app",
+                  "open_in": 1,
+                  "id": "a917a82a-fc11-9d2e-5431-cdbb8925e507"
+                }
+              ]
+            },
+            {
+              "workspace_folder": "/other",
+              "name": "other",
+              "id": "8e5a16da-e98c-4a6f-b24c-3c0cbd6bb9df",
+              "subagent_id": "cfa0a8fc-29cf-44e8-8ae2-42637057826a"
+            }
+          ],
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "other",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "secondary",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "79762ce7-0eef-49e2-8782-779e9f8ac62f",
+          "name": "secondary",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "c79ef145-c76d-44f0-a384-19421e503230"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

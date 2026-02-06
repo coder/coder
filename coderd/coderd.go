@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -266,6 +267,8 @@ type Options struct {
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
+	// BoundaryUsageTracker tracks boundary usage for telemetry.
+	BoundaryUsageTracker *boundaryusage.Tracker
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	NotificationsEnqueuer notifications.Enqueuer
 
@@ -1225,6 +1228,7 @@ func New(options *Options) *API {
 							r.Use(
 								httpmw.ExtractOrganizationMemberParam(options.Database),
 							)
+							r.Get("/", api.organizationMember)
 							r.Delete("/", api.deleteOrganizationMember)
 							r.Put("/roles", api.putMemberRoles)
 							r.Post("/workspaces", api.postWorkspacesByOrganization)
@@ -1992,8 +1996,15 @@ func MemoryProvisionerWithVersionOverride(version string) MemoryProvisionerDaemo
 	}
 }
 
+func MemoryProvisionerWithHeartbeatOverride(heartbeatFN func(context.Context) error) MemoryProvisionerDaemonOption {
+	return func(opts *memoryProvisionerDaemonOptions) {
+		opts.heartbeatFn = heartbeatFN
+	}
+}
+
 type memoryProvisionerDaemonOptions struct {
 	versionOverride string
+	heartbeatFn     func(context.Context) error
 }
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
@@ -2083,6 +2094,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
 			Clock:               api.Clock,
+			HeartbeatFn:         options.heartbeatFn,
 		},
 		api.NotificationsEnqueuer,
 		&api.PrebuildsReconciler,

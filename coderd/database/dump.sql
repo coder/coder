@@ -204,7 +204,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'task:delete',
     'task:*',
     'workspace:share',
-    'workspace_dormant:share'
+    'workspace_dormant:share',
+    'boundary_usage:*',
+    'boundary_usage:delete',
+    'boundary_usage:read',
+    'boundary_usage:update',
+    'workspace:update_agent',
+    'workspace_dormant:update_agent'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1111,6 +1117,32 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE boundary_usage_stats (
+    replica_id uuid NOT NULL,
+    unique_workspaces_count bigint DEFAULT 0 NOT NULL,
+    unique_users_count bigint DEFAULT 0 NOT NULL,
+    allowed_requests bigint DEFAULT 0 NOT NULL,
+    denied_requests bigint DEFAULT 0 NOT NULL,
+    window_start timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE boundary_usage_stats IS 'Per-replica boundary usage statistics for telemetry aggregation.';
+
+COMMENT ON COLUMN boundary_usage_stats.replica_id IS 'The unique identifier of the replica reporting stats.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_workspaces_count IS 'Count of unique workspaces that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.unique_users_count IS 'Count of unique users that used boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.allowed_requests IS 'Total allowed requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests through boundary on this replica.';
+
+COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
+
+COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
+
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
     connect_time timestamp with time zone NOT NULL,
@@ -1732,14 +1764,14 @@ CREATE TABLE site_configs (
     value text NOT NULL
 );
 
-CREATE TABLE tailnet_coordinators (
+CREATE UNLOGGED TABLE tailnet_coordinators (
     id uuid NOT NULL,
     heartbeat_at timestamp with time zone NOT NULL
 );
 
 COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
 
-CREATE TABLE tailnet_peers (
+CREATE UNLOGGED TABLE tailnet_peers (
     id uuid NOT NULL,
     coordinator_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -1747,7 +1779,7 @@ CREATE TABLE tailnet_peers (
     status tailnet_status DEFAULT 'ok'::tailnet_status NOT NULL
 );
 
-CREATE TABLE tailnet_tunnels (
+CREATE UNLOGGED TABLE tailnet_tunnels (
     coordinator_id uuid NOT NULL,
     src_id uuid NOT NULL,
     dst_id uuid NOT NULL,
@@ -1972,7 +2004,7 @@ CREATE VIEW tasks_with_status AS
                     WHEN (latest_build_raw.job_status IS NULL) THEN 'pending'::task_status
                     WHEN (latest_build_raw.job_status = ANY (ARRAY['failed'::provisioner_job_status, 'canceling'::provisioner_job_status, 'canceled'::provisioner_job_status])) THEN 'error'::task_status
                     WHEN ((latest_build_raw.transition = ANY (ARRAY['stop'::workspace_transition, 'delete'::workspace_transition])) AND (latest_build_raw.job_status = 'succeeded'::provisioner_job_status)) THEN 'paused'::task_status
-                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = 'pending'::provisioner_job_status)) THEN 'initializing'::task_status
+                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = 'pending'::provisioner_job_status)) THEN 'pending'::task_status
                     WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN 'active'::task_status
                     ELSE 'unknown'::task_status
                 END AS status) build_status)
@@ -2002,7 +2034,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -2258,7 +2290,8 @@ CREATE TABLE templates (
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     use_classic_parameter_flow boolean DEFAULT false NOT NULL,
-    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
+    disable_module_cache boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -2312,6 +2345,7 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
     templates.cors_behavior,
+    templates.disable_module_cache,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -2427,7 +2461,8 @@ CREATE TABLE workspace_agent_devcontainers (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_folder text NOT NULL,
     config_path text NOT NULL,
-    name text NOT NULL
+    name text NOT NULL,
+    subagent_id uuid
 );
 
 COMMENT ON TABLE workspace_agent_devcontainers IS 'Workspace agent devcontainer configuration';
@@ -2940,6 +2975,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY boundary_usage_stats
+    ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
@@ -3703,6 +3741,9 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_devcontainers
+    ADD CONSTRAINT workspace_agent_devcontainers_subagent_id_fkey FOREIGN KEY (subagent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

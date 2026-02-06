@@ -612,13 +612,10 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				RichParameters:             startProvision.Parameters,
 				ExternalAuthProvidersNames: externalAuthProviderNames,
 				ExternalAuthProviders:      startProvision.ExternalAuthProviders,
-				// TODO: These are defined as different, but can they be?
-				//   Terraform downloads modules regardless of `count`, so this should be the same
-				StartModules: initResp.Modules,
-				StopModules:  initResp.Modules,
-				Presets:      startProvision.Presets,
-				Plan:         startProvision.Plan,
-				ModuleFiles:  initResp.ModuleFiles,
+				StartModules:               initResp.Modules,
+				Presets:                    startProvision.Presets,
+				Plan:                       startProvision.Plan,
+				ModuleFiles:                initResp.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
 				ModuleFilesHash:   []byte{},
 				HasAiTasks:        startProvision.HasAITasks,

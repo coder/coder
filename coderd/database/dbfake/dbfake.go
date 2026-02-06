@@ -314,14 +314,15 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	case database.ProvisionerJobStatusCanceled:
 		// Set provisioner job status to 'canceled'
 		b.logger.Debug(context.Background(), "canceling the provisioner job")
+		now := dbtime.Now()
 		err = b.db.UpdateProvisionerJobWithCancelByID(ownerCtx, database.UpdateProvisionerJobWithCancelByIDParams{
 			ID: jobID,
 			CanceledAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  now,
 				Valid: true,
 			},
 			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  now,
 				Valid: true,
 			},
 		})
@@ -696,12 +697,16 @@ func (b JobCompleteBuilder) Pubsub(ps pubsub.Pubsub) JobCompleteBuilder {
 
 func (b JobCompleteBuilder) Do() JobCompleteResponse {
 	r := JobCompleteResponse{CompletedAt: dbtime.Now()}
-	err := b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+	err := b.db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ownerCtx, database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 		ID:        b.jobID,
 		UpdatedAt: r.CompletedAt,
 		Error:     sql.NullString{},
 		ErrorCode: sql.NullString{},
 		CompletedAt: sql.NullTime{
+			Time:  r.CompletedAt,
+			Valid: true,
+		},
+		StartedAt: sql.NullTime{
 			Time:  r.CompletedAt,
 			Valid: true,
 		},

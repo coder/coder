@@ -41,13 +41,11 @@ export const getGroupSubtitle = (group: Group): string => {
 		return "All users";
 	}
 
-	if (!group.members) {
-		return "0 members";
-	}
+	const total = group.total_member_count ?? group.members?.length ?? 0;
 
-	if (group.members.length === 1) {
+	if (total === 1) {
 		return "1 member";
 	}
 
-	return `${group.members.length} members`;
+	return `${total} members`;
 };

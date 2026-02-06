@@ -27,7 +27,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { ArrowUpIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
+import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize, {
@@ -270,9 +270,18 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									{templates.map((template) => {
 										return (
 											<SelectItem value={template.id} key={template.id}>
-												<span className="overflow-hidden text-ellipsis block">
-													{template.display_name || template.name}
-												</span>
+												<div className="flex items-center gap-2">
+													{template.icon && (
+														<img
+															src={template.icon}
+															alt={template.name}
+															className="size-icon-sm flex-shrink-0"
+														/>
+													)}
+													<span className="overflow-hidden text-ellipsis block">
+														{template.display_name || template.name}
+													</span>
+												</div>
 											</SelectItem>
 										);
 									})}
@@ -294,7 +303,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</div>
 						)}
 
-						<div>
+						<div className="flex-1 overflow-hidden min-w-0">
 							<label htmlFor="presetID" className="sr-only">
 								Preset
 							</label>
@@ -310,15 +319,43 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										value={selectedPresetId}
 										onValueChange={setSelectedPresetId}
 									>
-										<PromptSelectTrigger id="presetID" tooltip="Preset">
+										<PromptSelectTrigger
+											id="presetID"
+											tooltip="Preset"
+											className="w-full max-w-full [&_span]:flex [&_span]:items-center [&_span]:gap-2 [&_span]:min-w-0 [&_span]:overflow-hidden [&_span>span]:truncate [&_svg[data-slot='preset-description']]:hidden"
+										>
 											<SelectValue placeholder="Select a preset" />
 										</PromptSelectTrigger>
 										<SelectContent>
 											{presets?.toSorted(sortByDefault).map((preset) => (
-												<SelectItem value={preset.ID} key={preset.ID}>
-													<span className="overflow-hidden text-ellipsis block">
+												<SelectItem
+													value={preset.ID}
+													key={preset.ID}
+													className="[&_span]:flex [&_span]:items-center [&_span]:gap-2"
+												>
+													{preset.Icon && (
+														<img
+															src={preset.Icon}
+															alt={preset.Name}
+															className="size-icon-sm flex-shrink-0"
+														/>
+													)}
+													<span>
 														{preset.Name} {preset.Default && "(Default)"}
 													</span>
+													{preset.Description && (
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<InfoIcon
+																	className="size-4"
+																	data-slot="preset-description"
+																/>
+															</TooltipTrigger>
+															<TooltipContent>
+																{preset.Description}
+															</TooltipContent>
+														</Tooltip>
+													)}
 												</SelectItem>
 											))}
 										</SelectContent>
@@ -380,7 +417,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 		return (
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
-					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-white"
+					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-content-primary"
 					size="sm"
 					disabled={isPollingExternalAuth || auth.authenticated}
 					onClick={() => {

@@ -1509,7 +1509,7 @@ func newHeartbeats(
 		clock:          clk,
 	}
 	h.wg.Add(3)
-	go h.subscribe()
+	h.subscribe()
 	go h.sendBeats()
 	go h.cleanupLoop()
 	return h
@@ -1560,9 +1560,11 @@ func (h *heartbeats) subscribe() {
 		}
 		return
 	}
-	// cancel subscription when context finishes
-	defer cancel()
-	<-h.ctx.Done()
+	go func() {
+		// cancel subscription when context finishes
+		<-h.ctx.Done()
+		cancel()
+	}()
 }
 
 func (h *heartbeats) listen(_ context.Context, msg []byte, err error) {

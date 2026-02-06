@@ -16,12 +16,20 @@ type CreateOAuth2AppProps = {
 	isUpdating: boolean;
 	createApp: (req: TypesGen.PostOAuth2ProviderAppRequest) => void;
 	error?: unknown;
+	defaultValues?: {
+		name: string;
+		callback_url: string;
+		icon: string;
+	};
+	canCreateApp: boolean;
 };
 
 export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 	isUpdating,
 	createApp,
 	error,
+	defaultValues,
+	canCreateApp,
 }) => {
 	return (
 		<>
@@ -51,6 +59,8 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 					onSubmit={createApp}
 					isUpdating={isUpdating}
 					error={error}
+					defaultValues={defaultValues}
+					disabled={!canCreateApp}
 				/>
 			</Stack>
 		</>

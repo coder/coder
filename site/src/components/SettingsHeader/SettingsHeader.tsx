@@ -24,7 +24,9 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 			 * we have a predictable max width for the header + description by
 			 * default.
 			 */}
-			<div className={cn("text-sm max-w-prose", className)}>{children}</div>
+			<div className={cn("text-sm max-w-prose flex flex-col gap-2", className)}>
+				{children}
+			</div>
 			{actions}
 		</hgroup>
 	);
@@ -48,7 +50,7 @@ export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
 	);
 };
 
-const titleVariants = cva("m-0 pb-1 flex items-center gap-2 leading-tight", {
+const titleVariants = cva("m-0 flex items-center gap-2 leading-tight", {
 	variants: {
 		hierarchy: {
 			primary: "text-3xl font-bold",
@@ -100,7 +102,12 @@ export const SettingsHeaderDescription: FC<SettingsHeaderDescriptionProps> = ({
 	className,
 }) => {
 	return (
-		<p className={cn("m-0 text-content-secondary leading-relaxed", className)}>
+		<p
+			className={cn(
+				"m-0 text-content-secondary font-medium leading-normal",
+				className,
+			)}
+		>
 			{children}
 		</p>
 	);

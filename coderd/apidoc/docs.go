@@ -3482,6 +3482,45 @@ const docTemplate = `{
             }
         },
         "/organizations/{organization}/members/{user}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Get organization member",
+                "operationId": "get-organization-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -6722,6 +6761,16 @@ const docTemplate = `{
                         "description": "Follow log stream",
                         "name": "follow",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6980,6 +7029,16 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Follow log stream",
                         "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
                         "in": "query"
                     }
                 ],
@@ -9944,6 +10003,16 @@ const docTemplate = `{
                         "description": "Disable compression for WebSocket connection",
                         "name": "no_compression",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -10238,6 +10307,16 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Follow log stream",
                         "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "text"
+                        ],
+                        "type": "string",
+                        "description": "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.",
+                        "name": "format",
                         "in": "query"
                     }
                 ],
@@ -10848,7 +10927,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy.",
                         "name": "q",
                         "in": "query"
                     },
@@ -12467,6 +12546,10 @@ const docTemplate = `{
                 "audit_log:*",
                 "audit_log:create",
                 "audit_log:read",
+                "boundary_usage:*",
+                "boundary_usage:delete",
+                "boundary_usage:read",
+                "boundary_usage:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -12615,6 +12698,7 @@ const docTemplate = `{
                 "workspace:start",
                 "workspace:stop",
                 "workspace:update",
+                "workspace:update_agent",
                 "workspace_agent_devcontainers:*",
                 "workspace_agent_devcontainers:create",
                 "workspace_agent_resource_monitor:*",
@@ -12633,6 +12717,7 @@ const docTemplate = `{
                 "workspace_dormant:start",
                 "workspace_dormant:stop",
                 "workspace_dormant:update",
+                "workspace_dormant:update_agent",
                 "workspace_proxy:*",
                 "workspace_proxy:create",
                 "workspace_proxy:delete",
@@ -12665,6 +12750,10 @@ const docTemplate = `{
                 "APIKeyScopeAuditLogAll",
                 "APIKeyScopeAuditLogCreate",
                 "APIKeyScopeAuditLogRead",
+                "APIKeyScopeBoundaryUsageAll",
+                "APIKeyScopeBoundaryUsageDelete",
+                "APIKeyScopeBoundaryUsageRead",
+                "APIKeyScopeBoundaryUsageUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -12813,6 +12902,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceStart",
                 "APIKeyScopeWorkspaceStop",
                 "APIKeyScopeWorkspaceUpdate",
+                "APIKeyScopeWorkspaceUpdateAgent",
                 "APIKeyScopeWorkspaceAgentDevcontainersAll",
                 "APIKeyScopeWorkspaceAgentDevcontainersCreate",
                 "APIKeyScopeWorkspaceAgentResourceMonitorAll",
@@ -12831,6 +12921,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDormantStart",
                 "APIKeyScopeWorkspaceDormantStop",
                 "APIKeyScopeWorkspaceDormantUpdate",
+                "APIKeyScopeWorkspaceDormantUpdateAgent",
                 "APIKeyScopeWorkspaceProxyAll",
                 "APIKeyScopeWorkspaceProxyCreate",
                 "APIKeyScopeWorkspaceProxyDelete",
@@ -17705,6 +17796,7 @@ const docTemplate = `{
                 "share",
                 "unassign",
                 "update",
+                "update_agent",
                 "update_personal",
                 "use",
                 "view_insights",
@@ -17724,6 +17816,7 @@ const docTemplate = `{
                 "ActionShare",
                 "ActionUnassign",
                 "ActionUpdate",
+                "ActionUpdateAgent",
                 "ActionUpdatePersonal",
                 "ActionUse",
                 "ActionViewInsights",
@@ -17740,6 +17833,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "boundary_usage",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -17784,6 +17878,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceBoundaryUsage",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -18557,6 +18652,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.TaskLogEntry"
                     }
+                },
+                "snapshot": {
+                    "type": "boolean"
+                },
+                "snapshot_at": {
+                    "type": "string"
                 }
             }
         },
@@ -18711,6 +18812,10 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning.",
+                    "type": "boolean"
                 },
                 "display_name": {
                     "type": "string"
@@ -19666,6 +19771,10 @@ const docTemplate = `{
                 },
                 "disable_everyone_group_access": {
                     "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+                    "type": "boolean"
+                },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is recommended not to disable this.",
                     "type": "boolean"
                 },
                 "display_name": {

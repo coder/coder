@@ -16,21 +16,12 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { ShareButton } from "../WorkspacePage/WorkspaceActions/ShareButton";
 import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";
 
-type TaskTopbarProps = {
-	task: Task;
-	workspace: Workspace;
-	canUpdatePermissions: boolean;
-};
+type TaskTopbarProps = { task: Task; workspace: Workspace };
 
-export const TaskTopbar: FC<TaskTopbarProps> = ({
-	task,
-	workspace,
-	canUpdatePermissions,
-}) => {
+export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 	return (
 		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
@@ -78,11 +69,6 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
-
-				<ShareButton
-					workspace={workspace}
-					canUpdatePermissions={canUpdatePermissions}
-				/>
 
 				<Button asChild variant="outline" size="sm">
 					<RouterLink to={`/@${workspace.owner_name}/${workspace.name}`}>

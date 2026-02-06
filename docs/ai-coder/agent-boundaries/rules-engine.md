@@ -2,15 +2,20 @@
 
 ## Overview
 
-The `rulesengine` package provides a flexible rule-based filtering system for HTTP/HTTPS requests. Rules use a simple key-value syntax with support for wildcards and multiple values.
+The `rulesengine` package provides a flexible rule-based filtering system for
+HTTP/HTTPS requests. Rules use a simple key-value syntax with support for
+wildcards and multiple values.
 
 ### Basic Syntax
 
 Rules follow the format: `key=value [key=value ...]` with three supported keys:
 
-- **`method`**: HTTP method(s) - Any HTTP method (e.g., `GET`, `POST`, `PUT`, `DELETE`), `*` (all methods), or comma-separated list
-- **`domain`**: Domain/hostname pattern - `github.com`, `*.example.com`, `*` (all domains)
-- **`path`**: URL path pattern - `/api/users`, `/api/*/users`, `*` (all paths), or comma-separated list
+- **`method`**: HTTP method(s) - Any HTTP method (e.g., `GET`, `POST`, `PUT`,
+  `DELETE`), `*` (all methods), or comma-separated list
+- **`domain`**: Domain/hostname pattern - `github.com`, `*.example.com`, `*`
+  (all domains)
+- **`path`**: URL path pattern - `/api/users`, `/api/*/users`, `*` (all paths),
+  or comma-separated list
 
 **Key behavior**:
 
@@ -23,11 +28,11 @@ Rules follow the format: `key=value [key=value ...]` with three supported keys:
 
 ```yaml
 allowlist:
-  - domain=github.com                                  # All methods, all paths for github.com (exact match)
-  - domain=*.github.com                                # All subdomains of github.com
-  - method=GET,POST domain=api.example.com             # GET/POST to api.example.com (exact match)
-  - domain=api.example.com path=/users,/posts          # Multiple paths
-  - method=GET domain=github.com path=/api/*           # All three keys
+  - domain=github.com # All methods, all paths for github.com (exact match)
+  - domain=*.github.com # All subdomains of github.com
+  - method=GET,POST domain=api.example.com # GET/POST to api.example.com (exact match)
+  - domain=api.example.com path=/users,/posts # Multiple paths
+  - method=GET domain=github.com path=/api/* # All three keys
 ```
 
 ---
@@ -49,7 +54,8 @@ The `*` wildcard matches domain labels (parts separated by dots).
 
 - Patterns without `*` match **exactly** (no automatic subdomain matching)
 - `*.example.com` matches one or more subdomain levels
-- To match both base domain and subdomains, use separate rules: `domain=github.com` and `domain=*.github.com`
+- To match both base domain and subdomains, use separate rules:
+  `domain=github.com` and `domain=*.github.com`
 - Domain patterns **cannot end with asterisk**
 
 ---
@@ -71,7 +77,8 @@ The `*` wildcard matches path segments (parts separated by slashes).
 
 - `*` matches **exactly one segment** (except at the end)
 - `*` at the **end** matches **one or more segments** (special behavior)
-- `*` must match an entire segment (cannot be part of a segment like `/api/user*`)
+- `*` must match an entire segment (cannot be part of a segment like
+  `/api/user*`)
 
 ---
 
@@ -96,5 +103,5 @@ allowlist:
   - domain=api.example.com path=/api,/api/*
 ```
 
-`NOTE`: The pattern `/api/*` does not include the base path `/api`.
-To match both, use `path=/api,/api/*`.
+`NOTE`: The pattern `/api/*` does not include the base path `/api`. To match
+both, use `path=/api,/api/*`.
