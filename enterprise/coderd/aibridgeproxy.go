@@ -29,7 +29,7 @@ func aibridgeproxyHandler(api *API, middlewares ...func(http.Handler) http.Handl
 		r.Use(middlewares...)
 
 		r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-			if !api.Authorize(r, policy.ActionUse, rbac.ResourceAibridge.AnyOrganization()) {
+			if !api.Authorize(r, policy.ActionCreate, rbac.ResourceAibridgeInterception.AnyOrganization()) {
 				httpapi.Forbidden(rw)
 				return
 			}

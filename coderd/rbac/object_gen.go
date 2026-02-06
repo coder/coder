@@ -15,13 +15,6 @@ var (
 		Type: "*",
 	}
 
-	// ResourceAibridge
-	// Valid Actions
-	//  - "ActionUse" :: use AI Bridge LLM endpoints
-	ResourceAibridge = Object{
-		Type: "aibridge",
-	}
-
 	// ResourceAibridgeInterception
 	// Valid Actions
 	//  - "ActionCreate" :: create aibridge interceptions & related records
@@ -430,7 +423,6 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
-		ResourceAibridge,
 		ResourceAibridgeInterception,
 		ResourceApiKey,
 		ResourceAssignOrgRole,

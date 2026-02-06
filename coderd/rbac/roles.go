@@ -308,8 +308,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// All users can see OAuth2 provider applications.
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
-			// All members can use AI Bridge endpoints.
-			ResourceAibridge.Type: {policy.ActionUse},
+			// All members can use AI Bridge endpoints
+			// (creating interceptions is the gate for feature access).
+			ResourceAibridgeInterception.Type: {policy.ActionCreate},
 		}),
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage),
 			Permissions(map[string][]policy.Action{
@@ -465,6 +466,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceGroupMember.Type:        {policy.ActionRead},
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
+							// Allow org auditors to query aibridge interceptions.
+							ResourceAibridgeInterception.Type: {policy.ActionRead},
 						}),
 						Member: []Permission{},
 					},

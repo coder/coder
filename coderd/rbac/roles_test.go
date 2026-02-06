@@ -1000,7 +1000,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "AIBridgeInterceptions",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, memberMe},
@@ -1017,26 +1017,26 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceAibridgeInterception.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin},
-				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin},
+				true:  {owner, orgAdmin, orgAuditor},
+				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin},
 			},
 		},
+			{
+				Name:     "AIBridgeInterceptionsCreate",
+				Actions:  []policy.Action{policy.ActionCreate},
+				Resource: rbac.ResourceAibridgeInterception.InOrg(orgID),
+				AuthorizeMap: map[bool][]hasAuthSubjects{
+					// All authenticated members can use AI Bridge (creating interceptions gates feature access).
+					true:  {owner, memberMe, orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin, setOtherOrg},
+					false: {},
+				},
+			},
 		{
 			Name:     "BoundaryUsage",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryUsage,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				false: {owner, setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
-			},
-		},
-		{
-			Name:     "AIBridge",
-			Actions:  []policy.Action{policy.ActionUse},
-			Resource: rbac.ResourceAibridge,
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				// All authenticated members can use AI Bridge (site-scoped, granted via member role).
-				true:  {owner, memberMe, orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin, setOtherOrg},
-				false: {},
 			},
 		},
 	}

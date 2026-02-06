@@ -66,8 +66,6 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"organization:*":      {},
 
 	// AI Bridge
-	"aibridge:use":                 {},
-	"aibridge:*":                   {},
 	"aibridge_interception:create": {},
 	"aibridge_interception:read":   {},
 	"aibridge_interception:update": {},

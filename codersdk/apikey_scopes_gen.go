@@ -6,8 +6,6 @@ const (
 	APIKeyScopeAll APIKeyScope = "all"
 	// Deprecated: use codersdk.APIKeyScopeCoderApplicationConnect instead.
 	APIKeyScopeApplicationConnect                  APIKeyScope = "application_connect"
-	APIKeyScopeAibridgeAll                         APIKeyScope = "aibridge:*"
-	APIKeyScopeAibridgeUse                         APIKeyScope = "aibridge:use"
 	APIKeyScopeAibridgeInterceptionAll             APIKeyScope = "aibridge_interception:*"
 	APIKeyScopeAibridgeInterceptionCreate          APIKeyScope = "aibridge_interception:create"
 	APIKeyScopeAibridgeInterceptionRead            APIKeyScope = "aibridge_interception:read"
@@ -212,8 +210,6 @@ const (
 
 // PublicAPIKeyScopes lists all public low-level API key scopes.
 var PublicAPIKeyScopes = []APIKeyScope{
-	APIKeyScopeAibridgeAll,
-	APIKeyScopeAibridgeUse,
 	APIKeyScopeAibridgeInterceptionAll,
 	APIKeyScopeAibridgeInterceptionCreate,
 	APIKeyScopeAibridgeInterceptionRead,

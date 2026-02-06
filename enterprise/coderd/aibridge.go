@@ -47,17 +47,15 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 
 		// Apply overload protection middleware to the aibridged handler.
 		// Concurrency limit is checked first for faster rejection under load.
+		// NOTE: The aibridged handler routes do NOT use apiKeyMiddleware
+		// because aibridged handles its own authentication. RBAC enforcement
+		// for these routes needs to happen inside aibridged itself.
+		// TODO: Add RBAC enforcement in aibridged service (follow-up).
 		r.Group(func(r chi.Router) {
-			r.Use(middlewares...)
 			r.Use(concurrencyLimiter, rateLimiter)
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				if !api.Authorize(r, policy.ActionUse, rbac.ResourceAibridge.AnyOrganization()) {
-					httpapi.Forbidden(rw)
-					return
-				}
-
 				if api.aibridgedHandler == nil {
 					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 						Message: "aibridged handler not mounted",
@@ -87,6 +85,12 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Router /aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAibridgeInterception.AnyOrganization()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	apiKey := httpmw.APIKey(r)
 
 	page, ok := coderd.ParsePagination(rw, r)
