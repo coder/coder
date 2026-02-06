@@ -1980,39 +1980,41 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
-const deleteBoundaryUsageStatsByReplicaID = `-- name: DeleteBoundaryUsageStatsByReplicaID :exec
-DELETE FROM boundary_usage_stats WHERE replica_id = $1
-`
-
-// Deletes boundary usage statistics for a specific replica.
-func (q *sqlQuerier) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteBoundaryUsageStatsByReplicaID, replicaID)
-	return err
-}
-
-const getBoundaryUsageSummary = `-- name: GetBoundaryUsageSummary :one
+const getAndResetBoundaryUsageSummary = `-- name: GetAndResetBoundaryUsageSummary :one
+WITH deleted AS (
+    DELETE FROM boundary_usage_stats
+    RETURNING replica_id, unique_workspaces_count, unique_users_count, allowed_requests, denied_requests, window_start, updated_at
+)
 SELECT
-    COALESCE(SUM(unique_workspaces_count), 0)::bigint AS unique_workspaces,
-    COALESCE(SUM(unique_users_count), 0)::bigint AS unique_users,
-    COALESCE(SUM(allowed_requests), 0)::bigint AS allowed_requests,
-    COALESCE(SUM(denied_requests), 0)::bigint AS denied_requests
-FROM boundary_usage_stats
-WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    COALESCE(SUM(unique_workspaces_count) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS unique_workspaces,
+    COALESCE(SUM(unique_users_count) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS unique_users,
+    COALESCE(SUM(allowed_requests) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS allowed_requests,
+    COALESCE(SUM(denied_requests) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS denied_requests
+FROM deleted
 `
 
-type GetBoundaryUsageSummaryRow struct {
+type GetAndResetBoundaryUsageSummaryRow struct {
 	UniqueWorkspaces int64 `db:"unique_workspaces" json:"unique_workspaces"`
 	UniqueUsers      int64 `db:"unique_users" json:"unique_users"`
 	AllowedRequests  int64 `db:"allowed_requests" json:"allowed_requests"`
 	DeniedRequests   int64 `db:"denied_requests" json:"denied_requests"`
 }
 
-// Aggregates boundary usage statistics across all replicas. Filters to only
-// include data where window_start is within the given interval to exclude
-// stale data.
-func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error) {
-	row := q.db.QueryRowContext(ctx, getBoundaryUsageSummary, maxStalenessMs)
-	var i GetBoundaryUsageSummaryRow
+// Atomic read+delete prevents replicas that flush between a separate read and
+// reset from having their data deleted before the next snapshot. Uses a common
+// table expression with DELETE...RETURNING so the rows we sum are exactly the
+// rows we delete. Stale rows are excluded from the sum but still deleted.
+func (q *sqlQuerier) GetAndResetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetAndResetBoundaryUsageSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getAndResetBoundaryUsageSummary, maxStalenessMs)
+	var i GetAndResetBoundaryUsageSummaryRow
 	err := row.Scan(
 		&i.UniqueWorkspaces,
 		&i.UniqueUsers,
@@ -2020,17 +2022,6 @@ func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs
 		&i.DeniedRequests,
 	)
 	return i, err
-}
-
-const resetBoundaryUsageStats = `-- name: ResetBoundaryUsageStats :exec
-DELETE FROM boundary_usage_stats
-`
-
-// Deletes all boundary usage statistics. Called after telemetry reports the
-// aggregated stats. Each replica will insert a fresh row on its next flush.
-func (q *sqlQuerier) ResetBoundaryUsageStats(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, resetBoundaryUsageStats)
-	return err
 }
 
 const upsertBoundaryUsageStats = `-- name: UpsertBoundaryUsageStats :one
