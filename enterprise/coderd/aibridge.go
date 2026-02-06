@@ -16,8 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -84,11 +82,6 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Router /aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAibridgeInterception.AnyOrganization()) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	apiKey := httpmw.APIKey(r)
 
