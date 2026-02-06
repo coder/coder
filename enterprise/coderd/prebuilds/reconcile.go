@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -120,23 +119,63 @@ func NewStoreReconciler(store database.Store,
 	}
 
 	if registerer != nil {
-		reconciler.metrics = NewMetricsCollector(store, logger, reconciler)
-		if err := registerer.Register(reconciler.metrics); err != nil {
-			// If the registerer fails to register the metrics collector, it's not fatal.
-			logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
-		}
+		reconciler.metrics = registerOnce(logger, registerer, NewMetricsCollector(store, logger, reconciler))
 
-		factory := promauto.With(registerer)
-		reconciler.reconciliationDuration = factory.NewHistogram(prometheus.HistogramOpts{
+		reconciler.reconciliationDuration = registerOnce(logger, registerer, prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "prebuilds",
 			Name:      "reconciliation_duration_seconds",
 			Help:      "Duration of each prebuilds reconciliation cycle.",
 			Buckets:   prometheus.DefBuckets,
-		})
+		}))
 	}
 
 	return reconciler
+}
+
+
+// registerOnce attempts to register a prometheus collector. If the
+// collector is already registered (e.g. from a previous reconciler
+// that wasn't properly stopped), it reuses the existing one instead
+// of panicking. This makes metric registration resilient to races
+// in the entitlement update flow where Stop and recreate may
+// overlap. See https://github.com/coder/coder/issues/21803.
+func registerOnce[T prometheus.Collector](logger slog.Logger, registerer prometheus.Registerer, collector T) T {
+	err := registerer.Register(collector)
+	if err == nil {
+		return collector
+	}
+	// If the error is AlreadyRegisteredError, reuse the previously
+	// registered collector so we keep observing the same metric.
+	var alreadyRegistered prometheus.AlreadyRegisteredError
+	if errors.As(err, &alreadyRegistered) {
+		logger.Debug(context.Background(), "reusing already registered prometheus collector",
+			slog.F("collector_type", fmt.Sprintf("%T", alreadyRegistered.ExistingCollector)),
+			slog.F("collector_desc", describeCollector(alreadyRegistered.ExistingCollector)),
+		)
+		//nolint:forcetypeassert // The type must match since the descriptor is identical.
+		return alreadyRegistered.ExistingCollector.(T)
+	}
+	// For any other error, return the original collector. Registration
+	// failed but the metric is still usable locally (it just won't
+	// be scraped by Prometheus).
+	return collector
+}
+
+
+// describeCollector returns the fqNames of all metric descriptors
+// exposed by a prometheus.Collector, for use in debug logging.
+func describeCollector(c prometheus.Collector) []string {
+	ch := make(chan *prometheus.Desc, 16)
+	go func() {
+		c.Describe(ch)
+		close(ch)
+	}()
+	var names []string
+	for desc := range ch {
+		names = append(names, desc.String())
+	}
+	return names
 }
 
 // calculateReconciliationConcurrency determines the number of concurrent

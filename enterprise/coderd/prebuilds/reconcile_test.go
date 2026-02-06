@@ -2620,6 +2620,152 @@ func newNoopUsageCheckerPtr() *atomic.Pointer[wsbuilder.UsageChecker] {
 	return &buildUsageChecker
 }
 
+// TestMetricsRegistrationLifecycle verifies that the StoreReconciler handles
+// prometheus metric registration and unregistration correctly across multiple
+// reconciler lifecycles. This is a regression test for
+// https://github.com/coder/coder/issues/21803, where re-adding a license would
+// recreate the reconciler and panic due to duplicate metric registration.
+func TestMetricsRegistrationLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("StopThenRecreate", func(t *testing.T) {
+		// Scenario: stopping a reconciler then creating a new one
+		// with the same registry should not panic. This is the
+		// normal flow when a license is removed and re-added.
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		cfg := codersdk.PrebuildsConfig{
+			ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+		}
+		logger := testutil.Logger(t)
+
+		// Use a shared registry across reconciler lifecycles, just
+		// like the real coderd does with api.PrometheusRegistry.
+		registry := prometheus.NewRegistry()
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		// First reconciler lifecycle: create and stop.
+		reconciler1 := prebuilds.NewStoreReconciler(
+			db, ps, cache, cfg, logger,
+			clock,
+			registry,
+			newNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		reconciler1.Stop(ctx, xerrors.New("test: license removed"))
+
+		// Second reconciler lifecycle: creating a new reconciler
+		// with the same registry must not panic.
+		reconciler2 := prebuilds.NewStoreReconciler(
+			db, ps, cache, cfg, logger,
+			clock,
+			registry,
+			newNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
+
+		reconciler2.Stop(ctx, xerrors.New("test: cleanup"))
+	})
+
+	t.Run("RecreateWithoutStop", func(t *testing.T) {
+		// Scenario: creating a second reconciler WITHOUT stopping
+		// the first one should not crash the process. Before the
+		// fix, promauto.With(registerer).NewHistogram() called
+		// MustRegister which panicked on duplicate registration.
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		cfg := codersdk.PrebuildsConfig{
+			ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+		}
+		logger := testutil.Logger(t)
+
+		registry := prometheus.NewRegistry()
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		// First reconciler: created but NOT stopped (simulates
+		// a bug or race in entitlement update where Stop is
+		// skipped).
+		_ = prebuilds.NewStoreReconciler(
+			db, ps, cache, cfg, logger,
+			clock,
+			registry,
+			newNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
+
+		// Second reconciler: with the same registry. Before the
+		// fix, this panics. After the fix, it should gracefully
+		// handle the duplicate.
+		require.NotPanics(t, func() {
+			reconciler2 := prebuilds.NewStoreReconciler(
+				db, ps, cache, cfg, logger,
+				clock,
+				registry,
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+			)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			reconciler2.Stop(ctx, xerrors.New("test: cleanup"))
+		})
+	})
+
+	t.Run("MultipleStopCalls", func(t *testing.T) {
+		// Scenario: calling Stop multiple times should be safe.
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		cfg := codersdk.PrebuildsConfig{
+			ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+		}
+		logger := testutil.Logger(t)
+
+		registry := prometheus.NewRegistry()
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		reconciler := prebuilds.NewStoreReconciler(
+			db, ps, cache, cfg, logger,
+			clock,
+			registry,
+			newNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		reconciler.Stop(ctx, xerrors.New("test: first stop"))
+		reconciler.Stop(ctx, xerrors.New("test: second stop"))
+
+		// After stopping twice, a new reconciler should still
+		// be able to register metrics without issues.
+		reconciler2 := prebuilds.NewStoreReconciler(
+			db, ps, cache, cfg, logger,
+			clock,
+			registry,
+			newNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
+			noop.NewTracerProvider(),
+			10,
+		)
+		reconciler2.Stop(ctx, xerrors.New("test: cleanup"))
+	})
+}
+
 // nolint:revive // It's a control flag, but this is a test.
 func setupTestDBTemplate(
 	t *testing.T,
