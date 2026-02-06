@@ -12,6 +12,7 @@ import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
@@ -22,6 +23,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -213,6 +215,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<h3 className="sr-only">App statuses</h3>
 						<AppStatuses workspace={workspace} agent={agent} />
 					</section>
+				)}
+
+				{workspace.task_id && (
+					<Button asChild size="sm" variant="outline" className="w-fit">
+						<RouterLink
+							to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+						>
+							<SquareCheckBigIcon />
+							View task
+						</RouterLink>
+					</Button>
 				)}
 
 				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
