@@ -1,16 +1,118 @@
 package pty
 
 import (
+	"context"
 	"io"
 	"log"
 	"os"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
 
 	"github.com/gliderlabs/ssh"
 	"golang.org/x/xerrors"
 )
 
+const (
+	defaultPTYMaxTotal   = 4096
+	testSemaphoreTimeout = 30 * time.Second
+)
+
 // ErrClosed is returned when a PTY is used after it has been closed.
 var ErrClosed = xerrors.New("pty: closed")
+
+// testSemaphore limits the number of PTYs that can be created concurrently in tests.
+// It is set in init() when testing.Testing() is true (go test); production builds leave it nil.
+var (
+	testSemaphore   chan struct{}
+	testSemaphoreMu sync.RWMutex
+)
+
+func init() {
+	// Only limit PTYs when running under go test; production builds never set the semaphore.
+	if !testing.Testing() {
+		return
+	}
+	maxTotal := defaultPTYMaxTotal
+	if s := os.Getenv("PTY_MAX_TOTAL"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			maxTotal = n
+		}
+	}
+	parallelPkgs := 8
+	if s := os.Getenv("TEST_NUM_PARALLEL_PACKAGES"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			parallelPkgs = n
+		}
+	}
+	capacity := maxTotal / parallelPkgs
+	if capacity < 1 {
+		capacity = 1
+	}
+	SetTestSemaphore(capacity)
+}
+
+// SetTestSemaphore configures a semaphore to limit concurrent PTY creation in tests.
+// It is called from pty's init() when testing.Testing() is true;
+// capacity is the maximum number of PTYs that can be created concurrently.
+// If capacity is 0 or negative, the semaphore is disabled.
+func SetTestSemaphore(capacity int) {
+	testSemaphoreMu.Lock()
+	defer testSemaphoreMu.Unlock()
+
+	if capacity <= 0 {
+		testSemaphore = nil
+		return
+	}
+
+	// Create new semaphore with the specified capacity
+	// If one already exists, it will be garbage collected
+	testSemaphore = make(chan struct{}, capacity)
+}
+
+// acquireTestSemaphore attempts to acquire a slot from the test semaphore.
+// Returns an error if the semaphore is set and acquisition times out (in tests).
+// In production, the semaphore is nil and this returns immediately with no error.
+// The caller must call releaseTestSemaphore in a defer.
+func acquireTestSemaphore(ctx context.Context) error {
+	testSemaphoreMu.RLock()
+	sem := testSemaphore
+	testSemaphoreMu.RUnlock()
+
+	if sem == nil {
+		// No semaphore set - production mode, no limit
+		return nil
+	}
+
+	//nolint:gocritic // Not a test file; we do not want to import testutil here.
+	timeoutCtx, cancel := context.WithTimeout(ctx, testSemaphoreTimeout)
+	defer cancel()
+
+	select {
+	case sem <- struct{}{}:
+		return nil
+	case <-timeoutCtx.Done():
+		return xerrors.Errorf("timeout waiting for PTY semaphore: %w", timeoutCtx.Err())
+	}
+}
+
+// releaseTestSemaphore releases a slot back to the test semaphore.
+func releaseTestSemaphore() {
+	testSemaphoreMu.RLock()
+	sem := testSemaphore
+	testSemaphoreMu.RUnlock()
+
+	if sem == nil {
+		return
+	}
+
+	select {
+	case <-sem:
+	default:
+		// Should not happen if acquire/release are paired correctly
+	}
+}
 
 // PTYCmd is an interface for interacting with a pseudo-TTY where we control
 // only one end, and the other end has been passed to a running os.Process.

@@ -55,6 +55,21 @@ runs:
       run: |
         go run scripts/embedded-pg/main.go -path "${EMBEDDED_PG_PATH}" -cache "${EMBEDDED_PG_CACHE_DIR}"
 
+    - name: Set PTY limit for tests
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Capacity per package = PTY_MAX_TOTAL / TEST_NUM_PARALLEL_PACKAGES
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          echo "PTY_MAX_TOTAL=$(sysctl -n kern.tty.ptmx_max)" >> "$GITHUB_ENV"
+        elif [[ "$RUNNER_OS" == "Linux" ]]; then
+          if [[ -f /proc/sys/kernel/pty/max ]]; then
+            echo "PTY_MAX_TOTAL=$(cat /proc/sys/kernel/pty/max)" >> "$GITHUB_ENV"
+          else
+            echo "PTY_MAX_TOTAL=4096" >> "$GITHUB_ENV"
+          fi
+        fi
+
     - name: Run tests
       shell: bash
       env:
