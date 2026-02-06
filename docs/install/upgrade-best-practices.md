@@ -56,12 +56,21 @@ prevent the new pod from acquiring necessary locks.
 1. **Scale back:** Once the upgrade is healthy, scale back to your desired
    replica count.
 
-## Kubernetes liveness probe configuration for long-running migrations
+## Kubernetes liveness probes and long-running migrations
 
-Large database migrations may exceed default Kubernetes `livenessProbe`
-timeouts. If you observe pods restarting with `CrashLoopBackOff` during an
-upgrade and logs indicate a migration in progress, Kubernetes might be killing
-the pod prematurely.
+Liveness probes can cause pods to be killed during long-running database
+migrations. Starting with Helm chart version 2.1.0, liveness probes are
+*disabled by default* for Coder deployments.
+
+This change was made because:
+
+- Liveness probes can kill pods during legitimate long-running migrations
+- If a Coder pod becomes unresponsive (due to a deadlock, etc.), it's better to
+  investigate the issue rather than have Kubernetes silently restart the pod
+
+If you have enabled liveness probes in your deployment and observe pods
+restarting with `CrashLoopBackOff` during an upgrade, the liveness probe may be
+killing the pod prematurely.
 
 ### Diagnosing liveness probe issues
 
@@ -81,25 +90,20 @@ liveness probe, will be restarted`.
 
 ### Recommended approach
 
-Temporarily remove the `livenessProbe` from the Coder Deployment before
-upgrading. This prevents Kubernetes from killing the pod during long-running
-migrations.
-
-To do this, edit your Deployment directly:
+If you have liveness probes enabled and experience issues during upgrades,
+disable them before upgrading:
 
 ```shell
 kubectl edit deployment coder
 ```
 
 Remove the `livenessProbe` section entirely, then proceed with the upgrade.
-After the upgrade completes successfully, restore the liveness probe
-configuration.
 
 > [!NOTE]
-> The Coder Helm chart (v2.1.0+) only exposes `initialDelaySeconds` for
-> liveness probes. See the
+> For Helm chart versions prior to 2.1.0, liveness probes were enabled by
+> default. See the
 > [Helm chart values](https://artifacthub.io/packages/helm/coder-v2/coder?modal=values&path=coder.livenessProbe)
-> for available options.
+> for configuration options.
 
 ### Workaround steps
 
