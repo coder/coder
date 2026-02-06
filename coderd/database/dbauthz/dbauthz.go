@@ -1932,14 +1932,14 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
-func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (database.TaskTable, error) {
+func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (uuid.UUID, error) {
 	task, err := q.db.GetTaskByID(ctx, arg.ID)
 	if err != nil {
-		return database.TaskTable{}, err
+		return uuid.UUID{}, err
 	}
 
 	if err := q.authorizeContext(ctx, policy.ActionDelete, task.RBACObject()); err != nil {
-		return database.TaskTable{}, err
+		return uuid.UUID{}, err
 	}
 
 	return q.db.DeleteTask(ctx, arg)

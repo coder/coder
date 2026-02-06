@@ -57,13 +57,19 @@ AND CASE WHEN @status::text != '' THEN tws.status = @status::task_status ELSE TR
 ORDER BY tws.created_at DESC;
 
 -- name: DeleteTask :one
-UPDATE tasks
-SET
-	deleted_at = @deleted_at::timestamptz
-WHERE
-	id = @id::uuid
-	AND deleted_at IS NULL
-RETURNING *;
+WITH deleted_task AS (
+	UPDATE tasks
+	SET
+		deleted_at = @deleted_at::timestamptz
+	WHERE
+		id = @id::uuid
+		AND deleted_at IS NULL
+	RETURNING id
+), deleted_snapshot AS (
+	DELETE FROM task_snapshots
+	WHERE task_id = @id::uuid
+)
+SELECT id FROM deleted_task;
 
 
 -- name: UpdateTaskPrompt :one

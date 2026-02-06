@@ -13151,13 +13151,19 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 }
 
 const deleteTask = `-- name: DeleteTask :one
-UPDATE tasks
-SET
-	deleted_at = $1::timestamptz
-WHERE
-	id = $2::uuid
-	AND deleted_at IS NULL
-RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name
+WITH deleted_task AS (
+	UPDATE tasks
+	SET
+		deleted_at = $1::timestamptz
+	WHERE
+		id = $2::uuid
+		AND deleted_at IS NULL
+	RETURNING id
+), deleted_snapshot AS (
+	DELETE FROM task_snapshots
+	WHERE task_id = $2::uuid
+)
+SELECT id FROM deleted_task
 `
 
 type DeleteTaskParams struct {
@@ -13165,23 +13171,11 @@ type DeleteTaskParams struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (TaskTable, error) {
+func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, deleteTask, arg.DeletedAt, arg.ID)
-	var i TaskTable
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.OwnerID,
-		&i.Name,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.TemplateParameters,
-		&i.Prompt,
-		&i.CreatedAt,
-		&i.DeletedAt,
-		&i.DisplayName,
-	)
-	return i, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getTaskByID = `-- name: GetTaskByID :one

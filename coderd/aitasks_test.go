@@ -398,6 +398,144 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err, "should be possible to delete a task with no workspace")
 		})
 
+		t.Run("SnapshotCleanupOnDeletion", func(t *testing.T) {
+			t.Parallel()
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userObj, err := client.User(ctx, user.UserID.String())
+			require.NoError(t, err)
+			userSubject := coderdtest.AuthzUserSubject(userObj)
+
+			task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "delete me with snapshot",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Create a snapshot for the task.
+			snapshotJSON := `{"format":"agentapi","data":{"messages":[{"role":"user","content":"test"}]}}`
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, userSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               task.ID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			// Verify snapshot exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), task.ID)
+			require.NoError(t, err)
+
+			// Delete the task.
+			err = client.DeleteTask(ctx, "me", task.ID)
+			require.NoError(t, err, "delete task request should be accepted")
+
+			// Verify snapshot no longer exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), task.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "snapshot should be deleted with task")
+		})
+
+		t.Run("DeletionWithoutSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userObj, err := client.User(ctx, user.UserID.String())
+			require.NoError(t, err)
+			userSubject := coderdtest.AuthzUserSubject(userObj)
+
+			task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "delete me without snapshot",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Verify no snapshot exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), task.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "snapshot should not exist initially")
+
+			// Delete the task (should succeed even without snapshot).
+			err = client.DeleteTask(ctx, "me", task.ID)
+			require.NoError(t, err, "delete task should succeed even without snapshot")
+		})
+
+		t.Run("PreservesOtherTaskSnapshots", func(t *testing.T) {
+			t.Parallel()
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userObj, err := client.User(ctx, user.UserID.String())
+			require.NoError(t, err)
+			userSubject := coderdtest.AuthzUserSubject(userObj)
+
+			// Create task A.
+			taskA, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "task A",
+			})
+			require.NoError(t, err)
+			wsA, err := client.Workspace(ctx, taskA.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wsA.LatestBuild.ID)
+
+			// Create task B.
+			taskB, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "task B",
+			})
+			require.NoError(t, err)
+			wsB, err := client.Workspace(ctx, taskB.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wsB.LatestBuild.ID)
+
+			// Create snapshots for both tasks.
+			snapshotJSONA := `{"format":"agentapi","data":{"messages":[{"role":"user","content":"task A"}]}}`
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, userSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskA.ID,
+				LogSnapshot:          json.RawMessage(snapshotJSONA),
+				LogSnapshotCreatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			snapshotJSONB := `{"format":"agentapi","data":{"messages":[{"role":"user","content":"task B"}]}}`
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, userSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskB.ID,
+				LogSnapshot:          json.RawMessage(snapshotJSONB),
+				LogSnapshotCreatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			// Delete task A.
+			err = client.DeleteTask(ctx, "me", taskA.ID)
+			require.NoError(t, err, "delete task A should succeed")
+
+			// Verify task A's snapshot is removed.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), taskA.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "task A snapshot should be deleted")
+
+			// Verify task B's snapshot still exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), taskB.ID)
+			require.NoError(t, err, "task B snapshot should still exist")
+		})
+
 		t.Run("DeletingTaskWorkspaceDeletesTask", func(t *testing.T) {
 			t.Parallel()
 
