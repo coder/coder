@@ -23,6 +23,7 @@ func (r *RootCmd) organizations() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.showOrganization(orgContext),
+			r.listOrganizations(),
 			r.createOrganization(),
 			r.deleteOrganization(orgContext),
 			r.organizationMembers(orgContext),
