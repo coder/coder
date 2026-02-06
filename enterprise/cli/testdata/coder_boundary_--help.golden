@@ -20,10 +20,6 @@ OPTIONS:
       --config yaml-config-path, $BOUNDARY_CONFIG
           Path to YAML config file.
 
-      --configure-dns-for-local-stub-resolver bool, $BOUNDARY_CONFIGURE_DNS_FOR_LOCAL_STUB_RESOLVER
-          Configure DNS for local stub resolver (e.g., systemd-resolved). Only
-          needed when /etc/resolv.conf contains nameserver 127.0.0.53.
-
       --disable-audit-logs bool, $DISABLE_AUDIT_LOGS
           Disable sending of audit logs to the workspace agent when set to true.
 
@@ -49,6 +45,10 @@ OPTIONS:
 
       --proxy-port int, $PROXY_PORT (default: 8080)
           Set a port for HTTP proxy.
+
+      --use-real-dns bool, $BOUNDARY_USE_REAL_DNS
+          Use real DNS in the jail instead of the dummy DNS (allows DNS
+          exfiltration). Default: false.
 
       --version bool
           Print version information and exit.
