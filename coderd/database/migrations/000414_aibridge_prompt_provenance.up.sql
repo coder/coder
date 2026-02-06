@@ -11,3 +11,5 @@ COMMENT ON COLUMN aibridge_interceptions.parent_id IS 'The interception which di
 COMMENT ON COLUMN aibridge_interceptions.ancestor_id IS 'The first interception which directly caused a series of interceptions to occur (including this one), usually through an agentic loop or threaded conversation.';
 
 CREATE INDEX idx_aibridge_interceptions_parent_id ON aibridge_interceptions (parent_id);
+
+CREATE INDEX idx_aibridge_interceptions_ancestor_id ON aibridge_interceptions (ancestor_id);

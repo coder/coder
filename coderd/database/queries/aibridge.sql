@@ -19,7 +19,7 @@ RETURNING *;
 -- name: GetAIBridgeInterceptionLineageByToolCallID :one
 -- Retrieve the interception lineage by a given tool call ID. Tool call IDs allow us to infer relationships
 -- between independent interceptions.
--- Tool call IDs are not *guaranteed* to be unique by the upstream AI providers at the time of writing (Dec 2025).
+-- Tool call IDs are not *guaranteed* to be unique by the upstream AI providers at the time of writing (Feb 2026).
 -- Therefore it's possible that a collision may occur, in which case all we can do is log it and return the last one.
 -- We have no other discriminating values which will help us isolate which interception we actually care about.
 -- Anthropic's & OpenAI's tool call IDs contain 143 bits of entropy, so the likelihood of collision is about the same as UUIDv4.

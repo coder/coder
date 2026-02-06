@@ -3275,6 +3275,8 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
+CREATE INDEX idx_aibridge_interceptions_ancestor_id ON aibridge_interceptions USING btree (ancestor_id);
+
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
 CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
