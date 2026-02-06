@@ -24,7 +24,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-const buildDurationMetric = "coderd_template_workspace_build_duration_seconds"
+// fullMetricName is the fully-qualified Prometheus metric name
+// (namespace + name) used for gathering in tests.
+const fullMetricName = "coderd_" + agentapi.BuildDurationMetricName
 
 // newBuildDurationHistogram creates a fresh histogram for testing, registered
 // with the given registry so metrics can be gathered and validated.
@@ -32,7 +34,7 @@ func newBuildDurationHistogram(t *testing.T, reg *prometheus.Registry) *promethe
 	t.Helper()
 	h := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
-		Name:      "template_workspace_build_duration_seconds",
+		Name:      agentapi.BuildDurationMetricName,
 		Help:      "Duration from workspace build creation to agent ready, by template.",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"template_name", "organization_name", "transition", "status", "is_prebuild"})
@@ -155,7 +157,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
@@ -225,7 +227,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.Equal(t, lifecycle, resp)
 		require.True(t, publishCalled)
 
-		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
@@ -294,7 +296,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
@@ -474,7 +476,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		require.Nil(t, promhelp.MetricValue(t, reg, buildDurationMetric, prometheus.Labels{
+		require.Nil(t, promhelp.MetricValue(t, reg, fullMetricName, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
@@ -525,7 +527,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
@@ -578,7 +580,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",

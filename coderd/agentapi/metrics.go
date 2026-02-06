@@ -25,12 +25,17 @@ import (
 //	  sum(rate(coderd_template_workspace_build_duration_seconds_bucket[5m])) by (le, template_name)
 //	)
 //
+// BuildDurationMetricName is the short name for the end-to-end
+// workspace build duration histogram. The full metric name is
+// prefixed with the namespace "coderd_".
+const BuildDurationMetricName = "template_workspace_build_duration_seconds"
+
 // The "prebuild" label distinguishes prebuild creation (background, no user
 // waiting) from user-initiated builds (regular workspace creation or prebuild
 // claims).
 var WorkspaceBuildDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: "coderd",
-	Name:      "template_workspace_build_duration_seconds",
+	Name:      BuildDurationMetricName,
 	Help:      "Duration from workspace build creation to agent ready, by template.",
 	Buckets: []float64{
 		1, // 1s
