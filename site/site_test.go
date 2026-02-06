@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -44,14 +45,13 @@ func TestInjection(t *testing.T) {
 			Data: []byte("{{ .User }}"),
 		},
 	}
-	binFs := http.FS(fstest.MapFS{})
 	db, _ := dbtestutil.NewDB(t)
-	handler := site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFs,
 		Database:  db,
 		SiteFS:    siteFS,
 	})
+	require.NoError(t, err)
 
 	user := dbgen.User(t, db, database.User{})
 	_, token := dbgen.APIKey(t, db, database.APIKey{
@@ -66,7 +66,7 @@ func TestInjection(t *testing.T) {
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 	var got codersdk.User
-	err := json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
 	require.NoError(t, err)
 
 	// This will update as part of the request!
@@ -101,15 +101,13 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		OAuthExpiry:       dbtime.Now().Add(-time.Second),
 	})
 
-	binFs := http.FS(fstest.MapFS{})
 	siteFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("<html>{{ .User }}</html>"),
 		},
 	}
-	handler := site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFs,
 		Database:  db,
 		SiteFS:    siteFS,
 
@@ -119,6 +117,7 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 			OIDC:   nil,
 		},
 	})
+	require.NoError(t, err)
 
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(codersdk.SessionTokenHeader, token)
@@ -153,15 +152,15 @@ func TestCaching(t *testing.T) {
 			Data: []byte("folderFile"),
 		},
 	}
-	binFS := http.FS(fstest.MapFS{})
 
 	db, _ := dbtestutil.NewDB(t)
-	srv := httptest.NewServer(site.New(&site.Options{
+	s, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFS,
 		SiteFS:    rootFS,
 		Database:  db,
-	}))
+	})
+	require.NoError(t, err)
+	srv := httptest.NewServer(s)
 	defer srv.Close()
 
 	// Create a context
@@ -222,15 +221,15 @@ func TestServingFiles(t *testing.T) {
 			Data: []byte("install-sh-bytes"),
 		},
 	}
-	binFS := http.FS(fstest.MapFS{})
 
 	db, _ := dbtestutil.NewDB(t)
-	srv := httptest.NewServer(site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFS,
 		SiteFS:    rootFS,
 		Database:  db,
-	}))
+	})
+	require.NoError(t, err)
+	srv := httptest.NewServer(handler)
 	defer srv.Close()
 	client := &http.Client{}
 
@@ -506,21 +505,20 @@ func TestServingBin(t *testing.T) {
 			t.Parallel()
 
 			dest := t.TempDir()
-			binFS, binHashes, err := site.ExtractOrReadBinFS(dest, tt.fs)
+			testFS := maps.Clone(rootFS)
+			maps.Copy(testFS, tt.fs)
+			handler, err := site.New(&site.Options{
+				Telemetry: telemetry.NewNoop(),
+				SiteFS:    testFS,
+				CacheDir:  dest,
+			})
 			if !tt.wantErr && err != nil {
 				require.NoError(t, err, "extract or read failed")
 			} else if tt.wantErr {
 				require.Error(t, err, "extraction or read did not fail")
 			}
-
-			site := site.New(&site.Options{
-				Telemetry: telemetry.NewNoop(),
-				BinFS:     binFS,
-				BinHashes: binHashes,
-				SiteFS:    rootFS,
-			})
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
-			srv := httptest.NewServer(compressor.Handler(site))
+			srv := httptest.NewServer(compressor.Handler(handler))
 			defer srv.Close()
 			client := &http.Client{}
 
