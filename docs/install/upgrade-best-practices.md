@@ -63,32 +63,33 @@ timeouts. If you observe pods restarting with `CrashLoopBackOff` during an
 upgrade and logs indicate a migration in progress, Kubernetes might be killing
 the pod prematurely.
 
-### Configuration example
+### Recommended approach
 
-Increase the liveness probe threshold to cover a reasonable duration (for
-example, 15 minutes). Note that the Coder Helm chart only exposes
-`initialDelaySeconds` for liveness probes. To configure `failureThreshold` and
-`periodSeconds`, you must modify the Deployment directly after Helm renders it,
-or use a post-renderer or Kustomize overlay.
+Temporarily remove the `livenessProbe` from the Coder Deployment before
+upgrading. This prevents Kubernetes from killing the pod during long-running
+migrations.
 
-```yaml
-livenessProbe:
-  failureThreshold: 90 # 90 checks
-  httpGet:
-    path: /healthz
-    port: http
-    scheme: HTTP
-  periodSeconds: 10 # 90 * 10s = 900 seconds (15 minutes)
-  successThreshold: 1
-  timeoutSeconds: 1
+To do this, edit your Deployment directly:
+
+```shell
+kubectl edit deployment coder
 ```
+
+Remove the `livenessProbe` section entirely, then proceed with the upgrade.
+After the upgrade completes successfully, restore the liveness probe
+configuration.
+
+> [!NOTE]
+> The Coder Helm chart (v2.1.0+) only exposes `initialDelaySeconds` for
+> liveness probes. See the
+> [Helm chart values](https://artifacthub.io/packages/helm/coder-v2/coder?modal=values&path=coder.livenessProbe)
+> for available options.
 
 ### Workaround steps
 
-1. **Adjust liveness probes:** Temporarily increase the `failureThreshold` in
-   your Deployment configuration (for example, set to 200-300 with intervals
-   greater than 10 seconds). This ensures the `coderd` instance is not
-   restarted by Kubernetes while the migration is running.
+1. **Remove or adjust liveness probes:** Temporarily remove the `livenessProbe`
+   from your Deployment configuration to prevent Kubernetes from restarting the
+   pod during migrations.
 
 1. **Isolate the migration:** Ensure all extra replica sets are shut down. If
    you have clear evidence of database locks from old pods, scale the deployment
