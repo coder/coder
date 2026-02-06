@@ -97,16 +97,6 @@ Enable pprof profiling server.
 
 Set port for pprof profiling server.
 
-### --configure-dns-for-local-stub-resolver
-
-|             |                                                              |
-|-------------|--------------------------------------------------------------|
-| Type        | <code>bool</code>                                            |
-| Environment | <code>$BOUNDARY_CONFIGURE_DNS_FOR_LOCAL_STUB_RESOLVER</code> |
-| YAML        | <code>configure_dns_for_local_stub_resolver</code>           |
-
-Configure DNS for local stub resolver (e.g., systemd-resolved). Only needed when /etc/resolv.conf contains nameserver 127.0.0.53.
-
 ### --jail-type
 
 |             |                                  |
@@ -117,6 +107,16 @@ Configure DNS for local stub resolver (e.g., systemd-resolved). Only needed when
 | Default     | <code>nsjail</code>              |
 
 Jail type to use for network isolation. Options: nsjail (default), landjail.
+
+### --use-real-dns
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$BOUNDARY_USE_REAL_DNS</code> |
+| YAML        | <code>use_real_dns</code>           |
+
+Use real DNS in the jail instead of the dummy DNS (allows DNS exfiltration). Default: false.
 
 ### --disable-audit-logs
 
