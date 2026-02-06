@@ -151,7 +151,6 @@ func registerOnce[T prometheus.Collector](logger slog.Logger, registerer prometh
 	if errors.As(err, &alreadyRegistered) {
 		logger.Debug(context.Background(), "reusing already registered prometheus collector",
 			slog.F("collector_type", fmt.Sprintf("%T", alreadyRegistered.ExistingCollector)),
-			slog.F("collector_desc", describeCollector(alreadyRegistered.ExistingCollector)),
 		)
 		//nolint:forcetypeassert // The type must match since the descriptor is identical.
 		return alreadyRegistered.ExistingCollector.(T)
@@ -162,21 +161,6 @@ func registerOnce[T prometheus.Collector](logger slog.Logger, registerer prometh
 	return collector
 }
 
-
-// describeCollector returns the fqNames of all metric descriptors
-// exposed by a prometheus.Collector, for use in debug logging.
-func describeCollector(c prometheus.Collector) []string {
-	ch := make(chan *prometheus.Desc, 16)
-	go func() {
-		c.Describe(ch)
-		close(ch)
-	}()
-	var names []string
-	for desc := range ch {
-		names = append(names, desc.String())
-	}
-	return names
-}
 
 // calculateReconciliationConcurrency determines the number of concurrent
 // goroutines for preset reconciliation. Each preset may perform multiple
