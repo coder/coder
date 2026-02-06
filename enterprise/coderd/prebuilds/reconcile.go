@@ -133,7 +133,6 @@ func NewStoreReconciler(store database.Store,
 	return reconciler
 }
 
-
 // registerOnce attempts to register a prometheus collector. If the
 // collector is already registered (e.g. from a previous reconciler
 // that wasn't properly stopped), it reuses the existing one instead
@@ -160,7 +159,6 @@ func registerOnce[T prometheus.Collector](logger slog.Logger, registerer prometh
 	// be scraped by Prometheus).
 	return collector
 }
-
 
 // calculateReconciliationConcurrency determines the number of concurrent
 // goroutines for preset reconciliation. Each preset may perform multiple
