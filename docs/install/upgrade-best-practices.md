@@ -6,6 +6,11 @@ particularly with database migrations in high availability (HA) deployments.
 
 ## Before you upgrade
 
+> [!TIP]
+> To check your current Coder version, use `coder version` from the CLI, check
+> the bottom-right of the Coder dashboard, or query the `/api/v2/buildinfo`
+> endpoint. See the [version command](../reference/cli/version.md) for details.
+
 - **Schedule upgrades during off-peak hours.** Upgrades can cause a noticeable
   disruption to the developer experience. Plan your maintenance window when
   the fewest developers are actively using their workspaces.
