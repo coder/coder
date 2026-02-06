@@ -194,7 +194,7 @@ export const TerraformManaged: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const label = canvas.getByText("dev container (terraform)");
+		const label = canvas.getByText("dev container (terraform agent)");
 		await userEvent.hover(label);
 		await screen.findByRole("tooltip");
 	},
