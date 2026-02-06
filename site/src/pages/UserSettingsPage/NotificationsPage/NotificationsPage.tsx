@@ -160,7 +160,9 @@ const NotificationsPage: FC = () => {
 													}}
 												/>
 											</div>
-											<div className="font-medium text-sm">{group}</div>
+											<label htmlFor={group} className="font-medium text-sm">
+												{group}
+											</label>
 										</header>
 										{templates.map((tmpl) => {
 											const method = castNotificationMethod(
