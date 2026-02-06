@@ -6,7 +6,7 @@ function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
 			data-slot="kbd"
 			className={cn(
 				"inline-flex items-center justify-center gap-1",
-				"h-5 w-fit min-w-5 font-sans text-xs font-medium select-none5",
+				"h-5 w-fit min-w-5 font-sans text-xs font-medium select-none",
 				"bg-surface-tertiary text-content-secondary rounded-sm px-1",
 				"[&_svg:not([class*='size-'])]:size-3 pointer-events-none",
 				className,
