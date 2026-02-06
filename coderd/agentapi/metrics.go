@@ -2,12 +2,12 @@ package agentapi
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	"cdr.dev/slog/v3"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -29,9 +29,19 @@ import (
 // waiting) from user-initiated builds (regular workspace creation or prebuild
 // claims).
 var WorkspaceBuildDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace:                       "coderd",
-	Name:                            "template_workspace_build_duration_seconds",
-	Help:                            "Duration from workspace build creation to agent ready, by template.",
+	Namespace: "coderd",
+	Name:      "template_workspace_build_duration_seconds",
+	Help:      "Duration from workspace build creation to agent ready, by template.",
+	Buckets: []float64{
+		1, // 1s
+		10,
+		30,
+		60, // 1min
+		60 * 5,
+		60 * 10,
+		60 * 30, // 30min
+		60 * 60, // 1hr
+	},
 	NativeHistogramBucketFactor:     1.1,
 	NativeHistogramMaxBucketNumber:  100,
 	NativeHistogramMinResetDuration: time.Hour,
@@ -58,14 +68,13 @@ func emitBuildDurationMetric(
 
 	// LastAgentReadyAt is the MAX(ready_at) across all agents. Since we only
 	// get here when AllAgentsReady is true, this should always be valid.
-	lastReadyAt, ok := buildInfo.LastAgentReadyAt.(time.Time)
-	if !ok {
-		log.Warn(ctx, "unexpected type for last_agent_ready_at",
-			slog.F("type", fmt.Sprintf("%T", buildInfo.LastAgentReadyAt)))
+	if buildInfo.LastAgentReadyAt.IsZero() {
+		log.Warn(ctx, "last_agent_ready_at is unexpectedly zero",
+			slog.F("last_agent_ready_at", buildInfo.LastAgentReadyAt))
 		return
 	}
 
-	duration := lastReadyAt.Sub(buildInfo.CreatedAt).Seconds()
+	duration := buildInfo.LastAgentReadyAt.Sub(buildInfo.CreatedAt).Seconds()
 
 	prebuild := "false"
 	if buildInfo.IsPrebuild {

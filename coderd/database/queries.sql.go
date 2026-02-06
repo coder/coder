@@ -21362,7 +21362,7 @@ SELECT
     -- All agents must have ready_at set (terminal startup state)
     COUNT(*) FILTER (WHERE wa.ready_at IS NULL) = 0 AS all_agents_ready,
     -- Latest ready_at across all agents (for duration calculation)
-    MAX(wa.ready_at) AS last_agent_ready_at,
+	MAX(wa.ready_at)::timestamptz AS last_agent_ready_at,
     -- Worst status: error > timeout > ready
     CASE
         WHEN bool_or(wa.lifecycle_state = 'start_error') THEN 'error'
@@ -21386,7 +21386,7 @@ type GetWorkspaceBuildMetricsByResourceIDRow struct {
 	OrganizationName string              `db:"organization_name" json:"organization_name"`
 	IsPrebuild       bool                `db:"is_prebuild" json:"is_prebuild"`
 	AllAgentsReady   bool                `db:"all_agents_ready" json:"all_agents_ready"`
-	LastAgentReadyAt interface{}         `db:"last_agent_ready_at" json:"last_agent_ready_at"`
+	LastAgentReadyAt time.Time           `db:"last_agent_ready_at" json:"last_agent_ready_at"`
 	WorstStatus      string              `db:"worst_status" json:"worst_status"`
 }
 

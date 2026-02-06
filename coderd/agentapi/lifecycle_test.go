@@ -385,8 +385,8 @@ func TestUpdateLifecycle(t *testing.T) {
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
 			IsPrebuild:       false,
-			AllAgentsReady:   false, // Not all agents ready yet
-			LastAgentReadyAt: nil,   // No ready time yet
+			AllAgentsReady:   false,       // Not all agents ready yet
+			LastAgentReadyAt: time.Time{}, // No ready time yet
 			WorstStatus:      "success",
 		}, nil)
 

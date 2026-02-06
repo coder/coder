@@ -256,7 +256,7 @@ SELECT
     -- All agents must have ready_at set (terminal startup state)
     COUNT(*) FILTER (WHERE wa.ready_at IS NULL) = 0 AS all_agents_ready,
     -- Latest ready_at across all agents (for duration calculation)
-    MAX(wa.ready_at) AS last_agent_ready_at,
+	MAX(wa.ready_at)::timestamptz AS last_agent_ready_at,
     -- Worst status: error > timeout > ready
     CASE
         WHEN bool_or(wa.lifecycle_state = 'start_error') THEN 'error'
