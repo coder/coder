@@ -43,7 +43,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useAuthenticated } from "hooks";
+import { useAuthenticated, useRowRangeSelection } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import {
 	BanIcon,
@@ -111,6 +111,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
+	const { handleClick: handleShiftClick } = useRowRangeSelection();
 
 	return (
 		<Table>
@@ -163,7 +164,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						</TableCell>
 					</TableRow>
 				)}
-				{workspaces?.map((workspace) => {
+				{workspaces?.map((workspace, index) => {
 					const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
@@ -184,6 +185,38 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											checked={checked}
 											onClick={(e) => {
 												e.stopPropagation();
+												if (!workspaces) return;
+												const result = handleShiftClick(
+													e,
+													index,
+													checked,
+													workspaces.length,
+												);
+												if (result) {
+													// Shift+click: toggle all workspaces in range
+													const currentIds = new Set(
+														checkedWorkspaces.map((w) => w.id),
+													);
+													const newWorkspaces = result.shouldSelect
+														? [
+																...checkedWorkspaces,
+																...result.indicesToToggle
+																	.map((i) => workspaces[i])
+																	.filter(
+																		(w) =>
+																			!cantBeChecked(w) &&
+																			!currentIds.has(w.id),
+																	),
+															]
+														: checkedWorkspaces.filter(
+																(w) =>
+																	!result.indicesToToggle.some(
+																		(i) => workspaces[i].id === w.id,
+																	),
+															);
+													onCheckChange(newWorkspaces);
+													e.preventDefault();
+												}
 											}}
 											onCheckedChange={(checked) => {
 												if (checked) {
