@@ -67,6 +67,7 @@
 		"@radix-ui/react-switch": "1.2.6",
 		"@radix-ui/react-tooltip": "1.2.8",
 		"@tanstack/react-query-devtools": "5.77.0",
+		"@tanstack/react-table": "8.21.3",
 		"@xterm/addon-canvas": "0.7.0",
 		"@xterm/addon-fit": "0.10.0",
 		"@xterm/addon-unicode11": "0.8.0",

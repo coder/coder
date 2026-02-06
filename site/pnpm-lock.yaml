@@ -115,6 +115,9 @@ importers:
       '@tanstack/react-query-devtools':
         specifier: 5.77.0
         version: 5.77.0(@tanstack/react-query@5.77.0(react@19.2.2))(react@19.2.2)
+      '@tanstack/react-table':
+        specifier: 8.21.3
+        version: 8.21.3(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
       '@xterm/addon-canvas':
         specifier: 0.7.0
         version: 0.7.0(@xterm/xterm@5.5.0)
@@ -2471,6 +2474,17 @@ packages:
     resolution: {integrity: sha512-jX52ot8WxWzWnAknpRSEWj6PTR/7nkULOfoiaVPk6nKu0otwt30UMBC9PTg/m1x0uhz1g71/imwjViTm/oYHxA==, tarball: https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.77.0.tgz}
     peerDependencies:
       react: ^18 || ^19
+
+  '@tanstack/react-table@8.21.3':
+    resolution: {integrity: sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==, tarball: https://registry.npmjs.org/@tanstack/react-table/-/react-table-8.21.3.tgz}
+    engines: {node: '>=12'}
+    peerDependencies:
+      react: '>=16.8'
+      react-dom: '>=16.8'
+
+  '@tanstack/table-core@8.21.3':
+    resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==, tarball: https://registry.npmjs.org/@tanstack/table-core/-/table-core-8.21.3.tgz}
+    engines: {node: '>=12'}
 
   '@testing-library/dom@10.4.0':
     resolution: {integrity: sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==, tarball: https://registry.npmjs.org/@testing-library/dom/-/dom-10.4.0.tgz}
@@ -8473,6 +8487,14 @@ snapshots:
     dependencies:
       '@tanstack/query-core': 5.77.0
       react: 19.2.2
+
+  '@tanstack/react-table@8.21.3(react-dom@19.2.2(react@19.2.2))(react@19.2.2)':
+    dependencies:
+      '@tanstack/table-core': 8.21.3
+      react: 19.2.2
+      react-dom: 19.2.2(react@19.2.2)
+
+  '@tanstack/table-core@8.21.3': {}
 
   '@testing-library/dom@10.4.0':
     dependencies:

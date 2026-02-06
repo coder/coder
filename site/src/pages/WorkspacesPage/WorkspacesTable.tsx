@@ -1,4 +1,11 @@
 import Skeleton from "@mui/material/Skeleton";
+import {
+	type CellContext,
+	type ColumnDef,
+	flexRender,
+	getCoreRowModel,
+	useReactTable,
+} from "@tanstack/react-table";
 import { templateVersion } from "api/queries/templates";
 import { apiKey } from "api/queries/users";
 import {
@@ -72,9 +79,9 @@ import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
-import type React from "react";
-import {
+import React, {
 	type FC,
+	Fragment,
 	type PropsWithChildren,
 	type ReactNode,
 	useState,
@@ -86,8 +93,185 @@ import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
+interface WorkspacesTableMeta {
+	checkedWorkspaces: readonly Workspace[];
+	canCheckWorkspaces: boolean;
+	onCheckChange: (workspaces: readonly Workspace[]) => void;
+	showOrganizations: boolean;
+	organizations: readonly { id: string; display_name: string }[];
+	onActionSuccess: () => Promise<void>;
+	onActionError: (error: unknown) => void;
+}
+
+function NameCell({
+	row,
+	table,
+}: CellContext<Workspace, unknown>): React.ReactNode {
+	const { checkedWorkspaces, canCheckWorkspaces, onCheckChange } = table.options
+		.meta as WorkspacesTableMeta;
+	const workspace = row.original;
+	const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
+
+	return (
+		<TableCell>
+			<div className="flex items-center gap-5">
+				{canCheckWorkspaces && (
+					<Checkbox
+						data-testid={`checkbox-${workspace.id}`}
+						disabled={cantBeChecked(workspace)}
+						checked={checked}
+						onClick={(e) => {
+							e.stopPropagation();
+						}}
+						onCheckedChange={(checked) => {
+							if (checked) {
+								onCheckChange([...checkedWorkspaces, workspace]);
+							} else {
+								onCheckChange(
+									checkedWorkspaces.filter((w) => w.id !== workspace.id),
+								);
+							}
+						}}
+						aria-label={`Select workspace ${workspace.name}`}
+					/>
+				)}
+				<AvatarData
+					title={
+						<Stack direction="row" spacing={0.5} alignItems="center">
+							<span className="whitespace-nowrap">{workspace.name}</span>
+							{workspace.favorite && <StarIcon className="size-icon-xs" />}
+							{workspace.outdated && (
+								<WorkspaceOutdatedTooltip workspace={workspace} />
+							)}
+							{workspace.task_id && (
+								<Badge size="xs" variant="default">
+									Task
+								</Badge>
+							)}
+						</Stack>
+					}
+					subtitle={
+						<div className="flex items-center gap-1">
+							<span className="sr-only">Owner: </span>
+							<div className="flex gap-2">
+								{workspace.owner_name}
+								{workspace.shared_with && workspace.shared_with.length > 0 && (
+									<WorkspaceSharingIndicator
+										sharedWith={workspace.shared_with}
+										settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
+									/>
+								)}
+							</div>
+						</div>
+					}
+					avatar={
+						<Avatar
+							src={workspace.owner_avatar_url}
+							fallback={workspace.owner_name}
+							size="lg"
+						/>
+					}
+				/>
+			</div>
+		</TableCell>
+	);
+}
+
+function TemplateCell({
+	row,
+	table,
+}: CellContext<Workspace, unknown>): React.ReactNode {
+	const { showOrganizations, organizations } = table.options
+		.meta as WorkspacesTableMeta;
+	const workspace = row.original;
+	const activeOrg = organizations.find(
+		(o) => o.id === workspace.organization_id,
+	);
+
+	return (
+		<TableCell>
+			<AvatarData
+				title={
+					<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
+						{getDisplayWorkspaceTemplateName(workspace)}
+					</span>
+				}
+				subtitle={
+					showOrganizations && (
+						<>
+							<span className="sr-only">Organization:</span>{" "}
+							{activeOrg?.display_name || workspace.organization_name}
+						</>
+					)
+				}
+				avatar={
+					<Avatar
+						variant="icon"
+						src={workspace.template_icon}
+						fallback={getDisplayWorkspaceTemplateName(workspace)}
+						size="lg"
+					/>
+				}
+			/>
+		</TableCell>
+	);
+}
+
+function StatusCell({ row }: CellContext<Workspace, unknown>): React.ReactNode {
+	return (
+		<TableCell>
+			<WorkspaceStatus workspace={row.original} />
+		</TableCell>
+	);
+}
+
+function ActionsCell({
+	row,
+	table,
+}: CellContext<Workspace, unknown>): React.ReactNode {
+	const { onActionSuccess, onActionError } = table.options
+		.meta as WorkspacesTableMeta;
+
+	return (
+		<TableCell onClick={(e) => e.stopPropagation()}>
+			<WorkspaceActionsCell
+				workspace={row.original}
+				onActionSuccess={onActionSuccess}
+				onActionError={onActionError}
+			/>
+		</TableCell>
+	);
+}
+
+const columns: ColumnDef<Workspace, unknown>[] = [
+	{
+		id: "name",
+		header: () => <TableHead className="w-1/3">Name</TableHead>,
+		cell: NameCell,
+	},
+	{
+		id: "template",
+		header: () => <TableHead className="w-1/3">Template</TableHead>,
+		cell: TemplateCell,
+	},
+	{
+		id: "status",
+		header: () => <TableHead className="w-1/3">Status</TableHead>,
+		cell: StatusCell,
+	},
+	{
+		id: "actions",
+		header: () => (
+			<TableHead className="w-0">
+				<span className="sr-only">Actions</span>
+			</TableHead>
+		),
+		cell: ActionsCell,
+	},
+];
+
 interface WorkspacesTableProps {
-	workspaces?: readonly Workspace[];
+	workspaces: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
@@ -112,47 +296,56 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 }) => {
 	const dashboard = useDashboard();
 
+	const table = useReactTable({
+		data: workspaces as Workspace[],
+		columns,
+		getCoreRowModel: getCoreRowModel(),
+		meta: {
+			checkedWorkspaces,
+			canCheckWorkspaces,
+			onCheckChange,
+			showOrganizations: dashboard.showOrganizations,
+			organizations: dashboard.organizations,
+			onActionSuccess,
+			onActionError,
+		} satisfies WorkspacesTableMeta,
+	});
+
 	return (
 		<Table>
 			<TableHeader>
-				<TableRow>
-					<TableHead className="w-1/3">
-						<div className="flex items-center gap-5">
-							{canCheckWorkspaces && (
-								<Checkbox
-									disabled={!workspaces || workspaces.length === 0}
-									checked={
-										workspaces &&
-										workspaces.length > 0 &&
-										checkedWorkspaces.length === workspaces.length
-									}
-									onCheckedChange={(checked) => {
-										if (!workspaces) {
-											return;
-										}
-
-										if (!checked) {
-											onCheckChange([]);
-										} else {
-											onCheckChange(workspaces);
-										}
-									}}
-									aria-label="Select all workspaces"
-								/>
-							)}
-							Name
-						</div>
-					</TableHead>
-					<TableHead className="w-1/3">Template</TableHead>
-					<TableHead className="w-1/3">Status</TableHead>
-					<TableHead className="w-0">
-						<span className="sr-only">Actions</span>
-					</TableHead>
-				</TableRow>
+				{table.getHeaderGroups().map((headerGroup) => (
+					<TableRow key={headerGroup.id}>
+						{headerGroup.headers.map((header) => (
+							<Fragment key={header.id}>
+								{header.isPlaceholder
+									? null
+									: flexRender(
+											header.column.columnDef.header,
+											header.getContext(),
+										)}
+							</Fragment>
+						))}
+					</TableRow>
+				))}
 			</TableHeader>
 			<TableBody className="[&_td]:h-[72px]">
-				{!workspaces && <TableLoader canCheckWorkspaces={canCheckWorkspaces} />}
-				{workspaces && workspaces.length === 0 && (
+				{table.getRowModel().rows?.length ? (
+					table.getRowModel().rows.map((row) => (
+						<WorkspacesRow
+							key={row.id}
+							data-state={row.getIsSelected() && "selected"}
+							workspace={row.original}
+							checked={checkedWorkspaces.some((w) => w.id === row.original.id)}
+						>
+							{row
+								.getVisibleCells()
+								.map((cell) =>
+									flexRender(cell.column.columnDef.cell, cell.getContext()),
+								)}
+						</WorkspacesRow>
+					))
+				) : (
 					<TableRow>
 						<TableCell colSpan={999}>
 							<WorkspacesEmpty
@@ -163,125 +356,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						</TableCell>
 					</TableRow>
 				)}
-				{workspaces?.map((workspace) => {
-					const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
-					const activeOrg = dashboard.organizations.find(
-						(o) => o.id === workspace.organization_id,
-					);
-
-					return (
-						<WorkspacesRow
-							workspace={workspace}
-							key={workspace.id}
-							checked={checked}
-						>
-							<TableCell>
-								<div className="flex items-center gap-5">
-									{canCheckWorkspaces && (
-										<Checkbox
-											data-testid={`checkbox-${workspace.id}`}
-											disabled={cantBeChecked(workspace)}
-											checked={checked}
-											onClick={(e) => {
-												e.stopPropagation();
-											}}
-											onCheckedChange={(checked) => {
-												if (checked) {
-													onCheckChange([...checkedWorkspaces, workspace]);
-												} else {
-													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
-											}}
-											aria-label={`Select workspace ${workspace.name}`}
-										/>
-									)}
-									<AvatarData
-										title={
-											<Stack direction="row" spacing={0.5} alignItems="center">
-												<span className="whitespace-nowrap">
-													{workspace.name}
-												</span>
-												{workspace.favorite && (
-													<StarIcon className="size-icon-xs" />
-												)}
-												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip workspace={workspace} />
-												)}
-												{workspace.task_id && (
-													<Badge size="xs" variant="default">
-														Task
-													</Badge>
-												)}
-											</Stack>
-										}
-										subtitle={
-											<div className="flex items-center gap-1">
-												<span className="sr-only">Owner: </span>
-												<div className="flex gap-2">
-													{workspace.owner_name}
-													{workspace.shared_with &&
-														workspace.shared_with.length > 0 && (
-															<WorkspaceSharingIndicator
-																sharedWith={workspace.shared_with}
-																settingsPath={`/@${workspace.owner_name}/${workspace.name}/settings/sharing`}
-															/>
-														)}
-												</div>
-											</div>
-										}
-										avatar={
-											<Avatar
-												src={workspace.owner_avatar_url}
-												fallback={workspace.owner_name}
-												size="lg"
-											/>
-										}
-									/>
-								</div>
-							</TableCell>
-
-							<TableCell>
-								<AvatarData
-									title={
-										<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
-											{getDisplayWorkspaceTemplateName(workspace)}
-										</span>
-									}
-									subtitle={
-										dashboard.showOrganizations && (
-											<>
-												<span className="sr-only">Organization:</span>{" "}
-												{activeOrg?.display_name || workspace.organization_name}
-											</>
-										)
-									}
-									avatar={
-										<Avatar
-											variant="icon"
-											src={workspace.template_icon}
-											fallback={getDisplayWorkspaceTemplateName(workspace)}
-											size="lg"
-										/>
-									}
-								/>
-							</TableCell>
-
-							<TableCell>
-								<WorkspaceStatus workspace={workspace} />
-							</TableCell>
-
-							<WorkspaceActionsCell
-								workspace={workspace}
-								onActionSuccess={onActionSuccess}
-								onActionError={onActionError}
-							/>
-						</WorkspacesRow>
-					);
-				})}
 			</TableBody>
 		</Table>
 	);
@@ -463,12 +537,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	};
 
 	return (
-		<TableCell
-			onClick={(e) => {
-				// Prevent the click in the actions to trigger the row click
-				e.stopPropagation();
-			}}
-		>
+		<Fragment>
 			<div className="flex gap-1 justify-end">
 				{workspace.latest_build.status === "running" &&
 					(workspace.latest_app_status ? (
@@ -594,7 +663,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				}}
 				workspace={workspace}
 			/>
-		</TableCell>
+		</Fragment>
 	);
 };
 
