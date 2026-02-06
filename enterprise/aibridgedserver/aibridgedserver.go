@@ -24,7 +24,6 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
@@ -511,8 +510,10 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrSystemUser
 	}
 
-	// Check RBAC permissions for AI Bridge access.
-	subject, err := s.buildRBACSubject(ctx, key.UserID, user.Username)
+	// Check RBAC permissions for AI Bridge access. The API key's scope
+	// set is used so that scoped tokens (e.g. created with
+	// --scope "aibridge_interception:create") are properly enforced.
+	subject, _, err := httpmw.UserRBACSubject(ctx, s.store, key.UserID, key.ScopeSet())
 	if err != nil {
 		s.logger.Warn(ctx, "failed to build RBAC subject", slog.F("user_id", key.UserID), slog.Error(err))
 		return nil, xerrors.Errorf("build RBAC subject: %w", err)
@@ -528,65 +529,6 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		ApiKeyId: key.ID,
 		Username: user.Username,
 	}, nil
-}
-
-// buildRBACSubject constructs an RBAC subject for the given user by
-// loading their roles from the database and expanding them.
-func (s *Server) buildRBACSubject(ctx context.Context, userID uuid.UUID, username string) (rbac.Subject, error) {
-	//nolint:gocritic // System needs to read user roles for authorization.
-	roles, err := s.store.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
-	if err != nil {
-		return rbac.Subject{}, xerrors.Errorf("get authorization user roles: %w", err)
-	}
-
-	roleNames, err := roles.RoleNames()
-	if err != nil {
-		return rbac.Subject{}, xerrors.Errorf("expand role names: %w", err)
-	}
-
-	// Expand role names into full RBAC roles. This mirrors
-	// rolestore.Expand but works with the narrow store interface.
-	rbacRoles := make(rbac.Roles, 0, len(roleNames))
-	var customRoleLookup []database.NameOrganizationPair
-	for _, name := range roleNames {
-		expanded, err := rbac.RoleByName(name)
-		if err == nil {
-			rbacRoles = append(rbacRoles, expanded)
-			continue
-		}
-		customRoleLookup = append(customRoleLookup, database.NameOrganizationPair{
-			Name:           name.Name,
-			OrganizationID: name.OrganizationID,
-		})
-	}
-	if len(customRoleLookup) > 0 {
-		//nolint:gocritic // System needs to read custom roles for authorization.
-		customRoles, err := s.store.CustomRoles(dbauthz.AsSystemRestricted(ctx), database.CustomRolesParams{
-			LookupRoles:        customRoleLookup,
-			ExcludeOrgRoles:    false,
-			OrganizationID:     uuid.Nil,
-			IncludeSystemRoles: true,
-		})
-		if err != nil {
-			return rbac.Subject{}, xerrors.Errorf("fetch custom roles: %w", err)
-		}
-		for _, cr := range customRoles {
-			converted, err := rolestore.ConvertDBRole(cr)
-			if err != nil {
-				return rbac.Subject{}, xerrors.Errorf("convert custom role %q: %w", cr.Name, err)
-			}
-			rbacRoles = append(rbacRoles, converted)
-		}
-	}
-
-	return rbac.Subject{
-		Type:         rbac.SubjectTypeUser,
-		FriendlyName: username,
-		ID:           userID.String(),
-		Roles:        rbacRoles,
-		Groups:       roles.Groups,
-		Scope:        rbac.ScopeAll,
-	}.WithCachedASTValue(), nil
 }
 
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {

@@ -673,7 +673,14 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
 // site and organization scopes. It also pulls the groups, and the user's status.
-func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
+// UserRBACSubjectStore is the subset of database.Store needed to build
+// an RBAC subject from a user ID.
+type UserRBACSubjectStore interface {
+	rolestore.CustomRoleStore
+	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
+}
+
+func UserRBACSubject(ctx context.Context, db UserRBACSubjectStore, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
 	//nolint:gocritic // system needs to update user roles
 	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 	if err != nil {
