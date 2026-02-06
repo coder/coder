@@ -1894,9 +1894,9 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter              *workspacestats.Reporter
-	metadataBatcher            *metadatabatcher.Batcher
-	lifecycleMetrics           *agentapi.LifecycleMetrics
+	statsReporter    *workspacestats.Reporter
+	metadataBatcher  *metadatabatcher.Batcher
+	lifecycleMetrics *agentapi.LifecycleMetrics
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
