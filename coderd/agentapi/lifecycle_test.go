@@ -10,19 +10,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
 )
+
+const buildDurationMetric = "coderd_template_workspace_build_duration_seconds"
 
 // newBuildDurationHistogram creates a fresh histogram for testing, registered
 // with the given registry so metrics can be gathered and validated.
@@ -36,55 +38,6 @@ func newBuildDurationHistogram(t *testing.T, reg *prometheus.Registry) *promethe
 	}, []string{"template_name", "organization_name", "transition", "status", "is_prebuild"})
 	reg.MustRegister(h)
 	return h
-}
-
-// findMetric returns the gathered metric family with the given name, or nil.
-func findMetric(t *testing.T, reg *prometheus.Registry, name string) *io_prometheus_client.MetricFamily {
-	t.Helper()
-	metrics, err := reg.Gather()
-	require.NoError(t, err)
-	for _, mf := range metrics {
-		if mf.GetName() == name {
-			return mf
-		}
-	}
-	return nil
-}
-
-// requireBuildDurationMetric asserts that exactly one histogram observation
-// was recorded with the expected labels.
-func requireBuildDurationMetric(t *testing.T, reg *prometheus.Registry, expectedLabels map[string]string) {
-	t.Helper()
-	mf := findMetric(t, reg, "coderd_template_workspace_build_duration_seconds")
-	require.NotNilf(t, mf, "metric coderd_template_workspace_build_duration_seconds not found")
-	require.Len(t, mf.GetMetric(), 1, "expected exactly one metric series")
-
-	m := mf.GetMetric()[0]
-	require.EqualValues(t, 1, m.GetHistogram().GetSampleCount(),
-		"expected exactly one observation")
-	require.Greater(t, m.GetHistogram().GetSampleSum(), float64(0),
-		"expected positive duration")
-
-	labels := map[string]string{}
-	for _, lp := range m.GetLabel() {
-		labels[lp.GetName()] = lp.GetValue()
-	}
-	for k, v := range expectedLabels {
-		require.Equal(t, v, labels[k], "label %q mismatch", k)
-	}
-}
-
-// requireNoBuildDurationMetric asserts that no histogram observation was recorded.
-func requireNoBuildDurationMetric(t *testing.T, reg *prometheus.Registry) {
-	t.Helper()
-	mf := findMetric(t, reg, "coderd_template_workspace_build_duration_seconds")
-	if mf == nil {
-		return
-	}
-	for _, m := range mf.GetMetric() {
-		require.EqualValues(t, 0, m.GetHistogram().GetSampleCount(),
-			"expected no observations but found some")
-	}
 }
 
 func TestUpdateLifecycle(t *testing.T) {
@@ -202,13 +155,15 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		requireBuildDurationMetric(t, reg, map[string]string{
+		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
 			"status":            "success",
 			"is_prebuild":       "false",
 		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Greater(t, got.GetSampleSum(), float64(0))
 	})
 
 	// This test jumps from CREATING to READY, skipping STARTED. Both the
@@ -270,13 +225,15 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.Equal(t, lifecycle, resp)
 		require.True(t, publishCalled)
 
-		requireBuildDurationMetric(t, reg, map[string]string{
+		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
 			"status":            "success",
 			"is_prebuild":       "false",
 		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Greater(t, got.GetSampleSum(), float64(0))
 	})
 
 	t.Run("NoTimeSpecified", func(t *testing.T) {
@@ -337,13 +294,15 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		requireBuildDurationMetric(t, reg, map[string]string{
+		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
 			"status":            "success",
 			"is_prebuild":       "false",
 		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Greater(t, got.GetSampleSum(), float64(0))
 	})
 
 	t.Run("AllStates", func(t *testing.T) {
@@ -515,7 +474,13 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		requireNoBuildDurationMetric(t, reg)
+		require.Nil(t, promhelp.MetricValue(t, reg, buildDurationMetric, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		}), "metric should not be emitted when not all agents are ready")
 	})
 
 	// Test that prebuild label is "true" when owner is prebuild system user.
@@ -560,13 +525,15 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		requireBuildDurationMetric(t, reg, map[string]string{
+		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
 			"status":            "success",
 			"is_prebuild":       "true",
 		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Greater(t, got.GetSampleSum(), float64(0))
 	})
 
 	// Test worst status is used when one agent has an error.
@@ -611,13 +578,15 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		requireBuildDurationMetric(t, reg, map[string]string{
+		got := promhelp.HistogramValue(t, reg, buildDurationMetric, prometheus.Labels{
 			"template_name":     "test-template",
 			"organization_name": "test-org",
 			"transition":        "start",
 			"status":            "error",
 			"is_prebuild":       "false",
 		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Greater(t, got.GetSampleSum(), float64(0))
 	})
 }
 
