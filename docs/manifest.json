@@ -169,7 +169,14 @@
 					"title": "Upgrading",
 					"description": "Learn how to upgrade Coder",
 					"path": "./install/upgrade.md",
-					"icon_path": "./images/icons/upgrade.svg"
+					"icon_path": "./images/icons/upgrade.svg",
+					"children": [
+						{
+							"title": "Upgrading Best Practices",
+							"description": "Best practices and troubleshooting for Coder upgrades",
+							"path": "./install/upgrade-best-practices.md"
+						}
+					]
 				},
 				{
 					"title": "Uninstall",
