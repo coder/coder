@@ -855,6 +855,7 @@ export const MockTemplate: TypesGen.Template = {
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
+	disable_module_cache: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {

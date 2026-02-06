@@ -938,6 +938,7 @@ coderd/apidoc/.gen: \
 	coderd/rbac/object_gen.go \
 	.swaggo \
 	scripts/apidocgen/generate.sh \
+	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
 	$(wildcard scripts/apidocgen/markdown-template/*)
 	./scripts/apidocgen/generate.sh

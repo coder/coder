@@ -575,7 +575,7 @@ func (m queryMetricsStore) DeleteTailnetTunnel(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (database.TaskTable, error) {
+func (m queryMetricsStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteTask(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTask").Observe(time.Since(start).Seconds())

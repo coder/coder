@@ -20,6 +20,7 @@ coder organizations [flags] [subcommand]
 | Name                                                 | Purpose                                                                                                                                                        |
 |------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [<code>show</code>](./organizations_show.md)         | Show the organization. Using "selected" will show the selected organization from the "--org" flag. Using "me" will show all organizations you are a member of. |
+| [<code>list</code>](./organizations_list.md)         | List all organizations                                                                                                                                         |
 | [<code>create</code>](./organizations_create.md)     | Create a new organization.                                                                                                                                     |
 | [<code>delete</code>](./organizations_delete.md)     | Delete an organization                                                                                                                                         |
 | [<code>members</code>](./organizations_members.md)   | Manage organization members                                                                                                                                    |

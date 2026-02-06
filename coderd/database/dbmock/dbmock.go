@@ -941,10 +941,10 @@ func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(ctx, arg any) *gomock.Call 
 }
 
 // DeleteTask mocks base method.
-func (m *MockStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (database.TaskTable, error) {
+func (m *MockStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteTask", ctx, arg)
-	ret0, _ := ret[0].(database.TaskTable)
+	ret0, _ := ret[0].(uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
