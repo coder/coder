@@ -165,11 +165,12 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
-		AgentFn:                  api.agent,
-		WorkspaceID:              opts.WorkspaceID,
-		Database:                 opts.Database,
-		Log:                      opts.Log,
-		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		AgentFn:                         api.agent,
+		WorkspaceID:                     opts.WorkspaceID,
+		Database:                        opts.Database,
+		Log:                             opts.Log,
+		PublishWorkspaceUpdateFn:        api.publishWorkspaceUpdate,
+		WorkspaceBuildDurationHistogram: WorkspaceBuildDurationSeconds,
 	}
 
 	api.AppsAPI = &AppsAPI{

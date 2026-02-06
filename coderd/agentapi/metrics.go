@@ -53,6 +53,7 @@ func emitBuildDurationMetric(
 	ctx context.Context,
 	log slog.Logger,
 	db database.Store,
+	histogram *prometheus.HistogramVec,
 	resourceID uuid.UUID,
 ) {
 	buildInfo, err := db.GetWorkspaceBuildMetricsByResourceID(ctx, resourceID)
@@ -81,7 +82,7 @@ func emitBuildDurationMetric(
 		prebuild = "true"
 	}
 
-	WorkspaceBuildDurationSeconds.WithLabelValues(
+	histogram.WithLabelValues(
 		buildInfo.TemplateName,
 		buildInfo.OrganizationName,
 		string(buildInfo.Transition),

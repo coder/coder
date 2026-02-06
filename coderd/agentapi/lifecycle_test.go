@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -21,6 +23,69 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// newBuildDurationHistogram creates a fresh histogram for testing, registered
+// with the given registry so metrics can be gathered and validated.
+func newBuildDurationHistogram(t *testing.T, reg *prometheus.Registry) *prometheus.HistogramVec {
+	t.Helper()
+	h := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Name:      "template_workspace_build_duration_seconds",
+		Help:      "Duration from workspace build creation to agent ready, by template.",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"template_name", "organization_name", "transition", "status", "is_prebuild"})
+	reg.MustRegister(h)
+	return h
+}
+
+// findMetric returns the gathered metric family with the given name, or nil.
+func findMetric(t *testing.T, reg *prometheus.Registry, name string) *io_prometheus_client.MetricFamily {
+	t.Helper()
+	metrics, err := reg.Gather()
+	require.NoError(t, err)
+	for _, mf := range metrics {
+		if mf.GetName() == name {
+			return mf
+		}
+	}
+	return nil
+}
+
+// requireBuildDurationMetric asserts that exactly one histogram observation
+// was recorded with the expected labels.
+func requireBuildDurationMetric(t *testing.T, reg *prometheus.Registry, expectedLabels map[string]string) {
+	t.Helper()
+	mf := findMetric(t, reg, "coderd_template_workspace_build_duration_seconds")
+	require.NotNilf(t, mf, "metric coderd_template_workspace_build_duration_seconds not found")
+	require.Len(t, mf.GetMetric(), 1, "expected exactly one metric series")
+
+	m := mf.GetMetric()[0]
+	require.EqualValues(t, 1, m.GetHistogram().GetSampleCount(),
+		"expected exactly one observation")
+	require.Greater(t, m.GetHistogram().GetSampleSum(), float64(0),
+		"expected positive duration")
+
+	labels := map[string]string{}
+	for _, lp := range m.GetLabel() {
+		labels[lp.GetName()] = lp.GetValue()
+	}
+	for k, v := range expectedLabels {
+		require.Equal(t, v, labels[k], "label %q mismatch", k)
+	}
+}
+
+// requireNoBuildDurationMetric asserts that no histogram observation was recorded.
+func requireNoBuildDurationMetric(t *testing.T, reg *prometheus.Registry) {
+	t.Helper()
+	mf := findMetric(t, reg, "coderd_template_workspace_build_duration_seconds")
+	if mf == nil {
+		return
+	}
+	for _, m := range mf.GetMetric() {
+		require.EqualValues(t, 0, m.GetHistogram().GetSampleCount(),
+			"expected no observations but found some")
+	}
+}
 
 func TestUpdateLifecycle(t *testing.T) {
 	t.Parallel()
@@ -116,13 +181,17 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorstStatus:      "success",
 		}, nil)
 
+		reg := prometheus.NewRegistry()
+		hist := newBuildDurationHistogram(t, reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID: workspaceID,
-			Database:    dbM,
-			Log:         testutil.Logger(t),
+			WorkspaceID:                     workspaceID,
+			Database:                        dbM,
+			Log:                             testutil.Logger(t),
+			WorkspaceBuildDurationHistogram: hist,
 			// Test that nil publish fn works.
 			PublishWorkspaceUpdateFn: nil,
 		}
@@ -132,6 +201,14 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
+
+		requireBuildDurationMetric(t, reg, map[string]string{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		})
 	})
 
 	// This test jumps from CREATING to READY, skipping STARTED. Both the
@@ -169,13 +246,17 @@ func TestUpdateLifecycle(t *testing.T) {
 		}, nil)
 
 		publishCalled := false
+		reg := prometheus.NewRegistry()
+		hist := newBuildDurationHistogram(t, reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceID: workspaceID,
-			Database:    dbM,
-			Log:         testutil.Logger(t),
+			WorkspaceID:                     workspaceID,
+			Database:                        dbM,
+			Log:                             testutil.Logger(t),
+			WorkspaceBuildDurationHistogram: hist,
 			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
@@ -188,6 +269,14 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 		require.True(t, publishCalled)
+
+		requireBuildDurationMetric(t, reg, map[string]string{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		})
 	})
 
 	t.Run("NoTimeSpecified", func(t *testing.T) {
@@ -225,14 +314,18 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorstStatus:      "success",
 		}, nil)
 
+		reg := prometheus.NewRegistry()
+		hist := newBuildDurationHistogram(t, reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceID:              workspaceID,
-			Database:                 dbM,
-			Log:                      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: nil,
+			WorkspaceID:                     workspaceID,
+			Database:                        dbM,
+			Log:                             testutil.Logger(t),
+			WorkspaceBuildDurationHistogram: hist,
+			PublishWorkspaceUpdateFn:        nil,
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -243,6 +336,14 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
+
+		requireBuildDurationMetric(t, reg, map[string]string{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		})
 	})
 
 	t.Run("AllStates", func(t *testing.T) {
@@ -258,13 +359,17 @@ func TestUpdateLifecycle(t *testing.T) {
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
 		var publishCalled int64
+		reg := prometheus.NewRegistry()
+		hist := newBuildDurationHistogram(t, reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceID: workspaceID,
-			Database:    dbM,
-			Log:         testutil.Logger(t),
+			WorkspaceID:                     workspaceID,
+			Database:                        dbM,
+			Log:                             testutil.Logger(t),
+			WorkspaceBuildDurationHistogram: hist,
 			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				atomic.AddInt64(&publishCalled, 1)
 				return nil
@@ -390,14 +495,18 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorstStatus:      "success",
 		}, nil)
 
+		reg := prometheus.NewRegistry()
+		hist := newBuildDurationHistogram(t, reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID:              workspaceID,
-			Database:                 dbM,
-			Log:                      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: nil,
+			WorkspaceID:                     workspaceID,
+			Database:                        dbM,
+			Log:                             testutil.Logger(t),
+			WorkspaceBuildDurationHistogram: hist,
+			PublishWorkspaceUpdateFn:        nil,
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
@@ -405,8 +514,8 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
-		// Metric should not be emitted because not all agents are ready.
-		// The test passes if no panic occurs - the metric observation is skipped.
+
+		requireNoBuildDurationMetric(t, reg)
 	})
 
 	// Test that prebuild label is "true" when owner is prebuild system user.
@@ -431,14 +540,18 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorstStatus:      "success",
 		}, nil)
 
+		reg := prometheus.NewRegistry()
+		hist := newBuildDurationHistogram(t, reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID:              workspaceID,
-			Database:                 dbM,
-			Log:                      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: nil,
+			WorkspaceID:                     workspaceID,
+			Database:                        dbM,
+			Log:                             testutil.Logger(t),
+			WorkspaceBuildDurationHistogram: hist,
+			PublishWorkspaceUpdateFn:        nil,
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
@@ -446,9 +559,14 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
-		// Metric should be emitted with prebuild="true" label.
-		// We can't easily verify the label value without capturing prometheus metrics,
-		// but the test passes if no error occurs.
+
+		requireBuildDurationMetric(t, reg, map[string]string{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "true",
+		})
 	})
 
 	// Test worst status is used when one agent has an error.
@@ -473,14 +591,18 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorstStatus:      "error", // One agent had an error
 		}, nil)
 
+		reg := prometheus.NewRegistry()
+		hist := newBuildDurationHistogram(t, reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceID:              workspaceID,
-			Database:                 dbM,
-			Log:                      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: nil,
+			WorkspaceID:                     workspaceID,
+			Database:                        dbM,
+			Log:                             testutil.Logger(t),
+			WorkspaceBuildDurationHistogram: hist,
+			PublishWorkspaceUpdateFn:        nil,
 		}
 
 		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
@@ -488,7 +610,14 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
-		// Metric should be emitted with status="error" label.
+
+		requireBuildDurationMetric(t, reg, map[string]string{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "error",
+			"is_prebuild":       "false",
+		})
 	})
 }
 
