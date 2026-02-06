@@ -18,12 +18,10 @@ trap cleanup EXIT
 log "Use temporary file: ${API_MD_TMP_FILE}"
 
 pushd "${PROJECT_ROOT}"
-go tool github.com/swaggo/swag/cmd/swag init \
-	--generalInfo="coderd.go" \
-	--dir="./coderd,./codersdk,./enterprise/coderd,./enterprise/wsproxy/wsproxysdk" \
-	--output="./coderd/apidoc" \
-	--outputTypes="go,json" \
-	--parseDependency=true
+# Use our custom wrapper instead of "go tool swag init" to enable
+# Strict mode, which turns duplicate-route warnings into hard errors.
+# The upstream swag CLI does not expose a --strict flag.
+go run "${APIDOCGEN_DIR}/swaginit/main.go"
 popd
 
 pushd "${APIDOCGEN_DIR}"

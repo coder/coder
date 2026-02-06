@@ -941,10 +941,10 @@ func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(ctx, arg any) *gomock.Call 
 }
 
 // DeleteTask mocks base method.
-func (m *MockStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (database.TaskTable, error) {
+func (m *MockStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteTask", ctx, arg)
-	ret0, _ := ret[0].(database.TaskTable)
+	ret0, _ := ret[0].(uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7319,6 +7319,20 @@ func (m *MockStore) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentConnectionByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentConnectionByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentConnectionByID), ctx, arg)
+}
+
+// UpdateWorkspaceAgentDisplayAppsByID mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg database.UpdateWorkspaceAgentDisplayAppsByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentDisplayAppsByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAgentDisplayAppsByID indicates an expected call of UpdateWorkspaceAgentDisplayAppsByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentDisplayAppsByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentDisplayAppsByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentDisplayAppsByID), ctx, arg)
 }
 
 // UpdateWorkspaceAgentLifecycleStateByID mocks base method.

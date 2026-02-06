@@ -53,7 +53,7 @@ export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
 const titleVariants = cva("m-0 flex items-center gap-2 leading-tight", {
 	variants: {
 		hierarchy: {
-			primary: "text-3xl font-bold",
+			primary: "text-3xl font-semibold",
 			secondary: "text-2xl font-medium",
 		},
 	},

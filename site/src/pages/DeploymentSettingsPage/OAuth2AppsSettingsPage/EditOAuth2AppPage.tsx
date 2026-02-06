@@ -1,6 +1,7 @@
 import * as oauth2 from "api/queries/oauth2";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
@@ -9,6 +10,7 @@ import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
 
 const EditOAuth2AppPage: FC = () => {
 	const navigate = useNavigate();
+	const { permissions } = useAuthenticated();
 	const { appId } = useParams() as { appId: string };
 
 	// When a new secret is created it is returned with the full secret.  This is
@@ -22,7 +24,10 @@ const EditOAuth2AppPage: FC = () => {
 	const appQuery = useQuery(oauth2.getApp(appId));
 	const putAppMutation = useMutation(oauth2.putApp(queryClient));
 	const deleteAppMutation = useMutation(oauth2.deleteApp(queryClient));
-	const secretsQuery = useQuery(oauth2.getAppSecrets(appId));
+	const secretsQuery = useQuery({
+		...oauth2.getAppSecrets(appId),
+		enabled: permissions.viewOAuth2AppSecrets,
+	});
 	const postSecretMutation = useMutation(oauth2.postAppSecret(queryClient));
 	const deleteSecretMutation = useMutation(oauth2.deleteAppSecret(queryClient));
 
@@ -94,6 +99,9 @@ const EditOAuth2AppPage: FC = () => {
 						displayError("Failed to delete OAuth2 client secret");
 					}
 				}}
+				canEditApp={permissions.editOAuth2App}
+				canDeleteApp={permissions.deleteOAuth2App}
+				canViewAppSecrets={permissions.viewOAuth2AppSecrets}
 			/>
 		</>
 	);

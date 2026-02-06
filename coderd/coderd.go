@@ -21,11 +21,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
-	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -462,10 +460,6 @@ func New(options *Options) *API {
 	if siteCacheDir != "" {
 		siteCacheDir = filepath.Join(siteCacheDir, "site")
 	}
-	binFS, binHashes, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
-	if err != nil {
-		panic(xerrors.Errorf("read site bin failed: %w", err))
-	}
 
 	metricsCache := metricscache.New(
 		options.Database,
@@ -658,9 +652,8 @@ func New(options *Options) *API {
 		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
 	}
-	api.SiteHandler = site.New(&site.Options{
-		BinFS:             binFS,
-		BinHashes:         binHashes,
+	api.SiteHandler, err = site.New(&site.Options{
+		CacheDir:          siteCacheDir,
 		Database:          options.Database,
 		SiteFS:            site.FS(),
 		OAuth2Configs:     oauthConfigs,
@@ -672,6 +665,9 @@ func New(options *Options) *API {
 		Logger:            options.Logger.Named("site"),
 		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
 	})
+	if err != nil {
+		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
+	}
 	api.SiteHandler.Experiments.Store(&experiments)
 
 	if options.UpdateCheckOptions != nil {
@@ -1974,16 +1970,13 @@ func compressHandler(h http.Handler) http.Handler {
 		"application/*",
 		"image/*",
 	)
-	cmp.SetEncoder("br", func(w io.Writer, level int) io.Writer {
-		return brotli.NewWriterLevel(w, level)
-	})
-	cmp.SetEncoder("zstd", func(w io.Writer, level int) io.Writer {
-		zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
-		if err != nil {
-			panic("invalid zstd compressor: " + err.Error())
-		}
-		return zw
-	})
+	for encoding := range site.StandardEncoders {
+		writeCloserFn := site.StandardEncoders[encoding]
+		cmp.SetEncoder(encoding, func(w io.Writer, level int) io.Writer {
+			writeCloser := writeCloserFn(w, level)
+			return writeCloser
+		})
+	}
 
 	return cmp.Handler(h)
 }
