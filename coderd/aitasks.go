@@ -977,10 +977,27 @@ func (api *API) authAndDoWithTaskAppClient(
 	ctx := r.Context()
 
 	if task.Status != database.TaskStatusActive {
-		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task status must be active.",
-			Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
-		})
+		// Return 409 Conflict for valid requests blocked by current state
+		// (pending/initializing are transitional, paused requires resume).
+		// Return 400 Bad Request for error/unknown states.
+		switch task.Status {
+		case database.TaskStatusPending, database.TaskStatusInitializing:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Task is %s.", task.Status),
+				Detail:  "The task is resuming. Wait for the task to become active before sending messages.",
+			})
+		case database.TaskStatusPaused:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: "Task is paused.",
+				Detail:  "Resume the task to send messages.",
+			})
+		default:
+			// Default handler for error and unknown status.
+			return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Task must be active.",
+				Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
+			})
+		}
 	}
 	if !task.WorkspaceID.Valid {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
