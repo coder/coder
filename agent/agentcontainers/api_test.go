@@ -1477,14 +1477,6 @@ func TestAPI(t *testing.T) {
 					)
 				}
 
-				api := agentcontainers.NewAPI(logger, apiOpts...)
-
-				api.Start()
-				defer api.Close()
-
-				r := chi.NewRouter()
-				r.Mount("/", api.Routes())
-
 				var (
 					agentRunningCh chan struct{}
 					stopAgentCh    chan struct{}
@@ -1500,6 +1492,14 @@ func TestAPI(t *testing.T) {
 						requireDevcontainerExec(ctx, t, tt.devcontainerCLI, agentRunningCh, stopAgentCh)
 					}
 				}
+
+				api := agentcontainers.NewAPI(logger, apiOpts...)
+
+				api.Start()
+				defer api.Close()
+
+				r := chi.NewRouter()
+				r.Mount("/", api.Routes())
 
 				tickerTrap.MustWait(ctx).MustRelease(ctx)
 				tickerTrap.Close()
