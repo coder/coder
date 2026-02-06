@@ -1638,6 +1638,11 @@
 							"path": "reference/cli/organizations_delete.md"
 						},
 						{
+							"title": "organizations list",
+							"description": "List all organizations",
+							"path": "reference/cli/organizations_list.md"
+						},
+						{
 							"title": "organizations members",
 							"description": "Manage organization members",
 							"path": "reference/cli/organizations_members.md"

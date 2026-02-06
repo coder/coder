@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -55,6 +56,48 @@ func TestCurrentOrganization(t *testing.T) {
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch(orgID.String())
+	})
+}
+
+func TestOrganizationList(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		orgID := uuid.New()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/api/v2/organizations":
+				_ = json.NewEncoder(w).Encode([]codersdk.Organization{
+					{
+						MinimalOrganization: codersdk.MinimalOrganization{
+							ID:          orgID,
+							Name:        "my-org",
+							DisplayName: "My Org",
+						},
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					},
+				})
+			default:
+				t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer server.Close()
+
+		client := codersdk.New(must(url.Parse(server.URL)))
+		inv, root := clitest.New(t, "organizations", "list")
+		clitest.SetupConfig(t, client, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+
+		require.NoError(t, inv.Run())
+		require.Contains(t, buf.String(), "my-org")
+		require.Contains(t, buf.String(), "My Org")
+		require.Contains(t, buf.String(), orgID.String())
 	})
 }
 
