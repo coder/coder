@@ -1,22 +1,18 @@
-import {
-	type CSSObject,
-	css,
-	type Interpolation,
-	type Theme,
-} from "@emotion/react";
-import Divider from "@mui/material/Divider";
-import MenuItem from "@mui/material/MenuItem";
 import type * as TypesGen from "api/typesGenerated";
-import { CopyButton } from "components/CopyButton/CopyButton";
-import { PopoverClose } from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
+import {
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+} from "components/DropdownMenu/DropdownMenu";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useClipboard } from "hooks/useClipboard";
 import {
+	CheckIcon,
 	CircleUserIcon,
+	CopyIcon,
 	LogOutIcon,
 	MonitorDownIcon,
 	SquareArrowOutUpRightIcon,
@@ -44,153 +40,94 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
+	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+
 	return (
-		<div>
-			<Stack css={styles.info} spacing={0}>
-				<span css={styles.userName}>{user.username}</span>
-				<span css={styles.userEmail}>{user.email}</span>
-			</Stack>
-
-			<Divider css={{ marginBottom: 8 }} />
-
-			<Link to="/install" css={styles.link}>
-				<PopoverClose asChild>
-					<MenuItem css={styles.menuItem}>
-						<MonitorDownIcon className="size-5 text-content-secondary" />
-						<span css={styles.menuItemText}>Install CLI</span>
-					</MenuItem>
-				</PopoverClose>
-			</Link>
-
-			<Link to="/settings/account" css={styles.link}>
-				<PopoverClose asChild>
-					<MenuItem css={styles.menuItem}>
-						<CircleUserIcon className="size-5 text-content-secondary" />
-						<span css={styles.menuItemText}>{Language.accountLabel}</span>
-					</MenuItem>
-				</PopoverClose>
-			</Link>
-
-			<MenuItem css={styles.menuItem} onClick={onSignOut}>
-				<LogOutIcon className="size-5 text-content-secondary" />
-				<span css={styles.menuItemText}>{Language.signOutLabel}</span>
-			</MenuItem>
-
-			{supportLinks && (
+		<>
+			<DropdownMenuItem
+				className="flex items-center gap-3 [&_img]:w-full [&_img]:h-full"
+				asChild
+			>
+				<Link to="/settings/account">
+					<div className="flex flex-col">
+						<span className="text-white">{user.username}</span>
+						<span className="text-xs font-semibold">{user.email}</span>
+					</div>
+				</Link>
+			</DropdownMenuItem>
+			<DropdownMenuSeparator />
+			<DropdownMenuItem asChild>
+				<Link to="/install">
+					<MonitorDownIcon />
+					<span>Install CLI</span>
+				</Link>
+			</DropdownMenuItem>
+			<DropdownMenuItem asChild>
+				<Link to="/settings/account">
+					<CircleUserIcon />
+					<span>Account</span>
+				</Link>
+			</DropdownMenuItem>
+			<DropdownMenuItem onClick={onSignOut}>
+				<LogOutIcon />
+				<span>Sign Out</span>
+			</DropdownMenuItem>
+			{supportLinks && supportLinks.length > 0 && (
 				<>
-					<Divider />
+					<DropdownMenuSeparator />
 					{supportLinks.map((link) => (
-						<a
-							href={link.target}
-							key={link.name}
-							target="_blank"
-							rel="noreferrer"
-							css={styles.link}
-						>
-							<PopoverClose asChild>
-								<MenuItem css={styles.menuItem}>
-									{link.icon && (
-										<SupportIcon
-											icon={link.icon}
-											className="size-5 text-content-secondary"
-										/>
-									)}
-									<span css={styles.menuItemText}>{link.name}</span>
-								</MenuItem>
-							</PopoverClose>
-						</a>
+						<DropdownMenuItem key={link.name} asChild>
+							<a href={link.target} target="_blank" rel="noreferrer">
+								{link.icon && <SupportIcon icon={link.icon} />}
+								<span>{link.name}</span>
+							</a>
+						</DropdownMenuItem>
 					))}
 				</>
 			)}
-
-			<Divider css={{ marginBottom: "0 !important" }} />
-
-			<Stack css={styles.info} spacing={0}>
-				<Tooltip>
-					<TooltipTrigger asChild>
+			<DropdownMenuSeparator />
+			<Tooltip disableHoverableContent>
+				<TooltipTrigger asChild>
+					<DropdownMenuItem className="text-xs" asChild>
 						<a
-							css={[styles.footerText, styles.buildInfo]}
 							href={buildInfo?.external_url}
+							className="flex items-center gap-2"
 							target="_blank"
 							rel="noreferrer"
 						>
-							{buildInfo?.version} <SquareArrowOutUpRightIcon />
+							<span className="flex-1">{buildInfo?.version}</span>
+							<SquareArrowOutUpRightIcon className="!size-icon-xs" />
 						</a>
+					</DropdownMenuItem>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">Browse the source code</TooltipContent>
+			</Tooltip>
+			{buildInfo?.deployment_id && (
+				<Tooltip disableHoverableContent>
+					<TooltipTrigger asChild>
+						<DropdownMenuItem
+							className="text-xs"
+							onSelect={(e) => {
+								e.preventDefault();
+								copyToClipboard(buildInfo.deployment_id);
+							}}
+						>
+							<span className="truncate flex-1">{buildInfo.deployment_id}</span>
+							{showCopiedSuccess ? (
+								<CheckIcon className="!size-icon-xs ml-auto" />
+							) : (
+								<CopyIcon className="!size-icon-xs ml-auto" />
+							)}
+						</DropdownMenuItem>
 					</TooltipTrigger>
-					<TooltipContent side="bottom">Browse the source code</TooltipContent>
+					<TooltipContent side="bottom">
+						{showCopiedSuccess ? "Copied!" : "Copy deployment ID"}
+					</TooltipContent>
 				</Tooltip>
-
-				{buildInfo?.deployment_id && (
-					<div className="flex items-center text-xs">
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="whitespace-nowrap overflow-hidden text-ellipsis">
-									{buildInfo.deployment_id}
-								</span>
-							</TooltipTrigger>
-							<TooltipContent side="bottom">
-								Deployment Identifier
-							</TooltipContent>
-						</Tooltip>
-						<CopyButton
-							text={buildInfo.deployment_id}
-							label="Copy deployment ID"
-						/>
-					</div>
-				)}
-
-				<div css={styles.footerText}>{Language.copyrightText}</div>
-			</Stack>
-		</div>
+			)}
+			<DropdownMenuItem className="text-xs" disabled>
+				<span>{Language.copyrightText}</span>
+			</DropdownMenuItem>
+		</>
 	);
 };
-
-const styles = {
-	info: (theme) => [
-		theme.typography.body2 as CSSObject,
-		{
-			padding: 20,
-		},
-	],
-	userName: {
-		fontWeight: 600,
-	},
-	userEmail: (theme) => ({
-		color: theme.palette.text.secondary,
-		width: "100%",
-		textOverflow: "ellipsis",
-		overflow: "hidden",
-	}),
-	link: {
-		textDecoration: "none",
-		color: "inherit",
-	},
-	menuItem: (theme) => css`
-		gap: 20px;
-		padding: 8px 20px;
-
-		&:hover {
-			background-color: ${theme.palette.action.hover};
-			transition: background-color 0.3s ease;
-		}
-	`,
-	menuItemText: {
-		fontSize: 14,
-	},
-	footerText: (theme) => css`
-		font-size: 12px;
-		text-decoration: none;
-		color: ${theme.palette.text.secondary};
-		display: flex;
-		align-items: center;
-		gap: 4px;
-
-		& svg {
-			width: 12px;
-			height: 12px;
-		}
-	`,
-	buildInfo: (theme) => ({
-		color: theme.palette.text.primary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

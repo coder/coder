@@ -33,4 +33,3 @@ Nevertheless, clients with base URL overrides also work with the proxy, in case 
 ## Next steps
 
 * [Set up AI Bridge Proxy](./setup.md) on your Coder deployment
-* [Troubleshoot](./setup.md) common issues

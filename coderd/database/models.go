@@ -217,6 +217,8 @@ const (
 	ApiKeyScopeBoundaryUsageDelete                 APIKeyScope = "boundary_usage:delete"
 	ApiKeyScopeBoundaryUsageRead                   APIKeyScope = "boundary_usage:read"
 	ApiKeyScopeBoundaryUsageUpdate                 APIKeyScope = "boundary_usage:update"
+	ApiKeyScopeWorkspaceUpdateAgent                APIKeyScope = "workspace:update_agent"
+	ApiKeyScopeWorkspaceDormantUpdateAgent         APIKeyScope = "workspace_dormant:update_agent"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -453,7 +455,9 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryUsage,
 		ApiKeyScopeBoundaryUsageDelete,
 		ApiKeyScopeBoundaryUsageRead,
-		ApiKeyScopeBoundaryUsageUpdate:
+		ApiKeyScopeBoundaryUsageUpdate,
+		ApiKeyScopeWorkspaceUpdateAgent,
+		ApiKeyScopeWorkspaceDormantUpdateAgent:
 		return true
 	}
 	return false
@@ -659,6 +663,8 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryUsageDelete,
 		ApiKeyScopeBoundaryUsageRead,
 		ApiKeyScopeBoundaryUsageUpdate,
+		ApiKeyScopeWorkspaceUpdateAgent,
+		ApiKeyScopeWorkspaceDormantUpdateAgent,
 	}
 }
 
@@ -4332,6 +4338,7 @@ type Template struct {
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
+	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -4381,6 +4388,7 @@ type TemplateTable struct {
 	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
 	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
+	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
