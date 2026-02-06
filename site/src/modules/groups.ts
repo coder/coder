@@ -1,5 +1,6 @@
 import type {
 	Group,
+	OrganizationMemberWithUserData,
 	ReducedUser,
 	User,
 	WorkspaceUser,
@@ -8,7 +9,11 @@ import type {
 /**
  * Union of all user-like types that can be distinguished from Group.
  */
-type UserLike = User | ReducedUser | WorkspaceUser;
+type UserLike =
+	| User
+	| ReducedUser
+	| WorkspaceUser
+	| OrganizationMemberWithUserData;
 
 /**
  * Type guard to check if the value is a Group.
@@ -36,13 +41,11 @@ export const getGroupSubtitle = (group: Group): string => {
 		return "All users";
 	}
 
-	if (!group.members) {
-		return "0 members";
-	}
+	const total = group.total_member_count ?? group.members?.length ?? 0;
 
-	if (group.members.length === 1) {
+	if (total === 1) {
 		return "1 member";
 	}
 
-	return `${group.members.length} members`;
+	return `${total} members`;
 };

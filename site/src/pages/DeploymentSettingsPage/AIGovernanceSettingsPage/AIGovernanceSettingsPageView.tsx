@@ -1,7 +1,5 @@
 import type { SerpentOption } from "api/typesGenerated";
-import { Badges, PremiumBadge } from "components/Badges/Badges";
-import { Paywall } from "components/Paywall/Paywall";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -9,11 +7,6 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
@@ -29,33 +22,9 @@ export const AIGovernanceSettingsPageView: FC<
 > = ({ options, featureAIBridgeEnabled }) => {
 	return (
 		<Stack direction="column" spacing={6}>
-			<div>
-				<SettingsHeader>
-					<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
-				</SettingsHeader>
-
-				<Badges>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span>
-								<PremiumBadge />
-							</span>
-						</TooltipTrigger>
-
-						<TooltipContent
-							sideOffset={-28}
-							collisionPadding={16}
-							className="p-0"
-						>
-							<PopoverPaywall
-								message="AI Governance"
-								description="With a Premium license, you can monitor and manage AI requests across your deployment."
-								documentationLink={docs("/ai-coder/ai-governance")}
-							/>
-						</TooltipContent>
-					</Tooltip>
-				</Badges>
-			</div>
+			<SettingsHeader>
+				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
+			</SettingsHeader>
 
 			{featureAIBridgeEnabled ? (
 				<div>
@@ -79,11 +48,7 @@ export const AIGovernanceSettingsPageView: FC<
 					/>
 				</div>
 			) : (
-				<Paywall
-					message="AI Bridge"
-					description="AI Bridge is a smart gateway for AI that intercepts traffic between coding agents and AI providers. Enable it to monitor prompts, token usage, and tool invocations across your deployment."
-					documentationLink={docs("/ai-coder/ai-bridge")}
-				/>
+				<PaywallAIGovernance />
 			)}
 		</Stack>
 	);

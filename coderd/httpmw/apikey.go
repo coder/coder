@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
@@ -242,6 +243,12 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
 	if !ok {
 		return optionalWrite(http.StatusUnauthorized, resp)
+	}
+
+	// Log the API key ID for all requests that have a valid key format and secret,
+	// regardless of whether subsequent validation (expiry, user status, etc.) succeeds.
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WithFields(slog.F("api_key_id", key.ID))
 	}
 
 	now := dbtime.Now()

@@ -351,7 +351,9 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
       "time": "2019-08-24T14:15:22Z",
       "type": "input"
     }
-  ]
+  ],
+  "snapshot": true,
+  "snapshot_at": "string"
 }
 ```
 
@@ -391,6 +393,47 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/send \
 | `user` | path | string                                                         | true     | Username, user ID, or 'me' for the authenticated user |
 | `task` | path | string                                                         | true     | Task ID, or task name                                 |
 | `body` | body | [codersdk.TaskSendRequest](schemas.md#codersdktasksendrequest) | true     | Task input request                                    |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upload task log snapshot
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/tasks/{task}/log-snapshot?format=agentapi \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/tasks/{task}/log-snapshot`
+
+> Body parameter
+
+```json
+{}
+```
+
+### Parameters
+
+| Name     | In    | Type         | Required | Description                                                  |
+|----------|-------|--------------|----------|--------------------------------------------------------------|
+| `task`   | path  | string(uuid) | true     | Task ID                                                      |
+| `format` | query | string       | true     | Snapshot format                                              |
+| `body`   | body  | object       | true     | Raw snapshot payload (structure depends on format parameter) |
+
+#### Enumerated Values
+
+| Parameter | Value(s)   |
+|-----------|------------|
+| `format`  | `agentapi` |
 
 ### Responses
 

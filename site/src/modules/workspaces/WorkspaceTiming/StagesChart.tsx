@@ -42,6 +42,11 @@ export type Stage = {
 	 */
 	section: string;
 	/**
+	 * The agent ID for agent-related stages. Used to filter timings correctly
+	 * when multiple agents exist.
+	 */
+	agentId?: string;
+	/**
 	 * The tooltip is used to provide additional information about the stage.
 	 */
 	tooltip: {
@@ -268,12 +273,13 @@ export const provisioningStages: Stage[] = [
 	},
 ];
 
-export const agentStages = (section: string): Stage[] => {
+export const agentStages = (section: string, agentId: string): Stage[] => {
 	return [
 		{
 			name: "connect",
 			label: "connect",
 			section,
+			agentId,
 			tooltip: {
 				heading: "Connect",
 				description: "Establish an RPC connection with the control plane.",
@@ -283,6 +289,7 @@ export const agentStages = (section: string): Stage[] => {
 			name: "start",
 			label: "run startup scripts",
 			section,
+			agentId,
 			tooltip: {
 				heading: "Run startup scripts",
 				description: "Execute each agent startup script.",

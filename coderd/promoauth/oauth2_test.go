@@ -209,7 +209,7 @@ func TestGithubRateLimits(t *testing.T) {
 			}
 			pass := true
 			if !c.ExpectNoMetrics {
-				pass = pass && assert.Equal(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_total", labels), c.Limit, "limit")
+				pass = pass && assert.Equal(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit", labels), c.Limit, "limit")
 				pass = pass && assert.Equal(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_remaining", labels), c.Remaining, "remaining")
 				pass = pass && assert.Equal(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_used", labels), c.Used, "used")
 				if !c.at.IsZero() {
@@ -218,7 +218,7 @@ func TestGithubRateLimits(t *testing.T) {
 					pass = pass && assert.InDelta(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_reset_in_seconds", labels), int(until.Seconds()), 2, "reset in")
 				}
 			} else {
-				pass = pass && assert.Nil(t, promhelp.MetricValue(t, reg, "coderd_oauth2_external_requests_rate_limit_total", labels), "not exists")
+				pass = pass && assert.Nil(t, promhelp.MetricValue(t, reg, "coderd_oauth2_external_requests_rate_limit", labels), "not exists")
 			}
 
 			// Helpful debugging

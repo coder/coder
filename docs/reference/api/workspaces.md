@@ -981,11 +981,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                                                        |
-|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent. |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                                                         |
-| `offset` | query | integer | false    | Page offset                                                                                                                                                                        |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                                 |
+|----------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy. |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                                                                  |
+| `offset` | query | integer | false    | Page offset                                                                                                                                                                                 |
 
 ### Example responses
 

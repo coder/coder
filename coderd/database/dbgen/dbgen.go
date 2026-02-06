@@ -394,6 +394,7 @@ func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.W
 		Name:             []string{takeFirst(orig.Name, testutil.GetRandomName(t))},
 		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
 		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
+		SubagentID:       []uuid.UUID{orig.SubagentID.UUID},
 	})
 	require.NoError(t, err, "insert workspace agent devcontainer")
 	return devcontainers[0]

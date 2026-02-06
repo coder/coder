@@ -1,15 +1,18 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +20,7 @@ import (
 	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -26,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -34,6 +39,66 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+// createTaskInState is a helper to create a task in the desired state.
+// It returns a function that takes context, test, and status, and returns the task ID.
+// The caller is responsible for setting up the database, owner, and user.
+func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID, userID uuid.UUID) func(context.Context, *testing.T, database.TaskStatus) uuid.UUID {
+	return func(ctx context.Context, t *testing.T, status database.TaskStatus) uuid.UUID {
+		ctx = dbauthz.As(ctx, ownerSubject)
+
+		builder := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: ownerOrgID,
+			OwnerID:        userID,
+		}).
+			WithTask(database.TaskTable{
+				OrganizationID: ownerOrgID,
+				OwnerID:        userID,
+			}, nil)
+
+		switch status {
+		case database.TaskStatusPending:
+			builder = builder.Pending()
+		case database.TaskStatusInitializing:
+			builder = builder.Starting()
+		case database.TaskStatusPaused:
+			builder = builder.Seed(database.WorkspaceBuild{
+				Transition: database.WorkspaceTransitionStop,
+			})
+		case database.TaskStatusError:
+			// For error state, create a completed build then manipulate app health.
+		default:
+			require.Fail(t, "unsupported task status in test helper", "status: %s", status)
+		}
+
+		resp := builder.Do()
+		taskID := resp.Task.ID
+
+		// Post-process by manipulating agent and app state.
+		if status == database.TaskStatusError {
+			// First, set agent to ready state so agent_status returns 'active'.
+			// This ensures the cascade reaches app_status.
+			err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             resp.Agents[0].ID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			})
+			require.NoError(t, err)
+
+			// Then set workspace app health to unhealthy to trigger error state.
+			apps, err := db.GetWorkspaceAppsByAgentID(ctx, resp.Agents[0].ID)
+			require.NoError(t, err)
+			require.Len(t, apps, 1, "expected exactly one app for task")
+
+			err = db.UpdateWorkspaceAppHealthByID(ctx, database.UpdateWorkspaceAppHealthByIDParams{
+				ID:     apps[0].ID,
+				Health: database.WorkspaceAppHealthUnhealthy,
+			})
+			require.NoError(t, err)
+		}
+
+		return taskID
+	}
+}
 
 func TestTasks(t *testing.T) {
 	t.Parallel()
@@ -394,6 +459,144 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err, "should be possible to delete a task with no workspace")
 		})
 
+		t.Run("SnapshotCleanupOnDeletion", func(t *testing.T) {
+			t.Parallel()
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userObj, err := client.User(ctx, user.UserID.String())
+			require.NoError(t, err)
+			userSubject := coderdtest.AuthzUserSubject(userObj)
+
+			task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "delete me with snapshot",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Create a snapshot for the task.
+			snapshotJSON := `{"format":"agentapi","data":{"messages":[{"role":"user","content":"test"}]}}`
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, userSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               task.ID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			// Verify snapshot exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), task.ID)
+			require.NoError(t, err)
+
+			// Delete the task.
+			err = client.DeleteTask(ctx, "me", task.ID)
+			require.NoError(t, err, "delete task request should be accepted")
+
+			// Verify snapshot no longer exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), task.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "snapshot should be deleted with task")
+		})
+
+		t.Run("DeletionWithoutSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userObj, err := client.User(ctx, user.UserID.String())
+			require.NoError(t, err)
+			userSubject := coderdtest.AuthzUserSubject(userObj)
+
+			task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "delete me without snapshot",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Verify no snapshot exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), task.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "snapshot should not exist initially")
+
+			// Delete the task (should succeed even without snapshot).
+			err = client.DeleteTask(ctx, "me", task.ID)
+			require.NoError(t, err, "delete task should succeed even without snapshot")
+		})
+
+		t.Run("PreservesOtherTaskSnapshots", func(t *testing.T) {
+			t.Parallel()
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userObj, err := client.User(ctx, user.UserID.String())
+			require.NoError(t, err)
+			userSubject := coderdtest.AuthzUserSubject(userObj)
+
+			// Create task A.
+			taskA, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "task A",
+			})
+			require.NoError(t, err)
+			wsA, err := client.Workspace(ctx, taskA.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wsA.LatestBuild.ID)
+
+			// Create task B.
+			taskB, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "task B",
+			})
+			require.NoError(t, err)
+			wsB, err := client.Workspace(ctx, taskB.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wsB.LatestBuild.ID)
+
+			// Create snapshots for both tasks.
+			snapshotJSONA := `{"format":"agentapi","data":{"messages":[{"role":"user","content":"task A"}]}}`
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, userSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskA.ID,
+				LogSnapshot:          json.RawMessage(snapshotJSONA),
+				LogSnapshotCreatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			snapshotJSONB := `{"format":"agentapi","data":{"messages":[{"role":"user","content":"task B"}]}}`
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, userSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskB.ID,
+				LogSnapshot:          json.RawMessage(snapshotJSONB),
+				LogSnapshotCreatedAt: dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			// Delete task A.
+			err = client.DeleteTask(ctx, "me", taskA.ID)
+			require.NoError(t, err, "delete task A should succeed")
+
+			// Verify task A's snapshot is removed.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), taskA.ID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "task A snapshot should be deleted")
+
+			// Verify task B's snapshot still exists.
+			_, err = db.GetTaskSnapshot(dbauthz.As(ctx, userSubject), taskB.ID)
+			require.NoError(t, err, "task B snapshot should still exist")
+		})
+
 		t.Run("DeletingTaskWorkspaceDeletesTask", func(t *testing.T) {
 			t.Parallel()
 
@@ -587,6 +790,94 @@ func TestTasks(t *testing.T) {
 			require.ErrorAs(t, err, &sdkErr)
 			require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 		})
+
+		t.Run("SendToNonActiveStates", func(t *testing.T) {
+			t.Parallel()
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			ownerUser, err := client.User(ctx, owner.UserID.String())
+			require.NoError(t, err)
+			ownerSubject := coderdtest.AuthzUserSubject(ownerUser)
+
+			// Create a regular user for task ownership.
+			_, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+			createTask := createTaskInState(db, ownerSubject, owner.OrganizationID, user.ID)
+
+			t.Run("Paused", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				taskID := createTask(ctx, t, database.TaskStatusPaused)
+
+				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+					Input: "Hello",
+				})
+
+				var sdkErr *codersdk.Error
+				require.Error(t, err)
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Message, "paused")
+				require.Contains(t, sdkErr.Detail, "Resume")
+			})
+
+			t.Run("Initializing", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				taskID := createTask(ctx, t, database.TaskStatusInitializing)
+
+				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+					Input: "Hello",
+				})
+
+				var sdkErr *codersdk.Error
+				require.Error(t, err)
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Message, "initializing")
+				require.Contains(t, sdkErr.Detail, "resuming")
+			})
+
+			t.Run("Pending", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				taskID := createTask(ctx, t, database.TaskStatusPending)
+
+				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+					Input: "Hello",
+				})
+
+				var sdkErr *codersdk.Error
+				require.Error(t, err)
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Message, "pending")
+				require.Contains(t, sdkErr.Detail, "resuming")
+			})
+
+			t.Run("Error", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				taskID := createTask(ctx, t, database.TaskStatusError)
+
+				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+					Input: "Hello",
+				})
+
+				var sdkErr *codersdk.Error
+				require.Error(t, err)
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+				require.Contains(t, sdkErr.Message, "must be active")
+			})
+		})
 	})
 
 	t.Run("Logs", func(t *testing.T) {
@@ -720,6 +1011,212 @@ func TestTasks(t *testing.T) {
 		})
 	})
 
+	t.Run("LogsWithSnapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+		ownerUser, err := ownerClient.User(testutil.Context(t, testutil.WaitMedium), owner.UserID.String())
+		require.NoError(t, err)
+		ownerSubject := coderdtest.AuthzUserSubject(ownerUser)
+
+		// Create a regular user to test snapshot access.
+		client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		createTask := createTaskInState(db, ownerSubject, owner.OrganizationID, user.ID)
+
+		// Prepare snapshot data used across tests.
+		snapshotMessages := []agentapisdk.Message{
+			{
+				Id:      0,
+				Content: "First message",
+				Role:    agentapisdk.RoleAgent,
+				Time:    time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
+			},
+			{
+				Id:      1,
+				Content: "Second message",
+				Role:    agentapisdk.RoleUser,
+				Time:    time.Date(2025, 1, 1, 10, 1, 0, 0, time.UTC),
+			},
+		}
+
+		snapshotData := agentapisdk.GetMessagesResponse{
+			Messages: snapshotMessages,
+		}
+
+		envelope := coderd.TaskLogSnapshotEnvelope{
+			Format: "agentapi",
+			Data:   snapshotData,
+		}
+
+		snapshotJSON, err := json.Marshal(envelope)
+		require.NoError(t, err)
+
+		snapshotTime := time.Date(2025, 1, 1, 10, 5, 0, 0, time.UTC)
+
+		// Helper to verify snapshot logs content.
+		verifySnapshotLogs := func(t *testing.T, got codersdk.TaskLogsResponse) {
+			t.Helper()
+			want := codersdk.TaskLogsResponse{
+				Snapshot:   true,
+				SnapshotAt: &snapshotTime,
+				Logs: []codersdk.TaskLogEntry{
+					{
+						ID:      0,
+						Type:    codersdk.TaskLogTypeOutput,
+						Content: "First message",
+						Time:    snapshotMessages[0].Time,
+					},
+					{
+						ID:      1,
+						Type:    codersdk.TaskLogTypeInput,
+						Content: "Second message",
+						Time:    snapshotMessages[1].Time,
+					},
+				},
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("got bad response (-want +got):\n%s", diff)
+			}
+		}
+
+		t.Run("PendingTaskReturnsSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTask(ctx, t, database.TaskStatusPending)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err, "upserting task snapshot")
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err, "fetching task logs")
+			verifySnapshotLogs(t, logsResp)
+		})
+
+		t.Run("InitializingTaskReturnsSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTask(ctx, t, database.TaskStatusInitializing)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err, "upserting task snapshot")
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err, "fetching task logs")
+			verifySnapshotLogs(t, logsResp)
+		})
+
+		t.Run("PausedTaskReturnsSnapshot", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTask(ctx, t, database.TaskStatusPaused)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(snapshotJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err, "upserting task snapshot")
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err, "fetching task logs")
+			verifySnapshotLogs(t, logsResp)
+		})
+
+		t.Run("NoSnapshotReturnsEmpty", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTask(ctx, t, database.TaskStatusPending)
+
+			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			require.NoError(t, err)
+
+			assert.True(t, logsResp.Snapshot)
+			assert.Nil(t, logsResp.SnapshotAt)
+			assert.Len(t, logsResp.Logs, 0)
+		})
+
+		t.Run("InvalidSnapshotFormat", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTask(ctx, t, database.TaskStatusPending)
+
+			invalidEnvelope := coderd.TaskLogSnapshotEnvelope{
+				Format: "unknown-format",
+				Data:   map[string]any{},
+			}
+			invalidJSON, err := json.Marshal(invalidEnvelope)
+			require.NoError(t, err)
+
+			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(invalidJSON),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err)
+
+			_, err = client.TaskLogs(ctx, "me", taskID)
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+			assert.Contains(t, sdkErr.Message, "Unsupported task snapshot format")
+		})
+
+		t.Run("MalformedSnapshotData", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTask(ctx, t, database.TaskStatusPending)
+
+			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				TaskID:               taskID,
+				LogSnapshot:          json.RawMessage(`{"format":"agentapi","data":"not an object"}`),
+				LogSnapshotCreatedAt: snapshotTime,
+			})
+			require.NoError(t, err)
+
+			_, err = client.TaskLogs(ctx, "me", taskID)
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+		})
+
+		t.Run("ErrorStateReturnsError", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			taskID := createTask(ctx, t, database.TaskStatusError)
+
+			_, err := client.TaskLogs(ctx, "me", taskID)
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+			assert.Contains(t, sdkErr.Message, "Cannot fetch logs for task in current state")
+			assert.Contains(t, sdkErr.Detail, "error")
+		})
+	})
+
 	t.Run("UpdateInput", func(t *testing.T) {
 		tests := []struct {
 			name               string
@@ -733,12 +1230,12 @@ func TestTasks(t *testing.T) {
 			wantErrStatusCode  int
 		}{
 			{
-				name: "TaskStatusInitializing",
+				name: "TaskStatusPending",
 				// We want to disable the provisioner so that the task
-				// never gets provisioned (ensuring it stays in Initializing).
+				// never gets picked up (ensuring it stays in Pending).
 				disableProvisioner: true,
 				taskInput:          "Valid prompt",
-				wantStatus:         codersdk.TaskStatusInitializing,
+				wantStatus:         codersdk.TaskStatusPending,
 				wantErr:            "Unable to update",
 				wantErrStatusCode:  http.StatusConflict,
 			},
@@ -1656,4 +2153,272 @@ func TestTasksNotification(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
+	t.Parallel()
+
+	// Shared coderd with mock clock for all tests.
+	clock := quartz.NewMock(t)
+	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Clock: clock,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+	createTaskWorkspace := func(t *testing.T, agentToken string) (taskID uuid.UUID, workspaceID uuid.UUID) {
+		t.Helper()
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        owner.UserID,
+		}).WithTask(database.TaskTable{
+			Prompt: "test prompt",
+		}, &proto.App{
+			Slug: "task-app",
+			Url:  "http://localhost:8080",
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Auth = &proto.Agent_Token{Token: agentToken}
+			return agents
+		}).Do()
+		return workspaceBuild.Task.ID, workspaceBuild.Workspace.ID
+	}
+
+	makePayload := func(t *testing.T, content string) []byte {
+		t.Helper()
+		data := agentapisdk.GetMessagesResponse{
+			Messages: []agentapisdk.Message{
+				{Id: 0, Role: "agent", Content: content, Time: time.Now()},
+			},
+		}
+		b, err := json.Marshal(data)
+		require.NoError(t, err)
+		return b
+	}
+
+	makeRequest := func(t *testing.T, taskID uuid.UUID, agentToken string, payload []byte, format string) *http.Response {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		url := ownerClient.URL.JoinPath("/api/v2/workspaceagents/me/tasks", taskID.String(), "log-snapshot").String()
+		if format != "" {
+			url += "?format=" + format
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, agentToken)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		return res
+	}
+
+	unmarshalSnapshot := func(t *testing.T, snapshotJSON json.RawMessage) agentapisdk.GetMessagesResponse {
+		t.Helper()
+		// Pre-populate Data with the correct type so json.Unmarshal decodes
+		// directly into it instead of creating a map[string]any.
+		envelope := coderd.TaskLogSnapshotEnvelope{
+			Data: &agentapisdk.GetMessagesResponse{},
+		}
+		err := json.Unmarshal(snapshotJSON, &envelope)
+		require.NoError(t, err)
+		require.Equal(t, "agentapi", envelope.Format)
+
+		return *envelope.Data.(*agentapisdk.GetMessagesResponse)
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+
+		snapshot, err := db.GetTaskSnapshot(dbauthz.AsSystemRestricted(ctx), taskID)
+		require.NoError(t, err)
+
+		data := unmarshalSnapshot(t, snapshot.LogSnapshot)
+		require.Len(t, data.Messages, 1)
+		require.Equal(t, "test", data.Messages[0].Content)
+	})
+
+	//nolint:paralleltest // Not parallel, advances shared clock.
+	t.Run("Overwrite", func(t *testing.T) {
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// First snapshot.
+		res1 := makeRequest(t, taskID, agentToken, makePayload(t, "first"), "agentapi")
+		res1.Body.Close()
+		require.Equal(t, http.StatusNoContent, res1.StatusCode)
+
+		snapshot1, err := db.GetTaskSnapshot(dbauthz.AsSystemRestricted(ctx), taskID)
+		require.NoError(t, err)
+		firstTime := snapshot1.LogSnapshotCreatedAt
+
+		// Advance clock to ensure timestamp differs.
+		clock.Advance(time.Second)
+
+		// Second snapshot.
+		res2 := makeRequest(t, taskID, agentToken, makePayload(t, "second"), "agentapi")
+		res2.Body.Close()
+		require.Equal(t, http.StatusNoContent, res2.StatusCode)
+
+		snapshot2, err := db.GetTaskSnapshot(dbauthz.AsSystemRestricted(ctx), taskID)
+		require.NoError(t, err)
+		require.True(t, snapshot2.LogSnapshotCreatedAt.After(firstTime))
+
+		// Verify data was overwritten.
+		data := unmarshalSnapshot(t, snapshot2.LogSnapshot)
+		require.Len(t, data.Messages, 1)
+		require.Equal(t, "second", data.Messages[0].Content)
+	})
+
+	t.Run("MissingFormat", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid query parameters")
+		require.Len(t, errResp.Validations, 1)
+		require.Equal(t, "format", errResp.Validations[0].Field)
+		require.Contains(t, errResp.Validations[0].Detail, "required and cannot be empty")
+	})
+
+	t.Run("InvalidFormat", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "unknown")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid format parameter")
+	})
+
+	t.Run("PayloadTooLarge", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		largeContent := strings.Repeat("x", 65*1024)
+		payload := makePayload(t, largeContent)
+
+		res := makeRequest(t, taskID, agentToken, payload, "agentapi")
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		res.Body.Close()
+	})
+
+	t.Run("InvalidTaskID", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		url := ownerClient.URL.JoinPath("/api/v2/workspaceagents/me/tasks", "not-a-uuid", "log-snapshot").String() + "?format=agentapi"
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(makePayload(t, "test")))
+		req.Header.Set(codersdk.SessionTokenHeader, agentToken)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid task ID format")
+	})
+
+	t.Run("TaskNotFound", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, uuid.New(), agentToken, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("WrongWorkspace", func(t *testing.T) {
+		t.Parallel()
+		agent1Token := uuid.NewString()
+		agent2Token := uuid.NewString()
+		taskID1, _ := createTaskWorkspace(t, agent1Token)
+		taskID2, _ := createTaskWorkspace(t, agent2Token)
+
+		// Try to POST snapshot for task2 using agent1's token.
+		res := makeRequest(t, taskID2, agent1Token, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+
+		// Verify we CAN post for our own task.
+		res2 := makeRequest(t, taskID1, agent1Token, makePayload(t, "test"), "agentapi")
+		defer res2.Body.Close()
+		require.Equal(t, http.StatusNoContent, res2.StatusCode)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, "", makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("MalformedJSON", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		res := makeRequest(t, taskID, agentToken, []byte("{invalid json"), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Failed to decode request payload")
+	})
+
+	t.Run("InvalidAgentAPIPayload", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+
+		// Missing required "messages" field.
+		res := makeRequest(t, taskID, agentToken, []byte(`{"truncated":false,"total_count":0}`), "agentapi")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		var errResp codersdk.Response
+		json.NewDecoder(res.Body).Decode(&errResp)
+		require.Contains(t, errResp.Message, "Invalid agentapi payload structure")
+	})
+
+	t.Run("DeletedTask", func(t *testing.T) {
+		t.Parallel()
+		agentToken := uuid.NewString()
+		taskID, _ := createTaskWorkspace(t, agentToken)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Delete the task.
+		err := ownerClient.DeleteTask(ctx, owner.UserID.String(), taskID)
+		require.NoError(t, err)
+
+		res := makeRequest(t, taskID, agentToken, makePayload(t, "test"), "agentapi")
+		defer res.Body.Close()
+		// Agent token becomes invalid after task deletion.
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
 }

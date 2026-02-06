@@ -52,21 +52,6 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	defaultIsOpen = false,
 }) => {
 	const [view, setView] = useState<TimingView>({ name: "default" });
-	// This is a workaround to deal with the BE returning multiple timings for a
-	// single agent script when it should return only one. Reference:
-	// https://github.com/coder/coder/issues/15413#issuecomment-2493663571
-	const uniqScriptTimings = uniqBy(
-		sortBy(agentScriptTimings, (t) => new Date(t.started_at).getTime() * -1),
-		(t) => t.display_name,
-	);
-	const timings = [
-		...provisionerTimings,
-		...uniqScriptTimings,
-		...agentConnectionTimings,
-	].sort((a, b) => {
-		return new Date(a.started_at).getTime() - new Date(b.started_at).getTime();
-	});
-
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 
 	// If any of the timings are empty, we are still loading the data. They can be
@@ -79,21 +64,37 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 		// at least one entry.
 	].some((t) => t.length === 0);
 
+	// This is a workaround to deal with the BE returning multiple timings for a
+	// single agent script when it should return only one. Reference:
+	// https://github.com/coder/coder/issues/15413#issuecomment-2493663571
+	const uniqScriptTimings = sortBy(
+		uniqBy(
+			sortBy(agentScriptTimings, (t) => t.started_at).reverse(),
+			(t) => `${t.workspace_agent_id}:${t.display_name}`,
+		),
+		(t) => t.started_at,
+	);
+
+	// Combine agent timings for filtering by agent ID.
+	const agentTimings = [...agentConnectionTimings, ...uniqScriptTimings];
+
 	// Each agent connection timing is a stage in the timeline to make it easier
 	// to users to see the timing for connection and the other scripts.
-	const agentStageLabels = Array.from(
-		new Set(
-			agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
-		),
-	);
+	const agents = uniqBy(agentConnectionTimings, (t) => t.workspace_agent_id);
 
 	const stages = [
 		...provisioningStages,
-		...agentStageLabels.flatMap((a) => agentStages(a)),
+		...agents.flatMap((agent) =>
+			agentStages(
+				`agent (${agent.workspace_agent_name})`,
+				agent.workspace_agent_id,
+			),
+		),
 	];
 
 	const displayProvisioningTime = () => {
-		const totalRange = mergeTimeRanges(timings.map(toTimeRange));
+		const allTimings = [...provisionerTimings, ...agentTimings];
+		const totalRange = mergeTimeRanges(allTimings.map(toTimeRange));
 		const totalDuration = calcDuration(totalRange);
 		return formatTime(totalDuration);
 	};
@@ -131,9 +132,13 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 						{view.name === "default" && (
 							<StagesChart
 								timings={stages.map((s) => {
-									const stageTimings = timings.filter(
-										(t) => t.stage === s.name,
-									);
+									const stageTimings = s.agentId
+										? agentTimings.filter(
+												(t) =>
+													t.stage === s.name &&
+													t.workspace_agent_id === s.agentId,
+											)
+										: provisionerTimings.filter((t) => t.stage === s.name);
 									const stageRange =
 										stageTimings.length === 0
 											? undefined
@@ -196,8 +201,12 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 								{view.stage.name === "start" && (
 									<ScriptsChart
-										timings={agentScriptTimings
-											.filter((t) => t.stage === view.stage.name)
+										timings={uniqScriptTimings
+											.filter(
+												(t) =>
+													t.stage === view.stage.name &&
+													t.workspace_agent_id === view.stage.agentId,
+											)
 											.map((t) => {
 												return {
 													range: toTimeRange(t),
@@ -270,6 +279,6 @@ const styles = {
 		borderTop: `1px solid ${theme.palette.divider}`,
 		display: "flex",
 		flexDirection: "column",
-		height: 420,
+		height: "var(--collapse-body-height, 420px)",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

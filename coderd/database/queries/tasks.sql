@@ -57,13 +57,19 @@ AND CASE WHEN @status::text != '' THEN tws.status = @status::task_status ELSE TR
 ORDER BY tws.created_at DESC;
 
 -- name: DeleteTask :one
-UPDATE tasks
-SET
-	deleted_at = @deleted_at::timestamptz
-WHERE
-	id = @id::uuid
-	AND deleted_at IS NULL
-RETURNING *;
+WITH deleted_task AS (
+	UPDATE tasks
+	SET
+		deleted_at = @deleted_at::timestamptz
+	WHERE
+		id = @id::uuid
+		AND deleted_at IS NULL
+	RETURNING id
+), deleted_snapshot AS (
+	DELETE FROM task_snapshots
+	WHERE task_id = @id::uuid
+)
+SELECT id FROM deleted_task;
 
 
 -- name: UpdateTaskPrompt :one
@@ -75,3 +81,22 @@ WHERE
 	id = @id::uuid
 	AND deleted_at IS NULL
 RETURNING *;
+
+-- name: UpsertTaskSnapshot :exec
+INSERT INTO
+	task_snapshots (task_id, log_snapshot, log_snapshot_created_at)
+VALUES
+	($1, $2, $3)
+ON CONFLICT
+	(task_id)
+DO UPDATE SET
+	log_snapshot = EXCLUDED.log_snapshot,
+	log_snapshot_created_at = EXCLUDED.log_snapshot_created_at;
+
+-- name: GetTaskSnapshot :one
+SELECT
+	*
+FROM
+	task_snapshots
+WHERE
+	task_id = $1;

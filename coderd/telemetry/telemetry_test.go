@@ -19,7 +19,9 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -840,4 +842,131 @@ func collectSnapshot(
 	t.Cleanup(reporter.Close)
 
 	return testutil.RequireReceive(ctx, t, deployment), testutil.RequireReceive(ctx, t, snapshot)
+}
+
+func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IncludedInSnapshot", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		tracker := boundaryusage.NewTracker()
+		workspace1, workspace2 := uuid.New(), uuid.New()
+		user1, user2 := uuid.New(), uuid.New()
+		replicaID := uuid.New()
+
+		tracker.Track(workspace1, user1, 10, 2)
+		tracker.Track(workspace2, user1, 5, 1)
+		tracker.Track(workspace2, user2, 3, 0)
+
+		// Flush the tracker to the database.
+		err := tracker.FlushToDB(ctx, db, replicaID)
+		require.NoError(t, err)
+
+		// Collect a snapshot and verify boundary usage is included.
+		clock := quartz.NewMock(t)
+		clock.Set(dbtime.Now())
+
+		_, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+
+		require.NotNil(t, snapshot.BoundaryUsageSummary)
+		require.Equal(t, int64(2), snapshot.BoundaryUsageSummary.UniqueWorkspaces)
+		require.Equal(t, int64(2), snapshot.BoundaryUsageSummary.UniqueUsers)
+		require.Equal(t, int64(10+5+3), snapshot.BoundaryUsageSummary.AllowedRequests)
+		require.Equal(t, int64(2+1+0), snapshot.BoundaryUsageSummary.DeniedRequests)
+		require.Equal(t, clock.Now().Add(-telemetry.DefaultSnapshotFrequency), snapshot.BoundaryUsageSummary.PeriodStart)
+		require.Equal(t, int64(telemetry.DefaultSnapshotFrequency/time.Millisecond), snapshot.BoundaryUsageSummary.PeriodDurationMilliseconds)
+	})
+
+	t.Run("ResetAfterCollection", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		tracker := boundaryusage.NewTracker()
+		replicaID := uuid.New()
+
+		tracker.Track(uuid.New(), uuid.New(), 5, 1)
+		err := tracker.FlushToDB(ctx, db, replicaID)
+		require.NoError(t, err)
+
+		clock := quartz.NewMock(t)
+		clock.Set(dbtime.Now())
+
+		// First snapshot should have the data.
+		_, snapshot1 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		require.NotNil(t, snapshot1.BoundaryUsageSummary)
+		require.Equal(t, int64(5), snapshot1.BoundaryUsageSummary.AllowedRequests)
+
+		// Advance clock to next snapshot period to avoid lock conflict.
+		clock.Advance(30 * time.Minute)
+
+		// Second snapshot should have no data (stats were reset).
+		_, snapshot2 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		// Summary should be nil or have zero values since stats were reset.
+		if snapshot2.BoundaryUsageSummary != nil {
+			require.Equal(t, int64(0), snapshot2.BoundaryUsageSummary.AllowedRequests)
+		}
+	})
+
+	t.Run("OnlyOneReplicaCollects", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Set up boundary usage stats from two replicas.
+		tracker1 := boundaryusage.NewTracker()
+		tracker2 := boundaryusage.NewTracker()
+		replica1ID := uuid.New()
+		replica2ID := uuid.New()
+
+		tracker1.Track(uuid.New(), uuid.New(), 10, 1)
+		tracker2.Track(uuid.New(), uuid.New(), 20, 2)
+
+		err := tracker1.FlushToDB(ctx, db, replica1ID)
+		require.NoError(t, err)
+		err = tracker2.FlushToDB(ctx, db, replica2ID)
+		require.NoError(t, err)
+
+		// Verify both replicas' data is in the database.
+		boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
+		const maxStalenessMs = 60000
+		summary, err := db.GetBoundaryUsageSummary(boundaryCtx, maxStalenessMs)
+		require.NoError(t, err)
+		require.Equal(t, int64(10+20), summary.AllowedRequests)
+
+		clock := quartz.NewMock(t)
+		clock.Set(dbtime.Now())
+
+		// First snapshot collects and resets.
+		_, snapshot1 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		require.NotNil(t, snapshot1.BoundaryUsageSummary)
+		require.Equal(t, int64(10+20), snapshot1.BoundaryUsageSummary.AllowedRequests)
+
+		// Second snapshot in same period should skip (lock already claimed).
+		_, snapshot2 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		// The second snapshot should have nil because another "replica" already
+		// claimed the lock for this period.
+		require.Nil(t, snapshot2.BoundaryUsageSummary)
+	})
 }

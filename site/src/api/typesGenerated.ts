@@ -37,6 +37,7 @@ export interface AIBridgeConfig {
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
+	readonly send_actor_headers: boolean;
 	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
 	 * provider rate limits (429, 503, 529 overloaded).
@@ -188,6 +189,10 @@ export type APIKeyScope =
 	| "audit_log:*"
 	| "audit_log:create"
 	| "audit_log:read"
+	| "boundary_usage:*"
+	| "boundary_usage:delete"
+	| "boundary_usage:read"
+	| "boundary_usage:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
 	| "coder:application_connect"
@@ -348,6 +353,7 @@ export type APIKeyScope =
 	| "workspace_dormant:start"
 	| "workspace_dormant:stop"
 	| "workspace_dormant:update"
+	| "workspace_dormant:update_agent"
 	| "workspace_proxy:*"
 	| "workspace_proxy:create"
 	| "workspace_proxy:delete"
@@ -358,7 +364,8 @@ export type APIKeyScope =
 	| "workspace:ssh"
 	| "workspace:start"
 	| "workspace:stop"
-	| "workspace:update";
+	| "workspace:update"
+	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
 	"aibridge_interception:*",
@@ -386,6 +393,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"audit_log:*",
 	"audit_log:create",
 	"audit_log:read",
+	"boundary_usage:*",
+	"boundary_usage:delete",
+	"boundary_usage:read",
+	"boundary_usage:update",
 	"coder:all",
 	"coder:apikeys.manage_self",
 	"coder:application_connect",
@@ -546,6 +557,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:start",
 	"workspace_dormant:stop",
 	"workspace_dormant:update",
+	"workspace_dormant:update_agent",
 	"workspace_proxy:*",
 	"workspace_proxy:create",
 	"workspace_proxy:delete",
@@ -557,6 +569,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace:start",
 	"workspace:stop",
 	"workspace:update",
+	"workspace:update_agent",
 ];
 
 // From codersdk/apikey.go
@@ -583,6 +596,11 @@ export interface AccessURLReport extends BaseReport {
 export interface AddLicenseRequest {
 	readonly license: string;
 }
+
+// From codersdk/deployment.go
+export type Addon = "ai_governance";
+
+export const Addons: Addon[] = ["ai_governance"];
 
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
@@ -2106,10 +2124,12 @@ export interface Feature {
 // From codersdk/deployment.go
 export type FeatureName =
 	| "aibridge"
+	| "ai_governance_user_limit"
 	| "access_control"
 	| "advanced_template_scheduling"
 	| "appearance"
 	| "audit_log"
+	| "boundary"
 	| "browser_only"
 	| "connection_log"
 	| "control_shared_ports"
@@ -2132,10 +2152,12 @@ export type FeatureName =
 
 export const FeatureNames: FeatureName[] = [
 	"aibridge",
+	"ai_governance_user_limit",
 	"access_control",
 	"advanced_template_scheduling",
 	"appearance",
 	"audit_log",
+	"boundary",
 	"browser_only",
 	"connection_log",
 	"control_shared_ports",
@@ -4014,6 +4036,7 @@ export type RBACAction =
 	| "share"
 	| "unassign"
 	| "update"
+	| "update_agent"
 	| "update_personal"
 	| "use"
 	| "view_insights"
@@ -4033,6 +4056,7 @@ export const RBACActions: RBACAction[] = [
 	"share",
 	"unassign",
 	"update",
+	"update_agent",
 	"update_personal",
 	"use",
 	"view_insights",
@@ -4047,6 +4071,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "boundary_usage"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -4091,6 +4116,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"boundary_usage",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -4988,10 +5014,14 @@ export const TaskLogTypes: TaskLogType[] = ["input", "output"];
 
 // From codersdk/aitasks.go
 /**
- * TaskLogsResponse contains the logs for a task.
+ * TaskLogsResponse contains task logs and metadata. When snapshot is false,
+ * logs are fetched live from the task app. When snapshot is true, logs are
+ * fetched from a stored snapshot captured during pause.
  */
 export interface TaskLogsResponse {
 	readonly logs: readonly TaskLogEntry[];
+	readonly snapshot?: boolean;
+	readonly snapshot_at?: string;
 }
 
 // From codersdk/aitasks.go
@@ -5141,6 +5171,11 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
+	/**
+	 * DisableModuleCache disables the use of cached Terraform modules during
+	 * provisioning.
+	 */
+	readonly disable_module_cache: boolean;
 }
 
 // From codersdk/templates.go
@@ -5670,6 +5705,11 @@ export interface UpdateTemplateMeta {
 	 * An "opt-out" is present in case the new feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
+	/**
+	 * DisableModuleCache disables the using of cached Terraform modules during
+	 * provisioning. It is recommended not to disable this.
+	 */
+	readonly disable_module_cache?: boolean;
 }
 
 // From codersdk/users.go
@@ -6266,6 +6306,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
+	readonly subagent_id?: string;
 	/**
 	 * Additional runtime fields.
 	 */

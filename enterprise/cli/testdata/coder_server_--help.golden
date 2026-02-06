@@ -16,9 +16,11 @@ SUBCOMMANDS:
 
 OPTIONS:
       --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
-          DEPRECATED: Allow users to rename their workspaces. Use only for
-          temporary compatibility reasons, this will be removed in a future
-          release.
+          Allow users to rename their workspaces. WARNING: Renaming a workspace
+          can cause Terraform resources that depend on the workspace name to be
+          destroyed and recreated, potentially causing data loss. Only enable
+          this if your templates do not use workspace names in resource
+          identifiers, or if you understand the risks.
 
       --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
@@ -159,6 +161,14 @@ AI BRIDGE OPTIONS:
           Maximum number of AI Bridge requests per second per replica. Set to 0
           to disable (unlimited).
 
+      --aibridge-send-actor-headers bool, $CODER_AIBRIDGE_SEND_ACTOR_HEADERS (default: false)
+          Once enabled, extra headers will be added to upstream requests to
+          identify the user (actor) making requests to AI Bridge. This is only
+          needed if you are using a proxy between AI Bridge and an upstream AI
+          provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
+          making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
+          username).
+
       --aibridge-structured-logging bool, $CODER_AIBRIDGE_STRUCTURED_LOGGING (default: false)
           Emit structured logs for AI Bridge interception records. Use this for
           exporting these records to external SIEM or observability systems.
@@ -205,9 +215,6 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           Provide options in "key=value" or "key value" format separated by
           commas.Using this incorrectly can break SSH to your deployment, use
           cautiously.
-
-      --ssh-hostname-prefix string, $CODER_SSH_HOSTNAME_PREFIX (default: coder.)
-          The SSH deployment prefix is used in the Host of the ssh config.
 
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
           The renderer to use when opening a web terminal. Valid values are

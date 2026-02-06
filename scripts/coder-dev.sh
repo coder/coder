@@ -90,7 +90,11 @@ if [[ "${DEBUG_DELVE}" == 1 ]]; then
 	# binary, so we can just build the debug binary here without having to worry
 	# about/use the makefile.
 	./scripts/build_go.sh "${build_flags[@]}"
-	runcmd=(dlv exec --headless --continue --listen 127.0.0.1:12345 --accept-multiclient "$CODER_DELVE_DEBUG_BIN" --)
+	# Use go run to ensure Delve is built with current Go version.
+	# Go 1.25+ uses DWARFv5 which requires Delve built with Go 1.25+.
+	# GOTOOLCHAIN is set to force building Delve with the current Go version.
+	current_toolchain="go$(go env GOVERSION | sed 's/^go//')"
+	runcmd=(env "GOTOOLCHAIN=${current_toolchain}" go run github.com/go-delve/delve/cmd/dlv@latest exec --headless --continue --listen 127.0.0.1:12345 --accept-multiclient "$CODER_DELVE_DEBUG_BIN" --)
 fi
 
 exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"

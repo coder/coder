@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -93,6 +94,76 @@ ExtractCommandPathsLoop:
 			TestGoldenFile(t, tt.Name, outBuf.Bytes(), replacements)
 		})
 	}
+}
+
+// Output captures stdout and stderr from an invocation and formats them with
+// prefixes for golden file testing, preserving their interleaved order.
+type Output struct {
+	mu       sync.Mutex
+	stdout   bytes.Buffer
+	stderr   bytes.Buffer
+	combined bytes.Buffer
+}
+
+// prefixWriter wraps a buffer and prefixes each line with a given prefix.
+type prefixWriter struct {
+	mu       *sync.Mutex
+	prefix   string
+	raw      *bytes.Buffer
+	combined *bytes.Buffer
+	line     bytes.Buffer // buffer for incomplete lines
+}
+
+// Write implements io.Writer, adding a prefix to each complete line.
+func (w *prefixWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// Write unprefixed to raw buffer.
+	_, _ = w.raw.Write(p)
+
+	// Append to line buffer.
+	_, _ = w.line.Write(p)
+
+	// Split on newlines.
+	lines := bytes.Split(w.line.Bytes(), []byte{'\n'})
+
+	// Write all complete lines (all but the last, which may be incomplete).
+	for i := 0; i < len(lines)-1; i++ {
+		_, _ = w.combined.WriteString(w.prefix)
+		_, _ = w.combined.Write(lines[i])
+		_ = w.combined.WriteByte('\n')
+	}
+
+	// Keep the last line (incomplete) in the buffer.
+	w.line.Reset()
+	_, _ = w.line.Write(lines[len(lines)-1])
+
+	return len(p), nil
+}
+
+// Capture sets up stdout and stderr writers on the invocation that prefix each
+// line with "out: " or "err: " while preserving their order.
+func Capture(inv *serpent.Invocation) *Output {
+	output := &Output{}
+	inv.Stdout = &prefixWriter{mu: &output.mu, prefix: "out: ", raw: &output.stdout, combined: &output.combined}
+	inv.Stderr = &prefixWriter{mu: &output.mu, prefix: "err: ", raw: &output.stderr, combined: &output.combined}
+	return output
+}
+
+// Golden returns the formatted output with lines prefixed by "err: " or "out: ".
+func (o *Output) Golden() []byte {
+	return o.combined.Bytes()
+}
+
+// Stdout returns the unprefixed stdout content for parsing (e.g., JSON).
+func (o *Output) Stdout() string {
+	return o.stdout.String()
+}
+
+// Stderr returns the unprefixed stderr content.
+func (o *Output) Stderr() string {
+	return o.stderr.String()
 }
 
 // TestGoldenFile will test the given bytes slice input against the

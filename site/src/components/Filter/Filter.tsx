@@ -1,7 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Divider from "@mui/material/Divider";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
 import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
 import type { Breakpoint } from "@mui/system/createTheme";
 import {
@@ -10,10 +7,18 @@ import {
 	isApiValidationError,
 } from "api/errors";
 import { Button } from "components/Button/Button";
-import { InputGroup } from "components/InputGroup/InputGroup";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
-import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, SlidersHorizontal } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 
 type PresetFilter = {
@@ -219,39 +224,42 @@ export const Filter: FC<FilterProps> = ({
 				</>
 			) : (
 				<>
-					<InputGroup css={{ width: "100%" }}>
-						<PresetMenu
-							onSelect={(query) => filter.update(query)}
-							presets={presets}
-							learnMoreLink={learnMoreLink}
-							learnMoreLabel2={learnMoreLabel2}
-							learnMoreLink2={learnMoreLink2}
-						/>
+					<PresetMenu
+						value={filter.query}
+						onSelect={(query) => filter.update(query)}
+						presets={presets}
+						learnMoreLink={learnMoreLink}
+						learnMoreLabel2={learnMoreLabel2}
+						learnMoreLink2={learnMoreLink2}
+					/>
+					<div className="flex flex-col gap-2 w-full">
 						<SearchField
-							css={{ flex: 1 }}
-							error={shouldDisplayError}
-							helperText={
-								shouldDisplayError
-									? getValidationErrorMessage(error)
-									: undefined
-							}
-							placeholder="Search..."
+							ref={textboxInputRef}
+							className="w-full"
 							value={queryCopy}
+							aria-label="Filter"
+							aria-invalid={shouldDisplayError}
 							onChange={(query) => {
 								setQueryCopy(query);
 								filter.debounceUpdate(query);
 							}}
-							InputProps={{
-								ref: textboxInputRef,
-								"aria-label": "Filter",
-								onBlur: () => {
-									if (queryCopy !== filter.query) {
-										setQueryCopy(filter.query);
-									}
-								},
+							onClear={() => {
+								setQueryCopy("");
+								filter.cancelDebounce();
+								filter.update("");
 							}}
+							onBlur={() => {
+								if (queryCopy === filter.query) return;
+								setQueryCopy(filter.query);
+							}}
+							placeholder="Search..."
 						/>
-					</InputGroup>
+						{hasError(error) && (
+							<span className="text-content-destructive text-sm">
+								{getValidationErrorMessage(error)}
+							</span>
+						)}
+					</div>
 					{options}
 				</>
 			)}
@@ -260,6 +268,7 @@ export const Filter: FC<FilterProps> = ({
 };
 
 interface PresetMenuProps {
+	value: string;
 	presets: PresetFilter[];
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
@@ -268,86 +277,51 @@ interface PresetMenuProps {
 }
 
 const PresetMenu: FC<PresetMenuProps> = ({
+	value,
 	presets,
 	learnMoreLink,
 	learnMoreLabel2,
 	learnMoreLink2,
 	onSelect,
 }) => {
-	const [isOpen, setIsOpen] = useState(false);
-	const anchorRef = useRef<HTMLButtonElement>(null);
-	const theme = useTheme();
-
 	return (
-		<>
-			<Button
-				onClick={() => setIsOpen(true)}
-				ref={anchorRef}
-				variant="outline"
-				className="h-9"
-			>
-				Filters
-				<ChevronDownIcon />
-			</Button>
-			<Menu
-				id="filter-menu"
-				anchorEl={anchorRef.current}
-				open={isOpen}
-				onClose={() => setIsOpen(false)}
-				anchorOrigin={{
-					vertical: "bottom",
-					horizontal: "left",
-				}}
-				transformOrigin={{
-					vertical: "top",
-					horizontal: "left",
-				}}
-				css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
-			>
-				{presets.map((presetFilter) => (
-					<MenuItem
-						css={{ fontSize: 14 }}
-						key={presetFilter.name}
-						onClick={() => {
-							onSelect(presetFilter.query);
-							setIsOpen(false);
-						}}
-					>
-						{presetFilter.name}
-					</MenuItem>
-				))}
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="outline">
+					<SlidersHorizontal className="size-icon-xs" />
+					Filters
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent side="bottom" align="start">
+				<DropdownMenuRadioGroup value={value}>
+					{presets.map((presetFilter) => (
+						<DropdownMenuRadioItem
+							value={presetFilter.query}
+							onSelect={() => onSelect(presetFilter.query)}
+							key={presetFilter.name}
+						>
+							{presetFilter.name}
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
+				{(learnMoreLink || learnMoreLink2) && <DropdownMenuSeparator />}
 				{learnMoreLink && (
-					<Divider css={{ borderColor: theme.palette.divider }} />
-				)}
-				{learnMoreLink && (
-					<MenuItem
-						component="a"
-						href={learnMoreLink}
-						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
-						onClick={() => {
-							setIsOpen(false);
-						}}
-					>
-						<ExternalLinkIcon className="size-icon-xs" />
-						View advanced filtering
-					</MenuItem>
+					<DropdownMenuItem asChild>
+						<a href={learnMoreLink} target="_blank">
+							<ExternalLinkIcon className="size-icon-xs" />
+							View advanced filtering
+						</a>
+					</DropdownMenuItem>
 				)}
 				{learnMoreLink2 && learnMoreLabel2 && (
-					<MenuItem
-						component="a"
-						href={learnMoreLink2}
-						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
-						onClick={() => {
-							setIsOpen(false);
-						}}
-					>
-						<ExternalLinkIcon className="size-icon-xs" />
-						{learnMoreLabel2}
-					</MenuItem>
+					<DropdownMenuItem asChild>
+						<a href={learnMoreLink2} target="_blank">
+							<ExternalLinkIcon className="size-icon-xs" />
+							{learnMoreLabel2}
+						</a>
+					</DropdownMenuItem>
 				)}
-			</Menu>
-		</>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };

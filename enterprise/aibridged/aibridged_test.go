@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/intercept"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -310,6 +311,105 @@ func (h *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.headersReceived = r.Header.Clone()
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte(r.URL.Path))
+}
+
+// TestServeHTTP_ActorHeaders validates that actor headers are correctly forwarded to
+// upstream AI providers when SendActorHeaders is enabled in the provider configuration.
+// These headers allow upstream providers to identify the user making the request for
+// tracking and auditing purposes.
+func TestServeHTTP_ActorHeaders(t *testing.T) {
+	t.Parallel()
+
+	testUsername := "testuser"
+	testUserID := uuid.New()
+
+	cases := []struct {
+		path string
+	}{
+		// Not a complete set of paths; we're not testing the specific APIs - just the provider configs.
+		{
+			path: "/openai/v1/chat/completions",
+		},
+		{
+			path: "/anthropic/v1/messages",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup mock upstream AI server that captures headers.
+			var receivedHeaders http.Header
+			upstreamSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedHeaders = r.Header.Clone()
+				w.WriteHeader(http.StatusTeapot)
+				_, _ = w.Write([]byte(`i am a teapot`))
+			}))
+			t.Cleanup(upstreamSrv.Close)
+
+			// Setup with SendActorHeaders enabled.
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			ctrl := gomock.NewController(t)
+			client := mock.NewMockDRPCClient(ctrl)
+
+			// Create providers with SendActorHeaders=true.
+			providers := []aibridge.Provider{
+				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+					BaseURL:          upstreamSrv.URL,
+					SendActorHeaders: true,
+				}),
+				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+					BaseURL:          upstreamSrv.URL,
+					SendActorHeaders: true,
+				}, nil),
+			}
+
+			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
+			require.NoError(t, err)
+			conn := &mockDRPCConn{}
+			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+
+			// Return authorization response with user ID and username.
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+				OwnerId:  testUserID.String(),
+				Username: testUsername,
+			}, nil)
+			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
+			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionResponse{}, nil)
+			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).AnyTimes()
+
+			// Given: aibridged is started.
+			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+				return client, nil
+			}, logger, testTracer)
+			require.NoError(t, err, "create new aibridged")
+			t.Cleanup(func() {
+				_ = srv.Shutdown(testutil.Context(t, testutil.WaitShort))
+			})
+
+			// When: a request is made to aibridged.
+			ctx := testutil.Context(t, testutil.WaitShort)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, tc.path, bytes.NewBufferString(`{}`))
+			require.NoError(t, err, "make request to test server")
+			req.Header.Add("Authorization", "Bearer key")
+			req.Header.Add("Accept", "application/json")
+
+			// When: aibridged handles the request.
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, req)
+
+			// Then: the actor headers should be present in the upstream request.
+			require.NotEmpty(t, receivedHeaders, "upstream server should have received headers")
+
+			// Verify the actor ID header is present with the correct value.
+			actorIDHeader := receivedHeaders.Get(intercept.ActorIDHeader())
+			assert.Equal(t, testUserID.String(), actorIDHeader, "actor ID header should contain user ID")
+			// Verify the actor metadata header for username is present.
+			usernameHeader := receivedHeaders.Get(intercept.ActorMetadataHeader("Username"))
+			assert.Equal(t, testUsername, usernameHeader, "actor metadata username header should contain username")
+		})
+	}
 }
 
 // TestRouting validates that a request which originates with aibridged will be handled

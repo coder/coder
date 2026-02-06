@@ -25,6 +25,9 @@ const (
 	ScopeAssignRoleUnassign                  ScopeName = "assign_role:unassign"
 	ScopeAuditLogCreate                      ScopeName = "audit_log:create"
 	ScopeAuditLogRead                        ScopeName = "audit_log:read"
+	ScopeBoundaryUsageDelete                 ScopeName = "boundary_usage:delete"
+	ScopeBoundaryUsageRead                   ScopeName = "boundary_usage:read"
+	ScopeBoundaryUsageUpdate                 ScopeName = "boundary_usage:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -132,6 +135,7 @@ const (
 	ScopeWorkspaceStart                      ScopeName = "workspace:start"
 	ScopeWorkspaceStop                       ScopeName = "workspace:stop"
 	ScopeWorkspaceUpdate                     ScopeName = "workspace:update"
+	ScopeWorkspaceUpdateAgent                ScopeName = "workspace:update_agent"
 	ScopeWorkspaceAgentDevcontainersCreate   ScopeName = "workspace_agent_devcontainers:create"
 	ScopeWorkspaceAgentResourceMonitorCreate ScopeName = "workspace_agent_resource_monitor:create"
 	ScopeWorkspaceAgentResourceMonitorRead   ScopeName = "workspace_agent_resource_monitor:read"
@@ -147,6 +151,7 @@ const (
 	ScopeWorkspaceDormantStart               ScopeName = "workspace_dormant:start"
 	ScopeWorkspaceDormantStop                ScopeName = "workspace_dormant:stop"
 	ScopeWorkspaceDormantUpdate              ScopeName = "workspace_dormant:update"
+	ScopeWorkspaceDormantUpdateAgent         ScopeName = "workspace_dormant:update_agent"
 	ScopeWorkspaceProxyCreate                ScopeName = "workspace_proxy:create"
 	ScopeWorkspaceProxyDelete                ScopeName = "workspace_proxy:delete"
 	ScopeWorkspaceProxyRead                  ScopeName = "workspace_proxy:read"
@@ -180,6 +185,9 @@ func (e ScopeName) Valid() bool {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryUsageDelete,
+		ScopeBoundaryUsageRead,
+		ScopeBoundaryUsageUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -287,6 +295,7 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceStart,
 		ScopeWorkspaceStop,
 		ScopeWorkspaceUpdate,
+		ScopeWorkspaceUpdateAgent,
 		ScopeWorkspaceAgentDevcontainersCreate,
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
@@ -302,6 +311,7 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceDormantStart,
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
+		ScopeWorkspaceDormantUpdateAgent,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
@@ -336,6 +346,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryUsageDelete,
+		ScopeBoundaryUsageRead,
+		ScopeBoundaryUsageUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -443,6 +456,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceStart,
 		ScopeWorkspaceStop,
 		ScopeWorkspaceUpdate,
+		ScopeWorkspaceUpdateAgent,
 		ScopeWorkspaceAgentDevcontainersCreate,
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
@@ -458,6 +472,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceDormantStart,
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
+		ScopeWorkspaceDormantUpdateAgent,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,

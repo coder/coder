@@ -72,3 +72,10 @@ type DRPCAgentClient27 interface {
 	DRPCAgentClient26
 	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 }
+
+// DRPCAgentClient28 is the Agent API at v2.8. It adds a SubagentId field to the
+// WorkspaceAgentDevcontainer message, and a Id field to the CreateSubAgentRequest
+// message. Compatible with Coder v2.31+
+type DRPCAgentClient28 interface {
+	DRPCAgentClient27
+}

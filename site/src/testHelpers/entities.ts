@@ -855,6 +855,7 @@ export const MockTemplate: TypesGen.Template = {
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
+	disable_module_cache: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3082,6 +3083,10 @@ export const MockPermissions: Permissions = {
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
+	createOAuth2App: true,
+	editOAuth2App: true,
+	deleteOAuth2App: true,
+	viewOAuth2AppSecrets: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3111,6 +3116,10 @@ export const MockNoPermissions: Permissions = {
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: true,
+	createOAuth2App: false,
+	editOAuth2App: false,
+	deleteOAuth2App: false,
+	viewOAuth2AppSecrets: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {

@@ -292,7 +292,7 @@ WHERE
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN @has_agent :: text != '' THEN
+		WHEN array_length(@has_agent_statuses :: text[], 1) > 0 THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -306,7 +306,7 @@ WHERE
 					latest_build.transition = 'start'::workspace_transition AND
 					-- Filter out deleted sub agents.
 					workspace_agents.deleted = FALSE AND
-					@has_agent = (
+					(
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -324,7 +324,7 @@ WHERE
 							ELSE
 								NULL
 						END
-					)
+					) = ANY(@has_agent_statuses :: text[])
 			) > 0
 		ELSE true
 	END
@@ -389,6 +389,7 @@ WHERE
 			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
+
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (

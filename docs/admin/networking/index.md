@@ -253,6 +253,10 @@ To improve latency and user experience:
 
 For help troubleshooting connection issues, including latency problems, refer to the [networking troubleshooting guide](./troubleshooting.md).
 
+## External Network Access
+
+By default, Coder will access some external network endpoints in order to download dependencies and send usage data. However, all of these features can be disabled. Learn how to configure Coder for [air-gapped environments](../../install/airgap.md).
+
 ## Up next
 
 - Learn about [Port Forwarding](./port-forwarding.md)

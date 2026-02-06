@@ -1,0 +1,57 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder boundary [flags] [args...]
+
+  Network isolation tool for monitoring and restricting HTTP/HTTPS requests
+
+  boundary creates an isolated network environment for target processes,
+  intercepting HTTP/HTTPS traffic through a transparent proxy that enforces
+  user-defined allow rules.
+
+OPTIONS:
+      --allow string, $BOUNDARY_ALLOW
+          Allow rule (repeatable). These are merged with allowlist from config
+          file. Format: "pattern" or "METHOD[,METHOD] pattern".
+
+       string-array
+          Allowlist rules from config file (YAML only).
+
+      --config yaml-config-path, $BOUNDARY_CONFIG
+          Path to YAML config file.
+
+      --disable-audit-logs bool, $DISABLE_AUDIT_LOGS
+          Disable sending of audit logs to the workspace agent when set to true.
+
+      --jail-type string, $BOUNDARY_JAIL_TYPE (default: nsjail)
+          Jail type to use for network isolation. Options: nsjail (default),
+          landjail.
+
+      --log-dir string, $BOUNDARY_LOG_DIR
+          Set a directory to write logs to rather than stderr.
+
+      --log-level string, $BOUNDARY_LOG_LEVEL (default: warn)
+          Set log level (error, warn, info, debug).
+
+      --log-proxy-socket-path string, $CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH (default: /tmp/boundary-audit.sock)
+          Path to the socket where the boundary log proxy server listens for
+          audit logs.
+
+      --pprof bool, $BOUNDARY_PPROF
+          Enable pprof profiling server.
+
+      --pprof-port int, $BOUNDARY_PPROF_PORT (default: 6060)
+          Set port for pprof profiling server.
+
+      --proxy-port int, $PROXY_PORT (default: 8080)
+          Set a port for HTTP proxy.
+
+      --use-real-dns bool, $BOUNDARY_USE_REAL_DNS
+          Use real DNS in the jail instead of the dummy DNS (allows DNS
+          exfiltration). Default: false.
+
+      --version bool
+          Print version information and exit.
+
+———
+Run `coder --help` for a list of global options.
