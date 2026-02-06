@@ -708,6 +708,54 @@ func TestAIBridgeRouting(t *testing.T) {
 	}
 }
 
+// TestAIBridgeNoSessionTokenRequired verifies that the aibridged /* routes
+// do not require apiKeyMiddleware authentication. Real AI clients send
+// Authorization: Bearer headers, not Coder session tokens. If
+// apiKeyMiddleware were incorrectly applied, this test would fail with 401.
+func TestAIBridgeNoSessionTokenRequired(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	// Register a handler that returns 200 to confirm the request
+	// reached the aibridged handler without being blocked.
+	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})
+	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Send request WITHOUT a Coder session token — only a Bearer token
+	// like a real AI client would.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		client.URL.String()+"/api/v2/aibridge/openai/v1/chat/completions", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer fake-ai-client-key")
+
+	resp, err := (&http.Client{}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// The request should reach the aibridged handler (200), not be
+	// rejected by apiKeyMiddleware (401).
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 func TestAIBridgeRateLimiting(t *testing.T) {
 	t.Parallel()
 
