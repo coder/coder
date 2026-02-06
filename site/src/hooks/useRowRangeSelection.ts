@@ -5,7 +5,7 @@ import { useRef } from "react";
  * If shift was held, returns the indices to toggle.
  * If not, returns null (handle as normal single selection).
  */
-export interface ShiftClickResult {
+interface ShiftClickResult {
 	/** Indices of items that should be toggled */
 	indicesToToggle: number[];
 	/** Whether to select or deselect the items */
