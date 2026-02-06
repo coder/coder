@@ -3590,7 +3590,7 @@ export const PathAppSessionTokenCookie = "coder_path_app_session_token";
  * PauseTaskResponse represents the response from pausing a task.
  */
 export interface PauseTaskResponse {
-	readonly workspace_build_id: string;
+	readonly workspace_build: WorkspaceBuild | null;
 }
 
 // From codersdk/roles.go
