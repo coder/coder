@@ -50,6 +50,12 @@ func TestUpdateLifecycle(t *testing.T) {
 	someTime = dbtime.Time(someTime)
 	now := dbtime.Now()
 
+	// Fixed times for build duration metric assertions.
+	// The expected duration is exactly 90 seconds.
+	buildCreatedAt := dbtime.Time(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+	agentReadyAt := dbtime.Time(time.Date(2025, 1, 1, 0, 1, 30, 0, time.UTC))
+	expectedDuration := agentReadyAt.Sub(buildCreatedAt).Seconds() // 90.0
+
 	var (
 		workspaceID  = uuid.New()
 		agentCreated = database.WorkspaceAgent{
@@ -126,13 +132,13 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 		}).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
-			CreatedAt:        someTime,
+			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
 			IsPrebuild:       false,
 			AllAgentsReady:   true,
-			LastAgentReadyAt: now,
+			LastAgentReadyAt: agentReadyAt,
 			WorstStatus:      "success",
 		}, nil)
 
@@ -165,7 +171,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			"is_prebuild":       "false",
 		})
 		require.Equal(t, uint64(1), got.GetSampleCount())
-		require.Greater(t, got.GetSampleSum(), float64(0))
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 
 	// This test jumps from CREATING to READY, skipping STARTED. Both the
@@ -192,13 +198,13 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 		}).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
-			CreatedAt:        someTime,
+			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
 			IsPrebuild:       false,
 			AllAgentsReady:   true,
-			LastAgentReadyAt: now,
+			LastAgentReadyAt: agentReadyAt,
 			WorstStatus:      "success",
 		}, nil)
 
@@ -235,7 +241,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			"is_prebuild":       "false",
 		})
 		require.Equal(t, uint64(1), got.GetSampleCount())
-		require.Greater(t, got.GetSampleSum(), float64(0))
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 
 	t.Run("NoTimeSpecified", func(t *testing.T) {
@@ -263,13 +269,13 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 		})
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
-			CreatedAt:        someTime,
+			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
 			IsPrebuild:       false,
 			AllAgentsReady:   true,
-			LastAgentReadyAt: now,
+			LastAgentReadyAt: agentReadyAt,
 			WorstStatus:      "success",
 		}, nil)
 
@@ -304,7 +310,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			"is_prebuild":       "false",
 		})
 		require.Equal(t, uint64(1), got.GetSampleCount())
-		require.Greater(t, got.GetSampleSum(), float64(0))
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 
 	t.Run("AllStates", func(t *testing.T) {
@@ -497,13 +503,13 @@ func TestUpdateLifecycle(t *testing.T) {
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
-			CreatedAt:        someTime,
+			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
 			IsPrebuild:       true, // Prebuild workspace
 			AllAgentsReady:   true,
-			LastAgentReadyAt: now,
+			LastAgentReadyAt: agentReadyAt,
 			WorstStatus:      "success",
 		}, nil)
 
@@ -535,7 +541,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			"is_prebuild":       "true",
 		})
 		require.Equal(t, uint64(1), got.GetSampleCount())
-		require.Greater(t, got.GetSampleSum(), float64(0))
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 
 	// Test worst status is used when one agent has an error.
@@ -550,13 +556,13 @@ func TestUpdateLifecycle(t *testing.T) {
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
-			CreatedAt:        someTime,
+			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
 			OrganizationName: "test-org",
 			IsPrebuild:       false,
 			AllAgentsReady:   true,
-			LastAgentReadyAt: now,
+			LastAgentReadyAt: agentReadyAt,
 			WorstStatus:      "error", // One agent had an error
 		}, nil)
 
@@ -588,7 +594,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			"is_prebuild":       "false",
 		})
 		require.Equal(t, uint64(1), got.GetSampleCount())
-		require.Greater(t, got.GetSampleSum(), float64(0))
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 }
 
