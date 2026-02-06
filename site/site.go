@@ -121,9 +121,14 @@ func New(opts *Options) *Handler {
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
 
-	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
+	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo, "install.sh")
 	if err != nil {
 		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
+	}
+
+	handler.installScriptWindows, err = parseInstallScript(opts.SiteFS, opts.BuildInfo, "install.ps1")
+	if err != nil {
+		opts.Logger.Warn(context.Background(), "could not parse install.ps1, it will be unavailable", slog.Error(err))
 	}
 
 	return handler
@@ -132,11 +137,12 @@ func New(opts *Options) *Handler {
 type Handler struct {
 	opts *Options
 
-	secureHeaders *secure.Secure
-	handler       http.HandlerFunc
-	htmlTemplates *template.Template
-	buildInfoJSON string
-	installScript []byte
+	secureHeaders        *secure.Secure
+	handler              http.HandlerFunc
+	htmlTemplates        *template.Template
+	buildInfoJSON        string
+	installScript        []byte
+	installScriptWindows []byte
 
 	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
 	// regions if the user does not have the correct permissions.
@@ -194,6 +200,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		http.ServeContent(rw, r, reqFile, time.Time{}, bytes.NewReader(h.installScript))
+		return
+	// If requesting the install.ps1 script (Windows), respond with the preprocessed version
+	// which contains the correct hostname and version information.
+	case reqFile == "install.ps1":
+		if h.installScriptWindows == nil {
+			http.NotFound(rw, r)
+			return
+		}
+		rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		http.ServeContent(rw, r, reqFile, time.Time{}, bytes.NewReader(h.installScriptWindows))
 		return
 	// If the original file path exists we serve it.
 	case h.exists(reqFile):
@@ -598,13 +614,13 @@ type installScriptState struct {
 	Version string
 }
 
-func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse) ([]byte, error) {
-	scriptFile, err := fs.ReadFile(files, "install.sh")
+func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse, filename string) ([]byte, error) {
+	scriptFile, err := fs.ReadFile(files, filename)
 	if err != nil {
 		return nil, err
 	}
 
-	script, err := template.New("install.sh").Parse(string(scriptFile))
+	script, err := template.New(filename).Parse(string(scriptFile))
 	if err != nil {
 		return nil, err
 	}

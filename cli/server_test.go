@@ -300,6 +300,7 @@ func TestServer(t *testing.T) {
 		ignoreLines := []string{
 			"isn't externally reachable",
 			"open install.sh: file does not exist",
+			"open install.ps1: file does not exist",
 			"telemetry disabled, unable to notify of security issues",
 			"installed terraform version newer than expected",
 		}
