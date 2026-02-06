@@ -5,11 +5,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog/v3"
-
-	"github.com/google/uuid"
 )
 
 // BuildDurationMetricName is the short name for the end-to-end
