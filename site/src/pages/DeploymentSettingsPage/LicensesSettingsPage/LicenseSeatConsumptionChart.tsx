@@ -1,3 +1,4 @@
+import type { GetLicensesResponse } from "api/api";
 import { Button } from "components/Button/Button";
 import {
 	type ChartConfig,
@@ -17,9 +18,9 @@ import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import {
 	Area,
-	AreaChart,
 	CartesianGrid,
-	ReferenceLine,
+	ComposedChart,
+	Line,
 	XAxis,
 	YAxis,
 } from "recharts";
@@ -33,19 +34,41 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
+/**
+ * Returns the effective seat limit on a given date by finding the
+ * maximum user_limit across all licenses that were active on that
+ * date. This mirrors the backend's AddFeature/Compare logic where
+ * the highest limit wins.
+ */
+export function getEffectiveSeatLimit(
+	date: Date,
+	licenses: GetLicensesResponse[],
+): number | undefined {
+	const limits = licenses
+		.filter((l) => {
+			const nbf = l.claims.nbf ? new Date(l.claims.nbf * 1000) : new Date(0);
+			const expires = new Date(l.claims.license_expires * 1000);
+			return nbf <= date && expires >= date;
+		})
+		.map((l) => l.claims.features.user_limit)
+		.filter((v): v is number => v != null && v > 0);
+	return limits.length > 0 ? Math.max(...limits) : undefined;
+}
+
 type LicenseSeatConsumptionChartProps = {
-	limit: number | undefined;
 	data:
 		| {
 				date: string;
 				users: number;
+				limit: number | undefined;
 		  }[]
 		| undefined;
 };
 
 export const LicenseSeatConsumptionChart: FC<
 	LicenseSeatConsumptionChartProps
-> = ({ data, limit }) => {
+> = ({ data }) => {
+	const hasLimit = data?.some((d) => d.limit != null);
 	return (
 		<section className="border border-solid rounded">
 			<div className="p-4">
@@ -138,7 +161,7 @@ export const LicenseSeatConsumptionChart: FC<
 								config={chartConfig}
 								className="aspect-auto h-full"
 							>
-								<AreaChart
+								<ComposedChart
 									accessibilityLayer
 									data={data}
 									margin={{
@@ -165,9 +188,7 @@ export const LicenseSeatConsumptionChart: FC<
 										}
 									/>
 									<YAxis
-										// Adds space on Y to show always show the reference line without overflowing it.
-										domain={[0, limit ? "dataMax + 10" : "auto"]}
-										dataKey="users"
+										domain={[0, "auto"]}
 										tickLine={false}
 										axisLine={false}
 										tickMargin={12}
@@ -177,13 +198,36 @@ export const LicenseSeatConsumptionChart: FC<
 									/>
 									<ChartTooltip
 										cursor={false}
-										content={
+										content={({ content: _, ...props }) => (
 											<ChartTooltipContent
+												{...props}
+												payload={props.payload?.filter(
+													(p) => p.dataKey !== "limit",
+												)}
 												className="font-medium text-content-secondary"
-												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
 													const item = p[0];
-													return `${item.value} seats`;
+													const limit = item.payload?.limit;
+													return (
+														<div className="flex flex-col gap-1 text-content-primary">
+															<div className="flex items-center gap-4 flex-1 justify-between">
+																<div className="flex items-center gap-2">
+																	<div className="size-3 rounded-sm bg-[var(--color-users)]" />
+																	<span>Active Users</span>
+																</div>
+																<span>{item.value}</span>
+															</div>
+															{limit != null && (
+																<div className="flex items-center gap-4 flex-1 justify-between">
+																	<div className="flex items-center gap-2">
+																		<div className="w-3 border-b-1 border-t-1 border-dashed border-content-disabled"></div>
+																		<span>Seat Limit</span>
+																	</div>
+																	<span>{limit}</span>
+																</div>
+															)}
+														</div>
+													);
 												}}
 												formatter={(_v, _n, item) => {
 													const date = new Date(item.payload.date);
@@ -193,7 +237,7 @@ export const LicenseSeatConsumptionChart: FC<
 													});
 												}}
 											/>
-										}
+										)}
 									/>
 									<defs>
 										<linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
@@ -218,22 +262,20 @@ export const LicenseSeatConsumptionChart: FC<
 										stroke="var(--color-users)"
 										stackId="a"
 									/>
-									{limit && (
-										<ReferenceLine
-											isFront
-											ifOverflow="extendDomain"
-											y={limit}
-											label={{
-												value: "license seat limit",
-												position: "insideBottomRight",
-												className:
-													"text-2xs text-content-secondary font-regular",
-											}}
+
+									{hasLimit && (
+										<Line
+											dataKey="limit"
+											type="stepAfter"
 											stroke="hsl(var(--content-disabled))"
 											strokeDasharray="5 5"
+											strokeWidth={1}
+											dot={false}
+											isAnimationActive={false}
+											tooltipType="none"
 										/>
 									)}
-								</AreaChart>
+								</ComposedChart>
 							</ChartContainer>
 						) : (
 							<div
