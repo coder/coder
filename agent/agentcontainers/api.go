@@ -2038,10 +2038,17 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	recreateTerraformSubAgent := isTerraformManaged && maybeRecreateSubAgent && configHasChanged
 
 	if proc.agent.ID == uuid.Nil || recreateTerraformSubAgent {
-		logger.Debug(ctx, "creating new subagent",
-			slog.F("directory", subAgentConfig.Directory),
-			slog.F("display_apps", subAgentConfig.DisplayApps),
-		)
+		if recreateTerraformSubAgent {
+			logger.Debug(ctx, "updating existing subagent",
+				slog.F("directory", subAgentConfig.Directory),
+				slog.F("display_apps", subAgentConfig.DisplayApps),
+			)
+		} else {
+			logger.Debug(ctx, "creating new subagent",
+				slog.F("directory", subAgentConfig.Directory),
+				slog.F("display_apps", subAgentConfig.DisplayApps),
+			)
+		}
 
 		// Create new subagent record in the database to receive the auth token.
 		// If we get a unique constraint violation, try with expanded names that
