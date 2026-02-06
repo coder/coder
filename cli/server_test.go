@@ -2244,6 +2244,7 @@ type runServerOpts struct {
 	waitForSnapshot               bool
 	telemetryDisabled             bool
 	waitForTelemetryDisabledCheck bool
+	name                          string
 }
 
 func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
@@ -2266,25 +2267,23 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 			"--cache-dir", cacheDir,
 			"--log-filter", ".*",
 		)
-		finished := make(chan bool, 2)
+		inv.Logger = inv.Logger.Named(opts.name)
+
 		errChan := make(chan error, 1)
-		pty := ptytest.New(t).Attach(inv)
+		pty := ptytest.New(t).Named(opts.name).Attach(inv)
 		go func() {
 			errChan <- inv.WithContext(ctx).Run()
-			finished <- true
+			// close the pty here so that we can start tearing down resources. This test creates multiple servers with
+			// associated ptys. There is a `t.Cleanup()` that does this, but it waits until the whole test is complete.
+			_ = pty.Close()
 		}()
-		go func() {
-			defer func() {
-				finished <- true
-			}()
-			if opts.waitForSnapshot {
-				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "submitted snapshot")
-			}
-			if opts.waitForTelemetryDisabledCheck {
-				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
-			}
-		}()
-		<-finished
+
+		if opts.waitForSnapshot {
+			pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "submitted snapshot")
+		}
+		if opts.waitForTelemetryDisabledCheck {
+			pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
+		}
 		return errChan, cancelFunc
 	}
 	waitForShutdown := func(t *testing.T, errChan chan error) error {
@@ -2298,7 +2297,9 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		return nil
 	}
 
-	errChan, cancelFunc := runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	errChan, cancelFunc := runServer(t, runServerOpts{
+		telemetryDisabled: true, waitForTelemetryDisabledCheck: true, name: "0disabled",
+	})
 	cancelFunc()
 	require.NoError(t, waitForShutdown(t, errChan))
 
@@ -2306,7 +2307,7 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	require.Empty(t, deployment)
 	require.Empty(t, snapshot)
 
-	errChan, cancelFunc = runServer(t, runServerOpts{waitForSnapshot: true})
+	errChan, cancelFunc = runServer(t, runServerOpts{waitForSnapshot: true, name: "1enabled"})
 	cancelFunc()
 	require.NoError(t, waitForShutdown(t, errChan))
 	// we expect to see a deployment and a snapshot twice:
@@ -2325,7 +2326,9 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		}
 	}
 
-	errChan, cancelFunc = runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	errChan, cancelFunc = runServer(t, runServerOpts{
+		telemetryDisabled: true, waitForTelemetryDisabledCheck: true, name: "2disabled",
+	})
 	cancelFunc()
 	require.NoError(t, waitForShutdown(t, errChan))
 
@@ -2341,7 +2344,9 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		t.Fatalf("timed out waiting for snapshot")
 	}
 
-	errChan, cancelFunc = runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	errChan, cancelFunc = runServer(t, runServerOpts{
+		telemetryDisabled: true, waitForTelemetryDisabledCheck: true, name: "3disabled",
+	})
 	cancelFunc()
 	require.NoError(t, waitForShutdown(t, errChan))
 	// Since telemetry is disabled and we've already sent a snapshot, we expect no
