@@ -33,9 +33,9 @@ type LifecycleAPI struct {
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 
-	TimeNowFn                      func() time.Time // defaults to dbtime.Now()
+	TimeNowFn                       func() time.Time // defaults to dbtime.Now()
 	WorkspaceBuildDurationHistogram *prometheus.HistogramVec
-	EmitMetricsOnce                sync.Once
+	EmitMetricsOnce                 sync.Once
 }
 
 func (a *LifecycleAPI) now() time.Time {
