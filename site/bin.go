@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress/zstd"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
@@ -33,6 +34,19 @@ var errHashMismatch = xerrors.New("hash mismatch")
 type binHandler struct {
 	metadataCache *binMetadataCache
 	handler       http.Handler
+}
+
+var StandardEncoders = map[string]func(w io.Writer, level int) io.WriteCloser{
+	"br": func(w io.Writer, level int) io.WriteCloser {
+		return brotli.NewWriterLevel(w, level)
+	},
+	"zstd": func(w io.Writer, level int) io.WriteCloser {
+		zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+		if err != nil {
+			panic("invalid zstd compressor: " + err.Error())
+		}
+		return zw
+	},
 }
 
 func (h *binHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -120,7 +134,11 @@ func newBinHandler(options *Options) (*binHandler, error) {
 		metadataCache: newBinMetadataCache(binFS, binHashes),
 	}
 	if compressedCacheDir != "" {
-		h.handler = cachecompress.NewCompressor(options.Logger, CompressionLevel, compressedCacheDir, binFS)
+		cmp := cachecompress.NewCompressor(options.Logger, CompressionLevel, compressedCacheDir, binFS)
+		for encoding, fn := range StandardEncoders {
+			cmp.SetEncoder(encoding, fn)
+		}
+		h.handler = cmp
 	} else {
 		h.handler = http.FileServer(binFS)
 	}
