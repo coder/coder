@@ -104,7 +104,7 @@ func New(opts *Options) *Handler {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/bin/", binHandler(opts.BinFS, newBinMetadataCache(opts.BinFS, opts.BinHashes)))
+	mux.Handle("/bin/", newBinHandler(opts))
 	mux.Handle("/", http.FileServer(
 		http.FS(
 			// OnlyFiles is a wrapper around the file system that prevents directory
