@@ -273,6 +273,7 @@ type templateUploadFlags struct {
 	directory      string
 	ignoreLockfile bool
 	message        string
+	followSymlinks bool
 }
 
 func (pf *templateUploadFlags) options() []serpent.Option {
@@ -292,6 +293,11 @@ func (pf *templateUploadFlags) options() []serpent.Option {
 		FlagShorthand: "m",
 		Description:   "Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.",
 		Value:         serpent.StringOf(&pf.message),
+	}, {
+		Flag:        "follow-symlinks",
+		Description: "Follow symlinks when archiving the template directory. Symlinked files and directories will be included as regular files in the archive. Symlinks that point outside the template directory are skipped.",
+		Default:     "false",
+		Value:       serpent.BoolOf(&pf.followSymlinks),
 	}}
 }
 
@@ -334,7 +340,10 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 
 		pipeReader, pipeWriter := io.Pipe()
 		go func() {
-			err := provisionersdk.Tar(pipeWriter, inv.Logger, pf.directory, provisionersdk.TemplateArchiveLimit)
+			err := provisionersdk.TarWithOptions(
+				pipeWriter, inv.Logger, pf.directory, provisionersdk.TemplateArchiveLimit,
+				&provisionersdk.TarOptions{FollowSymlinks: pf.followSymlinks},
+			)
 			_ = pipeWriter.CloseWithError(err)
 		}()
 		defer pipeReader.Close()

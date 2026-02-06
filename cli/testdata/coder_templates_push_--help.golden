@@ -19,6 +19,11 @@ OPTIONS:
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
+      --follow-symlinks bool (default: false)
+          Follow symlinks when archiving the template directory. Symlinked files
+          and directories will be included as regular files in the archive.
+          Symlinks that point outside the template directory are skipped.
+
       --ignore-lockfile bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.

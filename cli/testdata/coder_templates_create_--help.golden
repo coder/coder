@@ -34,6 +34,11 @@ OPTIONS:
           automatically schedules a "stop" build to cleanup.This licensed
           feature's default is 0h (off). Maps to "Failure cleanup"in the UI.
 
+      --follow-symlinks bool (default: false)
+          Follow symlinks when archiving the template directory. Symlinked files
+          and directories will be included as regular files in the archive.
+          Symlinks that point outside the template directory are skipped.
+
       --ignore-lockfile bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.

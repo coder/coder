@@ -122,6 +122,15 @@ Select which organization (uuid or name) to use.
 
 Specify the directory to create from, use '-' to read tar from stdin.
 
+### --follow-symlinks
+
+|         |                    |
+|---------|---------------------|
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Follow symlinks when archiving the template directory. Symlinked files and directories will be included as regular files in the archive. Symlinks that point outside the template directory are skipped.
+
 ### --ignore-lockfile
 
 |         |                    |

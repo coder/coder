@@ -35,6 +35,133 @@ func TestTar(t *testing.T) {
 		err = provisionersdk.Tar(io.Discard, log, dir, 1024*1024)
 		require.NoError(t, err)
 	})
+
+	t.Run("FollowSymlinkFile", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		// Create a real .tf file.
+		err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# main"), 0o600)
+		require.NoError(t, err)
+
+		// Create a regular file and a symlink pointing to it.
+		err = os.WriteFile(filepath.Join(dir, "real.txt"), []byte("hello"), 0o600)
+		require.NoError(t, err)
+		err = os.Symlink(filepath.Join(dir, "real.txt"), filepath.Join(dir, "link.txt"))
+		require.NoError(t, err)
+
+		archive := new(bytes.Buffer)
+		err = provisionersdk.TarWithOptions(archive, log, dir, 1024*1024, &provisionersdk.TarOptions{
+			FollowSymlinks: true,
+		})
+		require.NoError(t, err)
+
+		// Extract and verify the symlink was followed: link.txt
+		// should exist as a regular file with the same contents.
+		outDir := t.TempDir()
+		err = provisionersdk.Untar(outDir, archive)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(filepath.Join(outDir, "link.txt"))
+		require.NoError(t, err)
+		require.Equal(t, "hello", string(content))
+
+		fi, err := os.Lstat(filepath.Join(outDir, "link.txt"))
+		require.NoError(t, err)
+		require.True(t, fi.Mode().IsRegular(), "expected regular file, got %s", fi.Mode())
+	})
+
+	t.Run("FollowSymlinkDir", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		// Create a .tf file in the root.
+		err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# main"), 0o600)
+		require.NoError(t, err)
+
+		// Create a subdirectory with a file.
+		subDir := filepath.Join(dir, "modules")
+		err = os.MkdirAll(subDir, 0o755)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(subDir, "mod.tf"), []byte("# mod"), 0o600)
+		require.NoError(t, err)
+
+		// Create a symlink to the subdirectory.
+		err = os.Symlink(subDir, filepath.Join(dir, "link-modules"))
+		require.NoError(t, err)
+
+		archive := new(bytes.Buffer)
+		err = provisionersdk.TarWithOptions(archive, log, dir, 1024*1024, &provisionersdk.TarOptions{
+			FollowSymlinks: true,
+		})
+		require.NoError(t, err)
+
+		outDir := t.TempDir()
+		err = provisionersdk.Untar(outDir, archive)
+		require.NoError(t, err)
+
+		// The symlinked directory should be inlined.
+		content, err := os.ReadFile(filepath.Join(outDir, "link-modules", "mod.tf"))
+		require.NoError(t, err)
+		require.Equal(t, "# mod", string(content))
+	})
+
+	t.Run("FollowSymlinkOutsideDirSkipped", func(t *testing.T) {
+		t.Parallel()
+		templateDir := t.TempDir()
+		outsideDir := t.TempDir()
+
+		// Create a .tf file in the template directory.
+		err := os.WriteFile(filepath.Join(templateDir, "main.tf"), []byte("# main"), 0o600)
+		require.NoError(t, err)
+
+		// Create a file outside the template directory and
+		// symlink to it from inside.
+		err = os.WriteFile(filepath.Join(outsideDir, "secret.txt"), []byte("secret"), 0o600)
+		require.NoError(t, err)
+		err = os.Symlink(filepath.Join(outsideDir, "secret.txt"), filepath.Join(templateDir, "escape.txt"))
+		require.NoError(t, err)
+
+		archive := new(bytes.Buffer)
+		err = provisionersdk.TarWithOptions(archive, log, templateDir, 1024*1024, &provisionersdk.TarOptions{
+			FollowSymlinks: true,
+		})
+		require.NoError(t, err)
+
+		outDir := t.TempDir()
+		err = provisionersdk.Untar(outDir, archive)
+		require.NoError(t, err)
+
+		// The escaping symlink should NOT be in the archive.
+		_, err = os.Stat(filepath.Join(outDir, "escape.txt"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("FollowSymlinkBrokenSkipped", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# main"), 0o600)
+		require.NoError(t, err)
+
+		// Create a dangling symlink.
+		err = os.Symlink(filepath.Join(dir, "no-exists"), filepath.Join(dir, "broken"))
+		require.NoError(t, err)
+
+		archive := new(bytes.Buffer)
+		err = provisionersdk.TarWithOptions(archive, log, dir, 1024*1024, &provisionersdk.TarOptions{
+			FollowSymlinks: true,
+		})
+		require.NoError(t, err)
+
+		outDir := t.TempDir()
+		err = provisionersdk.Untar(outDir, archive)
+		require.NoError(t, err)
+
+		// The broken symlink should not be in the archive.
+		_, err = os.Stat(filepath.Join(outDir, "broken"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
 	t.Run("HeaderBreakLimit", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
