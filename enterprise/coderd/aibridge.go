@@ -48,9 +48,8 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 		// Apply overload protection middleware to the aibridged handler.
 		// Concurrency limit is checked first for faster rejection under load.
 		// NOTE: The aibridged handler routes do NOT use apiKeyMiddleware
-		// because aibridged handles its own authentication. RBAC enforcement
-		// for these routes needs to happen inside aibridged itself.
-		// TODO: Add RBAC enforcement in aibridged service (follow-up).
+		// because aibridged handles its own authentication. RBAC
+		// enforcement happens inside aibridgedserver.IsAuthorized.
 		r.Group(func(r chi.Router) {
 			r.Use(concurrencyLimiter, rateLimiter)
 			// This is a bit funky but since aibridge only exposes a HTTP

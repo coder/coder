@@ -22,6 +22,9 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
@@ -66,6 +69,10 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+
+	// RBAC-related queries.
+	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
+	CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error)
 }
 
 type Server struct {
@@ -74,6 +81,7 @@ type Server struct {
 	// long-running operations.
 	lifecycleCtx        context.Context
 	store               store
+	authorizer          rbac.Authorizer
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
@@ -81,7 +89,7 @@ type Server struct {
 	structuredLogging bool
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
+func NewServer(lifecycleCtx context.Context, store store, authorizer rbac.Authorizer, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
 ) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
@@ -97,6 +105,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
+		authorizer:          authorizer,
 		logger:              logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
@@ -502,11 +511,82 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrSystemUser
 	}
 
+	// Check RBAC permissions for AI Bridge access.
+	subject, err := s.buildRBACSubject(ctx, key.UserID, user.Username)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to build RBAC subject", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, xerrors.Errorf("build RBAC subject: %w", err)
+	}
+
+	if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
+		rbac.ResourceAibridgeInterception.AnyOrganization()); err != nil {
+		return nil, xerrors.Errorf("not authorized to use AI Bridge: %w", err)
+	}
+
 	return &proto.IsAuthorizedResponse{
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
 		Username: user.Username,
 	}, nil
+}
+
+// buildRBACSubject constructs an RBAC subject for the given user by
+// loading their roles from the database and expanding them.
+func (s *Server) buildRBACSubject(ctx context.Context, userID uuid.UUID, username string) (rbac.Subject, error) {
+	//nolint:gocritic // System needs to read user roles for authorization.
+	roles, err := s.store.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
+	if err != nil {
+		return rbac.Subject{}, xerrors.Errorf("get authorization user roles: %w", err)
+	}
+
+	roleNames, err := roles.RoleNames()
+	if err != nil {
+		return rbac.Subject{}, xerrors.Errorf("expand role names: %w", err)
+	}
+
+	// Expand role names into full RBAC roles. This mirrors
+	// rolestore.Expand but works with the narrow store interface.
+	rbacRoles := make(rbac.Roles, 0, len(roleNames))
+	var customRoleLookup []database.NameOrganizationPair
+	for _, name := range roleNames {
+		expanded, err := rbac.RoleByName(name)
+		if err == nil {
+			rbacRoles = append(rbacRoles, expanded)
+			continue
+		}
+		customRoleLookup = append(customRoleLookup, database.NameOrganizationPair{
+			Name:           name.Name,
+			OrganizationID: name.OrganizationID,
+		})
+	}
+	if len(customRoleLookup) > 0 {
+		//nolint:gocritic // System needs to read custom roles for authorization.
+		customRoles, err := s.store.CustomRoles(dbauthz.AsSystemRestricted(ctx), database.CustomRolesParams{
+			LookupRoles:        customRoleLookup,
+			ExcludeOrgRoles:    false,
+			OrganizationID:     uuid.Nil,
+			IncludeSystemRoles: true,
+		})
+		if err != nil {
+			return rbac.Subject{}, xerrors.Errorf("fetch custom roles: %w", err)
+		}
+		for _, cr := range customRoles {
+			converted, err := rolestore.ConvertDBRole(cr)
+			if err != nil {
+				return rbac.Subject{}, xerrors.Errorf("convert custom role %q: %w", cr.Name, err)
+			}
+			rbacRoles = append(rbacRoles, converted)
+		}
+	}
+
+	return rbac.Subject{
+		Type:         rbac.SubjectTypeUser,
+		FriendlyName: username,
+		ID:           userID.String(),
+		Roles:        rbacRoles,
+		Groups:       roles.Groups,
+		Scope:        rbac.ScopeAll,
+	}.WithCachedASTValue(), nil
 }
 
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
