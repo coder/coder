@@ -1,5 +1,6 @@
 import type { InboxNotification } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import {
 	Popover,
 	PopoverContent,
@@ -7,7 +8,8 @@ import {
 } from "components/Popover/Popover";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
-import { RefreshCwIcon, SettingsIcon } from "lucide-react";
+import { TabButton, Tabs, TabsList } from "components/Tabs/Tabs";
+import { CheckIcon, RefreshCwIcon, SettingsIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
@@ -15,12 +17,16 @@ import { InboxButton } from "./InboxButton";
 import { InboxItem } from "./InboxItem";
 import { UnreadBadge } from "./UnreadBadge";
 
+export type ReadStatus = "read" | "unread" | "all";
+
 type InboxPopoverProps = {
 	notifications: readonly InboxNotification[] | undefined;
 	unreadCount: number;
 	error: unknown;
 	isLoadingMoreNotifications: boolean;
 	hasMoreNotifications: boolean;
+	activeTab: ReadStatus;
+	onTabChange: (tab: ReadStatus) => void;
 	onRetry: () => void;
 	onMarkAllAsRead: () => void;
 	onMarkNotificationAsRead: (notificationId: string) => void;
@@ -35,6 +41,8 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 	error,
 	isLoadingMoreNotifications,
 	hasMoreNotifications,
+	activeTab,
+	onTabChange,
 	onRetry,
 	onMarkAllAsRead,
 	onMarkNotificationAsRead,
@@ -50,6 +58,8 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 			<PopoverContent
 				className="w-[var(--radix-popper-available-width)] max-w-[466px]"
 				align="end"
+				sideOffset={8}
+				alignOffset={-16}
 			>
 				{/*
 				 * data-radix-scroll-area-viewport is used to set the max-height of the ScrollArea
@@ -64,12 +74,12 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 				>
 					<div
 						className={cn([
-							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
+							"flex items-center justify-between py-3 px-5 border-0 border-b border-solid border-border",
 							"sticky top-0 bg-surface-primary z-10 rounded-t",
 						])}
 					>
 						<div className="flex items-center gap-2">
-							<span className="text-xl font-semibold">Inbox</span>
+							<span className="text-lg font-semibold">Inbox</span>
 							{unreadCount > 0 && <UnreadBadge count={unreadCount} />}
 						</div>
 
@@ -93,6 +103,17 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 							</Button>
 						</div>
 					</div>
+
+					<Tabs active={activeTab} className="px-4">
+						<TabsList>
+							<TabButton value="unread" onClick={() => onTabChange("unread")}>
+								Unread
+							</TabButton>
+							<TabButton value="all" onClick={() => onTabChange("all")}>
+								All
+							</TabButton>
+						</TabsList>
+					</Tabs>
 
 					{notifications ? (
 						notifications.length > 0 ? (
@@ -123,19 +144,26 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 								)}
 							</div>
 						) : (
-							<div className="p-6 flex items-center justify-center min-h-48">
-								<div className="text-sm text-center flex flex-col">
-									<span className="font-medium">No notifications</span>
-									<span className="text-xs text-content-secondary">
-										New notifications will be displayed here.
-									</span>
-								</div>
-							</div>
+							<EmptyState
+								icon={CheckIcon}
+								message="No new notifications"
+								description="You're all caught up!"
+								cta={
+									activeTab === "unread" ? (
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => onTabChange("all")}
+										>
+											View all notifications
+										</Button>
+									) : null
+								}
+							/>
 						)
 					) : error === undefined ? (
 						<div className="p-6 flex items-center justify-center min-h-48">
 							<Spinner loading />
-							<span className="sr-only">Loading notifications...</span>
 						</div>
 					) : (
 						<div className="p-6 flex items-center justify-center min-h-48">

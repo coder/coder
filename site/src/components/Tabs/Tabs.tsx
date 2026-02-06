@@ -1,4 +1,11 @@
-import { createContext, type FC, type HTMLAttributes, useContext } from "react";
+import type { Button } from "components/Button/Button";
+import {
+	type ComponentProps,
+	createContext,
+	type FC,
+	type HTMLAttributes,
+	useContext,
+} from "react";
 import { Link, type LinkProps } from "react-router";
 import { cn } from "utils/cn";
 
@@ -70,6 +77,42 @@ export const TabLink: FC<TabLinkProps> = ({
 				},
 				className,
 			)}
+		/>
+	);
+};
+
+type TabButtonProps = ComponentProps<"button"> & {
+	value: string;
+};
+
+export const TabButton: FC<TabButtonProps> = ({
+	className,
+	value,
+	...props
+}) => {
+	const tabsContext = useContext(TabsContext);
+	if (!tabsContext) {
+		throw new Error("Tab only can be used inside of Tabs");
+	}
+
+	const isActive = tabsContext.active === value;
+
+	return (
+		<button
+			type="button"
+			role="tab"
+			className={cn(
+				"bg-transparent border-none",
+				`text-sm text-content-secondary no-underline font-medium py-3 px-1 hover:text-content-primary rounded-md
+		focus-visible:ring-offset-1 focus-visible:ring-offset-surface-primary
+		focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:rounded-sm`,
+				{
+					"text-content-primary relative before:absolute before:bg-surface-invert-primary before:left-0 before:w-full before:h-px before:-bottom-px before:content-['']":
+						isActive,
+				},
+				className,
+			)}
+			{...props}
 		/>
 	);
 };

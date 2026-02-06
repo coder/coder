@@ -8,6 +8,8 @@ const meta: Meta<typeof InboxPopover> = {
 	component: InboxPopover,
 	args: {
 		defaultOpen: true,
+		activeTab: "unread",
+		onTabChange: fn(),
 	},
 	render: (args) => {
 		return (

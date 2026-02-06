@@ -6,9 +6,9 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { InboxPopover } from "./InboxPopover";
+import { InboxPopover, type ReadStatus } from "./InboxPopover";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
 const NOTIFICATIONS_LIMIT = 25; // This is hard set in the API
@@ -17,6 +17,7 @@ type NotificationsInboxProps = {
 	defaultOpen?: boolean;
 	fetchNotifications: (
 		startingBeforeId?: string,
+		readStatus?: ReadStatus,
 	) => Promise<ListInboxNotificationsResponse>;
 	markAllAsRead: () => Promise<void>;
 	markNotificationAsRead: (
@@ -31,14 +32,18 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	markNotificationAsRead,
 }) => {
 	const queryClient = useQueryClient();
+	const [activeTab, setActiveTab] = useState<ReadStatus>("unread");
+
+	const queryKey = [...NOTIFICATIONS_QUERY_KEY, activeTab];
 
 	const {
 		data: inboxRes,
 		error,
 		refetch,
+		isFetching,
 	} = useQuery({
-		queryKey: NOTIFICATIONS_QUERY_KEY,
-		queryFn: () => fetchNotifications(),
+		queryKey,
+		queryFn: () => fetchNotifications(undefined, activeTab),
 	});
 
 	const updateNotificationsCache = useEffectEvent(
@@ -47,9 +52,9 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 				res: ListInboxNotificationsResponse,
 			) => ListInboxNotificationsResponse,
 		) => {
-			await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
+			await queryClient.cancelQueries({ queryKey });
 			queryClient.setQueryData<ListInboxNotificationsResponse>(
-				NOTIFICATIONS_QUERY_KEY,
+				queryKey,
 				(prev) => {
 					if (!prev) {
 						return { notifications: [], unread_count: 0 };
@@ -70,12 +75,17 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			}
 
 			const msg = e.parsedMessage;
-			updateNotificationsCache((current) => {
-				return {
-					unread_count: msg.unread_count,
-					notifications: [msg.notification, ...current.notifications],
-				};
-			});
+			// New notifications from the websocket are always unread, so
+			// they should be added when viewing "unread" or "all" tabs but
+			// not when viewing the "read" tab.
+			if (activeTab !== "read") {
+				updateNotificationsCache((current) => {
+					return {
+						unread_count: msg.unread_count,
+						notifications: [msg.notification, ...current.notifications],
+					};
+				});
+			}
 		});
 
 		socket.addEventListener("error", () => {
@@ -86,7 +96,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 		});
 
 		return () => socket.close();
-	}, [updateNotificationsCache]);
+	}, [updateNotificationsCache, activeTab]);
 
 	const {
 		mutate: loadMoreNotifications,
@@ -98,7 +108,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			}
 			const lastNotification =
 				inboxRes.notifications[inboxRes.notifications.length - 1];
-			const newRes = await fetchNotifications(lastNotification.id);
+			const newRes = await fetchNotifications(lastNotification.id, activeTab);
 			updateNotificationsCache((prev) => {
 				return {
 					unread_count: newRes.unread_count,
@@ -117,14 +127,25 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	const markAllAsReadMutation = useMutation({
 		mutationFn: markAllAsRead,
 		onSuccess: () => {
-			updateNotificationsCache((prev) => {
-				return {
+			if (activeTab === "unread") {
+				// When viewing unread, clear the list since all are now read.
+				updateNotificationsCache(() => ({
+					unread_count: 0,
+					notifications: [],
+				}));
+			} else {
+				updateNotificationsCache((prev) => ({
 					unread_count: 0,
 					notifications: prev.notifications.map((n) => ({
 						...n,
-						read_at: new Date().toISOString(),
+						read_at: n.read_at ?? new Date().toISOString(),
 					})),
-				};
+				}));
+			}
+			// Invalidate the other tab caches so they refetch.
+			queryClient.invalidateQueries({
+				queryKey: NOTIFICATIONS_QUERY_KEY,
+				exact: false,
 			});
 		},
 		onError: (error) => {
@@ -138,8 +159,16 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	const markNotificationAsReadMutation = useMutation({
 		mutationFn: markNotificationAsRead,
 		onSuccess: (res) => {
-			updateNotificationsCache((prev) => {
-				return {
+			if (activeTab === "unread") {
+				// Remove the notification from the unread list.
+				updateNotificationsCache((prev) => ({
+					unread_count: res.unread_count,
+					notifications: prev.notifications.filter(
+						(n) => n.id !== res.notification.id,
+					),
+				}));
+			} else {
+				updateNotificationsCache((prev) => ({
 					unread_count: res.unread_count,
 					notifications: prev.notifications.map((n) => {
 						if (n.id !== res.notification.id) {
@@ -147,7 +176,12 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 						}
 						return res.notification;
 					}),
-				};
+				}));
+			}
+			// Invalidate other tab caches so they stay in sync.
+			queryClient.invalidateQueries({
+				queryKey: NOTIFICATIONS_QUERY_KEY,
+				exact: false,
 			});
 		},
 		onError: (error) => {
@@ -161,9 +195,11 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	return (
 		<InboxPopover
 			defaultOpen={defaultOpen}
-			notifications={inboxRes?.notifications}
+			activeTab={activeTab}
+			onTabChange={setActiveTab}
+			notifications={isFetching ? undefined : inboxRes?.notifications}
 			unreadCount={inboxRes?.unread_count ?? 0}
-			error={error}
+			error={isFetching ? undefined : error}
 			isLoadingMoreNotifications={isLoadingMoreNotifications}
 			hasMoreNotifications={Boolean(
 				inboxRes && inboxRes.notifications.length % NOTIFICATIONS_LIMIT === 0,
