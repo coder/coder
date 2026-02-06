@@ -1,4 +1,4 @@
-import type { Interpolation, Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { AlertProps } from "components/Alert/Alert";
 import { Button, type ButtonProps } from "components/Button/Button";
 import { Pill } from "components/Pill/Pill";
@@ -30,6 +30,7 @@ export const Notifications: FC<NotificationsProps> = ({
 	icon,
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
+	const theme = useTheme();
 
 	return (
 		<TooltipProvider>
@@ -51,6 +52,9 @@ export const Notifications: FC<NotificationsProps> = ({
 					align="end"
 					collisionPadding={16}
 					className="max-w-[400px] p-0 text-sm"
+					style={{
+						borderColor: theme.roles[severity].outline,
+					}}
 				>
 					{items.map((n) => (
 						<NotificationItem notification={n} key={n.title} />
