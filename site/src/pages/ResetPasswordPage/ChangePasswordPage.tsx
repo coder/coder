@@ -131,7 +131,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 									aria-invalid={confirmPasswordField.error}
 								/>
 								{confirmPasswordField.error && (
-									<span className="text-xs text-content-destructive">
+									<span className="text-xs text-content-destructive text-left">
 										{confirmPasswordField.helperText}
 									</span>
 								)}

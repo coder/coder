@@ -61,7 +61,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					aria-invalid={Boolean(emailField.error)}
 				/>
 				{emailField.error && (
-					<span className="text-xs text-content-destructive">
+					<span className="text-xs text-content-destructive text-left">
 						{emailField.helperText}
 					</span>
 				)}
@@ -83,7 +83,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					aria-invalid={passwordField.error}
 				/>
 				{passwordField.error && (
-					<span className="text-xs text-content-destructive">
+					<span className="text-xs text-content-destructive text-left">
 						{passwordField.helperText}
 					</span>
 				)}

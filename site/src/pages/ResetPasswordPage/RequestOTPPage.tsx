@@ -108,7 +108,7 @@ const RequestOTP: FC<RequestOTPProps> = ({
 								aria-invalid={Boolean(emailField.error)}
 							/>
 							{emailField.error && (
-								<span className="text-xs text-content-destructive">
+								<span className="text-xs text-content-destructive text-left">
 									{emailField.helperText}
 								</span>
 							)}
