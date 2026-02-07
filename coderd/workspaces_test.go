@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1358,12 +1359,19 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 		// Given: a coderd instance with a provisioner daemon
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
-		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:                 store,
 			Pubsub:                   ps,
-			IncludeProvisionerDaemon: true,
+			IncludeProvisionerDaemon: false,
 		})
-		defer closeDaemon.Close()
+
+		// Create a new provisioner with a heartbeater that does nothing.
+		provisioner := coderdtest.NewTaggedProvisionerDaemon(t, api, "test-provisioner", nil, coderd.MemoryProvisionerWithHeartbeatOverride(func(ctx context.Context) error {
+			// The default heartbeat updates the `last_seen_at` column in the database.
+			// By overriding it to do nothing, we can simulate a provisioner that is not sending heartbeats, and is therefore stale.
+			return nil
+		}))
+		defer provisioner.Close()
 
 		// Given: a user, template, and workspace
 		user := coderdtest.CreateFirstUser(t, client)
@@ -2510,6 +2518,152 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
+
+	t.Run("HealthyFilter", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Healthy", func(t *testing.T) {
+			t.Parallel()
+
+			// healthy:true should return workspaces with connected agents
+			// and exclude workspaces with disconnected agents
+			client, db := coderdtest.NewWithDatabase(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+
+			// Create a workspace with a connected agent
+			connectedBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "connected-workspace",
+			}).WithAgent().Do()
+
+			// Mark the agent as connected
+			now := time.Now()
+			require.Len(t, connectedBuild.Agents, 1)
+			//nolint:gocritic // This is a test, we need system context to update agent connection
+			ctx := dbauthz.AsSystemRestricted(context.Background())
+			err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     connectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: now, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: now, Valid: true},
+				DisconnectedAt:         sql.NullTime{},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			// Create a workspace with a disconnected agent
+			disconnectedBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "disconnected-workspace",
+			}).WithAgent().Do()
+
+			// Mark the agent as disconnected
+			require.Len(t, disconnectedBuild.Agents, 1)
+			disconnectedTime := now.Add(-time.Hour)
+			err = db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     disconnectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: disconnectedTime, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: disconnectedTime, Valid: true},
+				DisconnectedAt:         sql.NullTime{Time: now, Valid: true},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// healthy:true should only return the connected workspace
+			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: "healthy:true",
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Workspaces, 1)
+			require.Equal(t, connectedBuild.Workspace.ID, res.Workspaces[0].ID)
+		})
+
+		t.Run("Unhealthy", func(t *testing.T) {
+			t.Parallel()
+
+			// healthy:false should return workspaces with disconnected or timed out agents
+			// and exclude workspaces with connected agents
+			store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			client := coderdtest.New(t, &coderdtest.Options{
+				Database: store,
+				Pubsub:   ps,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			now := time.Now()
+
+			//nolint:gocritic // This is a test, we need system context to update agent connection
+			ctx := dbauthz.AsSystemRestricted(context.Background())
+
+			// Create a workspace with a connected agent (should be excluded)
+			connectedBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "connected-workspace",
+			}).WithAgent().Do()
+			require.Len(t, connectedBuild.Agents, 1)
+			err := store.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     connectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: now, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: now, Valid: true},
+				DisconnectedAt:         sql.NullTime{},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			// Create a workspace with a disconnected agent
+			disconnectedBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "disconnected-workspace",
+			}).WithAgent().Do()
+			require.Len(t, disconnectedBuild.Agents, 1)
+			disconnectedTime := now.Add(-time.Hour)
+			err = store.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     disconnectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: disconnectedTime, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: disconnectedTime, Valid: true},
+				DisconnectedAt:         sql.NullTime{Time: now, Valid: true},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			// Create a workspace with a timed out agent (never connected, timeout exceeded)
+			timedOutBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "timeout-workspace",
+			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+				agents[0].ConnectionTimeoutSeconds = 1
+				return agents
+			}).Do()
+			require.Len(t, timedOutBuild.Agents, 1)
+			// Set created_at to the past so the timeout is exceeded
+			_, err = sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET created_at = $1 WHERE id = $2",
+				now.Add(-time.Hour), timedOutBuild.Agents[0].ID)
+			require.NoError(t, err)
+
+			testCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// healthy:false should return both disconnected and timed out workspaces
+			res, err := client.Workspaces(testCtx, codersdk.WorkspaceFilter{
+				FilterQuery: "healthy:false",
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Workspaces, 2)
+			workspaceIDs := []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID}
+			require.Contains(t, workspaceIDs, disconnectedBuild.Workspace.ID)
+			require.Contains(t, workspaceIDs, timedOutBuild.Workspace.ID)
+		})
 	})
 	t.Run("Params", func(t *testing.T) {
 		t.Parallel()

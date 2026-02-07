@@ -295,6 +295,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "UpdateWorkspaceAgent",
+			Actions:  []policy.Action{policy.ActionUpdateAgent},
+			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAdminBanWorkspace},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
 			Name:    "ShareMyWorkspace",
 			Actions: []policy.Action{policy.ActionShare},
 			Resource: rbac.ResourceWorkspace.
@@ -563,7 +572,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "WorkspaceDormant",
-			Actions:  append(crud, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent),
+			Actions:  append(crud, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent),
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgAdmin, owner},

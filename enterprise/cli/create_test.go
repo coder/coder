@@ -371,7 +371,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Given: a template and a template version where the preset defines values for all required parameters,
@@ -484,7 +484,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			noop.NewTracerProvider(),
 			10,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Given: a template and a template version where the preset defines values for all required parameters,

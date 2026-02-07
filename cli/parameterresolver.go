@@ -108,8 +108,8 @@ func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCL
 
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
-	staged = pr.resolveWithSourceBuildParameters(staged, templateVersionParameters)
-	staged = pr.resolveWithLastBuildParameters(staged, templateVersionParameters)
+	staged = pr.resolveWithSourceBuildParametersInParameters(staged, templateVersionParameters)
+	staged = pr.resolveWithLastBuildParametersInParameters(staged, templateVersionParameters)
 	staged = pr.resolveWithPreset(staged) // Preset parameters take precedence from all other parameters
 	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
@@ -118,6 +118,18 @@ func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCL
 		return nil, err
 	}
 	return staged, nil
+}
+
+func (pr *ParameterResolver) InitialValues() []codersdk.WorkspaceBuildParameter {
+	var staged []codersdk.WorkspaceBuildParameter
+
+	staged = pr.resolveWithParametersMapFile(staged)
+	staged = pr.resolveWithCommandLineOrEnv(staged)
+	staged = pr.resolveWithSourceBuildParameters(staged)
+	staged = pr.resolveWithLastBuildParameters(staged)
+	staged = pr.resolveWithPreset(staged) // Preset parameters take precedence from all other parameters
+
+	return staged
 }
 
 func (pr *ParameterResolver) resolveWithPreset(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
@@ -180,7 +192,26 @@ nextEphemeralParameter:
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	if pr.promptRichParameters {
+		return resolved // don't pull parameters from last build
+	}
+
+next:
+	for _, buildParameter := range pr.lastBuildParameters {
+		for i, r := range resolved {
+			if r.Name == buildParameter.Name {
+				resolved[i].Value = buildParameter.Value
+				continue next
+			}
+		}
+
+		resolved = append(resolved, buildParameter)
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithLastBuildParametersInParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
 	if pr.promptRichParameters {
 		return resolved // don't pull parameters from last build
 	}
@@ -216,7 +247,22 @@ next:
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+next:
+	for _, buildParameter := range pr.sourceWorkspaceParameters {
+		for i, r := range resolved {
+			if r.Name == buildParameter.Name {
+				resolved[i].Value = buildParameter.Value
+				continue next
+			}
+		}
+
+		resolved = append(resolved, buildParameter)
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithSourceBuildParametersInParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
 next:
 	for _, buildParameter := range pr.sourceWorkspaceParameters {
 		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)

@@ -523,7 +523,8 @@ disableWorkspaceSharing: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
-  # The SSH deployment prefix is used in the Host of the ssh config.
+  # Deprecated: use workspace-hostname-suffix instead. The SSH deployment prefix is
+  # used in the Host of the ssh config.
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
   # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder

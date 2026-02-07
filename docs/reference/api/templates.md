@@ -65,6 +65,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
+    "disable_module_cache": true,
     "display_name": "string",
     "failure_ttl_ms": 0,
     "icon": "string",
@@ -122,6 +123,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
@@ -247,6 +249,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -397,6 +400,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -813,6 +817,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
+    "disable_module_cache": true,
     "display_name": "string",
     "failure_ttl_ms": 0,
     "icon": "string",
@@ -870,6 +875,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
@@ -1013,6 +1019,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -1122,6 +1129,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "deprecation_message": "string",
   "description": "string",
   "disable_everyone_group_access": true,
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -1184,6 +1192,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -2239,13 +2248,20 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description           |
-|-------------------|-------|--------------|----------|-----------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID   |
-| `jobID`           | path  | string(uuid) | true     | Job ID                |
-| `before`          | query | integer      | false    | Before Unix timestamp |
-| `after`           | query | integer      | false    | After Unix timestamp  |
-| `follow`          | query | boolean      | false    | Follow log stream     |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `jobID`           | path  | string(uuid) | true     | Job ID                                                                                                                                      |
+| `before`          | query | integer      | false    | Before Unix timestamp                                                                                                                       |
+| `after`           | query | integer      | false    | After Unix timestamp                                                                                                                        |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 
@@ -2847,12 +2863,19 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description         |
-|-------------------|-------|--------------|----------|---------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID |
-| `before`          | query | integer      | false    | Before log id       |
-| `after`           | query | integer      | false    | After log id        |
-| `follow`          | query | boolean      | false    | Follow log stream   |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `before`          | query | integer      | false    | Before log id                                                                                                                               |
+| `after`           | query | integer      | false    | After log id                                                                                                                                |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 

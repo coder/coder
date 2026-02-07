@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -81,7 +82,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, func(dbDaemon database.GetProvisionerDaemonsWithStatusByOrganizationRow) codersdk.ProvisionerDaemon {
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(daemons, func(dbDaemon database.GetProvisionerDaemonsWithStatusByOrganizationRow) codersdk.ProvisionerDaemon {
 		pd := db2sdk.ProvisionerDaemon(dbDaemon.ProvisionerDaemon)
 		var currentJob, previousJob *codersdk.ProvisionerDaemonJob
 		if dbDaemon.CurrentJobID.Valid {

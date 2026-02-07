@@ -1198,17 +1198,6 @@ Disable password authentication. This is recommended for security purposes in pr
 
 Specify a YAML file to load configuration from.
 
-### --ssh-hostname-prefix
-
-|             |                                         |
-|-------------|-----------------------------------------|
-| Type        | <code>string</code>                     |
-| Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
-| YAML        | <code>client.sshHostnamePrefix</code>   |
-| Default     | <code>coder.</code>                     |
-
-The SSH deployment prefix is used in the Host of the ssh config.
-
 ### --workspace-hostname-suffix
 
 |             |                                               |

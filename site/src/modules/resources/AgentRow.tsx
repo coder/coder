@@ -10,8 +10,8 @@ import type {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
@@ -22,6 +22,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -144,10 +145,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 		hasSubdomainApps && !proxy.proxy?.wildcard_hostname;
 
 	return (
-		<Stack
+		<div
 			key={agent.id}
-			direction="column"
-			spacing={0}
+			className="flex flex-col max-w-full"
 			css={[
 				styles.agentRow,
 				styles[`agentRow-${agent.status}`],
@@ -213,6 +213,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<h3 className="sr-only">App statuses</h3>
 						<AppStatuses workspace={workspace} agent={agent} />
 					</section>
+				)}
+
+				{workspace.task_id && (
+					<Button asChild size="sm" variant="outline" className="w-fit">
+						<RouterLink
+							to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+						>
+							<SquareCheckBigIcon />
+							View task
+						</RouterLink>
+					</Button>
 				)}
 
 				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
@@ -325,7 +336,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						</AutoSizer>
 					</Collapse>
 
-					<Stack css={{ padding: "12px 16px" }} direction="row" spacing={1}>
+					<div className="flex flex-row gap-2 px-4 py-3">
 						<Button
 							size="sm"
 							variant="subtle"
@@ -336,10 +347,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />
 						<DownloadAgentLogsButton agent={agent} />
-					</Stack>
+					</div>
 				</section>
 			)}
-		</Stack>
+		</div>
 	);
 };
 

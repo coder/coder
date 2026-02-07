@@ -1980,39 +1980,41 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
-const deleteBoundaryUsageStatsByReplicaID = `-- name: DeleteBoundaryUsageStatsByReplicaID :exec
-DELETE FROM boundary_usage_stats WHERE replica_id = $1
-`
-
-// Deletes boundary usage statistics for a specific replica.
-func (q *sqlQuerier) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteBoundaryUsageStatsByReplicaID, replicaID)
-	return err
-}
-
-const getBoundaryUsageSummary = `-- name: GetBoundaryUsageSummary :one
+const getAndResetBoundaryUsageSummary = `-- name: GetAndResetBoundaryUsageSummary :one
+WITH deleted AS (
+    DELETE FROM boundary_usage_stats
+    RETURNING replica_id, unique_workspaces_count, unique_users_count, allowed_requests, denied_requests, window_start, updated_at
+)
 SELECT
-    COALESCE(SUM(unique_workspaces_count), 0)::bigint AS unique_workspaces,
-    COALESCE(SUM(unique_users_count), 0)::bigint AS unique_users,
-    COALESCE(SUM(allowed_requests), 0)::bigint AS allowed_requests,
-    COALESCE(SUM(denied_requests), 0)::bigint AS denied_requests
-FROM boundary_usage_stats
-WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    COALESCE(SUM(unique_workspaces_count) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS unique_workspaces,
+    COALESCE(SUM(unique_users_count) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS unique_users,
+    COALESCE(SUM(allowed_requests) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS allowed_requests,
+    COALESCE(SUM(denied_requests) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS denied_requests
+FROM deleted
 `
 
-type GetBoundaryUsageSummaryRow struct {
+type GetAndResetBoundaryUsageSummaryRow struct {
 	UniqueWorkspaces int64 `db:"unique_workspaces" json:"unique_workspaces"`
 	UniqueUsers      int64 `db:"unique_users" json:"unique_users"`
 	AllowedRequests  int64 `db:"allowed_requests" json:"allowed_requests"`
 	DeniedRequests   int64 `db:"denied_requests" json:"denied_requests"`
 }
 
-// Aggregates boundary usage statistics across all replicas. Filters to only
-// include data where window_start is within the given interval to exclude
-// stale data.
-func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error) {
-	row := q.db.QueryRowContext(ctx, getBoundaryUsageSummary, maxStalenessMs)
-	var i GetBoundaryUsageSummaryRow
+// Atomic read+delete prevents replicas that flush between a separate read and
+// reset from having their data deleted before the next snapshot. Uses a common
+// table expression with DELETE...RETURNING so the rows we sum are exactly the
+// rows we delete. Stale rows are excluded from the sum but still deleted.
+func (q *sqlQuerier) GetAndResetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetAndResetBoundaryUsageSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getAndResetBoundaryUsageSummary, maxStalenessMs)
+	var i GetAndResetBoundaryUsageSummaryRow
 	err := row.Scan(
 		&i.UniqueWorkspaces,
 		&i.UniqueUsers,
@@ -2020,17 +2022,6 @@ func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs
 		&i.DeniedRequests,
 	)
 	return i, err
-}
-
-const resetBoundaryUsageStats = `-- name: ResetBoundaryUsageStats :exec
-DELETE FROM boundary_usage_stats
-`
-
-// Deletes all boundary usage statistics. Called after telemetry reports the
-// aggregated stats. Each replica will insert a fresh row on its next flush.
-func (q *sqlQuerier) ResetBoundaryUsageStats(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, resetBoundaryUsageStats)
-	return err
 }
 
 const upsertBoundaryUsageStats = `-- name: UpsertBoundaryUsageStats :one
@@ -2051,32 +2042,37 @@ INSERT INTO boundary_usage_stats (
     NOW(),
     NOW()
 ) ON CONFLICT (replica_id) DO UPDATE SET
-    unique_workspaces_count = EXCLUDED.unique_workspaces_count,
-    unique_users_count = EXCLUDED.unique_users_count,
-    allowed_requests = EXCLUDED.allowed_requests,
-    denied_requests = EXCLUDED.denied_requests,
+    unique_workspaces_count = $6,
+    unique_users_count = $7,
+    allowed_requests = boundary_usage_stats.allowed_requests + EXCLUDED.allowed_requests,
+    denied_requests = boundary_usage_stats.denied_requests + EXCLUDED.denied_requests,
     updated_at = NOW()
 RETURNING (xmax = 0) AS new_period
 `
 
 type UpsertBoundaryUsageStatsParams struct {
 	ReplicaID             uuid.UUID `db:"replica_id" json:"replica_id"`
-	UniqueWorkspacesCount int64     `db:"unique_workspaces_count" json:"unique_workspaces_count"`
-	UniqueUsersCount      int64     `db:"unique_users_count" json:"unique_users_count"`
+	UniqueWorkspacesDelta int64     `db:"unique_workspaces_delta" json:"unique_workspaces_delta"`
+	UniqueUsersDelta      int64     `db:"unique_users_delta" json:"unique_users_delta"`
 	AllowedRequests       int64     `db:"allowed_requests" json:"allowed_requests"`
 	DeniedRequests        int64     `db:"denied_requests" json:"denied_requests"`
+	UniqueWorkspacesCount int64     `db:"unique_workspaces_count" json:"unique_workspaces_count"`
+	UniqueUsersCount      int64     `db:"unique_users_count" json:"unique_users_count"`
 }
 
-// Upserts boundary usage statistics for a replica. All values are replaced with
-// the current in-memory state. Returns true if this was an insert (new period),
-// false if update.
+// Upserts boundary usage statistics for a replica. On INSERT (new period), uses
+// delta values for unique counts (only data since last flush). On UPDATE, uses
+// cumulative values for unique counts (accurate period totals). Request counts
+// are always deltas, accumulated in DB. Returns true if insert, false if update.
 func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, upsertBoundaryUsageStats,
 		arg.ReplicaID,
-		arg.UniqueWorkspacesCount,
-		arg.UniqueUsersCount,
+		arg.UniqueWorkspacesDelta,
+		arg.UniqueUsersDelta,
 		arg.AllowedRequests,
 		arg.DeniedRequests,
+		arg.UniqueWorkspacesCount,
+		arg.UniqueUsersCount,
 	)
 	var new_period bool
 	err := row.Scan(&new_period)
@@ -10246,6 +10242,7 @@ WHERE
 			provisioner_jobs AS potential_job
 		WHERE
 			potential_job.started_at IS NULL
+			AND potential_job.completed_at IS NULL
 			AND potential_job.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])
@@ -13145,13 +13142,19 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 }
 
 const deleteTask = `-- name: DeleteTask :one
-UPDATE tasks
-SET
-	deleted_at = $1::timestamptz
-WHERE
-	id = $2::uuid
-	AND deleted_at IS NULL
-RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name
+WITH deleted_task AS (
+	UPDATE tasks
+	SET
+		deleted_at = $1::timestamptz
+	WHERE
+		id = $2::uuid
+		AND deleted_at IS NULL
+	RETURNING id
+), deleted_snapshot AS (
+	DELETE FROM task_snapshots
+	WHERE task_id = $2::uuid
+)
+SELECT id FROM deleted_task
 `
 
 type DeleteTaskParams struct {
@@ -13159,23 +13162,11 @@ type DeleteTaskParams struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (TaskTable, error) {
+func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, deleteTask, arg.DeletedAt, arg.ID)
-	var i TaskTable
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.OwnerID,
-		&i.Name,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.TemplateParameters,
-		&i.Prompt,
-		&i.CreatedAt,
-		&i.DeletedAt,
-		&i.DisplayName,
-	)
-	return i, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
@@ -13723,7 +13714,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -13766,6 +13757,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.MaxPortSharingLevel,
 		&i.UseClassicParameterFlow,
 		&i.CorsBehavior,
+		&i.DisableModuleCache,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -13778,7 +13770,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -13829,6 +13821,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.MaxPortSharingLevel,
 		&i.UseClassicParameterFlow,
 		&i.CorsBehavior,
+		&i.DisableModuleCache,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -13840,7 +13833,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -13884,6 +13877,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.MaxPortSharingLevel,
 			&i.UseClassicParameterFlow,
 			&i.CorsBehavior,
+			&i.DisableModuleCache,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -13906,7 +13900,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -14065,6 +14059,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.MaxPortSharingLevel,
 			&i.UseClassicParameterFlow,
 			&i.CorsBehavior,
+			&i.DisableModuleCache,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -14250,7 +14245,8 @@ SET
 	group_acl = $8,
 	max_port_sharing_level = $9,
 	use_classic_parameter_flow = $10,
-	cors_behavior = $11
+	cors_behavior = $11,
+	disable_module_cache = $12
 WHERE
 	id = $1
 `
@@ -14267,6 +14263,7 @@ type UpdateTemplateMetaByIDParams struct {
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
+	DisableModuleCache           bool            `db:"disable_module_cache" json:"disable_module_cache"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -14282,6 +14279,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.MaxPortSharingLevel,
 		arg.UseClassicParameterFlow,
 		arg.CorsBehavior,
+		arg.DisableModuleCache,
 	)
 	return err
 }
@@ -16398,7 +16396,7 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by name, email or username
+	-- Filter by email or username
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email ILIKE concat('%', $2, '%')
@@ -16406,58 +16404,64 @@ WHERE
 		)
 		ELSE true
 	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			name ILIKE concat('%', $3, '%')
+		ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($3 :: user_status[]) > 0 THEN
-			status = ANY($3 :: user_status[])
+		WHEN cardinality($4 :: user_status[]) > 0 THEN
+			status = ANY($4 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 		-- everyone is a member.
-		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[]) THEN
-			rbac_roles && $4 :: text[]
+		WHEN cardinality($5 :: text[]) > 0 AND 'member' != ANY($5 :: text[]) THEN
+			rbac_roles && $5 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
 	AND CASE
-		WHEN $5 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at <= $5
+		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= $6
 		ELSE true
 	END
 	AND CASE
-		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at >= $6
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= $7
 		ELSE true
 	END
 	-- Filter by created_at
 	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at <= $7
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= $8
 		ELSE true
 	END
 	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at >= $8
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= $9
 		ELSE true
 	END
   	AND CASE
-  	    WHEN $9::bool THEN TRUE
+  	    WHEN $10::bool THEN TRUE
   	    ELSE
 			is_system = false
 	END
 	AND CASE
-		WHEN $10 :: bigint != 0 THEN
-			github_com_user_id = $10
+		WHEN $11 :: bigint != 0 THEN
+			github_com_user_id = $11
 		ELSE true
 	END
 	-- Filter by login_type
 	AND CASE
-		WHEN cardinality($11 :: login_type[]) > 0 THEN
-			login_type = ANY($11 :: login_type[])
+		WHEN cardinality($12 :: login_type[]) > 0 THEN
+			login_type = ANY($12 :: login_type[])
 		ELSE true
 	END
 	-- End of filters
@@ -16466,15 +16470,16 @@ WHERE
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $12
+	LOWER(username) ASC OFFSET $13
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($13 :: int, 0)
+	NULLIF($14 :: int, 0)
 `
 
 type GetUsersParams struct {
 	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
 	Search          string       `db:"search" json:"search"`
+	Name            string       `db:"name" json:"name"`
 	Status          []UserStatus `db:"status" json:"status"`
 	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
@@ -16515,6 +16520,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterID,
 		arg.Search,
+		arg.Name,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
@@ -19292,6 +19298,26 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
+const updateWorkspaceAgentDisplayAppsByID = `-- name: UpdateWorkspaceAgentDisplayAppsByID :exec
+UPDATE
+	workspace_agents
+SET
+	display_apps = $2, updated_at = $3
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAgentDisplayAppsByIDParams struct {
+	ID          uuid.UUID    `db:"id" json:"id"`
+	DisplayApps []DisplayApp `db:"display_apps" json:"display_apps"`
+	UpdatedAt   time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentDisplayAppsByID, arg.ID, pq.Array(arg.DisplayApps), arg.UpdatedAt)
+	return err
+}
+
 const updateWorkspaceAgentLifecycleStateByID = `-- name: UpdateWorkspaceAgentLifecycleStateByID :exec
 UPDATE
 	workspace_agents
@@ -21318,6 +21344,62 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 	return i, err
 }
 
+const getWorkspaceBuildMetricsByResourceID = `-- name: GetWorkspaceBuildMetricsByResourceID :one
+SELECT
+    wb.created_at,
+    wb.transition,
+    t.name AS template_name,
+    o.name AS organization_name,
+    (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0') AS is_prebuild,
+    -- All agents must have ready_at set (terminal startup state)
+    COUNT(*) FILTER (WHERE wa.ready_at IS NULL) = 0 AS all_agents_ready,
+    -- Latest ready_at across all agents (for duration calculation)
+	MAX(wa.ready_at)::timestamptz AS last_agent_ready_at,
+    -- Worst status: error > timeout > ready
+    CASE
+        WHEN bool_or(wa.lifecycle_state = 'start_error') THEN 'error'
+        WHEN bool_or(wa.lifecycle_state = 'start_timeout') THEN 'timeout'
+        ELSE 'success'
+    END AS worst_status
+FROM workspace_builds wb
+JOIN workspaces w ON wb.workspace_id = w.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON t.organization_id = o.id
+JOIN workspace_resources wr ON wr.job_id = wb.job_id
+JOIN workspace_agents wa ON wa.resource_id = wr.id
+WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
+GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id
+`
+
+type GetWorkspaceBuildMetricsByResourceIDRow struct {
+	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
+	Transition       WorkspaceTransition `db:"transition" json:"transition"`
+	TemplateName     string              `db:"template_name" json:"template_name"`
+	OrganizationName string              `db:"organization_name" json:"organization_name"`
+	IsPrebuild       bool                `db:"is_prebuild" json:"is_prebuild"`
+	AllAgentsReady   bool                `db:"all_agents_ready" json:"all_agents_ready"`
+	LastAgentReadyAt time.Time           `db:"last_agent_ready_at" json:"last_agent_ready_at"`
+	WorstStatus      string              `db:"worst_status" json:"worst_status"`
+}
+
+// Returns build metadata for e2e workspace build duration metrics.
+// Also checks if all agents are ready and returns the worst status.
+func (q *sqlQuerier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildMetricsByResourceID, id)
+	var i GetWorkspaceBuildMetricsByResourceIDRow
+	err := row.Scan(
+		&i.CreatedAt,
+		&i.Transition,
+		&i.TemplateName,
+		&i.OrganizationName,
+		&i.IsPrebuild,
+		&i.AllAgentsReady,
+		&i.LastAgentReadyAt,
+		&i.WorstStatus,
+	)
+	return i, err
+}
+
 const getWorkspaceBuildStatsByTemplates = `-- name: GetWorkspaceBuildStatsByTemplates :many
 SELECT
     w.template_id,
@@ -22809,7 +22891,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache
 	FROM
 		templates
 	WHERE
@@ -22943,7 +23025,7 @@ WHERE
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN $13 :: text != '' THEN
+		WHEN array_length($13 :: text[], 1) > 0 THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -22957,7 +23039,7 @@ WHERE
 					latest_build.transition = 'start'::workspace_transition AND
 					-- Filter out deleted sub agents.
 					workspace_agents.deleted = FALSE AND
-					$13 = (
+					(
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -22975,7 +23057,7 @@ WHERE
 							ELSE
 								NULL
 						END
-					)
+					) = ANY($13 :: text[])
 			) > 0
 		ELSE true
 	END
@@ -23040,6 +23122,7 @@ WHERE
 			workspaces.group_acl ? ($23 :: uuid) :: text
 		ELSE true
 	END
+
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -23143,7 +23226,7 @@ type GetWorkspacesParams struct {
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
 	WorkspaceIds                          []uuid.UUID  `db:"workspace_ids" json:"workspace_ids"`
 	Name                                  string       `db:"name" json:"name"`
-	HasAgent                              string       `db:"has_agent" json:"has_agent"`
+	HasAgentStatuses                      []string     `db:"has_agent_statuses" json:"has_agent_statuses"`
 	AgentInactiveDisconnectTimeoutSeconds int64        `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 	Dormant                               bool         `db:"dormant" json:"dormant"`
 	LastUsedBefore                        time.Time    `db:"last_used_before" json:"last_used_before"`
@@ -23221,7 +23304,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.TemplateIDs),
 		pq.Array(arg.WorkspaceIds),
 		arg.Name,
-		arg.HasAgent,
+		pq.Array(arg.HasAgentStatuses),
 		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.Dormant,
 		arg.LastUsedBefore,

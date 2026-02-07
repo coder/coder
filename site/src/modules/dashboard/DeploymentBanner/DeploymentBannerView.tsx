@@ -104,7 +104,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		<div
 			className="sticky bottom-0 z-[1] flex h-9 w-full items-center gap-8
 		 		overflow-x-auto whitespace-nowrap border-0 border-t border-solid border-border
-				bg-surface-primary pr-4 font-mono text-xs leading-none"
+				bg-surface-primary pr-4 font-mono text-xs leading-none [scrollbar-width:thin]"
 		>
 			<TooltipProvider delayDuration={100}>
 				<Tooltip>

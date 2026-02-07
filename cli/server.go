@@ -2174,7 +2174,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// existing database
 	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
 	if retryPortDiscovery {
-		maxAttempts = 3
+		maxAttempts = 10
 	}
 
 	var startErr error

@@ -11,6 +11,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Kbd, KbdGroup } from "components/Kbd/Kbd";
 import { Link } from "components/Link/Link";
 import {
 	Select,
@@ -34,6 +35,7 @@ import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
 import { docs } from "utils/docs";
+import { getOSKey } from "utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
@@ -270,9 +272,18 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									{templates.map((template) => {
 										return (
 											<SelectItem value={template.id} key={template.id}>
-												<span className="overflow-hidden text-ellipsis block">
-													{template.display_name || template.name}
-												</span>
+												<div className="flex items-center gap-2">
+													{template.icon && (
+														<img
+															src={template.icon}
+															alt={template.name}
+															className="size-icon-sm flex-shrink-0"
+														/>
+													)}
+													<span className="overflow-hidden text-ellipsis block">
+														{template.display_name || template.name}
+													</span>
+												</div>
 											</SelectItem>
 										);
 									})}
@@ -364,23 +375,34 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							/>
 						)}
 
-						<Button
-							size="icon"
-							type="submit"
-							disabled={prompt.trim().length === 0 || isMissingExternalAuth}
-							className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
-						>
-							<Spinner
-								loading={
-									isLoadingExternalAuth ||
-									isPollingExternalAuth ||
-									createTaskMutation.isPending
-								}
-							>
-								<ArrowUpIcon />
-							</Spinner>
-							<span className="sr-only">Run task</span>
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									type="submit"
+									disabled={prompt.trim().length === 0 || isMissingExternalAuth}
+									className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
+								>
+									<Spinner
+										loading={
+											isLoadingExternalAuth ||
+											isPollingExternalAuth ||
+											createTaskMutation.isPending
+										}
+									>
+										<ArrowUpIcon />
+									</Spinner>
+									<span className="sr-only">Run task</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent align="end">
+								<KbdGroup>
+									<Kbd>{getOSKey()}</Kbd>
+									<span>+</span>
+									<Kbd>Enter</Kbd>
+								</KbdGroup>
+							</TooltipContent>
+						</Tooltip>
 					</div>
 				</div>
 			</fieldset>
@@ -408,7 +430,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 		return (
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
-					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-white"
+					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-content-primary"
 					size="sm"
 					disabled={isPollingExternalAuth || auth.authenticated}
 					onClick={() => {
