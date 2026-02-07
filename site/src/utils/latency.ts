@@ -1,5 +1,5 @@
 const latencyColors = {
-	good: { text: "text-content-success", background: "bg-content-green" },
+	good: { text: "text-content-success", background: "bg-content-success" },
 	warning: {
 		text: "text-content-warning",
 		background: "bg-content-yellow",
@@ -10,7 +10,7 @@ const latencyColors = {
 	},
 	unknown: {
 		text: "text-content-secondary",
-		background: "bg-surface-quaternary",
+		background: "bg-content-secondary",
 	},
 } as const;
 
