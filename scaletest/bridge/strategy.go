@@ -64,9 +64,12 @@ func (s *bridgeStrategy) Setup(ctx context.Context, id string, logs io.Writer) (
 		slog.F("user_id", newUser.ID.String()),
 	)
 
-	if s.provider == "anthropic" {
+	switch s.provider {
+	case "messages":
 		requestURL = fmt.Sprintf("%s/api/v2/aibridge/anthropic/v1/messages", s.client.URL)
-	} else {
+	case "responses":
+		requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/responses", s.client.URL)
+	case "completions":
 		requestURL = fmt.Sprintf("%s/api/v2/aibridge/openai/v1/chat/completions", s.client.URL)
 	}
 	logger.Info(ctx, "bridge runner in bridge mode",

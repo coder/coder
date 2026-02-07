@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -56,7 +56,7 @@ func TestEnterpriseMembers(t *testing.T) {
 		require.Len(t, members, 3)
 		require.ElementsMatch(t,
 			[]uuid.UUID{first.UserID, user.ID, orgAdmin.ID},
-			db2sdk.List(members, onlyIDs))
+			slice.List(members, onlyIDs))
 
 		// Add the member to some groups
 		_, err = orgAdminClient.PatchGroup(ctx, g1.ID, codersdk.PatchGroupRequest{
@@ -86,7 +86,7 @@ func TestEnterpriseMembers(t *testing.T) {
 		require.Len(t, members, 2)
 		require.ElementsMatch(t,
 			[]uuid.UUID{first.UserID, orgAdmin.ID},
-			db2sdk.List(members, onlyIDs))
+			slice.List(members, onlyIDs))
 
 		// User should now belong to 0 groups
 		userGroups, err = orgAdminClient.Groups(ctx, codersdk.GroupArguments{
@@ -130,7 +130,7 @@ func TestEnterpriseMembers(t *testing.T) {
 		require.Len(t, members, 3)
 		require.ElementsMatch(t,
 			[]uuid.UUID{first.UserID, user.ID, userAdmin.ID},
-			db2sdk.List(members, onlyIDs))
+			slice.List(members, onlyIDs))
 	})
 
 	t.Run("PostUserNotExists", func(t *testing.T) {

@@ -1,4 +1,5 @@
 import { Loader } from "components/Loader/Loader";
+import type { SearchFieldProps } from "components/SearchField/SearchField";
 import {
 	SelectMenu,
 	SelectMenuButton,
@@ -116,4 +117,18 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 	);
 };
 
-export const SelectFilterSearch = SelectMenuSearch;
+export const SelectFilterSearch = ({
+	className,
+	...props
+}: SearchFieldProps) => {
+	return (
+		<SelectMenuSearch
+			className={cn(
+				className,
+				"rounded-none border-x-0 border-t-0",
+				"has-[input:focus-visible]:ring-0",
+			)}
+			{...props}
+		/>
+	);
+};

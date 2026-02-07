@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -941,13 +940,6 @@ func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
 		require.NoError(t, err)
 		err = tracker2.FlushToDB(ctx, db, replica2ID)
 		require.NoError(t, err)
-
-		// Verify both replicas' data is in the database.
-		boundaryCtx := dbauthz.AsBoundaryUsageTracker(ctx)
-		const maxStalenessMs = 60000
-		summary, err := db.GetBoundaryUsageSummary(boundaryCtx, maxStalenessMs)
-		require.NoError(t, err)
-		require.Equal(t, int64(10+20), summary.AllowedRequests)
 
 		clock := quartz.NewMock(t)
 		clock.Set(dbtime.Now())

@@ -219,6 +219,20 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			return nil, xerrors.Errorf("invalid upstream proxy URL %q: %w", opts.UpstreamProxy, err)
 		}
 
+		// Extract and validate upstream proxy authentication if provided.
+		// The credentials are parsed once at startup and reused for all
+		// tunneled CONNECT requests through the upstream proxy.
+		var connectReqHandler func(*http.Request)
+		if upstreamURL.User != nil {
+			proxyAuth := makeProxyAuthHeader(upstreamURL.User)
+			if proxyAuth == "" {
+				return nil, xerrors.Errorf("upstream proxy URL %q has invalid credentials: both username and password are empty", opts.UpstreamProxy)
+			}
+			connectReqHandler = func(req *http.Request) {
+				req.Header.Set("Proxy-Authorization", proxyAuth)
+			}
+		}
+
 		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
 		// not through any upstream proxy.
 		proxy.Tr = &http.Transport{
@@ -250,7 +264,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		// Configure tunneled CONNECT requests to go through upstream proxy.
 		// This only affects non-allowlisted domains; allowlisted domains are
 		// MITM'd and forwarded to aibridge.
-		proxy.ConnectDial = proxy.NewConnectDialToProxy(opts.UpstreamProxy)
+		proxy.ConnectDial = proxy.NewConnectDialToProxyWithHandler(opts.UpstreamProxy, connectReqHandler)
 	}
 
 	srv := &Server{
@@ -516,6 +530,30 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	}
 
 	return goproxy.MitmConnect, host
+}
+
+// makeProxyAuthHeader creates a Proxy-Authorization header value from URL user info.
+//
+// Valid formats:
+//   - username:password -> Basic auth with both credentials
+//   - username: or username -> Basic auth with username only (empty password)
+//   - :password -> Basic auth with empty username (token-based proxies)
+//
+// Returns empty string when both username and password are empty.
+func makeProxyAuthHeader(userInfo *url.Userinfo) string {
+	if userInfo == nil {
+		return ""
+	}
+
+	username := userInfo.Username()
+	password, _ := userInfo.Password()
+
+	// Reject only when both username and password are empty (no credentials).
+	if username == "" && password == "" {
+		return ""
+	}
+
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(userInfo.String()))
 }
 
 // extractCoderTokenFromProxyAuth extracts the Coder token from the

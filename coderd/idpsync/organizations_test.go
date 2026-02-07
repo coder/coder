@@ -11,12 +11,12 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -173,7 +173,7 @@ func TestSyncOrganizations(t *testing.T) {
 
 		// Verify the user only exists in 2 orgs. The one they stayed, and the one they
 		// joined.
-		inIDs := db2sdk.List(orgs, func(org database.Organization) uuid.UUID {
+		inIDs := slice.List(orgs, func(org database.Organization) uuid.UUID {
 			return org.ID
 		})
 		require.ElementsMatch(t, []uuid.UUID{stays.Org.ID, joins.Org.ID}, inIDs)

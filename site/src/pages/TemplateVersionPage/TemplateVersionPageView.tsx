@@ -10,7 +10,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { EditIcon, PlusIcon } from "lucide-react";
+import { EditIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
@@ -80,21 +80,32 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 				)}
 				{currentVersion && currentFiles && (
 					<>
-						<Stats>
-							<StatsItem
-								label="Template"
-								value={
-									<RouterLink to={templateLink}>{templateName}</RouterLink>
-								}
-							/>
-							<StatsItem
-								label="Created by"
-								value={currentVersion.created_by.username}
-							/>
-							<StatsItem
-								label="Created"
-								value={createDayString(currentVersion.created_at)}
-							/>
+						<Stats className="justify-between">
+							<div className="flex flex-wrap items-center">
+								<StatsItem
+									label="Template"
+									value={
+										<RouterLink to={templateLink}>{templateName}</RouterLink>
+									}
+								/>
+								<StatsItem
+									label="Created by"
+									value={currentVersion.created_by.username}
+								/>
+								<StatsItem
+									label="Created"
+									value={createDayString(currentVersion.created_at)}
+								/>
+							</div>
+							<a
+								href={`/api/v2/templateversions/${currentVersion.id}/logs?format=text`}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center gap-1 p-2 text-xs text-content-secondary underline hover:text-content-primary md:py-3.5 md:px-4"
+							>
+								View raw logs
+								<ExternalLinkIcon className="size-3" />
+							</a>
 						</Stats>
 
 						<TemplateFiles

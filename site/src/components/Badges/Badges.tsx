@@ -1,11 +1,6 @@
 import { Badge } from "components/Badge/Badge";
 import { Stack } from "components/Stack/Stack";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import {
 	type FC,
 	forwardRef,
 	type HTMLAttributes,
@@ -27,57 +22,6 @@ export const EntitledBadge: FC = () => {
 		</Badge>
 	);
 };
-
-interface HealthyBadgeProps {
-	derpOnly?: boolean;
-}
-
-export const HealthyBadge: FC<HealthyBadgeProps> = ({ derpOnly }) => {
-	return (
-		<Badge variant="green" border="solid">
-			{derpOnly ? "Healthy (DERP only)" : "Healthy"}
-		</Badge>
-	);
-};
-
-export const NotHealthyBadge: FC = () => {
-	return (
-		<Badge variant="destructive" border="solid">
-			Unhealthy
-		</Badge>
-	);
-};
-
-export const NotRegisteredBadge: FC = () => {
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Badge variant="warning" border="solid">
-					Never seen
-				</Badge>
-			</TooltipTrigger>
-			<TooltipContent side="bottom" className="max-w-xs">
-				Workspace Proxy has never come online and needs to be started.
-			</TooltipContent>
-		</Tooltip>
-	);
-};
-
-export const NotReachableBadge: FC = () => {
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Badge variant="warning" border="solid">
-					Not reachable
-				</Badge>
-			</TooltipTrigger>
-			<TooltipContent side="bottom" className="max-w-xs">
-				Workspace Proxy not responding to http(s) requests.
-			</TooltipContent>
-		</Tooltip>
-	);
-};
-
 export const DisabledBadge: FC = forwardRef<
 	HTMLDivElement,
 	HTMLAttributes<HTMLDivElement>

@@ -9,18 +9,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// fullMetricName is the fully-qualified Prometheus metric name
+// (namespace + name) used for gathering in tests.
+const fullMetricName = "coderd_" + agentapi.BuildDurationMetricName
 
 func TestUpdateLifecycle(t *testing.T) {
 	t.Parallel()
@@ -29,6 +35,12 @@ func TestUpdateLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	someTime = dbtime.Time(someTime)
 	now := dbtime.Now()
+
+	// Fixed times for build duration metric assertions.
+	// The expected duration is exactly 90 seconds.
+	buildCreatedAt := dbtime.Time(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+	agentReadyAt := dbtime.Time(time.Date(2025, 1, 1, 0, 1, 30, 0, time.UTC))
+	expectedDuration := agentReadyAt.Sub(buildCreatedAt).Seconds() // 90.0
 
 	var (
 		workspaceID  = uuid.New()
@@ -105,6 +117,19 @@ func TestUpdateLifecycle(t *testing.T) {
 				Valid: true,
 			},
 		}).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			CreatedAt:        buildCreatedAt,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: agentReadyAt,
+			WorstStatus:      "success",
+		}, nil)
+
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -113,6 +138,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         testutil.Logger(t),
+			Metrics:     metrics,
 			// Test that nil publish fn works.
 			PublishWorkspaceUpdateFn: nil,
 		}
@@ -122,6 +148,16 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
+
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 
 	// This test jumps from CREATING to READY, skipping STARTED. Both the
@@ -147,8 +183,21 @@ func TestUpdateLifecycle(t *testing.T) {
 				Valid: true,
 			},
 		}).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			CreatedAt:        buildCreatedAt,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: agentReadyAt,
+			WorstStatus:      "success",
+		}, nil)
 
 		publishCalled := false
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
@@ -156,6 +205,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         testutil.Logger(t),
+			Metrics:     metrics,
 			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
@@ -168,6 +218,16 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 		require.True(t, publishCalled)
+
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 
 	t.Run("NoTimeSpecified", func(t *testing.T) {
@@ -194,6 +254,19 @@ func TestUpdateLifecycle(t *testing.T) {
 				Valid: true,
 			},
 		})
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			CreatedAt:        buildCreatedAt,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: agentReadyAt,
+			WorstStatus:      "success",
+		}, nil)
+
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
 
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -202,6 +275,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID:              workspaceID,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
 			PublishWorkspaceUpdateFn: nil,
 			TimeNowFn: func() time.Time {
 				return now
@@ -213,6 +287,16 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
+
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 
 	t.Run("AllStates", func(t *testing.T) {
@@ -228,6 +312,9 @@ func TestUpdateLifecycle(t *testing.T) {
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
 		var publishCalled int64
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
+
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
@@ -235,6 +322,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         testutil.Logger(t),
+			Metrics:     metrics,
 			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				atomic.AddInt64(&publishCalled, 1)
 				return nil
@@ -276,6 +364,20 @@ func TestUpdateLifecycle(t *testing.T) {
 				StartedAt:      expectedStartedAt,
 				ReadyAt:        expectedReadyAt,
 			}).Times(1).Return(nil)
+
+			// The first ready state triggers the build duration metric query.
+			if state == agentproto.Lifecycle_READY || state == agentproto.Lifecycle_START_TIMEOUT || state == agentproto.Lifecycle_START_ERROR {
+				dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agent.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+					CreatedAt:        someTime,
+					Transition:       database.WorkspaceTransitionStart,
+					TemplateName:     "test-template",
+					OrganizationName: "test-org",
+					IsPrebuild:       false,
+					AllAgentsReady:   true,
+					LastAgentReadyAt: stateNow,
+					WorstStatus:      "success",
+				}, nil).MaxTimes(1)
+			}
 
 			resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
 				Lifecycle: lifecycle,
@@ -321,6 +423,164 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.ErrorContains(t, err, "unknown lifecycle state")
 		require.Nil(t, resp)
 		require.False(t, publishCalled)
+	})
+
+	// Test that metric is NOT emitted when not all agents are ready (multi-agent case).
+	t.Run("MetricNotEmittedWhenNotAllAgentsReady", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
+		// Return AllAgentsReady = false to simulate multi-agent case where not all are ready.
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			CreatedAt:        someTime,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   false,       // Not all agents ready yet
+			LastAgentReadyAt: time.Time{}, // No ready time yet
+			WorstStatus:      "success",
+		}, nil)
+
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
+
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return agentStarting, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
+		}
+
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+
+		require.Nil(t, promhelp.MetricValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		}), "metric should not be emitted when not all agents are ready")
+	})
+
+	// Test that prebuild label is "true" when owner is prebuild system user.
+	t.Run("PrebuildLabelTrue", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			CreatedAt:        buildCreatedAt,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       true, // Prebuild workspace
+			AllAgentsReady:   true,
+			LastAgentReadyAt: agentReadyAt,
+			WorstStatus:      "success",
+		}, nil)
+
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
+
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return agentStarting, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
+		}
+
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "true",
+		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Equal(t, expectedDuration, got.GetSampleSum())
+	})
+
+	// Test worst status is used when one agent has an error.
+	t.Run("WorstStatusError", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			CreatedAt:        buildCreatedAt,
+			Transition:       database.WorkspaceTransitionStart,
+			TemplateName:     "test-template",
+			OrganizationName: "test-org",
+			IsPrebuild:       false,
+			AllAgentsReady:   true,
+			LastAgentReadyAt: agentReadyAt,
+			WorstStatus:      "error", // One agent had an error
+		}, nil)
+
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
+
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return agentStarting, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
+		}
+
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "error",
+			"is_prebuild":       "false",
+		})
+		require.Equal(t, uint64(1), got.GetSampleCount())
+		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
 }
 

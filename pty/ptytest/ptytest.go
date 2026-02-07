@@ -27,7 +27,7 @@ import (
 func New(t *testing.T, opts ...pty.Option) *PTY {
 	t.Helper()
 
-	ptty, err := pty.New(opts...)
+	ptty, err := newTestPTY(opts...)
 	require.NoError(t, err)
 
 	e := newExpecter(t, ptty.Output(), "cmd")

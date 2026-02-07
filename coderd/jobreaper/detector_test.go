@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/jobreaper"
@@ -113,87 +113,33 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	)
 
 	var (
-		now          = time.Now()
-		twentyMinAgo = now.Add(-time.Minute * 20)
-		tenMinAgo    = now.Add(-time.Minute * 10)
-		sixMinAgo    = now.Add(-time.Minute * 6)
-		org          = dbgen.Organization(t, db, database.Organization{})
-		user         = dbgen.User(t, db, database.User{})
-		file         = dbgen.File(t, db, database.File{})
-		template     = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			CreatedBy: user.ID,
-		})
-		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     template.ID,
-		})
-
-		// Previous build.
+		now                         = time.Now()
+		twentyMinAgo                = now.Add(-time.Minute * 20)
+		tenMinAgo                   = now.Add(-time.Minute * 10)
+		sixMinAgo                   = now.Add(-time.Minute * 6)
+		org                         = dbgen.Organization(t, db, database.Organization{})
+		user                        = dbgen.User(t, db, database.User{})
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		previousWorkspaceBuildJob   = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			CreatedAt: twentyMinAgo,
-			UpdatedAt: twentyMinAgo,
-			StartedAt: sql.NullTime{
-				Time:  twentyMinAgo,
-				Valid: true,
-			},
-			CompletedAt: sql.NullTime{
-				Time:  twentyMinAgo,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte("{}"),
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       1,
-			ProvisionerState:  expectedWorkspaceBuildState,
-			JobID:             previousWorkspaceBuildJob.ID,
-		})
-
-		// Current build.
-		currentWorkspaceBuildJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			CreatedAt: tenMinAgo,
-			UpdatedAt: sixMinAgo,
-			StartedAt: sql.NullTime{
-				Time:  tenMinAgo,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte("{}"),
-		})
-		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       2,
-			JobID:             currentWorkspaceBuildJob.ID,
-			// No provisioner state.
-		})
 	)
 
-	t.Log("previous job ID: ", previousWorkspaceBuildJob.ID)
-	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
+	// Previous build (completed successfully).
+	previousBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
+		ProvisionerState: expectedWorkspaceBuildState,
+	}).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
+		Do()
+
+	// Current build (hung - running job with UpdatedAt > 5 min ago).
+	currentBuild := dbfake.WorkspaceBuild(t, db, previousBuild.Workspace).
+		Pubsub(pubsub).
+		Seed(database.WorkspaceBuild{BuildNumber: 2}).
+		Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
+		Do()
+
+	t.Log("previous job ID: ", previousBuild.Build.JobID)
+	t.Log("current job ID: ", currentBuild.Build.JobID)
 
 	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
@@ -202,10 +148,10 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
+	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
+	job, err := db.GetProvisionerJobByID(ctx, currentBuild.Build.JobID)
 	require.NoError(t, err)
 	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
 	require.True(t, job.CompletedAt.Valid)
@@ -215,7 +161,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	require.False(t, job.ErrorCode.Valid)
 
 	// Check that the provisioner state was copied.
-	build, err := db.GetWorkspaceBuildByID(ctx, currentWorkspaceBuild.ID)
+	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
 
@@ -235,88 +181,37 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	)
 
 	var (
-		now          = time.Now()
-		twentyMinAgo = now.Add(-time.Minute * 20)
-		tenMinAgo    = now.Add(-time.Minute * 10)
-		sixMinAgo    = now.Add(-time.Minute * 6)
-		org          = dbgen.Organization(t, db, database.Organization{})
-		user         = dbgen.User(t, db, database.User{})
-		file         = dbgen.File(t, db, database.File{})
-		template     = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			CreatedBy: user.ID,
-		})
-		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     template.ID,
-		})
-
-		// Previous build.
-		previousWorkspaceBuildJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			CreatedAt: twentyMinAgo,
-			UpdatedAt: twentyMinAgo,
-			StartedAt: sql.NullTime{
-				Time:  twentyMinAgo,
-				Valid: true,
-			},
-			CompletedAt: sql.NullTime{
-				Time:  twentyMinAgo,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte("{}"),
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       1,
-			ProvisionerState:  []byte(`{"dean":"NOT cool","colin":"also NOT cool"}`),
-			JobID:             previousWorkspaceBuildJob.ID,
-		})
-
-		// Current build.
+		now                         = time.Now()
+		twentyMinAgo                = now.Add(-time.Minute * 20)
+		tenMinAgo                   = now.Add(-time.Minute * 10)
+		sixMinAgo                   = now.Add(-time.Minute * 6)
+		org                         = dbgen.Organization(t, db, database.Organization{})
+		user                        = dbgen.User(t, db, database.User{})
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			CreatedAt: tenMinAgo,
-			UpdatedAt: sixMinAgo,
-			StartedAt: sql.NullTime{
-				Time:  tenMinAgo,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte("{}"),
-		})
-		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       2,
-			JobID:             currentWorkspaceBuildJob.ID,
-			// Should not be overridden.
-			ProvisionerState: expectedWorkspaceBuildState,
-		})
 	)
 
-	t.Log("previous job ID: ", previousWorkspaceBuildJob.ID)
-	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
+	// Previous build (completed successfully).
+	previousBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
+		ProvisionerState: []byte(`{"dean":"NOT cool","colin":"also NOT cool"}`),
+	}).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
+		Do()
+
+	// Current build (hung - running job with UpdatedAt > 5 min ago).
+	// This build already has provisioner state, which should NOT be overridden.
+	currentBuild := dbfake.WorkspaceBuild(t, db, previousBuild.Workspace).
+		Pubsub(pubsub).
+		Seed(database.WorkspaceBuild{
+			BuildNumber:      2,
+			ProvisionerState: expectedWorkspaceBuildState,
+		}).
+		Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
+		Do()
+
+	t.Log("previous job ID: ", previousBuild.Build.JobID)
+	t.Log("current job ID: ", currentBuild.Build.JobID)
 
 	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
@@ -325,10 +220,10 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
+	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
+	job, err := db.GetProvisionerJobByID(ctx, currentBuild.Build.JobID)
 	require.NoError(t, err)
 	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
 	require.True(t, job.CompletedAt.Valid)
@@ -338,7 +233,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	require.False(t, job.ErrorCode.Valid)
 
 	// Check that the provisioner state was NOT copied.
-	build, err := db.GetWorkspaceBuildByID(ctx, currentWorkspaceBuild.ID)
+	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
 
@@ -358,58 +253,25 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	)
 
 	var (
-		now       = time.Now()
-		tenMinAgo = now.Add(-time.Minute * 10)
-		sixMinAgo = now.Add(-time.Minute * 6)
-		org       = dbgen.Organization(t, db, database.Organization{})
-		user      = dbgen.User(t, db, database.User{})
-		file      = dbgen.File(t, db, database.File{})
-		template  = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			CreatedBy: user.ID,
-		})
-		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     template.ID,
-		})
-
-		// First build.
+		now                         = time.Now()
+		tenMinAgo                   = now.Add(-time.Minute * 10)
+		sixMinAgo                   = now.Add(-time.Minute * 6)
+		org                         = dbgen.Organization(t, db, database.Organization{})
+		user                        = dbgen.User(t, db, database.User{})
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			CreatedAt: tenMinAgo,
-			UpdatedAt: sixMinAgo,
-			StartedAt: sql.NullTime{
-				Time:  tenMinAgo,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte("{}"),
-		})
-		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       1,
-			JobID:             currentWorkspaceBuildJob.ID,
-			// Should not be overridden.
-			ProvisionerState: expectedWorkspaceBuildState,
-		})
 	)
 
-	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
+	// First build (hung - no previous build exists).
+	// This build has provisioner state, which should NOT be overridden.
+	currentBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
+		ProvisionerState: expectedWorkspaceBuildState,
+	}).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
+		Do()
+
+	t.Log("current job ID: ", currentBuild.Build.JobID)
 
 	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
@@ -418,10 +280,10 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
+	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
+	job, err := db.GetProvisionerJobByID(ctx, currentBuild.Build.JobID)
 	require.NoError(t, err)
 	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
 	require.True(t, job.CompletedAt.Valid)
@@ -431,7 +293,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	require.False(t, job.ErrorCode.Valid)
 
 	// Check that the provisioner state was NOT updated.
-	build, err := db.GetWorkspaceBuildByID(ctx, currentWorkspaceBuild.ID)
+	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
 
@@ -451,57 +313,24 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	)
 
 	var (
-		now              = time.Now()
-		thirtyFiveMinAgo = now.Add(-time.Minute * 35)
-		org              = dbgen.Organization(t, db, database.Organization{})
-		user             = dbgen.User(t, db, database.User{})
-		file             = dbgen.File(t, db, database.File{})
-		template         = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			CreatedBy: user.ID,
-		})
-		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     template.ID,
-		})
-
-		// First build.
+		now                         = time.Now()
+		thirtyFiveMinAgo            = now.Add(-time.Minute * 35)
+		org                         = dbgen.Organization(t, db, database.Organization{})
+		user                        = dbgen.User(t, db, database.User{})
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			CreatedAt: thirtyFiveMinAgo,
-			UpdatedAt: thirtyFiveMinAgo,
-			StartedAt: sql.NullTime{
-				Time:  time.Time{},
-				Valid: false,
-			},
-			OrganizationID: org.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte("{}"),
-		})
-		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       1,
-			JobID:             currentWorkspaceBuildJob.ID,
-			// Should not be overridden.
-			ProvisionerState: expectedWorkspaceBuildState,
-		})
 	)
 
-	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
+	// First build (hung pending - no previous build exists).
+	// This build has provisioner state, which should NOT be overridden.
+	currentBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
+		ProvisionerState: expectedWorkspaceBuildState,
+	}).Pending(dbfake.WithJobCreatedAt(thirtyFiveMinAgo), dbfake.WithJobUpdatedAt(thirtyFiveMinAgo)).
+		Do()
+
+	t.Log("current job ID: ", currentBuild.Build.JobID)
 
 	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
@@ -510,10 +339,10 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
+	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
+	job, err := db.GetProvisionerJobByID(ctx, currentBuild.Build.JobID)
 	require.NoError(t, err)
 	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
 	require.True(t, job.CompletedAt.Valid)
@@ -525,7 +354,7 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	require.False(t, job.ErrorCode.Valid)
 
 	// Check that the provisioner state was NOT updated.
-	build, err := db.GetWorkspaceBuildByID(ctx, currentWorkspaceBuild.ID)
+	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
 
@@ -551,66 +380,34 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 	)
 
 	var (
-		now       = time.Now()
-		tenMinAgo = now.Add(-time.Minute * 10)
-		sixMinAgo = now.Add(-time.Minute * 6)
-		org       = dbgen.Organization(t, db, database.Organization{})
-		user      = dbgen.User(t, db, database.User{})
-		file      = dbgen.File(t, db, database.File{})
-		template  = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			CreatedBy: user.ID,
-		})
-		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			TemplateID:     template.ID,
-			DormantAt: sql.NullTime{
-				Time:  now.Add(-time.Hour),
-				Valid: true,
-			},
-		})
-
-		// First build.
+		now                         = time.Now()
+		tenMinAgo                   = now.Add(-time.Minute * 10)
+		sixMinAgo                   = now.Add(-time.Minute * 6)
+		org                         = dbgen.Organization(t, db, database.Organization{})
+		user                        = dbgen.User(t, db, database.User{})
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			CreatedAt: tenMinAgo,
-			UpdatedAt: sixMinAgo,
-			StartedAt: sql.NullTime{
-				Time:  tenMinAgo,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte("{}"),
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			BuildNumber:       1,
-			JobID:             currentWorkspaceBuildJob.ID,
-			// Should not be overridden.
-			ProvisionerState: expectedWorkspaceBuildState,
-		})
 	)
 
-	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
+	// First build (hung - running job with UpdatedAt > 5 min ago).
+	// This build has provisioner state, which should NOT be overridden.
+	// The workspace is dormant from the start.
+	currentBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		DormantAt: sql.NullTime{
+			Time:  now.Add(-time.Hour),
+			Valid: true,
+		},
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
+		ProvisionerState: expectedWorkspaceBuildState,
+	}).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
+		Do()
+
+	t.Log("current job ID: ", currentBuild.Build.JobID)
 
 	// Ensure the RBAC is the dormant type to ensure we're testing the right
 	// thing.
-	require.Equal(t, rbac.ResourceWorkspaceDormant.Type, workspace.RBACObject().Type)
+	require.Equal(t, rbac.ResourceWorkspaceDormant.Type, currentBuild.Workspace.RBACObject().Type)
 
 	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), pubsub, log, tickCh).WithStatsChannel(statsCh)
 	detector.Start()
@@ -619,10 +416,10 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
+	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
+	job, err := db.GetProvisionerJobByID(ctx, currentBuild.Build.JobID)
 	require.NoError(t, err)
 	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
 	require.True(t, job.CompletedAt.Valid)
