@@ -58,7 +58,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					autoFocus={autoFocus}
 					autoComplete="email"
 					type="email"
-					aria-invalid={emailField.error}
+					aria-invalid={Boolean(emailField.error)}
 				/>
 				{emailField.error && (
 					<span className="text-xs text-content-destructive">

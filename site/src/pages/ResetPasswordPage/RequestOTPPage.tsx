@@ -105,7 +105,7 @@ const RequestOTP: FC<RequestOTPProps> = ({
 								onBlur={emailField.onBlur}
 								type="email"
 								autoFocus
-								aria-invalid={emailField.error}
+								aria-invalid={Boolean(emailField.error)}
 							/>
 							{emailField.error && (
 								<span className="text-xs text-content-destructive">
