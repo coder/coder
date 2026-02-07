@@ -100,6 +100,10 @@
 		@apply border-border;
 	}
 
+	html {
+		overflow-y: scroll !important;
+	}
+
 	/*
 	By default, Radix adds a margin to the `body` element when a dropdown is displayed,
 	causing some shifting when the dropdown has a full-width size, as is the case with the mobile menu.
@@ -108,10 +112,6 @@
 	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
 	https://github.com/radix-ui/primitives/issues/3251
 	 */
-	html {
-		overflow-y: scroll !important;
-	}
-
 	html body[data-scroll-locked] {
 		--removed-body-scroll-bar-size: 0;
 		margin-right: 0 !important;
