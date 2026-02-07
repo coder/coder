@@ -78,7 +78,7 @@ export function ComboboxButton({
 	placeholder,
 	ref,
 	...props
-}: ComboboxButtonProps & { ref?: React.Ref<HTMLButtonElement> }) {
+}: ComboboxButtonProps) {
 	return (
 		<Button
 			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
@@ -101,9 +101,7 @@ export function ComboboxContent({
 	className,
 	ref,
 	...props
-}: React.ComponentProps<typeof PopoverContent> & {
-	ref?: React.Ref<HTMLDivElement>;
-}) {
+}: React.ComponentPropsWithRef<typeof PopoverContent>) {
 	return (
 		<PopoverContent
 			ref={ref}
@@ -128,9 +126,7 @@ export function ComboboxItem({
 	value,
 	ref,
 	...props
-}: React.ComponentProps<typeof CommandItem> & {
-	ref?: React.Ref<HTMLDivElement>;
-}) {
+}: React.ComponentPropsWithRef<typeof CommandItem>) {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
 	const isSelected = value === selectedValue;
 
