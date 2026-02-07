@@ -4,7 +4,7 @@ const latencyColors = {
 	critical: { text: "text-content-destructive", background: "bg-surface-red" },
 	unknown: {
 		text: "text-content-secondary",
-		background: "bg-surface-secondary",
+		background: "bg-surface-quaternary",
 	},
 } as const;
 
