@@ -1,7 +1,13 @@
 const latencyColors = {
-	good: { text: "text-content-success", background: "bg-surface-green" },
-	warning: { text: "text-content-warning", background: "bg-surface-orange" },
-	critical: { text: "text-content-destructive", background: "bg-surface-red" },
+	good: { text: "text-content-success", background: "bg-content-green" },
+	warning: {
+		text: "text-content-warning",
+		background: "bg-content-yellow",
+	},
+	critical: {
+		text: "text-content-destructive",
+		background: "bg-content-destructive",
+	},
 	unknown: {
 		text: "text-content-secondary",
 		background: "bg-surface-quaternary",
