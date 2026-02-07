@@ -101,7 +101,7 @@
 	}
 
 	html {
-		overflow-y: scroll !important;
+		overflow-y: scroll;
 	}
 
 	/*
