@@ -11,6 +11,7 @@ import {
 import { TableCell, TableRow } from "components/Table/Table";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC, ReactNode } from "react";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 
 interface ProxyRowProps {
@@ -73,25 +74,19 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 					<div className="flex items-center justify-end">{statusBadge}</div>
 				</TableCell>
 				<TableCell
-					css={{
-						fontSize: 14,
-						textAlign: "right",
-					}}
-					className={
+					className={cn(
+						"text-sm text-right",
 						latency
 							? getLatencyColor(latency.latencyMS)
-							: "text-content-secondary"
-					}
+							: "text-content-secondary",
+					)}
 				>
 					{latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
 				</TableCell>
 			</TableRow>
 			{shouldShowMessages && (
 				<TableRow>
-					<TableCell
-						colSpan={4}
-						css={{ padding: "0 !important", borderBottom: 0 }}
-					>
+					<TableCell colSpan={4} className="!p-0 border-b-0">
 						<ProxyMessagesRow
 							proxy={proxy as WorkspaceProxy}
 							extraWarnings={extraWarnings}

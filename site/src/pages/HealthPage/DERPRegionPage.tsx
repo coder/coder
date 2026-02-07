@@ -14,6 +14,7 @@ import {
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 import { pageTitle } from "utils/page";
 import {
@@ -179,21 +180,8 @@ type StatusCircleProps = { background: string };
 
 const StatusCircle: FC<StatusCircleProps> = ({ background }) => {
 	return (
-		<div
-			css={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		>
-			<div
-				css={{
-					width: 8,
-					height: 8,
-					borderRadius: 9999,
-				}}
-				className={background}
-			/>
+		<div className="flex items-center justify-center">
+			<div className={cn("size-2 rounded-full", background)} />
 		</div>
 	);
 };
