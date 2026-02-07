@@ -10,11 +10,18 @@ import {
 	type HTMLAttributes,
 	type ReactElement,
 } from "react";
+import { cn } from "utils/cn";
 
-export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
+export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
+	className,
+	...props
+}) => {
 	return (
 		<header
-			className="min-h-12 border-0 border-b border-border border-solid flex items-center text-[13px] leading-tight"
+			className={cn(
+				"min-h-12 border-0 border-b border-border border-solid flex items-center text-[13px] leading-tight",
+				className,
+			)}
 			{...props}
 		/>
 	);
