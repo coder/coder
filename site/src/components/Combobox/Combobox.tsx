@@ -64,7 +64,7 @@ export function Combobox({
 
 export const ComboboxTrigger = PopoverTrigger;
 
-interface ComboboxButtonProps extends React.ComponentProps<"button"> {
+interface ComboboxButtonProps extends React.ComponentPropsWithRef<"button"> {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
