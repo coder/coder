@@ -18,23 +18,26 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 }) => {
 	return (
 		<header
+			{...props}
 			className={cn(
 				"min-h-12 border-0 border-b border-border border-solid flex items-center text-[13px] leading-tight",
 				className,
 			)}
-			{...props}
 		/>
 	);
 };
 
 export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-	(props, ref) => {
+	({ className, ...props }, ref) => {
 		return (
 			<IconButton
 				ref={ref}
 				{...props}
 				size="small"
-				className="p-0 rounded-none size-12 [&_svg]:size-icon-sm"
+				className={cn(
+					"p-0 rounded-none size-12 [&_svg]:size-icon-sm",
+					className,
+				)}
 			/>
 		);
 	},
