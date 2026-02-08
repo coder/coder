@@ -399,10 +399,12 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
-	// Both light and dark themes use green-600 for success and amber-500
-	// for warning, so these hex values are safe to hardcode.
+	const style = getComputedStyle(document.documentElement);
 	const usageColors = chroma
-		.scale(["#16a34a", "#f59e0b"])
+		.scale([
+			`hsl(${style.getPropertyValue("--content-success").trim()})`,
+			`hsl(${style.getPropertyValue("--content-warning").trim()})`,
+		])
 		.mode("lch")
 		.colors(validUsage?.length ?? 0);
 
