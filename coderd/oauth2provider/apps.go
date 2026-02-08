@@ -50,7 +50,7 @@ func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 			return
 		}
 
-		var sdkApps []codersdk.OAuth2ProviderApp
+		sdkApps := make([]codersdk.OAuth2ProviderApp, 0, len(userApps))
 		for _, app := range userApps {
 			sdkApps = append(sdkApps, db2sdk.OAuth2ProviderApp(accessURL, app.OAuth2ProviderApp))
 		}
