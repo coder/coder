@@ -64,12 +64,14 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 	};
 
 	const handlePreset = (days: number) => {
-		const from = dayjs().subtract(days, "day").toDate();
-		const to = new Date();
-		setSelected({ from, to });
+		const from = dayjs().subtract(days, "day");
+		const to = days === 1 ? from : dayjs();
+		setSelected({ from: from.toDate(), to: to.toDate() });
 		onChange({
-			startDate: dayjs(from).startOf("day").toDate(),
-			endDate: dayjs().startOf("hour").add(1, "hour").toDate(),
+			startDate: from.startOf("day").toDate(),
+			endDate: to.isSame(dayjs(), "day")
+				? dayjs().startOf("hour").add(1, "hour").toDate()
+				: to.startOf("day").add(1, "day").toDate(),
 		});
 	};
 
