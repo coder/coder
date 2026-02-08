@@ -34,11 +34,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	CircleCheck as CircleCheckIcon,
-	CircleXIcon,
-	LinkIcon,
-} from "lucide-react";
+import { Link } from "components/Link/Link";
+import { CircleCheck as CircleCheckIcon, CircleXIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -596,15 +593,9 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 	if (usage.value.startsWith("http")) {
 		return (
-			<a
-				href={usage.value}
-				target="_blank"
-				rel="noreferrer"
-				className="flex items-center gap-[1px] text-content-primary no-underline hover:underline"
-			>
+			<Link href={usage.value} target="_blank" rel="noreferrer">
 				<TextValue>{usage.value}</TextValue>
-				<LinkIcon className="size-icon-xs text-content-link" />
-			</a>
+			</Link>
 		);
 	}
 
