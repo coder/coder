@@ -100,10 +100,7 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 					</span>
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent
-				className="w-auto p-0 flex overflow-visible"
-				align="start"
-			>
+			<PopoverContent className="w-auto p-0 flex overflow-clip" align="start">
 				<div className="flex flex-col gap-1 border-r border-border p-3 text-sm w-32">
 					{presets.map((preset) => (
 						<Button
