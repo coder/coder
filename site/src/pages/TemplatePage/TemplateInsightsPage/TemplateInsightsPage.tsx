@@ -26,6 +26,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -34,7 +35,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Link } from "components/Link/Link";
 import { CircleCheck as CircleCheckIcon, CircleXIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
