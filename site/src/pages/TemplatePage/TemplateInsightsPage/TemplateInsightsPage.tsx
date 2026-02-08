@@ -397,11 +397,16 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
 	const style = getComputedStyle(document.documentElement);
+	const successHsl = style
+		.getPropertyValue("--content-success")
+		.trim()
+		.replace(/ /g, ", ");
+	const warningHsl = style
+		.getPropertyValue("--content-warning")
+		.trim()
+		.replace(/ /g, ", ");
 	const usageColors = chroma
-		.scale([
-			`hsl(${style.getPropertyValue("--content-success").trim()})`,
-			`hsl(${style.getPropertyValue("--content-warning").trim()})`,
-		])
+		.scale([`hsl(${successHsl})`, `hsl(${warningHsl})`])
 		.mode("lch")
 		.colors(validUsage?.length ?? 0);
 
