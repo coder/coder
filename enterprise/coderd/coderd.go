@@ -983,7 +983,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 var _ wsbuilder.UsageChecker = &API{}
 
-func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) CheckBuildUsage(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
 	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
@@ -996,7 +996,7 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 		}
 	}
 
-	resp, err := api.checkAIBuildUsage(ctx, store, task, transition)
+	resp, err := api.checkAIBuildUsage(task, transition)
 	if err != nil {
 		return wsbuilder.UsageCheckResponse{}, err
 	}
@@ -1007,9 +1007,10 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 }
 
-// checkAIBuildUsage validates AI-related usage constraints. It is a no-op
-// unless the transition is "start" and the template version has an AI task.
-func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+// checkAIBuildUsage is a hook for AI-related usage constraints. Currently
+// it always permits the build because managed agent limits are advisory
+// only (enforced via warnings, not by blocking workspace creation).
+func (*API) checkAIBuildUsage(task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
 	// Only check AI usage rules for start transitions.
 	if transition != database.WorkspaceTransitionStart {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
@@ -1019,6 +1020,12 @@ func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, tas
 	if task == nil {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
+
+	// Managed agent limits are advisory only. We never block workspace
+	// creation based on the managed agent count because this is a
+	// critical path for users. Warnings are surfaced via entitlements
+	// instead. See enterprise/coderd/license/license.go for the
+	// warning logic.
 
 	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 }
