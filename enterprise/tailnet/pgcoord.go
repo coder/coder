@@ -209,9 +209,62 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	return node
 }
 
-func (c *pgCoord) TunnelPeers(_ uuid.UUID) []*agpl.TunnelPeerInfo {
-	// TODO: implement with DB query
-	return nil
+func (c *pgCoord) TunnelPeers(agentID uuid.UUID) []*agpl.TunnelPeerInfo {
+	rows, err := c.store.GetTailnetTunnelPeerBindingsByDstID(c.ctx, agentID)
+	if err != nil {
+		c.logger.Error(c.ctx, "get tunnel peers", slog.Error(err))
+		return nil
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	mappings := make([]mapping, 0, len(rows))
+	for _, row := range rows {
+		node := new(proto.Node)
+		if err := gProto.Unmarshal(row.Node, node); err != nil {
+			c.logger.Error(c.ctx, "unmarshal tunnel peer node", slog.Error(err))
+			continue
+		}
+		kind := proto.CoordinateResponse_PeerUpdate_NODE
+		if row.Status == database.TailnetStatusLost {
+			kind = proto.CoordinateResponse_PeerUpdate_LOST
+		}
+		mappings = append(mappings, mapping{
+			peer:        row.PeerID,
+			coordinator: row.CoordinatorID,
+			updatedAt:   row.UpdatedAt,
+			node:        node,
+			kind:        kind,
+		})
+	}
+	mappings = c.querier.heartbeats.filter(mappings)
+
+	// Pick the best mapping per peer: NODE beats LOST, newest wins
+	// among same kind. This matches the bestMappings logic used by
+	// the mapper.
+	best := make(map[uuid.UUID]mapping, len(mappings))
+	for _, m := range mappings {
+		bestM, ok := best[m.peer]
+		switch {
+		case !ok:
+			best[m.peer] = m
+		case bestM.kind == proto.CoordinateResponse_PeerUpdate_LOST && m.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			best[m.peer] = m
+		case m.updatedAt.After(bestM.updatedAt) && m.kind == proto.CoordinateResponse_PeerUpdate_NODE:
+			best[m.peer] = m
+		}
+	}
+
+	out := make([]*agpl.TunnelPeerInfo, 0, len(best))
+	for _, m := range best {
+		out = append(out, &agpl.TunnelPeerInfo{
+			ID:     m.peer,
+			Node:   m.node,
+			Status: m.kind,
+			Start:  m.updatedAt,
+		})
+	}
+	return out
 }
 
 func (c *pgCoord) Close() error {
