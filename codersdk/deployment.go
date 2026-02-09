@@ -1742,7 +1742,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "TLS Ciphers",
-			Description: "Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.",
+			Description: "Specify specific TLS ciphers that are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.",
 			Flag:        "tls-ciphers",
 			Env:         "CODER_TLS_CIPHERS",
 			Default:     "",
