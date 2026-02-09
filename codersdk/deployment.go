@@ -2089,8 +2089,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name: "OIDC Client Cert File",
-			Description: "Pem encoded certificate file to use for oauth2 PKI/JWT authorization. " +
-				"The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.",
+			Description: "PEM encoded certificate file to use for OAuth2 PKI/JWT authorization. " +
+				"The public certificate that accompanies oidc-client-key-file. A standard X.509 certificate is expected.",
 			Flag:  "oidc-client-cert-file",
 			Env:   "CODER_OIDC_CLIENT_CERT_FILE",
 			YAML:  "oidcClientCertFile",
