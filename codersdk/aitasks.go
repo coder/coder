@@ -329,6 +329,31 @@ func (c *Client) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID,
 	return nil
 }
 
+// PauseTaskResponse represents the response from pausing a task.
+type PauseTaskResponse struct {
+	WorkspaceBuild *WorkspaceBuild `json:"workspace_build"`
+}
+
+// PauseTask pauses a task by stopping its workspace.
+// Experimental: uses the /api/experimental endpoint.
+func (c *Client) PauseTask(ctx context.Context, user string, id uuid.UUID) (PauseTaskResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/pause", user, id.String()), nil)
+	if err != nil {
+		return PauseTaskResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return PauseTaskResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp PauseTaskResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return PauseTaskResponse{}, err
+	}
+
+	return resp, nil
+}
+
 // TaskLogType indicates the source of a task log entry.
 type TaskLogType string
 
