@@ -1833,7 +1833,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Block Direct Connections",
-			Description: "Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.",
+			Description: "Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspace agents may still reach out to STUN servers to discover their address until they are restarted, but all new connections will be proxied regardless.",
 			// This cannot be called `disable-direct-connections` because that's
 			// already a global CLI flag for CLI connections. This is a
 			// deployment-wide flag.
