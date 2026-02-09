@@ -97,7 +97,9 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			opts := &workspacesdk.DialAgentOptions{}
+			opts := &workspacesdk.DialAgentOptions{
+				ShortDescription: "CLI speedtest",
+			}
 			if r.verbose {
 				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
 			}

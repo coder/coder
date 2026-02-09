@@ -748,6 +748,7 @@ func New(options *Options) *API {
 		options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		api.TracerProvider,
+		"Coder Server",
 	)
 	if err != nil {
 		panic("failed to setup server tailnet: " + err.Error())

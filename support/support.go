@@ -559,8 +559,9 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, eg *errgroup.Group, a *Agent) (closer func()) {
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
-			Logger:         log.Named("dial-agent"),
-			BlockEndpoints: false,
+			Logger:           log.Named("dial-agent"),
+			BlockEndpoints:   false,
+			ShortDescription: "Support bundle - connected agent info",
 		})
 
 	closer = func() {}
@@ -1059,8 +1060,9 @@ func collectPprof(ctx context.Context, d *Deps, b *Bundle) Pprof {
 	if d.AgentID != uuid.Nil {
 		conn, err := workspacesdk.New(d.Client).
 			DialAgent(ctx, d.AgentID, &workspacesdk.DialAgentOptions{
-				Logger:         d.Log.Named("dial-agent-pprof"),
-				BlockEndpoints: false,
+				Logger:           d.Log.Named("dial-agent-pprof"),
+				BlockEndpoints:   false,
+				ShortDescription: "Support bundle - agent pprof",
 			})
 		if err != nil {
 			d.Log.Warn(ctx, "failed to dial agent for pprof collection", slog.Error(err))

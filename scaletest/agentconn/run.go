@@ -67,7 +67,8 @@ func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 		DialAgent(ctx, r.cfg.AgentID, &workspacesdk.DialAgentOptions{
 			Logger: logger.Named("agentconn"),
 			// If the config requested DERP, then force DERP.
-			BlockEndpoints: r.cfg.ConnectionMode == ConnectionModeDerp,
+			BlockEndpoints:   r.cfg.ConnectionMode == ConnectionModeDerp,
+			ShortDescription: "CLI scaletest - agentconn",
 		})
 	if err != nil {
 		return xerrors.Errorf("dial workspace agent: %w", err)

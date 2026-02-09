@@ -22,7 +22,7 @@ import (
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/cli/cliutil"
+	"github.com/coder/coder/v2/cli/cliutil/hostname"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
@@ -120,7 +120,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			}
 
 			if name == "" {
-				name = cliutil.Hostname()
+				name = hostname.Hostname()
 			}
 
 			if err := validateProvisionerDaemonName(name); err != nil {

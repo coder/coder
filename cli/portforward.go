@@ -107,7 +107,9 @@ func (r *RootCmd) portForward() *serpent.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			opts := &workspacesdk.DialAgentOptions{}
+			opts := &workspacesdk.DialAgentOptions{
+				ShortDescription: "CLI port-forward",
+			}
 
 			logger := inv.Logger
 			if r.verbose {

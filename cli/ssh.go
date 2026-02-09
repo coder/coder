@@ -365,6 +365,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 				return err
 			}
+			shortDescription := "CLI ssh"
+			if stdio {
+				shortDescription = "CLI ssh (stdio)"
+			}
 
 			// If we're in stdio mode, check to see if we can use Coder Connect.
 			// We don't support Coder Connect over non-stdio coder ssh yet.
@@ -405,9 +409,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 			conn, err := wsClient.
 				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-					Logger:          logger,
-					BlockEndpoints:  r.disableDirect,
-					EnableTelemetry: !r.disableNetworkTelemetry,
+					Logger:           logger,
+					BlockEndpoints:   r.disableDirect,
+					EnableTelemetry:  !r.disableNetworkTelemetry,
+					ShortDescription: shortDescription,
 				})
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)

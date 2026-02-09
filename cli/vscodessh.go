@@ -166,8 +166,9 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			}
 			agentConn, err := workspacesdk.New(client).
 				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-					Logger:         logger,
-					BlockEndpoints: r.disableDirect,
+					Logger:           logger,
+					BlockEndpoints:   r.disableDirect,
+					ShortDescription: "VSCode SSH",
 				})
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)

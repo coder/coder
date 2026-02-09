@@ -27,7 +27,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/cliutil"
+	"github.com/coder/coder/v2/cli/cliutil/hostname"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -246,7 +246,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			DerpEnabled:         opts.DERPEnabled,
 			DerpOnly:            opts.DERPOnly,
 			ReplicaID:           uuid.New(),
-			ReplicaHostname:     cliutil.Hostname(),
+			ReplicaHostname:     hostname.Hostname(),
 			ReplicaError:        "",
 			ReplicaRelayAddress: opts.DERPServerRelayAddress,
 			Version:             buildinfo.Version(),
@@ -277,6 +277,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		regResp.DERPForceWebSockets,
 		opts.BlockDirect,
 		s.TracerProvider,
+		"Workspace Proxy",
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("create server tailnet: %w", err)

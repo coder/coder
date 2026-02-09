@@ -1444,7 +1444,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	},
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace, "AI tool call - ls")
 		if err != nil {
 			return WorkspaceLSResponse{}, err
 		}
@@ -1509,7 +1509,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	},
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace, "AI tool call - read file")
 		if err != nil {
 			return WorkspaceReadFileResponse{}, err
 		}
@@ -1582,7 +1582,7 @@ content you are trying to write, then re-encode it properly.
 	},
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace, "AI tool call - write file")
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -1644,7 +1644,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 	},
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace, "AI tool call - edit file")
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -1721,7 +1721,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 	},
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (codersdk.Response, error) {
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace, "AI tool call - edit files")
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -2156,7 +2156,7 @@ func NormalizeWorkspaceInput(input string) string {
 
 // newAgentConn returns a connection to the agent specified by the workspace,
 // which must be in the format [owner/]workspace[.agent].
-func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string, shortDescription string) (workspacesdk.AgentConn, error) {
 	workspaceName := NormalizeWorkspaceInput(workspace)
 	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
 	if err != nil {
@@ -2176,7 +2176,8 @@ func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string
 	wsClient := workspacesdk.New(client)
 
 	conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-		BlockEndpoints: false,
+		BlockEndpoints:   false,
+		ShortDescription: shortDescription,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to dial agent: %w", err)

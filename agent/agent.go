@@ -1377,6 +1377,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 				manifest.DERPForceWebSockets,
 				manifest.DisableDirectConnections,
 				keySeed,
+				manifest.WorkspaceName,
 			)
 			if err != nil {
 				return xerrors.Errorf("create tailnet: %w", err)
@@ -1531,6 +1532,7 @@ func (a *agent) createTailnet(
 	derpMap *tailcfg.DERPMap,
 	derpForceWebSockets, disableDirectConnections bool,
 	keySeed int64,
+	workspaceName string,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
 	var header http.Header
@@ -1548,6 +1550,8 @@ func (a *agent) createTailnet(
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,
 		BlockEndpoints:      disableDirectConnections,
+		ShortDescription:    "Workspace Agent",
+		Hostname:            workspaceName,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

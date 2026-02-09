@@ -100,7 +100,7 @@ Examples:
 		ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, xerrors.New("MCP handler timeout after 5 min"))
 		defer cancel()
 
-		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace, "AI tool call - bash")
 		if err != nil {
 			return WorkspaceBashResult{}, err
 		}

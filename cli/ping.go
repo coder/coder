@@ -123,7 +123,9 @@ func (r *RootCmd) ping() *serpent.Command {
 				spin.Start()
 			}
 
-			opts := &workspacesdk.DialAgentOptions{}
+			opts := &workspacesdk.DialAgentOptions{
+				ShortDescription: "CLI ping",
+			}
 
 			if r.verbose {
 				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)

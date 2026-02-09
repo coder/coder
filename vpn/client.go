@@ -166,6 +166,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		TUNDev:              options.TUNDevice,
 		WireguardMonitor:    options.WireguardMonitor,
 		DNSMatchDomain:      dnsMatch,
+		ShortDescription:    "Coder Desktop",
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

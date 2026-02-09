@@ -484,6 +484,7 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 		false,
 		!derpMap.HasSTUN(),
 		trace.NewNoopTracerProvider(),
+		"Coder Server",
 	)
 	require.NoError(t, err)
 

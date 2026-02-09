@@ -18,7 +18,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/cliutil"
+	"github.com/coder/coder/v2/cli/cliutil/hostname"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -59,7 +59,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// primary purpose is to clean up dead replicas.
 		options.CleanupInterval = 30 * time.Minute
 	}
-	hostname := cliutil.Hostname()
+	hostName := hostname.Hostname()
 	databaseLatency, err := db.Ping(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
@@ -70,7 +70,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		CreatedAt:    dbtime.Now(),
 		StartedAt:    dbtime.Now(),
 		UpdatedAt:    dbtime.Now(),
-		Hostname:     hostname,
+		Hostname:     hostName,
 		RegionID:     options.RegionID,
 		RelayAddress: options.RelayAddress,
 		Version:      buildinfo.Version(),
@@ -497,7 +497,7 @@ func (m *Manager) Close() error {
 // the expected public hostname of the peer, and trusts all of the TLS server
 // certificates used by this replica (as we expect all replicas to use the same
 // TLS certificates).
-func CreateDERPMeshTLSConfig(hostname string, tlsCertificates []tls.Certificate) (*tls.Config, error) {
+func CreateDERPMeshTLSConfig(hostName string, tlsCertificates []tls.Certificate) (*tls.Config, error) {
 	meshRootCA := x509.NewCertPool()
 	for _, certificate := range tlsCertificates {
 		for _, certificatePart := range certificate.Certificate {
@@ -514,6 +514,6 @@ func CreateDERPMeshTLSConfig(hostname string, tlsCertificates []tls.Certificate)
 	return &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		RootCAs:    meshRootCA,
-		ServerName: hostname,
+		ServerName: hostName,
 	}, nil
 }

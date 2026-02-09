@@ -42,6 +42,7 @@ import (
 	"tailscale.com/wgengine/router"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/cli/cliutil/hostname"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -126,6 +127,10 @@ type Options struct {
 	// DNSMatchDomain is the DNS suffix to use as a match domain. Only relevant for TUN connections that configure the
 	// OS DNS resolver.
 	DNSMatchDomain string
+	// ShortDescription is the human-readable short description of the connection.
+	ShortDescription string
+	// Hostname is the peer's self-reported hostname. For informational / display purposes only
+	Hostname string
 }
 
 // TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
@@ -156,7 +161,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if len(options.Addresses) == 0 {
 		return nil, xerrors.New("At least one IP range must be provided")
 	}
-
+	if options.Hostname == "" {
+		options.Hostname = hostname.Hostname()
+	}
 	useNetNS := options.TUNDev != nil
 	options.Logger.Debug(context.Background(), "network isolation configuration", slog.F("use_netns", useNetNS))
 	netns.SetEnabled(useNetNS)
@@ -308,6 +315,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		nodeID,
 		nodePrivateKey.Public(),
 		magicConn.DiscoPublicKey(),
+		options.ShortDescription,
+		options.Hostname,
 	)
 	nodeUp.setAddresses(options.Addresses)
 	nodeUp.setBlockEndpoints(options.BlockEndpoints)

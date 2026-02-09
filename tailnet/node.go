@@ -22,11 +22,13 @@ type nodeUpdater struct {
 	closing bool
 
 	// static
-	logger   slog.Logger
-	id       tailcfg.NodeID
-	key      key.NodePublic
-	discoKey key.DiscoPublic
-	callback func(n *Node)
+	logger           slog.Logger
+	id               tailcfg.NodeID
+	key              key.NodePublic
+	discoKey         key.DiscoPublic
+	shortDescription string
+	hostname         string
+	callback         func(n *Node)
 
 	// dynamic
 	preferredDERP        int
@@ -97,7 +99,7 @@ func (u *nodeUpdater) close() {
 
 func newNodeUpdater(
 	logger slog.Logger, callback func(n *Node),
-	id tailcfg.NodeID, np key.NodePublic, dp key.DiscoPublic,
+	id tailcfg.NodeID, np key.NodePublic, dp key.DiscoPublic, shortDescription string, hostname string,
 ) *nodeUpdater {
 	u := &nodeUpdater{
 		phased:               phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
@@ -105,6 +107,8 @@ func newNodeUpdater(
 		id:                   id,
 		key:                  np,
 		discoKey:             dp,
+		shortDescription:     shortDescription,
+		hostname:             hostname,
 		derpForcedWebsockets: make(map[int]string),
 		callback:             callback,
 	}
@@ -129,6 +133,8 @@ func (u *nodeUpdater) nodeLocked() *Node {
 		PreferredDERP:       u.preferredDERP,
 		DERPLatency:         maps.Clone(u.derpLatency),
 		DERPForcedWebsocket: maps.Clone(u.derpForcedWebsockets),
+		ShortDescription:    u.shortDescription,
+		Hostname:            u.hostname,
 	}
 }
 

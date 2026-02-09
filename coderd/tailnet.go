@@ -58,6 +58,7 @@ func NewServerTailnet(
 	derpForceWebSockets bool,
 	blockEndpoints bool,
 	traceProvider trace.TracerProvider,
+	shortDescription string,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
 	conn, err := tailnet.NewConn(&tailnet.Options{
@@ -65,6 +66,7 @@ func NewServerTailnet(
 		DERPForceWebSockets: derpForceWebSockets,
 		Logger:              logger,
 		BlockEndpoints:      blockEndpoints,
+		ShortDescription:    shortDescription,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)

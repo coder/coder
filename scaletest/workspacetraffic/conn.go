@@ -157,7 +157,8 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 	}()
 
 	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
-		BlockEndpoints: blockEndpoints,
+		BlockEndpoints:   blockEndpoints,
+		ShortDescription: "CLI scaletest - workspacetraffic",
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("dial workspace agent: %w", err)

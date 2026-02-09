@@ -188,6 +188,8 @@ type DialAgentOptions struct {
 	// Whether the client will send network telemetry events.
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
+	// ShortDescription is the human-readable short description of the connection.
+	ShortDescription string
 }
 
 // RewriteDERPMap rewrites the DERP map to use the configured access URL of the
@@ -261,6 +263,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		CaptureHook:         options.CaptureHook,
 		ClientType:          proto.TelemetryEvent_CLI,
 		TelemetrySink:       telemetrySink,
+		ShortDescription:    options.ShortDescription,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
