@@ -31,7 +31,7 @@ export const SignInForm: FC<SignInFormProps> = ({
 
 	return (
 		<div className="w-full">
-			<h1 className="text-3xl font-semibold m-0 mb-8 leading-none [&_strong]:font-semibold">
+			<h1 className="text-3xl font-semibold m-0 mb-8 leading-none">
 				{applicationName}
 			</h1>
 
