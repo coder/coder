@@ -3224,6 +3224,21 @@ func (mr *MockStoreMockRecorder) GetTailnetTunnelPeerBindings(ctx, srcID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetTunnelPeerBindings", reflect.TypeOf((*MockStore)(nil).GetTailnetTunnelPeerBindings), ctx, srcID)
 }
 
+// GetTailnetTunnelPeerBindingsByDstID mocks base method.
+func (m *MockStore) GetTailnetTunnelPeerBindingsByDstID(ctx context.Context, dstID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsByDstIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTailnetTunnelPeerBindingsByDstID", ctx, dstID)
+	ret0, _ := ret[0].([]database.GetTailnetTunnelPeerBindingsByDstIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTailnetTunnelPeerBindingsByDstID indicates an expected call of GetTailnetTunnelPeerBindingsByDstID.
+func (mr *MockStoreMockRecorder) GetTailnetTunnelPeerBindingsByDstID(ctx, dstID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetTunnelPeerBindingsByDstID", reflect.TypeOf((*MockStore)(nil).GetTailnetTunnelPeerBindingsByDstID), ctx, dstID)
+}
+
 // GetTailnetTunnelPeerIDs mocks base method.
 func (m *MockStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
 	m.ctrl.T.Helper()

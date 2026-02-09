@@ -4,6 +4,7 @@ package db2sdk
 import (
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"slices"
 	"sort"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	previewtypes "github.com/coder/preview/types"
 )
 
@@ -518,6 +520,31 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	default:
 		workspaceAgent.Health.Healthy = true
 	}
+
+	if tunnelPeers := coordinator.TunnelPeers(dbAgent.ID); len(tunnelPeers) > 0 {
+		conns := make([]codersdk.WorkspaceConnection, 0, len(tunnelPeers))
+		for _, tp := range tunnelPeers {
+			var ip *netip.Addr
+			if tp.Node != nil && len(tp.Node.Addresses) > 0 {
+				if prefix, err := netip.ParsePrefix(tp.Node.Addresses[0]); err == nil {
+					addr := prefix.Addr()
+					ip = &addr
+				}
+			}
+			status := codersdk.ConnectionStatusOngoing
+			if tp.Status == tailnetproto.CoordinateResponse_PeerUpdate_LOST {
+				status = codersdk.ConnectionStatusControlLost
+			}
+			conns = append(conns, codersdk.WorkspaceConnection{
+				IP:          ip,
+				Status:      status,
+				CreatedAt:   tp.Start,
+				ConnectedAt: &tp.Start,
+			})
+		}
+		workspaceAgent.Connections = conns
+	}
+
 	return workspaceAgent, nil
 }
 

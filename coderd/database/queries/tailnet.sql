@@ -126,5 +126,11 @@ SELECT * FROM tailnet_coordinators;
 -- name: GetAllTailnetPeers :many
 SELECT * FROM tailnet_peers;
 
+-- name: GetTailnetTunnelPeerBindingsByDstID :many
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status
+FROM tailnet_peers tp
+INNER JOIN tailnet_tunnels tt ON tp.id = tt.src_id
+WHERE tt.dst_id = @dst_id;
+
 -- name: GetAllTailnetTunnels :many
 SELECT * FROM tailnet_tunnels;

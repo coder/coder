@@ -355,6 +355,7 @@ type sqlcQuerier interface {
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error)
+	GetTailnetTunnelPeerBindingsByDstID(ctx context.Context, dstID uuid.UUID) ([]GetTailnetTunnelPeerBindingsByDstIDRow, error)
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
 	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) (Task, error)

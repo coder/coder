@@ -234,6 +234,57 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	assertEventuallyLost(ctx, t, store, client.ID)
 }
 
+func TestPGCoordinatorSingle_TunnelPeers(t *testing.T) {
+	t.Parallel()
+
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := testutil.Logger(t)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	// No tunnels initially.
+	peers := coordinator.TunnelPeers(uuid.New())
+	require.Nil(t, peers)
+
+	// Create agent and client with tunnel.
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent.Close(ctx)
+	agent.UpdateDERP(10)
+
+	client := agpltest.NewClient(ctx, t, coordinator, "myclient", agent.ID)
+	defer client.Close(ctx)
+	client.UpdateDERP(11)
+
+	// Wait for bidirectional communication to establish.
+	client.AssertEventuallyHasDERP(agent.ID, 10)
+	agent.AssertEventuallyHasDERP(client.ID, 11)
+
+	// TunnelPeers should return the client.
+	require.Eventually(t, func() bool {
+		peers := coordinator.TunnelPeers(agent.ID)
+		return len(peers) == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	peers = coordinator.TunnelPeers(agent.ID)
+	require.Len(t, peers, 1)
+	assert.Equal(t, client.ID, peers[0].ID)
+	assert.Equal(t, proto.CoordinateResponse_PeerUpdate_NODE, peers[0].Status)
+	require.NotNil(t, peers[0].Node)
+	assert.EqualValues(t, 11, peers[0].Node.PreferredDerp)
+	assert.False(t, peers[0].Start.IsZero())
+
+	// Gracefully disconnect client, tunnel peer should be removed.
+	client.Disconnect()
+	client.AssertEventuallyResponsesClosed("")
+	require.Eventually(t, func() bool {
+		peers := coordinator.TunnelPeers(agent.ID)
+		return len(peers) == 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
 func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	t.Parallel()
 

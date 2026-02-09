@@ -1742,6 +1742,14 @@ func (m queryMetricsStore) GetTailnetTunnelPeerBindings(ctx context.Context, src
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTailnetTunnelPeerBindingsByDstID(ctx context.Context, dstID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsByDstIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTailnetTunnelPeerBindingsByDstID(ctx, dstID)
+	m.queryLatencies.WithLabelValues("GetTailnetTunnelPeerBindingsByDstID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTailnetTunnelPeerBindingsByDstID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTailnetTunnelPeerIDs(ctx, srcID)

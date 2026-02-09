@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
+	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -18,6 +21,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
 )
 
 func TestProvisionerJobStatus(t *testing.T) {
@@ -205,4 +211,155 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	// if we feed it garbage data.
 	req.NoError(err)
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
+}
+
+func TestWorkspaceAgent_TunnelPeers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultiplePeers", func(t *testing.T) {
+		t.Parallel()
+
+		agentID := uuid.New()
+		now := dbtime.Now()
+		peerID1 := uuid.New()
+		peerID2 := uuid.New()
+
+		ctrl := gomock.NewController(t)
+		mockCoord := tailnettest.NewMockCoordinator(ctrl)
+		mockCoord.EXPECT().Node(agentID).Return(nil)
+		mockCoord.EXPECT().TunnelPeers(agentID).Return([]*tailnet.TunnelPeerInfo{
+			{
+				ID:   peerID1,
+				Name: "active-user",
+				Node: &tailnetproto.Node{
+					Addresses:     []string{"fd60:627a:a42b:0102:0304:0506:0708:090a/128"},
+					PreferredDerp: 1,
+				},
+				Status: tailnetproto.CoordinateResponse_PeerUpdate_NODE,
+				Start:  now,
+			},
+			{
+				ID:   peerID2,
+				Name: "lost-user",
+				Node: &tailnetproto.Node{
+					Addresses:     []string{"fd60:627a:a42b:aaaa:bbbb:cccc:dddd:eeee/128"},
+					PreferredDerp: 2,
+				},
+				Status: tailnetproto.CoordinateResponse_PeerUpdate_LOST,
+				Start:  now.Add(-time.Hour),
+			},
+		})
+
+		dbAgent := database.WorkspaceAgent{
+			ID:        agentID,
+			CreatedAt: now,
+			Name:      "test-agent",
+		}
+
+		agent, err := db2sdk.WorkspaceAgent(
+			&tailcfg.DERPMap{},
+			mockCoord,
+			dbAgent,
+			nil, nil, nil,
+			time.Minute,
+			"",
+		)
+		require.NoError(t, err)
+		require.Len(t, agent.Connections, 2)
+
+		// Find connections by status since order is not guaranteed.
+		var ongoing, lost *codersdk.WorkspaceConnection
+		for i := range agent.Connections {
+			switch agent.Connections[i].Status {
+			case codersdk.ConnectionStatusOngoing:
+				ongoing = &agent.Connections[i]
+			case codersdk.ConnectionStatusControlLost:
+				lost = &agent.Connections[i]
+			}
+		}
+
+		require.NotNil(t, ongoing, "expected an ongoing connection")
+		require.NotNil(t, ongoing.IP, "expected ongoing IP to be set")
+			assert.Equal(t, "fd60:627a:a42b:102:304:506:708:90a", ongoing.IP.String())
+		assert.Equal(t, now, ongoing.CreatedAt)
+		require.NotNil(t, ongoing.ConnectedAt)
+		assert.Equal(t, now, *ongoing.ConnectedAt)
+		assert.Nil(t, ongoing.EndedAt)
+
+		require.NotNil(t, lost, "expected a control_lost connection")
+		require.NotNil(t, lost.IP, "expected lost IP to be set")
+			assert.Equal(t, "fd60:627a:a42b:aaaa:bbbb:cccc:dddd:eeee", lost.IP.String())
+		assert.Equal(t, now.Add(-time.Hour), lost.CreatedAt)
+		require.NotNil(t, lost.ConnectedAt)
+		assert.Equal(t, now.Add(-time.Hour), *lost.ConnectedAt)
+		assert.Nil(t, lost.EndedAt)
+	})
+
+	t.Run("NilNode", func(t *testing.T) {
+		t.Parallel()
+
+		agentID := uuid.New()
+		now := dbtime.Now()
+
+		ctrl := gomock.NewController(t)
+		mockCoord := tailnettest.NewMockCoordinator(ctrl)
+		mockCoord.EXPECT().Node(agentID).Return(nil)
+		mockCoord.EXPECT().TunnelPeers(agentID).Return([]*tailnet.TunnelPeerInfo{
+			{
+				ID:     uuid.New(),
+				Name:   "no-node-user",
+				Node:   nil,
+				Status: tailnetproto.CoordinateResponse_PeerUpdate_NODE,
+				Start:  now,
+			},
+		})
+
+		dbAgent := database.WorkspaceAgent{
+			ID:        agentID,
+			CreatedAt: now,
+			Name:      "test-agent",
+		}
+
+		agent, err := db2sdk.WorkspaceAgent(
+			&tailcfg.DERPMap{},
+			mockCoord,
+			dbAgent,
+			nil, nil, nil,
+			time.Minute,
+			"",
+		)
+		require.NoError(t, err)
+		require.Len(t, agent.Connections, 1)
+		assert.Nil(t, agent.Connections[0].IP, "IP should be nil when Node is nil")
+		assert.Equal(t, codersdk.ConnectionStatusOngoing, agent.Connections[0].Status)
+	})
+
+	t.Run("NoPeers", func(t *testing.T) {
+		t.Parallel()
+
+		agentID := uuid.New()
+		now := dbtime.Now()
+
+		ctrl := gomock.NewController(t)
+		mockCoord := tailnettest.NewMockCoordinator(ctrl)
+		mockCoord.EXPECT().Node(agentID).Return(nil)
+		mockCoord.EXPECT().TunnelPeers(agentID).Return(nil)
+
+		dbAgent := database.WorkspaceAgent{
+			ID:        agentID,
+			CreatedAt: now,
+			Name:      "test-agent",
+		}
+
+		agent, err := db2sdk.WorkspaceAgent(
+			&tailcfg.DERPMap{},
+			mockCoord,
+			dbAgent,
+			nil, nil, nil,
+			time.Minute,
+			"",
+		)
+		require.NoError(t, err)
+		assert.Empty(t, agent.Connections)
+	})
 }
