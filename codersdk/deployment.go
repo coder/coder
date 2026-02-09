@@ -1523,7 +1523,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	emailTLSCertFile := serpent.Option{
 		Name:        "Email TLS: Certificate File",
-		Description: "Certificate file to use.",
+		Description: "Client certificate file for mutual TLS authentication.",
 		Flag:        "email-tls-cert-file",
 		Env:         "CODER_EMAIL_TLS_CERTFILE",
 		Value:       &c.Notifications.SMTP.TLS.CertFile,
