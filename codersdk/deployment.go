@@ -1800,7 +1800,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "DERP Server Region Name",
-			Description: "Region name that for the embedded DERP server.",
+			Description: "Region name to use for the embedded DERP server.",
 			Flag:        "derp-server-region-name",
 			Env:         "CODER_DERP_SERVER_REGION_NAME",
 			Default:     "Coder Embedded Relay",
