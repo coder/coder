@@ -3034,7 +3034,11 @@ func TestResumeTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
-		_, err := client.ResumeTask(ctx, codersdk.Me, task.ID)
+		pauseResp, err := client.PauseTask(ctx, codersdk.Me, task.ID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, pauseResp.WorkspaceBuild.ID)
+
+		_, err = client.ResumeTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
