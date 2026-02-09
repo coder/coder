@@ -3841,7 +3841,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name: "Enable Authorization Recordings",
-			Description: "All api requests will have a header including all authorization calls made during the request. " +
+			Description: "All API requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
 			Required: false,
 			Flag:     "enable-authz-recordings",
