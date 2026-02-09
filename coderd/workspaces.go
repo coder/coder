@@ -2952,7 +2952,6 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 	return codersdk.WorkspaceRoleDeleted
 }
 
-
 // @Summary Get users available for workspace creation
 // @ID get-workspace-available-users
 // @Security CoderSessionToken

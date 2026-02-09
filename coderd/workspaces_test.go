@@ -5620,8 +5620,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	})
 }
 
-
-
 func TestWorkspaceAvailableUsers(t *testing.T) {
 	t.Parallel()
 
@@ -5668,6 +5666,7 @@ func TestWorkspaceAvailableUsers(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
 }
+
 func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 	t.Parallel()
 
