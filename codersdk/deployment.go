@@ -2257,7 +2257,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC Group Mapping",
-			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
+			Description: "A map of OIDC group IDs and the groups in Coder they should map to. This is useful when OIDC providers only return group IDs.",
 			Flag:        "oidc-group-mapping",
 			Env:         "CODER_OIDC_GROUP_MAPPING",
 			Default:     "{}",
