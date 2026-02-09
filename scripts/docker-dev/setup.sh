@@ -3,16 +3,18 @@ set -e
 
 CODER="go run ./enterprise/cmd/coder"
 
-# Create first user, or log in if already exists.
-$CODER login http://coderd:3000 \
-  --first-user-username=admin \
-  --first-user-email=admin@coder.com \
-  --first-user-password="SomeSecurePassword!" \
-  --first-user-full-name="Admin User" \
-  --first-user-trial=false ||
-$CODER login http://coderd:3000 \
-  --username=admin \
-  --password="SomeSecurePassword!"
+# Create first user and log in. The session token is written to
+# $HOME/.coderv2/session which is persisted in the coder_dev_home
+# volume. On subsequent runs this is a no-op since the session
+# already exists.
+if [ ! -f "${HOME}/.coderv2/session" ]; then
+  $CODER login http://coderd:3000 \
+    --first-user-username=admin \
+    --first-user-email=admin@coder.com \
+    --first-user-password="SomeSecurePassword!" \
+    --first-user-full-name="Admin User" \
+    --first-user-trial=false
+fi
 
 # Create a regular member user (ignore if exists).
 $CODER users create \

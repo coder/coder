@@ -32,9 +32,9 @@ services:
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     # Add the Docker group so coderd can access the Docker socket.
-    # Override DOCKER_GROUP_ID if your host's docker group is not 999.
+    # Override DOCKER_GROUP if your host's docker group is not 999.
     group_add:
-      - "${DOCKER_GROUP_ID:-999}"
+      - "${DOCKER_GROUP:-999}"
     ports:
       - "3000:3000"
     healthcheck:
@@ -66,6 +66,7 @@ services:
         condition: service_healthy
     working_dir: /app
     environment:
+      HOME: /home/coder
       CODER_URL: "http://coderd:3000"
       DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
       GOMODCACHE: /go-cache/mod
