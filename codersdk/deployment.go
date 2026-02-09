@@ -1680,7 +1680,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "TLS Client CA Files",
-			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of client.",
+			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of the client.",
 			Flag:        "tls-client-ca-file",
 			Env:         "CODER_TLS_CLIENT_CA_FILE",
 			Value:       &c.TLS.ClientCAFile,
