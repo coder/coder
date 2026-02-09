@@ -241,7 +241,9 @@ jobs:
 
   lint-actions:
     needs: changes
-    if: needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # Only run this job if changes to CI workflow files are detected. This job
+    # can flake as it reaches out to GitHub to check referenced actions.
+    if: needs.changes.outputs.ci == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
