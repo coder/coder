@@ -1,5 +1,4 @@
 import Skeleton from "@mui/material/Skeleton";
-import { visuallyHidden } from "@mui/utils";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
 import { Button } from "components/Button/Button";
@@ -74,7 +73,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
 				<Button variant="outline" size="lg">
-					<span css={{ ...visuallyHidden }}>
+					<span className="sr-only">
 						Latency for {selectedProxy?.display_name ?? "your region"}
 					</span>
 

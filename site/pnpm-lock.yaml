@@ -61,9 +61,6 @@ importers:
       '@mui/system':
         specifier: 5.18.0
         version: 5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2)
-      '@mui/utils':
-        specifier: 5.17.1
-        version: 5.17.1(@types/react@19.2.7)(react@19.2.2)
       '@mui/x-tree-view':
         specifier: 7.29.10
         version: 7.29.10(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@mui/material@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(@mui/system@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2)

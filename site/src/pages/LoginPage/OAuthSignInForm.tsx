@@ -1,4 +1,3 @@
-import { visuallyHidden } from "@mui/utils";
 import type { AuthMethods } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -80,7 +79,7 @@ const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
 	return (
 		<>
 			<img alt="" src={iconUrl} aria-labelledby={oidcId} />
-			<div id={oidcId} css={{ ...visuallyHidden }}>
+			<div id={oidcId} className="sr-only">
 				Open ID Connect
 			</div>
 		</>
