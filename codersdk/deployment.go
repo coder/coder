@@ -3481,7 +3481,7 @@ Write out the current server config as YAML to stdout.`,
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
-			Description: "Whether to start an in-memory aibridged instance.",
+			Description: "Enable the embedded AI Bridge service to intercept and record AI provider requests.",
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
