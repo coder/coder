@@ -3059,7 +3059,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Proxy Health Check Interval",
-			Description: "The interval in which coderd should be checking the status of workspace proxies.",
+			Description: "The interval at which coderd checks the status of workspace proxies.",
 			Flag:        "proxy-health-interval",
 			Env:         "CODER_PROXY_HEALTH_INTERVAL",
 			Default:     (time.Minute).String(),
