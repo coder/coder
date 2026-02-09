@@ -3041,7 +3041,7 @@ Write out the current server config as YAML to stdout.`,
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
-			Description: "External Authentication providers.",
+			Description: "Configure external authentication providers for Git and other services.",
 			YAML:        "externalAuthProviders",
 			Flag:        "external-auth-providers",
 			Value:       &c.ExternalAuthConfigs,
