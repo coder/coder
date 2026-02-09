@@ -10019,10 +10019,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "connection_timeout_seconds": 0,
             "connections": [
               {
+                "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
+                "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
               }
@@ -10311,10 +10313,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "connection_timeout_seconds": 0,
   "connections": [
     {
+      "client_hostname": "string",
       "connected_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "ended_at": "2019-08-24T14:15:22Z",
       "ip": "string",
+      "short_description": "string",
       "status": "ongoing",
       "type": "ssh"
     }
@@ -11197,10 +11201,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "connection_timeout_seconds": 0,
           "connections": [
             {
+              "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
+              "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
             }
@@ -11416,10 +11422,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "client_hostname": "string",
   "connected_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "ended_at": "2019-08-24T14:15:22Z",
   "ip": "string",
+  "short_description": "string",
   "status": "ongoing",
   "type": "ssh"
 }
@@ -11427,14 +11435,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name           | Type                                                                     | Required | Restrictions | Description |
-|----------------|--------------------------------------------------------------------------|----------|--------------|-------------|
-| `connected_at` | string                                                                   | false    |              |             |
-| `created_at`   | string                                                                   | false    |              |             |
-| `ended_at`     | string                                                                   | false    |              |             |
-| `ip`           | string                                                                   | false    |              |             |
-| `status`       | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |             |
-| `type`         | [codersdk.ConnectionType](#codersdkconnectiontype)                       | false    |              |             |
+| Name                | Type                                                                     | Required | Restrictions | Description                                                                                               |
+|---------------------|--------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
+| `client_hostname`   | string                                                                   | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.   |
+| `connected_at`      | string                                                                   | false    |              |                                                                                                           |
+| `created_at`        | string                                                                   | false    |              |                                                                                                           |
+| `ended_at`          | string                                                                   | false    |              |                                                                                                           |
+| `ip`                | string                                                                   | false    |              |                                                                                                           |
+| `short_description` | string                                                                   | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client. |
+| `status`            | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |                                                                                                           |
+| `type`              | [codersdk.ConnectionType](#codersdkconnectiontype)                       | false    |              |                                                                                                           |
 
 ## codersdk.WorkspaceConnectionLatencyMS
 
@@ -11712,10 +11722,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "connection_timeout_seconds": 0,
       "connections": [
         {
+          "client_hostname": "string",
           "connected_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "ended_at": "2019-08-24T14:15:22Z",
           "ip": "string",
+          "short_description": "string",
           "status": "ongoing",
           "type": "ssh"
         }
@@ -12059,10 +12071,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "connection_timeout_seconds": 0,
                 "connections": [
                   {
+                    "client_hostname": "string",
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "ended_at": "2019-08-24T14:15:22Z",
                     "ip": "string",
+                    "short_description": "string",
                     "status": "ongoing",
                     "type": "ssh"
                   }

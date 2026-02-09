@@ -21518,6 +21518,10 @@ const docTemplate = `{
         "codersdk.WorkspaceConnection": {
             "type": "object",
             "properties": {
+                "client_hostname": {
+                    "description": "ClientHostname is the hostname of the client that connected to the agent. Self-reported by the client.",
+                    "type": "string"
+                },
                 "connected_at": {
                     "type": "string",
                     "format": "date-time"
@@ -21531,6 +21535,10 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "ip": {
+                    "type": "string"
+                },
+                "short_description": {
+                    "description": "ShortDescription is the human-readable short description of the connection. Self-reported by the client.",
                     "type": "string"
                 },
                 "status": {

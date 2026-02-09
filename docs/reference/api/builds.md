@@ -130,10 +130,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "connection_timeout_seconds": 0,
           "connections": [
             {
+              "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
+              "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
             }
@@ -380,10 +382,12 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "connection_timeout_seconds": 0,
           "connections": [
             {
+              "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
+              "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
             }
@@ -749,10 +753,12 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "connection_timeout_seconds": 0,
         "connections": [
           {
+            "client_hostname": "string",
             "connected_at": "2019-08-24T14:15:22Z",
             "created_at": "2019-08-24T14:15:22Z",
             "ended_at": "2019-08-24T14:15:22Z",
             "ip": "string",
+            "short_description": "string",
             "status": "ongoing",
             "type": "ssh"
           }
@@ -900,10 +906,12 @@ Status Code **200**
 | `»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» connections`                | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» client_hostname`           | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
 | `»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
 | `»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1116,10 +1124,12 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "connection_timeout_seconds": 0,
           "connections": [
             {
+              "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
+              "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
             }
@@ -1477,10 +1487,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "connection_timeout_seconds": 0,
             "connections": [
               {
+                "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
+                "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
               }
@@ -1690,10 +1702,12 @@ Status Code **200**
 | `»»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» connections`                | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» client_hostname`           | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
 | `»»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
 | `»»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» created_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1945,10 +1959,12 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "connection_timeout_seconds": 0,
           "connections": [
             {
+              "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
+              "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
             }

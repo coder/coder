@@ -185,10 +185,12 @@ of the template will be used.
             "connection_timeout_seconds": 0,
             "connections": [
               {
+                "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
+                "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
               }
@@ -500,10 +502,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "connection_timeout_seconds": 0,
             "connections": [
               {
+                "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
+                "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
               }
@@ -840,10 +844,12 @@ of the template will be used.
             "connection_timeout_seconds": 0,
             "connections": [
               {
+                "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
+                "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
               }
@@ -1141,10 +1147,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "connection_timeout_seconds": 0,
                 "connections": [
                   {
+                    "client_hostname": "string",
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "ended_at": "2019-08-24T14:15:22Z",
                     "ip": "string",
+                    "short_description": "string",
                     "status": "ongoing",
                     "type": "ssh"
                   }
@@ -1457,10 +1465,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "connection_timeout_seconds": 0,
             "connections": [
               {
+                "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
+                "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
               }
@@ -2032,10 +2042,12 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "connection_timeout_seconds": 0,
             "connections": [
               {
+                "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
+                "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
               }

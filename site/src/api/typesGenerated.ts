@@ -6732,6 +6732,14 @@ export interface WorkspaceConnection {
 	readonly connected_at?: string;
 	readonly ended_at?: string;
 	readonly type: ConnectionType;
+	/**
+	 * ClientHostname is the hostname of the client that connected to the agent. Self-reported by the client.
+	 */
+	readonly client_hostname?: string;
+	/**
+	 * ShortDescription is the human-readable short description of the connection. Self-reported by the client.
+	 */
+	readonly short_description?: string;
 }
 
 // From codersdk/deployment.go

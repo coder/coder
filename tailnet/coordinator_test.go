@@ -279,6 +279,7 @@ func TestCoordinatorPropogatedPeerContext(t *testing.T) {
 	// peer request loop finishes, which will be after the timeout
 	peerCtxCancel()
 }
+
 func TestTunnelPeers(t *testing.T) {
 	t.Parallel()
 
@@ -400,4 +401,3 @@ func TestTunnelPeers(t *testing.T) {
 		assert.True(t, ids[client2.ID])
 	})
 }
-

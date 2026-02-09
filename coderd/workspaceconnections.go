@@ -122,6 +122,8 @@ func mergeWorkspaceConnections(
 			if pe, ok := peersByIP[*conn.IP]; ok {
 				conn.Status = pe.status
 				matchedPeerIPs[pe.ip] = true
+				conn.ClientHostname = pe.peer.Node.Hostname
+				conn.ShortDescription = pe.peer.Node.ShortDescription
 			}
 		}
 		connections = append(connections, conn)
@@ -134,10 +136,12 @@ func mergeWorkspaceConnections(
 		}
 		addr := pe.ip
 		connections = append(connections, codersdk.WorkspaceConnection{
-			IP:          &addr,
-			Status:      pe.status,
-			CreatedAt:   pe.peer.Start,
-			ConnectedAt: &pe.peer.Start,
+			IP:               &addr,
+			Status:           pe.status,
+			CreatedAt:        pe.peer.Start,
+			ConnectedAt:      &pe.peer.Start,
+			ClientHostname:   pe.peer.Node.Hostname,
+			ShortDescription: pe.peer.Node.ShortDescription,
 		})
 	}
 
