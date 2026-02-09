@@ -563,7 +563,7 @@ export const ActivePreview: Story = {
 	},
 };
 
-export const TaskRestarting: Story = {
+export const TaskResuming: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue({
@@ -593,10 +593,10 @@ export const TaskRestarting: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const restartButton = await canvas.findByText("Restart");
-		expect(restartButton).toBeInTheDocument();
+		const resumeButton = await canvas.findByText("Resume");
+		expect(resumeButton).toBeInTheDocument();
 
-		await userEvent.click(restartButton);
+		await userEvent.click(resumeButton);
 
 		await waitFor(async () => {
 			expect(API.startWorkspace).toBeCalled();
@@ -604,7 +604,7 @@ export const TaskRestarting: Story = {
 	},
 };
 
-export const TaskRestartFailure: Story = {
+export const TaskResumeFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue({
@@ -634,10 +634,10 @@ export const TaskRestartFailure: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const restartButton = await canvas.findByText("Restart");
-		expect(restartButton).toBeInTheDocument();
+		const resumeButton = await canvas.findByText("Resume");
+		expect(resumeButton).toBeInTheDocument();
 
-		await userEvent.click(restartButton);
+		await userEvent.click(resumeButton);
 
 		await waitFor(async () => {
 			const errorMessage = await canvas.findByText("Some unexpected error");
@@ -646,7 +646,7 @@ export const TaskRestartFailure: Story = {
 	},
 };
 
-export const TaskRestartFailureWithDialog: Story = {
+export const TaskResumeFailureWithDialog: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue(MockTask);
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
@@ -676,10 +676,10 @@ export const TaskRestartFailureWithDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const restartButton = await canvas.findByText("Restart");
-		expect(restartButton).toBeInTheDocument();
+		const resumeButton = await canvas.findByText("Resume");
+		expect(resumeButton).toBeInTheDocument();
 
-		await userEvent.click(restartButton);
+		await userEvent.click(resumeButton);
 
 		await waitFor(async () => {
 			const body = within(canvasElement.ownerDocument.body);

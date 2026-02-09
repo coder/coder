@@ -369,8 +369,8 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 				title="Task paused"
 				description={
 					isTimeout
-						? "Your task timed out. Restart it to continue."
-						: "Restart the task to continue."
+						? "Your task timed out. Resume it to continue."
+						: "Resume the task to continue."
 				}
 				icon={<PauseIcon className="size-4" />}
 				detail={
@@ -389,12 +389,11 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 					<div className="flex flex-row gap-4">
 						<Button
 							size="sm"
-							data-testid="task-restart"
 							disabled={isWaitingForStart}
 							onClick={() => resumeMutation.mutate()}
 						>
 							<Spinner loading={isWaitingForStart} />
-							Restart
+							Resume
 						</Button>
 						<Button size="sm" onClick={onEditPrompt} variant="outline">
 							Edit prompt
