@@ -80,7 +80,7 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			return (
 				<span>
 					{friendlyType} session to {workspace_owner_username}'s{" "}
-					<Link asChild showExternalIcon={false}>
+					<Link asChild showExternalIcon={false} className="text-base">
 						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
 							<strong>{workspace_name}</strong>
 						</RouterLink>
