@@ -1265,7 +1265,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
 				assert.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, "You have built more workspaces with managed agents than your license allows. Further managed agent builds will be blocked.", entitlements.Warnings[0])
+				assert.Equal(t, "You have built more workspaces with managed agents than your license allows. Please contact sales or refer to the Deployment Licenses page for more information.", entitlements.Warnings[0])
 				assertNoErrors(t, entitlements)
 
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
