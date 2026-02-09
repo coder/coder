@@ -14,9 +14,18 @@ import type {
 	PreviewParameter,
 	Workspace,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogTitle,
+} from "components/Dialog/Dialog";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { TriangleAlertIcon } from "lucide-react";
 import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
@@ -29,6 +38,7 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -59,6 +69,7 @@ const CreateWorkspacePage: FC = () => {
 	const defaultName = searchParams.get("name");
 	const disabledParams = searchParams.get("disable_params")?.split(",");
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
+	const [autoCreateConsented, setAutoCreateConsented] = useState(false);
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
 	const defaultOwner = me;
@@ -240,7 +251,11 @@ const CreateWorkspacePage: FC = () => {
 			externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
-	let autoCreateReady = mode === "auto" && hasAllRequiredExternalAuth;
+	let autoCreateReady =
+		mode === "auto" && hasAllRequiredExternalAuth && autoCreateConsented;
+
+	const showAutoCreateConsent =
+		mode === "auto" && !autoCreateConsented && !autoCreateError;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
@@ -290,6 +305,13 @@ const CreateWorkspacePage: FC = () => {
 	return (
 		<>
 			<title>{pageTitle(title)}</title>
+
+			<AutoCreateConsentDialog
+				open={showAutoCreateConsent}
+				autofillParameters={autofillParameters}
+				onConfirm={() => setAutoCreateConsented(true)}
+				onDeny={() => setMode("form")}
+			/>
 
 			{shouldShowLoader ? (
 				<Loader />
@@ -391,6 +413,64 @@ const useExternalAuth = (versionId: string | undefined) => {
 		externalAuthPollingState,
 		isLoadingExternalAuth,
 	};
+};
+
+interface AutoCreateConsentDialogProps {
+	open: boolean;
+	autofillParameters: AutofillBuildParameter[];
+	onConfirm: () => void;
+	onDeny: () => void;
+}
+
+const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
+	open,
+	autofillParameters,
+	onConfirm,
+	onDeny,
+}) => {
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) onDeny();
+			}}
+		>
+			<DialogContent onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+				<div className="flex flex-col gap-4">
+					<div className="flex items-center gap-2">
+						<TriangleAlertIcon className="size-icon-lg text-content-warning" />
+						<DialogTitle className="m-0">
+							Warning: Automatic Workspace Creation
+						</DialogTitle>
+					</div>
+
+					<DialogDescription>
+						A link is attempting to automatically create a workspace using the
+						following external configurations. Running scripts from untrusted
+						sources can be dangerous.
+					</DialogDescription>
+
+					{autofillParameters.length > 0 && (
+						<div className="flex flex-col gap-2">
+							<span className="text-sm font-semibold text-content-primary">Parameters:</span>
+							<code className="whitespace-pre">
+								{autofillParameters.map((p) => `${p.name}: ${p.value}`).join("\n")}
+							</code>
+						</div>
+					)}
+
+					<DialogFooter>
+						<Button variant="outline" onClick={onDeny}>
+							Cancel
+						</Button>
+						<Button variant="destructive" onClick={onConfirm}>
+							Confirm and Create
+						</Button>
+					</DialogFooter>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
 };
 
 const getAutofillParameters = (
