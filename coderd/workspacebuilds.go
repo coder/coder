@@ -306,18 +306,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
-// Azure supports instance identity verification:
-// https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
-//
-// @Summary Create workspace build
-// @ID create-workspace-build
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Builds
-// @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
-// @Success 200 {object} codersdk.WorkspaceBuild
 // maxRunningWorkspacesPerUser limits how many workspaces a user can have running at once.
 // This is a global limit across all organizations.
 //
@@ -330,6 +318,18 @@ const maxRunningWorkspacesPerUser = 1
 
 var errRunningWorkspaceLimitExceeded = xerrors.New("running workspace limit exceeded")
 
+// Azure supports instance identity verification:
+// https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
+//
+// @Summary Create workspace build
+// @ID create-workspace-build
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Builds
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
+// @Success 200 {object} codersdk.WorkspaceBuild
 // @Router /workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
