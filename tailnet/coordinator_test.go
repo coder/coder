@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -278,3 +279,125 @@ func TestCoordinatorPropogatedPeerContext(t *testing.T) {
 	// peer request loop finishes, which will be after the timeout
 	peerCtxCancel()
 }
+func TestTunnelPeers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsNilForNoTunnels", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+
+		agentID := uuid.New()
+		peers := coordinator.TunnelPeers(agentID)
+		require.Nil(t, peers)
+	})
+
+	t.Run("ReturnsConnectedClients", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		agent.UpdateDERP(1)
+
+		client := test.NewClient(ctx, t, coordinator, "myclient", agent.ID)
+		defer client.Close(ctx)
+		client.UpdateDERP(10)
+
+		// Wait for tunnel to be established (client gets agent's node).
+		client.AssertEventuallyHasDERP(agent.ID, 1)
+
+		// Wait for tunnel peer with node data to appear.
+		require.Eventually(t, func() bool {
+			peers := coordinator.TunnelPeers(agent.ID)
+			return len(peers) == 1 && peers[0].Node != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		peers := coordinator.TunnelPeers(agent.ID)
+		require.Len(t, peers, 1)
+		assert.Equal(t, client.ID, peers[0].ID)
+		assert.Equal(t, "myclient", peers[0].Name)
+		assert.Equal(t, proto.CoordinateResponse_PeerUpdate_NODE, peers[0].Status)
+		require.NotNil(t, peers[0].Node)
+		assert.EqualValues(t, 10, peers[0].Node.PreferredDerp)
+		assert.False(t, peers[0].Start.IsZero())
+	})
+
+	t.Run("ClientDisconnectRemovesPeer", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		agent.UpdateDERP(1)
+
+		client := test.NewClient(ctx, t, coordinator, "client", agent.ID)
+		client.UpdateDERP(5)
+		client.AssertEventuallyHasDERP(agent.ID, 1)
+
+		require.Eventually(t, func() bool {
+			return len(coordinator.TunnelPeers(agent.ID)) == 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		// Disconnect client.
+		client.Close(ctx)
+
+		require.Eventually(t, func() bool {
+			return len(coordinator.TunnelPeers(agent.ID)) == 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("MultipleClients", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		agent.UpdateDERP(1)
+
+		client1 := test.NewClient(ctx, t, coordinator, "client1", agent.ID)
+		defer client1.Close(ctx)
+		client1.UpdateDERP(10)
+		client1.AssertEventuallyHasDERP(agent.ID, 1)
+
+		client2 := test.NewClient(ctx, t, coordinator, "client2", agent.ID)
+		defer client2.Close(ctx)
+		client2.UpdateDERP(20)
+		client2.AssertEventuallyHasDERP(agent.ID, 1)
+
+		require.Eventually(t, func() bool {
+			return len(coordinator.TunnelPeers(agent.ID)) == 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		peers := coordinator.TunnelPeers(agent.ID)
+		ids := make(map[uuid.UUID]bool)
+		for _, p := range peers {
+			ids[p.ID] = true
+		}
+		assert.True(t, ids[client1.ID])
+		assert.True(t, ids[client2.ID])
+	})
+}
+
