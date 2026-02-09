@@ -38,7 +38,6 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -435,7 +434,10 @@ const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 				if (!isOpen) onDeny();
 			}}
 		>
-			<DialogContent onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+			<DialogContent
+				onPointerDownOutside={(e) => e.preventDefault()}
+				onEscapeKeyDown={(e) => e.preventDefault()}
+			>
 				<div className="flex flex-col gap-4">
 					<div className="flex items-center gap-2">
 						<TriangleAlertIcon className="size-icon-lg text-content-warning" />
@@ -452,9 +454,13 @@ const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 
 					{autofillParameters.length > 0 && (
 						<div className="flex flex-col gap-2">
-							<span className="text-sm font-semibold text-content-primary">Parameters:</span>
+							<span className="text-sm font-semibold text-content-primary">
+								Parameters:
+							</span>
 							<code className="whitespace-pre">
-								{autofillParameters.map((p) => `${p.name}: ${p.value}`).join("\n")}
+								{autofillParameters
+									.map((p) => `${p.name}: ${p.value}`)
+									.join("\n")}
 							</code>
 						</div>
 					)}
