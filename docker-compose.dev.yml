@@ -1,0 +1,89 @@
+# docker-compose.dev.yml — Development environment
+services:
+  database:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: coder
+      POSTGRES_PASSWORD: coder
+      POSTGRES_DB: coder
+    ports:
+      - "5432:5432"
+    volumes:
+      - coder_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coder"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  coderd:
+    image: golang:1.24
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      CODER_PG_CONNECTION_URL: "postgresql://coder:coder@database:5432/coder?sslmode=disable"
+      CODER_HTTP_ADDRESS: "0.0.0.0:3000"
+      CODER_ACCESS_URL: "http://localhost:3000"
+      CODER_SWAGGER_ENABLE: "true"
+      CODER_DANGEROUS_ALLOW_CORS_REQUESTS: "true"
+      CODER_TELEMETRY_ENABLE: "false"
+      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    ports:
+      - "3000:3000"
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - coder_dev_home:/home/coder
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      go run ./enterprise/cmd/coder server
+        --http-address 0.0.0.0:3000
+        --access-url http://localhost:3000
+        --swagger-enable
+        --dangerous-allow-cors-requests=true
+        --enable-terraform-debug-mode
+
+  setup:
+    build:
+      context: .
+      dockerfile: docker-compose/setup.Dockerfile
+    depends_on:
+      coderd:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - coder_dev_home:/home/coder
+      - ./scripts/docker-dev:/scripts:ro
+    command: ["sh", "/scripts/setup.sh"]
+
+  site:
+    image: node:22
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    working_dir: /app/site
+    environment:
+      CODER_HOST: "http://coderd:3000"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./site:/app/site
+      - site_node_modules:/app/site/node_modules
+    command: sh -c "pnpm install --frozen-lockfile && pnpm dev --host"
+
+volumes:
+  coder_dev_data:
+  coder_dev_home:
+  go_cache:
+  site_node_modules:
