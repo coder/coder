@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 )
 
 // ChatGitChange represents a git file change detected during a chat session.
@@ -211,13 +212,13 @@ RETURNING id, chat_id, created_at, role, content, tool_calls, tool_call_id, thin
 `
 
 type InsertChatMessageParams struct {
-	ChatID     uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Role       string          `db:"role" json:"role"`
-	Content    json.RawMessage `db:"content" json:"content"`
-	ToolCalls  json.RawMessage `db:"tool_calls" json:"tool_calls"`
-	ToolCallID sql.NullString  `db:"tool_call_id" json:"tool_call_id"`
-	Thinking   sql.NullString  `db:"thinking" json:"thinking"`
-	Hidden     bool            `db:"hidden" json:"hidden"`
+	ChatID     uuid.UUID             `db:"chat_id" json:"chat_id"`
+	Role       string                `db:"role" json:"role"`
+	Content    pqtype.NullRawMessage `db:"content" json:"content"`
+	ToolCalls  pqtype.NullRawMessage `db:"tool_calls" json:"tool_calls"`
+	ToolCallID sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
+	Thinking   sql.NullString        `db:"thinking" json:"thinking"`
+	Hidden     bool                  `db:"hidden" json:"hidden"`
 }
 
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {

@@ -3817,15 +3817,15 @@ type Chat struct {
 }
 
 type ChatMessage struct {
-	ID         int64           `db:"id" json:"id"`
-	ChatID     uuid.UUID       `db:"chat_id" json:"chat_id"`
-	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
-	Role       string          `db:"role" json:"role"`
-	Content    json.RawMessage `db:"content" json:"content"`
-	ToolCalls  json.RawMessage `db:"tool_calls" json:"tool_calls"`
-	ToolCallID sql.NullString  `db:"tool_call_id" json:"tool_call_id"`
-	Thinking   sql.NullString  `db:"thinking" json:"thinking"`
-	Hidden     bool            `db:"hidden" json:"hidden"`
+	ID         int64                 `db:"id" json:"id"`
+	ChatID     uuid.UUID             `db:"chat_id" json:"chat_id"`
+	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
+	Role       string                `db:"role" json:"role"`
+	Content    pqtype.NullRawMessage `db:"content" json:"content"`
+	ToolCalls  pqtype.NullRawMessage `db:"tool_calls" json:"tool_calls"`
+	ToolCallID sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
+	Thinking   sql.NullString        `db:"thinking" json:"thinking"`
+	Hidden     bool                  `db:"hidden" json:"hidden"`
 }
 
 type ConnectionLog struct {
