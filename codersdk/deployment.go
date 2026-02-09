@@ -388,6 +388,7 @@ type DeploymentValues struct {
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer             serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	AllowWorkspaceRenames           serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	MaxRunningWorkspacesPerUser     serpent.Int64                        `json:"max_running_workspaces_per_user,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
@@ -2609,6 +2610,15 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "false",
 			Value:       &c.AllowWorkspaceRenames,
 			YAML:        "allowWorkspaceRenames",
+		},
+		{
+			Name:        "Max Running Workspaces Per User",
+			Description: "Maximum number of workspaces a user can have running at once. Set to 0 for no limit. This is a global limit across all organizations.",
+			Flag:        "max-running-workspaces-per-user",
+			Env:         "CODER_MAX_RUNNING_WORKSPACES_PER_USER",
+			Default:     "0",
+			Value:       &c.MaxRunningWorkspacesPerUser,
+			YAML:        "maxRunningWorkspacesPerUser",
 		},
 		// Healthcheck Options
 		{

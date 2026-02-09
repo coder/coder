@@ -633,7 +633,8 @@ func createWorkspace(
 			api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", owner.ID), slog.Error(err))
 			return xerrors.Errorf("internal error checking running workspace limit: %w", err)
 		}
-		if count >= maxRunningWorkspacesPerUser {
+		maxRunning := api.DeploymentValues.MaxRunningWorkspacesPerUser.Value()
+		if maxRunning > 0 && count >= maxRunning {
 			return errRunningWorkspaceLimitExceeded
 		}
 
@@ -687,8 +688,9 @@ func createWorkspace(
 		return err
 	}, nil)
 	if errors.Is(err, errRunningWorkspaceLimitExceeded) {
+		maxRunning := api.DeploymentValues.MaxRunningWorkspacesPerUser.Value()
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to create another.",
+			Message: fmt.Sprintf("Running workspace limit reached (max %d per user). Stop one or more workspaces to create another.", maxRunning),
 		})
 		return
 	}
