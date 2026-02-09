@@ -3192,7 +3192,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Notifications: Email: Hello",
-			Description: "The hostname identifying the SMTP server.",
+			Description: "The hostname identifying this client to the SMTP server.",
 			Flag:        "notifications-email-hello",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_HELLO",
 			Value:       &c.Notifications.SMTP.Hello,
