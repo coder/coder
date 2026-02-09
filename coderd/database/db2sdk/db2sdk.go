@@ -520,16 +520,17 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	}
 
 	// Temporary fake data for connection testing
+	fakeAddr := tailnet.CoderServicePrefix.AddrFromUUID(dbAgent.ID)
 	workspaceAgent.Connections = []codersdk.WorkspaceConnection{
 		{
-			IP:          tailnet.CoderServicePrefix.AddrFromUUID(dbAgent.ID).String(),
+			IP:          &fakeAddr,
 			Status:      codersdk.ConnectionStatusOngoing,
 			CreatedAt:   time.Date(2026, 2, 9, 11, 34, 23, 0, time.UTC),
 			ConnectedAt: ptr.Ref(time.Date(2026, 2, 9, 11, 34, 25, 0, time.UTC)),
 			Type:        codersdk.ConnectionTypeSSH,
 		},
 		{
-			IP:          tailnet.CoderServicePrefix.AddrFromUUID(dbAgent.ID).String(),
+			IP:          &fakeAddr,
 			Status:      codersdk.ConnectionStatusOngoing,
 			CreatedAt:   time.Date(2026, 2, 9, 11, 15, 46, 0, time.UTC),
 			ConnectedAt: ptr.Ref(time.Date(2026, 2, 9, 11, 29, 37, 0, time.UTC)),

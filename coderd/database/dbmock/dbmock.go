@@ -2564,6 +2564,21 @@ func (mr *MockStoreMockRecorder) GetOAuthSigningKey(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).GetOAuthSigningKey), ctx)
 }
 
+// GetOngoingAgentConnectionsLast24h mocks base method.
+func (m *MockStore) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg database.GetOngoingAgentConnectionsLast24hParams) ([]database.GetOngoingAgentConnectionsLast24hRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOngoingAgentConnectionsLast24h", ctx, arg)
+	ret0, _ := ret[0].([]database.GetOngoingAgentConnectionsLast24hRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOngoingAgentConnectionsLast24h indicates an expected call of GetOngoingAgentConnectionsLast24h.
+func (mr *MockStoreMockRecorder) GetOngoingAgentConnectionsLast24h(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOngoingAgentConnectionsLast24h", reflect.TypeOf((*MockStore)(nil).GetOngoingAgentConnectionsLast24h), ctx, arg)
+}
+
 // GetOrganizationByID mocks base method.
 func (m *MockStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	m.ctrl.T.Helper()

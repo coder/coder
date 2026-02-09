@@ -90,6 +90,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		data.logSources,
 		data.templateVersions[0],
 		nil,
+		groupConnectionLogsByWorkspaceAndAgent(data.connectionLogs),
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -209,6 +210,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		data.logSources,
 		data.templateVersions,
 		data.provisionerDaemons,
+		data.connectionLogs,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -300,6 +302,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.logSources,
 		data.templateVersions[0],
 		data.provisionerDaemons,
+		groupConnectionLogsByWorkspaceAndAgent(data.connectionLogs),
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -545,6 +548,7 @@ func (api *API) postWorkspaceBuildsInternal(
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 		provisionerDaemons,
+		nil,
 	)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, httperror.NewResponseError(
@@ -977,6 +981,7 @@ type workspaceBuildsData struct {
 	scripts            []database.WorkspaceAgentScript
 	logSources         []database.WorkspaceAgentLogSource
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	connectionLogs     []database.GetOngoingAgentConnectionsLast24hRow
 }
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
@@ -1045,6 +1050,33 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
 	}
 
+	connectionLogs := []database.GetOngoingAgentConnectionsLast24hRow{}
+	if len(workspaceBuilds) > 0 && len(agents) > 0 {
+		workspaceIDSet := make(map[uuid.UUID]struct{}, len(workspaceBuilds))
+		for _, build := range workspaceBuilds {
+			workspaceIDSet[build.WorkspaceID] = struct{}{}
+		}
+		workspaceIDs := make([]uuid.UUID, 0, len(workspaceIDSet))
+		for workspaceID := range workspaceIDSet {
+			workspaceIDs = append(workspaceIDs, workspaceID)
+		}
+
+		agentNameSet := make(map[string]struct{}, len(agents))
+		for _, agent := range agents {
+			agentNameSet[agent.Name] = struct{}{}
+		}
+		agentNames := make([]string, 0, len(agentNameSet))
+		for agentName := range agentNameSet {
+			agentNames = append(agentNames, agentName)
+		}
+
+		// nolint:gocritic // Intentionally visible to any authorized workspace reader.
+		connectionLogs, err = getOngoingAgentConnectionsLast24h(dbauthz.AsSystemRestricted(ctx), api.Database, workspaceIDs, agentNames)
+		if err != nil {
+			return workspaceBuildsData{}, xerrors.Errorf("get ongoing agent connections: %w", err)
+		}
+	}
+
 	if len(resources) == 0 {
 		return workspaceBuildsData{
 			jobs:               jobs,
@@ -1108,6 +1140,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		appStatuses:        statuses,
 		scripts:            scripts,
 		logSources:         logSources,
+		connectionLogs:     connectionLogs,
 		provisionerDaemons: pendingJobProvisioners,
 	}, nil
 }
@@ -1125,6 +1158,7 @@ func (api *API) convertWorkspaceBuilds(
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
+	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
 ) ([]codersdk.WorkspaceBuild, error) {
 	workspaceByID := map[uuid.UUID]database.Workspace{}
 	for _, workspace := range workspaces {
@@ -1138,6 +1172,7 @@ func (api *API) convertWorkspaceBuilds(
 	for _, templateVersion := range templateVersions {
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
+	connectionLogsByWorkspaceAndAgent := groupConnectionLogsByWorkspaceAndAgent(connectionLogs)
 
 	// Should never be nil for API consistency
 	apiBuilds := []codersdk.WorkspaceBuild{}
@@ -1168,6 +1203,7 @@ func (api *API) convertWorkspaceBuilds(
 			agentLogSources,
 			templateVersion,
 			provisionerDaemons,
+			connectionLogsByWorkspaceAndAgent,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -1192,6 +1228,7 @@ func (api *API) convertWorkspaceBuild(
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
+	connectionLogsByWorkspaceAndAgent map[uuid.UUID]map[string][]database.GetOngoingAgentConnectionsLast24hRow,
 ) (codersdk.WorkspaceBuild, error) {
 	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
 	for _, resource := range workspaceResources {
@@ -1258,6 +1295,13 @@ func (api *API) convertWorkspaceBuild(
 			)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
+			}
+			if connectionLogsByWorkspaceAndAgent != nil {
+				if byAgent, ok := connectionLogsByWorkspaceAndAgent[build.WorkspaceID]; ok {
+					if logs := byAgent[agent.Name]; len(logs) > 0 {
+						apiAgent.Connections = workspaceConnectionsFromLogs(logs)
+					}
+				}
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}

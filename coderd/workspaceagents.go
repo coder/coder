@@ -124,6 +124,23 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// nolint:gocritic // Intentionally visible to any authorized workspace reader.
+	connectionLogs, err := getOngoingAgentConnectionsLast24h(
+		dbauthz.AsSystemRestricted(ctx),
+		api.Database,
+		[]uuid.UUID{waws.WorkspaceTable.ID},
+		[]string{waws.WorkspaceAgent.Name},
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent connections.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(connectionLogs) > 0 {
+		apiAgent.Connections = workspaceConnectionsFromLogs(connectionLogs)
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
 }
 

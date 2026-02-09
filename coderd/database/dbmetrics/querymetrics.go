@@ -1390,6 +1390,14 @@ func (m queryMetricsStore) GetOAuthSigningKey(ctx context.Context) (string, erro
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg database.GetOngoingAgentConnectionsLast24hParams) ([]database.GetOngoingAgentConnectionsLast24hRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOngoingAgentConnectionsLast24h(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOngoingAgentConnectionsLast24h").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOngoingAgentConnectionsLast24h").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationByID(ctx, id)

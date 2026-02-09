@@ -303,3 +303,46 @@ DO UPDATE SET
 		ELSE connection_logs.code
 	END
 RETURNING *;
+
+-- name: GetOngoingAgentConnectionsLast24h :many
+WITH ranked AS (
+	SELECT
+		*,
+		row_number() OVER (
+			PARTITION BY workspace_id, agent_name
+			ORDER BY connect_time DESC
+		) AS rn
+	FROM
+		connection_logs
+	WHERE
+		workspace_id = ANY(@workspace_ids :: uuid[])
+		AND agent_name = ANY(@agent_names :: text[])
+		AND type = ANY(@types :: connection_type[])
+		AND disconnect_time IS NULL
+		AND connect_time >= @since :: timestamp with time zone
+)
+SELECT
+	id,
+	connect_time,
+	organization_id,
+	workspace_owner_id,
+	workspace_id,
+	workspace_name,
+	agent_name,
+	type,
+	ip,
+	code,
+	user_agent,
+	user_id,
+	slug_or_port,
+	connection_id,
+	disconnect_time,
+	disconnect_reason
+FROM
+	ranked
+WHERE
+	rn <= @per_agent_limit
+ORDER BY
+	workspace_id,
+	agent_name,
+	connect_time DESC;
