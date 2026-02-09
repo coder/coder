@@ -17,7 +17,7 @@ services:
       retries: 10
 
   coderd:
-    image: golang:1.24
+    image: golang:1.25
     depends_on:
       database:
         condition: service_healthy
@@ -33,6 +33,12 @@ services:
       GOCACHE: /go-cache/build
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
     working_dir: /app
     volumes:
       - .:/app
