@@ -1020,37 +1020,6 @@ func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, tas
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
 
-	// When licensed, ensure we haven't breached the managed agent limit.
-	// Unlicensed deployments are allowed to use unlimited managed agents.
-	if api.Entitlements.HasLicense() {
-		managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
-		if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
-			return wsbuilder.UsageCheckResponse{
-				Permitted: false,
-				Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
-			}, nil
-		}
-
-		// This check is intentionally not committed to the database. It's fine
-		// if it's not 100% accurate or allows for minor breaches due to build
-		// races.
-		// nolint:gocritic // Requires permission to read all usage events.
-		managedAgentCount, err := store.GetTotalUsageDCManagedAgentsV1(agpldbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
-			StartDate: managedAgentLimit.UsagePeriod.Start,
-			EndDate:   managedAgentLimit.UsagePeriod.End,
-		})
-		if err != nil {
-			return wsbuilder.UsageCheckResponse{}, xerrors.Errorf("get managed agent count: %w", err)
-		}
-
-		if managedAgentCount >= *managedAgentLimit.Limit {
-			return wsbuilder.UsageCheckResponse{
-				Permitted: false,
-				Message:   "You have breached the managed agent limit in your license. Please contact sales to continue using managed agents.",
-			}, nil
-		}
-	}
-
 	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 }
 
