@@ -2807,7 +2807,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "SameSite Auth Cookie",
-			Description: "Controls the 'SameSite' property is set on browser session cookies.",
+			Description: "Controls if the 'SameSite' property is set on browser session cookies.",
 			Flag:        "samesite-auth-cookie",
 			Env:         "CODER_SAMESITE_AUTH_COOKIE",
 			// Do not allow "strict" same-site cookies. That would potentially break workspace apps.
