@@ -71,6 +71,7 @@ module.exports = {
 				highlight: {
 					purple: "hsl(var(--highlight-purple))",
 					green: "hsl(var(--highlight-green))",
+					orange: "hsl(var(--highlight-orange))",
 					grey: "hsl(var(--highlight-grey))",
 					sky: "hsl(var(--highlight-sky))",
 					red: "hsl(var(--highlight-red))",

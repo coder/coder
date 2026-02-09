@@ -10,6 +10,7 @@ import { Link } from "components/Link/Link";
 import dayjs from "dayjs";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
 interface ManagedAgentsConsumptionProps {
@@ -137,15 +138,6 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								</div>
 								Included allowance from your current license plan.
 							</li>
-							<li className="flex items-center gap-2">
-								<div className="size-3 inline-flex items-center justify-center">
-									<span className="sr-only">
-										Legend for total limit in the chart
-									</span>
-									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
-								</div>
-								Total limit from your current license plan.
-							</li>
 						</ul>
 					</CollapsibleContent>
 				</Collapsible>
@@ -161,7 +153,12 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 
 				<div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
 					<div
-						className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
+						className={cn(
+							"absolute top-0 left-0 h-full transition-all duration-300",
+							usagePercentage < 100
+								? "bg-highlight-green"
+								: "bg-highlight-orange",
+						)}
 						style={{ width: `${usagePercentage}%` }}
 					/>
 
