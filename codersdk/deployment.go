@@ -2348,7 +2348,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Signups disabled text",
-			Description: "The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.",
+			Description: "Custom text to show on the error page when OIDC signups are disabled. Markdown format is supported.",
 			Flag:        "oidc-signups-disabled-text",
 			Env:         "CODER_OIDC_SIGNUPS_DISABLED_TEXT",
 			Value:       &c.OIDC.SignupsDisabledText,
