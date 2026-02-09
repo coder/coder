@@ -2079,8 +2079,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name: "OIDC Client Key File",
-			Description: "Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. " +
-				"This can be used instead of oidc-client-secret if your IDP supports it.",
+			Description: "PEM encoded RSA private key to use for OAuth2 PKI/JWT authorization. " +
+				"This can be used instead of oidc-client-secret if your IdP supports it.",
 			Flag:  "oidc-client-key-file",
 			Env:   "CODER_OIDC_CLIENT_KEY_FILE",
 			YAML:  "oidcClientKeyFile",
