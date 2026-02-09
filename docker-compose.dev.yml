@@ -28,7 +28,6 @@ services:
       CODER_SWAGGER_ENABLE: "true"
       CODER_DANGEROUS_ALLOW_CORS_REQUESTS: "true"
       CODER_TELEMETRY_ENABLE: "false"
-      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     # Add the Docker group so coderd can access the Docker socket.
@@ -48,7 +47,7 @@ services:
       - .:/app
       - go_cache:/go-cache
       - coder_dev_home:/home/coder
-      - /var/run/docker.sock:/var/run/docker.sock
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
     command: >
       go run ./enterprise/cmd/coder server
         --http-address 0.0.0.0:3000
@@ -66,9 +65,7 @@ services:
         condition: service_healthy
     working_dir: /app
     environment:
-      HOME: /home/coder
       CODER_URL: "http://coderd:3000"
-      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
@@ -91,7 +88,7 @@ services:
     volumes:
       - ./site:/app/site
       - site_node_modules:/app/site/node_modules
-    command: sh -c "pnpm install --frozen-lockfile && pnpm dev --host"
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev --host"
 
 volumes:
   coder_dev_data:
