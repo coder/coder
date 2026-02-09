@@ -1340,9 +1340,38 @@ func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspaceStatus := codersdk.ConvertWorkspaceStatus(
+		codersdk.ProvisionerJobStatus(job.JobStatus),
+		codersdk.WorkspaceTransition(latestBuild.Transition),
+	)
+	if workspaceStatus == codersdk.WorkspaceStatusRunning {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Task workspace is already running.",
+			Detail:  fmt.Sprintf("Workspace status is %q.", workspaceStatus),
+		})
+		return
+	}
+
 	buildReq := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionStart,
-		Reason:     codersdk.CreateWorkspaceBuildReasonTaskManualResume,
+		Reason:     codersdk.CreateWorkspaceBuildReasonTaskResume,
 	}
 	build, err := api.postWorkspaceBuildsInternal(
 		ctx,

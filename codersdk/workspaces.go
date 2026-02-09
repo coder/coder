@@ -110,7 +110,7 @@ const (
 	CreateWorkspaceBuildReasonVSCodeConnection    CreateWorkspaceBuildReason = "vscode_connection"
 	CreateWorkspaceBuildReasonJetbrainsConnection CreateWorkspaceBuildReason = "jetbrains_connection"
 	CreateWorkspaceBuildReasonTaskManualPause     CreateWorkspaceBuildReason = "task_manual_pause"
-	CreateWorkspaceBuildReasonTaskManualResume    CreateWorkspaceBuildReason = "task_manual_resume"
+	CreateWorkspaceBuildReasonTaskResume          CreateWorkspaceBuildReason = "task_resume"
 )
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
