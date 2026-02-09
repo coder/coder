@@ -144,8 +144,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 									</span>
 									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
 								</div>
-								Total limit after which further AI workspace builds will be
-								blocked.
+								Total limit from your current license plan.
 							</li>
 						</ul>
 					</CollapsibleContent>
