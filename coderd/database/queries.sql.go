@@ -12978,50 +12978,6 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 	return items, nil
 }
 
-const getTailnetTunnelPeerBindingsByDstID = `-- name: GetTailnetTunnelPeerBindingsByDstID :many
-SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status
-FROM tailnet_peers tp
-INNER JOIN tailnet_tunnels tt ON tp.id = tt.src_id
-WHERE tt.dst_id = $1
-`
-
-type GetTailnetTunnelPeerBindingsByDstIDRow struct {
-	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
-	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
-	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
-	Node          []byte        `db:"node" json:"node"`
-	Status        TailnetStatus `db:"status" json:"status"`
-}
-
-func (q *sqlQuerier) GetTailnetTunnelPeerBindingsByDstID(ctx context.Context, dstID uuid.UUID) ([]GetTailnetTunnelPeerBindingsByDstIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerBindingsByDstID, dstID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTailnetTunnelPeerBindingsByDstIDRow
-	for rows.Next() {
-		var i GetTailnetTunnelPeerBindingsByDstIDRow
-		if err := rows.Scan(
-			&i.PeerID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
-			&i.Status,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getTailnetTunnelPeerIDs = `-- name: GetTailnetTunnelPeerIDs :many
 SELECT dst_id as peer_id, coordinator_id, updated_at
 FROM tailnet_tunnels

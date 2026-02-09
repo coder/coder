@@ -98,17 +98,3 @@ func (mr *MockCoordinatorMockRecorder) ServeHTTPDebug(w, r any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServeHTTPDebug", reflect.TypeOf((*MockCoordinator)(nil).ServeHTTPDebug), w, r)
 }
-
-// TunnelPeers mocks base method.
-func (m *MockCoordinator) TunnelPeers(agentID uuid.UUID) []*tailnet.TunnelPeerInfo {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TunnelPeers", agentID)
-	ret0, _ := ret[0].([]*tailnet.TunnelPeerInfo)
-	return ret0
-}
-
-// TunnelPeers indicates an expected call of TunnelPeers.
-func (mr *MockCoordinatorMockRecorder) TunnelPeers(agentID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TunnelPeers", reflect.TypeOf((*MockCoordinator)(nil).TunnelPeers), agentID)
-}

@@ -168,10 +168,6 @@ func (*FakeCoordinator) Node(uuid.UUID) *tailnet.Node {
 	panic("unimplemented")
 }
 
-func (*FakeCoordinator) TunnelPeers(uuid.UUID) []*tailnet.TunnelPeerInfo {
-	panic("unimplemented")
-}
-
 func (*FakeCoordinator) Close() error {
 	panic("unimplemented")
 }

@@ -209,11 +209,6 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	return node
 }
 
-func (c *pgCoord) TunnelPeers(_ uuid.UUID) []*agpl.TunnelPeerInfo {
-	// TODO: implement with DB query
-	return nil
-}
-
 func (c *pgCoord) Close() error {
 	c.logger.Info(c.ctx, "closing coordinator")
 	c.cancel()
