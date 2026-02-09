@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import visuallyHidden from "@mui/utils/visuallyHidden";
 import { richParameters } from "api/queries/templates";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type {
@@ -69,7 +68,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 					className="min-w-fit"
 				>
 					<ChevronDownIcon />
-					<span css={{ ...visuallyHidden }}>{label}</span>
+					<span className="sr-only">{label}</span>
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent
