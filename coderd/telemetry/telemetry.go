@@ -2088,7 +2088,7 @@ type Task struct {
 	PauseReason          *string    `json:"pause_reason"`
 	IdleDurationMS       *int64     `json:"idle_duration_ms"`
 	PausedDurationMS     *int64     `json:"paused_duration_ms"`
-	TimeToFirstStatusMS  *int64     `json:"time_to_first_status"`
+	TimeToFirstStatusMS  *int64     `json:"time_to_first_status_ms"`
 }
 
 // ConvertTask anonymizes a Task.
