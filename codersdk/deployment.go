@@ -3603,7 +3603,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Data Retention Duration",
-			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Description: "How long to retain AI Bridge data including interceptions, tokens, prompts, and tool usage records.",
 			Flag:        "aibridge-retention",
 			Env:         "CODER_AIBRIDGE_RETENTION",
 			Value:       &c.AI.BridgeConfig.Retention,
