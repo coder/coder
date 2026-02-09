@@ -2032,7 +2032,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OAuth2 GitHub Allow Everyone",
-			Description: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+			Description: "Allow all GitHub users to authenticate. When enabled, allowed orgs and teams must be empty.",
 			Flag:        "oauth2-github-allow-everyone",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOW_EVERYONE",
 			Value:       &c.OAuth2.Github.AllowEveryone,
