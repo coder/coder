@@ -3666,7 +3666,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Failure Threshold",
-			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+			Description: "Number of consecutive failures that trigger the circuit breaker to open.",
 			Flag:        "aibridge-circuit-breaker-failure-threshold",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
 			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
