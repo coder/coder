@@ -121,6 +121,23 @@ func Test_Tasks(t *testing.T) {
 			},
 		},
 		{
+			name:    "pause task",
+			cmdArgs: []string{"task", "pause", taskName, "--yes"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				require.Contains(t, stdout, "has been paused", "pause output should confirm task was paused")
+			},
+		},
+		{
+			name:    "get task status after pause",
+			cmdArgs: []string{"task", "status", taskName, "--output", "json"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				var task codersdk.Task
+				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&task), "should unmarshal task status")
+				require.Equal(t, taskName, task.Name, "task name should match")
+				require.Equal(t, codersdk.TaskStatusPaused, task.Status, "task should be paused")
+			},
+		},
+		{
 			name:    "delete task",
 			cmdArgs: []string{"task", "delete", taskName, "--yes"},
 			assertFn: func(stdout string, userClient *codersdk.Client) {

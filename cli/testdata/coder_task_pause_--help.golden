@@ -1,0 +1,21 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder task pause [flags] <task>
+
+  Pause a task
+
+    - Pause a task by name.:
+  
+       $ coder task pause my-task
+  
+    - Pause a task without confirmation.:
+  
+       $ coder task pause my-task --yes
+
+OPTIONS:
+  -y, --yes bool
+          Bypass confirmation prompts.
+
+———
+Run `coder --help` for a list of global options.
