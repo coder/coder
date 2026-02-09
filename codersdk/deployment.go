@@ -1532,7 +1532,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	emailTLSCertKeyFile := serpent.Option{
 		Name:        "Email TLS: Certificate Key File",
-		Description: "Certificate key file to use.",
+		Description: "Private key file for the client certificate.",
 		Flag:        "email-tls-cert-key-file",
 		Env:         "CODER_EMAIL_TLS_CERTKEYFILE",
 		Value:       &c.Notifications.SMTP.TLS.KeyFile,
