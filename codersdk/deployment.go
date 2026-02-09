@@ -3434,7 +3434,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Reconciliation Backoff Interval",
-			Description: "Interval to increase reconciliation backoff by when prebuilds fail, after which a retry attempt is made.",
+			Description: "Amount of time to add to the reconciliation backoff delay after each prebuild failure, before the next retry attempt is made.",
 			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
