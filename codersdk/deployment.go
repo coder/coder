@@ -3593,7 +3593,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
-			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Description: "Enable injection of Coder's MCP tools into intercepted AI Bridge requests. Requires the 'oauth2' and 'mcp-server-http' experiments.",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
 			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
