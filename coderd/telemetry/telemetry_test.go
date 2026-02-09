@@ -773,7 +773,7 @@ func (h *taskTelemetryHelper) getApp(agentID uuid.UUID) database.WorkspaceApp {
 	return apps[0]
 }
 
-
+// nolint: dupl // Test code is better WET than DRY.
 func TestTasksTelemetry(t *testing.T) {
 	t.Parallel()
 
