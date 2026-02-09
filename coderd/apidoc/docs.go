@@ -5866,6 +5866,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/tasks/{user}/{task}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Resume task",
+                "operationId": "resume-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ResumeTaskResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/tasks/{user}/{task}/send": {
             "post": {
                 "security": [
@@ -14145,7 +14187,8 @@ const docTemplate = `{
                 "ssh_connection",
                 "vscode_connection",
                 "jetbrains_connection",
-                "task_manual_pause"
+                "task_manual_pause",
+                "task_resume"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
@@ -14153,7 +14196,8 @@ const docTemplate = `{
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
                 "CreateWorkspaceBuildReasonJetbrainsConnection",
-                "CreateWorkspaceBuildReasonTaskManualPause"
+                "CreateWorkspaceBuildReasonTaskManualPause",
+                "CreateWorkspaceBuildReasonTaskResume"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -18232,6 +18276,15 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ValidationError"
                     }
+                }
+            }
+        },
+        "codersdk.ResumeTaskResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_build_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

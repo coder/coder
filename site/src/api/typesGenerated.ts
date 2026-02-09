@@ -1426,6 +1426,7 @@ export type CreateWorkspaceBuildReason =
 	| "jetbrains_connection"
 	| "ssh_connection"
 	| "task_manual_pause"
+	| "task_resume"
 	| "vscode_connection";
 
 export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
@@ -1434,6 +1435,7 @@ export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
 	"jetbrains_connection",
 	"ssh_connection",
 	"task_manual_pause",
+	"task_resume",
 	"vscode_connection",
 ];
 
@@ -4353,6 +4355,14 @@ export interface Response {
 	 * context if there is a set of errors in the primary 'Message'.
 	 */
 	readonly validations?: readonly ValidationError[];
+}
+
+// From codersdk/aitasks.go
+/**
+ * ResumeTaskResponse represents the response from resuming a task.
+ */
+export interface ResumeTaskResponse {
+	readonly workspace_build_id: string;
 }
 
 // From codersdk/deployment.go
