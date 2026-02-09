@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -221,10 +222,16 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	// Insert the message.
 	_, err = api.Database.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:    chatID,
-		Role:      req.Role,
-		Content:   req.Content,
-		ToolCalls: req.ToolCalls,
+		ChatID: chatID,
+		Role:   req.Role,
+		Content: pqtype.NullRawMessage{
+			RawMessage: req.Content,
+			Valid:      len(req.Content) > 0,
+		},
+		ToolCalls: pqtype.NullRawMessage{
+			RawMessage: req.ToolCalls,
+			Valid:      len(req.ToolCalls) > 0,
+		},
 		ToolCallID: sql.NullString{
 			String: stringOrEmpty(req.ToolCallID),
 			Valid:  req.ToolCallID != nil,
@@ -373,9 +380,13 @@ func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		ChatID:    m.ChatID,
 		CreatedAt: m.CreatedAt,
 		Role:      m.Role,
-		Content:   m.Content,
-		ToolCalls: m.ToolCalls,
 		Hidden:    m.Hidden,
+	}
+	if m.Content.Valid {
+		msg.Content = m.Content.RawMessage
+	}
+	if m.ToolCalls.Valid {
+		msg.ToolCalls = m.ToolCalls.RawMessage
 	}
 	if m.ToolCallID.Valid {
 		msg.ToolCallID = &m.ToolCallID.String
