@@ -1,5 +1,6 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
+import { pauseTask, resumeTask } from "api/queries/tasks";
 import type { Task, TasksFilter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -10,6 +11,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -32,13 +34,12 @@ import {
 	TrashIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
 import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";
-import { usePauseTask, useResumeTask } from "../useTaskActions";
 import { UserCombobox } from "./UserCombobox";
 
 export const TasksSidebar: FC = () => {
@@ -191,8 +192,19 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const isActive = task.id === taskId;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const navigate = useNavigate();
-	const pauseMutation = usePauseTask(task);
-	const resumeMutation = useResumeTask(task);
+	const queryClient = useQueryClient();
+	const pauseMutation = useMutation({
+		...pauseTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to pause task."));
+		},
+	});
+	const resumeMutation = useMutation({
+		...resumeTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to resume task."));
+		},
+	});
 
 	const showPause = canPauseTask(task.status) && task.workspace_id;
 	const pauseDisabled = isPauseDisabled(task.status);

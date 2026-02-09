@@ -1,4 +1,5 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import { pauseTask, resumeTask } from "api/queries/tasks";
 import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -11,6 +12,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Table,
@@ -34,8 +36,8 @@ import {
 	canResumeTask,
 	isPauseDisabled,
 } from "modules/tasks/taskActions";
-import { usePauseTask, useResumeTask } from "modules/tasks/useTaskActions";
 import { type FC, type ReactNode, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { relativeTime } from "utils/time";
 
@@ -197,8 +199,19 @@ const TaskRow: FC<TaskRowProps> = ({
 	const pauseDisabled = isPauseDisabled(task.status);
 	const showResume = canResumeTask(task.status) && task.workspace_id;
 
-	const pauseMutation = usePauseTask(task);
-	const resumeMutation = useResumeTask(task);
+	const queryClient = useQueryClient();
+	const pauseMutation = useMutation({
+		...pauseTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to pause task."));
+		},
+	});
+	const resumeMutation = useMutation({
+		...resumeTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to resume task."));
+		},
+	});
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
 	// Discard role, breaks Chromatic.

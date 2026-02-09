@@ -1,5 +1,6 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
+import { pauseTask, resumeTask } from "api/queries/tasks";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type {
@@ -27,7 +28,6 @@ import { useAgentLogs } from "modules/resources/useAgentLogs";
 import { getAllAppsWithAgent } from "modules/tasks/apps";
 import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
 import { isPauseDisabled } from "modules/tasks/taskActions";
-import { resumeTaskMutation, usePauseTask } from "modules/tasks/useTaskActions";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
@@ -344,7 +344,7 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 	// Use mutation config directly to customize error handling:
 	// API errors are shown in a dialog, other errors show a toast.
 	const resumeMutation = useMutation({
-		...resumeTaskMutation(task, queryClient),
+		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
 			if (!isApiError(error)) {
 				displayError(getErrorMessage(error, "Failed to resume task."));
@@ -508,7 +508,13 @@ type TaskStartingAgentProps = {
 const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 	const listRef = useRef<FixedSizeList>(null);
-	const pauseMutation = usePauseTask(task);
+	const queryClient = useQueryClient();
+	const pauseMutation = useMutation({
+		...pauseTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to pause task."));
+		},
+	});
 	const pauseDisabled = isPauseDisabled(task.status);
 
 	useLayoutEffect(() => {
