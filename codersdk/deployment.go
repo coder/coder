@@ -2319,7 +2319,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC User Role Default",
-			Description: "If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.",
+			Description: "If user role sync is enabled, these roles are always included for all authenticated users in addition to synced roles. The 'member' role is always assigned regardless of this setting.",
 			Flag:        "oidc-user-role-default",
 			Env:         "CODER_OIDC_USER_ROLE_DEFAULT",
 			Default:     "",
