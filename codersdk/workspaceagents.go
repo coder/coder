@@ -176,7 +176,32 @@ type WorkspaceAgent struct {
 	// of the `coder_script` resource. It's only referenced by old clients.
 	// Deprecated: Remove in the future!
 	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
+
+	Connections []WorkspaceConnection `json:"connections,omitempty"`
 }
+
+type WorkspaceConnection struct {
+	IP          string           `json:"ip"`
+	Status      ConnectionStatus `json:"status"`
+	CreatedAt   time.Time        `json:"created_at" format:"date-time"`
+	ConnectedAt *time.Time       `json:"connected_at,omitempty" format:"date-time"`
+	EndedAt     *time.Time       `json:"ended_at,omitempty" format:"date-time"`
+	Type        ConnectionType
+}
+
+type ConnectionStatus string
+
+const (
+	// ConnectionStatusOngoing is the status of a connection that has started but not finished yet.
+	ConnectionStatusOngoing ConnectionStatus = "ongoing"
+	// ConnectionStatusControlLost is a connection where we lost contact with the client at the Tailnet Coordinator
+	ConnectionStatusControlLost ConnectionStatus = "control_lost"
+	// ConnectionStatusClientDisconnected is a connection where the client reports it disconnected, but we didn't get a
+	// clean disconnect at the Tailnet Coordinator.
+	ConnectionStatusClientDisconnected = "client_disconnected"
+	// ConnectionStatusCleanDisconnected is a connection that cleanly disconnected at the Tailnet Coordinator and client
+	ConnectionStatusCleanDisconnected ConnectionStatus = "clean_disconnected"
+)
 
 type WorkspaceAgentLogSource struct {
 	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid"`
