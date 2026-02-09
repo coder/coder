@@ -411,7 +411,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return err
 	}, nil)
 	if errors.Is(err, errRunningWorkspaceLimitExceeded) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
 		})
 		return
