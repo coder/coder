@@ -3446,7 +3446,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Reconciliation Backoff Lookback Period",
-			Description: "Interval to look back to determine number of failed prebuilds, which influences backoff.",
+			Description: "Time period to look back when counting failed prebuilds to calculate the backoff delay.",
 			Flag:        "workspace-prebuilds-reconciliation-backoff-lookback-period",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD",
 			Value:       &c.Prebuilds.ReconciliationBackoffLookback,
