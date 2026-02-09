@@ -4,6 +4,7 @@ package db2sdk
 import (
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"slices"
 	"sort"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	previewtypes "github.com/coder/preview/types"
 )
 
@@ -519,22 +521,27 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		workspaceAgent.Health.Healthy = true
 	}
 
-	// Temporary fake data for connection testing
-	workspaceAgent.Connections = []codersdk.WorkspaceConnection{
-		{
-			IP:          tailnet.CoderServicePrefix.AddrFromUUID(dbAgent.ID).String(),
-			Status:      codersdk.ConnectionStatusOngoing,
-			CreatedAt:   time.Date(2026, 2, 9, 11, 34, 23, 0, time.UTC),
-			ConnectedAt: ptr.Ref(time.Date(2026, 2, 9, 11, 34, 25, 0, time.UTC)),
-			Type:        codersdk.ConnectionTypeSSH,
-		},
-		{
-			IP:          tailnet.CoderServicePrefix.AddrFromUUID(dbAgent.ID).String(),
-			Status:      codersdk.ConnectionStatusOngoing,
-			CreatedAt:   time.Date(2026, 2, 9, 11, 15, 46, 0, time.UTC),
-			ConnectedAt: ptr.Ref(time.Date(2026, 2, 9, 11, 29, 37, 0, time.UTC)),
-			Type:        codersdk.ConnectionTypeReconnectingPTY,
-		},
+	if tunnelPeers := coordinator.TunnelPeers(dbAgent.ID); len(tunnelPeers) > 0 {
+		conns := make([]codersdk.WorkspaceConnection, 0, len(tunnelPeers))
+		for _, tp := range tunnelPeers {
+			var ip string
+			if tp.Node != nil && len(tp.Node.Addresses) > 0 {
+				if prefix, err := netip.ParsePrefix(tp.Node.Addresses[0]); err == nil {
+					ip = prefix.Addr().String()
+				}
+			}
+			status := codersdk.ConnectionStatusOngoing
+			if tp.Status == tailnetproto.CoordinateResponse_PeerUpdate_LOST {
+				status = codersdk.ConnectionStatusControlLost
+			}
+			conns = append(conns, codersdk.WorkspaceConnection{
+				IP:          ip,
+				Status:      status,
+				CreatedAt:   tp.Start,
+				ConnectedAt: &tp.Start,
+			})
+		}
+		workspaceAgent.Connections = conns
 	}
 
 	return workspaceAgent, nil
