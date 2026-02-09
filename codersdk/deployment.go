@@ -3000,7 +3000,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name: "SSH Config Options",
 			Description: "These SSH config options will override the default SSH config options. " +
-				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
+				"Provide options in \"key=value\" or \"key value\" format separated by commas. " +
 				"Using this incorrectly can break SSH to your deployment, use cautiously.",
 			Flag:   "ssh-config-options",
 			Env:    "CODER_SSH_CONFIG_OPTIONS",
