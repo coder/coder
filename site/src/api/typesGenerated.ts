@@ -6221,6 +6221,7 @@ export interface WorkspaceAgent {
 	 * Deprecated: Remove in the future!
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
+	readonly connections?: readonly WorkspaceConnection[];
 }
 
 // From codersdk/workspaceagents.go
@@ -6723,11 +6724,35 @@ export interface WorkspaceBuildsRequest extends Pagination {
 	readonly since?: string;
 }
 
+// From codersdk/workspaceagents.go
+export interface WorkspaceConnection {
+	readonly ip: string;
+	readonly status: WorkspaceConnectionStatus;
+	readonly created_at: string;
+	readonly connected_at?: string;
+	readonly ended_at?: string;
+	readonly Type: ConnectionType;
+}
+
 // From codersdk/deployment.go
 export interface WorkspaceConnectionLatencyMS {
 	readonly P50: number;
 	readonly P95: number;
 }
+
+// From codersdk/workspaceagents.go
+export type WorkspaceConnectionStatus =
+	| "clean_disconnected"
+	| "client_disconnected"
+	| "control_lost"
+	| "ongoing";
+
+export const WorkspaceConnectionStatuses: WorkspaceConnectionStatus[] = [
+	"clean_disconnected",
+	"client_disconnected",
+	"control_lost",
+	"ongoing",
+];
 
 // From codersdk/deployment.go
 export interface WorkspaceDeploymentStats {

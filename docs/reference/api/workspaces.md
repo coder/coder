@@ -183,6 +183,16 @@ of the template will be used.
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
+            "connections": [
+              {
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "ip": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -488,6 +498,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
+            "connections": [
+              {
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "ip": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -818,6 +838,16 @@ of the template will be used.
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
+            "connections": [
+              {
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "ip": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -1109,6 +1139,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 ],
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
+                "connections": [
+                  {
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "ip": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
                 "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
@@ -1415,6 +1455,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
+            "connections": [
+              {
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "ip": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -1980,6 +2030,16 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
+            "connections": [
+              {
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "ip": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",

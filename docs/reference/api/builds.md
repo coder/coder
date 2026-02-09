@@ -128,6 +128,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
+          "connections": [
+            {
+              "connected_at": "2019-08-24T14:15:22Z",
+              "created_at": "2019-08-24T14:15:22Z",
+              "ended_at": "2019-08-24T14:15:22Z",
+              "ip": "string",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
@@ -368,6 +378,16 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
+          "connections": [
+            {
+              "connected_at": "2019-08-24T14:15:22Z",
+              "created_at": "2019-08-24T14:15:22Z",
+              "ended_at": "2019-08-24T14:15:22Z",
+              "ip": "string",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
@@ -727,6 +747,16 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         ],
         "architecture": "string",
         "connection_timeout_seconds": 0,
+        "connections": [
+          {
+            "connected_at": "2019-08-24T14:15:22Z",
+            "created_at": "2019-08-24T14:15:22Z",
+            "ended_at": "2019-08-24T14:15:22Z",
+            "ip": "string",
+            "status": "ongoing",
+            "type": "ssh"
+          }
+        ],
         "created_at": "2019-08-24T14:15:22Z",
         "directory": "string",
         "disconnected_at": "2019-08-24T14:15:22Z",
@@ -869,6 +899,13 @@ Status Code **200**
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» connections`                | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
+| `»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -943,9 +980,10 @@ Status Code **200**
 | `open_in`                 | `slim-window`, `tab`                                                                                                         |
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
+| `status`                  | `clean_disconnected`, `client_disconnected`, `connected`, `connecting`, `control_lost`, `disconnected`, `ongoing`, `timeout` |
+| `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `vscode`, `workspace_app`                                         |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -1076,6 +1114,16 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
+          "connections": [
+            {
+              "connected_at": "2019-08-24T14:15:22Z",
+              "created_at": "2019-08-24T14:15:22Z",
+              "ended_at": "2019-08-24T14:15:22Z",
+              "ip": "string",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
@@ -1427,6 +1475,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
+            "connections": [
+              {
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "ip": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -1631,6 +1689,13 @@ Status Code **200**
 | `»»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» connections`                | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» created_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1710,20 +1775,20 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                  | Value(s)                                                                                                                                                                             |
-|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `error_code`              | `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                        |
-| `status`                  | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timeout` |
-| `type`                    | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                             |
-| `reason`                  | `autostart`, `autostop`, `initiator`                                                                                                                                                 |
-| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                   |
-| `open_in`                 | `slim-window`, `tab`                                                                                                                                                                 |
-| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                                                                   |
-| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                                                                             |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                         |
-| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                                                                           |
-| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                                                                            |
-| `transition`              | `delete`, `start`, `stop`                                                                                                                                                            |
+| Property                  | Value(s)                                                                                                                                                                                                                                                     |
+|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error_code`              | `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                                                                |
+| `status`                  | `canceled`, `canceling`, `clean_disconnected`, `client_disconnected`, `connected`, `connecting`, `control_lost`, `deleted`, `deleting`, `disconnected`, `failed`, `ongoing`, `pending`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timeout` |
+| `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `template_version_dry_run`, `template_version_import`, `vscode`, `workspace_app`, `workspace_build`                                                                                               |
+| `reason`                  | `autostart`, `autostop`, `initiator`                                                                                                                                                                                                                         |
+| `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                                           |
+| `open_in`                 | `slim-window`, `tab`                                                                                                                                                                                                                                         |
+| `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                                           |
+| `state`                   | `complete`, `failure`, `idle`, `working`                                                                                                                                                                                                                     |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                                                                                                 |
+| `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                                                                                                                                                   |
+| `workspace_transition`    | `delete`, `start`, `stop`                                                                                                                                                                                                                                    |
+| `transition`              | `delete`, `start`, `stop`                                                                                                                                                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1878,6 +1943,16 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
+          "connections": [
+            {
+              "connected_at": "2019-08-24T14:15:22Z",
+              "created_at": "2019-08-24T14:15:22Z",
+              "ended_at": "2019-08-24T14:15:22Z",
+              "ip": "string",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",

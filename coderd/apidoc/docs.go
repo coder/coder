@@ -20600,6 +20600,12 @@ const docTemplate = `{
                 "connection_timeout_seconds": {
                     "type": "integer"
                 },
+                "connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceConnection"
+                    }
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -21509,6 +21515,32 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceConnection": {
+            "type": "object",
+            "properties": {
+                "connected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionStatus"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ConnectionType"
+                }
+            }
+        },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",
             "properties": {
@@ -21521,6 +21553,21 @@ const docTemplate = `{
                     "format": "float64"
                 }
             }
+        },
+        "codersdk.WorkspaceConnectionStatus": {
+            "type": "string",
+            "enum": [
+                "ongoing",
+                "control_lost",
+                "client_disconnected",
+                "clean_disconnected"
+            ],
+            "x-enum-varnames": [
+                "ConnectionStatusOngoing",
+                "ConnectionStatusControlLost",
+                "ConnectionStatusClientDisconnected",
+                "ConnectionStatusCleanDisconnected"
+            ]
         },
         "codersdk.WorkspaceDeploymentStats": {
             "type": "object",

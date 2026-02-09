@@ -568,6 +568,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   ],
   "architecture": "string",
   "connection_timeout_seconds": 0,
+  "connections": [
+    {
+      "connected_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "ip": "string",
+      "status": "ongoing",
+      "type": "ssh"
+    }
+  ],
   "created_at": "2019-08-24T14:15:22Z",
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",

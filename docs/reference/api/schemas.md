@@ -10017,6 +10017,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
+            "connections": [
+              {
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "ip": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -10299,6 +10309,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "architecture": "string",
   "connection_timeout_seconds": 0,
+  "connections": [
+    {
+      "connected_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "ip": "string",
+      "status": "ongoing",
+      "type": "ssh"
+    }
+  ],
   "created_at": "2019-08-24T14:15:22Z",
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
@@ -10382,6 +10402,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                              |
 | `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `connection_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                              |
+| `connections`                | array of [codersdk.WorkspaceConnection](#codersdkworkspaceconnection)                        | false    |              |                                                                                                                                                                              |
 | `created_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                              |
@@ -11174,6 +11195,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
+          "connections": [
+            {
+              "connected_at": "2019-08-24T14:15:22Z",
+              "created_at": "2019-08-24T14:15:22Z",
+              "ended_at": "2019-08-24T14:15:22Z",
+              "ip": "string",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
@@ -11381,6 +11412,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `agent_script_timings`     | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming)         | false    |              | Agent script timings Consolidate agent-related timing metrics into a single struct when updating the API version |
 | `provisioner_timings`      | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming)         | false    |              |                                                                                                                  |
 
+## codersdk.WorkspaceConnection
+
+```json
+{
+  "connected_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "ip": "string",
+  "status": "ongoing",
+  "type": "ssh"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                     | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `connected_at` | string                                                                   | false    |              |             |
+| `created_at`   | string                                                                   | false    |              |             |
+| `ended_at`     | string                                                                   | false    |              |             |
+| `ip`           | string                                                                   | false    |              |             |
+| `status`       | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |             |
+| `type`         | [codersdk.ConnectionType](#codersdkconnectiontype)                       | false    |              |             |
+
 ## codersdk.WorkspaceConnectionLatencyMS
 
 ```json
@@ -11396,6 +11451,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-------|--------|----------|--------------|-------------|
 | `p50` | number | false    |              |             |
 | `p95` | number | false    |              |             |
+
+## codersdk.WorkspaceConnectionStatus
+
+```json
+"ongoing"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                               |
+|------------------------------------------------------------------------|
+| `clean_disconnected`, `client_disconnected`, `control_lost`, `ongoing` |
 
 ## codersdk.WorkspaceDeploymentStats
 
@@ -11641,6 +11710,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "architecture": "string",
       "connection_timeout_seconds": 0,
+      "connections": [
+        {
+          "connected_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
+          "ended_at": "2019-08-24T14:15:22Z",
+          "ip": "string",
+          "status": "ongoing",
+          "type": "ssh"
+        }
+      ],
       "created_at": "2019-08-24T14:15:22Z",
       "directory": "string",
       "disconnected_at": "2019-08-24T14:15:22Z",
@@ -11978,6 +12057,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
+                "connections": [
+                  {
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "ip": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
                 "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
