@@ -3759,7 +3759,7 @@ const docTemplate = `{
                     "Workspaces"
                 ],
                 "summary": "Get users available for workspace creation",
-                "operationId": "get-workspace-available-users",
+                "operationId": "get-users-available-for-workspace-creation",
                 "parameters": [
                     {
                         "type": "string",

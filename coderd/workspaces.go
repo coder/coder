@@ -2953,7 +2953,7 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 }
 
 // @Summary Get users available for workspace creation
-// @ID get-workspace-available-users
+// @ID get-users-available-for-workspace-creation
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
