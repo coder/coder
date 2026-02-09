@@ -328,6 +328,8 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // - Updating error messages to clarify the limit is per-organization
 const maxRunningWorkspacesPerUser = 1
 
+var errRunningWorkspaceLimitExceeded = xerrors.New("running workspace limit exceeded")
+
 // @Router /workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -336,24 +338,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
-	}
-
-	if createBuild.Transition == codersdk.WorkspaceTransitionStart {
-		count, err := api.Database.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
-		if err != nil {
-			api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error checking running workspace limit.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if count >= maxRunningWorkspacesPerUser {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
-			})
-			return
-		}
 	}
 
 	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
@@ -371,6 +355,17 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
+
+		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+			count, err := tx.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
+				return xerrors.Errorf("internal error checking running workspace limit: %w", err)
+			}
+			if count >= maxRunningWorkspacesPerUser {
+				return errRunningWorkspaceLimitExceeded
+			}
+		}
 
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -415,6 +410,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		)
 		return err
 	}, nil)
+	if errors.Is(err, errRunningWorkspaceLimitExceeded) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
+		})
+		return
+	}
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
