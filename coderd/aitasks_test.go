@@ -2516,7 +2516,6 @@ func TestPauseTask(t *testing.T) {
 		// Verify that the request was accepted correctly:
 		require.NoError(t, err)
 		build := *resp.WorkspaceBuild
-		require.NotNil(t, build)
 		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
 		require.Equal(t, task.WorkspaceID.UUID, build.WorkspaceID)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
@@ -2849,8 +2848,13 @@ func TestResumeTask(t *testing.T) {
 
 		resumeResp, err := client.ResumeTask(ctx, codersdk.Me, task.ID)
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, resumeResp.WorkspaceBuildID)
+		build := *resumeResp.WorkspaceBuild
+		require.Equal(t, codersdk.WorkspaceTransitionStart, build.Transition)
+		require.Equal(t, task.WorkspaceID.UUID, build.WorkspaceID)
+		require.Equal(t, workspace.LatestBuild.BuildNumber+2, build.BuildNumber)
+		require.Equal(t, string(codersdk.CreateWorkspaceBuildReasonTaskResume), string(build.Reason))
 
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 		workspace, err = client.Workspace(ctx, task.WorkspaceID.UUID)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)

@@ -356,7 +356,7 @@ func (c *Client) PauseTask(ctx context.Context, user string, id uuid.UUID) (Paus
 
 // ResumeTaskResponse represents the response from resuming a task.
 type ResumeTaskResponse struct {
-	WorkspaceBuildID uuid.UUID `json:"workspace_build_id" format:"uuid"`
+	WorkspaceBuild *WorkspaceBuild `json:"workspace_build"`
 }
 
 func (c *Client) ResumeTask(ctx context.Context, user string, id uuid.UUID) (ResumeTaskResponse, error) {

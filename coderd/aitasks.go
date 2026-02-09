@@ -1388,6 +1388,6 @@ func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ResumeTaskResponse{
-		WorkspaceBuildID: build.ID,
+		WorkspaceBuild: &build,
 	})
 }
