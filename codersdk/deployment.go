@@ -3830,7 +3830,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Workspace Agent Logs Retention",
-			Description: "How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.",
+			Description: "How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build for each workspace are always retained. Set to 0 to disable automatic deletion.",
 			Flag:        "workspace-agent-logs-retention",
 			Env:         "CODER_WORKSPACE_AGENT_LOGS_RETENTION",
 			Value:       &c.Retention.WorkspaceAgentLogs,
