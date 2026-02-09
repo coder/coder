@@ -3682,7 +3682,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Interval",
-			Description: "Cyclic period of the closed state for clearing internal failure counts.",
+			Description: "Time window for counting failures before resetting the failure count in the closed state.",
 			Flag:        "aibridge-circuit-breaker-interval",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
