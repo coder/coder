@@ -1,7 +1,22 @@
 #!/bin/sh
 set -e
 
-CODER="go run ./enterprise/cmd/coder"
+# On failure, keep the container alive so the user can exec in
+# to troubleshoot.
+on_error() {
+  echo ""
+  echo "=========================================="
+  echo "Setup failed! Container kept alive for troubleshooting."
+  echo "Exec into this container with:"
+  echo ""
+  echo "  docker exec -it \$(docker ps -qf name=setup) sh"
+  echo ""
+  echo "=========================================="
+  sleep infinity
+}
+trap on_error EXIT
+
+CODER="go run ./cmd/coder"
 
 # Create first user and log in. The session token is written to
 # $HOME/.coderv2/session which is persisted in the coder_dev_home
@@ -46,4 +61,6 @@ if ! $CODER templates versions list docker >/dev/null 2>&1; then
   rm -rf "$TEMPLATE_DIR"
 fi
 
+# Clear the error trap — setup succeeded.
+trap - EXIT
 echo "Setup complete."
