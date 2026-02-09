@@ -3978,7 +3978,7 @@ func TestPostWorkspaceWithRunningLimit(t *testing.T) {
 		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Running workspace limit reached")
 	})
 
@@ -4073,7 +4073,7 @@ func TestPostWorkspaceWithRunningLimit(t *testing.T) {
 		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Running workspace limit reached")
 	})
 }

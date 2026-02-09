@@ -149,7 +149,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const isRunningWorkspaceLimitError =
 		error &&
 		isApiError(error) &&
-		error.response?.status === 403 &&
+		error.response?.status === 409 &&
 		error.response?.data?.message?.includes("Running workspace limit");
 
 	return (

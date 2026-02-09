@@ -1470,7 +1470,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Running workspace limit reached")
 
 		// Stop ws2 to make room
@@ -1562,7 +1562,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Running workspace limit reached")
 	})
 }

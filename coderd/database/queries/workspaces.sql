@@ -607,6 +607,7 @@ WITH filtered_workspaces AS (
 	WHERE
 		deleted = false
 		AND owner_id = @owner_id
+	FOR UPDATE
 ),
 workspaces_with_latest_build AS (
 	SELECT

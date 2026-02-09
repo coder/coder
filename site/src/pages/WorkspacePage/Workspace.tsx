@@ -128,7 +128,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const isRunningWorkspaceLimitError = Boolean(
 		startWorkspaceError &&
 			isApiError(startWorkspaceError) &&
-			startWorkspaceError.response?.status === 403 &&
+			startWorkspaceError.response?.status === 409 &&
 			startWorkspaceError.response?.data?.message?.includes(
 				"Running workspace limit",
 			),

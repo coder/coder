@@ -306,6 +306,18 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
+// maxRunningWorkspacesPerUser limits how many workspaces a user can have running at once.
+// This is a global limit across all organizations.
+//
+// TODO: If multi-organization support expands beyond the default single organization,
+// consider changing this to a per-organization limit. This would require:
+// - Adding GetRunningWorkspaceCountByOwnerIDAndOrg function
+// - Passing organization_id in the API calls
+// - Updating error messages to clarify the limit is per-organization
+const maxRunningWorkspacesPerUser = 1
+
+var errRunningWorkspaceLimitExceeded = xerrors.New("running workspace limit exceeded")
+
 // Azure supports instance identity verification:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 //
@@ -318,16 +330,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
 // @Success 200 {object} codersdk.WorkspaceBuild
-// maxRunningWorkspacesPerUser limits how many workspaces a user can have running at once.
-// This is a global limit across all organizations.
-//
-// TODO: If multi-organization support expands beyond the default single organization,
-// consider changing this to a per-organization limit. This would require:
-// - Adding GetRunningWorkspaceCountByOwnerIDAndOrg function
-// - Passing organization_id in the API calls
-// - Updating error messages to clarify the limit is per-organization
-const maxRunningWorkspacesPerUser = 1
-
 // @Router /workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -336,24 +338,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
-	}
-
-	if createBuild.Transition == codersdk.WorkspaceTransitionStart {
-		count, err := api.Database.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
-		if err != nil {
-			api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error checking running workspace limit.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if count >= maxRunningWorkspacesPerUser {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
-			})
-			return
-		}
 	}
 
 	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
@@ -371,6 +355,17 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
+
+		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+			count, err := tx.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
+				return xerrors.Errorf("internal error checking running workspace limit: %w", err)
+			}
+			if count >= maxRunningWorkspacesPerUser {
+				return errRunningWorkspaceLimitExceeded
+			}
+		}
 
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -415,6 +410,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		)
 		return err
 	}, nil)
+	if errors.Is(err, errRunningWorkspaceLimitExceeded) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
+		})
+		return
+	}
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
