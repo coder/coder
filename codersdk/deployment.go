@@ -1884,7 +1884,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		// Prometheus settings
 		{
 			Name:        "Prometheus Enable",
-			Description: "Serve prometheus metrics on the address defined by prometheus address.",
+			Description: "Serve Prometheus metrics on the address defined by prometheus address.",
 			Flag:        "prometheus-enable",
 			Env:         "CODER_PROMETHEUS_ENABLE",
 			Value:       &c.Prometheus.Enable,
