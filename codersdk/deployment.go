@@ -3355,7 +3355,7 @@ Write out the current server config as YAML to stdout.`,
 			Name: "Notifications: Store Sync Interval",
 			Description: "The notifications system buffers message updates in memory to ease pressure on the database. " +
 				"This option controls how often it synchronizes its state with the database. The shorter this value the " +
-				"lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
+				"lower the chance of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
 				"database. It is recommended to keep this option at its default value.",
 			Flag:        "notifications-store-sync-interval",
 			Env:         "CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL",
