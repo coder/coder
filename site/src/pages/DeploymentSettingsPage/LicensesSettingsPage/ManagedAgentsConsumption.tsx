@@ -177,7 +177,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						<span className="font-medium">{usage.toLocaleString()}</span>
 					</div>
 
-					<div className="flex flex-col items-center">
+					<div className="flex flex-col items-end">
 						<span className="text-content-secondary">Included:</span>
 						<span className="font-medium">{included.toLocaleString()}</span>
 					</div>
@@ -189,13 +189,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							<span className="text-content-secondary">Actual:</span>
 							<span className="font-medium">{usage.toLocaleString()}</span>
 						</div>
-						<div className="flex flex-col items-center">
+						<div className="flex flex-col items-end">
 							<span className="text-content-secondary">Included:</span>
 							<span className="font-medium">{included.toLocaleString()}</span>
-						</div>
-						<div className="flex flex-col items-end">
-							<span className="text-content-secondary">Limit:</span>
-							<span className="font-medium">{limit.toLocaleString()}</span>
 						</div>
 					</div>
 				</div>
