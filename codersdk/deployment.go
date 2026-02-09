@@ -1894,7 +1894,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Prometheus Address",
-			Description: "The bind address to serve prometheus metrics.",
+			Description: "The bind address to serve Prometheus metrics.",
 			Flag:        "prometheus-address",
 			Env:         "CODER_PROMETHEUS_ADDRESS",
 			Default:     "127.0.0.1:2112",
