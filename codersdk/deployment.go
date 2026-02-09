@@ -2277,7 +2277,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC Regex Group Filter",
-			Description: "If provided, any group name not matching the regex is ignored. This allows filtering out groups that are not needed. This filter is applied after legacy group name mapping.",
+			Description: "If provided, any group name not matching the regex is ignored. This allows filtering out groups that are not needed. This filter is applied after the OIDC Group Mapping step.",
 			Flag:        "oidc-group-regex-filter",
 			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
 			Default:     ".*",
