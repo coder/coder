@@ -3501,7 +3501,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge OpenAI Key",
-			Description: "The key to authenticate against the OpenAI API.",
+			Description: "API key for authenticating with the OpenAI API.",
 			Flag:        "aibridge-openai-key",
 			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
 			Value:       &c.AI.BridgeConfig.OpenAI.Key,
