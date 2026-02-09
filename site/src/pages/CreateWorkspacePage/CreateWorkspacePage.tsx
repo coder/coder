@@ -11,6 +11,7 @@ import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
+	MinimalUser,
 	PreviewParameter,
 	Workspace,
 } from "api/typesGenerated";
@@ -61,8 +62,8 @@ const CreateWorkspacePage: FC = () => {
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
-	const defaultOwner = me;
-	const [owner, setOwner] = useState(defaultOwner);
+	const defaultOwner: MinimalUser = me;
+	const [owner, setOwner] = useState<MinimalUser>(defaultOwner);
 
 	const queryClient = useQueryClient();
 	const autoCreateWorkspaceMutation = useMutation(

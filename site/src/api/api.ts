@@ -569,6 +569,27 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * Get users available as workspace owners. This is a scoped
+	 * endpoint that only returns users the caller can create
+	 * workspaces for within the given organization.
+	 */
+	getWorkspaceAvailableUsers = async (
+		organizationId: string,
+		options: TypesGen.UsersRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.MinimalUser[]> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organizationId}/members/me/workspaces/available-users`,
+			options,
+		);
+		const response = await this.axios.get<TypesGen.MinimalUser[]>(
+			url.toString(),
+			{ signal },
+		);
+		return response.data;
+	};
+
 	createOrganization = async (params: TypesGen.CreateOrganizationRequest) => {
 		const response = await this.axios.post<TypesGen.Organization>(
 			"/api/v2/organizations",

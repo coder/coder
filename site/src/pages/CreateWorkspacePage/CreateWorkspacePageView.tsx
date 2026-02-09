@@ -16,7 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { WorkspaceUserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { useDebouncedFunction } from "hooks/debounce";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
@@ -51,7 +51,7 @@ interface CreateWorkspacePageViewProps {
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
-	defaultOwner: TypesGen.User;
+	defaultOwner: TypesGen.MinimalUser;
 	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
@@ -68,13 +68,13 @@ interface CreateWorkspacePageViewProps {
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
-		owner: TypesGen.User,
+		owner: TypesGen.MinimalUser,
 	) => void;
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
-	owner: TypesGen.User;
-	setOwner: (user: TypesGen.User) => void;
+	owner: TypesGen.MinimalUser;
+	setOwner: (user: TypesGen.MinimalUser) => void;
 }
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
@@ -307,7 +307,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		sendDynamicParamsRequest,
 	]);
 
-	const handleOwnerChange = (user: TypesGen.User) => {
+	const handleOwnerChange = (user: TypesGen.MinimalUser) => {
 		setOwner(user);
 		sendDynamicParamsRequest([], user.id);
 	};
@@ -497,7 +497,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 											Owner
 										</Label>
-										<UserAutocomplete
+										<WorkspaceUserAutocomplete
+											organizationId={template.organization_id}
 											value={owner}
 											onChange={(user) => {
 												handleOwnerChange(user ?? defaultOwner);
