@@ -2287,7 +2287,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC Allowed Groups",
-			Description: "If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.",
+			Description: "If provided, only users with at least one group in this list will be allowed to authenticate. This restricts access to a specific set of groups. This check is applied before any group mapping or filtering.",
 			Flag:        "oidc-allowed-groups",
 			Env:         "CODER_OIDC_ALLOWED_GROUPS",
 			Default:     "",
