@@ -46,8 +46,22 @@ type CoordinatorV2 interface {
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 	// Node returns a node by peer ID, if known to the coordinator.  Returns nil if unknown.
 	Node(id uuid.UUID) *Node
+	// TunnelPeers returns information about peers with active tunnels to the
+	// given agent.
+	TunnelPeers(agentID uuid.UUID) []*TunnelPeerInfo
 	Close() error
 	Coordinate(ctx context.Context, id uuid.UUID, name string, a CoordinateeAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse)
+}
+
+// TunnelPeerInfo describes a peer with an active tunnel to an agent.
+type TunnelPeerInfo struct {
+	ID   uuid.UUID
+	Name string
+	Node *proto.Node
+	// Status is NODE for active peers, LOST for peers whose coordinator
+	// missed heartbeats (pgcoord only; in-memory always returns NODE).
+	Status proto.CoordinateResponse_PeerUpdate_Kind
+	Start  time.Time
 }
 
 // Node represents a node in the network.
@@ -222,6 +236,10 @@ func (c *coordinator) Node(id uuid.UUID) *Node {
 	return c.core.node(id)
 }
 
+func (c *coordinator) TunnelPeers(agentID uuid.UUID) []*TunnelPeerInfo {
+	return c.core.tunnelPeers(agentID)
+}
+
 func (c *core) node(id uuid.UUID) *Node {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -236,6 +254,30 @@ func (c *core) node(id uuid.UUID) *Node {
 		return nil
 	}
 	return v1Node
+}
+
+func (c *core) tunnelPeers(agentID uuid.UUID) []*TunnelPeerInfo {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	srcIDs, ok := c.tunnels.byDst[agentID]
+	if !ok {
+		return nil
+	}
+	var out []*TunnelPeerInfo
+	for srcID := range srcIDs {
+		p, ok := c.peers[srcID]
+		if !ok {
+			continue
+		}
+		out = append(out, &TunnelPeerInfo{
+			ID:     p.id,
+			Name:   p.name,
+			Node:   p.node,
+			Status: proto.CoordinateResponse_PeerUpdate_NODE,
+			Start:  p.start,
+		})
+	}
+	return out
 }
 
 func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.CoordinateRequest) error {

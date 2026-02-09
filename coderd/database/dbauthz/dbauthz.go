@@ -3081,6 +3081,10 @@ func (q *querier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.U
 	return q.db.GetTailnetTunnelPeerBindings(ctx, srcID)
 }
 
+func (q *querier) GetTailnetTunnelPeerBindingsByDstID(ctx context.Context, dstID uuid.UUID) ([]database.GetTailnetTunnelPeerBindingsByDstIDRow, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
