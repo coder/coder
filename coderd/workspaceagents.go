@@ -1529,12 +1529,8 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	peerName := "client"
-	if key, ok := httpmw.APIKeyOptional(r); ok {
-		peerName = key.UserID.String()
-	}
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
-		Name: peerName,
+		Name: "client",
 		ID:   peerID,
 		Auth: tailnet.ClientCoordinateeAuth{
 			AgentID: waws.WorkspaceAgent.ID,
@@ -2344,7 +2340,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
-		Name: apiKey.UserID.String(),
+		Name: "client",
 		ID:   peerID,
 		Auth: tailnet.ClientUserCoordinateeAuth{
 			Auth: &rbacAuthorizer{
