@@ -3,10 +3,13 @@ import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import type {
+	ConnectionType,
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
+	WorkspaceConnection,
+	WorkspaceConnectionStatus,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
@@ -350,7 +353,126 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</div>
 				</section>
 			)}
+
+			{agent.connections && agent.connections.length > 0 && (
+				<AgentConnectionsTable connections={agent.connections} />
+			)}
 		</div>
+	);
+};
+
+function connectionStatusLabel(status: WorkspaceConnectionStatus): string {
+	switch (status) {
+		case "ongoing":
+			return "Connected";
+		case "control_lost":
+			return "Control Lost";
+		case "client_disconnected":
+			return "Disconnected";
+		case "clean_disconnected":
+			return "Disconnected";
+		default:
+			return status;
+	}
+}
+
+function connectionStatusColor(status: WorkspaceConnectionStatus): string {
+	switch (status) {
+		case "ongoing":
+			return "text-content-success";
+		case "control_lost":
+			return "text-content-warning";
+		case "client_disconnected":
+		case "clean_disconnected":
+			return "text-content-secondary";
+		default:
+			return "text-content-secondary";
+	}
+}
+
+function connectionStatusDot(status: WorkspaceConnectionStatus): string {
+	switch (status) {
+		case "ongoing":
+			return "bg-content-success";
+		case "control_lost":
+			return "bg-content-warning";
+		case "client_disconnected":
+		case "clean_disconnected":
+			return "bg-content-secondary";
+		default:
+			return "bg-content-secondary";
+	}
+}
+
+function connectionTypeLabel(type_: ConnectionType): string {
+	switch (type_) {
+		case "ssh":
+			return "SSH";
+		case "reconnecting_pty":
+			return "ReconnectingPTY";
+		case "vscode":
+			return "VSCode";
+		case "jetbrains":
+			return "JetBrains";
+		case "workspace_app":
+			return "Workspace App";
+		case "port_forwarding":
+			return "Port Forwarding";
+		default:
+			return type_;
+	}
+}
+
+interface AgentConnectionsTableProps {
+	connections: readonly WorkspaceConnection[];
+}
+
+const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
+	connections,
+}) => {
+	return (
+		<section
+			css={(theme) => ({
+				borderTop: `1px solid ${theme.palette.divider}`,
+			})}
+		>
+			<div className="px-4 py-3">
+				<h4 className="text-xs font-medium text-content-secondary mb-2">
+					Connections
+				</h4>
+				<table className="w-full text-sm border-collapse">
+					<tbody>
+						{connections.map((conn, idx) => {
+							const connectedTime = conn.connected_at ?? conn.created_at;
+							return (
+								<tr
+									key={`${conn.ip}-${conn.created_at}-${idx}`}
+									className="border-t border-border first:border-t-0 text-content-primary"
+								>
+									<td className="py-2 pr-4 font-mono text-xs">{conn.ip}</td>
+									<td className="py-2 pr-4 text-xs">
+										{connectionTypeLabel(conn.Type)}
+									</td>
+									<td className="py-2 pr-4">
+										<span className="inline-flex items-center gap-1.5 text-xs">
+											<span
+												className={`inline-block h-2 w-2 rounded-full ${connectionStatusDot(conn.status)}`}
+											/>
+											<span className={connectionStatusColor(conn.status)}>
+												{connectionStatusLabel(conn.status)}
+											</span>
+										</span>
+									</td>
+									<td className="py-2 text-xs text-content-secondary">
+										{new Date(connectedTime).toLocaleString()}
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+			</div>
+		</section>
 	);
 };
 
