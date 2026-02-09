@@ -55,6 +55,10 @@ message Node {
 	repeated string addresses = 8;
 	repeated string allowed_ips = 9;
 	repeated string endpoints = 10;
+	// Human readable description of the connection, e.g. "Coder Server" or "VSCode IDE Plugin"
+	string short_description = 11;
+	// Peer's self-reported hostname. For informational / display purposes only
+	string hostname = 12;
 }
 
 message RefreshResumeTokenRequest {}

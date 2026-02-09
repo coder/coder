@@ -79,6 +79,10 @@ type Node struct {
 	// Endpoints are ip:port combinations that can be used to establish
 	// peer-to-peer connections.
 	Endpoints []string `json:"endpoints"`
+	// ShortDescription is a human-readable short description of the node.
+	ShortDescription string `json:"short_description"`
+	// Hostname is the peer's self-reported hostname. For informational / display purposes only
+	Hostname string `json:"hostname"`
 }
 
 // Coordinatee is something that can be coordinated over the Coordinate protocol.  Usually this is a

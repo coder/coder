@@ -62,6 +62,8 @@ func NodeToProto(n *Node) (*proto.Node, error) {
 		Addresses:           addresses,
 		AllowedIps:          allowedIPs,
 		Endpoints:           n.Endpoints,
+		ShortDescription:    n.ShortDescription,
+		Hostname:            n.Hostname,
 	}, nil
 }
 
@@ -105,6 +107,8 @@ func ProtoToNode(p *proto.Node) (*Node, error) {
 		Addresses:           addresses,
 		AllowedIPs:          allowedIPs,
 		Endpoints:           p.Endpoints,
+		ShortDescription:    p.GetShortDescription(),
+		Hostname:            p.GetHostname(),
 	}, nil
 }
 
