@@ -570,9 +570,10 @@ class ApiMethods {
 	};
 
 	/**
-	 * Get users available as workspace owners. This is a scoped
-	 * endpoint that only returns users the caller can create
-	 * workspaces for within the given organization.
+	 * Get users for workspace owner selection. Requires
+	 * permission to create workspaces for other users in the
+	 * organization. Returns minimal user data (no email, roles,
+	 * etc.).
 	 */
 	getWorkspaceAvailableUsers = async (
 		organizationId: string,
