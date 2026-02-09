@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1507,55 +1508,43 @@ func TestTasksTelemetry(t *testing.T) {
 				return task, expected
 			},
 		},
-		{
-			name: "deleted task - excluded from results",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (database.Task, telemetry.Task) {
-				resp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
-					OrganizationID: h.org.ID,
-					OwnerID:        h.user.ID,
-					TemplateID:     h.tpl.ID,
-				}).WithTask(database.TaskTable{
-					Prompt:    "deleted task prompt",
-					CreatedAt: now.Add(-1 * time.Hour),
-				}, nil).Seed(database.WorkspaceBuild{
-					Transition:        database.WorkspaceTransitionStart,
-					Reason:            database.BuildReasonInitiator,
-					BuildNumber:       1,
-					TemplateVersionID: h.tv.ID,
-					CreatedAt:         now.Add(-1 * time.Hour),
-				}).Succeeded().Do()
-
-				// Soft delete the task.
-				h.deleteTask(resp.Task.ID, now)
-
-				// Return empty expected - this task should not appear in results.
-				// The test logic handles this case specially.
-				return resp.Task, telemetry.Task{}
-			},
-		},
 	}
+
+	// Create a deleted task that should never appear in any results (invariant check).
+	// This is created once and checked by every test case.
+	h := newTaskTelemetryHelper(t)
+	deletedTaskResp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
+		OrganizationID: h.org.ID,
+		OwnerID:        h.user.ID,
+		TemplateID:     h.tpl.ID,
+	}).WithTask(database.TaskTable{
+		Prompt:    fmt.Sprintf("deleted-task-%s", t.Name()),
+		CreatedAt: now.Add(-100 * time.Hour),
+	}, nil).Seed(database.WorkspaceBuild{
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+		BuildNumber:       1,
+		TemplateVersionID: h.tv.ID,
+		CreatedAt:         now.Add(-100 * time.Hour),
+	}).Succeeded().Do()
+	h.deleteTask(deletedTaskResp.Task.ID, now.Add(-99*time.Hour))
+	deletedTaskID := deletedTaskResp.Task.ID
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			h := newTaskTelemetryHelper(t)
-			dbTask, expected := tt.setup(t, h, now)
+			_, expected := tt.setup(t, h, now)
 
-			// Special case for deleted task test.
-			if tt.name == "deleted task - excluded from results" {
-				actual, err := telemetry.CollectTasks(h.ctx, h.db, now.Add(-1*time.Hour))
-				require.NoError(t, err, "unexpected error collecting tasks telemetry")
-				// Verify the deleted task is not in the results.
-				for _, task := range actual {
-					assert.NotEqual(t, dbTask.ID.String(), task.ID, "deleted task should not appear in results")
-				}
-				return
-			}
-
-			// Call CollectTasks.
+			// Invariant: deleted tasks should NEVER appear in results.
 			actual, err := telemetry.CollectTasks(h.ctx, h.db, now.Add(-1*time.Hour))
 			require.NoError(t, err, "unexpected error collecting tasks telemetry")
+			for _, task := range actual {
+				require.NotEqual(t, deletedTaskID.String(), task.ID,
+					"deleted task appeared in results - this should never happen")
+			}
+
 			require.Len(t, actual, 1, "expected exactly one task")
 
 			if diff := cmp.Diff(expected, actual[0]); diff != "" {
