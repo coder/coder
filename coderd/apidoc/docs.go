@@ -18282,9 +18282,8 @@ const docTemplate = `{
         "codersdk.ResumeTaskResponse": {
             "type": "object",
             "properties": {
-                "workspace_build_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "workspace_build": {
+                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
                 }
             }
         },

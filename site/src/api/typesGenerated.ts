@@ -4362,7 +4362,7 @@ export interface Response {
  * ResumeTaskResponse represents the response from resuming a task.
  */
 export interface ResumeTaskResponse {
-	readonly workspace_build_id: string;
+	readonly workspace_build: WorkspaceBuild | null;
 }
 
 // From codersdk/deployment.go
