@@ -180,19 +180,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						<span className="font-medium">{usage.toLocaleString()}</span>
 					</div>
 
-					<div
-						className="absolute flex flex-col items-center transform -translate-x-1/2"
-						style={{
-							left: `${Math.max(Math.min(includedPercentage, 90), 10)}%`,
-						}}
-					>
+					<div className="flex flex-col items-center">
 						<span className="text-content-secondary">Included:</span>
 						<span className="font-medium">{included.toLocaleString()}</span>
-					</div>
-
-					<div className="flex flex-col items-end">
-						<span className="text-content-secondary">Limit:</span>
-						<span className="font-medium">{limit.toLocaleString()}</span>
 					</div>
 				</div>
 
