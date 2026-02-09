@@ -897,11 +897,10 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 }
 
 func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time) ([]Task, error) {
-	// 1. Get all non-deleted tasks.
 	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{
 		OwnerID:        uuid.Nil,
 		OrganizationID: uuid.Nil,
-		Status:         "",
+		Status:         "", // All tasks regardless of status
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("list tasks: %w", err)
@@ -910,8 +909,7 @@ func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time
 		return []Task{}, nil
 	}
 
-	// 2. Collect all workspace IDs and app IDs from tasks.
-	workspaceIDs := make(map[uuid.UUID]struct{})
+	workspaceIDs := make(map[uuid.UUID]struct{}) // WorkspaceID -> AppID
 	appIDs := make([]uuid.UUID, 0)
 	for _, task := range dbTasks {
 		if task.WorkspaceID.Valid {
@@ -939,7 +937,7 @@ func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time
 		}
 	}
 
-	// 4. Batch query app statuses for all apps.
+	// Batch query app statuses for all apps.
 	appStatuses := make(map[uuid.UUID][]database.WorkspaceAppStatus)
 	if len(appIDs) > 0 {
 		statuses, err := db.GetWorkspaceAppStatusesByAppIDs(ctx, appIDs)
