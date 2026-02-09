@@ -1431,7 +1431,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	emailHello := serpent.Option{
 		Name:        "Email: Hello",
-		Description: "The hostname identifying the SMTP server.",
+		Description: "The hostname identifying this client to the SMTP server.",
 		Flag:        "email-hello",
 		Env:         "CODER_EMAIL_HELLO",
 		Default:     "localhost",
