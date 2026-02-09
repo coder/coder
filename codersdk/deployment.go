@@ -3080,7 +3080,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Allow Custom Quiet Hours",
-			Description: "Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.",
+			Description: "Allow users to set their own quiet hours schedule for when workspaces are stopped (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.",
 			Flag:        "allow-custom-quiet-hours",
 			Env:         "CODER_ALLOW_CUSTOM_QUIET_HOURS",
 			Default:     "true",
