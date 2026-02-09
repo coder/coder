@@ -2309,7 +2309,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC User Role Mapping",
-			Description: "A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.",
+			Description: "A map of OIDC user role names to Coder role names. This is useful if the role names do not match between systems. If mapped to the empty string, the role will be ignored.",
 			Flag:        "oidc-user-role-mapping",
 			Env:         "CODER_OIDC_USER_ROLE_MAPPING",
 			Default:     "{}",
