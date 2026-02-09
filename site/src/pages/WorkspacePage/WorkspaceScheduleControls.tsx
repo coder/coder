@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link, { type LinkProps } from "@mui/material/Link";
-import { visuallyHidden } from "@mui/utils";
 import { getErrorMessage } from "api/errors";
 import {
 	updateDeadline,
@@ -218,7 +217,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						}}
 					>
 						<MinusIcon />
-						<span style={visuallyHidden}>Subtract 1 hour from deadline</span>
+						<span className="sr-only">Subtract 1 hour from deadline</span>
 					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">
@@ -236,7 +235,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						}}
 					>
 						<PlusIcon />
-						<span style={visuallyHidden}>Add 1 hour to deadline</span>
+						<span className="sr-only">Add 1 hour to deadline</span>
 					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Add 1 hour to deadline</TooltipContent>

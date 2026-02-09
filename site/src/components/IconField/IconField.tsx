@@ -1,7 +1,6 @@
 import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { visuallyHidden } from "@mui/utils";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
@@ -116,7 +115,7 @@ export const IconField: FC<IconFieldProps> = ({
       - Except we don't do it when running tests, because Jest doesn't define
       `IntersectionObserver`, and it would make them slower anyway. */}
 			{process.env.NODE_ENV !== "test" && (
-				<div css={{ ...visuallyHidden }}>
+				<div className="sr-only" aria-hidden="true">
 					<Suspense>
 						<EmojiPicker onEmojiSelect={() => {}} />
 					</Suspense>
