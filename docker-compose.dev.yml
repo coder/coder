@@ -46,7 +46,7 @@ services:
     volumes:
       - .:/app
       - go_cache:/go-cache
-      - coder_dev_home:/home/coder
+      - coderv2_config:/root/.config/coderv2
       - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
     command: >
       go run ./enterprise/cmd/coder server
@@ -71,7 +71,7 @@ services:
     volumes:
       - .:/app
       - go_cache:/go-cache
-      - coder_dev_home:/home/coder
+      - coderv2_config:/root/.config/coderv2
       - ./scripts/docker-dev:/scripts:ro
     command: ["sh", "/scripts/setup.sh"]
 
@@ -92,6 +92,6 @@ services:
 
 volumes:
   coder_dev_data:
-  coder_dev_home:
+  coderv2_config:
   go_cache:
   site_node_modules:

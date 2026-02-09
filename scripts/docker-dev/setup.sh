@@ -19,10 +19,11 @@ trap on_error EXIT
 CODER="go run ./cmd/coder"
 
 # Create first user and log in. The session token is written to
-# $HOME/.coderv2/session which is persisted in the coder_dev_home
-# volume. On subsequent runs this is a no-op since the session
-# already exists.
-if [ ! -f "${HOME}/.coderv2/session" ]; then
+# $HOME/.config/coderv2/session which is persisted in the
+# coderv2_config volume. On subsequent runs this is a no-op
+# since the session already exists.
+CODERV2_DIR="${HOME}/.config/coderv2"
+if [ ! -f "${CODERV2_DIR}/session" ]; then
   $CODER login http://coderd:3000 \
     --first-user-username=admin \
     --first-user-email=admin@coder.com \
