@@ -1945,7 +1945,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		// Pprof settings
 		{
 			Name:        "pprof Enable",
-			Description: "Serve pprof metrics on the address defined by pprof address.",
+			Description: "Serve pprof profiling endpoints on the address defined by pprof address.",
 			Flag:        "pprof-enable",
 			Env:         "CODER_PPROF_ENABLE",
 			Value:       &c.Pprof.Enable,
