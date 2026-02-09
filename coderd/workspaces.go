@@ -857,6 +857,7 @@ func createWorkspace(
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 		provisionerDaemons,
+		nil,
 	)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
@@ -2579,6 +2580,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.logSources,
 		data.templateVersions,
 		data.provisionerDaemons,
+		data.connectionLogs,
 	)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)

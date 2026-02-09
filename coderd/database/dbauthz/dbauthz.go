@@ -2712,6 +2712,15 @@ func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	return q.db.GetOAuthSigningKey(ctx)
 }
 
+func (q *querier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg database.GetOngoingAgentConnectionsLast24hParams) ([]database.GetOngoingAgentConnectionsLast24hRow, error) {
+	// This is a system-level read; authorization comes from the
+	// caller using dbauthz.AsSystemRestricted(ctx).
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetOngoingAgentConnectionsLast24h(ctx, arg)
+}
+
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }

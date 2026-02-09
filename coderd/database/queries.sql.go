@@ -2494,6 +2494,123 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 	return items, nil
 }
 
+const getOngoingAgentConnectionsLast24h = `-- name: GetOngoingAgentConnectionsLast24h :many
+WITH ranked AS (
+	SELECT
+		id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason,
+		row_number() OVER (
+			PARTITION BY workspace_id, agent_name
+			ORDER BY connect_time DESC
+		) AS rn
+	FROM
+		connection_logs
+	WHERE
+		workspace_id = ANY($2 :: uuid[])
+		AND agent_name = ANY($3 :: text[])
+		AND type = ANY($4 :: connection_type[])
+		AND disconnect_time IS NULL
+		AND connect_time >= $5 :: timestamp with time zone
+)
+SELECT
+	id,
+	connect_time,
+	organization_id,
+	workspace_owner_id,
+	workspace_id,
+	workspace_name,
+	agent_name,
+	type,
+	ip,
+	code,
+	user_agent,
+	user_id,
+	slug_or_port,
+	connection_id,
+	disconnect_time,
+	disconnect_reason
+FROM
+	ranked
+WHERE
+	rn <= $1
+ORDER BY
+	workspace_id,
+	agent_name,
+	connect_time DESC
+`
+
+type GetOngoingAgentConnectionsLast24hParams struct {
+	PerAgentLimit int64            `db:"per_agent_limit" json:"per_agent_limit"`
+	WorkspaceIds  []uuid.UUID      `db:"workspace_ids" json:"workspace_ids"`
+	AgentNames    []string         `db:"agent_names" json:"agent_names"`
+	Types         []ConnectionType `db:"types" json:"types"`
+	Since         time.Time        `db:"since" json:"since"`
+}
+
+type GetOngoingAgentConnectionsLast24hRow struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
+	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
+	AgentName        string         `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType `db:"type" json:"type"`
+	Ip               pqtype.Inet    `db:"ip" json:"ip"`
+	Code             sql.NullInt32  `db:"code" json:"code"`
+	UserAgent        sql.NullString `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID  `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     uuid.NullUUID  `db:"connection_id" json:"connection_id"`
+	DisconnectTime   sql.NullTime   `db:"disconnect_time" json:"disconnect_time"`
+	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+}
+
+func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg GetOngoingAgentConnectionsLast24hParams) ([]GetOngoingAgentConnectionsLast24hRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOngoingAgentConnectionsLast24h,
+		arg.PerAgentLimit,
+		pq.Array(arg.WorkspaceIds),
+		pq.Array(arg.AgentNames),
+		pq.Array(arg.Types),
+		arg.Since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOngoingAgentConnectionsLast24hRow
+	for rows.Next() {
+		var i GetOngoingAgentConnectionsLast24hRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConnectTime,
+			&i.OrganizationID,
+			&i.WorkspaceOwnerID,
+			&i.WorkspaceID,
+			&i.WorkspaceName,
+			&i.AgentName,
+			&i.Type,
+			&i.Ip,
+			&i.Code,
+			&i.UserAgent,
+			&i.UserID,
+			&i.SlugOrPort,
+			&i.ConnectionID,
+			&i.DisconnectTime,
+			&i.DisconnectReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertConnectionLog = `-- name: UpsertConnectionLog :one
 INSERT INTO connection_logs (
 	id,

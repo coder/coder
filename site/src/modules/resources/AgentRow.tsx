@@ -451,7 +451,7 @@ const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
 								>
 									<td className="py-2 pr-4 font-mono text-xs">{conn.ip}</td>
 									<td className="py-2 pr-4 text-xs">
-										{connectionTypeLabel(conn.Type)}
+										{connectionTypeLabel(conn.type)}
 									</td>
 									<td className="py-2 pr-4">
 										<span className="inline-flex items-center gap-1.5 text-xs">

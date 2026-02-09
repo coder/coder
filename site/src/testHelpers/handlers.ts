@@ -343,7 +343,12 @@ export const handlers = [
 			path.resolve(__dirname, "./templateFiles.tar"),
 		);
 
-		return HttpResponse.arrayBuffer(fileBuffer);
+		return HttpResponse.arrayBuffer(
+			fileBuffer.buffer.slice(
+				fileBuffer.byteOffset,
+				fileBuffer.byteOffset + fileBuffer.byteLength,
+			),
+		);
 	}),
 
 	http.get("/api/v2/templateversions/:templateVersionId/parameters", () => {

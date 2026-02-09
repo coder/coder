@@ -6726,12 +6726,12 @@ export interface WorkspaceBuildsRequest extends Pagination {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceConnection {
-	readonly ip: string;
+	readonly ip?: string;
 	readonly status: WorkspaceConnectionStatus;
 	readonly created_at: string;
 	readonly connected_at?: string;
 	readonly ended_at?: string;
-	readonly Type: ConnectionType;
+	readonly type: ConnectionType;
 }
 
 // From codersdk/deployment.go
