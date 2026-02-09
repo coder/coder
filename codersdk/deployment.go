@@ -3553,7 +3553,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key",
-			Description: "The access key to authenticate against the AWS Bedrock API.",
+			Description: "AWS access key for authenticating with the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
 			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
