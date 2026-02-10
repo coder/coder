@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
@@ -23,6 +24,7 @@ func main() {
 		Long:  "A smart, opinionated tool for running the Coder development stack.",
 		Children: []*serpent.Command{
 			upCmd(),
+			cleanCmd(),
 		},
 	}
 
@@ -30,6 +32,35 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func cleanCmd() *serpent.Command {
+	return &serpent.Command{
+		Use:   "clean",
+		Short: "Remove all cdev-managed resources (volumes, containers, etc.)",
+		Handler: func(inv *serpent.Invocation) error {
+			cmd := exec.Command("docker", "system", "prune", "-f", "--filter", fmt.Sprintf("label=%s", catalog.CDevLabel))
+			cmd.Stderr = inv.Stderr
+			cmd.Stdout = inv.Stdout
+			_, _ = fmt.Fprintf(inv.Stdout, "🧹 Cleaning up cdev containers and networks...\n")
+			err := cmd.Run()
+			if err != nil {
+				return fmt.Errorf("failed to prune system: %w", err)
+			}
+
+			cmd = exec.Command("docker", "volume", "prune", "-f", "--filter", fmt.Sprintf("label=%s", catalog.CDevLabel))
+			cmd.Stderr = inv.Stderr
+			cmd.Stdout = inv.Stdout
+
+			_, _ = fmt.Fprintln(inv.Stdout, "🧹 Cleaning up cdev volumes...\n")
+			err = cmd.Run()
+			if err != nil {
+				return fmt.Errorf("failed to prune volumes: %w", err)
+			}
+
+			return nil
+		},
 	}
 }
 
@@ -43,7 +74,7 @@ func upCmd() *serpent.Command {
 
 			fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
 
-			services := catalog.New()
+			services := catalog.New(logger)
 			err := services.Register(
 				catalog.NewDocker(),
 				catalog.VolumeCoderCache(),

@@ -68,10 +68,10 @@ func (v *Volume) Start(ctx context.Context, c *Catalog) error {
 			return fmt.Errorf("failed to create volume %s: %w", v.name, err)
 		}
 
-		err = v.chown(ctx, pool)
-		if err != nil {
-			return fmt.Errorf("failed to chown volume %s: %w", v.name, err)
-		}
+		//err = v.chown(ctx, pool)
+		//if err != nil {
+		//	return fmt.Errorf("failed to chown volume %s: %w", v.name, err)
+		//}
 	}
 	v.vol = vol
 

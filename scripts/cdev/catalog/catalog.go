@@ -43,14 +43,16 @@ type Service[Result any] interface {
 type Catalog struct {
 	mu       sync.RWMutex
 	services map[string]ServiceBase
+	logger   slog.Logger
 
 	manager *unit.Manager
 }
 
-func New() *Catalog {
+func New(logger slog.Logger) *Catalog {
 	return &Catalog{
 		services: make(map[string]ServiceBase),
 		manager:  unit.NewManager(),
+		logger:   logger,
 	}
 }
 

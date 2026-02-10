@@ -101,36 +101,65 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 		stdoutWriter = io.MultiWriter(&stdout, os.Stdout)
 		stderrWriter = io.MultiWriter(&stderr, os.Stderr)
 	}
-
 	fmt.Println("🔨 Building slim binaries...")
 
-	// Run the container.
-	resource, err := pool.RunWithOptions(runOpts, func(config *docker.HostConfig) {
-		config.AutoRemove = true
-		config.GroupAdd = []string{dockerGroup}
-		config.NetworkMode = "host"
+	// Create container (don't start yet, so we can attach first).
+	container, err := pool.Client.CreateContainer(docker.CreateContainerOptions{
+		Config: &docker.Config{
+			Image:        dogfoodImage + ":" + dogfoodTag,
+			WorkingDir:   "/app",
+			Env:          runOpts.Env,
+			Cmd:          runOpts.Cmd,
+			Labels:       runOpts.Labels,
+			AttachStdout: true,
+			AttachStderr: true,
+		},
+		HostConfig: &docker.HostConfig{
+			Binds:       runOpts.Mounts,
+			GroupAdd:    []string{dockerGroup},
+			NetworkMode: "host",
+		},
 	})
 	if err != nil {
+		return fmt.Errorf("failed to create build container: %w", err)
+	}
+
+	defer func() {
+		_ = pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:    container.ID,
+			Force: true,
+		})
+	}()
+
+	// Attach BEFORE starting to capture all output from the beginning.
+	attachDone := make(chan error, 1)
+	go func() {
+		attachDone <- pool.Client.AttachToContainer(docker.AttachToContainerOptions{
+			Container:    container.ID,
+			OutputStream: stdoutWriter,
+			ErrorStream:  stderrWriter,
+			Stdout:       true,
+			Stderr:       true,
+			Stream:       true,
+		})
+	}()
+
+	// Start the container.
+	if err := pool.Client.StartContainer(container.ID, nil); err != nil {
 		return fmt.Errorf("failed to start build container: %w", err)
 	}
 
 	// Wait for container to complete.
-	exitCode, err := pool.Client.WaitContainerWithContext(resource.Container.ID, ctx)
+	exitCode, err := pool.Client.WaitContainerWithContext(container.ID, ctx)
 	if err != nil {
 		return fmt.Errorf("failed waiting for build: %w", err)
 	}
 
-	// Get logs.
-	_ = pool.Client.Logs(docker.LogsOptions{
-		Container:    resource.Container.ID,
-		OutputStream: stdoutWriter,
-		ErrorStream:  stderrWriter,
-		Stdout:       true,
-		Stderr:       true,
-	})
+	// Wait for attach to finish (ensures all logs are flushed).
+	<-attachDone
 
 	if exitCode != 0 {
-		return fmt.Errorf("build failed with exit code %d:\n%s", exitCode, stderr.String())
+		return fmt.Errorf("build failed with exit code %d", exitCode)
 	}
 
 	fmt.Println("✅ Slim binaries built successfully")
