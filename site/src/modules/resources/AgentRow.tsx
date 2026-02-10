@@ -449,7 +449,11 @@ const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
 									key={`${conn.ip}-${conn.created_at}-${idx}`}
 									className="border-t border-border first:border-t-0 text-content-primary"
 								>
-									<td className="py-2 pr-4 font-mono text-xs">{conn.ip}</td>
+									<td className="py-2 pr-4 font-mono text-xs">
+										{conn.short_description && conn.client_hostname
+											? `${conn.short_description} on ${conn.client_hostname}`
+											: conn.ip}
+									</td>
 									<td className="py-2 pr-4 text-xs">
 										{connectionTypeLabel(conn.type)}
 									</td>
