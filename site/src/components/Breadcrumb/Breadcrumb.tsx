@@ -58,7 +58,7 @@ export const BreadcrumbLink: React.FC<BreadcrumbLinkProps> = ({
 	return (
 		<Comp
 			className={cn(
-				"transition-colors font-normal text-content-link hover:text-content-primary",
+				"text-content-secondary transition-colors hover:text-content-primary no-underline hover:underline",
 				className,
 			)}
 			{...props}
