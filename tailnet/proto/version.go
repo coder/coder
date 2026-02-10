@@ -63,9 +63,13 @@ import (
 //
 // API v2.8:
 //   - Added support for pre-created sub agents on the Agent API.
+//
+// API v2.9:
+//   - Added ReportRestart RPC on the Agent API for reporting agent
+//     restarts after OOM kills or other SIGKILL events.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 8
+	CurrentMinor = 9
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

@@ -147,6 +147,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
+          "last_restarted_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -177,6 +178,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "restart_count": 0,
           "scripts": [
             {
               "cron": "string",
@@ -387,6 +389,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
+          "last_restarted_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -417,6 +420,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "restart_count": 0,
           "scripts": [
             {
               "cron": "string",
@@ -746,6 +750,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
         "last_connected_at": "2019-08-24T14:15:22Z",
+        "last_restarted_at": "2019-08-24T14:15:22Z",
         "latency": {
           "property1": {
             "latency_ms": 0,
@@ -776,6 +781,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         },
         "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+        "restart_count": 0,
         "scripts": [
           {
             "cron": "string",
@@ -883,6 +889,7 @@ Status Code **200**
 | `»» id`                         | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» instance_id`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» last_connected_at`          | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»» last_restarted_at`          | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» latency`                    | object                                                                                                 | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                            |
 | `»»» [any property]`            | [codersdk.DERPRegion](schemas.md#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» latency_ms`               | number                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -903,6 +910,7 @@ Status Code **200**
 | `»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
 | `»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» restart_count`              | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1095,6 +1103,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
+          "last_restarted_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -1125,6 +1134,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "restart_count": 0,
           "scripts": [
             {
               "cron": "string",
@@ -1446,6 +1456,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -1476,6 +1487,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",
@@ -1645,6 +1657,7 @@ Status Code **200**
 | `»»» id`                         | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» instance_id`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» last_connected_at`          | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» last_restarted_at`          | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» latency`                    | object                                                                                                 | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                            |
 | `»»»» [any property]`            | [codersdk.DERPRegion](schemas.md#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» latency_ms`               | number                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1665,6 +1678,7 @@ Status Code **200**
 | `»»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                              |
 | `»»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» restart_count`              | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1897,6 +1911,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
+          "last_restarted_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -1927,6 +1942,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "restart_count": 0,
           "scripts": [
             {
               "cron": "string",

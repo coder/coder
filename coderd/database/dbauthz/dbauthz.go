@@ -5794,6 +5794,24 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentRestartCount(ctx context.Context, arg database.UpdateWorkspaceAgentRestartCountParams) error {
+	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentRestartCount(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {

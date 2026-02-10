@@ -60,6 +60,8 @@ func workspaceAgent() *serpent.Command {
 		socketServerEnabled            bool
 		socketPath                     string
 		boundaryLogProxySocketPath     string
+		restartCount                   int64
+		restartReason                  string
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -138,11 +140,33 @@ func workspaceAgent() *serpent.Command {
 				// to do this else we fork bomb ourselves.
 				//nolint:gocritic
 				args := append(os.Args, "--no-reap")
-				exitCode, err := reaper.ForkReap(
+
+				reaperOpts := []reaper.Option{
 					reaper.WithExecArgs(args...),
 					reaper.WithCatchSignals(StopSignals...),
 					reaper.WithLogger(logger),
-				)
+				}
+
+				// Allow configuring restart behavior via environment
+				// variables for OOM recovery.
+				if v, ok := os.LookupEnv("CODER_AGENT_MAX_RESTARTS"); ok {
+					n, err := strconv.Atoi(v)
+					if err == nil {
+						reaperOpts = append(reaperOpts, reaper.WithMaxRestarts(n))
+					} else {
+						logger.Warn(ctx, "invalid CODER_AGENT_MAX_RESTARTS value", slog.F("value", v))
+					}
+				}
+				if v, ok := os.LookupEnv("CODER_AGENT_RESTART_WINDOW"); ok {
+					d, err := time.ParseDuration(v)
+					if err == nil {
+						reaperOpts = append(reaperOpts, reaper.WithRestartWindow(d))
+					} else {
+						logger.Warn(ctx, "invalid CODER_AGENT_RESTART_WINDOW value", slog.F("value", v))
+					}
+				}
+
+				exitCode, err := reaper.ForkReap(reaperOpts...)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
@@ -327,6 +351,8 @@ func workspaceAgent() *serpent.Command {
 					SocketPath:                 socketPath,
 					SocketServerEnabled:        socketServerEnabled,
 					BoundaryLogProxySocketPath: boundaryLogProxySocketPath,
+					RestartCount:               int(restartCount),
+					RestartReason:              restartReason,
 				})
 
 				if debugAddress != "" {
@@ -506,6 +532,18 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH",
 			Description: "The path for the boundary log proxy server Unix socket. Boundary should write audit logs to this socket.",
 			Value:       serpent.StringOf(&boundaryLogProxySocketPath),
+		},
+		{
+			Flag:        "restart-count",
+			Description: "Internal flag set by the reaper to indicate how many times the agent has been restarted.",
+			Value:       serpent.Int64Of(&restartCount),
+			Hidden:      true,
+		},
+		{
+			Flag:        "restart-reason",
+			Description: "Internal flag set by the reaper to indicate the reason for the restart.",
+			Value:       serpent.StringOf(&restartReason),
+			Hidden:      true,
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)

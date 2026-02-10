@@ -79,3 +79,10 @@ type DRPCAgentClient27 interface {
 type DRPCAgentClient28 interface {
 	DRPCAgentClient27
 }
+
+// DRPCAgentClient29 is the Agent API at v2.9. It adds the ReportRestart RPC
+// for reporting agent restarts after OOM kills or other SIGKILL events.
+type DRPCAgentClient29 interface {
+	DRPCAgentClient28
+	ReportRestart(ctx context.Context, in *ReportRestartRequest) (*ReportRestartResponse, error)
+}

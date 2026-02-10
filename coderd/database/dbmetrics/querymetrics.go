@@ -3933,6 +3933,14 @@ func (m queryMetricsStore) UpdateWorkspaceAgentMetadata(ctx context.Context, arg
 	return r0
 }
 
+func (m queryMetricsStore) UpdateWorkspaceAgentRestartCount(ctx context.Context, arg database.UpdateWorkspaceAgentRestartCountParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentRestartCount(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentRestartCount").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentRestartCount").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceAgentStartupByID(ctx, arg)

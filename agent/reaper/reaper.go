@@ -2,6 +2,7 @@ package reaper
 
 import (
 	"os"
+	"time"
 
 	"github.com/hashicorp/go-reap"
 
@@ -42,9 +43,50 @@ func WithLogger(logger slog.Logger) Option {
 	}
 }
 
+// WithMaxRestarts sets the maximum number of times the child process
+// will be restarted after being killed by SIGKILL within the restart
+// window. Default is 5.
+func WithMaxRestarts(n int) Option {
+	return func(o *options) {
+		o.MaxRestarts = n
+	}
+}
+
+// WithRestartWindow sets the sliding time window within which restart
+// attempts are counted. If the max restarts are exhausted within this
+// window, the reaper gives up. Default is 10 minutes.
+func WithRestartWindow(d time.Duration) Option {
+	return func(o *options) {
+		o.RestartWindow = d
+	}
+}
+
+// WithRestartBaseDelay sets the initial backoff delay before restarting
+// the child process. The delay doubles on each subsequent restart.
+// Default is 1 second.
+func WithRestartBaseDelay(d time.Duration) Option {
+	return func(o *options) {
+		o.RestartBaseDelay = d
+	}
+}
+
+// WithRestartMaxDelay sets the maximum backoff delay before restarting
+// the child process. Default is 60 seconds.
+func WithRestartMaxDelay(d time.Duration) Option {
+	return func(o *options) {
+		o.RestartMaxDelay = d
+	}
+}
+
 type options struct {
 	ExecArgs     []string
 	PIDs         reap.PidCh
 	CatchSignals []os.Signal
 	Logger       slog.Logger
+
+	// Restart options for crash-loop recovery (e.g. OOM kills).
+	MaxRestarts      int
+	RestartWindow    time.Duration
+	RestartBaseDelay time.Duration
+	RestartMaxDelay  time.Duration
 }

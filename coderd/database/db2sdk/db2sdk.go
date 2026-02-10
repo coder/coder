@@ -500,6 +500,10 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	if dbAgent.ReadyAt.Valid {
 		workspaceAgent.ReadyAt = &dbAgent.ReadyAt.Time
 	}
+	workspaceAgent.RestartCount = dbAgent.RestartCount
+	if dbAgent.LastRestartedAt.Valid {
+		workspaceAgent.LastRestartedAt = &dbAgent.LastRestartedAt.Time
+	}
 
 	switch {
 	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:

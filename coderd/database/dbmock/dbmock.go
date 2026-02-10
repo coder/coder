@@ -7364,6 +7364,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentMetadata(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentMetadata), ctx, arg)
 }
 
+// UpdateWorkspaceAgentRestartCount mocks base method.
+func (m *MockStore) UpdateWorkspaceAgentRestartCount(ctx context.Context, arg database.UpdateWorkspaceAgentRestartCountParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentRestartCount", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAgentRestartCount indicates an expected call of UpdateWorkspaceAgentRestartCount.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentRestartCount(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentRestartCount", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentRestartCount), ctx, arg)
+}
+
 // UpdateWorkspaceAgentStartupByID mocks base method.
 func (m *MockStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	m.ctrl.T.Helper()

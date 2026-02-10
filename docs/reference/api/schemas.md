@@ -6303,6 +6303,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -6333,6 +6334,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",
@@ -10255,6 +10257,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -10285,6 +10288,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",
@@ -10537,6 +10541,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
   "last_connected_at": "2019-08-24T14:15:22Z",
+  "last_restarted_at": "2019-08-24T14:15:22Z",
   "latency": {
     "property1": {
       "latency_ms": 0,
@@ -10567,6 +10572,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "restart_count": 0,
   "scripts": [
     {
       "cron": "string",
@@ -10613,6 +10619,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`                         | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `instance_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `last_connected_at`          | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `last_restarted_at`          | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `latency`                    | object                                                                                       | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                          |
 | » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                              |
 | `lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                              |
@@ -10624,6 +10631,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `parent_id`                  | [uuid.NullUUID](#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                              |
 | `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `restart_count`              | integer                                                                                      | false    |              |                                                                                                                                                                              |
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                              |
 | `started_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future! |
@@ -11412,6 +11420,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
+          "last_restarted_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -11442,6 +11451,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "restart_count": 0,
           "scripts": [
             {
               "cron": "string",
@@ -11879,6 +11889,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "instance_id": "string",
       "last_connected_at": "2019-08-24T14:15:22Z",
+      "last_restarted_at": "2019-08-24T14:15:22Z",
       "latency": {
         "property1": {
           "latency_ms": 0,
@@ -11909,6 +11920,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "ready_at": "2019-08-24T14:15:22Z",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+      "restart_count": 0,
       "scripts": [
         {
           "cron": "string",
@@ -12216,6 +12228,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",
                 "last_connected_at": "2019-08-24T14:15:22Z",
+                "last_restarted_at": "2019-08-24T14:15:22Z",
                 "latency": {
                   "property1": {
                     "latency_ms": 0,
@@ -12246,6 +12259,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 },
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+                "restart_count": 0,
                 "scripts": [
                   {
                     "cron": "string",

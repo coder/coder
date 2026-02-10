@@ -202,6 +202,7 @@ of the template will be used.
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -232,6 +233,7 @@ of the template will be used.
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",
@@ -507,6 +509,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -537,6 +540,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",
@@ -837,6 +841,7 @@ of the template will be used.
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -867,6 +872,7 @@ of the template will be used.
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",
@@ -1128,6 +1134,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",
                 "last_connected_at": "2019-08-24T14:15:22Z",
+                "last_restarted_at": "2019-08-24T14:15:22Z",
                 "latency": {
                   "property1": {
                     "latency_ms": 0,
@@ -1158,6 +1165,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 },
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+                "restart_count": 0,
                 "scripts": [
                   {
                     "cron": "string",
@@ -1434,6 +1442,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -1464,6 +1473,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",
@@ -1999,6 +2009,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
+            "last_restarted_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -2029,6 +2040,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             },
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "restart_count": 0,
             "scripts": [
               {
                 "cron": "string",

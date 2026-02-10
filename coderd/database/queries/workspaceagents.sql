@@ -475,3 +475,13 @@ WHERE
 	AND workspaces.deleted = FALSE
 	AND users.deleted = FALSE
 LIMIT 1;
+
+-- name: UpdateWorkspaceAgentRestartCount :exec
+UPDATE
+	workspace_agents
+SET
+	restart_count = @restart_count,
+	last_restarted_at = @last_restarted_at
+WHERE
+	id = @id;
+

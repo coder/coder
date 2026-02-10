@@ -19002,6 +19002,10 @@
 					"type": "string",
 					"format": "date-time"
 				},
+				"last_restarted_at": {
+					"type": "string",
+					"format": "date-time"
+				},
 				"latency": {
 					"description": "DERPLatency is mapped by region name (e.g. \"New York City\", \"Seattle\").",
 					"type": "object",
@@ -19045,6 +19049,9 @@
 				"resource_id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"restart_count": {
+					"type": "integer"
 				},
 				"scripts": {
 					"type": "array",

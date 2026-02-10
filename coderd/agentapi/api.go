@@ -57,6 +57,7 @@ type API struct {
 	*ConnLogAPI
 	*SubAgentAPI
 	*BoundaryLogsAPI
+	*RestartAPI
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
@@ -234,6 +235,13 @@ func New(opts Options, workspace database.Workspace) *API {
 		TemplateID:           workspace.TemplateID,
 		TemplateVersionID:    opts.TemplateVersionID,
 		BoundaryUsageTracker: opts.BoundaryUsageTracker,
+	}
+
+	api.RestartAPI = &RestartAPI{
+		AgentFn:                  api.agent,
+		Database:                 opts.Database,
+		Log:                      opts.Log,
+		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

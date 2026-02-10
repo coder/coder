@@ -587,6 +587,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
   "last_connected_at": "2019-08-24T14:15:22Z",
+  "last_restarted_at": "2019-08-24T14:15:22Z",
   "latency": {
     "property1": {
       "latency_ms": 0,
@@ -617,6 +618,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   },
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "restart_count": 0,
   "scripts": [
     {
       "cron": "string",

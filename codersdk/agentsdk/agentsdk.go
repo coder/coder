@@ -279,6 +279,18 @@ func (c *Client) ConnectRPC28(ctx context.Context) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
+// ConnectRPC29 returns a dRPC client to the Agent API v2.9. It adds the
+// ReportRestart RPC for reporting agent restarts after OOM kills.
+func (c *Client) ConnectRPC29(ctx context.Context) (
+	proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 9))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
 // ConnectRPC connects to the workspace agent API and tailnet API
 func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 	return c.connectRPCVersion(ctx, proto.CurrentVersion)

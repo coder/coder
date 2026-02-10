@@ -494,6 +494,13 @@ message ReportBoundaryLogsRequest {
 
 message ReportBoundaryLogsResponse {}
 
+message ReportRestartRequest {
+	int32 restart_count = 1;
+	string restart_reason = 2;
+}
+
+message ReportRestartResponse {}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -512,4 +519,5 @@ service Agent {
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
+	rpc ReportRestart(ReportRestartRequest) returns (ReportRestartResponse);
 }
