@@ -66,7 +66,7 @@ func makeNetTelemetry(p2p *bool, derpLatency, p2pLatency *time.Duration, homeDER
 	}
 }
 
-func TestMergeWorkspaceConnections(t *testing.T) {
+func TestMergeConnectionsFlat(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
@@ -81,7 +81,7 @@ func TestMergeWorkspaceConnections(t *testing.T) {
 
 	t.Run("BothEmpty", func(t *testing.T) {
 		t.Parallel()
-		result := mergeWorkspaceConnections(nil, nil, nil, nil)
+		result := mergeConnectionsFlat(nil, nil, nil, nil)
 		assert.Nil(t, result)
 	})
 
@@ -95,7 +95,7 @@ func TestMergeWorkspaceConnections(t *testing.T) {
 			makeConnectionLog(ip2, database.ConnectionTypeVscode, now.Add(-time.Minute)),
 		}
 
-		result := mergeWorkspaceConnections(nil, logs, nil, nil)
+		result := mergeConnectionsFlat(nil, logs, nil, nil)
 		require.Len(t, result, 2)
 
 		assert.Equal(t, codersdk.ConnectionType("ssh"), result[0].Type)
@@ -119,7 +119,7 @@ func TestMergeWorkspaceConnections(t *testing.T) {
 			makeTunnelPeer(ip2, tailnetproto.CoordinateResponse_PeerUpdate_LOST, now.Add(-time.Minute)),
 		}
 
-		result := mergeWorkspaceConnections(peers, nil, nil, nil)
+		result := mergeConnectionsFlat(peers, nil, nil, nil)
 		require.Len(t, result, 2)
 
 		// Map iteration order is nondeterministic, find each by IP.
@@ -150,7 +150,7 @@ func TestMergeWorkspaceConnections(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeSsh, now.Add(-time.Second)),
 		}
 
-		result := mergeWorkspaceConnections(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(peers, logs, nil, nil)
 		require.Len(t, result, 1)
 
 		assert.Equal(t, codersdk.ConnectionType("ssh"), result[0].Type)
@@ -170,7 +170,7 @@ func TestMergeWorkspaceConnections(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeSsh, now),
 		}
 
-		result := mergeWorkspaceConnections(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(peers, logs, nil, nil)
 		require.Len(t, result, 1)
 
 		assert.Equal(t, codersdk.ConnectionType("ssh"), result[0].Type)
@@ -190,7 +190,7 @@ func TestMergeWorkspaceConnections(t *testing.T) {
 			makeConnectionLog(ip1, database.ConnectionTypeVscode, now.Add(-time.Second)),
 		}
 
-		result := mergeWorkspaceConnections(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(peers, logs, nil, nil)
 		require.Len(t, result, 2)
 
 		// First entry is the matched log (preserves log order).
@@ -219,7 +219,7 @@ func TestMergeWorkspaceConnections(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeJetbrains, now.Add(-2*time.Second)),
 		}
 
-		result := mergeWorkspaceConnections(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(peers, logs, nil, nil)
 		require.Len(t, result, 3)
 
 		// All three should inherit the peer's LOST status.

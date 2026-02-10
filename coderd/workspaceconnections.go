@@ -81,20 +81,77 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 	return conn
 }
 
-// mergeWorkspaceConnections combines coordinator tunnel peers with connection
-// logs into a unified view. Tunnel peers provide real-time network status,
-// connection logs provide the application-layer type (ssh, vscode, etc.).
-// Entries are correlated by tailnet IP address.
-func mergeWorkspaceConnections(
+// mergeWorkspaceConnectionsIntoSessions groups ongoing connections by IP.
+// Live sessions don't have session_id yet - they're computed at query time.
+func mergeWorkspaceConnectionsIntoSessions(
 	tunnelPeers []*tailnet.TunnelPeerInfo,
 	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
 	derpMap *tailcfg.DERPMap,
 	peerTelemetry map[uuid.UUID]*PeerNetworkTelemetry,
-) []codersdk.WorkspaceConnection {
+) []codersdk.WorkspaceSession {
 	if len(tunnelPeers) == 0 && len(connectionLogs) == 0 {
 		return nil
 	}
 
+	// Build existing flat connections using the current merging logic.
+	connections := mergeConnectionsFlat(tunnelPeers, connectionLogs)
+
+	// Group by (IP, ClientHostname).
+	type sessionKey struct {
+		ip       string
+		hostname string
+	}
+	groups := make(map[sessionKey][]codersdk.WorkspaceConnection)
+
+	for _, conn := range connections {
+		ipStr := ""
+		if conn.IP != nil {
+			ipStr = conn.IP.String()
+		}
+		key := sessionKey{ip: ipStr, hostname: conn.ClientHostname}
+		groups[key] = append(groups[key], conn)
+	}
+
+	// Convert to sessions.
+	var sessions []codersdk.WorkspaceSession
+	for _, conns := range groups {
+		if len(conns) == 0 {
+			continue
+		}
+		sessions = append(sessions, codersdk.WorkspaceSession{
+			// No ID for live sessions (ephemeral grouping).
+			IP:               conns[0].IP,
+			ClientHostname:   conns[0].ClientHostname,
+			ShortDescription: conns[0].ShortDescription,
+			Status:           deriveSessionStatus(conns),
+			StartedAt:        earliestTime(conns),
+			Connections:      conns,
+		})
+	}
+
+	// Sort sessions by IP for stable ordering.
+	slices.SortFunc(sessions, func(a, b codersdk.WorkspaceSession) int {
+		aIP, bIP := "", ""
+		if a.IP != nil {
+			aIP = a.IP.String()
+		}
+		if b.IP != nil {
+			bIP = b.IP.String()
+		}
+		return cmp.Compare(aIP, bIP)
+	})
+
+	return sessions
+}
+
+// mergeConnectionsFlat combines coordinator tunnel peers with connection logs
+// into a unified view. Tunnel peers provide real-time network status,
+// connection logs provide the application-layer type (ssh, vscode, etc.).
+// Entries are correlated by tailnet IP address.
+func mergeConnectionsFlat(
+	tunnelPeers []*tailnet.TunnelPeerInfo,
+	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
+) []codersdk.WorkspaceConnection {
 	// Build IP -> tunnel peer lookup. A single peer has one tailnet IP.
 	type peerEntry struct {
 		ip     netip.Addr
@@ -227,4 +284,29 @@ func mergeWorkspaceConnections(
 		connections = append(connections, entry.connection)
 	}
 	return connections
+}
+
+func deriveSessionStatus(conns []codersdk.WorkspaceConnection) codersdk.WorkspaceConnectionStatus {
+	for _, c := range conns {
+		if c.Status == codersdk.ConnectionStatusOngoing {
+			return codersdk.ConnectionStatusOngoing
+		}
+	}
+	if len(conns) > 0 {
+		return conns[0].Status
+	}
+	return codersdk.ConnectionStatusCleanDisconnected
+}
+
+func earliestTime(conns []codersdk.WorkspaceConnection) time.Time {
+	if len(conns) == 0 {
+		return time.Time{}
+	}
+	earliest := conns[0].CreatedAt
+	for _, c := range conns[1:] {
+		if c.CreatedAt.Before(earliest) {
+			earliest = c.CreatedAt
+		}
+	}
+	return earliest
 }
