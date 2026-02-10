@@ -628,6 +628,16 @@ func createWorkspace(
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 	err = api.Database.InTx(func(db database.Store) error {
+		count, err := db.GetRunningWorkspaceCountByOwnerID(ctx, owner.ID)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", owner.ID), slog.Error(err))
+			return xerrors.Errorf("internal error checking running workspace limit: %w", err)
+		}
+		maxRunning := api.DeploymentValues.MaxRunningWorkspacesPerUser.Value()
+		if maxRunning > 0 && count >= maxRunning {
+			return errRunningWorkspaceLimitExceeded
+		}
+
 		now := dbtime.Now()
 		// Workspaces are created without any versions.
 		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
@@ -677,6 +687,13 @@ func createWorkspace(
 		)
 		return err
 	}, nil)
+	if errors.Is(err, errRunningWorkspaceLimitExceeded) {
+		maxRunning := api.DeploymentValues.MaxRunningWorkspacesPerUser.Value()
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Running workspace limit reached (max %d per user). Stop one or more workspaces to create another.", maxRunning),
+		})
+		return
+	}
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{

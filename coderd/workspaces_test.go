@@ -932,6 +932,139 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 	})
 }
 
+func TestMaxRunningWorkspacesPerUser(t *testing.T) {
+	t.Parallel()
+
+	t.Run("LimitOne_CreateWorkspaceFails", func(t *testing.T) {
+		t.Parallel()
+
+		deploymentValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			require.NoError(t, dv.MaxRunningWorkspacesPerUser.Set("1"))
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         deploymentValues,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
+
+		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:       template.ID,
+			Name:             "second-workspace",
+			AutomaticUpdates: codersdk.AutomaticUpdatesNever,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Running workspace limit reached")
+		require.Contains(t, apiErr.Message, "max 1 per user")
+	})
+
+	t.Run("LimitTwo_ThirdCreateFails", func(t *testing.T) {
+		t.Parallel()
+
+		deploymentValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			require.NoError(t, dv.MaxRunningWorkspacesPerUser.Set("2"))
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         deploymentValues,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
+		ws2 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:       template.ID,
+			Name:             "third-workspace",
+			AutomaticUpdates: codersdk.AutomaticUpdatesNever,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("LimitTwo_ThirdAllowedAfterStop", func(t *testing.T) {
+		t.Parallel()
+
+		deploymentValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			require.NoError(t, dv.MaxRunningWorkspacesPerUser.Set("2"))
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         deploymentValues,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
+		ws2 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
+
+		stopBuild, err := client.CreateWorkspaceBuild(ctx, ws1.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+
+		ws3, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:       template.ID,
+			Name:             "third-workspace",
+			AutomaticUpdates: codersdk.AutomaticUpdatesNever,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws3.LatestBuild.ID)
+	})
+
+	t.Run("LimitZero_Unlimited", func(t *testing.T) {
+		t.Parallel()
+
+		deploymentValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			require.NoError(t, dv.MaxRunningWorkspacesPerUser.Set("0"))
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         deploymentValues,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ws1 := coderdtest.CreateWorkspace(t, client, template.ID)
+		ws2 := coderdtest.CreateWorkspace(t, client, template.ID)
+		ws3 := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws1.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws3.LatestBuild.ID)
+	})
+}
+
 func TestWorkspaceByOwnerAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {

@@ -2,9 +2,9 @@ import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
-import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { isApiError, getErrorMessage } from "api/errors";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
@@ -54,6 +54,7 @@ export interface WorkspaceProps {
 	permissions: WorkspacePermissions;
 	isOwner: boolean;
 	timings?: TypesGen.WorkspaceBuildTimings;
+	startWorkspaceError?: unknown;
 }
 
 /**
@@ -87,6 +88,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	permissions,
 	isOwner,
 	timings,
+	startWorkspaceError,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -122,6 +124,15 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 	const { shouldShow: shouldShowWorkspaceReadyDelayAlert } =
 		useWorkspaceReadyDelayAlert(timings, workspaceRunning);
+
+	const isRunningWorkspaceLimitError = Boolean(
+		startWorkspaceError &&
+			isApiError(startWorkspaceError) &&
+			startWorkspaceError.response?.status === 409 &&
+			startWorkspaceError.response?.data?.message?.includes(
+				"Running workspace limit",
+			),
+	);
 
 	return (
 		<div
@@ -240,6 +251,18 @@ export const Workspace: FC<WorkspaceProps> = ({
 							<AlertTitle>Workspace is still preparing</AlertTitle>
 							<AlertDetail>
 								Due to high demand, preparation may take a few minutes.
+							</AlertDetail>
+						</Alert>
+					)}
+
+					{isRunningWorkspaceLimitError && (
+						<Alert severity="warning">
+							<AlertTitle>Running workspace limit reached</AlertTitle>
+							<AlertDetail>
+								{getErrorMessage(
+									startWorkspaceError,
+									"Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
+								)}
 							</AlertDetail>
 						</Alert>
 					)}

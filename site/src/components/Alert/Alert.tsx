@@ -3,6 +3,7 @@ import MuiAlert, {
 	type AlertProps as MuiAlertProps,
 	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Alert";
+import MuiAlertTitle from "@mui/material/AlertTitle";
 import Collapse from "@mui/material/Collapse";
 import { Button } from "components/Button/Button";
 import {
@@ -81,3 +82,5 @@ export const AlertDetail: FC<PropsWithChildren> = ({ children }) => {
 		</span>
 	);
 };
+
+export const AlertTitle = MuiAlertTitle;

@@ -227,60 +227,61 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					type="image/svg+xml"
 					href={`/favicons/${favicon}-${faviconTheme}.svg`}
 				/>
-			</Helmet>
+		</Helmet>
 
-			<Workspace
-				permissions={permissions}
-				isUpdating={updateWorkspaceMutation.isLoading}
-				isRestarting={isRestarting}
-				workspace={workspace}
-				handleStart={(buildParameters) => {
-					startWorkspaceMutation.mutate({ buildParameters });
-				}}
-				handleStop={() => {
-					stopWorkspaceMutation.mutate({});
-				}}
-				handleDelete={() => {
-					setIsConfirmingDelete(true);
-				}}
-				handleRestart={(buildParameters) => {
-					setConfirmingRestart({ open: true, buildParameters });
-				}}
-				handleUpdate={() => {
-					setIsConfirmingUpdate(true);
-				}}
-				handleCancel={cancelBuildMutation.mutate}
-				handleSettings={() => navigate("settings")}
-				handleRetry={handleRetry}
-				handleDebug={handleDebug}
-				canDebugMode={
-					deploymentValues?.config.enable_terraform_debug_mode ?? false
+		<Workspace
+			permissions={permissions}
+			isUpdating={updateWorkspaceMutation.isLoading}
+			isRestarting={isRestarting}
+			workspace={workspace}
+			handleStart={(buildParameters) => {
+				startWorkspaceMutation.mutate({ buildParameters });
+			}}
+			handleStop={() => {
+				stopWorkspaceMutation.mutate({});
+			}}
+			handleDelete={() => {
+				setIsConfirmingDelete(true);
+			}}
+			handleRestart={(buildParameters) => {
+				setConfirmingRestart({ open: true, buildParameters });
+			}}
+			handleUpdate={() => {
+				setIsConfirmingUpdate(true);
+			}}
+			handleCancel={cancelBuildMutation.mutate}
+			handleSettings={() => navigate("settings")}
+			handleRetry={handleRetry}
+			handleDebug={handleDebug}
+			canDebugMode={
+				deploymentValues?.config.enable_terraform_debug_mode ?? false
+			}
+			handleChangeVersion={() => {
+				setChangeVersionDialogOpen(true);
+			}}
+			handleDormantActivate={async () => {
+				try {
+					await activateWorkspaceMutation.mutateAsync();
+				} catch (e) {
+					const message = getErrorMessage(e, "Error activate workspace.");
+					displayError(message);
 				}
-				handleChangeVersion={() => {
-					setChangeVersionDialogOpen(true);
-				}}
-				handleDormantActivate={async () => {
-					try {
-						await activateWorkspaceMutation.mutateAsync();
-					} catch (e) {
-						const message = getErrorMessage(e, "Error activate workspace.");
-						displayError(message);
-					}
-				}}
-				handleToggleFavorite={() => {
-					toggleFavoriteMutation.mutate();
-				}}
-				latestVersion={latestVersion}
-				canChangeVersions={canChangeVersions}
-				hideSSHButton={featureVisibility.browser_only}
-				hideVSCodeDesktopButton={featureVisibility.browser_only}
-				buildInfo={buildInfoQuery.data}
-				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
-				template={template}
-				buildLogs={buildLogs}
-				isOwner={isOwner}
-				timings={timingsQuery.data}
-			/>
+			}}
+			handleToggleFavorite={() => {
+				toggleFavoriteMutation.mutate();
+			}}
+			latestVersion={latestVersion}
+			canChangeVersions={canChangeVersions}
+			hideSSHButton={featureVisibility.browser_only}
+			hideVSCodeDesktopButton={featureVisibility.browser_only}
+			buildInfo={buildInfoQuery.data}
+			sshPrefix={sshPrefixQuery.data?.hostname_prefix}
+			template={template}
+			buildLogs={buildLogs}
+			isOwner={isOwner}
+			timings={timingsQuery.data}
+			startWorkspaceError={startWorkspaceMutation.error}
+		/>
 
 			<WorkspaceDeleteDialog
 				workspace={workspace}

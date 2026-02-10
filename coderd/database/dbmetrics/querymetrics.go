@@ -1092,6 +1092,13 @@ func (m queryMetricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedA
 	return replicas, err
 }
 
+func (m queryMetricsStore) GetRunningWorkspaceCountByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	start := time.Now()
+	count, err := m.s.GetRunningWorkspaceCountByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetRunningWorkspaceCountByOwnerID").Observe(time.Since(start).Seconds())
+	return count, err
+}
+
 func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetRuntimeConfig(ctx, key)

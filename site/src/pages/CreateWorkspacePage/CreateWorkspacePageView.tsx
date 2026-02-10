@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
+import { isApiError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -145,6 +146,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		[autofillParameters],
 	);
 
+	const isRunningWorkspaceLimitError =
+		error &&
+		isApiError(error) &&
+		error.response?.status === 409 &&
+		error.response?.data?.message?.includes("Running workspace limit");
+
 	return (
 		<Margins size="medium">
 			<PageHeader
@@ -181,7 +188,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				onSubmit={form.handleSubmit}
 				css={{ padding: "16px 0" }}
 			>
-				{Boolean(error) && <ErrorAlert error={error} />}
+			{isRunningWorkspaceLimitError ? (
+				<Alert severity="warning">
+					{error && isApiError(error)
+						? error.response.data.message
+						: "Running workspace limit reached (max 1 per user). Stop one or more workspaces to create another."}
+				</Alert>
+			) : (
+				Boolean(error) && <ErrorAlert error={error} />
+			)}
 
 				{mode === "duplicate" && (
 					<Alert severity="info" dismissible data-testid="duplication-warning">

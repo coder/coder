@@ -306,6 +306,16 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
+// maxRunningWorkspacesPerUser limits how many workspaces a user can have running at once.
+// This is a global limit across all organizations.
+//
+// TODO: If multi-organization support expands beyond the default single organization,
+// consider changing this to a per-organization limit. This would require:
+// - Adding GetRunningWorkspaceCountByOwnerIDAndOrg function
+// - Passing organization_id in the API calls
+// - Updating error messages to clarify the limit is per-organization
+var errRunningWorkspaceLimitExceeded = xerrors.New("running workspace limit exceeded")
+
 // Azure supports instance identity verification:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 //
@@ -343,6 +353,18 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
+
+		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+			count, err := tx.GetRunningWorkspaceCountByOwnerID(ctx, workspace.OwnerID)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to get running workspace count", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
+				return xerrors.Errorf("internal error checking running workspace limit: %w", err)
+			}
+			maxRunning := api.DeploymentValues.MaxRunningWorkspacesPerUser.Value()
+			if maxRunning > 0 && count >= maxRunning {
+				return errRunningWorkspaceLimitExceeded
+			}
+		}
 
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -387,6 +409,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		)
 		return err
 	}, nil)
+	if errors.Is(err, errRunningWorkspaceLimitExceeded) {
+		maxRunning := api.DeploymentValues.MaxRunningWorkspacesPerUser.Value()
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Running workspace limit reached (max %d per user). Stop one or more workspaces to start another.", maxRunning),
+		})
+		return
+	}
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
