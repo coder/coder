@@ -39,7 +39,7 @@ versions API:
 
 ```sh
 curl -u '<username>:<token>' \
-  'https://<your-artifactory>/artifactory/api/terraform/coder-registry/v1/modules/coder/code-server/coder/versions'
+  'https://<your-artifactory-host>/artifactory/api/terraform/coder-registry/v1/modules/coder/code-server/coder/versions'
 ```
 
 You should see a JSON response listing all available versions of the
@@ -54,7 +54,7 @@ On Linux/macOS, create `~/.terraformrc`. On Windows, create `%APPDATA%\terraform
 ```hcl
 host "<your-artifactory-host>" {
   services = {
-    "modules.v1" = "https://<your-artifactory>/artifactory/api/terraform/coder-registry/v1/modules/"
+    "modules.v1" = "https://<your-artifactory-host>/artifactory/api/terraform/coder-registry/v1/modules/"
   }
 }
 
@@ -67,8 +67,6 @@ Replace:
 
 - `<your-artifactory-host>` with your Artifactory hostname (e.g.,
   `artifactory.example.com` or `mycompany.jfrog.io`)
-- `<your-artifactory>` with your full Artifactory URL (e.g.,
-  `https://artifactory.example.com` or `https://mycompany.jfrog.io`)
 - `<your-artifactory-token>` with your Artifactory access token with read permissions to the `coder-registry` repository
 
 > [!NOTE]
@@ -91,7 +89,7 @@ module "code-server" {
 
 # After: Through Artifactory mirror
 module "code-server" {
-  source   = "<your-artifactory-host>/coder/code-server/coder"
+  source   = "https://<your-artifactory-host>/coder/code-server/coder"
   version  = "1.4.2"
   agent_id = coder_agent.main.id
 }
