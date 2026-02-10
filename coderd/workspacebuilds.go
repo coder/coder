@@ -1304,8 +1304,8 @@ func (api *API) convertWorkspaceBuild(
 			}
 			tunnelPeers := (*api.TailnetCoordinator.Load()).TunnelPeers(agent.ID)
 			peerTelemetry := api.PeerNetworkTelemetryStore.GetAll(agent.ID)
-			if conns := mergeWorkspaceConnections(tunnelPeers, agentLogs, api.DERPMap(), peerTelemetry); len(conns) > 0 {
-				apiAgent.Connections = conns
+			if sessions := mergeWorkspaceConnectionsIntoSessions(tunnelPeers, agentLogs, api.DERPMap(), peerTelemetry); len(sessions) > 0 {
+				apiAgent.Sessions = sessions
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}
