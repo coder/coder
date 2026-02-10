@@ -1321,6 +1321,200 @@ func TestTasksTelemetry(t *testing.T) {
 			},
 		},
 		{
+			name: "currently paused after recent resume - PausedDurationMS nil",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+				firstPauseTime := now.Add(-50 * time.Minute)
+				resumeTime := now.Add(-30 * time.Minute)
+				secondPauseTime := now.Add(-10 * time.Minute)
+
+				resp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
+					OrganizationID: h.org.ID,
+					OwnerID:        h.user.ID,
+				}).WithTask(database.TaskTable{
+					Prompt:    "currently paused after resume prompt",
+					CreatedAt: now.Add(-6 * time.Hour),
+				}, nil).Seed(database.WorkspaceBuild{
+					Transition:  database.WorkspaceTransitionStart,
+					Reason:      database.BuildReasonInitiator,
+					BuildNumber: 1,
+					CreatedAt:   now.Add(-6 * time.Hour),
+				}).Succeeded().Do()
+
+				app := getApp(h.ctx, h.db, resp.Agents[0].ID)
+
+				// First pause at -50 minutes.
+				job2 := dbgen.ProvisionerJob(h.t, h.db, nil, database.ProvisionerJob{
+					Provisioner:    database.ProvisionerTypeTerraform,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					OrganizationID: h.org.ID,
+				})
+				_ = dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
+					WorkspaceID:       resp.Workspace.ID,
+					TemplateVersionID: resp.TemplateVersion.ID,
+					JobID:             job2.ID,
+					Transition:        database.WorkspaceTransitionStop,
+					Reason:            database.BuildReasonTaskAutoPause,
+					BuildNumber:       2,
+					CreatedAt:         firstPauseTime,
+					HasAITask: sql.NullBool{
+						Bool:  true,
+						Valid: true,
+					},
+				})
+
+				// Resume at -30 minutes.
+				job3 := dbgen.ProvisionerJob(h.t, h.db, nil, database.ProvisionerJob{
+					Provisioner:    database.ProvisionerTypeTerraform,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					OrganizationID: h.org.ID,
+				})
+				_ = dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
+					WorkspaceID:       resp.Workspace.ID,
+					TemplateVersionID: resp.TemplateVersion.ID,
+					JobID:             job3.ID,
+					Transition:        database.WorkspaceTransitionStart,
+					Reason:            database.BuildReasonTaskResume,
+					BuildNumber:       3,
+					CreatedAt:         resumeTime,
+					HasAITask: sql.NullBool{
+						Bool:  true,
+						Valid: true,
+					},
+				})
+
+				// Second pause at -10 minutes (currently paused).
+				job4 := dbgen.ProvisionerJob(h.t, h.db, nil, database.ProvisionerJob{
+					Provisioner:    database.ProvisionerTypeTerraform,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					OrganizationID: h.org.ID,
+				})
+				_ = dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
+					WorkspaceID:       resp.Workspace.ID,
+					TemplateVersionID: resp.TemplateVersion.ID,
+					JobID:             job4.ID,
+					Transition:        database.WorkspaceTransitionStop,
+					Reason:            database.BuildReasonTaskManualPause,
+					BuildNumber:       4,
+					CreatedAt:         secondPauseTime,
+					HasAITask: sql.NullBool{
+						Bool:  true,
+						Valid: true,
+					},
+				})
+
+				expected := telemetry.Task{
+					ID:                   resp.Task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 resp.Task.Name,
+					WorkspaceID:          ptr.Ref(resp.Workspace.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(resp.Agents[0].ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    resp.TemplateVersion.ID.String(),
+					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
+					CreatedAt:            resp.Task.CreatedAt,
+					Status:               string(resp.Task.Status),
+					LastPausedAt:         &secondPauseTime,
+					LastResumedAt:        &resumeTime,
+					PauseReason:          ptr.Ref("manual"),
+					IdleDurationMS:       nil,
+					PausedDurationMS:     ptr.Ref(20 * time.Minute.Milliseconds()), // Last completed cycle: -50min pause to -30min resume.
+					TimeToFirstStatusMS:  nil,
+				}
+				return expected
+			},
+		},
+		{
+			name: "multiple cycles with recent resume - pairs with preceding pause",
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+				firstPauseTime := now.Add(-50 * time.Minute)
+				resumeTime := now.Add(-30 * time.Minute)
+
+				resp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
+					OrganizationID: h.org.ID,
+					OwnerID:        h.user.ID,
+				}).WithTask(database.TaskTable{
+					Prompt:    "multi cycle recent resume prompt",
+					CreatedAt: now.Add(-6 * time.Hour),
+				}, nil).Seed(database.WorkspaceBuild{
+					Transition:  database.WorkspaceTransitionStart,
+					Reason:      database.BuildReasonInitiator,
+					BuildNumber: 1,
+					CreatedAt:   now.Add(-6 * time.Hour),
+				}).Succeeded().Do()
+
+				app := getApp(h.ctx, h.db, resp.Agents[0].ID)
+
+				// Pause at -50 minutes.
+				job2 := dbgen.ProvisionerJob(h.t, h.db, nil, database.ProvisionerJob{
+					Provisioner:    database.ProvisionerTypeTerraform,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					OrganizationID: h.org.ID,
+				})
+				_ = dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
+					WorkspaceID:       resp.Workspace.ID,
+					TemplateVersionID: resp.TemplateVersion.ID,
+					JobID:             job2.ID,
+					Transition:        database.WorkspaceTransitionStop,
+					Reason:            database.BuildReasonTaskAutoPause,
+					BuildNumber:       2,
+					CreatedAt:         firstPauseTime,
+					HasAITask: sql.NullBool{
+						Bool:  true,
+						Valid: true,
+					},
+				})
+
+				// Resume at -30 minutes (20 min paused).
+				job3 := dbgen.ProvisionerJob(h.t, h.db, nil, database.ProvisionerJob{
+					Provisioner:    database.ProvisionerTypeTerraform,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					OrganizationID: h.org.ID,
+				})
+				_ = dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
+					WorkspaceID:       resp.Workspace.ID,
+					TemplateVersionID: resp.TemplateVersion.ID,
+					JobID:             job3.ID,
+					Transition:        database.WorkspaceTransitionStart,
+					Reason:            database.BuildReasonTaskResume,
+					BuildNumber:       3,
+					CreatedAt:         resumeTime,
+					HasAITask: sql.NullBool{
+						Bool:  true,
+						Valid: true,
+					},
+				})
+
+				expected := telemetry.Task{
+					ID:                   resp.Task.ID.String(),
+					OrganizationID:       h.org.ID.String(),
+					OwnerID:              h.user.ID.String(),
+					Name:                 resp.Task.Name,
+					WorkspaceID:          ptr.Ref(resp.Workspace.ID.String()),
+					WorkspaceBuildNumber: ptr.Ref(int64(1)),
+					WorkspaceAgentID:     ptr.Ref(resp.Agents[0].ID.String()),
+					WorkspaceAppID:       ptr.Ref(app.ID.String()),
+					TemplateVersionID:    resp.TemplateVersion.ID.String(),
+					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
+					CreatedAt:            resp.Task.CreatedAt,
+					Status:               string(resp.Task.Status),
+					LastPausedAt:         &firstPauseTime,
+					LastResumedAt:        &resumeTime,
+					PauseReason:          ptr.Ref("auto"),
+					IdleDurationMS:       nil,
+					PausedDurationMS:     ptr.Ref(20 * time.Minute.Milliseconds()),
+					TimeToFirstStatusMS:  nil,
+				}
+				return expected
+			},
+		},
+		{
 			name: "all fields populated - full lifecycle",
 			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
 				taskCreatedAt := now.Add(-7 * time.Hour)
