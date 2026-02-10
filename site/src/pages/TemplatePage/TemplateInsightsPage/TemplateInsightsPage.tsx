@@ -43,6 +43,7 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useId,
+	useMemo,
 } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
@@ -396,19 +397,21 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
-	const style = getComputedStyle(document.documentElement);
-	const successHsl = style
-		.getPropertyValue("--content-success")
-		.trim()
-		.replace(/ /g, ", ");
-	const warningHsl = style
-		.getPropertyValue("--content-warning")
-		.trim()
-		.replace(/ /g, ", ");
-	const usageColors = chroma
-		.scale([`hsl(${successHsl})`, `hsl(${warningHsl})`])
-		.mode("lch")
-		.colors(validUsage?.length ?? 0);
+	const usageColors = useMemo(() => {
+		const style = getComputedStyle(document.documentElement);
+		const successHsl = style
+			.getPropertyValue("--content-success")
+			.trim()
+			.replace(/ /g, ", ");
+		const warningHsl = style
+			.getPropertyValue("--content-warning")
+			.trim()
+			.replace(/ /g, ", ");
+		return chroma
+			.scale([`hsl(${successHsl})`, `hsl(${warningHsl})`])
+			.mode("lch")
+			.colors(validUsage?.length ?? 0);
+	}, [validUsage?.length]);
 
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
