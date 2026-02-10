@@ -98,6 +98,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/eventsink"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
@@ -414,7 +415,8 @@ func New(options *Options) *API {
 		options.NetworkTelemetryBatchMaxSize = 1_000
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
+		eventSink := eventsink.NewEventSink(context.Background(), options.Database, options.Logger)
+		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger, eventSink)
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()

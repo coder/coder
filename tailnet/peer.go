@@ -12,13 +12,14 @@ import (
 )
 
 type peer struct {
-	logger slog.Logger
-	id     uuid.UUID
-	node   *proto.Node
-	resps  chan<- *proto.CoordinateResponse
-	reqs   <-chan *proto.CoordinateRequest
-	auth   CoordinateeAuth
-	sent   map[uuid.UUID]*proto.Node
+	logger    slog.Logger
+	id        uuid.UUID
+	node      *proto.Node
+	resps     chan<- *proto.CoordinateResponse
+	reqs      <-chan *proto.CoordinateRequest
+	auth      CoordinateeAuth
+	sent      map[uuid.UUID]*proto.Node
+	eventSink EventSink
 
 	name       string
 	start      time.Time
@@ -44,6 +45,7 @@ func (p *peer) updateMappingLocked(id uuid.UUID, n *proto.Node, k proto.Coordina
 	case p.resps <- req:
 		p.lastWrite = time.Now()
 		logger.Debug(context.Background(), "wrote peer update")
+		p.eventSink.SentPeerUpdate(p.id, update)
 		return nil
 	default:
 		return ErrWouldBlock
@@ -74,6 +76,9 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 	case p.resps <- req:
 		p.lastWrite = time.Now()
 		p.logger.Debug(context.Background(), "wrote batched update", slog.F("num_peer_updates", len(req.PeerUpdates)))
+		for _, update := range req.PeerUpdates {
+			p.eventSink.SentPeerUpdate(p.id, update)
+		}
 		return nil
 	default:
 		return ErrWouldBlock

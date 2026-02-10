@@ -133,9 +133,9 @@ func (e AuthorizationError) Unwrap() error {
 // NewCoordinator constructs a new in-memory connection coordinator. This
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
-func NewCoordinator(logger slog.Logger) Coordinator {
+func NewCoordinator(logger slog.Logger, eventSink ...EventSink) Coordinator {
 	return &coordinator{
-		core:       newCore(logger.Named(LoggerName)),
+		core:       newCore(logger.Named(LoggerName), eventSink),
 		closedChan: make(chan struct{}),
 	}
 }
@@ -169,13 +169,14 @@ func (c *coordinator) Coordinate(
 	resps := make(chan *proto.CoordinateResponse, ResponseBufferSize)
 
 	p := &peer{
-		logger: logger,
-		id:     id,
-		name:   name,
-		resps:  resps,
-		reqs:   reqs,
-		auth:   a,
-		sent:   make(map[uuid.UUID]*proto.Node),
+		logger:    logger,
+		id:        id,
+		name:      name,
+		resps:     resps,
+		reqs:      reqs,
+		auth:      a,
+		sent:      make(map[uuid.UUID]*proto.Node),
+		eventSink: c.core.eventSink,
 	}
 	err := c.core.initPeer(p)
 	if err != nil {
@@ -217,16 +218,24 @@ type core struct {
 	mutex  sync.RWMutex
 	closed bool
 
-	peers   map[uuid.UUID]*peer
-	tunnels *tunnelStore
+	peers     map[uuid.UUID]*peer
+	tunnels   *tunnelStore
+	eventSink EventSink
 }
 
-func newCore(logger slog.Logger) *core {
+func newCore(logger slog.Logger, eventSinks []EventSink) *core {
+	var eventSink EventSink
+	if len(eventSinks) > 0 {
+		eventSink = eventSinks[0]
+	} else {
+		eventSink = noopEventSink{}
+	}
 	return &core{
-		logger:  logger,
-		closed:  false,
-		peers:   make(map[uuid.UUID]*peer),
-		tunnels: newTunnelStore(),
+		logger:    logger,
+		closed:    false,
+		peers:     make(map[uuid.UUID]*peer),
+		tunnels:   newTunnelStore(),
+		eventSink: eventSink,
 	}
 }
 
@@ -373,13 +382,15 @@ func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.Coordinate
 
 		dst, ok := c.peers[dstID]
 		if ok {
+			update := &proto.CoordinateResponse_PeerUpdate{
+				Id:   src.id[:],
+				Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
+			}
 			select {
 			case dst.resps <- &proto.CoordinateResponse{
-				PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
-					Id:   src.id[:],
-					Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
-				}},
+				PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{update},
 			}:
+				c.eventSink.SentPeerUpdate(dst.id, update)
 			default:
 				return ErrWouldBlock
 			}
@@ -416,6 +427,7 @@ func (c *core) updateTunnelPeersLocked(id uuid.UUID, n *proto.Node, k proto.Coor
 
 func (c *core) addTunnelLocked(src *peer, dstID uuid.UUID) error {
 	c.tunnels.add(src.id, dstID)
+	c.eventSink.AddedTunnel(src.id, dstID)
 	c.logger.Debug(context.Background(), "adding tunnel",
 		slog.F("src_id", src.id),
 		slog.F("dst_id", dstID))
@@ -445,6 +457,7 @@ func (c *core) addTunnelLocked(src *peer, dstID uuid.UUID) error {
 }
 
 func (c *core) removeTunnelLocked(src *peer, dstID uuid.UUID) error {
+	c.eventSink.RemovedTunnel(src.id, dstID)
 	err := src.updateMappingLocked(dstID, nil, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "remove tunnel")
 	if err != nil {
 		src.logger.Error(context.Background(), "failed to update", slog.Error(err))

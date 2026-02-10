@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/eventsink"
 	"github.com/coder/quartz"
 )
 
@@ -884,7 +885,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					_ = api.updateEntitlements(api.ctx)
 				})
 			} else {
-				coordinator = agpltailnet.NewCoordinator(api.Logger)
+				eventSink := eventsink.NewEventSink(api.ctx, api.Database, api.Logger)
+				coordinator = agpltailnet.NewCoordinator(api.Logger, eventSink)
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}

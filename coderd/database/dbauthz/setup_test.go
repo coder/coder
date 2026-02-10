@@ -42,6 +42,7 @@ var skipMethods = map[string]string{
 	"AcquireLock":                       "Not relevant",
 	"TryAcquireLock":                    "Not relevant",
 	"GetOngoingAgentConnectionsLast24h": "Hackathon",
+	"InsertTailnetPeeringEvent":         "Hackathon",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
