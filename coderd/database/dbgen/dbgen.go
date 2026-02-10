@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -30,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
-	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1664,13 +1662,12 @@ func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Tas
 		parameters = json.RawMessage([]byte("{}"))
 	}
 
-	taskName := taskname.Generate(genCtx, slog.Make(), orig.Prompt)
 	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
 		ID:                 takeFirst(orig.ID, uuid.New()),
 		OrganizationID:     orig.OrganizationID,
 		OwnerID:            orig.OwnerID,
-		Name:               takeFirst(orig.Name, taskName.Name),
-		DisplayName:        takeFirst(orig.DisplayName, taskName.DisplayName),
+		Name:               takeFirst(orig.Name, testutil.GetRandomName(t)),
+		DisplayName:        takeFirst(orig.DisplayName, testutil.GetRandomName(t)),
 		WorkspaceID:        orig.WorkspaceID,
 		TemplateVersionID:  orig.TemplateVersionID,
 		TemplateParameters: parameters,
