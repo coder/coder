@@ -1,6 +1,8 @@
 # docker-compose.dev.yml — Development environment
 services:
   database:
+    labels:
+      - "com.coder.dev"
     networks:
       - coder-dev
     image: postgres:17
@@ -21,6 +23,8 @@ services:
   # Ensure named volumes are owned by the coder user (uid 1000)
   # since Docker creates them as root by default.
   init-volumes:
+    labels:
+      - "com.coder.dev"
     image: codercom/oss-dogfood:latest
     user: "0:0"
     volumes:
@@ -36,6 +40,8 @@ services:
         /app/site/node_modules
 
   build-slim:
+    labels:
+      - "com.coder.dev"
     network_mode: "host"
     image: codercom/oss-dogfood:latest
     depends_on:
@@ -66,6 +72,8 @@ services:
       '
 
   coderd:
+    labels:
+      - "com.coder.dev"
     networks:
       - coder-dev
     image: codercom/oss-dogfood:latest
@@ -113,6 +121,8 @@ services:
         --enable-terraform-debug-mode
 
   setup:
+    labels:
+      - "com.coder.dev"
     networks:
       - coder-dev
     image: codercom/oss-dogfood:latest
@@ -133,6 +143,8 @@ services:
     command: ["sh", "/scripts/setup.sh"]
 
   site:
+    labels:
+      - "com.coder.dev"
     networks:
       - coder-dev
     image: codercom/oss-dogfood:latest
@@ -151,12 +163,24 @@ services:
 
 volumes:
   coder_dev_data:
+    labels:
+      - "com.coder.dev"
   coderv2_config:
+    labels:
+      - "com.coder.dev"
   go_cache:
+    labels:
+      - "com.coder.dev"
   coder_cache:
+    labels:
+      - "com.coder.dev"
   site_node_modules:
+    labels:
+      - "com.coder.dev"
 
 networks:
   coder-dev:
+    labels:
+      - "com.coder.dev"
     name: coder-dev
     driver: bridge
