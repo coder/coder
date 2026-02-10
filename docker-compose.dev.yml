@@ -1,6 +1,8 @@
 # docker-compose.dev.yml — Development environment
 services:
   database:
+    networks:
+      - coder-dev
     image: postgres:17
     environment:
       POSTGRES_USER: coder
@@ -34,18 +36,27 @@ services:
         /app/site/node_modules
 
   build-slim:
+    network_mode: "host"
     image: codercom/oss-dogfood:latest
     depends_on:
       init-volumes:
         condition: service_completed_successfully
+      database:
+        condition: service_healthy
     working_dir: /app
+    # Add the Docker group so coderd can access the Docker socket.
+    # Override DOCKER_GROUP if your host's docker group is not 999.
+    group_add:
+      - "${DOCKER_GROUP:-999}"
     environment:
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
+      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
     volumes:
       - .:/app
       - go_cache:/go-cache
       - coder_cache:/cache
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
     command: >
       sh -c '
         make -j build-slim &&
@@ -55,6 +66,8 @@ services:
       '
 
   coderd:
+    networks:
+      - coder-dev
     image: codercom/oss-dogfood:latest
     depends_on:
       database:
@@ -100,6 +113,8 @@ services:
         --enable-terraform-debug-mode
 
   setup:
+    networks:
+      - coder-dev
     image: codercom/oss-dogfood:latest
     depends_on:
       coderd:
@@ -118,6 +133,8 @@ services:
     command: ["sh", "/scripts/setup.sh"]
 
   site:
+    networks:
+      - coder-dev
     image: codercom/oss-dogfood:latest
     depends_on:
       setup:
@@ -138,3 +155,8 @@ volumes:
   go_cache:
   coder_cache:
   site_node_modules:
+
+networks:
+  coder-dev:
+    name: coder-dev
+    driver: bridge
