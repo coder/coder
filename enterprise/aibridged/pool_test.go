@@ -2,8 +2,8 @@ package aibridged_test
 
 import (
 	"context"
-	_ "embed"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -105,10 +105,65 @@ func TestPool(t *testing.T) {
 	require.EqualValues(t, 2, cacheMetrics.KeysEvicted())
 	require.EqualValues(t, 1, cacheMetrics.Hits())
 	require.EqualValues(t, 3, cacheMetrics.Misses())
+}
 
-	// TODO: add test for expiry.
-	// This requires Go 1.25's [synctest](https://pkg.go.dev/testing/synctest) since the
-	// internal cache lib cannot be tested using coder/quartz.
+func TestPool_Expiry(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		logger := slogtest.Make(t, nil)
+		ctrl := gomock.NewController(t)
+		client := mock.NewMockDRPCClient(ctrl)
+		mcpProxy := mcpmock.NewMockServerProxier(ctrl)
+		mcpProxy.EXPECT().Init(gomock.Any()).AnyTimes().Return(nil)
+		mcpProxy.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
+
+		const ttl = time.Second
+		opts := aibridged.PoolOptions{MaxItems: 1, TTL: ttl}
+		pool, err := aibridged.NewCachedBridgePool(opts, nil, logger, nil, testTracer)
+		require.NoError(t, err)
+		t.Cleanup(func() { pool.Shutdown(context.Background()) })
+
+		req := aibridged.Request{
+			SessionKey:  "key",
+			InitiatorID: uuid.New(),
+			APIKeyID:    uuid.New().String(),
+		}
+		clientFn := func() (aibridged.DRPCClient, error) {
+			return client, nil
+		}
+
+		ctx := t.Context()
+
+		// First acquire is a cache miss.
+		_, err = pool.Acquire(ctx, req, clientFn, newMockMCPFactory(mcpProxy))
+		require.NoError(t, err)
+
+		// Second acquire is a cache hit.
+		_, err = pool.Acquire(ctx, req, clientFn, newMockMCPFactory(mcpProxy))
+		require.NoError(t, err)
+
+		metrics := pool.CacheMetrics()
+		require.EqualValues(t, 1, metrics.Misses())
+		require.EqualValues(t, 1, metrics.Hits())
+
+		// TTL expires
+		time.Sleep(ttl + time.Millisecond)
+
+		// Third acquire is a cache miss because the entry expired.
+		_, err = pool.Acquire(ctx, req, clientFn, newMockMCPFactory(mcpProxy))
+		require.NoError(t, err)
+
+		metrics = pool.CacheMetrics()
+		require.EqualValues(t, 2, metrics.Misses())
+		require.EqualValues(t, 1, metrics.Hits())
+
+		// Wait for all eviction goroutines to complete before gomock's ctrl.Finish()
+		// runs in test cleanup. ristretto's OnEvict callback spawns goroutines that
+		// need to finish calling mcpProxy.Shutdown() before ctrl.finish clears the
+		// expectations.
+		synctest.Wait()
+	})
 }
 
 var _ aibridged.MCPProxyBuilder = &mockMCPFactory{}

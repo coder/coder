@@ -1425,6 +1425,7 @@ export type CreateWorkspaceBuildReason =
 	| "dashboard"
 	| "jetbrains_connection"
 	| "ssh_connection"
+	| "task_manual_pause"
 	| "vscode_connection";
 
 export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
@@ -1432,6 +1433,7 @@ export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
 	"dashboard",
 	"jetbrains_connection",
 	"ssh_connection",
+	"task_manual_pause",
 	"vscode_connection",
 ];
 
@@ -3582,6 +3584,14 @@ export interface PatchWorkspaceProxy {
  *nolint:gosec
  */
 export const PathAppSessionTokenCookie = "coder_path_app_session_token";
+
+// From codersdk/aitasks.go
+/**
+ * PauseTaskResponse represents the response from pausing a task.
+ */
+export interface PauseTaskResponse {
+	readonly workspace_build: WorkspaceBuild | null;
+}
 
 // From codersdk/roles.go
 /**
@@ -6306,6 +6316,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly name: string;
 	readonly workspace_folder: string;
 	readonly config_path?: string;
+	readonly subagent_id?: string;
 	/**
 	 * Additional runtime fields.
 	 */

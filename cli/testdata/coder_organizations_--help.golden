@@ -10,6 +10,7 @@ USAGE:
 SUBCOMMANDS:
     create      Create a new organization.
     delete      Delete an organization
+    list        List all organizations
     members     Manage organization members
     roles       Manage organization roles.
     settings    Manage organization settings.

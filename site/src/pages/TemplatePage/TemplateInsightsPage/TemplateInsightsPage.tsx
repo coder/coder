@@ -1,6 +1,3 @@
-import { useTheme } from "@emotion/react";
-import LinearProgress from "@mui/material/LinearProgress";
-import Link from "@mui/material/Link";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	insightsTemplate,
@@ -29,6 +26,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -37,11 +35,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	CircleCheck as CircleCheckIcon,
-	CircleXIcon,
-	LinkIcon,
-} from "lucide-react";
+import { CircleCheck as CircleCheckIcon, CircleXIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -290,7 +284,6 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
@@ -321,10 +314,10 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 									<div className="font-medium">{row.username}</div>
 								</div>
 								<div
-									className="text-right font-medium text-[13px]"
-									css={{
-										color: getLatencyColor(theme, row.latency_ms.p50),
-									}}
+									className={cn(
+										"text-right font-medium text-[13px]",
+										getLatencyColor(row.latency_ms.p50),
+									)}
 								>
 									{row.latency_ms.p50.toFixed(0)}ms
 								</div>
@@ -397,15 +390,23 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
 	// The API returns a row for each app, even if the user didn't use it.
 	const validUsage = data
 		?.filter((u) => u.seconds > 0)
 		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
+	const style = getComputedStyle(document.documentElement);
+	const successHsl = style
+		.getPropertyValue("--content-success")
+		.trim()
+		.replace(/ /g, ", ");
+	const warningHsl = style
+		.getPropertyValue("--content-warning")
+		.trim()
+		.replace(/ /g, ", ");
 	const usageColors = chroma
-		.scale([theme.roles.success.fill.solid, theme.roles.warning.fill.solid])
+		.scale([`hsl(${successHsl})`, `hsl(${warningHsl})`])
 		.mode("lch")
 		.colors(validUsage?.length ?? 0);
 
@@ -435,17 +436,15 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 									</div>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<LinearProgress
-												value={percentage}
-												variant="determinate"
-												className="w-full h-2 bg-surface-quaternary"
-												css={{
-													"& .MuiLinearProgress-bar": {
+											<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
+												<div
+													className="absolute inset-y-0 left-0 rounded-full"
+													style={{
+														width: `${percentage}%`,
 														backgroundColor: usageColors[i],
-														borderRadius: 999,
-													},
-												}}
-											/>
+													}}
+												/>
+											</div>
 										</TooltipTrigger>
 										<TooltipContent>
 											{Math.floor(percentage)}%
@@ -498,12 +497,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 					return (
 						<div
 							key={parameter.name}
-							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6"
-							css={{
-								"&:first-of-type": {
-									borderTop: 0,
-								},
-							}}
+							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
@@ -604,14 +598,8 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 	if (usage.value.startsWith("http")) {
 		return (
-			<Link
-				href={usage.value}
-				target="_blank"
-				rel="noreferrer"
-				className="flex items-center gap-[1px] text-content-primary"
-			>
+			<Link href={usage.value} target="_blank" rel="noreferrer">
 				<TextValue>{usage.value}</TextValue>
-				<LinkIcon className="size-icon-xs text-content-link" />
 			</Link>
 		);
 	}

@@ -3,7 +3,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { TaskActionButton } from "./TaskActionButton";
 
 const meta: Meta<typeof TaskActionButton> = {
-	title: "pages/TasksPage/TaskActionButton",
+	title: "modules/tasks/TaskActionButton",
 	component: TaskActionButton,
 	args: {
 		onClick: fn(),

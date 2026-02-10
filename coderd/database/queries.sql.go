@@ -1980,39 +1980,41 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
-const deleteBoundaryUsageStatsByReplicaID = `-- name: DeleteBoundaryUsageStatsByReplicaID :exec
-DELETE FROM boundary_usage_stats WHERE replica_id = $1
-`
-
-// Deletes boundary usage statistics for a specific replica.
-func (q *sqlQuerier) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteBoundaryUsageStatsByReplicaID, replicaID)
-	return err
-}
-
-const getBoundaryUsageSummary = `-- name: GetBoundaryUsageSummary :one
+const getAndResetBoundaryUsageSummary = `-- name: GetAndResetBoundaryUsageSummary :one
+WITH deleted AS (
+    DELETE FROM boundary_usage_stats
+    RETURNING replica_id, unique_workspaces_count, unique_users_count, allowed_requests, denied_requests, window_start, updated_at
+)
 SELECT
-    COALESCE(SUM(unique_workspaces_count), 0)::bigint AS unique_workspaces,
-    COALESCE(SUM(unique_users_count), 0)::bigint AS unique_users,
-    COALESCE(SUM(allowed_requests), 0)::bigint AS allowed_requests,
-    COALESCE(SUM(denied_requests), 0)::bigint AS denied_requests
-FROM boundary_usage_stats
-WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    COALESCE(SUM(unique_workspaces_count) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS unique_workspaces,
+    COALESCE(SUM(unique_users_count) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS unique_users,
+    COALESCE(SUM(allowed_requests) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS allowed_requests,
+    COALESCE(SUM(denied_requests) FILTER (
+        WHERE window_start >= NOW() - ($1::bigint || ' ms')::interval
+    ), 0)::bigint AS denied_requests
+FROM deleted
 `
 
-type GetBoundaryUsageSummaryRow struct {
+type GetAndResetBoundaryUsageSummaryRow struct {
 	UniqueWorkspaces int64 `db:"unique_workspaces" json:"unique_workspaces"`
 	UniqueUsers      int64 `db:"unique_users" json:"unique_users"`
 	AllowedRequests  int64 `db:"allowed_requests" json:"allowed_requests"`
 	DeniedRequests   int64 `db:"denied_requests" json:"denied_requests"`
 }
 
-// Aggregates boundary usage statistics across all replicas. Filters to only
-// include data where window_start is within the given interval to exclude
-// stale data.
-func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error) {
-	row := q.db.QueryRowContext(ctx, getBoundaryUsageSummary, maxStalenessMs)
-	var i GetBoundaryUsageSummaryRow
+// Atomic read+delete prevents replicas that flush between a separate read and
+// reset from having their data deleted before the next snapshot. Uses a common
+// table expression with DELETE...RETURNING so the rows we sum are exactly the
+// rows we delete. Stale rows are excluded from the sum but still deleted.
+func (q *sqlQuerier) GetAndResetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetAndResetBoundaryUsageSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getAndResetBoundaryUsageSummary, maxStalenessMs)
+	var i GetAndResetBoundaryUsageSummaryRow
 	err := row.Scan(
 		&i.UniqueWorkspaces,
 		&i.UniqueUsers,
@@ -2020,17 +2022,6 @@ func (q *sqlQuerier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs
 		&i.DeniedRequests,
 	)
 	return i, err
-}
-
-const resetBoundaryUsageStats = `-- name: ResetBoundaryUsageStats :exec
-DELETE FROM boundary_usage_stats
-`
-
-// Deletes all boundary usage statistics. Called after telemetry reports the
-// aggregated stats. Each replica will insert a fresh row on its next flush.
-func (q *sqlQuerier) ResetBoundaryUsageStats(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, resetBoundaryUsageStats)
-	return err
 }
 
 const upsertBoundaryUsageStats = `-- name: UpsertBoundaryUsageStats :one
@@ -13151,13 +13142,19 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 }
 
 const deleteTask = `-- name: DeleteTask :one
-UPDATE tasks
-SET
-	deleted_at = $1::timestamptz
-WHERE
-	id = $2::uuid
-	AND deleted_at IS NULL
-RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name
+WITH deleted_task AS (
+	UPDATE tasks
+	SET
+		deleted_at = $1::timestamptz
+	WHERE
+		id = $2::uuid
+		AND deleted_at IS NULL
+	RETURNING id
+), deleted_snapshot AS (
+	DELETE FROM task_snapshots
+	WHERE task_id = $2::uuid
+)
+SELECT id FROM deleted_task
 `
 
 type DeleteTaskParams struct {
@@ -13165,23 +13162,11 @@ type DeleteTaskParams struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (TaskTable, error) {
+func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, deleteTask, arg.DeletedAt, arg.ID)
-	var i TaskTable
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.OwnerID,
-		&i.Name,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.TemplateParameters,
-		&i.Prompt,
-		&i.CreatedAt,
-		&i.DeletedAt,
-		&i.DisplayName,
-	)
-	return i, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
@@ -21355,6 +21340,62 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
 		&i.InitiatorByName,
+	)
+	return i, err
+}
+
+const getWorkspaceBuildMetricsByResourceID = `-- name: GetWorkspaceBuildMetricsByResourceID :one
+SELECT
+    wb.created_at,
+    wb.transition,
+    t.name AS template_name,
+    o.name AS organization_name,
+    (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0') AS is_prebuild,
+    -- All agents must have ready_at set (terminal startup state)
+    COUNT(*) FILTER (WHERE wa.ready_at IS NULL) = 0 AS all_agents_ready,
+    -- Latest ready_at across all agents (for duration calculation)
+	MAX(wa.ready_at)::timestamptz AS last_agent_ready_at,
+    -- Worst status: error > timeout > ready
+    CASE
+        WHEN bool_or(wa.lifecycle_state = 'start_error') THEN 'error'
+        WHEN bool_or(wa.lifecycle_state = 'start_timeout') THEN 'timeout'
+        ELSE 'success'
+    END AS worst_status
+FROM workspace_builds wb
+JOIN workspaces w ON wb.workspace_id = w.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON t.organization_id = o.id
+JOIN workspace_resources wr ON wr.job_id = wb.job_id
+JOIN workspace_agents wa ON wa.resource_id = wr.id
+WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
+GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id
+`
+
+type GetWorkspaceBuildMetricsByResourceIDRow struct {
+	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
+	Transition       WorkspaceTransition `db:"transition" json:"transition"`
+	TemplateName     string              `db:"template_name" json:"template_name"`
+	OrganizationName string              `db:"organization_name" json:"organization_name"`
+	IsPrebuild       bool                `db:"is_prebuild" json:"is_prebuild"`
+	AllAgentsReady   bool                `db:"all_agents_ready" json:"all_agents_ready"`
+	LastAgentReadyAt time.Time           `db:"last_agent_ready_at" json:"last_agent_ready_at"`
+	WorstStatus      string              `db:"worst_status" json:"worst_status"`
+}
+
+// Returns build metadata for e2e workspace build duration metrics.
+// Also checks if all agents are ready and returns the worst status.
+func (q *sqlQuerier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildMetricsByResourceID, id)
+	var i GetWorkspaceBuildMetricsByResourceIDRow
+	err := row.Scan(
+		&i.CreatedAt,
+		&i.Transition,
+		&i.TemplateName,
+		&i.OrganizationName,
+		&i.IsPrebuild,
+		&i.AllAgentsReady,
+		&i.LastAgentReadyAt,
+		&i.WorstStatus,
 	)
 	return i, err
 }
