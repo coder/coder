@@ -473,6 +473,23 @@ export const CheckExternalAuthOnChangingVersions: Story = {
 	},
 };
 
+export const PresetSelectorFocused: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(
+			MockPresets.map((preset, i) => ({
+				...preset,
+				Icon: i === 0 ? "/icon/code.svg" : i === 1 ? "/icon/database.svg" : "",
+				Description: i === 0 ? "For everyday development work" : "",
+			})),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const presetSelect = await canvas.findByLabelText(/preset/i);
+		presetSelect.focus();
+	},
+};
+
 export const CheckPresetsWhenChangingTemplate: Story = {
 	args: {
 		templates: [
