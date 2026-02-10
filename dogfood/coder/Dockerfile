@@ -11,8 +11,8 @@ RUN cargo install jj-cli typos-cli watchexec-cli
 FROM ubuntu:jammy@sha256:c7eb020043d8fc2ae0793fb35a37bff1cf33f156d4d4b12ccc7f3ef8706c38b1 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.25.6
-ARG GO_CHECKSUM="f022b6aad78e362bcba9b0b94d09ad58c5a70c6ba3b7582905fababf5fe0181a"
+ARG GO_VERSION=1.26.0
+ARG GO_CHECKSUM="aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -49,7 +49,7 @@ RUN apt-get update && \
 	# goreleaser for compiling v2 binaries
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	# Install the latest version of gopls for editors that support
-	# the language server protocol (v0.21.0+ required for Go 1.25)
+	# the language server protocol (v0.21.0+ required for Go 1.25+)
 	go install golang.org/x/tools/gopls@v0.21.0 && \
 	# gotestsum makes test output more readable
 	go install gotest.tools/gotestsum@v1.9.0 && \
@@ -83,7 +83,7 @@ RUN apt-get update && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	# mockgen for generating mocks (v0.6.0+ required for Go 1.25)
+	# mockgen for generating mocks (v0.6.0+ required for Go 1.25+)
 	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
