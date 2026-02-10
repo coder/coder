@@ -31,7 +31,7 @@ for setup details.
 - Seamless container startup during workspace initialization
 - Change detection with outdated status indicator
 - On-demand container rebuild via dashboard button
-- Template-defined apps, scripts, and environment variables via Terraform
+- Template-defined apps, scripts, and environment variables via Terraform (see [limitations](../../admin/integrations/devcontainers/integration.md#interaction-with-devcontainerjson-customizations))
 - Integrated IDE experience with VS Code
 - Direct SSH access to containers
 - Automatic port detection
