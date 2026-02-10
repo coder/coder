@@ -102,7 +102,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 									</Avatar>
 								)}
 
-								<div className="flex flex-row items-baseline justify-between w-full font-normal">
+								<div className="flex flex-row items-baseline justify-between w-full font-normal gap-4">
 									<div className="flex flex-row items-baseline gap-2">
 										<AuditLogDescription auditLog={auditLog} />
 										{auditLog.is_deleted && (
