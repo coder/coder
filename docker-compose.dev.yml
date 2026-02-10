@@ -50,7 +50,7 @@ services:
       sh -c '
         make build-slim &&
         mkdir -p /cache/site/orig/bin &&
-        cp build/coder-slim_*_*_* /cache/site/orig/bin/ &&
+        cp site/out/bin/coder-* /cache/site/orig/bin/ &&
         echo "Slim binaries built and cached."
       '
 
