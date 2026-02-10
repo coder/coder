@@ -202,9 +202,6 @@ importers:
       react-confetti:
         specifier: 6.4.0
         version: 6.4.0(react@19.2.2)
-      react-date-range:
-        specifier: 1.4.0
-        version: 1.4.0(date-fns@4.1.0)(react@19.2.2)
       react-day-picker:
         specifier: 9.13.1
         version: 9.13.1(react@19.2.2)
@@ -3253,9 +3250,6 @@ packages:
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==, tarball: https://registry.npmjs.org/class-variance-authority/-/class-variance-authority-0.7.1.tgz}
 
-  classnames@2.3.2:
-    resolution: {integrity: sha512-CSbhY4cFEJRe6/GQzIk5qXZ4Jeg5pcsP7b5peFSDpffpe1cqjASH/n9UTjBwOp6XpMSTwQ8Za2K5V02ueA7Tmw==, tarball: https://registry.npmjs.org/classnames/-/classnames-2.3.2.tgz}
-
   cli-cursor@3.1.0:
     resolution: {integrity: sha512-I/zHAwsKf9FqGoXM4WWRACob9+SNukZTd94DWF57E4toouRulbCxcUh6RKUEOQlYTHJnzkPMySvPNaaSLNfLZw==, tarball: https://registry.npmjs.org/cli-cursor/-/cli-cursor-3.1.0.tgz}
     engines: {node: '>=8'}
@@ -5352,12 +5346,6 @@ packages:
     peerDependencies:
       react: ^16.3.0 || ^17.0.1 || ^18.0.0 || ^19.0.0
 
-  react-date-range@1.4.0:
-    resolution: {integrity: sha512-+9t0HyClbCqw1IhYbpWecjsiaftCeRN5cdhsi9v06YdimwyMR2yYHWcgVn3URwtN/txhqKpEZB6UX1fHpvK76w==, tarball: https://registry.npmjs.org/react-date-range/-/react-date-range-1.4.0.tgz}
-    peerDependencies:
-      date-fns: 2.0.0-alpha.7 || >=2.0.0
-      react: ^0.14 || ^15.0.0-rc || >=15.0
-
   react-day-picker@9.13.1:
     resolution: {integrity: sha512-9nx2lBBJ0VZw5jJekId3DishwnJLiqY1Me1JvCrIyqbWwcflBTVaEkiK+w1bre5oMNWYo722eu+8UAMXWMqktw==, tarball: https://registry.npmjs.org/react-day-picker/-/react-day-picker-9.13.1.tgz}
     engines: {node: '>=18'}
@@ -5397,11 +5385,6 @@ packages:
 
   react-is@19.1.1:
     resolution: {integrity: sha512-tr41fA15Vn8p4X9ntI+yCyeGSf1TlYaY5vlTZfQmeLBrFo3psOPX6HhTDnFNL9uj3EhP0KAQ80cugCl4b4BERA==, tarball: https://registry.npmjs.org/react-is/-/react-is-19.1.1.tgz}
-
-  react-list@0.8.17:
-    resolution: {integrity: sha512-pgmzGi0G5uGrdHzMhgO7KR1wx5ZXVvI3SsJUmkblSAKtewIhMwbQiMuQiTE83ozo04BQJbe0r3WIWzSO0dR1xg==, tarball: https://registry.npmjs.org/react-list/-/react-list-0.8.17.tgz}
-    peerDependencies:
-      react: 0.14 || 15 - 18
 
   react-markdown@9.1.0:
     resolution: {integrity: sha512-xaijuJB0kzGiUdG7nc2MOMDUDBWPyGAjZtUrow9XxUeua8IqeP+VlIfAZ3bphpcLTnSZXz6z9jcVC/TCwbfgdw==, tarball: https://registry.npmjs.org/react-markdown/-/react-markdown-9.1.0.tgz}
@@ -5684,9 +5667,6 @@ packages:
 
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==, tarball: https://registry.npmjs.org/setprototypeof/-/setprototypeof-1.2.0.tgz}
-
-  shallow-equal@1.2.1:
-    resolution: {integrity: sha512-S4vJDjHHMBaiZuT9NPb616CSmLf618jawtv3sufLl6ivK8WocjAo58cXwbRV1cgqxH0Qbv+iUt6m05eqEa2IRA==, tarball: https://registry.npmjs.org/shallow-equal/-/shallow-equal-1.2.1.tgz}
 
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==, tarball: https://registry.npmjs.org/shebang-command/-/shebang-command-2.0.0.tgz}
@@ -9336,8 +9316,6 @@ snapshots:
     dependencies:
       clsx: 2.1.1
 
-  classnames@2.3.2: {}
-
   cli-cursor@3.1.0:
     dependencies:
       restore-cursor: 3.1.0
@@ -12010,15 +11988,6 @@ snapshots:
       react: 19.2.2
       tween-functions: 1.2.0
 
-  react-date-range@1.4.0(date-fns@4.1.0)(react@19.2.2):
-    dependencies:
-      classnames: 2.3.2
-      date-fns: 4.1.0
-      prop-types: 15.8.1
-      react: 19.2.2
-      react-list: 0.8.17(react@19.2.2)
-      shallow-equal: 1.2.1
-
   react-day-picker@9.13.1(react@19.2.2):
     dependencies:
       '@date-fns/tz': 1.4.1
@@ -12063,11 +12032,6 @@ snapshots:
   react-is@18.3.1: {}
 
   react-is@19.1.1: {}
-
-  react-list@0.8.17(react@19.2.2):
-    dependencies:
-      prop-types: 15.8.1
-      react: 19.2.2
 
   react-markdown@9.1.0(@types/react@19.2.7)(react@19.2.2):
     dependencies:
@@ -12436,8 +12400,6 @@ snapshots:
   setimmediate@1.0.5: {}
 
   setprototypeof@1.2.0: {}
-
-  shallow-equal@1.2.1: {}
 
   shebang-command@2.0.0:
     dependencies:
