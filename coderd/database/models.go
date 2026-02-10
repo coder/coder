@@ -3702,6 +3702,11 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+type AgentPeeringID struct {
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	PeeringID []byte    `db:"peering_id" json:"peering_id"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`
@@ -4229,6 +4234,16 @@ type TailnetPeer struct {
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
 	Node          []byte        `db:"node" json:"node"`
 	Status        TailnetStatus `db:"status" json:"status"`
+}
+
+type TailnetPeeringEvent struct {
+	PeeringID  []byte            `db:"peering_id" json:"peering_id"`
+	EventType  string            `db:"event_type" json:"event_type"`
+	SrcPeerID  uuid.NullUUID     `db:"src_peer_id" json:"src_peer_id"`
+	DstPeerID  uuid.NullUUID     `db:"dst_peer_id" json:"dst_peer_id"`
+	Status     NullTailnetStatus `db:"status" json:"status"`
+	Node       []byte            `db:"node" json:"node"`
+	OccurredAt time.Time         `db:"occurred_at" json:"occurred_at"`
 }
 
 type TailnetTunnel struct {

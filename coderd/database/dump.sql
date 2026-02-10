@@ -883,15 +883,15 @@ BEGIN
             IF workspace_count > 0 THEN
                 error_parts := array_append(error_parts, workspace_count || ' workspaces');
             END IF;
-
+            
             IF template_count > 0 THEN
                 error_parts := array_append(error_parts, template_count || ' templates');
             END IF;
-
+            
             IF provisioner_keys_count > 0 THEN
                 error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
             END IF;
-
+            
             error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
             RAISE EXCEPTION '%', error_message;
         END;
@@ -1014,6 +1014,11 @@ BEGIN
 	END IF;
 END;
 $$;
+
+CREATE TABLE agent_peering_ids (
+    agent_id uuid NOT NULL,
+    peering_id bytea NOT NULL
+);
 
 CREATE TABLE aibridge_interceptions (
     id uuid NOT NULL,
@@ -1774,6 +1779,15 @@ CREATE UNLOGGED TABLE tailnet_coordinators (
 );
 
 COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
+
+CREATE TABLE tailnet_peering_events (
+    peering_id bytea NOT NULL,
+    event_type text NOT NULL,
+    src_peer_id uuid,
+    dst_peer_id uuid,
+    node bytea,
+    occurred_at timestamp with time zone NOT NULL
+);
 
 CREATE UNLOGGED TABLE tailnet_peers (
     id uuid NOT NULL,
@@ -2960,6 +2974,9 @@ ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('w
 
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
+ALTER TABLE ONLY agent_peering_ids
+    ADD CONSTRAINT agent_peering_ids_pkey PRIMARY KEY (agent_id, peering_id);
+
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
@@ -3839,3 +3856,4 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
+

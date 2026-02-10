@@ -6,6 +6,7 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueAgentPeeringIDsPkey                                 UniqueConstraint = "agent_peering_ids_pkey"                                          // ALTER TABLE ONLY agent_peering_ids ADD CONSTRAINT agent_peering_ids_pkey PRIMARY KEY (agent_id, peering_id);
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 	UniqueAibridgeInterceptionsPkey                           UniqueConstraint = "aibridge_interceptions_pkey"                                     // ALTER TABLE ONLY aibridge_interceptions ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
 	UniqueAibridgeTokenUsagesPkey                             UniqueConstraint = "aibridge_token_usages_pkey"                                      // ALTER TABLE ONLY aibridge_token_usages ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
