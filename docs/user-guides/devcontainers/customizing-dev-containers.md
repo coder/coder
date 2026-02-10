@@ -6,8 +6,8 @@ with your dev container without requiring template changes.
 
 > [!TIP]
 >
-> Template administrators can also define apps, scripts, and environment
-> variables for dev containers directly in Terraform. See
+> Alternatively, template administrators can also define apps, scripts, and
+> environment variables for dev containers directly in Terraform. See
 > [Attach resources to dev containers](../../admin/integrations/devcontainers/integration.md#attach-resources-to-dev-containers)
 > for details.
 
