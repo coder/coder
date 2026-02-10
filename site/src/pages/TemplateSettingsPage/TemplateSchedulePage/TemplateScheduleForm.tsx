@@ -21,7 +21,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { type FormikTouched, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
-import { cn } from "utils/cn";
 import { getFormHelpers } from "utils/formUtils";
 import {
 	calculateAutostopRequirementDaysValue,
@@ -153,30 +152,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 		error,
 	);
 
-	const defaultTtlField = getFieldHelpers("default_ttl_ms", {
-		helperText: <DefaultTTLHelperText ttl={form.values.default_ttl_ms} />,
-	});
-	const activityBumpField = getFieldHelpers("activity_bump_ms", {
-		helperText: <ActivityBumpHelperText bump={form.values.activity_bump_ms} />,
-	});
+	const defaultTtlField = getFieldHelpers("default_ttl_ms");
+	const activityBumpField = getFieldHelpers("activity_bump_ms");
 	const autostopDaysField = getFieldHelpers(
 		"autostop_requirement_days_of_week",
-		{
-			helperText: (
-				<AutostopRequirementDaysHelperText
-					days={form.values.autostop_requirement_days_of_week}
-				/>
-			),
-		},
 	);
-	const autostopWeeksField = getFieldHelpers("autostop_requirement_weeks", {
-		helperText: (
-			<AutostopRequirementWeeksHelperText
-				days={form.values.autostop_requirement_days_of_week}
-				weeks={form.values.autostop_requirement_weeks}
-			/>
-		),
-	});
+	const autostopWeeksField = getFieldHelpers("autostop_requirement_weeks");
 
 	const now = new Date();
 	const weekFromNow = new Date(now);
@@ -349,18 +330,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							step={1}
 							aria-invalid={defaultTtlField.error}
 						/>
-						{defaultTtlField.helperText && (
-							<span
-								className={cn(
-									"text-xs",
-									defaultTtlField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-							>
+						{defaultTtlField.error && (
+							<span className="text-xs text-content-destructive">
 								{defaultTtlField.helperText}
 							</span>
 						)}
+						<span className="text-xs text-content-secondary">
+							<DefaultTTLHelperText ttl={form.values.default_ttl_ms} />
+						</span>
 					</div>
 
 					<div className="flex flex-col items-start gap-2">
@@ -377,18 +354,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							step={1}
 							aria-invalid={activityBumpField.error}
 						/>
-						{activityBumpField.helperText && (
-							<span
-								className={cn(
-									"text-xs",
-									activityBumpField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-							>
+						{activityBumpField.error && (
+							<span className="text-xs text-content-destructive">
 								{activityBumpField.helperText}
 							</span>
 						)}
+						<span className="text-xs text-content-secondary">
+							<ActivityBumpHelperText bump={form.values.activity_bump_ms} />
+						</span>
 					</div>
 
 					<div className="flex gap-4 w-full">
@@ -413,18 +386,16 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 									<SelectItem value="sunday">Sunday</SelectItem>
 								</SelectContent>
 							</Select>
-							{autostopDaysField.helperText && (
-								<span
-									className={cn(
-										"text-xs",
-										autostopDaysField.error
-											? "text-content-destructive"
-											: "text-content-secondary",
-									)}
-								>
+							{autostopDaysField.error && (
+								<span className="text-xs text-content-destructive">
 									{autostopDaysField.helperText}
 								</span>
 							)}
+							<span className="text-xs text-content-secondary">
+								<AutostopRequirementDaysHelperText
+									days={form.values.autostop_requirement_days_of_week}
+								/>
+							</span>
 						</div>
 
 						<div className="flex flex-col items-start gap-2 flex-1">
@@ -449,18 +420,17 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								step={1}
 								aria-invalid={autostopWeeksField.error}
 							/>
-							{autostopWeeksField.helperText && (
-								<span
-									className={cn(
-										"text-xs",
-										autostopWeeksField.error
-											? "text-content-destructive"
-											: "text-content-secondary",
-									)}
-								>
+							{autostopWeeksField.error && (
+								<span className="text-xs text-content-destructive">
 									{autostopWeeksField.helperText}
 								</span>
 							)}
+							<span className="text-xs text-content-secondary">
+								<AutostopRequirementWeeksHelperText
+									days={form.values.autostop_requirement_days_of_week}
+									weeks={form.values.autostop_requirement_weeks}
+								/>
+							</span>
 						</div>
 					</div>
 

@@ -28,7 +28,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Textarea } from "components/Textarea/Textarea";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
-import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import {
 	displayNameValidator,
@@ -112,16 +111,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 	const descriptionField = getFieldHelpers("description", {
 		maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
 	});
-	const deprecationField = getFieldHelpers("deprecation_message", {
-		helperText:
-			"Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
-	});
-	const portShareField = getFieldHelpers("max_port_share_level", {
-		helperText: "The maximum level of port sharing allowed for workspaces.",
-	});
-	const corsField = getFieldHelpers("cors_behavior", {
-		helperText: "Use Passthru to bypass Coder's built-in CORS protection.",
-	});
+	const deprecationField = getFieldHelpers("deprecation_message");
+	const portShareField = getFieldHelpers("max_port_share_level");
+	const corsField = getFieldHelpers("cors_behavior");
 
 	return (
 		<HorizontalForm
@@ -145,15 +137,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							autoFocus
 							aria-invalid={nameField.error}
 						/>
-						{nameField.helperText && (
-							<span
-								className={cn(
-									"text-xs",
-									nameField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-							>
+						{nameField.error && (
+							<span className="text-xs text-content-destructive">
 								{nameField.helperText}
 							</span>
 						)}
@@ -177,15 +162,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							disabled={isSubmitting}
 							aria-invalid={displayNameField.error}
 						/>
-						{displayNameField.helperText && (
-							<span
-								className={cn(
-									"text-xs",
-									displayNameField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-							>
+						{displayNameField.error && (
+							<span className="text-xs text-content-destructive">
 								{displayNameField.helperText}
 							</span>
 						)}
@@ -205,12 +183,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						/>
 						{descriptionField.helperText && (
 							<span
-								className={cn(
-									"text-xs",
-									descriptionField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
+								className={`text-xs ${descriptionField.error ? "text-content-destructive" : "text-content-secondary"}`}
 							>
 								{descriptionField.helperText}
 							</span>
@@ -387,18 +360,17 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							}
 							aria-invalid={deprecationField.error}
 						/>
-						{deprecationField.helperText && (
-							<span
-								className={cn(
-									"text-xs",
-									deprecationField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-							>
+						{deprecationField.error && (
+							<span className="text-xs text-content-destructive">
 								{deprecationField.helperText}
 							</span>
 						)}
+						<span className="text-xs text-content-secondary">
+							Leave the message empty to keep the template active. Any message
+							provided will mark the template as deprecated. Use this message to
+							inform users of the deprecation and how to migrate to a new
+							template.
+						</span>
 					</div>
 					{!accessControlEnabled && (
 						<div className="flex items-center gap-2">
@@ -446,18 +418,14 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								<SelectItem value="public">Public</SelectItem>
 							</SelectContent>
 						</Select>
-						{portShareField.helperText && (
-							<span
-								className={cn(
-									"text-xs",
-									portShareField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-							>
+						{portShareField.error && (
+							<span className="text-xs text-content-destructive">
 								{portShareField.helperText}
 							</span>
 						)}
+						<span className="text-xs text-content-secondary">
+							The maximum level of port sharing allowed for workspaces.
+						</span>
 					</div>
 					{!portSharingControlsEnabled && (
 						<div className="flex items-center gap-2">
@@ -492,18 +460,14 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								<SelectItem value="passthru">Passthru</SelectItem>
 							</SelectContent>
 						</Select>
-						{corsField.helperText && (
-							<span
-								className={cn(
-									"text-xs",
-									corsField.error
-										? "text-content-destructive"
-										: "text-content-secondary",
-								)}
-							>
+						{corsField.error && (
+							<span className="text-xs text-content-destructive">
 								{corsField.helperText}
 							</span>
 						)}
+						<span className="text-xs text-content-secondary">
+							Use Passthru to bypass Coder&apos;s built-in CORS protection.
+						</span>
 					</div>
 				</FormFields>
 			</FormSection>
