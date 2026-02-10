@@ -4,7 +4,6 @@
  */
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
-import type * as React from "react";
 import { cn } from "utils/cn";
 
 export const Select = SelectPrimitive.Root;
@@ -17,16 +16,12 @@ export type SelectTriggerProps = React.ComponentPropsWithRef<
 	typeof SelectPrimitive.Trigger
 >;
 
-export const SelectTrigger = ({
+export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	className,
 	children,
-	id,
-	ref,
 	...props
-}: SelectTriggerProps) => (
+}) => (
 	<SelectPrimitive.Trigger
-		ref={ref}
-		id={id}
 		className={cn(
 			`flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md
 			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-sm
@@ -44,13 +39,10 @@ export const SelectTrigger = ({
 	</SelectPrimitive.Trigger>
 );
 
-const SelectScrollUpButton = ({
-	className,
-	ref,
-	...props
-}: React.ComponentPropsWithRef<typeof SelectPrimitive.ScrollUpButton>) => (
+const SelectScrollUpButton: React.FC<
+	React.ComponentPropsWithRef<typeof SelectPrimitive.ScrollUpButton>
+> = ({ className, ...props }) => (
 	<SelectPrimitive.ScrollUpButton
-		ref={ref}
 		className={cn(
 			"flex cursor-default items-center justify-center py-1",
 			className,
