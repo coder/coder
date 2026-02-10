@@ -41,9 +41,7 @@ export const Link: React.FC<LinkProps> = ({
 	return (
 		<Comp className={cn(linkVariants({ size }), className)} {...props}>
 			<Slottable>{children}</Slottable>
-			{showExternalIcon && props.target === "_blank" && (
-				<SquareArrowOutUpRightIcon />
-			)}
+			{showExternalIcon && <SquareArrowOutUpRightIcon />}
 		</Comp>
 	);
 };
