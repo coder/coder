@@ -161,24 +161,21 @@ resource "coder_devcontainer" "my-repository" {
 }
 
 resource "coder_app" "code-server" {
+  count        = data.coder_workspace.me.start_count
   agent_id     = coder_devcontainer.my-repository[0].subagent_id
-  slug         = "code-server"
-  display_name = "Code Server"
-  url          = "http://localhost:13337"
-  icon         = "/icon/code.svg"
+  # ...
 }
 
 resource "coder_script" "dev-setup" {
+  count        = data.coder_workspace.me.start_count
   agent_id     = coder_devcontainer.my-repository[0].subagent_id
-  display_name = "Dev Setup"
-  script       = "echo 'Setting up dev container...'"
-  run_on_start = true
+  # ...
 }
 
 resource "coder_env" "my-var" {
+  count    = data.coder_workspace.me.start_count
   agent_id = coder_devcontainer.my-repository[0].subagent_id
-  name     = "MY_VAR"
-  value    = "my-value"
+  # ...
 }
 ```
 
