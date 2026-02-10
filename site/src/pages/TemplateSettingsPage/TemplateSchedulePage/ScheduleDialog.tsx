@@ -1,7 +1,4 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Checkbox from "@mui/material/Checkbox";
-import DialogActions from "@mui/material/DialogActions";
-import FormControlLabel from "@mui/material/FormControlLabel";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import type { ConfirmDialogProps } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 import type { FC } from "react";
@@ -55,18 +52,28 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 
 	return (
 		<Dialog
-			css={styles.dialogWrapper}
+			css={{
+				"& .MuiPaper-root": {
+					background: "var(--surface-primary)",
+					border: "1px solid var(--border)",
+				},
+				"& .MuiDialogActions-spacing": {
+					padding: "0 40px 40px",
+				},
+			}}
 			onClose={onClose}
 			open={open}
 			data-testid="dialog"
 		>
-			<div css={styles.dialogContent}>
-				<h3 css={styles.dialogTitle}>{title}</h3>
+			<div className="text-content-secondary p-10">
+				<h3 className="m-0 mb-4 text-content-primary font-normal text-xl">
+					{title}
+				</h3>
 
 				{showDormancyWarning && (
 					<>
 						<h4>Dormancy Threshold</h4>
-						<p css={styles.dialogDescription}>
+						<p className="text-content-secondary leading-[160%] text-base [&_strong]:text-content-primary m-0 my-2">
 							This change will result in{" "}
 							<strong>{inactiveWorkspacesToGoDormant}</strong>{" "}
 							{inactiveWorkspacesToGoDormant === 1 ? "workspace" : "workspaces"}{" "}
@@ -78,25 +85,27 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							over the next 7 days. To prevent this, do you want to reset the
 							inactivity period for all template workspaces?
 						</p>
-						<FormControlLabel
-							css={{ marginTop: 16 }}
-							control={
-								<Checkbox
-									size="small"
-									onChange={(e) => {
-										updateInactiveWorkspaces(e.target.checked);
-									}}
-								/>
-							}
-							label="Prevent Dormancy - Reset all workspace inactivity periods"
-						/>
+						<div className="flex items-center gap-3 mt-4">
+							<Checkbox
+								id="prevent-dormancy"
+								onCheckedChange={(checked) => {
+									updateInactiveWorkspaces(checked === true);
+								}}
+							/>
+							<label
+								htmlFor="prevent-dormancy"
+								className="text-sm cursor-pointer"
+							>
+								Prevent Dormancy - Reset all workspace inactivity periods
+							</label>
+						</div>
 					</>
 				)}
 
 				{showDeletionWarning && (
 					<>
 						<h4>Dormancy Auto-Deletion</h4>
-						<p css={styles.dialogDescription}>
+						<p className="text-content-secondary leading-[160%] text-base [&_strong]:text-content-primary m-0 my-2">
 							This change will result in{" "}
 							<strong>{dormantWorkspacesToBeDeleted}</strong>{" "}
 							{dormantWorkspacesToBeDeleted === 1 ? "workspace" : "workspaces"}{" "}
@@ -108,23 +117,25 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							over the next 7 days. To prevent this, do you want to reset the
 							dormancy period for all template workspaces?
 						</p>
-						<FormControlLabel
-							css={{ marginTop: 16 }}
-							control={
-								<Checkbox
-									size="small"
-									onChange={(e) => {
-										updateDormantWorkspaces(e.target.checked);
-									}}
-								/>
-							}
-							label="Prevent Deletion - Reset all workspace dormancy periods"
-						/>
+						<div className="flex items-center gap-3 mt-4">
+							<Checkbox
+								id="prevent-deletion"
+								onCheckedChange={(checked) => {
+									updateDormantWorkspaces(checked === true);
+								}}
+							/>
+							<label
+								htmlFor="prevent-deletion"
+								className="text-sm cursor-pointer"
+							>
+								Prevent Deletion - Reset all workspace dormancy periods
+							</label>
+						</div>
 					</>
 				)}
 			</div>
 
-			<DialogActions>
+			<div className="flex justify-end gap-2 px-10 pb-10">
 				<DialogActionButtons
 					cancelText={cancelText}
 					confirmLoading={confirmLoading}
@@ -134,47 +145,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 					onConfirm={onConfirm || onClose}
 					type="delete"
 				/>
-			</DialogActions>
+			</div>
 		</Dialog>
 	);
 };
-
-const styles = {
-	dialogWrapper: (theme) => ({
-		"& .MuiPaper-root": {
-			background: theme.palette.background.paper,
-			border: `1px solid ${theme.palette.divider}`,
-		},
-		"& .MuiDialogActions-spacing": {
-			padding: "0 40px 40px",
-		},
-	}),
-	dialogContent: (theme) => ({
-		color: theme.palette.text.secondary,
-		padding: 40,
-	}),
-	dialogTitle: (theme) => ({
-		margin: 0,
-		marginBottom: 16,
-		color: theme.palette.text.primary,
-		fontWeight: 400,
-		fontSize: 20,
-	}),
-	dialogDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-		fontSize: 16,
-
-		"& strong": {
-			color: theme.palette.text.primary,
-		},
-
-		"& p:not(.MuiFormHelperText-root)": {
-			margin: 0,
-		},
-
-		"& > p": {
-			margin: "8px 0",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
