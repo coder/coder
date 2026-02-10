@@ -100,6 +100,10 @@
 		@apply border-border;
 	}
 
+	html {
+		overflow-y: scroll;
+	}
+
 	/*
 	By default, Radix adds a margin to the `body` element when a dropdown is displayed,
 	causing some shifting when the dropdown has a full-width size, as is the case with the mobile menu.
@@ -110,12 +114,7 @@
 	 */
 	html body[data-scroll-locked] {
 		--removed-body-scroll-bar-size: 0;
-		margin-right: 0;
-	}
-
-	/* Prevent layout shift when modals open by maintaining scrollbar width */
-	html {
-		scrollbar-gutter: stable;
+		margin-right: 0 !important;
 	}
 
 	/*
