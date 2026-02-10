@@ -1,9 +1,13 @@
-import FormHelperText from "@mui/material/FormHelperText";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { ChevronDownIcon } from "lucide-react";
-import { type FC, useEffect, useReducer } from "react";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
+import { type FC, type ReactNode, useEffect, useReducer } from "react";
 import {
 	durationInDays,
 	durationInHours,
@@ -11,10 +15,16 @@ import {
 	type TimeUnit,
 } from "utils/time";
 
-type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
+interface DurationFieldProps {
 	valueMs: number;
 	onChange: (value: number) => void;
-};
+	label?: string;
+	disabled?: boolean;
+	helperText?: ReactNode;
+	error?: boolean;
+	name?: string;
+	id?: string;
+}
 
 type State = {
 	unit: TimeUnit;
@@ -59,13 +69,16 @@ const reducer = (state: State, action: Action): State => {
 	}
 };
 
-export const DurationField: FC<DurationFieldProps> = (props) => {
-	const {
-		valueMs: parentValueMs,
-		onChange,
-		helperText,
-		...textFieldProps
-	} = props;
+export const DurationField: FC<DurationFieldProps> = ({
+	valueMs: parentValueMs,
+	onChange,
+	helperText,
+	error,
+	label,
+	disabled,
+	name,
+	id,
+}) => {
 	const [state, dispatch] = useReducer(reducer, initState(parentValueMs));
 	const currentDurationMs = durationInMs(state.durationFieldValue, state.unit);
 
@@ -75,18 +88,19 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 		}
 	}, [currentDurationMs, parentValueMs]);
 
+	const inputId = id ?? name;
+
 	return (
-		<div>
-			<div
-				css={{
-					display: "flex",
-					gap: 8,
-				}}
-			>
-				<TextField
-					{...textFieldProps}
-					fullWidth
+		<div className="flex flex-col gap-2">
+			{label && <Label htmlFor={inputId}>{label}</Label>}
+			<div className="flex gap-2">
+				<Input
+					id={inputId}
+					name={name}
+					disabled={disabled}
+					className="flex-1"
 					value={state.durationFieldValue}
+					aria-invalid={error}
 					onChange={(e) => {
 						const durationFieldValue = intMask(e.currentTarget.value);
 
@@ -103,49 +117,50 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 							onChange(newDurationInMs);
 						}
 					}}
-					inputProps={{
-						step: 1,
-					}}
 				/>
 				<Select
-					disabled={props.disabled}
-					css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
+					disabled={disabled}
 					value={state.unit}
-					onChange={(e) => {
-						const unit = e.target.value as TimeUnit;
+					onValueChange={(value) => {
+						const unit = value as TimeUnit;
 						dispatch({
 							type: "CHANGE_TIME_UNIT",
 							unit,
 						});
 
-						// Calculate the new duration in ms after changing the unit
-						// Important: When changing from hours to days, we need to round up to nearest day
-						// but keep the millisecond value consistent for the parent component
+						// Calculate the new duration in ms after changing the unit.
+						// When changing from hours to days, we round up to the
+						// nearest day but keep the ms value consistent for the
+						// parent component.
 						let newDurationMs: number;
 						if (unit === "hours") {
-							// When switching to hours, use the current milliseconds to get exact hours
 							newDurationMs = currentDurationMs;
 						} else {
-							// When switching to days, round up to the nearest day
 							const daysValue = Math.ceil(durationInDays(currentDurationMs));
 							newDurationMs = daysToDuration(daysValue);
 						}
 
-						// Notify parent component if the value has changed
 						if (newDurationMs !== parentValueMs) {
 							onChange(newDurationMs);
 						}
 					}}
-					inputProps={{ "aria-label": "Time unit" }}
-					IconComponent={ChevronDownIcon}
 				>
-					<MenuItem value="hours">Hours</MenuItem>
-					<MenuItem value="days">Days</MenuItem>
+					<SelectTrigger className="w-[120px]" aria-label="Time unit">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="hours">Hours</SelectItem>
+						<SelectItem value="days">Days</SelectItem>
+					</SelectContent>
 				</Select>
 			</div>
 
 			{helperText && (
-				<FormHelperText error={props.error}>{helperText}</FormHelperText>
+				<span
+					className={`text-xs ${error ? "text-content-destructive" : "text-content-secondary"}`}
+				>
+					{helperText}
+				</span>
 			)}
 		</div>
 	);

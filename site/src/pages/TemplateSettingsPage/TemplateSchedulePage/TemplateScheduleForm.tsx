@@ -524,13 +524,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							</div>
 
 							<DurationField
-								{...getFieldHelpers("time_til_dormant_ms", {
-									helperText: (
-										<DormancyTTLHelperText
-											ttl={form.values.time_til_dormant_ms}
-										/>
-									),
-								})}
+								{...getFieldHelpers("time_til_dormant_ms")}
+								helperText={
+									<DormancyTTLHelperText
+										ttl={form.values.time_til_dormant_ms}
+									/>
+								}
 								label="Time until dormant"
 								valueMs={form.values.time_til_dormant_ms ?? 0}
 								onChange={(v) => form.setFieldValue("time_til_dormant_ms", v)}
@@ -564,13 +563,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								</label>
 							</div>
 							<DurationField
-								{...getFieldHelpers("time_til_dormant_autodelete_ms", {
-									helperText: (
-										<DormancyAutoDeletionTTLHelperText
-											ttl={form.values.time_til_dormant_autodelete_ms}
-										/>
-									),
-								})}
+								{...getFieldHelpers("time_til_dormant_autodelete_ms")}
+								helperText={
+									<DormancyAutoDeletionTTLHelperText
+										ttl={form.values.time_til_dormant_autodelete_ms}
+									/>
+								}
 								label="Time until deletion"
 								valueMs={form.values.time_til_dormant_autodelete_ms ?? 0}
 								onChange={(v) =>
@@ -604,11 +602,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								</label>
 							</div>
 							<DurationField
-								{...getFieldHelpers("failure_ttl_ms", {
-									helperText: (
-										<FailureTTLHelperText ttl={form.values.failure_ttl_ms} />
-									),
-								})}
+								{...getFieldHelpers("failure_ttl_ms")}
+								helperText={
+									<FailureTTLHelperText ttl={form.values.failure_ttl_ms} />
+								}
 								label="Time until cleanup"
 								valueMs={form.values.failure_ttl_ms ?? 0}
 								onChange={(v) => form.setFieldValue("failure_ttl_ms", v)}
