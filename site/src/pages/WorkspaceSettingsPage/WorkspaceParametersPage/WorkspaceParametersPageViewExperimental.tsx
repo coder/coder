@@ -104,6 +104,21 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		setFieldValue: form.setFieldValue,
 	});
 
+	// True when the form holds values the backend hasn't evaluated
+	// yet (debounce pending or WS round-trip in flight).
+	const hasUnsyncedParameters = (form.values.rich_parameter_values ?? []).some(
+		(formParam) => {
+			const responseParam = parameters.find((p) => p.name === formParam.name);
+			if (!responseParam) {
+				return true;
+			}
+			const responseValue = responseParam.value.valid
+				? responseParam.value.value
+				: "";
+			return formParam.value !== responseValue;
+		},
+	);
+
 	const hasIncompatibleParameters = parameters.some((parameter) => {
 		if (!parameter.mutable && parameter.diagnostics.length > 0) {
 			return true;
@@ -250,6 +265,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						disabled={
 							isSubmitting ||
 							disabled ||
+							hasUnsyncedParameters ||
 							diagnostics.some(
 								(diagnostic) => diagnostic.severity === "error",
 							) ||
