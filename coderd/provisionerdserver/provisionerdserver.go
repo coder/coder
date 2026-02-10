@@ -2354,6 +2354,8 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			database.ConnectionTypeVscode,
 			database.ConnectionTypeJetbrains,
 			database.ConnectionTypeReconnectingPty,
+			database.ConnectionTypeWorkspaceApp,
+			database.ConnectionTypePortForwarding,
 		}
 
 		//nolint:gocritic // Best-effort cleanup should not depend on RPC context.
