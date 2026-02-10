@@ -1,4 +1,4 @@
-//go:build !windows && !darwin
+//go:build !windows && !darwin && !linux
 
 package cli
 
@@ -11,7 +11,7 @@ import (
 func (*RootCmd) vpnDaemonRun() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "run",
-		Short: "Run the VPN daemon on Windows.",
+		Short: "Run the VPN daemon.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 		),
