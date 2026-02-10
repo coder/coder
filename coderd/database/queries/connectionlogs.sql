@@ -322,7 +322,27 @@ WHERE disconnect_time IS NULL
 -- name: GetOngoingAgentConnectionsLast24h :many
 WITH ranked AS (
 	SELECT
-		*,
+		id,
+		connect_time,
+		organization_id,
+		workspace_owner_id,
+		workspace_id,
+		workspace_name,
+		agent_name,
+		type,
+		ip,
+		code,
+		user_agent,
+		user_id,
+		slug_or_port,
+		connection_id,
+		disconnect_time,
+		disconnect_reason,
+		agent_id,
+		updated_at,
+		session_id,
+		client_hostname,
+		short_description,
 		row_number() OVER (
 			PARTITION BY workspace_id, agent_name
 			ORDER BY connect_time DESC
@@ -383,7 +403,7 @@ WITH connections_to_close AS (
     SELECT id, ip, connect_time, agent_id, client_hostname, short_description
     FROM connection_logs
     WHERE disconnect_time IS NULL
-      AND workspace_id = @workspace_id
+      AND connection_logs.workspace_id = @workspace_id
       AND type = ANY(@types::connection_type[])
 ),
 session_groups AS (
