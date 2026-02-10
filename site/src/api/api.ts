@@ -345,6 +345,7 @@ type SearchParamOptions = TypesGen.Pagination & {
 type RestartWorkspaceParameters = Readonly<{
 	workspace: TypesGen.Workspace;
 	buildParameters?: TypesGen.WorkspaceBuildParameter[];
+	logLevel?: TypesGen.ProvisionerLogLevel;
 }>;
 
 export type DeleteWorkspaceOptions = Pick<
@@ -1385,8 +1386,9 @@ class ApiMethods {
 	restartWorkspace = async ({
 		workspace,
 		buildParameters,
+		logLevel,
 	}: RestartWorkspaceParameters): Promise<void> => {
-		const stopBuild = await this.stopWorkspace(workspace.id);
+		const stopBuild = await this.stopWorkspace(workspace.id, logLevel);
 		const awaitedStopBuild = await this.waitForBuild(stopBuild);
 
 		// If the restart is canceled halfway through, make sure we bail
@@ -1397,7 +1399,7 @@ class ApiMethods {
 		const startBuild = await this.startWorkspace(
 			workspace.id,
 			workspace.latest_build.template_version_id,
-			undefined,
+			logLevel,
 			buildParameters,
 		);
 

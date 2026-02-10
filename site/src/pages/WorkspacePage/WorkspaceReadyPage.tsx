@@ -235,10 +235,20 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		} else {
 			switch (workspace.latest_build.transition) {
 				case "start":
-					startWorkspaceMutation.mutate({
-						logLevel,
-						buildParameters,
-					});
+					// If the last build was a failed start, clean up
+					// before retrying by running a stop→start sequence.
+					if (workspace.latest_build.status === "failed") {
+						mutateRestartWorkspace({
+							workspace,
+							buildParameters,
+							logLevel,
+						});
+					} else {
+						startWorkspaceMutation.mutate({
+							logLevel,
+							buildParameters,
+						});
+					}
 					break;
 				case "stop":
 					stopWorkspaceMutation.mutate({ logLevel });

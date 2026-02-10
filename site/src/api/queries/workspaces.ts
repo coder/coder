@@ -305,13 +305,26 @@ export const startWorkspace = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: ({
+		mutationFn: async ({
 			buildParameters,
 			logLevel,
 		}: {
 			buildParameters?: WorkspaceBuildParameter[];
 			logLevel?: ProvisionerLogLevel;
 		}) => {
+			// If the last build was a failed start, clean up before
+			// retrying by running a stop→start sequence.
+			if (
+				workspace.latest_build.transition === "start" &&
+				workspace.latest_build.status === "failed"
+			) {
+				await API.restartWorkspace({
+					workspace,
+					buildParameters,
+					logLevel,
+				});
+				return undefined;
+			}
 			return API.startWorkspace(
 				workspace.id,
 				workspace.latest_build.template_version_id,
@@ -319,8 +332,19 @@ export const startWorkspace = (
 				buildParameters,
 			);
 		},
-		onSuccess: async (build: WorkspaceBuild) => {
-			await updateWorkspaceBuild(build, queryClient);
+		onSuccess: async (build: WorkspaceBuild | undefined) => {
+			if (build) {
+				await updateWorkspaceBuild(build, queryClient);
+			} else {
+				// After a restart (stop→start), invalidate the workspace
+				// query so the UI picks up the latest build state.
+				await queryClient.invalidateQueries({
+					queryKey: workspaceByOwnerAndNameKey(
+						workspace.owner_name,
+						workspace.name,
+					),
+				});
+			}
 		},
 	};
 };
