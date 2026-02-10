@@ -1086,6 +1086,14 @@ func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetFirstWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFirstWorkspaceAppStatusesByAppIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetFirstWorkspaceAppStatusesByAppIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFirstWorkspaceAppStatusesByAppIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGitSSHKey(ctx, userID)
@@ -1171,6 +1179,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	r0, r1 := m.s.GetLastUpdateCheck(ctx)
 	m.queryLatencies.WithLabelValues("GetLastUpdateCheck").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastUpdateCheck").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetLastWorkingWorkspaceAppStatusesByAppIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastWorkingWorkspaceAppStatusesByAppIDs").Inc()
 	return r0, r1
 }
 
@@ -1774,11 +1790,27 @@ func (m queryMetricsStore) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetTaskLifecycleBuildsCreatedAfterRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskLifecycleBuildsCreatedAfter(ctx, createdAfter)
+	m.queryLatencies.WithLabelValues("GetTaskLifecycleBuildsCreatedAfter").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskLifecycleBuildsCreatedAfter").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTaskSnapshot(ctx, taskID)
 	m.queryLatencies.WithLabelValues("GetTaskSnapshot").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskSnapshot").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTasksForTelemetry(ctx context.Context) ([]database.GetTasksForTelemetryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTasksForTelemetry(ctx)
+	m.queryLatencies.WithLabelValues("GetTasksForTelemetry").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTasksForTelemetry").Inc()
 	return r0, r1
 }
 

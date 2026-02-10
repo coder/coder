@@ -1994,6 +1994,21 @@ func (mr *MockStoreMockRecorder) GetFilteredInboxNotificationsByUserID(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilteredInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetFilteredInboxNotificationsByUserID), ctx, arg)
 }
 
+// GetFirstWorkspaceAppStatusesByAppIDs mocks base method.
+func (m *MockStore) GetFirstWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFirstWorkspaceAppStatusesByAppIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.WorkspaceAppStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFirstWorkspaceAppStatusesByAppIDs indicates an expected call of GetFirstWorkspaceAppStatusesByAppIDs.
+func (mr *MockStoreMockRecorder) GetFirstWorkspaceAppStatusesByAppIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFirstWorkspaceAppStatusesByAppIDs", reflect.TypeOf((*MockStore)(nil).GetFirstWorkspaceAppStatusesByAppIDs), ctx, ids)
+}
+
 // GetGitSSHKey mocks base method.
 func (m *MockStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	m.ctrl.T.Helper()
@@ -2157,6 +2172,21 @@ func (m *MockStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
+}
+
+// GetLastWorkingWorkspaceAppStatusesByAppIDs mocks base method.
+func (m *MockStore) GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastWorkingWorkspaceAppStatusesByAppIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.WorkspaceAppStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLastWorkingWorkspaceAppStatusesByAppIDs indicates an expected call of GetLastWorkingWorkspaceAppStatusesByAppIDs.
+func (mr *MockStoreMockRecorder) GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastWorkingWorkspaceAppStatusesByAppIDs", reflect.TypeOf((*MockStore)(nil).GetLastWorkingWorkspaceAppStatusesByAppIDs), ctx, ids)
 }
 
 // GetLatestCryptoKeyByFeature mocks base method.
@@ -3284,6 +3314,21 @@ func (mr *MockStoreMockRecorder) GetTaskLifecycleBuildsByWorkspaceIDs(ctx, works
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskLifecycleBuildsByWorkspaceIDs", reflect.TypeOf((*MockStore)(nil).GetTaskLifecycleBuildsByWorkspaceIDs), ctx, workspaceIds)
 }
 
+// GetTaskLifecycleBuildsCreatedAfter mocks base method.
+func (m *MockStore) GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetTaskLifecycleBuildsCreatedAfterRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskLifecycleBuildsCreatedAfter", ctx, createdAfter)
+	ret0, _ := ret[0].([]database.GetTaskLifecycleBuildsCreatedAfterRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTaskLifecycleBuildsCreatedAfter indicates an expected call of GetTaskLifecycleBuildsCreatedAfter.
+func (mr *MockStoreMockRecorder) GetTaskLifecycleBuildsCreatedAfter(ctx, createdAfter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskLifecycleBuildsCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetTaskLifecycleBuildsCreatedAfter), ctx, createdAfter)
+}
+
 // GetTaskSnapshot mocks base method.
 func (m *MockStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	m.ctrl.T.Helper()
@@ -3297,6 +3342,21 @@ func (m *MockStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (data
 func (mr *MockStoreMockRecorder) GetTaskSnapshot(ctx, taskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskSnapshot", reflect.TypeOf((*MockStore)(nil).GetTaskSnapshot), ctx, taskID)
+}
+
+// GetTasksForTelemetry mocks base method.
+func (m *MockStore) GetTasksForTelemetry(ctx context.Context) ([]database.GetTasksForTelemetryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTasksForTelemetry", ctx)
+	ret0, _ := ret[0].([]database.GetTasksForTelemetryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTasksForTelemetry indicates an expected call of GetTasksForTelemetry.
+func (mr *MockStoreMockRecorder) GetTasksForTelemetry(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksForTelemetry", reflect.TypeOf((*MockStore)(nil).GetTasksForTelemetry), ctx)
 }
 
 // GetTelemetryItem mocks base method.

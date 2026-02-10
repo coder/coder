@@ -230,6 +230,9 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
+	// Returns the earliest app status for each app ID. Used by telemetry to
+	// compute time-to-first-status without fetching all statuses.
+	GetFirstWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
@@ -249,6 +252,9 @@ type sqlcQuerier interface {
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	// Returns the most recent "working" status for each app ID. Used by
+	// telemetry to compute idle duration before pause.
+	GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
 	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
@@ -361,7 +367,14 @@ type sqlcQuerier interface {
 	// Returns workspace builds relevant to task lifecycle telemetry (pause/resume events).
 	// Results are ordered by workspace_id and created_at DESC for efficient processing.
 	GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]GetTaskLifecycleBuildsByWorkspaceIDsRow, error)
+	// Returns task lifecycle builds (pause/resume events) created after a given
+	// timestamp. Used by telemetry to collect only recent lifecycle events.
+	GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]GetTaskLifecycleBuildsCreatedAfterRow, error)
 	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
+	// Returns tasks with their workspace app bindings for telemetry collection.
+	// This bypasses the expensive tasks_with_status view by querying the base
+	// tables directly.
+	GetTasksForTelemetry(ctx context.Context) ([]GetTasksForTelemetryRow, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
 	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given

@@ -2442,6 +2442,13 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
 }
 
+func (q *querier) GetFirstWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFirstWorkspaceAppStatusesByAppIDs(ctx, ids)
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -2506,6 +2513,13 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return q.db.GetLastUpdateCheck(ctx)
+}
+
+func (q *querier) GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx, ids)
 }
 
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
@@ -3108,6 +3122,13 @@ func (q *querier) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, work
 	return q.db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIDs)
 }
 
+func (q *querier) GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetTaskLifecycleBuildsCreatedAfterRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetTaskLifecycleBuildsCreatedAfter(ctx, createdAfter)
+}
+
 func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	// Fetch task to build RBAC object for authorization.
 	task, err := q.GetTaskByID(ctx, taskID)
@@ -3125,6 +3146,13 @@ func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (databa
 	}
 
 	return q.db.GetTaskSnapshot(ctx, taskID)
+}
+
+func (q *querier) GetTasksForTelemetry(ctx context.Context) ([]database.GetTasksForTelemetryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTasksForTelemetry(ctx)
 }
 
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {

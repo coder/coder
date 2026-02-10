@@ -100,3 +100,35 @@ FROM
 	task_snapshots
 WHERE
 	task_id = $1;
+
+-- name: GetTasksForTelemetry :many
+-- Returns tasks with their workspace app bindings for telemetry collection.
+-- This bypasses the expensive tasks_with_status view by querying the base
+-- tables directly.
+SELECT
+    t.id,
+    t.organization_id,
+    t.owner_id,
+    t.name,
+    t.workspace_id,
+    t.template_version_id,
+    t.prompt,
+    t.created_at,
+    -- COALESCE to 0 because sqlc cannot infer nullability from a LEFT
+    -- JOIN LATERAL. Build numbers start at 1, so 0 means "no binding".
+    COALESCE(twa.workspace_build_number, 0) AS workspace_build_number,
+    twa.workspace_agent_id,
+    twa.workspace_app_id
+FROM tasks t
+LEFT JOIN LATERAL (
+    SELECT
+        task_app.workspace_build_number,
+        task_app.workspace_agent_id,
+        task_app.workspace_app_id
+    FROM task_workspace_apps task_app
+    WHERE task_app.task_id = t.id
+    ORDER BY task_app.workspace_build_number DESC
+    LIMIT 1
+) twa ON TRUE
+WHERE t.deleted_at IS NULL
+ORDER BY t.created_at DESC;

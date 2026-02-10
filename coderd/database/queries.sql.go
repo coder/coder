@@ -13293,6 +13293,88 @@ func (q *sqlQuerier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (Tas
 	return i, err
 }
 
+const getTasksForTelemetry = `-- name: GetTasksForTelemetry :many
+SELECT
+    t.id,
+    t.organization_id,
+    t.owner_id,
+    t.name,
+    t.workspace_id,
+    t.template_version_id,
+    t.prompt,
+    t.created_at,
+    -- COALESCE to 0 because sqlc cannot infer nullability from a LEFT
+    -- JOIN LATERAL. Build numbers start at 1, so 0 means "no binding".
+    COALESCE(twa.workspace_build_number, 0) AS workspace_build_number,
+    twa.workspace_agent_id,
+    twa.workspace_app_id
+FROM tasks t
+LEFT JOIN LATERAL (
+    SELECT
+        task_app.workspace_build_number,
+        task_app.workspace_agent_id,
+        task_app.workspace_app_id
+    FROM task_workspace_apps task_app
+    WHERE task_app.task_id = t.id
+    ORDER BY task_app.workspace_build_number DESC
+    LIMIT 1
+) twa ON TRUE
+WHERE t.deleted_at IS NULL
+ORDER BY t.created_at DESC
+`
+
+type GetTasksForTelemetryRow struct {
+	ID                   uuid.UUID     `db:"id" json:"id"`
+	OrganizationID       uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OwnerID              uuid.UUID     `db:"owner_id" json:"owner_id"`
+	Name                 string        `db:"name" json:"name"`
+	WorkspaceID          uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID    uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	Prompt               string        `db:"prompt" json:"prompt"`
+	CreatedAt            time.Time     `db:"created_at" json:"created_at"`
+	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
+	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
+}
+
+// Returns tasks with their workspace app bindings for telemetry collection.
+// This bypasses the expensive tasks_with_status view by querying the base
+// tables directly.
+func (q *sqlQuerier) GetTasksForTelemetry(ctx context.Context) ([]GetTasksForTelemetryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTasksForTelemetry)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTasksForTelemetryRow
+	for rows.Next() {
+		var i GetTasksForTelemetryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.Prompt,
+			&i.CreatedAt,
+			&i.WorkspaceBuildNumber,
+			&i.WorkspaceAgentID,
+			&i.WorkspaceAppID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertTask = `-- name: InsertTask :one
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, display_name, workspace_id, template_version_id, template_parameters, prompt, created_at)
@@ -20290,6 +20372,89 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	return new_or_stale, err
 }
 
+const getFirstWorkspaceAppStatusesByAppIDs = `-- name: GetFirstWorkspaceAppStatusesByAppIDs :many
+SELECT DISTINCT ON (app_id) id, created_at, agent_id, app_id, workspace_id, state, message, uri
+FROM workspace_app_statuses
+WHERE app_id = ANY($1 :: uuid[])
+ORDER BY app_id, created_at ASC, id ASC
+`
+
+// Returns the earliest app status for each app ID. Used by telemetry to
+// compute time-to-first-status without fetching all statuses.
+func (q *sqlQuerier) GetFirstWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getFirstWorkspaceAppStatusesByAppIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.Message,
+			&i.Uri,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLastWorkingWorkspaceAppStatusesByAppIDs = `-- name: GetLastWorkingWorkspaceAppStatusesByAppIDs :many
+SELECT DISTINCT ON (app_id) id, created_at, agent_id, app_id, workspace_id, state, message, uri
+FROM workspace_app_statuses
+WHERE app_id = ANY($1 :: uuid[])
+  AND state = 'working'
+ORDER BY app_id, created_at DESC, id DESC
+`
+
+// Returns the most recent "working" status for each app ID. Used by
+// telemetry to compute idle duration before pause.
+func (q *sqlQuerier) GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getLastWorkingWorkspaceAppStatusesByAppIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.Message,
+			&i.Uri,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLatestWorkspaceAppStatusByAppID = `-- name: GetLatestWorkspaceAppStatusByAppID :one
 SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri
 FROM workspace_app_statuses
@@ -21258,6 +21423,61 @@ func (q *sqlQuerier) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, w
 	var items []GetTaskLifecycleBuildsByWorkspaceIDsRow
 	for rows.Next() {
 		var i GetTaskLifecycleBuildsByWorkspaceIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.CreatedAt,
+			&i.Transition,
+			&i.Reason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTaskLifecycleBuildsCreatedAfter = `-- name: GetTaskLifecycleBuildsCreatedAfter :many
+SELECT
+    id,
+    workspace_id,
+    created_at,
+    transition,
+    reason
+FROM
+    workspace_builds
+WHERE
+    reason IN ('task_auto_pause', 'task_manual_pause', 'task_resume')
+    AND created_at > $1
+ORDER BY
+    workspace_id, created_at DESC
+`
+
+type GetTaskLifecycleBuildsCreatedAfterRow struct {
+	ID          uuid.UUID           `db:"id" json:"id"`
+	WorkspaceID uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	CreatedAt   time.Time           `db:"created_at" json:"created_at"`
+	Transition  WorkspaceTransition `db:"transition" json:"transition"`
+	Reason      BuildReason         `db:"reason" json:"reason"`
+}
+
+// Returns task lifecycle builds (pause/resume events) created after a given
+// timestamp. Used by telemetry to collect only recent lifecycle events.
+func (q *sqlQuerier) GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]GetTaskLifecycleBuildsCreatedAfterRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTaskLifecycleBuildsCreatedAfter, createdAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTaskLifecycleBuildsCreatedAfterRow
+	for rows.Next() {
+		var i GetTaskLifecycleBuildsCreatedAfterRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,

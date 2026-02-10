@@ -87,3 +87,20 @@ SELECT DISTINCT ON (workspace_id)
 FROM workspace_app_statuses
 WHERE workspace_id = ANY(@ids :: uuid[])
 ORDER BY workspace_id, created_at DESC;
+
+-- name: GetFirstWorkspaceAppStatusesByAppIDs :many
+-- Returns the earliest app status for each app ID. Used by telemetry to
+-- compute time-to-first-status without fetching all statuses.
+SELECT DISTINCT ON (app_id) *
+FROM workspace_app_statuses
+WHERE app_id = ANY(@ids :: uuid[])
+ORDER BY app_id, created_at ASC, id ASC;
+
+-- name: GetLastWorkingWorkspaceAppStatusesByAppIDs :many
+-- Returns the most recent "working" status for each app ID. Used by
+-- telemetry to compute idle duration before pause.
+SELECT DISTINCT ON (app_id) *
+FROM workspace_app_statuses
+WHERE app_id = ANY(@ids :: uuid[])
+  AND state = 'working'
+ORDER BY app_id, created_at DESC, id DESC;
