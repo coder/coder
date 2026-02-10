@@ -16,9 +16,28 @@ services:
       timeout: 5s
       retries: 10
 
-  build-slim:
+  # Ensure named volumes are owned by the coder user (uid 1000)
+  # since Docker creates them as root by default.
+  init-volumes:
     image: codercom/oss-dogfood:latest
     user: "0:0"
+    volumes:
+      - go_cache:/go-cache
+      - coder_cache:/cache
+      - coderv2_config:/home/coder/.config/coderv2
+      - site_node_modules:/app/site/node_modules
+    command: >
+      chown -R 1000:1000
+        /go-cache
+        /cache
+        /home/coder/.config/coderv2
+        /app/site/node_modules
+
+  build-slim:
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
     working_dir: /app
     environment:
       GOMODCACHE: /go-cache/mod
@@ -37,7 +56,6 @@ services:
 
   coderd:
     image: codercom/oss-dogfood:latest
-    user: "0:0"
     depends_on:
       database:
         condition: service_healthy
@@ -71,7 +89,7 @@ services:
       - .:/app
       - go_cache:/go-cache
       - coder_cache:/cache
-      - coderv2_config:/root/.config/coderv2
+      - coderv2_config:/home/coder/.config/coderv2
       - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
     command: >
       go run ./enterprise/cmd/coder server
@@ -83,7 +101,6 @@ services:
 
   setup:
     image: codercom/oss-dogfood:latest
-    user: "0:0"
     depends_on:
       coderd:
         condition: service_healthy
@@ -96,13 +113,12 @@ services:
     volumes:
       - .:/app
       - go_cache:/go-cache
-      - coderv2_config:/root/.config/coderv2
+      - coderv2_config:/home/coder/.config/coderv2
       - ./scripts/docker-dev:/scripts:ro
     command: ["sh", "/scripts/setup.sh"]
 
   site:
     image: codercom/oss-dogfood:latest
-    user: "0:0"
     depends_on:
       setup:
         condition: service_completed_successfully
