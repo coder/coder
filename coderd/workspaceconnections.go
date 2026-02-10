@@ -20,8 +20,8 @@ const (
 	workspaceAgentConnectionsPerAgentLimit int64         = 50
 	workspaceAgentConnectionsWindow        time.Duration = 24 * time.Hour
 	// Web app connection logs have updated_at bumped on each token refresh
-	// (~1/min for HTTP apps). Use 5 minutes as the activity window.
-	workspaceAppActiveWindow time.Duration = 5 * time.Minute
+	// (~1/min for HTTP apps). Use 1m30s as the activity window.
+	workspaceAppActiveWindow time.Duration = 90 * time.Second
 )
 
 var workspaceAgentConnectionsTypes = []database.ConnectionType{
