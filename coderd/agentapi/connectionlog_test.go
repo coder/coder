@@ -144,6 +144,7 @@ func TestConnectionLog(t *testing.T) {
 				WorkspaceID:      workspace.ID,
 				WorkspaceName:    workspace.Name,
 				AgentName:        agent.Name,
+				AgentID:          uuid.NullUUID{UUID: agent.ID, Valid: true},
 				UserID: uuid.NullUUID{
 					UUID:  uuid.Nil,
 					Valid: false,

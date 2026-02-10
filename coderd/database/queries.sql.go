@@ -2079,6 +2079,37 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const closeOpenAgentConnectionLogsForWorkspace = `-- name: CloseOpenAgentConnectionLogsForWorkspace :execrows
+UPDATE connection_logs
+SET
+	disconnect_time = GREATEST(connect_time, $1 :: timestamp with time zone),
+	-- Do not overwrite any existing reason.
+	disconnect_reason = COALESCE(disconnect_reason, $2 :: text)
+WHERE disconnect_time IS NULL
+	AND workspace_id = $3 :: uuid
+	AND type = ANY($4 :: connection_type[])
+`
+
+type CloseOpenAgentConnectionLogsForWorkspaceParams struct {
+	ClosedAt    time.Time        `db:"closed_at" json:"closed_at"`
+	Reason      string           `db:"reason" json:"reason"`
+	WorkspaceID uuid.UUID        `db:"workspace_id" json:"workspace_id"`
+	Types       []ConnectionType `db:"types" json:"types"`
+}
+
+func (q *sqlQuerier) CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, closeOpenAgentConnectionLogsForWorkspace,
+		arg.ClosedAt,
+		arg.Reason,
+		arg.WorkspaceID,
+		pq.Array(arg.Types),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count
@@ -2251,7 +2282,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.agent_id,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -2464,6 +2495,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.AgentID,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -2497,7 +2529,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 const getOngoingAgentConnectionsLast24h = `-- name: GetOngoingAgentConnectionsLast24h :many
 WITH ranked AS (
 	SELECT
-		id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason,
+		id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id,
 		row_number() OVER (
 			PARTITION BY workspace_id, agent_name
 			ORDER BY connect_time DESC
@@ -2620,6 +2652,7 @@ INSERT INTO connection_logs (
 	workspace_id,
 	workspace_name,
 	agent_name,
+	agent_id,
 	type,
 	code,
 	ip,
@@ -2630,39 +2663,40 @@ INSERT INTO connection_logs (
 	disconnect_reason,
 	disconnect_time
 ) VALUES
-	($1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+	($1, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 	-- If we've only received a disconnect event, mark the event as immediately
 	-- closed.
 	 CASE
-		 WHEN $16::connection_status = 'disconnected'
-		 THEN $15 :: timestamp with time zone
+		 WHEN $17::connection_status = 'disconnected'
+		 THEN $16 :: timestamp with time zone
 		 ELSE NULL
 	 END)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
 	-- No-op if the connection is still open.
 	disconnect_time = CASE
-		WHEN $16::connection_status = 'disconnected'
+		WHEN $17::connection_status = 'disconnected'
 		-- Can only be set once
 		AND connection_logs.disconnect_time IS NULL
 		THEN EXCLUDED.connect_time
 		ELSE connection_logs.disconnect_time
 	END,
 	disconnect_reason = CASE
-		WHEN $16::connection_status = 'disconnected'
+		WHEN $17::connection_status = 'disconnected'
 		-- Can only be set once
 		AND connection_logs.disconnect_reason IS NULL
 		THEN EXCLUDED.disconnect_reason
 		ELSE connection_logs.disconnect_reason
 	END,
 	code = CASE
-		WHEN $16::connection_status = 'disconnected'
+		WHEN $17::connection_status = 'disconnected'
 		-- Can only be set once
 		AND connection_logs.code IS NULL
 		THEN EXCLUDED.code
 		ELSE connection_logs.code
-	END
-RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason
+	END,
+	agent_id = COALESCE(connection_logs.agent_id, EXCLUDED.agent_id)
+RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id
 `
 
 type UpsertConnectionLogParams struct {
@@ -2672,6 +2706,7 @@ type UpsertConnectionLogParams struct {
 	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
 	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
 	AgentName        string           `db:"agent_name" json:"agent_name"`
+	AgentID          uuid.NullUUID    `db:"agent_id" json:"agent_id"`
 	Type             ConnectionType   `db:"type" json:"type"`
 	Code             sql.NullInt32    `db:"code" json:"code"`
 	Ip               pqtype.Inet      `db:"ip" json:"ip"`
@@ -2692,6 +2727,7 @@ func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnecti
 		arg.WorkspaceID,
 		arg.WorkspaceName,
 		arg.AgentName,
+		arg.AgentID,
 		arg.Type,
 		arg.Code,
 		arg.Ip,
@@ -2721,6 +2757,7 @@ func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnecti
 		&i.ConnectionID,
 		&i.DisconnectTime,
 		&i.DisconnectReason,
+		&i.AgentID,
 	)
 	return i, err
 }

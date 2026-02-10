@@ -276,6 +276,21 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), ctx)
 }
 
+// CloseOpenAgentConnectionLogsForWorkspace mocks base method.
+func (m *MockStore) CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg database.CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseOpenAgentConnectionLogsForWorkspace", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CloseOpenAgentConnectionLogsForWorkspace indicates an expected call of CloseOpenAgentConnectionLogsForWorkspace.
+func (mr *MockStoreMockRecorder) CloseOpenAgentConnectionLogsForWorkspace(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseOpenAgentConnectionLogsForWorkspace", reflect.TypeOf((*MockStore)(nil).CloseOpenAgentConnectionLogsForWorkspace), ctx, arg)
+}
+
 // CountAIBridgeInterceptions mocks base method.
 func (m *MockStore) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	m.ctrl.T.Helper()

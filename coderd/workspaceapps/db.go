@@ -530,6 +530,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			WorkspaceID:      aReq.dbReq.Workspace.ID,
 			WorkspaceName:    aReq.dbReq.Workspace.Name,
 			AgentName:        aReq.dbReq.Agent.Name,
+			AgentID:          uuid.NullUUID{UUID: aReq.dbReq.Agent.ID, Valid: true},
 			Type:             connType,
 			Code: sql.NullInt32{
 				Int32: statusCode,

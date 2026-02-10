@@ -318,7 +318,7 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, codersdk.SignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
-					assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
+					assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
 					require.Len(t, connLogger.ConnectionLogs(), 1)
 
 					var parsedToken workspaceapps.SignedToken
@@ -398,7 +398,7 @@ func Test_ResolveRequest(t *testing.T) {
 			require.NotNil(t, token)
 			require.Zero(t, w.StatusCode)
 
-			assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, secondUser.ID)
+			assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, secondUser.ID)
 			require.Len(t, connLogger.ConnectionLogs(), 1)
 		}
 	})
@@ -438,7 +438,7 @@ func Test_ResolveRequest(t *testing.T) {
 				require.NotZero(t, rw.Code)
 				require.NotEqual(t, http.StatusOK, rw.Code)
 
-				assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, uuid.Nil)
+				assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, uuid.Nil)
 				require.Len(t, connLogger.ConnectionLogs(), 1)
 			} else {
 				if !assert.True(t, ok) {
@@ -452,7 +452,7 @@ func Test_ResolveRequest(t *testing.T) {
 					t.Fatalf("expected 200 (or unset) response code, got %d", rw.Code)
 				}
 
-				assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, uuid.Nil)
+				assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, uuid.Nil)
 				require.Len(t, connLogger.ConnectionLogs(), 1)
 			}
 			_ = w.Body.Close()
@@ -577,7 +577,7 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, token.AgentNameOrID, c.agent)
 					require.Equal(t, token.WorkspaceID, workspace.ID)
 					require.Equal(t, token.AgentID, agentID)
-					assertConnLogContains(t, rw, r, connLogger, workspace, agentName, token.AppSlugOrPort, database.ConnectionTypeWorkspaceApp, me.ID)
+					assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, token.AppSlugOrPort, database.ConnectionTypeWorkspaceApp, me.ID)
 					require.Len(t, connLogger.ConnectionLogs(), 1)
 				} else {
 					require.Nil(t, token)
@@ -663,7 +663,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, appNameOwner, parsedToken.AppSlugOrPort)
 
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, appNameOwner, database.ConnectionTypeWorkspaceApp, me.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, appNameOwner, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 	})
 
@@ -736,7 +736,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, req.AppSlugOrPort, token.AppSlugOrPort)
 		require.Equal(t, "http://127.0.0.1:9090", token.AppURL)
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, "9090", database.ConnectionTypePortForwarding, me.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, "9090", database.ConnectionTypePortForwarding, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 	})
 
@@ -809,7 +809,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.True(t, ok)
 		require.Equal(t, req.AppSlugOrPort, token.AppSlugOrPort)
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, appNameEndsInS, database.ConnectionTypeWorkspaceApp, me.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, appNameEndsInS, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 	})
 
@@ -846,7 +846,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, req.AgentNameOrID, token.Request.AgentNameOrID)
 		require.Empty(t, token.AppSlugOrPort)
 		require.Empty(t, token.AppURL)
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, "terminal", database.ConnectionTypeWorkspaceApp, me.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, "terminal", database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 	})
 
@@ -880,7 +880,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.False(t, ok)
 		require.Nil(t, token)
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, appNameOwner, database.ConnectionTypeWorkspaceApp, secondUser.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, appNameOwner, database.ConnectionTypeWorkspaceApp, secondUser.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 	})
 
@@ -954,7 +954,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, http.StatusSeeOther, w.StatusCode)
 		// Note that we don't capture the owner UUID here because the apiKey
 		// check/authorization exits early.
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, appNameOwner, database.ConnectionTypeWorkspaceApp, uuid.Nil)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, appNameOwner, database.ConnectionTypeWorkspaceApp, uuid.Nil)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 
 		loc, err := w.Location()
@@ -1016,7 +1016,7 @@ func Test_ResolveRequest(t *testing.T) {
 		w := rw.Result()
 		defer w.Body.Close()
 		require.Equal(t, http.StatusBadGateway, w.StatusCode)
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentNameUnhealthy, appNameAgentUnhealthy, database.ConnectionTypeWorkspaceApp, me.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, uuid.Nil, agentNameUnhealthy, appNameAgentUnhealthy, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 
 		body, err := io.ReadAll(w.Body)
@@ -1075,7 +1075,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.True(t, ok, "ResolveRequest failed, should pass even though app is initializing")
 		require.NotNil(t, token)
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, token.AppSlugOrPort, database.ConnectionTypeWorkspaceApp, me.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, token.AppSlugOrPort, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 	})
 
@@ -1133,7 +1133,7 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.True(t, ok, "ResolveRequest failed, should pass even though app is unhealthy")
 		require.NotNil(t, token)
-		assertConnLogContains(t, rw, r, connLogger, workspace, agentName, token.AppSlugOrPort, database.ConnectionTypeWorkspaceApp, me.ID)
+		assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, token.AppSlugOrPort, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 	})
 
@@ -1170,7 +1170,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
+			assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
 			require.Len(t, connLogger.ConnectionLogs(), 1)
 
 			// Second request, no audit log because the session is active.
@@ -1206,7 +1206,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
+			assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
 			require.Len(t, connLogger.ConnectionLogs(), 2, "two connection logs, session timed out")
 
 			// Fourth request, new IP produces new audit log.
@@ -1225,7 +1225,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
+			assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
 			require.Len(t, connLogger.ConnectionLogs(), 3, "three connection logs, new IP")
 		}
 	})
@@ -1267,7 +1267,7 @@ func signedTokenProviderWithConnLogger(t testing.TB, provider workspaceapps.Sign
 	return &shallowCopy
 }
 
-func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.Request, connLogger *connectionlog.FakeConnectionLogger, workspace codersdk.Workspace, agentName string, slugOrPort string, typ database.ConnectionType, userID uuid.UUID) {
+func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.Request, connLogger *connectionlog.FakeConnectionLogger, workspace codersdk.Workspace, agentID uuid.UUID, agentName string, slugOrPort string, typ database.ConnectionType, userID uuid.UUID) {
 	t.Helper()
 
 	resp := rr.Result()
@@ -1279,6 +1279,7 @@ func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.
 		WorkspaceID:      workspace.ID,
 		WorkspaceName:    workspace.Name,
 		AgentName:        agentName,
+		AgentID:          uuid.NullUUID{UUID: agentID, Valid: agentID != uuid.Nil},
 		Type:             typ,
 		Ip:               database.ParseIP(r.RemoteAddr),
 		UserAgent:        sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},

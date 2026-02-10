@@ -231,6 +231,14 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg database.CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CloseOpenAgentConnectionLogsForWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("CloseOpenAgentConnectionLogsForWorkspace").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CloseOpenAgentConnectionLogsForWorkspace").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeInterceptions(ctx, arg)

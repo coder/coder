@@ -67,14 +67,6 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 	}
 }
 
-func workspaceConnectionsFromLogs(logs []database.GetOngoingAgentConnectionsLast24hRow) []codersdk.WorkspaceConnection {
-	connections := make([]codersdk.WorkspaceConnection, 0, len(logs))
-	for _, log := range logs {
-		connections = append(connections, connectionFromLog(log))
-	}
-	return connections
-}
-
 // mergeWorkspaceConnections combines coordinator tunnel peers with connection
 // logs into a unified view. Tunnel peers provide real-time network status,
 // connection logs provide the application-layer type (ssh, vscode, etc.).

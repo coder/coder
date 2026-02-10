@@ -3762,6 +3762,7 @@ type ConnectionLog struct {
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	AgentID          uuid.NullUUID  `db:"agent_id" json:"agent_id"`
 }
 
 type CryptoKey struct {

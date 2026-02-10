@@ -98,6 +98,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
 		AgentName:        workspaceAgent.Name,
+		AgentID:          uuid.NullUUID{UUID: workspaceAgent.ID, Valid: true},
 		Type:             connectionType,
 		Code:             code,
 		Ip:               logIP,

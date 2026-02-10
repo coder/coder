@@ -260,6 +260,7 @@ INSERT INTO connection_logs (
 	workspace_id,
 	workspace_name,
 	agent_name,
+	agent_id,
 	type,
 	code,
 	ip,
@@ -270,7 +271,7 @@ INSERT INTO connection_logs (
 	disconnect_reason,
 	disconnect_time
 ) VALUES
-	($1, @time, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+	($1, @time, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 	-- If we've only received a disconnect event, mark the event as immediately
 	-- closed.
 	 CASE
@@ -301,8 +302,20 @@ DO UPDATE SET
 		AND connection_logs.code IS NULL
 		THEN EXCLUDED.code
 		ELSE connection_logs.code
-	END
+	END,
+	agent_id = COALESCE(connection_logs.agent_id, EXCLUDED.agent_id)
 RETURNING *;
+
+
+-- name: CloseOpenAgentConnectionLogsForWorkspace :execrows
+UPDATE connection_logs
+SET
+	disconnect_time = GREATEST(connect_time, @closed_at :: timestamp with time zone),
+	-- Do not overwrite any existing reason.
+	disconnect_reason = COALESCE(disconnect_reason, @reason :: text)
+WHERE disconnect_time IS NULL
+	AND workspace_id = @workspace_id :: uuid
+	AND type = ANY(@types :: connection_type[]);
 
 -- name: GetOngoingAgentConnectionsLast24h :many
 WITH ranked AS (

@@ -86,7 +86,11 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
 		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
 		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
-		Type:             takeFirst(seed.Type, database.ConnectionTypeSsh),
+		AgentID: uuid.NullUUID{
+			UUID:  takeFirst(seed.AgentID.UUID, uuid.Nil),
+			Valid: takeFirst(seed.AgentID.Valid, false),
+		},
+		Type: takeFirst(seed.Type, database.ConnectionTypeSsh),
 		Code: sql.NullInt32{
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),

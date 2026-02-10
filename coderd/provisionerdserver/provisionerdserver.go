@@ -1919,12 +1919,15 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 	var workspace database.Workspace
 	var getWorkspaceError error
+	var completedAt time.Time
 
 	// Execute all database modifications in a transaction
 	err = s.Database.InTx(func(db database.Store) error {
 		// It's important we use s.timeNow() here because we want to be
 		// able to customize the current time from within tests.
 		now := s.timeNow()
+
+		completedAt = now
 
 		workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if getWorkspaceError != nil {
@@ -2338,6 +2341,48 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 	// Post-transaction operations (operations that do not require transactions or
 	// are external to the database, like audit logging, notifications, etc.)
+
+	if workspaceBuild.Transition == database.WorkspaceTransitionStop ||
+		workspaceBuild.Transition == database.WorkspaceTransitionDelete {
+		reason := "workspace stopped"
+		if workspaceBuild.Transition == database.WorkspaceTransitionDelete {
+			reason = "workspace deleted"
+		}
+
+		agentConnectionTypes := []database.ConnectionType{
+			database.ConnectionTypeSsh,
+			database.ConnectionTypeVscode,
+			database.ConnectionTypeJetbrains,
+			database.ConnectionTypeReconnectingPty,
+		}
+
+		//nolint:gocritic // Best-effort cleanup should not depend on RPC context.
+		sysCtx, cancel := context.WithTimeout(
+			dbauthz.AsConnectionLogger(s.lifecycleCtx),
+			5*time.Second,
+		)
+		defer cancel()
+
+		rowsClosed, closeErr := s.Database.CloseOpenAgentConnectionLogsForWorkspace(sysCtx, database.CloseOpenAgentConnectionLogsForWorkspaceParams{
+			WorkspaceID: workspaceBuild.WorkspaceID,
+			ClosedAt:    completedAt,
+			Reason:      reason,
+			Types:       agentConnectionTypes,
+		})
+		if closeErr != nil {
+			s.Logger.Warn(ctx, "close open connection logs failed",
+				slog.F("workspace_id", workspaceBuild.WorkspaceID),
+				slog.F("workspace_build_id", workspaceBuild.ID),
+				slog.F("transition", workspaceBuild.Transition),
+				slog.Error(closeErr),
+			)
+		} else if rowsClosed > 0 {
+			s.Logger.Info(ctx, "closed open connection logs",
+				slog.F("workspace_id", workspaceBuild.WorkspaceID),
+				slog.F("rows", rowsClosed),
+			)
+		}
+	}
 
 	// audit the outcome of the workspace build
 	if getWorkspaceError == nil {
