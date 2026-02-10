@@ -74,7 +74,9 @@ describe("LicenseCard", () => {
 		const removeButton = await screen.findByRole("button", { name: /remove/i });
 		await user.click(removeButton);
 
-		await screen.findByText(/Removing this license will disable all Premium features/);
+		await screen.findByText(
+			/Removing this license will disable all Premium features/,
+		);
 	});
 
 	it("renders license's user_limit when it is available instead of using the default", async () => {
