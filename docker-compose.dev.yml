@@ -18,6 +18,7 @@ services:
 
   build-slim:
     image: codercom/oss-dogfood:latest
+    user: "0:0"
     working_dir: /app
     environment:
       GOMODCACHE: /go-cache/mod
@@ -36,6 +37,7 @@ services:
 
   coderd:
     image: codercom/oss-dogfood:latest
+    user: "0:0"
     depends_on:
       database:
         condition: service_healthy
@@ -81,6 +83,7 @@ services:
 
   setup:
     image: codercom/oss-dogfood:latest
+    user: "0:0"
     depends_on:
       coderd:
         condition: service_healthy
@@ -99,6 +102,7 @@ services:
 
   site:
     image: codercom/oss-dogfood:latest
+    user: "0:0"
     depends_on:
       setup:
         condition: service_completed_successfully
