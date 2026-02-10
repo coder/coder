@@ -119,9 +119,8 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 				<Calendar
 					mode="range"
 					captionLayout="dropdown"
-					defaultMonth={
-						new Date(new Date().getFullYear(), new Date().getMonth() - 1)
-					}
+					// Render the previous month and current month by default.
+					defaultMonth={dayjs().subtract(1, "month").toDate()}
 					selected={selected}
 					onSelect={handleSelect}
 					numberOfMonths={2}
