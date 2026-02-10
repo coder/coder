@@ -266,7 +266,10 @@ INSERT INTO connection_logs (
 	connection_id,
 	disconnect_reason,
 	disconnect_time,
-	updated_at
+	updated_at,
+	session_id,
+	client_hostname,
+	short_description
 ) VALUES
 	($1, @time, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 	-- If we've only received a disconnect event, mark the event as immediately
@@ -276,7 +279,7 @@ INSERT INTO connection_logs (
 		 THEN @time :: timestamp with time zone
 		 ELSE NULL
 	 END,
-	 @time)
+	 @time, $16, $17, $18)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
 	updated_at = @time,
@@ -360,7 +363,10 @@ SELECT
 	connection_id,
 	disconnect_time,
 	disconnect_reason,
-	updated_at
+	updated_at,
+	session_id,
+	client_hostname,
+	short_description
 FROM
 	ranked
 WHERE
@@ -369,3 +375,40 @@ ORDER BY
 	workspace_id,
 	agent_name,
 	connect_time DESC;
+
+-- name: CloseConnectionLogsAndCreateSessions :execrows
+-- Atomically closes open connections and creates sessions grouping by IP.
+-- Used when a workspace is stopped/deleted.
+WITH connections_to_close AS (
+    SELECT id, ip, connect_time, agent_id, client_hostname, short_description
+    FROM connection_logs
+    WHERE disconnect_time IS NULL
+      AND workspace_id = @workspace_id
+      AND type = ANY(@types::connection_type[])
+),
+session_groups AS (
+    SELECT 
+        ip,
+        MIN(connect_time) AS started_at,
+        @closed_at::timestamptz AS ended_at,
+        (array_agg(agent_id ORDER BY connect_time))[1] AS agent_id,
+        (array_agg(client_hostname ORDER BY connect_time) FILTER (WHERE client_hostname IS NOT NULL))[1] AS client_hostname,
+        (array_agg(short_description ORDER BY connect_time) FILTER (WHERE short_description IS NOT NULL))[1] AS short_description
+    FROM connections_to_close
+    GROUP BY ip
+),
+new_sessions AS (
+    INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
+    SELECT @workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at
+    FROM session_groups
+    RETURNING id, ip
+)
+UPDATE connection_logs cl
+SET 
+    disconnect_time = @closed_at,
+    disconnect_reason = COALESCE(disconnect_reason, @reason),
+    session_id = ns.id
+FROM connections_to_close ctc
+JOIN new_sessions ns ON ctc.ip = ns.ip
+WHERE cl.id = ctc.id;
+
