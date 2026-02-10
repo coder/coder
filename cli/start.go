@@ -79,6 +79,29 @@ func (r *RootCmd) start() *serpent.Command {
 				)
 				build = workspace.LatestBuild
 			default:
+				// If the last build was a failed start, run a stop
+				// first to clean up any partially-provisioned
+				// resources.
+				if workspace.LatestBuild.Status == codersdk.WorkspaceStatusFailed &&
+					workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+					_, _ = fmt.Fprintf(inv.Stdout, "The last start build failed. Cleaning up before retrying...\n")
+					stopBuild, stopErr := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+						Transition: codersdk.WorkspaceTransitionStop,
+					})
+					if stopErr != nil {
+						return xerrors.Errorf("cleanup stop after failed start: %w", stopErr)
+					}
+					stopErr = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, stopBuild.ID)
+					if stopErr != nil {
+						return xerrors.Errorf("wait for cleanup stop: %w", stopErr)
+					}
+					// Re-fetch workspace after stop completes so
+					// startWorkspace sees the latest state.
+					workspace, err = namedWorkspace(inv.Context(), client, inv.Args[0])
+					if err != nil {
+						return err
+					}
+				}
 				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceStart)
 				// It's possible for a workspace build to fail due to the template requiring starting
 				// workspaces with the active version.
