@@ -51,20 +51,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 			dormantWorkspacesToBeDeletedInWeek > 0);
 
 	return (
-		<Dialog
-			css={{
-				"& .MuiPaper-root": {
-					background: "var(--surface-primary)",
-					border: "1px solid var(--border)",
-				},
-				"& .MuiDialogActions-spacing": {
-					padding: "0 40px 40px",
-				},
-			}}
-			onClose={onClose}
-			open={open}
-			data-testid="dialog"
-		>
+		<Dialog onClose={onClose} open={open} data-testid="dialog">
 			<div className="text-content-secondary p-10">
 				<h3 className="m-0 mb-4 text-content-primary font-normal text-xl">
 					{title}
