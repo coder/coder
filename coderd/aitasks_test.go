@@ -2484,7 +2484,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2500,6 +2499,7 @@ func TestPauseTask(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		task, err := client.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Input:             "pause me",
@@ -2531,7 +2531,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Non-owner role access", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		client := setupClient(t, db, ps, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -2568,6 +2567,7 @@ func TestPauseTask(t *testing.T) {
 				task, _ := setupWorkspaceTask(t, db, owner)
 				userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, tc.roles...)
 
+				ctx := testutil.Context(t, testutil.WaitShort)
 				resp, err := userClient.PauseTask(ctx, codersdk.Me, task.ID)
 				if tc.expectedStatus == http.StatusAccepted {
 					require.NoError(t, err)
@@ -2586,10 +2586,10 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Task not found", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		_ = coderdtest.CreateFirstUser(t, client)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, uuid.New())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2599,7 +2599,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Task lookup forbidden", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		auth := &coderdtest.FakeAuthorizer{
 			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
@@ -2613,6 +2612,7 @@ func TestPauseTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2622,7 +2622,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Workspace lookup forbidden", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		auth := &coderdtest.FakeAuthorizer{
 			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
@@ -2636,6 +2635,7 @@ func TestPauseTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2645,7 +2645,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("No Workspace for Task", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		client := setupClient(t, db, ps, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -2661,6 +2660,7 @@ func TestPauseTask(t *testing.T) {
 			Prompt:            "no workspace",
 		})
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2671,7 +2671,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Workspace not found", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		var workspaceID uuid.UUID
 		wrapped := aiTaskStoreWrapper{
@@ -2688,6 +2687,7 @@ func TestPauseTask(t *testing.T) {
 		task, workspaceIDValue := setupWorkspaceTask(t, db, user)
 		workspaceID = workspaceIDValue
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2697,7 +2697,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Workspace lookup internal error", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		var workspaceID uuid.UUID
 		wrapped := aiTaskStoreWrapper{
@@ -2714,6 +2713,7 @@ func TestPauseTask(t *testing.T) {
 		task, workspaceIDValue := setupWorkspaceTask(t, db, user)
 		workspaceID = workspaceIDValue
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2724,7 +2724,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Build Forbidden", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		auth := &coderdtest.FakeAuthorizer{
 			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
@@ -2738,6 +2737,7 @@ func TestPauseTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2747,7 +2747,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Job already in progress", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		client := setupClient(t, db, ps, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -2761,6 +2760,7 @@ func TestPauseTask(t *testing.T) {
 			Starting().
 			Do()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, workspaceBuild.Task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2770,7 +2770,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Build Internal Error", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		wrapped := aiTaskStoreWrapper{
 			Store: db,
@@ -2782,6 +2781,7 @@ func TestPauseTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2817,7 +2817,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2832,6 +2831,7 @@ func TestResumeTask(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		task, err := client.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Input:             "resume me",
@@ -2863,7 +2863,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Resume a task that is not paused", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		db, ps := dbtestutil.NewDB(t)
 		client := setupClient(t, db, ps, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -2877,6 +2876,7 @@ func TestResumeTask(t *testing.T) {
 			Succeeded().
 			Do()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.ResumeTask(ctx, codersdk.Me, workspaceBuild.Task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2886,10 +2886,10 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Task not found", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		_ = coderdtest.CreateFirstUser(t, client)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.ResumeTask(ctx, codersdk.Me, uuid.New())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2899,7 +2899,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Task lookup forbidden", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		auth := &coderdtest.FakeAuthorizer{
 			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
@@ -2913,6 +2912,7 @@ func TestResumeTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.ResumeTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2922,7 +2922,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Workspace lookup forbidden", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		auth := &coderdtest.FakeAuthorizer{
 			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
@@ -2936,6 +2935,7 @@ func TestResumeTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.ResumeTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2945,7 +2945,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("No Workspace for Task", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		client := setupClient(t, db, ps, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -2961,6 +2960,7 @@ func TestResumeTask(t *testing.T) {
 			Prompt:            "no workspace",
 		})
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.ResumeTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2971,7 +2971,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Workspace not found", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		var workspaceID uuid.UUID
 		wrapped := aiTaskStoreWrapper{
@@ -2988,6 +2987,7 @@ func TestResumeTask(t *testing.T) {
 		task, workspaceIDValue := setupWorkspaceTask(t, db, user)
 		workspaceID = workspaceIDValue
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.ResumeTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -2997,7 +2997,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Workspace lookup internal error", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		var workspaceID uuid.UUID
 		wrapped := aiTaskStoreWrapper{
@@ -3014,6 +3013,7 @@ func TestResumeTask(t *testing.T) {
 		task, workspaceIDValue := setupWorkspaceTask(t, db, user)
 		workspaceID = workspaceIDValue
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.ResumeTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -3024,7 +3024,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Build Forbidden", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		auth := &coderdtest.FakeAuthorizer{
 			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
@@ -3038,6 +3037,7 @@ func TestResumeTask(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		pauseResp, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, pauseResp.WorkspaceBuild.ID)
@@ -3051,7 +3051,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Job already in progress", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		client := setupClient(t, db, ps, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -3065,6 +3064,7 @@ func TestResumeTask(t *testing.T) {
 			Starting().
 			Do()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.ResumeTask(ctx, codersdk.Me, workspaceBuild.Task.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -3074,7 +3074,6 @@ func TestResumeTask(t *testing.T) {
 	t.Run("Build Internal Error", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		wrapped := aiTaskStoreWrapper{
 			Store: db,
@@ -3093,6 +3092,7 @@ func TestResumeTask(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		task, err := client.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Input:             "resume me",
