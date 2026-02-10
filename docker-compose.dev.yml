@@ -17,7 +17,7 @@ services:
       retries: 10
 
   build-slim:
-    image: golang:1.25
+    image: codercom/oss-dogfood:latest
     working_dir: /app
     environment:
       GOMODCACHE: /go-cache/mod
@@ -35,7 +35,7 @@ services:
       '
 
   coderd:
-    image: golang:1.25
+    image: codercom/oss-dogfood:latest
     depends_on:
       database:
         condition: service_healthy
@@ -80,9 +80,7 @@ services:
         --enable-terraform-debug-mode
 
   setup:
-    build:
-      context: .
-      dockerfile: docker-compose/setup.Dockerfile
+    image: codercom/oss-dogfood:latest
     depends_on:
       coderd:
         condition: service_healthy
