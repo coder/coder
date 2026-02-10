@@ -21,7 +21,7 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 	onChange,
 }) => {
 	return (
-		<Stack width="100%" alignItems="start" spacing={1}>
+		<Stack alignItems="start" spacing={1}>
 			<Stack
 				direction="row"
 				spacing={0}
