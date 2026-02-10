@@ -9,6 +9,7 @@ import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
+import { useDebouncedFunction } from "hooks/debounce";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
@@ -16,6 +17,7 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import type { AutofillBuildParameter } from "utils/richParameters";
 
@@ -67,6 +69,23 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		workspace.template_require_active_version &&
 		!canChangeVersions;
 
+	// Debounce websocket sends to avoid stale responses overwriting
+	// the form while the user is still typing.
+	const { debounced: sendDynamicParamsRequest } = useDebouncedFunction(
+		(parameter: PreviewParameter, value: string) => {
+			const formInputs: Record<string, string> = {};
+			const formParameters = form.values.rich_parameter_values ?? [];
+			for (const param of formParameters) {
+				if (param?.name && param?.value) {
+					formInputs[param.name] = param.value;
+				}
+			}
+			formInputs[parameter.name] = value;
+			sendMessage(formInputs);
+		},
+		500,
+	);
+
 	const handleChange = async (
 		parameter: PreviewParameter,
 		parameterField: string,
@@ -77,23 +96,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			value,
 		});
 		sendDynamicParamsRequest(parameter, value);
-	};
-
-	const sendDynamicParamsRequest = (
-		parameter: PreviewParameter,
-		value: string,
-	) => {
-		const formInputs: Record<string, string> = {};
-		const parameters = form.values.rich_parameter_values ?? [];
-		for (const param of parameters) {
-			if (param?.name && param?.value) {
-				formInputs[param.name] = param.value;
-			}
-		}
-
-		formInputs[parameter.name] = value;
-
-		sendMessage(formInputs);
 	};
 
 	useSyncFormParameters({
@@ -155,12 +157,12 @@ export const WorkspaceParametersPageViewExperimental: FC<
 					{diagnostics.map((diagnostic, index) => (
 						<div
 							key={`diagnostic-${diagnostic.summary}-${index}`}
-							className={`text-xs flex flex-col rounded-md border px-4 pb-3 border-solid
-								${
-									diagnostic.severity === "error"
-										? " text-content-destructive border-border-destructive"
-										: " text-content-warning border-border-warning"
-								}`}
+							className={cn(
+								"text-xs flex flex-col rounded-md border px-4 pb-3 border-solid",
+								diagnostic.severity === "error"
+									? " text-content-destructive border-border-destructive"
+									: " text-content-warning border-border-warning",
+							)}
 						>
 							<div className="flex items-center m-0">
 								<p className="font-medium">{diagnostic.summary}</p>

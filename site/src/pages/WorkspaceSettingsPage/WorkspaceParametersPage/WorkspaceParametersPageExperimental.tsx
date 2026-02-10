@@ -100,6 +100,13 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			sendInitialParameters();
 		}
 
+		// Skip stale responses. If we've already sent a newer request,
+		// this response contains outdated parameter values that would
+		// overwrite the user's more recent input.
+		if (response.id < wsResponseId.current) {
+			return;
+		}
+
 		setLatestResponse(response);
 	});
 
