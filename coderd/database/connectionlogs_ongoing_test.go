@@ -167,7 +167,7 @@ func TestGetOngoingAgentConnectionsLast24h_PortForwarding(t *testing.T) {
 
 	const agentName = "agent-pf"
 
-	// Agent-reported: non-localhost IP, included unconditionally.
+	// Agent-reported: NULL user_agent, included unconditionally.
 	agentReported := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 		Time:             now.Add(-10 * time.Minute),
 		OrganizationID:   ws.OrganizationID,
@@ -182,7 +182,8 @@ func TestGetOngoingAgentConnectionsLast24h_PortForwarding(t *testing.T) {
 		Ip:               database.ParseIP("fd7a:115c:a1e0:4353:89d9:4ca8:9c42:8d2d"),
 	})
 
-	// Stale proxy-reported: localhost IP, bumped but older than AppActiveSince.
+	// Stale proxy-reported: non-NULL user_agent, bumped but older than AppActiveSince.
+	// Use a non-localhost IP to verify the fix works even behind a reverse proxy.
 	staleConnID := uuid.New()
 	staleConnectTime := now.Add(-15 * time.Minute)
 	_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
@@ -196,7 +197,8 @@ func TestGetOngoingAgentConnectionsLast24h_PortForwarding(t *testing.T) {
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: staleConnID, Valid: true},
 		SlugOrPort:       sql.NullString{String: "3000", Valid: true},
-		Ip:               database.ParseIP("127.0.0.1"),
+		Ip:               database.ParseIP("203.0.113.45"),
+		UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
 	})
 
 	// Bump updated_at to simulate a proxy refresh.

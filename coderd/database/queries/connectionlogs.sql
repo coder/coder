@@ -334,11 +334,11 @@ WITH ranked AS (
 		AND (
 			-- Non-web types always included while connected.
 			type NOT IN ('workspace_app', 'port_forwarding')
-			-- Agent-reported web connections carry a real tailnet IP
-			-- and have proper disconnect lifecycle tracking.
-			OR ip NOT IN ('127.0.0.1', '::1')
-			-- Proxy-reported web connections (localhost IP) rely on
-			-- updated_at being bumped on each token refresh.
+			-- Agent-reported web connections have NULL user_agent
+			-- and carry proper disconnect lifecycle tracking.
+			OR user_agent IS NULL
+			-- Proxy-reported web connections (non-NULL user_agent)
+			-- rely on updated_at being bumped on each token refresh.
 			OR updated_at >= @app_active_since :: timestamp with time zone
 		)
 		AND connect_time >= @since :: timestamp with time zone
