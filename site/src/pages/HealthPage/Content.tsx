@@ -10,7 +10,6 @@ import {
 	type ComponentProps,
 	cloneElement,
 	type FC,
-	forwardRef,
 	type HTMLAttributes,
 	type ReactElement,
 } from "react";
@@ -155,17 +154,15 @@ export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
 	);
 };
 
-type PillProps = HTMLAttributes<HTMLDivElement> & {
+type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon: ReactElement<HTMLAttributes<HTMLElement>>;
 };
 
-export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
+export const Pill: React.FC<PillProps> = ({ icon, children, ...divProps }) => {
 	const theme = useTheme();
-	const { icon, children, ...divProps } = props;
 
 	return (
 		<div
-			ref={ref}
 			css={{
 				display: "inline-flex",
 				alignItems: "center",
@@ -184,7 +181,7 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
 			{children}
 		</div>
 	);
-});
+};
 
 type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
 	value: boolean | null;

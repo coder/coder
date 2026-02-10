@@ -2,16 +2,10 @@ import type { Interpolation, Theme } from "@emotion/react";
 import CircularProgress, {
 	type CircularProgressProps,
 } from "@mui/material/CircularProgress";
-import {
-	type FC,
-	forwardRef,
-	type HTMLAttributes,
-	type ReactNode,
-	useMemo,
-} from "react";
+import { type FC, type ReactNode, useMemo } from "react";
 import type { ThemeRole } from "theme/roles";
 
-type PillProps = HTMLAttributes<HTMLDivElement> & {
+type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon?: ReactNode;
 	type?: ThemeRole;
 	size?: "md" | "lg";
@@ -29,35 +23,31 @@ const PILL_HEIGHT = 24;
 const PILL_ICON_SIZE = 14;
 const PILL_ICON_SPACING = (PILL_HEIGHT - PILL_ICON_SIZE) / 2;
 
-export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
-	(props, ref) => {
-		const {
-			icon,
-			type = "inactive",
-			children,
-			size = "md",
-			...divProps
-		} = props;
-		const typeStyles = useMemo(() => themeStyles(type), [type]);
+export const Pill: FC<PillProps> = ({
+	icon,
+	type = "inactive",
+	children,
+	size = "md",
+	...divProps
+}) => {
+	const typeStyles = useMemo(() => themeStyles(type), [type]);
 
-		return (
-			<div
-				ref={ref}
-				css={[
-					styles.pill,
-					Boolean(icon) && size === "md" && styles.pillWithIcon,
-					size === "lg" && styles.pillLg,
-					Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
-					typeStyles,
-				]}
-				{...divProps}
-			>
-				{icon}
-				{children}
-			</div>
-		);
-	},
-);
+	return (
+		<div
+			css={[
+				styles.pill,
+				Boolean(icon) && size === "md" && styles.pillWithIcon,
+				size === "lg" && styles.pillLg,
+				Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
+				typeStyles,
+			]}
+			{...divProps}
+		>
+			{icon}
+			{children}
+		</div>
+	);
+};
 
 export const PillSpinner: FC<CircularProgressProps> = (props) => {
 	return (

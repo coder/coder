@@ -3,13 +3,11 @@
  * @see {@link https://ui.shadcn.com/docs/components/switch}
  */
 import * as SwitchPrimitives from "@radix-ui/react-switch";
-import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
-export const Switch = forwardRef<
-	React.ElementRef<typeof SwitchPrimitives.Root>,
-	React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
->(({ className, ...props }, ref) => (
+export const Switch: React.FC<
+	React.ComponentPropsWithRef<typeof SwitchPrimitives.Root>
+> = ({ className, ...props }) => (
 	<SwitchPrimitives.Root
 		className={cn(
 			`peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full shadow-sm transition-colors
@@ -23,7 +21,6 @@ export const Switch = forwardRef<
 			className,
 		)}
 		{...props}
-		ref={ref}
 	>
 		<SwitchPrimitives.Thumb
 			className={cn(
@@ -32,4 +29,4 @@ export const Switch = forwardRef<
 			)}
 		/>
 	</SwitchPrimitives.Root>
-));
+);
