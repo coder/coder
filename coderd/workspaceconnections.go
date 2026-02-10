@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -146,6 +148,21 @@ func mergeWorkspaceConnections(
 			ShortDescription: pe.peer.Node.ShortDescription,
 		})
 	}
+
+	// Sort by IP then newest first for stable display order.
+	slices.SortFunc(connections, func(a, b codersdk.WorkspaceConnection) int {
+		aIP, bIP := "", ""
+		if a.IP != nil {
+			aIP = a.IP.String()
+		}
+		if b.IP != nil {
+			bIP = b.IP.String()
+		}
+		return cmp.Or(
+			cmp.Compare(aIP, bIP),
+			b.CreatedAt.Compare(a.CreatedAt), // Newest first.
+		)
+	})
 
 	return connections
 }
