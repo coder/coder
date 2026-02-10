@@ -23,7 +23,6 @@ func TestExpTaskPause(t *testing.T) {
 	// coderd/aitasks_test.go.
 	setup := func(t *testing.T) (*codersdk.Client, codersdk.Task) {
 		t.Helper()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -41,6 +40,7 @@ func TestExpTaskPause(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		tpl := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		task, err := userClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 			TemplateVersionID: tpl.ActiveVersionID,
 			Input:             "test task for pause",
@@ -65,10 +65,15 @@ func TestExpTaskPause(t *testing.T) {
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, client, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.Contains(t, stdout.String(), "has been paused")
+
+		// Verify the task is actually paused on the server.
+		updated, err := client.TaskByIdentifier(ctx, task.Name)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TaskStatusPaused, updated.Status)
 	})
 
 	t.Run("PromptConfirm", func(t *testing.T) {
@@ -79,7 +84,7 @@ func TestExpTaskPause(t *testing.T) {
 		inv, root := clitest.New(t, "task", "pause", task.Name)
 		clitest.SetupConfig(t, client, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
 		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
@@ -87,6 +92,11 @@ func TestExpTaskPause(t *testing.T) {
 		pty.WriteLine("yes")
 		pty.ExpectMatchContext(ctx, "has been paused")
 		require.NoError(t, w.Wait())
+
+		// Verify the task is actually paused on the server.
+		updated, err := client.TaskByIdentifier(ctx, task.Name)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TaskStatusPaused, updated.Status)
 	})
 
 	t.Run("PromptDecline", func(t *testing.T) {
@@ -97,12 +107,17 @@ func TestExpTaskPause(t *testing.T) {
 		inv, root := clitest.New(t, "task", "pause", task.Name)
 		clitest.SetupConfig(t, client, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
 		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
 		pty.ExpectMatchContext(ctx, "Pause task")
 		pty.WriteLine("no")
 		require.Error(t, w.Wait())
+
+		// Verify the task was not paused.
+		updated, err := client.TaskByIdentifier(ctx, task.Name)
+		require.NoError(t, err)
+		require.NotEqual(t, codersdk.TaskStatusPaused, updated.Status)
 	})
 }
