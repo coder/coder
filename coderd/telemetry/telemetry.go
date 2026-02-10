@@ -1033,11 +1033,37 @@ func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time
 			}
 		}
 
-		// Calculate PausedDurationMS for tasks resumed within the reporting window.
-		// PausedDurationMS = LastResumedAt - LastPausedAt
-		if latestResumeBuild != nil && latestPauseBuild != nil && latestResumeBuild.CreatedAt.After(createdAfter) {
-			pausedDuration := latestResumeBuild.CreatedAt.Sub(latestPauseBuild.CreatedAt)
-			task.PausedDurationMS = ptr.Ref(pausedDuration.Milliseconds())
+		// Calculate PausedDurationMS for tasks resumed within the
+		// reporting window. We pair each resume with the most recent
+		// pause that *precedes* it, rather than independently selecting
+		// the global latest pause and resume, which could pair builds
+		// from different cycles or yield a negative duration when the
+		// task is currently paused after a prior resume.
+		//
+		// Builds are ordered by created_at DESC, so the first resume
+		// we encounter is the latest. We then scan forward (older) for
+		// the nearest preceding pause.
+		for i := range builds {
+			build := &builds[i]
+			if build.Transition != database.WorkspaceTransitionStart ||
+				build.Reason != database.BuildReasonTaskResume {
+				continue
+			}
+			if !build.CreatedAt.After(createdAfter) {
+				break
+			}
+			// Found latest resume within the reporting window.
+			// Now find the most recent pause that precedes it.
+			for j := i + 1; j < len(builds); j++ {
+				prev := &builds[j]
+				if prev.Transition == database.WorkspaceTransitionStop &&
+					(prev.Reason == database.BuildReasonTaskAutoPause || prev.Reason == database.BuildReasonTaskManualPause) {
+					pausedDuration := build.CreatedAt.Sub(prev.CreatedAt)
+					task.PausedDurationMS = ptr.Ref(pausedDuration.Milliseconds())
+					break
+				}
+			}
+			break
 		}
 
 		tasks = append(tasks, task)
