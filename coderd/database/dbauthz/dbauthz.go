@@ -4423,6 +4423,13 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 	return q.db.InsertReplica(ctx, arg)
 }
 
+func (q *querier) InsertTailnetPeeringEvent(ctx context.Context, arg database.InsertTailnetPeeringEventParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.InsertTailnetPeeringEvent(ctx, arg)
+}
+
 func (q *querier) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
 	// Ensure the actor can access the specified template version (and thus its template).
 	if _, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID); err != nil {

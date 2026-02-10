@@ -2942,6 +2942,14 @@ func (m queryMetricsStore) InsertReplica(ctx context.Context, arg database.Inser
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertTailnetPeeringEvent(ctx context.Context, arg database.InsertTailnetPeeringEventParams) error {
+	start := time.Now()
+	r0 := m.s.InsertTailnetPeeringEvent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTailnetPeeringEvent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTailnetPeeringEvent").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertTask(ctx, arg)

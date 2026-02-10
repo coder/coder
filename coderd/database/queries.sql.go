@@ -13231,6 +13231,40 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 	return items, nil
 }
 
+const insertTailnetPeeringEvent = `-- name: InsertTailnetPeeringEvent :exec
+INSERT INTO tailnet_peering_events (
+	peering_id,
+	event_type,
+	src_peer_id,
+	dst_peer_id,
+	node,
+	occurred_at
+)
+VALUES
+	($1, $2, $3, $4, $5, $6)
+`
+
+type InsertTailnetPeeringEventParams struct {
+	PeeringID  []byte        `db:"peering_id" json:"peering_id"`
+	EventType  string        `db:"event_type" json:"event_type"`
+	SrcPeerID  uuid.NullUUID `db:"src_peer_id" json:"src_peer_id"`
+	DstPeerID  uuid.NullUUID `db:"dst_peer_id" json:"dst_peer_id"`
+	Node       []byte        `db:"node" json:"node"`
+	OccurredAt time.Time     `db:"occurred_at" json:"occurred_at"`
+}
+
+func (q *sqlQuerier) InsertTailnetPeeringEvent(ctx context.Context, arg InsertTailnetPeeringEventParams) error {
+	_, err := q.db.ExecContext(ctx, insertTailnetPeeringEvent,
+		arg.PeeringID,
+		arg.EventType,
+		arg.SrcPeerID,
+		arg.DstPeerID,
+		arg.Node,
+		arg.OccurredAt,
+	)
+	return err
+}
+
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
 UPDATE
 	tailnet_peers

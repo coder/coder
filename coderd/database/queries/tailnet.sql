@@ -134,3 +134,15 @@ WHERE tt.dst_id = @dst_id;
 
 -- name: GetAllTailnetTunnels :many
 SELECT * FROM tailnet_tunnels;
+
+-- name: InsertTailnetPeeringEvent :exec
+INSERT INTO tailnet_peering_events (
+	peering_id,
+	event_type,
+	src_peer_id,
+	dst_peer_id,
+	node,
+	occurred_at
+)
+VALUES
+	($1, $2, $3, $4, $5, $6);

@@ -4237,13 +4237,12 @@ type TailnetPeer struct {
 }
 
 type TailnetPeeringEvent struct {
-	PeeringID  []byte            `db:"peering_id" json:"peering_id"`
-	EventType  string            `db:"event_type" json:"event_type"`
-	SrcPeerID  uuid.NullUUID     `db:"src_peer_id" json:"src_peer_id"`
-	DstPeerID  uuid.NullUUID     `db:"dst_peer_id" json:"dst_peer_id"`
-	Status     NullTailnetStatus `db:"status" json:"status"`
-	Node       []byte            `db:"node" json:"node"`
-	OccurredAt time.Time         `db:"occurred_at" json:"occurred_at"`
+	PeeringID  []byte        `db:"peering_id" json:"peering_id"`
+	EventType  string        `db:"event_type" json:"event_type"`
+	SrcPeerID  uuid.NullUUID `db:"src_peer_id" json:"src_peer_id"`
+	DstPeerID  uuid.NullUUID `db:"dst_peer_id" json:"dst_peer_id"`
+	Node       []byte        `db:"node" json:"node"`
+	OccurredAt time.Time     `db:"occurred_at" json:"occurred_at"`
 }
 
 type TailnetTunnel struct {

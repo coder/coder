@@ -5514,6 +5514,20 @@ func (mr *MockStoreMockRecorder) InsertReplica(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertReplica", reflect.TypeOf((*MockStore)(nil).InsertReplica), ctx, arg)
 }
 
+// InsertTailnetPeeringEvent mocks base method.
+func (m *MockStore) InsertTailnetPeeringEvent(ctx context.Context, arg database.InsertTailnetPeeringEventParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTailnetPeeringEvent", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTailnetPeeringEvent indicates an expected call of InsertTailnetPeeringEvent.
+func (mr *MockStoreMockRecorder) InsertTailnetPeeringEvent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTailnetPeeringEvent", reflect.TypeOf((*MockStore)(nil).InsertTailnetPeeringEvent), ctx, arg)
+}
+
 // InsertTask mocks base method.
 func (m *MockStore) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
 	m.ctrl.T.Helper()
