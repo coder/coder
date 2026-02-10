@@ -30,8 +30,8 @@ func (*mockTB) Helper() {
 	// noop
 }
 
-func (*mockTB) Logf(format string, args ...any) {
-	_, _ = fmt.Printf(format, args...)
+func (*mockTB) Logf(f string, args ...any) {
+	_, _ = fmt.Printf(f, args...)
 }
 
 func (*mockTB) TempDir() string {
