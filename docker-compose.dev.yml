@@ -17,7 +17,7 @@ services:
       retries: 10
 
   build-slim:
-    image: golang:1.24
+    image: golang:1.25
     working_dir: /app
     environment:
       GOMODCACHE: /go-cache/mod
@@ -35,7 +35,7 @@ services:
       '
 
   coderd:
-    image: golang:1.24
+    image: golang:1.25
     depends_on:
       database:
         condition: service_healthy
