@@ -95,13 +95,18 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
 		},
-		Ip: pqtype.Inet{
-			IPNet: net.IPNet{
-				IP:   net.IPv4(127, 0, 0, 1),
-				Mask: net.IPv4Mask(255, 255, 255, 255),
-			},
-			Valid: true,
-		},
+		Ip: func() pqtype.Inet {
+			if seed.Ip.Valid {
+				return seed.Ip
+			}
+			return pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 255),
+				},
+				Valid: true,
+			}
+		}(),
 		UserAgent: sql.NullString{
 			String: takeFirst(seed.UserAgent.String, ""),
 			Valid:  takeFirst(seed.UserAgent.Valid, false),

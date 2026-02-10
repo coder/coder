@@ -17,6 +17,9 @@ import (
 const (
 	workspaceAgentConnectionsPerAgentLimit int64         = 50
 	workspaceAgentConnectionsWindow        time.Duration = 24 * time.Hour
+	// Web app connection logs have updated_at bumped on each token refresh
+	// (~1/min for HTTP apps). Use 5 minutes as the activity window.
+	workspaceAppActiveWindow time.Duration = 5 * time.Minute
 )
 
 var workspaceAgentConnectionsTypes = []database.ConnectionType{
@@ -24,15 +27,18 @@ var workspaceAgentConnectionsTypes = []database.ConnectionType{
 	database.ConnectionTypeVscode,
 	database.ConnectionTypeJetbrains,
 	database.ConnectionTypeReconnectingPty,
+	database.ConnectionTypeWorkspaceApp,
+	database.ConnectionTypePortForwarding,
 }
 
 func getOngoingAgentConnectionsLast24h(ctx context.Context, db database.Store, workspaceIDs []uuid.UUID, agentNames []string) ([]database.GetOngoingAgentConnectionsLast24hRow, error) {
 	return db.GetOngoingAgentConnectionsLast24h(ctx, database.GetOngoingAgentConnectionsLast24hParams{
-		WorkspaceIds:  workspaceIDs,
-		AgentNames:    agentNames,
-		Types:         workspaceAgentConnectionsTypes,
-		Since:         dbtime.Now().Add(-workspaceAgentConnectionsWindow),
-		PerAgentLimit: workspaceAgentConnectionsPerAgentLimit,
+		WorkspaceIds:   workspaceIDs,
+		AgentNames:     agentNames,
+		Types:          workspaceAgentConnectionsTypes,
+		Since:          dbtime.Now().Add(-workspaceAgentConnectionsWindow),
+		AppActiveSince: dbtime.Now().Add(-workspaceAppActiveWindow),
+		PerAgentLimit:  workspaceAgentConnectionsPerAgentLimit,
 	})
 }
 
@@ -58,13 +64,17 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 			ip = &addr
 		}
 	}
-	return codersdk.WorkspaceConnection{
+	conn := codersdk.WorkspaceConnection{
 		IP:          ip,
 		Status:      codersdk.ConnectionStatusOngoing,
 		CreatedAt:   connectTime,
 		ConnectedAt: &connectTime,
 		Type:        codersdk.ConnectionType(log.Type),
 	}
+	if log.SlugOrPort.Valid {
+		conn.Detail = log.SlugOrPort.String
+	}
+	return conn
 }
 
 // mergeWorkspaceConnections combines coordinator tunnel peers with connection

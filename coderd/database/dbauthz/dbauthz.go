@@ -6225,9 +6225,9 @@ func (q *querier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWor
 	return q.db.UpsertWorkspaceApp(ctx, arg)
 }
 
-func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
+func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (database.UpsertWorkspaceAppAuditSessionRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return false, err
+		return database.UpsertWorkspaceAppAuditSessionRow{}, err
 	}
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
 }

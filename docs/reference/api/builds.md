@@ -133,6 +133,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
               "short_description": "string",
@@ -385,6 +386,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
               "short_description": "string",
@@ -756,6 +758,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "client_hostname": "string",
             "connected_at": "2019-08-24T14:15:22Z",
             "created_at": "2019-08-24T14:15:22Z",
+            "detail": "string",
             "ended_at": "2019-08-24T14:15:22Z",
             "ip": "string",
             "short_description": "string",
@@ -909,6 +912,7 @@ Status Code **200**
 | `»»» client_hostname`           | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
 | `»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» detail`                    | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
 | `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
@@ -1127,6 +1131,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
               "short_description": "string",
@@ -1490,6 +1495,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
+                "detail": "string",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
                 "short_description": "string",
@@ -1705,6 +1711,7 @@ Status Code **200**
 | `»»»» client_hostname`           | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
 | `»»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» detail`                    | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
 | `»»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
@@ -1962,6 +1969,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
               "short_description": "string",

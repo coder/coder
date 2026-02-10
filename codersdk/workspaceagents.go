@@ -188,6 +188,8 @@ type WorkspaceConnection struct {
 	ConnectedAt *time.Time                `json:"connected_at,omitempty" format:"date-time"`
 	EndedAt     *time.Time                `json:"ended_at,omitempty" format:"date-time"`
 	Type        ConnectionType            `json:"type"`
+	// Detail is the app slug or port number for workspace_app and port_forwarding connections.
+	Detail string `json:"detail,omitempty"`
 	// ClientHostname is the hostname of the client that connected to the agent. Self-reported by the client.
 	ClientHostname string `json:"client_hostname,omitempty"`
 	// ShortDescription is the human-readable short description of the connection. Self-reported by the client.

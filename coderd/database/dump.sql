@@ -883,15 +883,15 @@ BEGIN
             IF workspace_count > 0 THEN
                 error_parts := array_append(error_parts, workspace_count || ' workspaces');
             END IF;
-            
+
             IF template_count > 0 THEN
                 error_parts := array_append(error_parts, template_count || ' templates');
             END IF;
-            
+
             IF provisioner_keys_count > 0 THEN
                 error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
             END IF;
-            
+
             error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
             RAISE EXCEPTION '%', error_message;
         END;
@@ -1160,7 +1160,8 @@ CREATE TABLE connection_logs (
     connection_id uuid,
     disconnect_time timestamp with time zone,
     disconnect_reason text,
-    agent_id uuid
+    agent_id uuid,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
@@ -1176,6 +1177,8 @@ COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used 
 COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
+
+COMMENT ON COLUMN connection_logs.updated_at IS 'Last time this connection log was confirmed active. For agent connections, equals connect_time. For web connections, bumped while the session is active.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -2605,7 +2608,8 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     status_code integer NOT NULL,
     started_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    id uuid NOT NULL
+    id uuid NOT NULL,
+    connection_id uuid
 );
 
 COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.';
@@ -3835,4 +3839,3 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
-

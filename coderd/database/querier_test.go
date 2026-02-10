@@ -3081,7 +3081,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				Status: string(codersdk.ConnectionLogStatusOngoing),
 			},
-			expectedLogIDs: []uuid.UUID{log4.ID},
+			expectedLogIDs: []uuid.UUID{log1.ID, log4.ID},
 		},
 		{
 			name: "StatusCompleted",
@@ -3308,12 +3308,16 @@ func TestUpsertConnectionLog(t *testing.T) {
 
 		origLog, err := db.UpsertConnectionLog(ctx, connectParams2)
 		require.NoError(t, err)
-		require.Equal(t, log, origLog, "connect update should be a no-op")
+		// updated_at is always bumped on conflict to track activity.
+		require.True(t, connectTime2.Equal(origLog.UpdatedAt), "expected updated_at %s, got %s", connectTime2, origLog.UpdatedAt)
+		origLog.UpdatedAt = log.UpdatedAt
+		require.Equal(t, log, origLog, "connect update should be a no-op except updated_at")
 
 		// Check that still only one row exists.
 		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
+		rows[0].ConnectionLog.UpdatedAt = log.UpdatedAt
 		require.Equal(t, log, rows[0].ConnectionLog)
 	})
 
@@ -3395,6 +3399,8 @@ func TestUpsertConnectionLog(t *testing.T) {
 		secondRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		require.Len(t, secondRows, 1)
+		// updated_at is always bumped on conflict to track activity.
+		secondRows[0].ConnectionLog.UpdatedAt = firstRows[0].ConnectionLog.UpdatedAt
 		require.Equal(t, firstRows, secondRows)
 
 		// Upsert a disconnection, which should also be a no op

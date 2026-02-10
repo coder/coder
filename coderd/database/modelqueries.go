@@ -689,6 +689,8 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.AgentID,
+			&i.ConnectionLog.UpdatedAt,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,

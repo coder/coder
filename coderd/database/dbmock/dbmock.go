@@ -8038,10 +8038,10 @@ func (mr *MockStoreMockRecorder) UpsertWorkspaceApp(ctx, arg any) *gomock.Call {
 }
 
 // UpsertWorkspaceAppAuditSession mocks base method.
-func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
+func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (database.UpsertWorkspaceAppAuditSessionRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertWorkspaceAppAuditSession", ctx, arg)
-	ret0, _ := ret[0].(bool)
+	ret0, _ := ret[0].(database.UpsertWorkspaceAppAuditSessionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

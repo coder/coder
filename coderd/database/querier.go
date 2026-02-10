@@ -802,10 +802,11 @@ type sqlcQuerier interface {
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error)
 	//
-	// The returned boolean, new_or_stale, can be used to deduce if a new session
-	// was started. This means that a new row was inserted (no previous session) or
-	// the updated_at is older than stale interval.
-	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error)
+	// The returned columns, new_or_stale and connection_id, can be used to deduce
+	// if a new session was started and which connection_id to use. new_or_stale is
+	// true when a new row was inserted (no previous session) or the updated_at is
+	// older than the stale interval.
+	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (UpsertWorkspaceAppAuditSessionRow, error)
 	ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error)
 	ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error)
 }

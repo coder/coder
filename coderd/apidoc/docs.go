@@ -21530,6 +21530,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "detail": {
+                    "description": "Detail is the app slug or port number for workspace_app and port_forwarding connections.",
+                    "type": "string"
+                },
                 "ended_at": {
                     "type": "string",
                     "format": "date-time"

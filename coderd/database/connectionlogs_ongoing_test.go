@@ -145,3 +145,93 @@ func TestGetOngoingAgentConnectionsLast24h(t *testing.T) {
 	// Agent2 should include its single active log.
 	require.Equal(t, []uuid.UUID{agent2Log.ID}, []uuid.UUID{byAgent[agent2][0].ID})
 }
+
+func TestGetOngoingAgentConnectionsLast24h_PortForwarding(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbfake.Organization(t, db).Do()
+	user := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.Org.ID, CreatedBy: user.ID})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.Org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     tpl.ID,
+		Name:           "ws-pf",
+	})
+
+	now := dbtime.Now()
+	since := now.Add(-24 * time.Hour)
+
+	const agentName = "agent-pf"
+
+	// Agent-reported: non-localhost IP, included unconditionally.
+	agentReported := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-10 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        agentName,
+		Type:             database.ConnectionTypePortForwarding,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		SlugOrPort:       sql.NullString{String: "8080", Valid: true},
+		Ip:               database.ParseIP("fd7a:115c:a1e0:4353:89d9:4ca8:9c42:8d2d"),
+	})
+
+	// Stale proxy-reported: localhost IP, bumped but older than AppActiveSince.
+	staleConnID := uuid.New()
+	staleConnectTime := now.Add(-15 * time.Minute)
+	_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             staleConnectTime,
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        agentName,
+		Type:             database.ConnectionTypePortForwarding,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: staleConnID, Valid: true},
+		SlugOrPort:       sql.NullString{String: "3000", Valid: true},
+		Ip:               database.ParseIP("127.0.0.1"),
+	})
+
+	// Bump updated_at to simulate a proxy refresh.
+	staleBumpTime := now.Add(-8 * time.Minute)
+	_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             staleBumpTime,
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        agentName,
+		Type:             database.ConnectionTypePortForwarding,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: staleConnID, Valid: true},
+		SlugOrPort:       sql.NullString{String: "3000", Valid: true},
+	})
+	require.NoError(t, err)
+
+	appActiveSince := now.Add(-5 * time.Minute)
+
+	logs, err := db.GetOngoingAgentConnectionsLast24h(ctx, database.GetOngoingAgentConnectionsLast24hParams{
+		WorkspaceIds:   []uuid.UUID{ws.ID},
+		AgentNames:     []string{agentName},
+		Types:          []database.ConnectionType{database.ConnectionTypePortForwarding},
+		Since:          since,
+		PerAgentLimit:  50,
+		AppActiveSince: appActiveSince,
+	})
+	require.NoError(t, err)
+
+	// Only the agent-reported connection should appear.
+	require.Len(t, logs, 1)
+	require.Equal(t, agentReported.ID, logs[0].ID)
+	require.Equal(t, database.ConnectionTypePortForwarding, logs[0].Type)
+	require.True(t, logs[0].SlugOrPort.Valid)
+	require.Equal(t, "8080", logs[0].SlugOrPort.String)
+}

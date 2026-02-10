@@ -479,12 +479,13 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			slog.F("status_code", statusCode),
 		)
 
-		var newOrStale bool
+		connectionID := uuid.New()
+		var result database.UpsertWorkspaceAppAuditSessionRow
 		err := p.Database.InTx(func(tx database.Store) (err error) {
 			// nolint:gocritic // System context is needed to write audit sessions.
 			dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-			newOrStale, err = tx.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
+			result, err = tx.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
 				// Config.
 				StaleIntervalMS: p.WorkspaceAppAuditSessionTimeout.Milliseconds(),
 
@@ -499,6 +500,10 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 				StatusCode: statusCode,
 				StartedAt:  aReq.time,
 				UpdatedAt:  aReq.time,
+				ConnectionID: uuid.NullUUID{
+					UUID:  connectionID,
+					Valid: true,
+				},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert workspace app audit session: %w", err)
@@ -514,15 +519,8 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		if !newOrStale {
-			// We either didn't insert a new session, or the session
-			// didn't timeout due to inactivity.
-			return
-		}
-
 		connLogger := *p.ConnectionLogger.Load()
-
-		err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
+		upsertParams := database.UpsertConnectionLogParams{
 			ID:               uuid.New(),
 			Time:             aReq.time,
 			OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
@@ -544,11 +542,20 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			},
 			SlugOrPort:       sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
 			ConnectionStatus: database.ConnectionStatusConnected,
-
-			// N/A
-			ConnectionID:     uuid.NullUUID{},
+			ConnectionID:     result.ConnectionID,
 			DisconnectReason: sql.NullString{},
-		})
+		}
+
+		if !result.NewOrStale {
+			// Session still active. Bump updated_at on the existing
+			// connection log via the ON CONFLICT path.
+			if err := connLogger.Upsert(ctx, upsertParams); err != nil {
+				logger.Error(ctx, "bump connection log updated_at failed", slog.Error(err))
+			}
+			return
+		}
+
+		err = connLogger.Upsert(ctx, upsertParams)
 		if err != nil {
 			logger.Error(ctx, "upsert connection log failed", slog.Error(err))
 			return

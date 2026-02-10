@@ -125,8 +125,10 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		},
 		// N/A
 		UserAgent: sql.NullString{},
-		// N/A
-		SlugOrPort: sql.NullString{},
+		SlugOrPort: sql.NullString{
+			String: req.GetConnection().GetSlugOrPort(),
+			Valid:  req.GetConnection().GetSlugOrPort() != "",
+		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)

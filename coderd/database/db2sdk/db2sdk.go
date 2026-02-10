@@ -849,6 +849,10 @@ func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Conn
 		return database.ConnectionTypeVscode, nil
 	case agentproto.Connection_RECONNECTING_PTY:
 		return database.ConnectionTypeReconnectingPty, nil
+	case agentproto.Connection_WORKSPACE_APP:
+		return database.ConnectionTypeWorkspaceApp, nil
+	case agentproto.Connection_PORT_FORWARDING:
+		return database.ConnectionTypePortForwarding, nil
 	default:
 		// Also Connection_TYPE_UNSPECIFIED, no mapping.
 		return "", xerrors.Errorf("unknown agent connection type %q", typ)

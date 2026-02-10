@@ -2,6 +2,7 @@ package tailnet_test
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/netip"
 	"strings"
@@ -97,6 +98,163 @@ func TestTailnet(t *testing.T) {
 		node := testutil.TryReceive(ctx, t, nodes)
 		// Ensure this connected over raw (not websocket) DERP!
 		require.Len(t, node.DERPForcedWebsocket, 0)
+	})
+
+	t.Run("RemoteAddr", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:    logger.Named("w1"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+
+		w2IP := tailnet.TailscaleServicePrefix.RandomAddr()
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w2IP, 128)},
+			Logger:    logger.Named("w2"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(ctx, w1IP))
+
+		const port = 35566
+		accepted := make(chan net.Conn, 1)
+		listenDone := make(chan struct{})
+		go func() {
+			listener, err := w1.Listen("tcp", ":35566")
+			if !assert.NoError(t, err) {
+				return
+			}
+			close(listenDone)
+			defer listener.Close()
+			nc, err := listener.Accept()
+			if !assert.NoError(t, err) {
+				return
+			}
+			accepted <- nc
+		}()
+
+		_ = testutil.TryReceive(ctx, t, listenDone)
+		nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, port))
+		require.NoError(t, err)
+		defer nc.Close()
+
+		ac := testutil.TryReceive(ctx, t, accepted)
+		defer ac.Close()
+
+		// RemoteAddr must be the dialer's tailnet IP, not nil.
+		remoteAddr := ac.RemoteAddr()
+		require.NotNil(t, remoteAddr)
+		tcpAddr, ok := remoteAddr.(*net.TCPAddr)
+		require.True(t, ok, "expected *net.TCPAddr, got %T", remoteAddr)
+		require.Equal(t, w2IP, tcpAddr.AddrPort().Addr(),
+			"RemoteAddr should be the dialer's tailnet IP")
+	})
+
+	t.Run("TCPConnCallback", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		type connEvent struct {
+			src, dst netip.AddrPort
+		}
+		type disconnEvent struct {
+			code   int
+			reason string
+		}
+		connected := make(chan connEvent, 1)
+		disconnected := make(chan disconnEvent, 1)
+
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:    logger.Named("w1"),
+			DERPMap:   derpMap,
+			TCPConnCallback: func(src, dst netip.AddrPort) func(int, string) {
+				connected <- connEvent{src, dst}
+				return func(code int, reason string) {
+					disconnected <- disconnEvent{code, reason}
+				}
+			},
+		})
+		require.NoError(t, err)
+
+		w2IP := tailnet.TailscaleServicePrefix.RandomAddr()
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w2IP, 128)},
+			Logger:    logger.Named("w2"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(ctx, w1IP))
+
+		// Listen on :0 so the OS assigns a free port.
+		localLn, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer localLn.Close()
+		port := uint16(localLn.Addr().(*net.TCPAddr).Port) //nolint:gosec // OS port fits in uint16.
+
+		localAccepted := make(chan net.Conn, 1)
+		go func() {
+			c, err := localLn.Accept()
+			if err != nil {
+				return
+			}
+			localAccepted <- c
+		}()
+
+		// Dial through the tailnet to the local listener's port.
+		nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, port))
+		require.NoError(t, err)
+		defer nc.Close()
+
+		ev := testutil.TryReceive(ctx, t, connected)
+		require.Equal(t, w2IP, ev.src.Addr())
+		require.Equal(t, port, ev.dst.Port())
+
+		localConn := testutil.TryReceive(ctx, t, localAccepted)
+		defer localConn.Close()
+
+		// w2 -> local
+		const payload = "hello tracked"
+		_, err = nc.Write([]byte(payload))
+		require.NoError(t, err)
+		buf := make([]byte, len(payload))
+		_, err = io.ReadFull(localConn, buf)
+		require.NoError(t, err)
+		require.Equal(t, payload, string(buf))
+
+		// local -> w2
+		const reply = "reply tracked"
+		_, err = localConn.Write([]byte(reply))
+		require.NoError(t, err)
+		buf = make([]byte, len(reply))
+		_, err = io.ReadFull(nc, buf)
+		require.NoError(t, err)
+		require.Equal(t, reply, string(buf))
+
+		nc.Close()
+		disc := testutil.TryReceive(ctx, t, disconnected)
+		require.Equal(t, 0, disc.code)
+		require.Equal(t, "", disc.reason)
 	})
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {

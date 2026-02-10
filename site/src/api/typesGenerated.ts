@@ -6733,6 +6733,10 @@ export interface WorkspaceConnection {
 	readonly ended_at?: string;
 	readonly type: ConnectionType;
 	/**
+	 * Detail is the app slug or port number for workspace_app and port_forwarding connections.
+	 */
+	readonly detail?: string;
+	/**
 	 * ClientHostname is the hostname of the client that connected to the agent. Self-reported by the client.
 	 */
 	readonly client_hostname?: string;

@@ -2207,9 +2207,7 @@ WHERE
 	AND CASE
 		WHEN $13 :: text != '' THEN
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
-			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			($13 = 'completed' AND disconnect_time IS NOT NULL))
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -2282,7 +2280,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.agent_id,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.agent_id, connection_logs.updated_at,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -2396,9 +2394,7 @@ WHERE
 	AND CASE
 		WHEN $13 :: text != '' THEN
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
-			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			($13 = 'completed' AND disconnect_time IS NOT NULL))
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -2496,6 +2492,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.AgentID,
+			&i.ConnectionLog.UpdatedAt,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -2529,7 +2526,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 const getOngoingAgentConnectionsLast24h = `-- name: GetOngoingAgentConnectionsLast24h :many
 WITH ranked AS (
 	SELECT
-		id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id,
+		id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at,
 		row_number() OVER (
 			PARTITION BY workspace_id, agent_name
 			ORDER BY connect_time DESC
@@ -2541,7 +2538,17 @@ WITH ranked AS (
 		AND agent_name = ANY($3 :: text[])
 		AND type = ANY($4 :: connection_type[])
 		AND disconnect_time IS NULL
-		AND connect_time >= $5 :: timestamp with time zone
+		AND (
+			-- Non-web types always included while connected.
+			type NOT IN ('workspace_app', 'port_forwarding')
+			-- Agent-reported web connections carry a real tailnet IP
+			-- and have proper disconnect lifecycle tracking.
+			OR ip NOT IN ('127.0.0.1', '::1')
+			-- Proxy-reported web connections (localhost IP) rely on
+			-- updated_at being bumped on each token refresh.
+			OR updated_at >= $5 :: timestamp with time zone
+		)
+		AND connect_time >= $6 :: timestamp with time zone
 )
 SELECT
 	id,
@@ -2559,7 +2566,8 @@ SELECT
 	slug_or_port,
 	connection_id,
 	disconnect_time,
-	disconnect_reason
+	disconnect_reason,
+	updated_at
 FROM
 	ranked
 WHERE
@@ -2571,11 +2579,12 @@ ORDER BY
 `
 
 type GetOngoingAgentConnectionsLast24hParams struct {
-	PerAgentLimit int64            `db:"per_agent_limit" json:"per_agent_limit"`
-	WorkspaceIds  []uuid.UUID      `db:"workspace_ids" json:"workspace_ids"`
-	AgentNames    []string         `db:"agent_names" json:"agent_names"`
-	Types         []ConnectionType `db:"types" json:"types"`
-	Since         time.Time        `db:"since" json:"since"`
+	PerAgentLimit  int64            `db:"per_agent_limit" json:"per_agent_limit"`
+	WorkspaceIds   []uuid.UUID      `db:"workspace_ids" json:"workspace_ids"`
+	AgentNames     []string         `db:"agent_names" json:"agent_names"`
+	Types          []ConnectionType `db:"types" json:"types"`
+	AppActiveSince time.Time        `db:"app_active_since" json:"app_active_since"`
+	Since          time.Time        `db:"since" json:"since"`
 }
 
 type GetOngoingAgentConnectionsLast24hRow struct {
@@ -2595,6 +2604,7 @@ type GetOngoingAgentConnectionsLast24hRow struct {
 	ConnectionID     uuid.NullUUID  `db:"connection_id" json:"connection_id"`
 	DisconnectTime   sql.NullTime   `db:"disconnect_time" json:"disconnect_time"`
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg GetOngoingAgentConnectionsLast24hParams) ([]GetOngoingAgentConnectionsLast24hRow, error) {
@@ -2603,6 +2613,7 @@ func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg 
 		pq.Array(arg.WorkspaceIds),
 		pq.Array(arg.AgentNames),
 		pq.Array(arg.Types),
+		arg.AppActiveSince,
 		arg.Since,
 	)
 	if err != nil {
@@ -2629,6 +2640,7 @@ func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg 
 			&i.ConnectionID,
 			&i.DisconnectTime,
 			&i.DisconnectReason,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2661,7 +2673,8 @@ INSERT INTO connection_logs (
 	slug_or_port,
 	connection_id,
 	disconnect_reason,
-	disconnect_time
+	disconnect_time,
+	updated_at
 ) VALUES
 	($1, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 	-- If we've only received a disconnect event, mark the event as immediately
@@ -2670,9 +2683,11 @@ INSERT INTO connection_logs (
 		 WHEN $17::connection_status = 'disconnected'
 		 THEN $16 :: timestamp with time zone
 		 ELSE NULL
-	 END)
+	 END,
+	 $16)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
+	updated_at = $16,
 	-- No-op if the connection is still open.
 	disconnect_time = CASE
 		WHEN $17::connection_status = 'disconnected'
@@ -2696,7 +2711,7 @@ DO UPDATE SET
 		ELSE connection_logs.code
 	END,
 	agent_id = COALESCE(connection_logs.agent_id, EXCLUDED.agent_id)
-RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id
+RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at
 `
 
 type UpsertConnectionLogParams struct {
@@ -2758,6 +2773,7 @@ func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnecti
 		&i.DisconnectTime,
 		&i.DisconnectReason,
 		&i.AgentID,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -20416,7 +20432,8 @@ INSERT INTO
 		slug_or_port,
 		status_code,
 		started_at,
-		updated_at
+		updated_at,
+		connection_id
 	)
 VALUES
 	(
@@ -20429,7 +20446,8 @@ VALUES
 		$7,
 		$8,
 		$9,
-		$10
+		$10,
+		$11
 	)
 ON CONFLICT
 	(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
@@ -20438,38 +20456,51 @@ DO
 	SET
 		-- ID is used to know if session was reset on upsert.
 		id = CASE
-			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($12::bigint || ' ms')::interval
 			THEN workspace_app_audit_sessions.id
 			ELSE EXCLUDED.id
 		END,
 		started_at = CASE
-			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($12::bigint || ' ms')::interval
 			THEN workspace_app_audit_sessions.started_at
 			ELSE EXCLUDED.started_at
 		END,
+		connection_id = CASE
+			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($12::bigint || ' ms')::interval
+			THEN workspace_app_audit_sessions.connection_id
+			ELSE EXCLUDED.connection_id
+		END,
 		updated_at = EXCLUDED.updated_at
 RETURNING
-	id = $1 AS new_or_stale
+	id = $1 AS new_or_stale,
+	connection_id
 `
 
 type UpsertWorkspaceAppAuditSessionParams struct {
-	ID              uuid.UUID `db:"id" json:"id"`
-	AgentID         uuid.UUID `db:"agent_id" json:"agent_id"`
-	AppID           uuid.UUID `db:"app_id" json:"app_id"`
-	UserID          uuid.UUID `db:"user_id" json:"user_id"`
-	Ip              string    `db:"ip" json:"ip"`
-	UserAgent       string    `db:"user_agent" json:"user_agent"`
-	SlugOrPort      string    `db:"slug_or_port" json:"slug_or_port"`
-	StatusCode      int32     `db:"status_code" json:"status_code"`
-	StartedAt       time.Time `db:"started_at" json:"started_at"`
-	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
-	StaleIntervalMS int64     `db:"stale_interval_ms" json:"stale_interval_ms"`
+	ID              uuid.UUID     `db:"id" json:"id"`
+	AgentID         uuid.UUID     `db:"agent_id" json:"agent_id"`
+	AppID           uuid.UUID     `db:"app_id" json:"app_id"`
+	UserID          uuid.UUID     `db:"user_id" json:"user_id"`
+	Ip              string        `db:"ip" json:"ip"`
+	UserAgent       string        `db:"user_agent" json:"user_agent"`
+	SlugOrPort      string        `db:"slug_or_port" json:"slug_or_port"`
+	StatusCode      int32         `db:"status_code" json:"status_code"`
+	StartedAt       time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	ConnectionID    uuid.NullUUID `db:"connection_id" json:"connection_id"`
+	StaleIntervalMS int64         `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
-// The returned boolean, new_or_stale, can be used to deduce if a new session
-// was started. This means that a new row was inserted (no previous session) or
-// the updated_at is older than stale interval.
-func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error) {
+type UpsertWorkspaceAppAuditSessionRow struct {
+	NewOrStale   bool          `db:"new_or_stale" json:"new_or_stale"`
+	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
+}
+
+// The returned columns, new_or_stale and connection_id, can be used to deduce
+// if a new session was started and which connection_id to use. new_or_stale is
+// true when a new row was inserted (no previous session) or the updated_at is
+// older than the stale interval.
+func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (UpsertWorkspaceAppAuditSessionRow, error) {
 	row := q.db.QueryRowContext(ctx, upsertWorkspaceAppAuditSession,
 		arg.ID,
 		arg.AgentID,
@@ -20481,11 +20512,12 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 		arg.StatusCode,
 		arg.StartedAt,
 		arg.UpdatedAt,
+		arg.ConnectionID,
 		arg.StaleIntervalMS,
 	)
-	var new_or_stale bool
-	err := row.Scan(&new_or_stale)
-	return new_or_stale, err
+	var i UpsertWorkspaceAppAuditSessionRow
+	err := row.Scan(&i.NewOrStale, &i.ConnectionID)
+	return i, err
 }
 
 const getLatestWorkspaceAppStatusByAppID = `-- name: GetLatestWorkspaceAppStatusByAppID :one

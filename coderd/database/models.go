@@ -3763,6 +3763,8 @@ type ConnectionLog struct {
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	AgentID          uuid.NullUUID  `db:"agent_id" json:"agent_id"`
+	// Last time this connection log was confirmed active. For agent connections, equals connect_time. For web connections, bumped while the session is active.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type CryptoKey struct {
@@ -4934,8 +4936,9 @@ type WorkspaceAppAuditSession struct {
 	// The time the user started the session.
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// The time the session was last updated.
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-	ID        uuid.UUID `db:"id" json:"id"`
+	UpdatedAt    time.Time     `db:"updated_at" json:"updated_at"`
+	ID           uuid.UUID     `db:"id" json:"id"`
+	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
 }
 
 // A record of workspace app usage statistics

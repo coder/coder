@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -131,6 +132,12 @@ type Options struct {
 	ShortDescription string
 	// Hostname is the peer's self-reported hostname. For informational / display purposes only
 	Hostname string
+
+	// TCPConnCallback is called when a TCP connection is accepted on a
+	// port that has no registered listener. The connection is proxied
+	// to localhost with lifecycle tracking. The returned function is
+	// called when the connection closes.
+	TCPConnCallback func(src, dst netip.AddrPort) (disconnected func(code int, reason string))
 }
 
 // TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
@@ -340,6 +347,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		nodeUpdater:     nodeUp,
 		telemetrySink:   options.TelemetrySink,
 		dnsConfigurator: options.DNSConfigurator,
+		tcpConnCallback: options.TCPConnCallback,
 		telemetryStore:  telemetryStore,
 		createdAt:       time.Now(),
 		watchCtx:        ctx,
@@ -472,6 +480,8 @@ type Conn struct {
 
 	trafficStats *connstats.Statistics
 	lastNetInfo  *tailcfg.NetInfo
+
+	tcpConnCallback func(src, dst netip.AddrPort) (disconnected func(code int, reason string))
 }
 
 func (c *Conn) GetNetInfo() *tailcfg.NetInfo {
@@ -780,6 +790,10 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(dst.Port())}]
 	c.mutex.Unlock()
 	if !ok {
+		// No listener registered for this port.
+		if c.tcpConnCallback != nil {
+			return c.trackedForwardTCP(src, dst, logger), nil, true
+		}
 		return nil, nil, false
 	}
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
@@ -791,6 +805,13 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 	return func(conn net.Conn) {
 		t := time.NewTimer(time.Second)
 		defer t.Stop()
+		// Wrap with the known source address from netstack. The
+		// gonet.TCPConn.RemoteAddr() may return nil before the TCP
+		// handshake completes.
+		conn = &remoteAddrConn{
+			Conn:   conn,
+			remote: net.TCPAddrFromAddrPort(src),
+		}
 		select {
 		case ln.conn <- conn:
 			logger.Info(context.Background(), "accepted connection")
@@ -804,6 +825,63 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 		}
 		_ = conn.Close()
 	}, opts, true
+}
+
+// remoteAddrConn overrides RemoteAddr on a net.Conn to carry the source
+// tailnet IP from netstack, which is known before the TCP handshake
+// completes.
+type remoteAddrConn struct {
+	net.Conn
+	remote net.Addr
+}
+
+func (c *remoteAddrConn) RemoteAddr() net.Addr { return c.remote }
+
+// trackedForwardTCP returns a handler that proxies a tailnet TCP connection
+// to the local host while firing connect/disconnect lifecycle callbacks.
+func (c *Conn) trackedForwardTCP(src, dst netip.AddrPort, logger slog.Logger) func(net.Conn) {
+	return func(conn net.Conn) {
+		defer conn.Close()
+		conn = &remoteAddrConn{
+			Conn:   conn,
+			remote: net.TCPAddrFromAddrPort(src),
+		}
+		disconnected := c.tcpConnCallback(src, dst)
+		defer func() {
+			if disconnected != nil {
+				disconnected(0, "")
+			}
+		}()
+		port := strconv.Itoa(int(dst.Port()))
+		var d net.Dialer
+		local, err := d.DialContext(c.watchCtx, "tcp", net.JoinHostPort("127.0.0.1", port))
+		if err != nil {
+			local, err = d.DialContext(c.watchCtx, "tcp", net.JoinHostPort("::1", port))
+			if err != nil {
+				logger.Debug(c.watchCtx,
+					"failed to dial local app", slog.Error(err))
+				if disconnected != nil {
+					disconnected(1, err.Error())
+					disconnected = nil
+				}
+				return
+			}
+		}
+		defer local.Close()
+		// Proxy bidirectionally. Closing both sides when either
+		// direction finishes unblocks the other goroutine.
+		var wg sync.WaitGroup
+		wg.Add(2)
+		cp := func(dst io.Writer, src io.Reader) {
+			defer wg.Done()
+			_, _ = io.Copy(dst, src)
+			_ = local.Close()
+			_ = conn.Close()
+		}
+		go cp(local, conn)
+		go cp(conn, local)
+		wg.Wait()
+	}
 }
 
 // SetConnStatsCallback sets a callback to be called after maxPeriod or

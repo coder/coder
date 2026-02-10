@@ -52,8 +52,10 @@ func TestWorkspaceAgentConnections_FromConnectionLogs(t *testing.T) {
 	})
 
 	// A web-ish connection type should be ignored.
+	// Use a time outside the 5-minute activity window so this
+	// localhost web connection is treated as stale and filtered out.
 	_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-		Time:             now.Add(-30 * time.Second),
+		Time:             now.Add(-10 * time.Minute),
 		OrganizationID:   r.Workspace.OrganizationID,
 		WorkspaceOwnerID: r.Workspace.OwnerID,
 		WorkspaceID:      r.Workspace.ID,

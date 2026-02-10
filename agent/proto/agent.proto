@@ -364,6 +364,8 @@ message Connection {
 		VSCODE = 2;
 		JETBRAINS = 3;
 		RECONNECTING_PTY = 4;
+		WORKSPACE_APP = 5;
+		PORT_FORWARDING = 6;
 	}
 
 	bytes id = 1;
@@ -373,6 +375,7 @@ message Connection {
 	string ip = 5;
 	int32 status_code = 6;
 	optional string reason = 7;
+	optional string slug_or_port = 8;
 }
 
 message ReportConnectionRequest {

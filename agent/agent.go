@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -881,7 +882,7 @@ const (
 	reportConnectionBufferLimit = 2048
 )
 
-func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
+func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string, options ...func(*proto.Connection)) (disconnected func(code int, reason string)) {
 	// A blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
 	// still report it, and the recipient can handle a blank IP.
 	if ip != "" {
@@ -912,16 +913,20 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 			slog.F("ip", ip),
 		)
 	} else {
+		connectMsg := &proto.Connection{
+			Id:         id[:],
+			Action:     proto.Connection_CONNECT,
+			Type:       connectionType,
+			Timestamp:  timestamppb.New(time.Now()),
+			Ip:         ip,
+			StatusCode: 0,
+			Reason:     nil,
+		}
+		for _, opt := range options {
+			opt(connectMsg)
+		}
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
-			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_CONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: 0,
-				Reason:     nil,
-			},
+			Connection: connectMsg,
 		})
 		select {
 		case a.reportConnectionsUpdate <- struct{}{}:
@@ -942,16 +947,20 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 			return
 		}
 
+		disconnMsg := &proto.Connection{
+			Id:         id[:],
+			Action:     proto.Connection_DISCONNECT,
+			Type:       connectionType,
+			Timestamp:  timestamppb.New(time.Now()),
+			Ip:         ip,
+			StatusCode: int32(code), //nolint:gosec
+			Reason:     &reason,
+		}
+		for _, opt := range options {
+			opt(disconnMsg)
+		}
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
-			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_DISCONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: int32(code), //nolint:gosec
-				Reason:     &reason,
-			},
+			Connection: disconnMsg,
 		})
 		select {
 		case a.reportConnectionsUpdate <- struct{}{}:
@@ -1378,6 +1387,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 				manifest.DisableDirectConnections,
 				keySeed,
 				manifest.WorkspaceName,
+				manifest.Apps,
 			)
 			if err != nil {
 				return xerrors.Errorf("create tailnet: %w", err)
@@ -1526,6 +1536,31 @@ func (a *agent) trackGoroutine(fn func()) error {
 	return nil
 }
 
+// appPortFromURL extracts the port from a workspace app URL,
+// defaulting to 80/443 by scheme.
+func appPortFromURL(rawURL string) uint16 {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return 0
+	}
+	p := u.Port()
+	if p == "" {
+		switch u.Scheme {
+		case "http":
+			return 80
+		case "https":
+			return 443
+		default:
+			return 0
+		}
+	}
+	port, err := strconv.ParseUint(p, 10, 16)
+	if err != nil {
+		return 0
+	}
+	return uint16(port)
+}
+
 func (a *agent) createTailnet(
 	ctx context.Context,
 	agentID uuid.UUID,
@@ -1533,6 +1568,7 @@ func (a *agent) createTailnet(
 	derpForceWebSockets, disableDirectConnections bool,
 	keySeed int64,
 	workspaceName string,
+	apps []codersdk.WorkspaceApp,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
 	var header http.Header
@@ -1541,6 +1577,18 @@ func (a *agent) createTailnet(
 			header = headerTransport.Header
 		}
 	}
+
+	// Build port-to-app mapping for workspace app connection tracking
+	// via the tailnet callback.
+	portToApp := make(map[uint16]codersdk.WorkspaceApp)
+	for _, app := range apps {
+		port := appPortFromURL(app.URL)
+		if port == 0 || app.External {
+			continue
+		}
+		portToApp[port] = app
+	}
+
 	network, err := tailnet.NewConn(&tailnet.Options{
 		ID:                  agentID,
 		Addresses:           a.wireguardAddresses(agentID),
@@ -1552,6 +1600,25 @@ func (a *agent) createTailnet(
 		BlockEndpoints:      disableDirectConnections,
 		ShortDescription:    "Workspace Agent",
 		Hostname:            workspaceName,
+		TCPConnCallback: func(src, dst netip.AddrPort) (disconnected func(int, string)) {
+			app, ok := portToApp[dst.Port()]
+			connType := proto.Connection_PORT_FORWARDING
+			slugOrPort := strconv.Itoa(int(dst.Port()))
+			if ok {
+				connType = proto.Connection_WORKSPACE_APP
+				if app.Slug != "" {
+					slugOrPort = app.Slug
+				}
+			}
+			return a.reportConnection(
+				uuid.New(),
+				connType,
+				src.String(),
+				func(c *proto.Connection) {
+					c.SlugOrPort = &slugOrPort
+				},
+			)
+		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

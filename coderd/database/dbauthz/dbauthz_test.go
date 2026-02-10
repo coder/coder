@@ -362,6 +362,11 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 		dbm.EXPECT().DeleteOldConnectionLogs(gomock.Any(), database.DeleteOldConnectionLogsParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.DeleteOldConnectionLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("CloseOpenAgentConnectionLogsForWorkspace", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.CloseOpenAgentConnectionLogsForWorkspaceParams{}
+		dbm.EXPECT().CloseOpenAgentConnectionLogsForWorkspace(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceConnectionLog, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestFile() {
@@ -3313,7 +3318,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		agent := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
 		app := testutil.Fake(s.T(), faker, database.WorkspaceApp{})
 		arg := database.UpsertWorkspaceAppAuditSessionParams{AgentID: agent.ID, AppID: app.ID, UserID: u.ID, Ip: "127.0.0.1"}
-		dbm.EXPECT().UpsertWorkspaceAppAuditSession(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		dbm.EXPECT().UpsertWorkspaceAppAuditSession(gomock.Any(), arg).Return(database.UpsertWorkspaceAppAuditSessionRow{NewOrStale: true}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceAgentScriptTimings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

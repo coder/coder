@@ -1188,7 +1188,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AppRequest:          req,
 			})
 			require.True(t, ok)
-			require.Len(t, connLogger.ConnectionLogs(), 1, "single connection log, previous session active")
+			require.Len(t, connLogger.ConnectionLogs(), 2, "one connection log, two upserts (updated_at bump)")
 
 			// Third request, session timed out, new audit log.
 			rw = httptest.NewRecorder()
@@ -1207,7 +1207,7 @@ func Test_ResolveRequest(t *testing.T) {
 			})
 			require.True(t, ok)
 			assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
-			require.Len(t, connLogger.ConnectionLogs(), 2, "two connection logs, session timed out")
+			require.Len(t, connLogger.ConnectionLogs(), 3, "two connection logs, three upserts (session timed out)")
 
 			// Fourth request, new IP produces new audit log.
 			auditableIP = testutil.RandomIPv6(t)
@@ -1226,7 +1226,7 @@ func Test_ResolveRequest(t *testing.T) {
 			})
 			require.True(t, ok)
 			assertConnLogContains(t, rw, r, connLogger, workspace, agentID, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
-			require.Len(t, connLogger.ConnectionLogs(), 3, "three connection logs, new IP")
+			require.Len(t, connLogger.ConnectionLogs(), 4, "three connection logs, four upserts (new IP)")
 		}
 	})
 }

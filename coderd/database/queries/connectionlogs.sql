@@ -114,9 +114,7 @@ WHERE
 	AND CASE
 		WHEN @status :: text != '' THEN
 			((@status = 'ongoing' AND disconnect_time IS NULL) OR
-			(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			(@status = 'completed' AND disconnect_time IS NOT NULL))
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -229,9 +227,7 @@ WHERE
 	AND CASE
 		WHEN @status :: text != '' THEN
 			((@status = 'ongoing' AND disconnect_time IS NULL) OR
-			(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			(@status = 'completed' AND disconnect_time IS NOT NULL))
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -269,7 +265,8 @@ INSERT INTO connection_logs (
 	slug_or_port,
 	connection_id,
 	disconnect_reason,
-	disconnect_time
+	disconnect_time,
+	updated_at
 ) VALUES
 	($1, @time, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 	-- If we've only received a disconnect event, mark the event as immediately
@@ -278,9 +275,11 @@ INSERT INTO connection_logs (
 		 WHEN @connection_status::connection_status = 'disconnected'
 		 THEN @time :: timestamp with time zone
 		 ELSE NULL
-	 END)
+	 END,
+	 @time)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
+	updated_at = @time,
 	-- No-op if the connection is still open.
 	disconnect_time = CASE
 		WHEN @connection_status::connection_status = 'disconnected'
@@ -332,6 +331,16 @@ WITH ranked AS (
 		AND agent_name = ANY(@agent_names :: text[])
 		AND type = ANY(@types :: connection_type[])
 		AND disconnect_time IS NULL
+		AND (
+			-- Non-web types always included while connected.
+			type NOT IN ('workspace_app', 'port_forwarding')
+			-- Agent-reported web connections carry a real tailnet IP
+			-- and have proper disconnect lifecycle tracking.
+			OR ip NOT IN ('127.0.0.1', '::1')
+			-- Proxy-reported web connections (localhost IP) rely on
+			-- updated_at being bumped on each token refresh.
+			OR updated_at >= @app_active_since :: timestamp with time zone
+		)
 		AND connect_time >= @since :: timestamp with time zone
 )
 SELECT
@@ -350,7 +359,8 @@ SELECT
 	slug_or_port,
 	connection_id,
 	disconnect_time,
-	disconnect_reason
+	disconnect_reason,
+	updated_at
 FROM
 	ranked
 WHERE

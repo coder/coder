@@ -404,7 +404,7 @@ function connectionStatusDot(status: WorkspaceConnectionStatus): string {
 	}
 }
 
-function connectionTypeLabel(type_: ConnectionType): string {
+function connectionTypeLabel(type_: ConnectionType, detail?: string): string {
 	switch (type_) {
 		case "ssh":
 			return "SSH";
@@ -415,9 +415,9 @@ function connectionTypeLabel(type_: ConnectionType): string {
 		case "jetbrains":
 			return "JetBrains";
 		case "workspace_app":
-			return "Workspace App";
+			return detail ? `App: ${detail}` : "Workspace App";
 		case "port_forwarding":
-			return "Port Forwarding";
+			return detail ? `Port ${detail}` : "Port Forwarding";
 		default:
 			return type_;
 	}
@@ -455,7 +455,7 @@ const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
 											: conn.ip}
 									</td>
 									<td className="py-2 pr-4 text-xs">
-										{connectionTypeLabel(conn.type)}
+										{connectionTypeLabel(conn.type, conn.detail)}
 									</td>
 									<td className="py-2 pr-4">
 										<span className="inline-flex items-center gap-1.5 text-xs">

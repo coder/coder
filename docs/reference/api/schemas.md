@@ -10022,6 +10022,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "client_hostname": "string",
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
+                "detail": "string",
                 "ended_at": "2019-08-24T14:15:22Z",
                 "ip": "string",
                 "short_description": "string",
@@ -10316,6 +10317,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "client_hostname": "string",
       "connected_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "ip": "string",
       "short_description": "string",
@@ -11204,6 +11206,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "client_hostname": "string",
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
               "ip": "string",
               "short_description": "string",
@@ -11425,6 +11428,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "client_hostname": "string",
   "connected_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
+  "detail": "string",
   "ended_at": "2019-08-24T14:15:22Z",
   "ip": "string",
   "short_description": "string",
@@ -11440,6 +11444,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `client_hostname`   | string                                                                   | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.   |
 | `connected_at`      | string                                                                   | false    |              |                                                                                                           |
 | `created_at`        | string                                                                   | false    |              |                                                                                                           |
+| `detail`            | string                                                                   | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                  |
 | `ended_at`          | string                                                                   | false    |              |                                                                                                           |
 | `ip`                | string                                                                   | false    |              |                                                                                                           |
 | `short_description` | string                                                                   | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client. |
@@ -11725,6 +11730,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "client_hostname": "string",
           "connected_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
+          "detail": "string",
           "ended_at": "2019-08-24T14:15:22Z",
           "ip": "string",
           "short_description": "string",
@@ -12074,6 +12080,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "client_hostname": "string",
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
+                    "detail": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
                     "ip": "string",
                     "short_description": "string",

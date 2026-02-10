@@ -42,14 +42,15 @@ func TestConnectionLog(t *testing.T) {
 	)
 
 	tests := []struct {
-		name   string
-		id     uuid.UUID
-		action *agentproto.Connection_Action
-		typ    *agentproto.Connection_Type
-		time   time.Time
-		ip     string
-		status int32
-		reason string
+		name       string
+		id         uuid.UUID
+		action     *agentproto.Connection_Action
+		typ        *agentproto.Connection_Type
+		time       time.Time
+		ip         string
+		status     int32
+		reason     string
+		slugOrPort string
 	}{
 		{
 			name:   "SSH Connect",
@@ -84,6 +85,34 @@ func TestConnectionLog(t *testing.T) {
 			action: agentproto.Connection_CONNECT.Enum(),
 			typ:    agentproto.Connection_RECONNECTING_PTY.Enum(),
 			time:   dbtime.Now(),
+		},
+		{
+			name:       "Port Forwarding Connect",
+			id:         uuid.New(),
+			action:     agentproto.Connection_CONNECT.Enum(),
+			typ:        agentproto.Connection_PORT_FORWARDING.Enum(),
+			time:       dbtime.Now(),
+			ip:         "192.168.1.1",
+			slugOrPort: "8080",
+		},
+		{
+			name:       "Port Forwarding Disconnect",
+			id:         uuid.New(),
+			action:     agentproto.Connection_DISCONNECT.Enum(),
+			typ:        agentproto.Connection_PORT_FORWARDING.Enum(),
+			time:       dbtime.Now(),
+			ip:         "192.168.1.1",
+			status:     200,
+			slugOrPort: "8080",
+		},
+		{
+			name:       "Workspace App Connect",
+			id:         uuid.New(),
+			action:     agentproto.Connection_CONNECT.Enum(),
+			typ:        agentproto.Connection_WORKSPACE_APP.Enum(),
+			time:       dbtime.Now(),
+			ip:         "10.0.0.1",
+			slugOrPort: "my-app",
 		},
 		{
 			name:   "SSH Disconnect",
@@ -129,6 +158,7 @@ func TestConnectionLog(t *testing.T) {
 					Ip:         tt.ip,
 					StatusCode: tt.status,
 					Reason:     &tt.reason,
+					SlugOrPort: &tt.slugOrPort,
 				},
 			})
 
@@ -165,6 +195,10 @@ func TestConnectionLog(t *testing.T) {
 				ConnectionID: uuid.NullUUID{
 					UUID:  tt.id,
 					Valid: tt.id != uuid.Nil,
+				},
+				SlugOrPort: sql.NullString{
+					String: tt.slugOrPort,
+					Valid:  tt.slugOrPort != "",
 				},
 			}))
 		})

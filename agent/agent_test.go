@@ -2843,6 +2843,102 @@ func TestAgent_Dial(t *testing.T) {
 	}
 }
 
+// TestAgent_PortForwardConnectionType verifies connection
+// type classification for forwarded TCP connections.
+func TestAgent_PortForwardConnectionType(t *testing.T) {
+	t.Parallel()
+
+	// Start a TCP echo server for the "app" port.
+	appListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = appListener.Close() })
+	appPort := appListener.Addr().(*net.TCPAddr).Port
+
+	// Start a TCP echo server for a non-app port.
+	nonAppListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = nonAppListener.Close() })
+	nonAppPort := nonAppListener.Addr().(*net.TCPAddr).Port
+
+	echoOnce := func(l net.Listener) <-chan struct{} {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			defer c.Close()
+			_, _ = io.Copy(c, c)
+		}()
+		return done
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:dogsled
+	agentConn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		Apps: []codersdk.WorkspaceApp{
+			{
+				ID:           uuid.New(),
+				Slug:         "myapp",
+				URL:          fmt.Sprintf("http://localhost:%d", appPort),
+				SharingLevel: codersdk.WorkspaceAppSharingLevelOwner,
+				Health:       codersdk.WorkspaceAppHealthDisabled,
+			},
+		},
+	}, 0)
+	require.True(t, agentConn.AwaitReachable(ctx))
+
+	// Phase 1: Connect to the app port, expect WORKSPACE_APP.
+	appDone := echoOnce(appListener)
+	conn, err := agentConn.DialContext(ctx, "tcp", appListener.Addr().String())
+	require.NoError(t, err)
+	testDial(ctx, t, conn)
+	_ = conn.Close()
+	<-appDone
+
+	var reports []*proto.ReportConnectionRequest
+	require.Eventually(t, func() bool {
+		reports = agentClient.GetConnectionReports()
+		return len(reports) >= 2
+	}, testutil.WaitMedium, testutil.IntervalFast,
+		"waiting for 2 connection reports for workspace app",
+	)
+
+	require.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction())
+	require.Equal(t, proto.Connection_WORKSPACE_APP, reports[0].GetConnection().GetType())
+	require.Equal(t, "myapp", reports[0].GetConnection().GetSlugOrPort())
+
+	require.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction())
+	require.Equal(t, proto.Connection_WORKSPACE_APP, reports[1].GetConnection().GetType())
+	require.Equal(t, "myapp", reports[1].GetConnection().GetSlugOrPort())
+
+	// Phase 2: Connect to the non-app port, expect PORT_FORWARDING.
+	nonAppDone := echoOnce(nonAppListener)
+	conn, err = agentConn.DialContext(ctx, "tcp", nonAppListener.Addr().String())
+	require.NoError(t, err)
+	testDial(ctx, t, conn)
+	_ = conn.Close()
+	<-nonAppDone
+
+	nonAppPortStr := strconv.Itoa(nonAppPort)
+	require.Eventually(t, func() bool {
+		reports = agentClient.GetConnectionReports()
+		return len(reports) >= 4
+	}, testutil.WaitMedium, testutil.IntervalFast,
+		"waiting for 4 connection reports total",
+	)
+
+	require.Equal(t, proto.Connection_CONNECT, reports[2].GetConnection().GetAction())
+	require.Equal(t, proto.Connection_PORT_FORWARDING, reports[2].GetConnection().GetType())
+	require.Equal(t, nonAppPortStr, reports[2].GetConnection().GetSlugOrPort())
+
+	require.Equal(t, proto.Connection_DISCONNECT, reports[3].GetConnection().GetAction())
+	require.Equal(t, proto.Connection_PORT_FORWARDING, reports[3].GetConnection().GetType())
+	require.Equal(t, nonAppPortStr, reports[3].GetConnection().GetSlugOrPort())
+}
+
 // TestAgent_UpdatedDERP checks that agents can handle their DERP map being
 // updated, and that clients can also handle it.
 func TestAgent_UpdatedDERP(t *testing.T) {
