@@ -259,11 +259,12 @@ func (r *Runner) createTemplateVersion(ctx context.Context, templateID uuid.UUID
 	}
 
 	versionReq := codersdk.CreateTemplateVersionRequest{
-		TemplateID:    templateID,
-		FileID:        uploadResp.ID,
-		Message:       "Template version for scaletest prebuilds",
-		StorageMethod: codersdk.ProvisionerStorageMethodFile,
-		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		TemplateID:      templateID,
+		FileID:          uploadResp.ID,
+		Message:         "Template version for scaletest prebuilds",
+		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
+		Provisioner:     codersdk.ProvisionerTypeTerraform,
+		ProvisionerTags: r.cfg.ProvisionerTags,
 	}
 	version, err := r.client.CreateTemplateVersion(ctx, r.cfg.OrganizationID, versionReq)
 	if err != nil {

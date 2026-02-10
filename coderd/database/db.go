@@ -11,10 +11,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
+	"runtime/debug"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 )
 
 // Store contains all queryable database functions.
@@ -62,6 +68,7 @@ func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 		sdb: dbx,
 		// This is an arbitrary number.
 		serialRetryCount: 3,
+		log:              slog.Make(sloghuman.Sink(os.Stderr)),
 	}
 
 	for _, opt := range opts {
@@ -120,6 +127,7 @@ type sqlQuerier struct {
 	// serialRetryCount is the number of times to retry a transaction
 	// if it fails with a serialization error.
 	serialRetryCount int
+	log              slog.Logger
 }
 
 func (*sqlQuerier) Wrappers() []string {
@@ -141,6 +149,13 @@ func DefaultTXOptions() *TxOptions {
 }
 
 func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
+	now := time.Now()
+	id := uuid.New().String()
+	q.log.Critical(context.Background(), "scaletest: starting transaction", slog.F("stack", string(debug.Stack())), slog.F("id", id))
+	defer func() {
+		q.log.Critical(context.Background(), "scaletest: finished transaction", slog.F("duration", time.Since(now)), slog.F("id", id))
+	}()
+
 	_, inTx := q.db.(*sqlx.Tx)
 
 	if txOpts == nil {
@@ -207,7 +222,7 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) er
 		// couldn't roll back for some reason, extend returned error
 		err = xerrors.Errorf("defer (%s): %w", rerr.Error(), err)
 	}()
-	err = function(&sqlQuerier{db: transaction})
+	err = function(&sqlQuerier{db: transaction, log: q.log})
 	if err != nil {
 		return xerrors.Errorf("execute transaction: %w", err)
 	}
