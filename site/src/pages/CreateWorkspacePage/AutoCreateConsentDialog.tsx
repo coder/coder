@@ -29,20 +29,19 @@ export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 			<DialogContent
 				onPointerDownOutside={(e) => e.preventDefault()}
 				onEscapeKeyDown={(e) => e.preventDefault()}
-				className="flex max-w-2xl flex-col gap-4"
+				className="max-w-2xl"
 			>
-				<DialogHeader className="flex-row items-center gap-2 space-y-0">
-					<TriangleAlertIcon className="size-icon-lg text-content-warning" />
-					<DialogTitle className="m-0">
+				<DialogHeader>
+					<DialogTitle>
+						<TriangleAlertIcon className="size-icon-lg text-content-warning inline-block align-text-bottom mr-2" />
 						Warning: Automatic Workspace Creation
 					</DialogTitle>
+					<DialogDescription>
+						A link is attempting to automatically create a workspace using the
+						following external configurations. Running scripts from untrusted
+						sources can be dangerous.
+					</DialogDescription>
 				</DialogHeader>
-
-				<DialogDescription>
-					A link is attempting to automatically create a workspace using the
-					following external configurations. Running scripts from untrusted
-					sources can be dangerous.
-				</DialogDescription>
 
 				{autofillParameters.length > 0 && (
 					<div className="flex flex-col gap-2">
