@@ -534,3 +534,56 @@ func TestStart_WithReason(t *testing.T) {
 	workspace = coderdtest.MustWorkspace(t, member, workspace.ID)
 	require.Equal(t, codersdk.BuildReasonCLI, workspace.LatestBuild.Reason)
 }
+
+func TestStart_FailedStartCleansUp(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	store, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 store,
+		Pubsub:                   ps,
+		IncludeProvisionerDaemon: true,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Insert a failed start build directly into the database so that
+	// the workspace's latest build is a failed "start" transition.
+	dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		ID:             workspace.ID,
+		OwnerID:        member.ID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     template.ID,
+	}).
+		Seed(database.WorkspaceBuild{
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			BuildNumber:       workspace.LatestBuild.BuildNumber + 1,
+		}).
+		Failed().
+		Do()
+
+	inv, root := clitest.New(t, "start", workspace.Name)
+	clitest.SetupConfig(t, memberClient, root)
+	pty := ptytest.New(t).Attach(inv)
+	doneChan := make(chan struct{})
+	go func() {
+		defer close(doneChan)
+		err := inv.Run()
+		assert.NoError(t, err)
+	}()
+
+	// The CLI should detect the failed start and clean up first.
+	pty.ExpectMatch("Cleaning up before retrying")
+	pty.ExpectMatch("workspace has been started")
+
+	_ = testutil.TryReceive(ctx, t, doneChan)
+}
+

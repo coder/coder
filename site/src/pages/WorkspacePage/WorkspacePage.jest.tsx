@@ -421,7 +421,9 @@ describe("WorkspacePage", () => {
 		const retryDebugButtonRe = /^Debug$/i;
 
 		describe("Retries a failed 'Start' transition", () => {
-			const mockStart = jest.spyOn(API, "startWorkspace");
+			const mockRestart = jest
+				.spyOn(API, "restartWorkspace")
+				.mockResolvedValue(undefined);
 			const failedStart: Workspace = {
 				...MockFailedWorkspace,
 				latest_build: {
@@ -431,25 +433,23 @@ describe("WorkspacePage", () => {
 			};
 
 			test("Retry with no debug", async () => {
-				await testButton(failedStart, retryButtonRe, mockStart);
+				await testButton(failedStart, retryButtonRe, mockRestart);
 
-				expect(mockStart).toBeCalledWith(
-					failedStart.id,
-					failedStart.latest_build.template_version_id,
-					undefined,
-					undefined,
-				);
+				expect(mockRestart).toBeCalledWith({
+					workspace: failedStart,
+					buildParameters: undefined,
+					logLevel: undefined,
+				});
 			});
 
 			test("Retry with debug logs", async () => {
-				await testButton(failedStart, retryDebugButtonRe, mockStart);
+				await testButton(failedStart, retryDebugButtonRe, mockRestart);
 
-				expect(mockStart).toBeCalledWith(
-					failedStart.id,
-					failedStart.latest_build.template_version_id,
-					"debug",
-					undefined,
-				);
+				expect(mockRestart).toBeCalledWith({
+					workspace: failedStart,
+					buildParameters: undefined,
+					logLevel: "debug",
+				});
 			});
 		});
 
@@ -522,7 +522,9 @@ describe("WorkspacePage", () => {
 				return HttpResponse.json([parameter]);
 			}),
 		);
-		const startWorkspaceSpy = jest.spyOn(API, "startWorkspace");
+		const restartWorkspaceSpy = jest
+			.spyOn(API, "restartWorkspace")
+			.mockResolvedValue(undefined);
 
 		await renderWorkspacePage(workspace);
 		const retryWithBuildParametersButton = await screen.findByRole("button", {
@@ -539,12 +541,11 @@ describe("WorkspacePage", () => {
 		await user.click(submitButton);
 
 		await waitFor(() => {
-			expect(startWorkspaceSpy).toBeCalledWith(
-				workspace.id,
-				workspace.latest_build.template_version_id,
-				undefined,
-				[{ name: parameter.name, value: "some-value" }],
-			);
+			expect(restartWorkspaceSpy).toBeCalledWith({
+				workspace,
+				buildParameters: [{ name: parameter.name, value: "some-value" }],
+				logLevel: undefined,
+			});
 		});
 	});
 
@@ -568,7 +569,9 @@ describe("WorkspacePage", () => {
 				return HttpResponse.json([parameter]);
 			}),
 		);
-		const startWorkspaceSpy = jest.spyOn(API, "startWorkspace");
+		const restartWorkspaceSpy = jest
+			.spyOn(API, "restartWorkspace")
+			.mockResolvedValue(undefined);
 
 		await renderWorkspacePage(workspace);
 		const retryWithBuildParametersButton = await screen.findByRole("button", {
@@ -585,12 +588,11 @@ describe("WorkspacePage", () => {
 		await user.click(submitButton);
 
 		await waitFor(() => {
-			expect(startWorkspaceSpy).toBeCalledWith(
-				workspace.id,
-				workspace.latest_build.template_version_id,
-				"debug",
-				[{ name: parameter.name, value: "some-value" }],
-			);
+			expect(restartWorkspaceSpy).toBeCalledWith({
+				workspace,
+				buildParameters: [{ name: parameter.name, value: "some-value" }],
+				logLevel: "debug",
+			});
 		});
 	});
 
