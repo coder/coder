@@ -22,6 +22,10 @@ export const resumeTask = (task: Task, queryClient: QueryClient) => {
 			if (!task.workspace_id) {
 				throw new Error("Task has no workspace");
 			}
+			// TODO: #22043 - If the task's workspace has a failed start,
+			// we should call restartWorkspace to clean up before starting.
+			// Currently we lack the full Workspace object needed to check
+			// latest_build.status and latest_build.transition.
 			return API.startWorkspace(
 				task.workspace_id,
 				task.template_version_id,
