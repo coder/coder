@@ -30,29 +30,29 @@ const (
 
 var fallbackIcons = map[uuid.UUID]string{
 	// workspace related notifications
-	notifications.TemplateWorkspaceCreated:           codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceDeleted:           codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutobuildFailed:   codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceMarkedAsDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceUpdatedAutomatically:       codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceOutOfDisk:         codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceCreated:              codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceManuallyUpdated:      codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceDeleted:              codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutobuildFailed:      codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedAsDormant:      codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceUpdatedAutomatically: codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedForDeletion:    codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceManualBuildFailed:    codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfMemory:          codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceOutOfDisk:            codersdk.InboxNotificationFallbackIconWorkspace,
 
 	// account related notifications
-	notifications.TemplateUserAccountCreated:           codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserAccountDeleted:           codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateYourAccountHasBeenSuspended:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateYourAccountHasBeenActivated:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateOneTimePasscode: codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountCreated:          codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountDeleted:          codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountSuspended:        codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateUserAccountActivated:        codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountHasBeenSuspended: codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountHasBeenActivated: codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateOneTimePasscode:             codersdk.InboxNotificationFallbackIconAccount,
 
 	// template related notifications
-	notifications.TemplateTemplateDeleted:             codersdk.InboxNotificationFallbackIconTemplate,
-	notifications.TemplateTemplateDeprecated:          codersdk.InboxNotificationFallbackIconTemplate,
+	notifications.TemplateTemplateDeleted:                        codersdk.InboxNotificationFallbackIconTemplate,
+	notifications.TemplateTemplateDeprecated:                     codersdk.InboxNotificationFallbackIconTemplate,
 	notifications.TemplateReportWorkspaceBuildsFailedForTemplate: codersdk.InboxNotificationFallbackIconTemplate,
 }
 

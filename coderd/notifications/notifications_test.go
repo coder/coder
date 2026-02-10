@@ -692,11 +692,10 @@ func TestNotifierPaused(t *testing.T) {
 	}, fetchInterval*5, testutil.IntervalFast)
 }
 
-//go:embed events.go
+//go:embed events_gen.go
 var events []byte
 
-// enumerateAllTemplates gets all the template names from the coderd/notifications/events.go file.
-// TODO(dannyk): use code-generation to create a list of all templates: https://github.com/coder/team-coconut/issues/36
+// enumerateAllTemplates gets all the template names from the coderd/notifications/events_gen.go file.
 func enumerateAllTemplates(t *testing.T) ([]string, error) {
 	t.Helper()
 

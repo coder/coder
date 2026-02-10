@@ -238,7 +238,7 @@ func TestNotificationPreferences(t *testing.T) {
 		memberClient, member := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 		prefs, err := memberClient.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
 			TemplateDisabledMap: map[string]bool{
-				notifications.TemplateWorkspaceDeleted.String(): true,
+				notifications.TemplateWorkspaceDeleted.String():         true,
 				notifications.TemplateWorkspaceMarkedAsDormant.String(): true,
 			},
 		})
@@ -248,7 +248,7 @@ func TestNotificationPreferences(t *testing.T) {
 		// When: attempting to modify their preferences.
 		prefs, err = memberClient.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
 			TemplateDisabledMap: map[string]bool{
-				notifications.TemplateWorkspaceDeleted.String(): true,
+				notifications.TemplateWorkspaceDeleted.String():         true,
 				notifications.TemplateWorkspaceMarkedAsDormant.String(): false, // <--- this one was changed
 			},
 		})
