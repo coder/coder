@@ -48,7 +48,7 @@ services:
       - coder_cache:/cache
     command: >
       sh -c '
-        make build-slim &&
+        make -j build-slim &&
         mkdir -p /cache/site/orig/bin &&
         cp site/out/bin/coder-* /cache/site/orig/bin/ &&
         echo "Slim binaries built and cached."
