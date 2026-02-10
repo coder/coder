@@ -884,10 +884,10 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  nil,
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:       resp.Task.ID.String(),
-						LastPausedAt: &pauseTime,
-						PauseReason:  ptr.Ref("auto"),
-					}
+					TaskID:       resp.Task.ID.String(),
+					LastPausedAt: &pauseTime,
+					PauseReason:  ptr.Ref("auto"),
+				}
 			},
 		},
 		{
@@ -945,10 +945,10 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  nil,
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:       resp.Task.ID.String(),
-						LastPausedAt: &pauseTime,
-						PauseReason:  ptr.Ref("manual"),
-					}
+					TaskID:       resp.Task.ID.String(),
+					LastPausedAt: &pauseTime,
+					PauseReason:  ptr.Ref("manual"),
+				}
 			},
 		},
 		{
@@ -1012,11 +1012,11 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  ptr.Ref(260 * time.Minute.Milliseconds()), // -5hr to -40min = 260 min
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:         resp.Task.ID.String(),
-						LastPausedAt:   &pauseTime,
-						PauseReason:    ptr.Ref("auto"),
-						IdleDurationMS: ptr.Ref(15 * time.Minute.Milliseconds()),
-					}
+					TaskID:         resp.Task.ID.String(),
+					LastPausedAt:   &pauseTime,
+					PauseReason:    ptr.Ref("auto"),
+					IdleDurationMS: ptr.Ref(15 * time.Minute.Milliseconds()),
+				}
 			},
 		},
 		{
@@ -1097,12 +1097,12 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  nil,
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:           resp.Task.ID.String(),
-						LastPausedAt:     &pauseTime,
-						LastResumedAt:    &resumeTime,
-						PauseReason:      ptr.Ref("auto"),
-						PausedDurationMS: ptr.Ref(40 * time.Minute.Milliseconds()),
-					}
+					TaskID:           resp.Task.ID.String(),
+					LastPausedAt:     &pauseTime,
+					LastResumedAt:    &resumeTime,
+					PauseReason:      ptr.Ref("auto"),
+					PausedDurationMS: ptr.Ref(40 * time.Minute.Milliseconds()),
+				}
 			},
 		},
 		{
@@ -1284,11 +1284,11 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  nil,
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:        resp.Task.ID.String(),
-						LastPausedAt:  &latestPauseTime,
-						LastResumedAt: &firstResumeTime,
-						PauseReason:   ptr.Ref("manual"),
-					}
+					TaskID:        resp.Task.ID.String(),
+					LastPausedAt:  &latestPauseTime,
+					LastResumedAt: &firstResumeTime,
+					PauseReason:   ptr.Ref("manual"),
+				}
 			},
 		},
 		{
@@ -1391,12 +1391,12 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  nil,
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:           resp.Task.ID.String(),
-						LastPausedAt:     &secondPauseTime,
-						LastResumedAt:    &resumeTime,
-						PauseReason:      ptr.Ref("manual"),
-						PausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()),
-					}
+					TaskID:           resp.Task.ID.String(),
+					LastPausedAt:     &secondPauseTime,
+					LastResumedAt:    &resumeTime,
+					PauseReason:      ptr.Ref("manual"),
+					PausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()),
+				}
 			},
 		},
 		{
@@ -1477,12 +1477,12 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  nil,
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:           resp.Task.ID.String(),
-						LastPausedAt:     &firstPauseTime,
-						LastResumedAt:    &resumeTime,
-						PauseReason:      ptr.Ref("auto"),
-						PausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()),
-					}
+					TaskID:           resp.Task.ID.String(),
+					LastPausedAt:     &firstPauseTime,
+					LastResumedAt:    &resumeTime,
+					PauseReason:      ptr.Ref("auto"),
+					PausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()),
+				}
 			},
 		},
 		{
@@ -1569,13 +1569,13 @@ func TestTasksTelemetry(t *testing.T) {
 					TimeToFirstStatusMS:  ptr.Ref(30 * time.Minute.Milliseconds()),
 				}
 				return expected, &telemetry.TaskEvent{
-						TaskID:           resp.Task.ID.String(),
-						LastPausedAt:     &pauseTime,
-						LastResumedAt:    &resumeTime,
-						PauseReason:      ptr.Ref("auto"),
-						IdleDurationMS:   ptr.Ref(10 * time.Minute.Milliseconds()),
-						PausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
-					}
+					TaskID:           resp.Task.ID.String(),
+					LastPausedAt:     &pauseTime,
+					LastResumedAt:    &resumeTime,
+					PauseReason:      ptr.Ref("auto"),
+					IdleDurationMS:   ptr.Ref(10 * time.Minute.Milliseconds()),
+					PausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
+				}
 			},
 		},
 	}

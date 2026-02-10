@@ -2177,6 +2177,7 @@ func ConvertTelemetryTask(row database.GetTasksForTelemetryRow) Task {
 	}
 	return t
 }
+
 type telemetryItemKey string
 
 // The comment below gets rid of the warning that the name "TelemetryItemKey" has
