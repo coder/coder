@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 func TestConnectionLog(t *testing.T) {
@@ -168,6 +169,63 @@ func TestConnectionLog(t *testing.T) {
 			}))
 		})
 	}
+}
+
+func TestConnectionLogPublishesWorkspaceUpdate(t *testing.T) {
+	t.Parallel()
+
+	var (
+		owner     = database.User{ID: uuid.New(), Username: "cool-user"}
+		workspace = database.Workspace{
+			ID:             uuid.New(),
+			OrganizationID: uuid.New(),
+			OwnerID:        owner.ID,
+			Name:           "cool-workspace",
+		}
+		agent = database.WorkspaceAgent{ID: uuid.New()}
+	)
+
+	connLogger := connectionlog.NewFake()
+
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
+
+	var (
+		called   int
+		gotKind  wspubsub.WorkspaceEventKind
+		gotAgent uuid.UUID
+	)
+
+	api := &agentapi.ConnLogAPI{
+		ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
+		Database:         mDB,
+		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+			return agent, nil
+		},
+		Workspace: &agentapi.CachedWorkspaceFields{},
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			called++
+			gotKind = kind
+			gotAgent = agent.ID
+			return nil
+		},
+	}
+
+	id := uuid.New()
+	_, err := api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
+		Connection: &agentproto.Connection{
+			Id:        id[:],
+			Action:    agentproto.Connection_CONNECT,
+			Type:      agentproto.Connection_SSH,
+			Timestamp: timestamppb.New(dbtime.Now()),
+			Ip:        "127.0.0.1",
+		},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, called)
+	require.Equal(t, wspubsub.WorkspaceEventKindConnectionLogUpdate, gotKind)
+	require.Equal(t, agent.ID, gotAgent)
 }
 
 func agentProtoConnectionTypeToConnectionLog(t *testing.T, typ agentproto.Connection_Type) database.ConnectionType {

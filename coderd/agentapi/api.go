@@ -202,11 +202,12 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.ConnLogAPI = &ConnLogAPI{
-		AgentFn:          api.agent,
-		ConnectionLogger: opts.ConnectionLogger,
-		Database:         opts.Database,
-		Workspace:        api.cachedWorkspaceFields,
-		Log:              opts.Log,
+		AgentFn:                  api.agent,
+		ConnectionLogger:         opts.ConnectionLogger,
+		Database:                 opts.Database,
+		Workspace:                api.cachedWorkspaceFields,
+		Log:                      opts.Log,
+		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

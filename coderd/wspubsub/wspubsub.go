@@ -45,10 +45,11 @@ type WorkspaceEvent struct {
 type WorkspaceEventKind string
 
 const (
-	WorkspaceEventKindStateChange     WorkspaceEventKind = "state_change"
-	WorkspaceEventKindStatsUpdate     WorkspaceEventKind = "stats_update"
-	WorkspaceEventKindMetadataUpdate  WorkspaceEventKind = "mtd_update"
-	WorkspaceEventKindAppHealthUpdate WorkspaceEventKind = "app_health"
+	WorkspaceEventKindStateChange         WorkspaceEventKind = "state_change"
+	WorkspaceEventKindStatsUpdate         WorkspaceEventKind = "stats_update"
+	WorkspaceEventKindMetadataUpdate      WorkspaceEventKind = "mtd_update"
+	WorkspaceEventKindAppHealthUpdate     WorkspaceEventKind = "app_health"
+	WorkspaceEventKindConnectionLogUpdate WorkspaceEventKind = "connection_log_update"
 
 	WorkspaceEventKindAgentLifecycleUpdate  WorkspaceEventKind = "agt_lifecycle_update"
 	WorkspaceEventKindAgentConnectionUpdate WorkspaceEventKind = "agt_connection_update"

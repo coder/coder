@@ -15,14 +15,16 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 type ConnLogAPI struct {
-	AgentFn          func(context.Context) (database.WorkspaceAgent, error)
-	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
-	Workspace        *CachedWorkspaceFields
-	Database         database.Store
-	Log              slog.Logger
+	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
+	ConnectionLogger         *atomic.Pointer[connectionlog.ConnectionLogger]
+	Workspace                *CachedWorkspaceFields
+	Database                 database.Store
+	Log                      slog.Logger
+	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 }
 
 func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.ReportConnectionRequest) (*emptypb.Empty, error) {
@@ -128,6 +130,12 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)
+	}
+
+	if a.PublishWorkspaceUpdateFn != nil {
+		if err := a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindConnectionLogUpdate); err != nil {
+			a.Log.Warn(ctx, "failed to publish connection log update", slog.Error(err))
+		}
 	}
 
 	return &emptypb.Empty{}, nil
