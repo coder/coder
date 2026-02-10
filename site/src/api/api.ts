@@ -2236,8 +2236,14 @@ class ApiMethods {
 
 	updateWorkspaceVersion = async (
 		workspace: TypesGen.Workspace,
-	): Promise<TypesGen.WorkspaceBuild> => {
+	): Promise<TypesGen.WorkspaceBuild | void> => {
 		const template = await this.getTemplate(workspace.template_id);
+		if (
+			workspace.latest_build.status === "failed" &&
+			workspace.latest_build.transition === "start"
+		) {
+			return this.restartWorkspace({ workspace });
+		}
 		return this.startWorkspace(workspace.id, template.active_version_id);
 	};
 

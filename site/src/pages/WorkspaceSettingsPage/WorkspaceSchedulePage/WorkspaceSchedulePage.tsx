@@ -71,8 +71,19 @@ const WorkspaceSchedulePage: FC = () => {
 
 	const [isConfirmingApply, setIsConfirmingApply] = useState(false);
 	const { mutate: updateWorkspace } = useMutation({
-		mutationFn: () =>
-			API.startWorkspace(workspace.id, workspace.template_active_version_id),
+		mutationFn: async () => {
+			if (
+				workspace.latest_build.status === "failed" &&
+				workspace.latest_build.transition === "start"
+			) {
+				await API.restartWorkspace({ workspace });
+				return;
+			}
+			await API.startWorkspace(
+				workspace.id,
+				workspace.template_active_version_id,
+			);
+		},
 	});
 
 	return (
