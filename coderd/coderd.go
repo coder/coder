@@ -1527,6 +1527,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
 				r.Get("/timings", api.workspaceTimings)
+				r.Get("/sessions", api.workspaceSessions)
 				r.Route("/acl", func(r chi.Router) {
 					r.Use(
 						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing),
