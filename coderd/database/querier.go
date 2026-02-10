@@ -367,9 +367,6 @@ type sqlcQuerier interface {
 	// Returns workspace builds relevant to task lifecycle telemetry (pause/resume events).
 	// Results are ordered by workspace_id and created_at DESC for efficient processing.
 	GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]GetTaskLifecycleBuildsByWorkspaceIDsRow, error)
-	// Returns task lifecycle builds (pause/resume events) created after a given
-	// timestamp. Used by telemetry to collect only recent lifecycle events.
-	GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]GetTaskLifecycleBuildsCreatedAfterRow, error)
 	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
 	// Returns tasks with their workspace app bindings for telemetry collection.
 	// This bypasses the expensive tasks_with_status view by querying the base

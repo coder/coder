@@ -288,20 +288,3 @@ JOIN workspace_resources wr ON wr.job_id = wb.job_id
 JOIN workspace_agents wa ON wa.resource_id = wr.id
 WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
-
--- name: GetTaskLifecycleBuildsCreatedAfter :many
--- Returns task lifecycle builds (pause/resume events) created after a given
--- timestamp. Used by telemetry to collect only recent lifecycle events.
-SELECT
-    id,
-    workspace_id,
-    created_at,
-    transition,
-    reason
-FROM
-    workspace_builds
-WHERE
-    reason IN ('task_auto_pause', 'task_manual_pause', 'task_resume')
-    AND created_at > @created_after
-ORDER BY
-    workspace_id, created_at DESC;

@@ -425,6 +425,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 	)
 
+	// Channel to share raw workspace builds with the task events
+	// goroutine, avoiding a redundant database query.
+	recentBuildsCh := make(chan []database.WorkspaceBuild, 1)
+
 	eg.Go(func() error {
 		apiKeys, err := r.options.Database.GetAPIKeysLastUsedAfter(ctx, createdAfter)
 		if err != nil {
@@ -560,6 +564,8 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		if err != nil {
 			return xerrors.Errorf("get workspace builds: %w", err)
 		}
+		// Share raw builds with CollectTaskEvents before converting.
+		recentBuildsCh <- workspaceBuilds
 		snapshot.WorkspaceBuilds = make([]WorkspaceBuild, 0, len(workspaceBuilds))
 		for _, build := range workspaceBuilds {
 			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, ConvertWorkspaceBuild(build))
@@ -748,7 +754,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter)
+		events, err := CollectTaskEvents(ctx, r.options.Database, recentBuildsCh, createdAfter)
 		if err != nil {
 			return xerrors.Errorf("collect task events telemetry: %w", err)
 		}
@@ -951,29 +957,37 @@ func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
 }
 
 // CollectTaskEvents collects lifecycle events for tasks with recent activity.
-func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter time.Time) ([]TaskEvent, error) {
-	// Get lifecycle builds (pause/resume) created after the cutoff.
-	builds, err := db.GetTaskLifecycleBuildsCreatedAfter(ctx, createdAfter)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.Errorf("get task lifecycle builds: %w", err)
+// recentBuildsCh provides workspace builds already fetched by the snapshot
+// goroutine so we avoid a redundant database query.
+func CollectTaskEvents(ctx context.Context, db database.Store, recentBuildsCh <-chan []database.WorkspaceBuild, createdAfter time.Time) ([]TaskEvent, error) {
+	// Wait for recent builds from the snapshot's workspace builds goroutine.
+	var recentBuilds []database.WorkspaceBuild
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case recentBuilds = <-recentBuildsCh:
 	}
-	if len(builds) == 0 {
+
+	// Filter for task lifecycle build reasons and extract unique workspace IDs.
+	workspaceIDs := make([]uuid.UUID, 0)
+	seen := make(map[uuid.UUID]struct{})
+	for _, build := range recentBuilds {
+		if build.Reason != database.BuildReasonTaskAutoPause &&
+			build.Reason != database.BuildReasonTaskManualPause &&
+			build.Reason != database.BuildReasonTaskResume {
+			continue
+		}
+		if _, ok := seen[build.WorkspaceID]; !ok {
+			seen[build.WorkspaceID] = struct{}{}
+			workspaceIDs = append(workspaceIDs, build.WorkspaceID)
+		}
+	}
+	if len(workspaceIDs) == 0 {
 		return []TaskEvent{}, nil
 	}
 
-	// Group builds by workspace_id.
-	buildsByWorkspace := make(map[uuid.UUID][]database.GetTaskLifecycleBuildsCreatedAfterRow)
-	workspaceIDs := make([]uuid.UUID, 0)
-	for _, build := range builds {
-		if _, seen := buildsByWorkspace[build.WorkspaceID]; !seen {
-			workspaceIDs = append(workspaceIDs, build.WorkspaceID)
-		}
-		buildsByWorkspace[build.WorkspaceID] = append(buildsByWorkspace[build.WorkspaceID], build)
-	}
-
-	// Look up tasks by workspace IDs. We also need the full lifecycle
-	// (including builds before createdAfter) to compute latest
-	// pause/resume.
+	// Look up the full lifecycle history (including builds before
+	// createdAfter) for these workspaces.
 	allBuilds, err := db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get all task lifecycle builds: %w", err)

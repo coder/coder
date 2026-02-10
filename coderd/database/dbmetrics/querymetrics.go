@@ -1790,14 +1790,6 @@ func (m queryMetricsStore) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Cont
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetTaskLifecycleBuildsCreatedAfterRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTaskLifecycleBuildsCreatedAfter(ctx, createdAfter)
-	m.queryLatencies.WithLabelValues("GetTaskLifecycleBuildsCreatedAfter").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTaskLifecycleBuildsCreatedAfter").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTaskSnapshot(ctx, taskID)

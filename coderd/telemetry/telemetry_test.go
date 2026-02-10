@@ -1631,7 +1631,17 @@ func TestTasksTelemetry(t *testing.T) {
 				t.Fatalf("task diff (-want +got):\n%s", diff)
 			}
 
-			actualEvents, err := telemetry.CollectTaskEvents(h.ctx, h.db, now.Add(-1*time.Hour))
+			actualEvents, err := func() ([]telemetry.TaskEvent, error) {
+					recentBuildsCh := make(chan []database.WorkspaceBuild, 1)
+					// Fetch recent workspace builds to pass via channel
+					// (mirrors createSnapshot).
+					recentBuilds, err := h.db.GetWorkspaceBuildsCreatedAfter(h.ctx, now.Add(-1*time.Hour))
+					if err != nil {
+						return nil, err
+					}
+					recentBuildsCh <- recentBuilds
+					return telemetry.CollectTaskEvents(h.ctx, h.db, recentBuildsCh, now.Add(-1*time.Hour))
+				}()
 			require.NoError(t, err)
 			if expectedEvent == nil {
 				require.Empty(t, actualEvents)

@@ -21443,61 +21443,6 @@ func (q *sqlQuerier) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, w
 	return items, nil
 }
 
-const getTaskLifecycleBuildsCreatedAfter = `-- name: GetTaskLifecycleBuildsCreatedAfter :many
-SELECT
-    id,
-    workspace_id,
-    created_at,
-    transition,
-    reason
-FROM
-    workspace_builds
-WHERE
-    reason IN ('task_auto_pause', 'task_manual_pause', 'task_resume')
-    AND created_at > $1
-ORDER BY
-    workspace_id, created_at DESC
-`
-
-type GetTaskLifecycleBuildsCreatedAfterRow struct {
-	ID          uuid.UUID           `db:"id" json:"id"`
-	WorkspaceID uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	CreatedAt   time.Time           `db:"created_at" json:"created_at"`
-	Transition  WorkspaceTransition `db:"transition" json:"transition"`
-	Reason      BuildReason         `db:"reason" json:"reason"`
-}
-
-// Returns task lifecycle builds (pause/resume events) created after a given
-// timestamp. Used by telemetry to collect only recent lifecycle events.
-func (q *sqlQuerier) GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]GetTaskLifecycleBuildsCreatedAfterRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTaskLifecycleBuildsCreatedAfter, createdAfter)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTaskLifecycleBuildsCreatedAfterRow
-	for rows.Next() {
-		var i GetTaskLifecycleBuildsCreatedAfterRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.CreatedAt,
-			&i.Transition,
-			&i.Reason,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name

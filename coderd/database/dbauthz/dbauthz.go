@@ -2443,7 +2443,7 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 }
 
 func (q *querier) GetFirstWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetFirstWorkspaceAppStatusesByAppIDs(ctx, ids)
@@ -2516,7 +2516,7 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetLastWorkingWorkspaceAppStatusesByAppIDs(ctx, ids)
@@ -3122,13 +3122,6 @@ func (q *querier) GetTaskLifecycleBuildsByWorkspaceIDs(ctx context.Context, work
 	return q.db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, workspaceIDs)
 }
 
-func (q *querier) GetTaskLifecycleBuildsCreatedAfter(ctx context.Context, createdAfter time.Time) ([]database.GetTaskLifecycleBuildsCreatedAfterRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetTaskLifecycleBuildsCreatedAfter(ctx, createdAfter)
-}
-
 func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
 	// Fetch task to build RBAC object for authorization.
 	task, err := q.GetTaskByID(ctx, taskID)
@@ -3149,7 +3142,7 @@ func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (databa
 }
 
 func (q *querier) GetTasksForTelemetry(ctx context.Context) ([]database.GetTasksForTelemetryRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTask.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetTasksForTelemetry(ctx)
