@@ -72,7 +72,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 			data-testid={`audit-log-row-${auditLog.id}`}
 			clickable={shouldDisplayDiff}
 		>
-			<TableCell className="!p-0 border-0 text-base">
+			<TableCell className="!p-0 border-0 border-b text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
 					<div
 						className="flex flex-row items-center gap-4 py-4 px-8"
