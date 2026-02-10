@@ -178,7 +178,7 @@ type WorkspaceAgent struct {
 	// Deprecated: Remove in the future!
 	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 
-	Connections []WorkspaceConnection `json:"connections,omitempty"`
+	Sessions []WorkspaceSession `json:"sessions,omitempty"`
 }
 
 // WorkspaceConnectionHomeDERP identifies the DERP relay region
@@ -209,6 +209,19 @@ type WorkspaceConnection struct {
 	LatencyMS *float64 `json:"latency_ms,omitempty"`
 	// HomeDERP is the DERP region metadata for the agent's home relay.
 	HomeDERP *WorkspaceConnectionHomeDERP `json:"home_derp,omitempty"`
+}
+
+// WorkspaceSession represents a client's session containing one or more connections.
+// Live sessions are grouped by IP at query time; historic sessions have a database ID.
+type WorkspaceSession struct {
+	ID               *uuid.UUID                `json:"id,omitempty"` // nil for live sessions
+	IP               *netip.Addr               `json:"ip,omitempty"`
+	ClientHostname   string                    `json:"client_hostname,omitempty"`
+	ShortDescription string                    `json:"short_description,omitempty"`
+	Status           WorkspaceConnectionStatus `json:"status"`
+	StartedAt        time.Time                 `json:"started_at" format:"date-time"`
+	EndedAt          *time.Time                `json:"ended_at,omitempty" format:"date-time"`
+	Connections      []WorkspaceConnection     `json:"connections"`
 }
 
 type WorkspaceConnectionStatus string
