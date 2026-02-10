@@ -136,7 +136,7 @@ func TestNotificationsTest(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 1)
 	})
 
@@ -164,7 +164,7 @@ func TestNotificationsTest(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		assert.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 0)
 	})
 }
@@ -198,7 +198,7 @@ func TestCustomNotifications(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 		require.Equal(t, "Invalid request body", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 0)
 	})
 
@@ -232,7 +232,7 @@ func TestCustomNotifications(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 		require.Equal(t, "Forbidden", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 0)
 	})
 

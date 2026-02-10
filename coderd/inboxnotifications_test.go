@@ -531,7 +531,7 @@ func TestInboxNotifications_List(t *testing.T) {
 					case 3:
 						return notifications.TemplateTemplateDeprecated
 					default:
-						return notifications.TemplateTestNotification
+						return notifications.TemplateTroubleshootingNotification
 					}
 				}(),
 				Title:   fmt.Sprintf("Notification %d", i),

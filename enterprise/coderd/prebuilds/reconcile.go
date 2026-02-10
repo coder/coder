@@ -1190,7 +1190,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 
 	var notifErr error
 	for _, templateAdmin := range templateAdmins {
-		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceResourceReplaced,
+		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplatePrebuiltWorkspaceResourceReplaced,
 			map[string]string{
 				"org":                 org.Name,
 				"workspace":           workspace.Name,

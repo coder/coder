@@ -1459,7 +1459,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
-				notifications.TemplateWorkspaceDormant,
+				notifications.TemplateWorkspaceMarkedAsDormant,
 				map[string]string{
 					"name":           newWorkspace.Name,
 					"reason":         "a " + initiator.Username + " request",

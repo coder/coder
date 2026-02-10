@@ -4701,9 +4701,9 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceDormant))
+			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceMarkedAsDormant))
 			require.Len(t, sent, 1)
-			require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
+			require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceMarkedAsDormant)
 			require.Equal(t, sent[0].UserID, workspace.OwnerID)
 			require.Contains(t, sent[0].Targets, template.ID)
 			require.Contains(t, sent[0].Targets, workspace.ID)
@@ -4739,7 +4739,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceDormant)), 0)
+			require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceMarkedAsDormant)), 0)
 		})
 
 		t.Run("ActivateDormantWorkspace", func(t *testing.T) {

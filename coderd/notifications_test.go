@@ -239,7 +239,7 @@ func TestNotificationPreferences(t *testing.T) {
 		prefs, err := memberClient.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
 			TemplateDisabledMap: map[string]bool{
 				notifications.TemplateWorkspaceDeleted.String(): true,
-				notifications.TemplateWorkspaceDormant.String(): true,
+				notifications.TemplateWorkspaceMarkedAsDormant.String(): true,
 			},
 		})
 		require.NoError(t, err)
@@ -249,7 +249,7 @@ func TestNotificationPreferences(t *testing.T) {
 		prefs, err = memberClient.UpdateUserNotificationPreferences(ctx, member.ID, codersdk.UpdateUserNotificationPreferences{
 			TemplateDisabledMap: map[string]bool{
 				notifications.TemplateWorkspaceDeleted.String(): true,
-				notifications.TemplateWorkspaceDormant.String(): false, // <--- this one was changed
+				notifications.TemplateWorkspaceMarkedAsDormant.String(): false, // <--- this one was changed
 			},
 		})
 		require.NoError(t, err)
@@ -259,7 +259,7 @@ func TestNotificationPreferences(t *testing.T) {
 		var found bool
 		for _, p := range prefs {
 			switch p.NotificationTemplateID {
-			case notifications.TemplateWorkspaceDormant:
+			case notifications.TemplateWorkspaceMarkedAsDormant:
 				found = true
 				require.False(t, p.Disabled)
 			case notifications.TemplateWorkspaceDeleted:
@@ -344,7 +344,7 @@ func TestNotificationTest(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: We expect a notification to have been sent.
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 1)
 	})
 
@@ -372,7 +372,7 @@ func TestNotificationTest(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 0)
 	})
 }
@@ -410,7 +410,7 @@ func TestCustomNotification(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 		require.Equal(t, "Invalid request body", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 0)
 	})
 
@@ -448,7 +448,7 @@ func TestCustomNotification(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 		require.Equal(t, "Forbidden", sdkError.Message)
 
-		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTroubleshootingNotification))
 		require.Len(t, sent, 0)
 	})
 

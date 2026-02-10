@@ -120,7 +120,7 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 		// TODO(DanielleMaywood):
 		// We should have a more permanent solution in the future, but for now this will work.
 		// We do not want password reset notifications to end up in Coder Inbox.
-		if method == database.NotificationMethodInbox && templateID == TemplateUserRequestedOneTimePasscode {
+		if method == database.NotificationMethodInbox && templateID == TemplateOneTimePasscode {
 			continue
 		}
 

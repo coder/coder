@@ -932,7 +932,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
 		}
 		adminTemplateID = notifications.TemplateUserAccountSuspended
-		personalTemplateID = notifications.TemplateYourAccountSuspended
+		personalTemplateID = notifications.TemplateYourAccountHasBeenSuspended
 	case database.UserStatusActive:
 		labels = map[string]string{
 			"activated_account_name":      targetUser.Username,
@@ -943,7 +943,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			"user": map[string]any{"id": targetUser.ID, "name": targetUser.Name, "email": targetUser.Email},
 		}
 		adminTemplateID = notifications.TemplateUserAccountActivated
-		personalTemplateID = notifications.TemplateYourAccountActivated
+		personalTemplateID = notifications.TemplateYourAccountHasBeenActivated
 	default:
 		api.Logger.Error(ctx, "user status is not supported", slog.F("username", targetUser.Username), slog.F("user_status", string(status)))
 		return xerrors.Errorf("unable to notify admins as the user's status is unsupported")

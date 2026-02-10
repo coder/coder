@@ -2137,7 +2137,7 @@ func TestUserForgotPassword(t *testing.T) {
 	const newPassword = "SomeNewSecurePassword!"
 
 	requireOneTimePasscodeNotification := func(t *testing.T, notif *notificationstest.FakeNotification, userID uuid.UUID) {
-		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
+		require.Equal(t, notifications.TemplateOneTimePasscode, notif.TemplateID)
 		require.Equal(t, userID, notif.UserID)
 		require.Equal(t, 1, len(notif.Targets))
 		require.Equal(t, userID, notif.Targets[0])
@@ -2443,7 +2443,7 @@ func TestUserForgotPassword(t *testing.T) {
 
 		sent := notifyEnq.Sent()
 		require.Len(t, notifyEnq.Sent(), 1)
-		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, sent[0].TemplateID)
+		require.NotEqual(t, notifications.TemplateOneTimePasscode, sent[0].TemplateID)
 	})
 }
 

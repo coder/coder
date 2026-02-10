@@ -480,7 +480,7 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		verifyNotificationDispatched(notifyEnq, []expectedNotification{
 			{TemplateID: notifications.TemplateUserAccountSuspended, UserID: firstUser.UserID},
 			{TemplateID: notifications.TemplateUserAccountSuspended, UserID: userAdmin.ID},
-			{TemplateID: notifications.TemplateYourAccountSuspended, UserID: member.ID},
+			{TemplateID: notifications.TemplateYourAccountHasBeenSuspended, UserID: member.ID},
 		}, member, "suspended_account_name")
 	})
 
@@ -520,7 +520,7 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		verifyNotificationDispatched(notifyEnq, []expectedNotification{
 			{TemplateID: notifications.TemplateUserAccountActivated, UserID: firstUser.UserID},
 			{TemplateID: notifications.TemplateUserAccountActivated, UserID: userAdmin.ID},
-			{TemplateID: notifications.TemplateYourAccountActivated, UserID: member.ID},
+			{TemplateID: notifications.TemplateYourAccountHasBeenActivated, UserID: member.ID},
 		}, member, "activated_account_name")
 	})
 }

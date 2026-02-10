@@ -394,7 +394,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 		reg             = prometheus.NewRegistry()
 		metrics         = notifications.NewMetrics(reg)
 		tmpl            = notifications.TemplateWorkspaceDeleted
-		anotherTemplate = notifications.TemplateWorkspaceDormant
+		anotherTemplate = notifications.TemplateWorkspaceMarkedAsDormant
 	)
 
 	const (

@@ -34,8 +34,8 @@ var fallbackIcons = map[uuid.UUID]string{
 	notifications.TemplateWorkspaceManuallyUpdated:   codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceDeleted:           codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceAutobuildFailed:   codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
-	notifications.TemplateWorkspaceAutoUpdated:       codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceMarkedAsDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceUpdatedAutomatically:       codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
@@ -46,14 +46,14 @@ var fallbackIcons = map[uuid.UUID]string{
 	notifications.TemplateUserAccountDeleted:           codersdk.InboxNotificationFallbackIconAccount,
 	notifications.TemplateUserAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
 	notifications.TemplateUserAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateYourAccountSuspended:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateYourAccountActivated:         codersdk.InboxNotificationFallbackIconAccount,
-	notifications.TemplateUserRequestedOneTimePasscode: codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountHasBeenSuspended:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateYourAccountHasBeenActivated:         codersdk.InboxNotificationFallbackIconAccount,
+	notifications.TemplateOneTimePasscode: codersdk.InboxNotificationFallbackIconAccount,
 
 	// template related notifications
 	notifications.TemplateTemplateDeleted:             codersdk.InboxNotificationFallbackIconTemplate,
 	notifications.TemplateTemplateDeprecated:          codersdk.InboxNotificationFallbackIconTemplate,
-	notifications.TemplateWorkspaceBuildsFailedReport: codersdk.InboxNotificationFallbackIconTemplate,
+	notifications.TemplateReportWorkspaceBuildsFailedForTemplate: codersdk.InboxNotificationFallbackIconTemplate,
 }
 
 func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNotification {

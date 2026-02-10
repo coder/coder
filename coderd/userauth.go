@@ -310,7 +310,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 		//nolint:gocritic // We need the notifier auth context to be able to send the user their one-time passcode.
 		dbauthz.AsNotifier(ctx),
 		user.ID,
-		notifications.TemplateUserRequestedOneTimePasscode,
+		notifications.TemplateOneTimePasscode,
 		map[string]string{"one_time_passcode": passcode},
 		"change-password-with-one-time-passcode",
 		user.ID,

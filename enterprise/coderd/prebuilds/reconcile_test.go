@@ -1677,7 +1677,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 		// too tightly together.
 		// All we need to validate is that a template of the right kind was sent, to the expected user, with some replacements.
 
-		if !assert.Equal(t, notification.TemplateID, notifications.TemplateWorkspaceResourceReplaced, "unexpected template") {
+		if !assert.Equal(t, notification.TemplateID, notifications.TemplatePrebuiltWorkspaceResourceReplaced, "unexpected template") {
 			return false
 		}
 

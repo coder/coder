@@ -126,7 +126,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 			t.Helper()
 
 			require.Equal(t, recipientID, notif.UserID)
-			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notif.TemplateID)
+			require.Equal(t, notifications.TemplateReportWorkspaceBuildsFailedForTemplate, notif.TemplateID)
 			require.Equal(t, "week", notif.Data["report_frequency"])
 			require.Equal(t, templates, notif.Data["templates"])
 		}
@@ -370,7 +370,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 			t.Helper()
 
 			require.Equal(t, recipient.ID, notif.UserID)
-			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notif.TemplateID)
+			require.Equal(t, notifications.TemplateReportWorkspaceBuildsFailedForTemplate, notif.TemplateID)
 			require.Equal(t, "week", notif.Data["report_frequency"])
 			require.Equal(t, templates, notif.Data["templates"])
 		}

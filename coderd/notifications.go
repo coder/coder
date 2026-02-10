@@ -211,7 +211,7 @@ func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
 		//nolint:gocritic // We need to be notifier to send the notification.
 		dbauthz.AsNotifier(ctx),
 		key.UserID,
-		notifications.TemplateTestNotification,
+		notifications.TemplateTroubleshootingNotification,
 		map[string]string{},
 		map[string]any{
 			// NOTE(DanielleMaywood):
