@@ -317,6 +317,7 @@ func TestTelemetry(t *testing.T) {
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
 		require.Len(t, snapshot.Tasks, 1)
+		require.Empty(t, snapshot.TaskEvents)
 		for _, snapTask := range snapshot.Tasks {
 			assert.Equal(t, task.ID.String(), snapTask.ID)
 			assert.Equal(t, task.OrganizationID.String(), snapTask.OrganizationID)
@@ -717,11 +718,11 @@ func TestTasksTelemetry(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		setup func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task
+		setup func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent)
 	}{
 		{
 			name: "no workspace - all lifecycle fields nil",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				tv := dbgen.TemplateVersion(t, h.db, database.TemplateVersion{
 					OrganizationID: h.org.ID,
 					CreatedBy:      h.user.ID,
@@ -748,20 +749,14 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    tv.ID.String(),
 					PromptHash:           telemetry.HashContent(task.Prompt),
 					CreatedAt:            task.CreatedAt,
-					Status:               string(task.Status),
-					LastPausedAt:         nil,
-					LastResumedAt:        nil,
-					PauseReason:          nil,
-					IdleDurationMS:       nil,
-					PausedDurationMS:     nil,
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, nil
 			},
 		},
 		{
 			name: "running workspace - no pause/resume events",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				resp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
 					OrganizationID: h.org.ID,
 					OwnerID:        h.user.ID,
@@ -789,20 +784,14 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         nil,
-					LastResumedAt:        nil,
-					PauseReason:          nil,
-					IdleDurationMS:       nil,
-					PausedDurationMS:     nil,
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, nil
 			},
 		},
 		{
 			name: "with app status - TimeToFirstStatusMS populated",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				taskCreatedAt := now.Add(-90 * time.Minute)
 				firstStatusAt := now.Add(-85 * time.Minute)
 
@@ -834,20 +823,14 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         nil,
-					LastResumedAt:        nil,
-					PauseReason:          nil,
-					IdleDurationMS:       nil,
-					PausedDurationMS:     nil,
 					TimeToFirstStatusMS:  ptr.Ref(firstStatusAt.UnixMilli() - taskCreatedAt.UnixMilli()),
 				}
-				return expected
+				return expected, nil
 			},
 		},
 		{
 			name: "auto paused - LastPausedAt and PauseReason=auto",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				pauseTime := now.Add(-20 * time.Minute)
 
 				resp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
@@ -898,20 +881,18 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &pauseTime,
-					LastResumedAt:        nil,
-					PauseReason:          ptr.Ref("auto"),
-					IdleDurationMS:       nil,
-					PausedDurationMS:     nil,
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:       resp.Task.ID.String(),
+						LastPausedAt: &pauseTime,
+						PauseReason:  ptr.Ref("auto"),
+					}
 			},
 		},
 		{
 			name: "manual paused - LastPausedAt and PauseReason=manual",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				pauseTime := now.Add(-15 * time.Minute)
 
 				resp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
@@ -961,20 +942,18 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &pauseTime,
-					LastResumedAt:        nil,
-					PauseReason:          ptr.Ref("manual"),
-					IdleDurationMS:       nil,
-					PausedDurationMS:     nil,
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:       resp.Task.ID.String(),
+						LastPausedAt: &pauseTime,
+						PauseReason:  ptr.Ref("manual"),
+					}
 			},
 		},
 		{
 			name: "paused with idle time - IdleDurationMS calculated",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				pauseTime := now.Add(-25 * time.Minute)
 
 				resp := dbfake.WorkspaceBuild(h.t, h.db, database.WorkspaceTable{
@@ -1030,20 +1009,19 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &pauseTime,
-					LastResumedAt:        nil,
-					PauseReason:          ptr.Ref("auto"),
-					IdleDurationMS:       ptr.Ref(15 * time.Minute.Milliseconds()),
-					PausedDurationMS:     nil,
 					TimeToFirstStatusMS:  ptr.Ref(260 * time.Minute.Milliseconds()), // -5hr to -40min = 260 min
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:         resp.Task.ID.String(),
+						LastPausedAt:   &pauseTime,
+						PauseReason:    ptr.Ref("auto"),
+						IdleDurationMS: ptr.Ref(15 * time.Minute.Milliseconds()),
+					}
 			},
 		},
 		{
 			name: "recently resumed - PausedDurationMS calculated",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				pauseTime := now.Add(-50 * time.Minute)
 				resumeTime := now.Add(-10 * time.Minute)
 
@@ -1116,20 +1094,20 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &pauseTime,
-					LastResumedAt:        &resumeTime,
-					PauseReason:          ptr.Ref("auto"),
-					IdleDurationMS:       nil,
-					PausedDurationMS:     ptr.Ref(40 * time.Minute.Milliseconds()), // 40 minutes in ms
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:           resp.Task.ID.String(),
+						LastPausedAt:     &pauseTime,
+						LastResumedAt:    &resumeTime,
+						PauseReason:      ptr.Ref("auto"),
+						PausedDurationMS: ptr.Ref(40 * time.Minute.Milliseconds()),
+					}
 			},
 		},
 		{
 			name: "resumed long ago - PausedDurationMS nil",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				pauseTime := now.Add(-5 * time.Hour)
 				resumeTime := now.Add(-2 * time.Hour)
 
@@ -1202,20 +1180,14 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &pauseTime,
-					LastResumedAt:        &resumeTime,
-					PauseReason:          ptr.Ref("auto"),
-					IdleDurationMS:       nil,
-					PausedDurationMS:     nil, // Resume was > 1hr ago
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, nil
 			},
 		},
 		{
 			name: "multiple cycles - captures latest pause/resume",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				firstResumeTime := now.Add(-150 * time.Minute) // -2.5 hours
 				latestPauseTime := now.Add(-30 * time.Minute)
 
@@ -1309,20 +1281,19 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &latestPauseTime,
-					LastResumedAt:        &firstResumeTime,  // -2.5 hours
-					PauseReason:          ptr.Ref("manual"), // Latest pause reason
-					IdleDurationMS:       nil,
-					PausedDurationMS:     nil, // Resume was > 1hr ago
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:        resp.Task.ID.String(),
+						LastPausedAt:  &latestPauseTime,
+						LastResumedAt: &firstResumeTime,
+						PauseReason:   ptr.Ref("manual"),
+					}
 			},
 		},
 		{
 			name: "currently paused after recent resume - PausedDurationMS nil",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				firstPauseTime := now.Add(-50 * time.Minute)
 				resumeTime := now.Add(-30 * time.Minute)
 				secondPauseTime := now.Add(-10 * time.Minute)
@@ -1417,20 +1388,20 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &secondPauseTime,
-					LastResumedAt:        &resumeTime,
-					PauseReason:          ptr.Ref("manual"),
-					IdleDurationMS:       nil,
-					PausedDurationMS:     ptr.Ref(20 * time.Minute.Milliseconds()), // Last completed cycle: -50min pause to -30min resume.
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:           resp.Task.ID.String(),
+						LastPausedAt:     &secondPauseTime,
+						LastResumedAt:    &resumeTime,
+						PauseReason:      ptr.Ref("manual"),
+						PausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()),
+					}
 			},
 		},
 		{
 			name: "multiple cycles with recent resume - pairs with preceding pause",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				firstPauseTime := now.Add(-50 * time.Minute)
 				resumeTime := now.Add(-30 * time.Minute)
 
@@ -1503,20 +1474,20 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &firstPauseTime,
-					LastResumedAt:        &resumeTime,
-					PauseReason:          ptr.Ref("auto"),
-					IdleDurationMS:       nil,
-					PausedDurationMS:     ptr.Ref(20 * time.Minute.Milliseconds()),
 					TimeToFirstStatusMS:  nil,
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:           resp.Task.ID.String(),
+						LastPausedAt:     &firstPauseTime,
+						LastResumedAt:    &resumeTime,
+						PauseReason:      ptr.Ref("auto"),
+						PausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()),
+					}
 			},
 		},
 		{
 			name: "all fields populated - full lifecycle",
-			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) telemetry.Task {
+			setup: func(t *testing.T, h *taskTelemetryHelper, now time.Time) (telemetry.Task, *telemetry.TaskEvent) {
 				taskCreatedAt := now.Add(-7 * time.Hour)
 				pauseTime := now.Add(-35 * time.Minute)
 				resumeTime := now.Add(-5 * time.Minute)
@@ -1595,15 +1566,16 @@ func TestTasksTelemetry(t *testing.T) {
 					TemplateVersionID:    resp.TemplateVersion.ID.String(),
 					PromptHash:           telemetry.HashContent(resp.Task.Prompt),
 					CreatedAt:            resp.Task.CreatedAt,
-					Status:               string(resp.Task.Status),
-					LastPausedAt:         &pauseTime,
-					LastResumedAt:        &resumeTime,
-					PauseReason:          ptr.Ref("auto"),
-					IdleDurationMS:       ptr.Ref(10 * time.Minute.Milliseconds()),
-					PausedDurationMS:     ptr.Ref(30 * time.Minute.Milliseconds()),
 					TimeToFirstStatusMS:  ptr.Ref(30 * time.Minute.Milliseconds()),
 				}
-				return expected
+				return expected, &telemetry.TaskEvent{
+						TaskID:           resp.Task.ID.String(),
+						LastPausedAt:     &pauseTime,
+						LastResumedAt:    &resumeTime,
+						PauseReason:      ptr.Ref("auto"),
+						IdleDurationMS:   ptr.Ref(10 * time.Minute.Milliseconds()),
+						PausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
+					}
 			},
 		},
 	}
@@ -1648,14 +1620,26 @@ func TestTasksTelemetry(t *testing.T) {
 			})
 			require.NoError(h.t, err, "creating deleted task antagonist")
 
-			expected := tt.setup(t, h, now)
-			actual, err := telemetry.CollectTasks(h.ctx, h.db, now.Add(-1*time.Hour))
+			expectedTask, expectedEvent := tt.setup(t, h, now)
+
+			actualTasks, err := telemetry.CollectTasks(h.ctx, h.db)
 			require.NoError(t, err, "unexpected error collecting tasks telemetry")
 			// Invariant: deleted tasks should NEVER appear in results.
-			require.Len(t, actual, 1, "expected exactly one task")
+			require.Len(t, actualTasks, 1, "expected exactly one task")
 
-			if diff := cmp.Diff(expected, actual[0]); diff != "" {
-				t.Fatalf("unexpected diff (-want +got):\n%s", diff)
+			if diff := cmp.Diff(expectedTask, actualTasks[0]); diff != "" {
+				t.Fatalf("task diff (-want +got):\n%s", diff)
+			}
+
+			actualEvents, err := telemetry.CollectTaskEvents(h.ctx, h.db, now.Add(-1*time.Hour))
+			require.NoError(t, err)
+			if expectedEvent == nil {
+				require.Empty(t, actualEvents)
+			} else {
+				require.Len(t, actualEvents, 1)
+				if diff := cmp.Diff(*expectedEvent, actualEvents[0]); diff != "" {
+					t.Fatalf("event diff (-want +got):\n%s", diff)
+				}
 			}
 		})
 	}

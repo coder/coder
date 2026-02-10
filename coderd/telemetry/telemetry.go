@@ -740,11 +740,19 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		tasks, err := CollectTasks(ctx, r.options.Database, createdAfter)
+		tasks, err := CollectTasks(ctx, r.options.Database)
 		if err != nil {
 			return xerrors.Errorf("collect tasks telemetry: %w", err)
 		}
 		snapshot.Tasks = tasks
+		return nil
+	})
+	eg.Go(func() error {
+		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("collect task events telemetry: %w", err)
+		}
+		snapshot.TaskEvents = events
 		return nil
 	})
 	eg.Go(func() error {
@@ -896,11 +904,11 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 	}, nil
 }
 
-func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time) ([]Task, error) {
+func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
 	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{
 		OwnerID:        uuid.Nil,
 		OrganizationID: uuid.Nil,
-		Status:         "", // All tasks regardless of status
+		Status:         "",
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("list tasks: %w", err)
@@ -909,167 +917,50 @@ func CollectTasks(ctx context.Context, db database.Store, createdAfter time.Time
 		return []Task{}, nil
 	}
 
-	workspaceIDs := make(map[uuid.UUID]struct{}) // WorkspaceID -> AppID
 	appIDs := make([]uuid.UUID, 0)
 	for _, task := range dbTasks {
-		if task.WorkspaceID.Valid {
-			workspaceIDs[task.WorkspaceID.UUID] = struct{}{}
-		}
 		if task.WorkspaceAppID.Valid {
 			appIDs = append(appIDs, task.WorkspaceAppID.UUID)
 		}
 	}
 
-	// 3. Batch query task lifecycle builds for all workspaces.
-	workspaceBuilds := make(map[uuid.UUID][]database.GetTaskLifecycleBuildsByWorkspaceIDsRow)
-	if len(workspaceIDs) > 0 {
-		wsIDSlice := make([]uuid.UUID, 0, len(workspaceIDs))
-		for wsID := range workspaceIDs {
-			wsIDSlice = append(wsIDSlice, wsID)
-		}
-		builds, err := db.GetTaskLifecycleBuildsByWorkspaceIDs(ctx, wsIDSlice)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get task lifecycle builds: %w", err)
-		}
-		// Group builds by workspace ID. Builds are ordered by workspace_id and created_at DESC.
-		for _, build := range builds {
-			workspaceBuilds[build.WorkspaceID] = append(workspaceBuilds[build.WorkspaceID], build)
-		}
-	}
-
-	// Batch query app statuses for all apps.
+	// Batch query app statuses for TimeToFirstStatusMS.
 	appStatuses := make(map[uuid.UUID][]database.WorkspaceAppStatus)
 	if len(appIDs) > 0 {
 		statuses, err := db.GetWorkspaceAppStatusesByAppIDs(ctx, appIDs)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get workspace app statuses: %w", err)
 		}
-		// Group statuses by app ID. Statuses are ordered by created_at DESC.
 		for _, status := range statuses {
 			appStatuses[status.AppID] = append(appStatuses[status.AppID], status)
 		}
 	}
 
 	tasks := make([]Task, 0, len(dbTasks))
-
 	for _, dbTask := range dbTasks {
-		// Convert base task.
 		task := ConvertTask(dbTask)
 
-		// If no workspace, all lifecycle fields remain nil.
-		if !dbTask.WorkspaceID.Valid {
-			tasks = append(tasks, task)
-			continue
-		}
-
-		wsID := dbTask.WorkspaceID.UUID
-		builds := workspaceBuilds[wsID]
-
-		// Find latest pause and resume builds.
-		var latestPauseBuild *database.GetTaskLifecycleBuildsByWorkspaceIDsRow
-		var latestResumeBuild *database.GetTaskLifecycleBuildsByWorkspaceIDsRow
-
-		// Builds are ordered by created_at DESC, so first match is latest.
-		for i := range builds {
-			build := &builds[i]
-			// Check for pause builds (stop with task_auto_pause or task_manual_pause).
-			if build.Transition == database.WorkspaceTransitionStop &&
-				(build.Reason == database.BuildReasonTaskAutoPause || build.Reason == database.BuildReasonTaskManualPause) {
-				if latestPauseBuild == nil {
-					latestPauseBuild = build
-				}
-			}
-			// Check for resume builds (start with task_resume).
-			if build.Transition == database.WorkspaceTransitionStart &&
-				build.Reason == database.BuildReasonTaskResume {
-				if latestResumeBuild == nil {
-					latestResumeBuild = build
-				}
-			}
-		}
-
-		// Set LastPausedAt, LastResumedAt, PauseReason from builds.
-		if latestPauseBuild != nil {
-			task.LastPausedAt = &latestPauseBuild.CreatedAt
-			if latestPauseBuild.Reason == database.BuildReasonTaskAutoPause {
-				task.PauseReason = ptr.Ref("auto")
-			} else {
-				task.PauseReason = ptr.Ref("manual")
-			}
-		}
-		if latestResumeBuild != nil {
-			task.LastResumedAt = &latestResumeBuild.CreatedAt
-		}
-
-		// Get app statuses for this task's app.
+		// Compute TimeToFirstStatusMS from app statuses.
 		if dbTask.WorkspaceAppID.Valid {
 			statuses := appStatuses[dbTask.WorkspaceAppID.UUID]
-
-			// Find first (oldest) status and last working status.
-			// Statuses are ordered by created_at DESC.
-			var firstStatus *database.WorkspaceAppStatus
-			var lastWorkingStatus *database.WorkspaceAppStatus
-			for i := len(statuses) - 1; i >= 0; i-- {
-				status := &statuses[i]
-				if firstStatus == nil {
-					firstStatus = status
-				}
-				if status.State == database.WorkspaceAppStatusStateWorking {
-					lastWorkingStatus = status
-				}
-			}
-
-			// Calculate TimeToFirstStatusMS.
-			if firstStatus != nil {
+			// Statuses are ordered by created_at DESC, so last element is first.
+			if len(statuses) > 0 {
+				firstStatus := statuses[len(statuses)-1]
 				timeToFirst := firstStatus.CreatedAt.Sub(dbTask.CreatedAt)
 				task.TimeToFirstStatusMS = ptr.Ref(timeToFirst.Milliseconds())
 			}
-
-			// Calculate IdleDurationMS for paused tasks with a working status.
-			// IdleDurationMS = LastPausedAt - last_working_status_time
-			if latestPauseBuild != nil && lastWorkingStatus != nil {
-				idleDuration := latestPauseBuild.CreatedAt.Sub(lastWorkingStatus.CreatedAt)
-				task.IdleDurationMS = ptr.Ref(idleDuration.Milliseconds())
-			}
-		}
-
-		// Calculate PausedDurationMS for tasks resumed within the
-		// reporting window. We pair each resume with the most recent
-		// pause that *precedes* it, rather than independently selecting
-		// the global latest pause and resume, which could pair builds
-		// from different cycles or yield a negative duration when the
-		// task is currently paused after a prior resume.
-		//
-		// Builds are ordered by created_at DESC, so the first resume
-		// we encounter is the latest. We then scan forward (older) for
-		// the nearest preceding pause.
-		for i := range builds {
-			build := &builds[i]
-			if build.Transition != database.WorkspaceTransitionStart ||
-				build.Reason != database.BuildReasonTaskResume {
-				continue
-			}
-			if !build.CreatedAt.After(createdAfter) {
-				break
-			}
-			// Found latest resume within the reporting window.
-			// Now find the most recent pause that precedes it.
-			for j := i + 1; j < len(builds); j++ {
-				prev := &builds[j]
-				if prev.Transition == database.WorkspaceTransitionStop &&
-					(prev.Reason == database.BuildReasonTaskAutoPause || prev.Reason == database.BuildReasonTaskManualPause) {
-					pausedDuration := build.CreatedAt.Sub(prev.CreatedAt)
-					task.PausedDurationMS = ptr.Ref(pausedDuration.Milliseconds())
-					break
-				}
-			}
-			break
 		}
 
 		tasks = append(tasks, task)
 	}
 
 	return tasks, nil
+}
+
+// CollectTaskEvents collects lifecycle events for tasks with recent activity.
+func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter time.Time) ([]TaskEvent, error) {
+	// TODO: Implement in Phase 2.
+	return []TaskEvent{}, nil
 }
 
 // HashContent returns a SHA256 hash of the content as a hex string.
@@ -1546,6 +1437,7 @@ type Snapshot struct {
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
 	Tasks                                []Task                                `json:"tasks"`
+	TaskEvents                           []TaskEvent                           `json:"task_events"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
@@ -2097,24 +1989,29 @@ type Organization struct {
 }
 
 type Task struct {
-	ID                   string     `json:"id"`
-	OrganizationID       string     `json:"organization_id"`
-	OwnerID              string     `json:"owner_id"`
-	Name                 string     `json:"name"`
-	WorkspaceID          *string    `json:"workspace_id"`
-	WorkspaceBuildNumber *int64     `json:"workspace_build_number"`
-	WorkspaceAgentID     *string    `json:"workspace_agent_id"`
-	WorkspaceAppID       *string    `json:"workspace_app_id"`
-	TemplateVersionID    string     `json:"template_version_id"`
-	PromptHash           string     `json:"prompt_hash"` // Prompt is hashed for privacy.
-	CreatedAt            time.Time  `json:"created_at"`
-	Status               string     `json:"status"`
-	LastPausedAt         *time.Time `json:"last_paused_at"`
-	LastResumedAt        *time.Time `json:"last_resumed_at"`
-	PauseReason          *string    `json:"pause_reason"`
-	IdleDurationMS       *int64     `json:"idle_duration_ms"`
-	PausedDurationMS     *int64     `json:"paused_duration_ms"`
-	TimeToFirstStatusMS  *int64     `json:"time_to_first_status_ms"`
+	ID                   string    `json:"id"`
+	OrganizationID       string    `json:"organization_id"`
+	OwnerID              string    `json:"owner_id"`
+	Name                 string    `json:"name"`
+	WorkspaceID          *string   `json:"workspace_id"`
+	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
+	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
+	WorkspaceAppID       *string   `json:"workspace_app_id"`
+	TemplateVersionID    string    `json:"template_version_id"`
+	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
+	CreatedAt            time.Time `json:"created_at"`
+	TimeToFirstStatusMS  *int64    `json:"time_to_first_status_ms"`
+}
+
+// TaskEvent represents lifecycle events for a task (pause/resume cycles).
+// These are filtered by createdAfter to only capture recent activity.
+type TaskEvent struct {
+	TaskID           string     `json:"task_id"`
+	LastPausedAt     *time.Time `json:"last_paused_at"`
+	LastResumedAt    *time.Time `json:"last_resumed_at"`
+	PauseReason      *string    `json:"pause_reason"`
+	IdleDurationMS   *int64     `json:"idle_duration_ms"`
+	PausedDurationMS *int64     `json:"paused_duration_ms"`
 }
 
 // ConvertTask anonymizes a Task.
@@ -2131,7 +2028,6 @@ func ConvertTask(task database.Task) Task {
 		TemplateVersionID:    task.TemplateVersionID.String(),
 		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
 		CreatedAt:            task.CreatedAt,
-		Status:               string(task.Status),
 	}
 	if task.WorkspaceID.Valid {
 		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
