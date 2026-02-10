@@ -1166,7 +1166,10 @@ CREATE TABLE connection_logs (
     disconnect_time timestamp with time zone,
     disconnect_reason text,
     agent_id uuid,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    session_id uuid,
+    client_hostname text,
+    short_description text
 );
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
@@ -2917,6 +2920,18 @@ CREATE SEQUENCE workspace_resource_metadata_id_seq
 
 ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_metadata.id;
 
+CREATE TABLE workspace_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    workspace_id uuid NOT NULL,
+    agent_id uuid,
+    ip inet NOT NULL,
+    client_hostname text,
+    short_description text,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
     workspaces.created_at,
@@ -3283,6 +3298,9 @@ ALTER TABLE ONLY workspace_resource_metadata
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_sessions
+    ADD CONSTRAINT workspace_sessions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
@@ -3333,6 +3351,8 @@ CREATE UNIQUE INDEX idx_connection_logs_connection_id_workspace_id_agent_name ON
 COMMENT ON INDEX idx_connection_logs_connection_id_workspace_id_agent_name IS 'Connection ID is NULL for web events, but present for SSH events. Therefore, this index allows multiple web events for the same workspace & agent. For SSH events, the upsertion query handles duplicates on this index by upserting the disconnect_time and disconnect_reason for the same connection_id when the connection is closed.';
 
 CREATE INDEX idx_connection_logs_organization_id ON connection_logs USING btree (organization_id);
+
+CREATE INDEX idx_connection_logs_session ON connection_logs USING btree (session_id) WHERE (session_id IS NOT NULL);
 
 CREATE INDEX idx_connection_logs_workspace_id ON connection_logs USING btree (workspace_id);
 
@@ -3387,6 +3407,10 @@ CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (de
 CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
+
+CREATE INDEX idx_workspace_sessions_lookup ON workspace_sessions USING btree (workspace_id, ip, started_at);
+
+CREATE INDEX idx_workspace_sessions_workspace ON workspace_sessions USING btree (workspace_id, started_at DESC);
 
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
@@ -3574,6 +3598,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES workspace_sessions(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
@@ -3847,6 +3874,12 @@ ALTER TABLE ONLY workspace_resource_metadata
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_sessions
+    ADD CONSTRAINT workspace_sessions_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY workspace_sessions
+    ADD CONSTRAINT workspace_sessions_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;
