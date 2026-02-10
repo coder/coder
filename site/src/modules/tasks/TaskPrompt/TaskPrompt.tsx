@@ -305,7 +305,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</div>
 						)}
 
-						<div className="flex-1 overflow-hidden min-w-0">
+						<div className="flex-1 min-w-0">
 							<label htmlFor="presetID" className="sr-only">
 								Preset
 							</label>
