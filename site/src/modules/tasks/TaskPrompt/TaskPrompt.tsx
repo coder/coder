@@ -37,6 +37,7 @@ import TextareaAutosize, {
 } from "react-textarea-autosize";
 import { docs } from "utils/docs";
 import { getOSKey } from "utils/platform";
+import { PromptField, PromptFieldLabel } from "./PromptField";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
@@ -249,12 +250,10 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					isSubmitting={createTaskMutation.isPending}
 					onKeyDown={handleKeyDown}
 				/>
-				<div className="flex items-center justify-between pt-2 gap-2">
-					<div className="flex items-center gap-1 flex-1 min-w-0">
-						<div className="min-w-0 max-w-[33%]">
-							<label htmlFor="templateID" className="sr-only">
-								Select template
-							</label>
+				<div className="flex flex-col md:flex-row md:items-center justify-between pt-2 gap-6 md:gap-2">
+					<div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-1 flex-1 min-w-0">
+						<PromptField>
+							<PromptFieldLabel htmlFor="templateID">Template</PromptFieldLabel>
 							<Select
 								name="templateID"
 								onValueChange={(value) => {
@@ -290,26 +289,24 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									})}
 								</SelectContent>
 							</Select>
-						</div>
+						</PromptField>
 
 						{permissions.updateTemplates && (
-							<div className="min-w-0 max-w-[33%]">
-								<label htmlFor="versionId" className="sr-only">
+							<PromptField>
+								<PromptFieldLabel htmlFor="versionId">
 									Template version
-								</label>
+								</PromptFieldLabel>
 								<TemplateVersionSelect
 									templateId={selectedTemplateId}
 									activeVersionId={selectedTemplate.active_version_id}
 									value={selectedVersionId}
 									onValueChange={setSelectedVersionId}
 								/>
-							</div>
+							</PromptField>
 						)}
 
-						<div className="flex-1 min-w-0">
-							<label htmlFor="presetID" className="sr-only">
-								Preset
-							</label>
+						<PromptField>
+							<PromptFieldLabel htmlFor="presetID">Preset</PromptFieldLabel>
 							{isLoadingPresets ? (
 								<Skeleton className="w-[140px] h-8 rounded-full" />
 							) : (
@@ -370,10 +367,10 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									</Select>
 								)
 							)}
-						</div>
+						</PromptField>
 					</div>
 
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 md:shrink-0">
 						{missedExternalAuth && (
 							<ExternalAuthButtons
 								versionId={selectedVersionId}
@@ -384,11 +381,11 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
-									size="icon"
 									type="submit"
 									disabled={prompt.trim().length === 0 || isMissingExternalAuth}
-									className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
+									className="w-full md:w-auto rounded-full disabled:bg-surface-invert-primary disabled:opacity-70 md:size-8 md:min-w-[auto]"
 								>
+									<span className="md:hidden">Run task</span>
 									<Spinner
 										loading={
 											isLoadingExternalAuth ||
@@ -396,9 +393,8 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 											createTaskMutation.isPending
 										}
 									>
-										<ArrowUpIcon />
+										<ArrowUpIcon className="!size-icon-sm" />
 									</Spinner>
-									<span className="sr-only">Run task</span>
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent align="end">
