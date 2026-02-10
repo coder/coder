@@ -1,6 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import MenuItem from "@mui/material/MenuItem";
-import Select, { type SelectProps } from "@mui/material/Select";
 import type {
 	Group,
 	ReducedUser,
@@ -21,8 +18,14 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -90,7 +93,7 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 				}
 			}}
 		>
-			<Stack direction="row" alignItems="center" spacing={1}>
+			<div className="flex flex-row items-center gap-2">
 				<UserOrGroupAutocomplete
 					exclude={excludeFromAutocomplete}
 					templateID={templateID}
@@ -102,19 +105,18 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 
 				<Select
 					defaultValue="use"
-					size="small"
-					css={styles.select}
 					disabled={isLoading}
-					onChange={(event) => {
-						setSelectedRole(event.target.value as TemplateRole);
+					onValueChange={(value) => {
+						setSelectedRole(value as TemplateRole);
 					}}
 				>
-					<MenuItem key="use" value="use">
-						Use
-					</MenuItem>
-					<MenuItem key="admin" value="admin">
-						Admin
-					</MenuItem>
+					<SelectTrigger className="w-[100px] text-sm">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="use">Use</SelectItem>
+						<SelectItem value="admin">Admin</SelectItem>
+					</SelectContent>
 				</Select>
 
 				<Button
@@ -126,35 +128,48 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 					</Spinner>
 					Add member
 				</Button>
-			</Stack>
+			</div>
 		</form>
 	);
 };
 
-const RoleSelect: FC<SelectProps> = (props) => {
+interface RoleSelectProps {
+	value: TemplateRole;
+	disabled?: boolean;
+	onChange: (role: TemplateRole) => void;
+}
+
+const RoleSelect: FC<RoleSelectProps> = ({ value, disabled, onChange }) => {
 	return (
 		<Select
-			renderValue={(value) => <div css={styles.role}>{`${value}`}</div>}
-			css={styles.updateSelect}
-			{...props}
+			value={value}
+			disabled={disabled}
+			onValueChange={(val) => onChange(val as TemplateRole)}
 		>
-			<MenuItem key="use" value="use" css={styles.menuItem}>
-				<div>
-					<div>Use</div>
-					<div css={styles.menuItemSecondary}>
-						Can read and use this template to create workspaces.
+			<SelectTrigger className="w-[200px]">
+				<SelectValue>
+					<span className="capitalize">{value}</span>
+				</SelectValue>
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="use" className="py-3">
+					<div className="leading-snug w-[250px] whitespace-normal">
+						<div>Use</div>
+						<div className="text-sm text-content-secondary">
+							Can read and use this template to create workspaces.
+						</div>
 					</div>
-				</div>
-			</MenuItem>
-			<MenuItem key="admin" value="admin" css={styles.menuItem}>
-				<div>
-					<div>Admin</div>
-					<div css={styles.menuItemSecondary}>
-						Can modify all aspects of this template including permissions,
-						metadata, and template versions.
+				</SelectItem>
+				<SelectItem value="admin" className="py-3">
+					<div className="leading-snug w-[250px] whitespace-normal">
+						<div>Admin</div>
+						<div className="text-sm text-content-secondary">
+							Can modify all aspects of this template including permissions,
+							metadata, and template versions.
+						</div>
 					</div>
-				</div>
-			</MenuItem>
+				</SelectItem>
+			</SelectContent>
 		</Select>
 	);
 };
@@ -216,7 +231,7 @@ export const TemplatePermissionsPageView: FC<
 				<PageHeaderTitle>Permissions</PageHeaderTitle>
 			</PageHeader>
 
-			<Stack spacing={2.5}>
+			<div className="flex flex-col gap-5">
 				{canUpdatePermissions && (
 					<AddTemplateUserOrGroup
 						templateACL={templateACL}
@@ -274,16 +289,13 @@ export const TemplatePermissionsPageView: FC<
 													<RoleSelect
 														value={group.role}
 														disabled={updatingGroupId === group.id}
-														onChange={(event) => {
-															onUpdateGroup(
-																group,
-																event.target.value as TemplateRole,
-															);
+														onChange={(role) => {
+															onUpdateGroup(group, role);
 														}}
 													/>
 												</Cond>
 												<Cond>
-													<div css={styles.role}>{group.role}</div>
+													<div className="capitalize">{group.role}</div>
 												</Cond>
 											</ChooseOne>
 										</TableCell>
@@ -330,16 +342,13 @@ export const TemplatePermissionsPageView: FC<
 													<RoleSelect
 														value={user.role}
 														disabled={updatingUserId === user.id}
-														onChange={(event) => {
-															onUpdateUser(
-																user,
-																event.target.value as TemplateRole,
-															);
+														onChange={(role) => {
+															onUpdateUser(user, role);
 														}}
 													/>
 												</Cond>
 												<Cond>
-													<div css={styles.role}>{user.role}</div>
+													<div className="capitalize">{user.role}</div>
 												</Cond>
 											</ChooseOne>
 										</TableCell>
@@ -374,49 +383,7 @@ export const TemplatePermissionsPageView: FC<
 						</ChooseOne>
 					</TableBody>
 				</Table>
-			</Stack>
+			</div>
 		</>
 	);
 };
-
-const styles = {
-	select: {
-		// Match button small height
-		fontSize: 14,
-		width: 100,
-	},
-
-	updateSelect: {
-		margin: 0,
-		// Set a fixed width for the select. It avoids selects having different sizes
-		// depending on how many roles they have selected.
-		width: 200,
-
-		"& .MuiSelect-root": {
-			// Adjusting padding because it does not have label
-			paddingTop: 12,
-			paddingBottom: 12,
-
-			".secondary": {
-				display: "none",
-			},
-		},
-	},
-
-	role: {
-		textTransform: "capitalize",
-	},
-
-	menuItem: {
-		lineHeight: "140%",
-		paddingTop: 12,
-		paddingBottom: 12,
-		whiteSpace: "normal",
-		inlineSize: "250px",
-	},
-
-	menuItemSecondary: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -1,9 +1,9 @@
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
-import TextField from "@mui/material/TextField";
 import type { TemplateVersionVariable } from "api/typesGenerated";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
 import { type FC, useState } from "react";
+
 export const SensitiveVariableHelperText: FC = () => {
 	return (
 		<span>
@@ -24,58 +24,58 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
 	initialValue,
 	disabled,
 	onChange,
-	...props
 }) => {
 	const [variableValue, setVariableValue] = useState(initialValue);
 	if (isBoolean(templateVersionVariable)) {
 		return (
 			<RadioGroup
 				defaultValue={variableValue}
-				onChange={(event) => {
-					onChange(event.target.value);
+				onValueChange={(value) => {
+					onChange(value);
 				}}
+				disabled={disabled}
 			>
-				<FormControlLabel
-					disabled={disabled}
-					value="true"
-					control={<Radio size="small" />}
-					label="True"
-				/>
-				<FormControlLabel
-					disabled={disabled}
-					value="false"
-					control={<Radio size="small" />}
-					label="False"
-				/>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem value="true" id="radio-true" />
+					<Label htmlFor="radio-true">True</Label>
+				</div>
+				<div className="flex items-center gap-2">
+					<RadioGroupItem value="false" id="radio-false" />
+					<Label htmlFor="radio-false">False</Label>
+				</div>
 			</RadioGroup>
 		);
 	}
 
 	return (
-		<TextField
-			{...props}
-			type={
-				templateVersionVariable.type === "number"
-					? "number"
-					: templateVersionVariable.sensitive
-						? "password"
-						: "string"
-			}
-			disabled={disabled}
-			autoFocus
-			fullWidth
-			label={templateVersionVariable.name}
-			value={variableValue}
-			placeholder={
-				templateVersionVariable.sensitive
-					? ""
-					: templateVersionVariable.default_value
-			}
-			onChange={(event) => {
-				setVariableValue(event.target.value);
-				onChange(event.target.value);
-			}}
-		/>
+		<div className="flex flex-col gap-2">
+			<Label htmlFor={`var-${templateVersionVariable.name}`}>
+				{templateVersionVariable.name}
+			</Label>
+			<Input
+				id={`var-${templateVersionVariable.name}`}
+				type={
+					templateVersionVariable.type === "number"
+						? "number"
+						: templateVersionVariable.sensitive
+							? "password"
+							: "text"
+				}
+				disabled={disabled}
+				autoFocus
+				className="w-full"
+				value={variableValue}
+				placeholder={
+					templateVersionVariable.sensitive
+						? ""
+						: templateVersionVariable.default_value
+				}
+				onChange={(event) => {
+					setVariableValue(event.target.value);
+					onChange(event.target.value);
+				}}
+			/>
+		</div>
 	);
 };
 
