@@ -60,7 +60,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 					variant="outline"
 					role="combobox"
 					aria-expanded={open}
-					className="w-[280px] justify-between"
+					className="w-[280px] shrink min-w-0 overflow-hidden justify-between"
 				>
 					{options ? (
 						selectedOption ? (
@@ -123,9 +123,13 @@ type UserItemProps = {
 
 const UserItem: FC<UserItemProps> = ({ option, className }) => {
 	return (
-		<div className={cn("flex flex-1 items-center gap-2", className)}>
-			<Avatar src={option.avatarUrl} fallback={option.label} />
-			{option.label}
+		<div className={cn("flex flex-1 items-center gap-2 min-w-0", className)}>
+			<Avatar
+				src={option.avatarUrl}
+				fallback={option.label}
+				className="shrink-0"
+			/>
+			<span className="truncate">{option.label}</span>
 		</div>
 	);
 };

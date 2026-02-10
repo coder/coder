@@ -177,10 +177,10 @@ const TasksPage: FC = () => {
 							<section className="py-8">
 								{permissions.viewDeploymentConfig && (
 									<section
-										className="mt-6 flex justify-between"
+										className="mt-6 flex justify-between gap-2 min-w-0"
 										aria-label="Controls"
 									>
-										<div className="flex items-center bg-surface-secondary rounded-lg p-1">
+										<div className="flex items-center bg-surface-secondary rounded-lg p-1 shrink-0">
 											<PillButton
 												active={tab.value === "all"}
 												onClick={() => {
