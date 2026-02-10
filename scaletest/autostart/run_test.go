@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -28,7 +27,8 @@ func TestRun(t *testing.T) {
 	autoStartDelay := 2 * time.Minute
 
 	// Faking a workspace autostart schedule start time at the coderd level
-	// is difficult and error-prone.
+	// is difficult and error-prone. This test verifies the setup phase only
+	// (creating workspaces, stopping them, and configuring autostart schedules).
 	t.Skip("This test takes several minutes to run, and is intended as a manual regression test")
 
 	ctx := testutil.Context(t, time.Minute*3)
@@ -36,6 +36,9 @@ func TestRun(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		AutobuildTicker:          time.NewTicker(time.Second * 1).C,
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentWorkspaceBuildUpdates)}
+		}),
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -74,7 +77,43 @@ func TestRun(t *testing.T) {
 
 	barrier := new(sync.WaitGroup)
 	barrier.Add(numUsers)
-	metrics := autostart.NewMetrics(prometheus.NewRegistry())
+
+	// Set up the centralized build updates channel.
+	workspaceChannels := make(map[uuid.UUID]chan codersdk.WorkspaceBuildUpdate)
+	var workspaceChannelsMu sync.RWMutex
+
+	registerWorkspace := func(workspaceID uuid.UUID) <-chan codersdk.WorkspaceBuildUpdate {
+		workspaceChannelsMu.Lock()
+		defer workspaceChannelsMu.Unlock()
+		ch := make(chan codersdk.WorkspaceBuildUpdate, 16)
+		workspaceChannels[workspaceID] = ch
+		return ch
+	}
+
+	// Start watching all workspace builds.
+	buildUpdates, err := client.WatchAllWorkspaceBuilds(ctx)
+	require.NoError(t, err)
+
+	// Start the dispatcher goroutine.
+	go func() {
+		for update := range buildUpdates {
+			workspaceChannelsMu.RLock()
+			ch, ok := workspaceChannels[update.WorkspaceID]
+			workspaceChannelsMu.RUnlock()
+			if ok {
+				select {
+				case ch <- update:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+		workspaceChannelsMu.Lock()
+		for _, ch := range workspaceChannels {
+			close(ch)
+		}
+		workspaceChannelsMu.Unlock()
+	}()
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
@@ -93,9 +132,8 @@ func TestRun(t *testing.T) {
 			},
 			WorkspaceJobTimeout: testutil.WaitMedium,
 			AutostartDelay:      autoStartDelay,
-			AutostartTimeout:    testutil.WaitShort,
-			Metrics:             metrics,
 			SetupBarrier:        barrier,
+			RegisterWorkspace:   registerWorkspace,
 		}
 		err := cfg.Validate()
 		require.NoError(t, err)
@@ -107,7 +145,7 @@ func TestRun(t *testing.T) {
 		})
 	}
 
-	err := eg.Wait()
+	err = eg.Wait()
 	require.NoError(t, err)
 
 	users, err := client.Users(ctx, codersdk.UsersRequest{})
@@ -118,10 +156,11 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, numUsers) // one workspace per user
 
-	// Verify that workspaces have autostart schedules set and are running
+	// Verify that workspaces have autostart schedules set and are stopped
+	// (the test exits after configuring autostart, before it triggers).
 	for _, workspace := range workspaces.Workspaces {
 		require.NotNil(t, workspace.AutostartSchedule)
-		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, workspace.LatestBuild.Transition)
 		require.Equal(t, codersdk.ProvisionerJobSucceeded, workspace.LatestBuild.Job.Status)
 	}
 
@@ -141,18 +180,4 @@ func TestRun(t *testing.T) {
 	users, err = client.Users(ctx, codersdk.UsersRequest{})
 	require.NoError(t, err)
 	require.Len(t, users.Users, 1) // owner
-
-	for _, runner := range runners {
-		metrics := runner.GetMetrics()
-		require.Contains(t, metrics, autostart.AutostartTotalLatencyMetric)
-		latency, ok := metrics[autostart.AutostartTotalLatencyMetric].(float64)
-		require.True(t, ok)
-		jobCreationLatency, ok := metrics[autostart.AutostartJobCreationLatencyMetric].(float64)
-		require.True(t, ok)
-		jobAcquiredLatency, ok := metrics[autostart.AutostartJobAcquiredLatencyMetric].(float64)
-		require.True(t, ok)
-		require.Greater(t, latency, float64(0))
-		require.Greater(t, jobCreationLatency, float64(0))
-		require.Greater(t, jobAcquiredLatency, float64(0))
-	}
 }

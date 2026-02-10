@@ -4152,14 +4152,15 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample            Experiment = "example"              // This isn't used for anything.
-	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
-	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
-	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
-	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
-	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	ExperimentExample               Experiment = "example"                 // This isn't used for anything.
+	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
+	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
+	ExperimentWebPush               Experiment = "web-push"                // Enables web push notifications through the browser.
+	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
+	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
+	ExperimentWorkspaceSharing      Experiment = "workspace-sharing"       // Enables updating workspace ACLs for sharing with users and groups.
+	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
 
 func (e Experiment) DisplayName() string {
@@ -4180,6 +4181,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
+	case ExperimentWorkspaceBuildUpdates:
+		return "Workspace Build Updates Channel"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4198,6 +4201,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
+	ExperimentWorkspaceBuildUpdates,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

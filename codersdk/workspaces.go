@@ -787,3 +787,70 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 	var credentials ExternalAgentCredentials
 	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
 }
+
+// WorkspaceBuildUpdate contains information about a workspace build state change.
+// This is published via the /watch-all-workspacebuilds SSE endpoint when the
+// workspace-build-updates experiment is enabled.
+type WorkspaceBuildUpdate struct {
+	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
+	BuildID     uuid.UUID `json:"build_id" format:"uuid"`
+	// Transition is the workspace transition type: "start", "stop", or "delete".
+	Transition string `json:"transition"`
+	// JobStatus is the provisioner job status: "pending", "running",
+	// "succeeded", "canceling", "canceled", or "failed".
+	JobStatus   string `json:"job_status"`
+	BuildNumber int32  `json:"build_number"`
+}
+
+// WatchAllWorkspaceBuilds watches for workspace build updates across all workspaces.
+// This requires the workspace-build-updates experiment to be enabled.
+func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (<-chan WorkspaceBuildUpdate, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	//nolint:bodyclose
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/watch-all-workspacebuilds", nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	nextEvent := ServerSentEventReader(ctx, res.Body)
+
+	wc := make(chan WorkspaceBuildUpdate, 256)
+	go func() {
+		defer close(wc)
+		defer res.Body.Close()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				sse, err := nextEvent()
+				if err != nil {
+					return
+				}
+				if sse.Type != ServerSentEventTypeData {
+					continue
+				}
+				var update WorkspaceBuildUpdate
+				b, ok := sse.Data.([]byte)
+				if !ok {
+					return
+				}
+				err = json.Unmarshal(b, &update)
+				if err != nil {
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case wc <- update:
+				}
+			}
+		}
+	}()
+
+	return wc, nil
+}
