@@ -98,7 +98,7 @@ services:
     command: ["sh", "/scripts/setup.sh"]
 
   site:
-    image: node:22
+    image: codercom/oss-dogfood:latest
     depends_on:
       setup:
         condition: service_completed_successfully
@@ -110,7 +110,7 @@ services:
     volumes:
       - ./site:/app/site
       - site_node_modules:/app/site/node_modules
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev --host"
+    command: sh -c "pnpm install --frozen-lockfile && pnpm dev --host"
 
 volumes:
   coder_dev_data:
