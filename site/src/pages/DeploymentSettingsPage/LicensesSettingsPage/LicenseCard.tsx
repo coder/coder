@@ -29,9 +29,9 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 
 	const currentUserLimit = license.claims.features.user_limit || userLimitLimit;
 
-	const isExpired = dayjs(license.claims.license_expires * 1000).isBefore(
-		dayjs(),
-	);
+	const isExpired = dayjs
+		.unix(license.claims.license_expires)
+		.isBefore(dayjs());
 
 	const licenseType = license.claims.trial
 		? "Trial"
