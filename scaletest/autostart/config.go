@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -29,15 +30,14 @@ type Config struct {
 	// to schedule them to be started again.
 	AutostartDelay time.Duration `json:"autostart_delay"`
 
-	// AutostartTimeout is how long to wait for the autostart build to be
-	// initiated after the scheduled time.
-	AutostartTimeout time.Duration `json:"autostart_timeout"`
-
-	Metrics *Metrics `json:"-"`
-
 	// SetupBarrier is used to ensure all runners own stopped workspaces
 	// before setting the autostart schedule on each.
 	SetupBarrier *sync.WaitGroup `json:"-"`
+
+	// RegisterWorkspace is called by the runner after creating a workspace
+	// to register it for receiving build updates from the centralized pubsub
+	// channel.
+	RegisterWorkspace func(workspaceID uuid.UUID) <-chan codersdk.WorkspaceBuildUpdate `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -55,20 +55,16 @@ func (c Config) Validate() error {
 		return xerrors.New("setup barrier must be set")
 	}
 
+	if c.RegisterWorkspace == nil {
+		return xerrors.New("register workspace must be set")
+	}
+
 	if c.WorkspaceJobTimeout <= 0 {
 		return xerrors.New("workspace_job_timeout must be greater than 0")
 	}
 
 	if c.AutostartDelay < time.Minute*2 {
 		return xerrors.New("autostart_delay must be at least 2 minutes")
-	}
-
-	if c.AutostartTimeout <= 0 {
-		return xerrors.New("autostart_timeout must be greater than 0")
-	}
-
-	if c.Metrics == nil {
-		return xerrors.New("metrics must be set")
 	}
 
 	return nil

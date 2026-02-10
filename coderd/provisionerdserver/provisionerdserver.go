@@ -1280,6 +1280,20 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
+
+		// Publish workspace build update to the all builds channel if the experiment is enabled.
+		if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+			err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, wspubsub.WorkspaceBuildUpdate{
+				WorkspaceID: workspace.ID,
+				BuildID:     build.ID,
+				Transition:  string(build.Transition),
+				JobStatus:   string(database.ProvisionerJobStatusFailed),
+				BuildNumber: build.BuildNumber,
+			})
+			if err != nil {
+				s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+			}
+		}
 	case *proto.FailedJob_TemplateImport_:
 	}
 
@@ -2473,6 +2487,20 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 	err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 	if err != nil {
 		return xerrors.Errorf("update workspace: %w", err)
+	}
+
+	// Publish workspace build update to the all builds channel if the experiment is enabled.
+	if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, wspubsub.WorkspaceBuildUpdate{
+			WorkspaceID: workspace.ID,
+			BuildID:     workspaceBuild.ID,
+			Transition:  string(workspaceBuild.Transition),
+			JobStatus:   string(database.ProvisionerJobStatusSucceeded),
+			BuildNumber: workspaceBuild.BuildNumber,
+		})
+		if err != nil {
+			s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+		}
 	}
 
 	if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {

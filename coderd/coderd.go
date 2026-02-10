@@ -1530,6 +1530,10 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.watchAllWorkspaceBuilds)
+		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
