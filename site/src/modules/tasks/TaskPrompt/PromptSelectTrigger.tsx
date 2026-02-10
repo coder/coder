@@ -27,9 +27,9 @@ export const PromptSelectTrigger: FC<PromptSelectTriggerProps> = ({
 					<SelectTrigger
 						{...props}
 						className={cn([
-							`w-auto max-w-full overflow-hidden border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-3
+							`w-full md:w-auto max-w-full overflow-hidden border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-4 md:px-3
 						[&_svg]:text-inherit cursor-pointer hover:bg-surface-quaternary rounded-full
-						h-8 data-[state=open]:bg-surface-tertiary [&>span]:overflow-hidden [&>span]:min-w-0`,
+						h-10 md:h-8 data-[state=open]:bg-surface-tertiary [&>span]:overflow-hidden [&>span]:min-w-0`,
 							className,
 						])}
 					/>

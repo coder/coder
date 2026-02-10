@@ -249,11 +249,14 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					isSubmitting={createTaskMutation.isPending}
 					onKeyDown={handleKeyDown}
 				/>
-				<div className="flex items-center justify-between pt-2 gap-2">
-					<div className="flex items-center gap-1 flex-1 min-w-0">
-						<div className="min-w-0 max-w-[33%]">
-							<label htmlFor="templateID" className="sr-only">
-								Select template
+				<div className="flex flex-col md:flex-row md:items-center justify-between pt-2 gap-6 md:gap-2">
+					<div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-1 flex-1 min-w-0">
+						<div className="min-w-0 w-full md:w-auto md:max-w-[33%] flex flex-col gap-2 md:gap-0">
+							<label
+								htmlFor="templateID"
+								className="text-xs font-medium text-content-secondary pl-4 md:sr-only"
+							>
+								Template
 							</label>
 							<Select
 								name="templateID"
@@ -293,8 +296,11 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						</div>
 
 						{permissions.updateTemplates && (
-							<div className="min-w-0 max-w-[33%]">
-								<label htmlFor="versionId" className="sr-only">
+							<div className="min-w-0 w-full md:w-auto md:max-w-[33%] flex flex-col gap-2 md:gap-0">
+								<label
+									htmlFor="versionId"
+									className="text-xs font-medium text-content-secondary pl-4 md:sr-only"
+								>
 									Template version
 								</label>
 								<TemplateVersionSelect
@@ -306,8 +312,11 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</div>
 						)}
 
-						<div className="flex-1 min-w-0">
-							<label htmlFor="presetID" className="sr-only">
+						<div className="min-w-0 w-full md:w-auto md:max-w-[33%] flex flex-col gap-2 md:gap-0">
+							<label
+								htmlFor="presetID"
+								className="text-xs font-medium text-content-secondary pl-4 md:sr-only"
+							>
 								Preset
 							</label>
 							{isLoadingPresets ? (
@@ -373,7 +382,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						</div>
 					</div>
 
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 md:shrink-0">
 						{missedExternalAuth && (
 							<ExternalAuthButtons
 								versionId={selectedVersionId}
@@ -384,11 +393,11 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
-									size="icon"
 									type="submit"
 									disabled={prompt.trim().length === 0 || isMissingExternalAuth}
-									className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
+									className="w-full md:w-auto rounded-full disabled:bg-surface-invert-primary disabled:opacity-70 md:size-8 md:min-w-[auto]"
 								>
+									<span className="md:hidden">Run task</span>
 									<Spinner
 										loading={
 											isLoadingExternalAuth ||
@@ -396,9 +405,8 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 											createTaskMutation.isPending
 										}
 									>
-										<ArrowUpIcon />
+										<ArrowUpIcon className="!size-icon-sm" />
 									</Spinner>
-									<span className="sr-only">Run task</span>
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent align="end">
