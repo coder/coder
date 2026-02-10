@@ -2177,37 +2177,6 @@ func ConvertTelemetryTask(row database.GetTasksForTelemetryRow) Task {
 	}
 	return t
 }
-
-// ConvertTask anonymizes a Task.
-func ConvertTask(task database.Task) Task {
-	t := &Task{
-		ID:                   task.ID.String(),
-		OrganizationID:       task.OrganizationID.String(),
-		OwnerID:              task.OwnerID.String(),
-		Name:                 task.Name,
-		WorkspaceID:          nil,
-		WorkspaceBuildNumber: nil,
-		WorkspaceAgentID:     nil,
-		WorkspaceAppID:       nil,
-		TemplateVersionID:    task.TemplateVersionID.String(),
-		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
-		CreatedAt:            task.CreatedAt,
-	}
-	if task.WorkspaceID.Valid {
-		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
-	}
-	if task.WorkspaceBuildNumber.Valid {
-		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
-	}
-	if task.WorkspaceAgentID.Valid {
-		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
-	}
-	if task.WorkspaceAppID.Valid {
-		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
-	}
-	return *t
-}
-
 type telemetryItemKey string
 
 // The comment below gets rid of the warning that the name "TelemetryItemKey" has
