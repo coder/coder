@@ -6224,6 +6224,7 @@ export interface WorkspaceAgent {
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 	readonly connections?: readonly WorkspaceConnection[];
+	readonly sessions?: readonly WorkspaceSession[];
 }
 
 // From codersdk/workspaceagents.go
@@ -6791,6 +6792,22 @@ export const WorkspaceConnectionStatuses: WorkspaceConnectionStatus[] = [
 	"control_lost",
 	"ongoing",
 ];
+
+// From codersdk/workspaceagents.go
+/**
+ * WorkspaceSession represents a client's session containing one or more connections.
+ */
+export interface WorkspaceSession {
+	readonly id?: string;
+	readonly ip?: string;
+	readonly client_hostname?: string;
+	readonly short_description?: string;
+	readonly status: WorkspaceConnectionStatus;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly connections: readonly WorkspaceConnection[];
+}
+
 
 // From codersdk/deployment.go
 export interface WorkspaceDeploymentStats {

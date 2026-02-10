@@ -10,7 +10,13 @@ import type {
 	WorkspaceAgentMetadata,
 	WorkspaceConnection,
 	WorkspaceConnectionStatus,
+	WorkspaceSession,
 } from "api/typesGenerated";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { useProxy } from "contexts/ProxyContext";
@@ -355,8 +361,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 				</section>
 			)}
 
-			{agent.connections && agent.connections.length > 0 && (
-				<AgentConnectionsTable connections={agent.connections} />
+			{agent.sessions && agent.sessions.length > 0 && (
+				<AgentSessionsTable sessions={agent.sessions} />
 			)}
 		</div>
 	);
@@ -426,13 +432,11 @@ function connectionTypeLabel(type_: ConnectionType, detail?: string): string {
 	}
 }
 
-interface AgentConnectionsTableProps {
-	connections: readonly WorkspaceConnection[];
+interface AgentSessionsTableProps {
+	sessions: readonly WorkspaceSession[];
 }
 
-const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
-	connections,
-}) => {
+const AgentSessionsTable: FC<AgentSessionsTableProps> = ({ sessions }) => {
 	return (
 		<section
 			css={(theme) => ({
@@ -441,83 +445,66 @@ const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
 		>
 			<div className="px-4 py-3">
 				<h4 className="text-xs font-medium text-content-secondary mb-2">
-					Connections
+					Sessions
 				</h4>
-				<table className="w-full text-sm border-collapse">
-					<thead>
-						<tr className="border-b border-border text-content-secondary">
-							<th className="py-2 pr-4 text-left text-xs font-medium">
-								Client
-							</th>
-							<th className="py-2 pr-4 text-left text-xs font-medium">Type</th>
-							<th className="py-2 pr-4 text-left text-xs font-medium">
-								Transport
-							</th>
-							<th className="py-2 pr-4 text-left text-xs font-medium">
-								Status
-							</th>
-							<th className="py-2 pr-4 text-left text-xs font-medium">
-								Latency
-							</th>
-							<th className="py-2 pr-4 text-left text-xs font-medium">
-								Home DERP
-							</th>
-							<th className="py-2 text-left text-xs font-medium">Connected</th>
-						</tr>
-					</thead>
-					<tbody>
-						{connections.map((conn, idx) => {
-							const connectedTime = conn.connected_at ?? conn.created_at;
-							return (
-								<tr
-									key={`${conn.ip}-${conn.created_at}-${idx}`}
-									className="border-t border-border first:border-t-0 text-content-primary"
-								>
-									<td className="py-2 pr-4 font-mono text-xs">
-										{conn.short_description && conn.client_hostname
-											? `${conn.short_description} on ${conn.client_hostname}`
-											: conn.ip}
-									</td>
-									<td className="py-2 pr-4 text-xs">
-										{connectionTypeLabel(conn.type, conn.detail)}
-									</td>
-									<td className="py-2 pr-4 text-xs">
-										{conn.p2p === true
-											? "P2P"
-											: conn.p2p === false
-												? "DERP Relay"
-												: "—"}
-									</td>
-									<td className="py-2 pr-4">
-										<span className="inline-flex items-center gap-1.5 text-xs">
-											<span
-												className={`inline-block h-2 w-2 rounded-full ${connectionStatusDot(conn.status)}`}
-											/>
-											<span className={connectionStatusColor(conn.status)}>
-												{connectionStatusLabel(conn.status)}
-											</span>
-										</span>
-									</td>
-									<td
-										className={`py-2 pr-4 text-xs ${getLatencyColor(conn.latency_ms ?? undefined)}`}
-									>
-										{conn.latency_ms != null
-											? `${conn.latency_ms < 1 ? conn.latency_ms.toFixed(2) : Math.round(conn.latency_ms)} ms`
-											: "—"}
-									</td>
-									<td className="py-2 pr-4 text-xs text-content-secondary">
-										{conn.home_derp ? conn.home_derp.name : "—"}
-									</td>
-									<td className="py-2 text-xs text-content-secondary">
-										{new Date(connectedTime).toLocaleString()}
-									</td>
-								</tr>
-							);
-						})}
-					</tbody>
-				</table>
+				{sessions.map((session, idx) => (
+					<SessionRow key={`${session.ip}-${idx}`} session={session} />
+				))}
 			</div>
 		</section>
+	);
+};
+
+const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
+	const [expanded, setExpanded] = useState(false);
+	const hasMultiple = session.connections.length > 1;
+
+	const displayName =
+		session.short_description || session.client_hostname || session.ip || "Unknown";
+
+	return (
+		<Collapsible open={expanded} onOpenChange={setExpanded}>
+			<CollapsibleTrigger asChild disabled={!hasMultiple}>
+				<div
+					className={`flex items-center gap-3 py-2 rounded ${hasMultiple ? "cursor-pointer hover:bg-surface-secondary" : ""}`}
+				>
+					{hasMultiple && <DropdownArrow open={expanded} />}
+					{!hasMultiple && <div className="w-4" />}
+					<span className="font-mono text-xs">{displayName}</span>
+					<span className="text-xs text-content-secondary">
+						{session.connections.length}{" "}
+						{session.connections.length === 1 ? "connection" : "connections"}
+					</span>
+					<span className="inline-flex items-center gap-1.5 text-xs">
+						<span
+							className={`inline-block h-2 w-2 rounded-full ${connectionStatusDot(session.status)}`}
+						/>
+						<span className={connectionStatusColor(session.status)}>
+							{connectionStatusLabel(session.status)}
+						</span>
+					</span>
+				</div>
+			</CollapsibleTrigger>
+			{hasMultiple && (
+				<CollapsibleContent>
+					<div className="pl-6 border-l border-border ml-2 mb-2">
+						{session.connections.map((conn, idx) => (
+							<div
+								key={`${conn.type}-${conn.created_at}-${idx}`}
+								className="flex items-center gap-3 py-1.5 text-xs"
+							>
+								<span>{connectionTypeLabel(conn.type, conn.detail)}</span>
+								<span className="text-content-secondary">
+									{new Date(
+										conn.connected_at ?? conn.created_at,
+									).toLocaleString()}
+								</span>
+							</div>
+						))}
+					</div>
+				</CollapsibleContent>
+			)}
+		</Collapsible>
 	);
 };
 
