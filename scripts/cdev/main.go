@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
+
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
@@ -40,23 +42,43 @@ func cleanCmd() *serpent.Command {
 		Use:   "clean",
 		Short: "Remove all cdev-managed resources (volumes, containers, etc.)",
 		Handler: func(inv *serpent.Invocation) error {
-			cmd := exec.Command("docker", "system", "prune", "-f", "--filter", fmt.Sprintf("label=%s", catalog.CDevLabel))
-			cmd.Stderr = inv.Stderr
-			cmd.Stdout = inv.Stdout
-			_, _ = fmt.Fprintf(inv.Stdout, "🧹 Cleaning up cdev containers and networks...\n")
-			err := cmd.Run()
+			pool, err := dockertest.NewPool("")
 			if err != nil {
-				return fmt.Errorf("failed to prune system: %w", err)
+				return fmt.Errorf("failed to connect to docker: %w", err)
 			}
 
-			cmd = exec.Command("docker", "volume", "prune", "-f", "--filter", fmt.Sprintf("label=%s", catalog.CDevLabel))
-			cmd.Stderr = inv.Stderr
-			cmd.Stdout = inv.Stdout
-
-			_, _ = fmt.Fprintln(inv.Stdout, "🧹 Cleaning up cdev volumes...\n")
-			err = cmd.Run()
+			res, err := pool.Client.PruneContainers(docker.PruneContainersOptions{
+				Filters: map[string][]string{
+					"label": {catalog.CDevLabel},
+				},
+				Context: nil,
+			})
 			if err != nil {
-				return fmt.Errorf("failed to prune volumes: %w", err)
+				return fmt.Errorf("failed to prune containers: %w", err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "🧹 Deleted %d containers and reclaimed %d bytes of space\n", len(res.ContainersDeleted), res.SpaceReclaimed)
+			for _, id := range res.ContainersDeleted {
+				_, _ = fmt.Fprintf(inv.Stdout, "🧹 Deleted container %s\n", id)
+			}
+
+			vols, err := pool.Client.ListVolumes(docker.ListVolumesOptions{
+				Filters: map[string][]string{
+					"label": {catalog.CDevLabel},
+				},
+			})
+
+			for _, vol := range vols {
+				err = pool.Client.RemoveVolumeWithOptions(docker.RemoveVolumeOptions{
+					Context: nil,
+					Name:    vol.Name,
+					Force:   true,
+				})
+				if err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "failed to remove volume %s: %v\n", vol.Name, err)
+					// Continue trying to remove other volumes even if one fails.
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "🧹 Deleted volume %s\n", vol.Name)
 			}
 
 			return nil
