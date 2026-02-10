@@ -1,6 +1,7 @@
 import { MockLicenseResponse } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { LicenseCard } from "./LicenseCard";
 
 describe("LicenseCard", () => {
@@ -38,6 +39,44 @@ describe("LicenseCard", () => {
 		await screen.findByText("#1");
 		await screen.findByText("1 / Unlimited");
 		await screen.findByText("Enterprise");
+	});
+
+	it("shows expired removal message for expired licenses", async () => {
+		const user = userEvent.setup();
+		render(
+			<LicenseCard
+				license={MockLicenseResponse[3]}
+				userLimitActual={1}
+				userLimitLimit={10}
+				onRemove={() => null}
+				isRemoving={false}
+			/>,
+		);
+
+		const removeButton = await screen.findByRole("button", { name: /remove/i });
+		await user.click(removeButton);
+
+		await screen.findByText(/This license has already expired/);
+	});
+
+	it("shows disabling features warning for active licenses", async () => {
+		const user = userEvent.setup();
+		render(
+			<LicenseCard
+				license={MockLicenseResponse[0]}
+				userLimitActual={1}
+				userLimitLimit={10}
+				onRemove={() => null}
+				isRemoving={false}
+			/>,
+		);
+
+		const removeButton = await screen.findByRole("button", { name: /remove/i });
+		await user.click(removeButton);
+
+		await screen.findByText(
+			/Removing this license will disable all Premium features/,
+		);
 	});
 
 	it("renders license's user_limit when it is available instead of using the default", async () => {
