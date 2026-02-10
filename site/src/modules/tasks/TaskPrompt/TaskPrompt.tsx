@@ -8,6 +8,7 @@ import type {
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
@@ -235,7 +236,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			{externalAuthError && <ErrorAlert error={externalAuthError} />}
 
 			<fieldset
-				className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary"
+				className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary min-w-0"
 				disabled={createTaskMutation.isPending}
 			>
 				<label htmlFor="prompt" className="sr-only">
@@ -248,9 +249,9 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					isSubmitting={createTaskMutation.isPending}
 					onKeyDown={handleKeyDown}
 				/>
-				<div className="flex items-center justify-between pt-2">
-					<div className="flex items-center gap-1">
-						<div>
+				<div className="flex items-center justify-between pt-2 gap-2">
+					<div className="flex items-center gap-1 flex-1 min-w-0">
+						<div className="min-w-0 max-w-[33%]">
 							<label htmlFor="templateID" className="sr-only">
 								Select template
 							</label>
@@ -292,7 +293,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						</div>
 
 						{permissions.updateTemplates && (
-							<div>
+							<div className="min-w-0 max-w-[33%]">
 								<label htmlFor="versionId" className="sr-only">
 									Template version
 								</label>
@@ -324,7 +325,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										<PromptSelectTrigger
 											id="presetID"
 											tooltip="Preset"
-											className="w-full max-w-full [&_span]:flex [&_span]:items-center [&_span]:gap-2 [&_span]:min-w-0 [&_span]:overflow-hidden [&_span>span]:truncate [&_svg[data-slot='preset-description']]:hidden"
+											className="max-w-full [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span>span]:truncate [&>span>span]:min-w-0 [&_svg[data-slot='preset-description']]:hidden"
 										>
 											<SelectValue placeholder="Select a preset" />
 										</PromptSelectTrigger>
@@ -339,12 +340,17 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 														<img
 															src={preset.Icon}
 															alt={preset.Name}
-															className="size-icon-sm flex-shrink-0"
+															className="size-icon-sm shrink-0"
 														/>
 													)}
-													<span>
-														{preset.Name} {preset.Default && "(Default)"}
+													<span className="truncate min-w-0">
+														{preset.Name}
 													</span>
+													{preset.Default && (
+														<Badge size="xs" className="shrink-0">
+															Default
+														</Badge>
+													)}
 													{preset.Description && (
 														<Tooltip>
 															<TooltipTrigger asChild>
