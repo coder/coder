@@ -260,13 +260,15 @@ resource "coder_devcontainer" "my-repository" {
   workspace_folder = "/home/coder/my-repository"
 }
 
-# Attach a custom app to the dev container sub-agent.
-resource "coder_app" "code-server" {
-  agent_id     = coder_devcontainer.my-repository[0].subagent_id
-  slug         = "code-server"
-  display_name = "Code Server"
-  url          = "http://localhost:13337"
-  icon         = "/icon/code.svg"
+# Attaching resources to dev containers is optional. By attaching
+# this resource to the dev container, we are changing how the dev
+# container will be treated by Coder. This limits the ability to
+# customize the injected agent via the devcontainer.json file.
+resource "coder_env" "env" {
+  count    = data.coder_workspace.me.start_count
+  agent_id = coder_devcontainer.my-repository[0].subagent_id
+  name     = "MY_VAR"
+  value    = "my-value"
 }
 ```
 
