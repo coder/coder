@@ -37,6 +37,7 @@ import TextareaAutosize, {
 } from "react-textarea-autosize";
 import { docs } from "utils/docs";
 import { getOSKey } from "utils/platform";
+import { PromptField, PromptFieldLabel } from "./PromptField";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
@@ -251,13 +252,8 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				/>
 				<div className="flex flex-col md:flex-row md:items-center justify-between pt-2 gap-6 md:gap-2">
 					<div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-1 flex-1 min-w-0">
-						<div className="min-w-0 w-full md:w-auto md:max-w-[33%] flex flex-col gap-2 md:gap-0">
-							<label
-								htmlFor="templateID"
-								className="text-xs font-medium text-content-secondary pl-4 md:sr-only"
-							>
-								Template
-							</label>
+						<PromptField>
+							<PromptFieldLabel htmlFor="templateID">Template</PromptFieldLabel>
 							<Select
 								name="templateID"
 								onValueChange={(value) => {
@@ -293,32 +289,24 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									})}
 								</SelectContent>
 							</Select>
-						</div>
+						</PromptField>
 
 						{permissions.updateTemplates && (
-							<div className="min-w-0 w-full md:w-auto md:max-w-[33%] flex flex-col gap-2 md:gap-0">
-								<label
-									htmlFor="versionId"
-									className="text-xs font-medium text-content-secondary pl-4 md:sr-only"
-								>
+							<PromptField>
+								<PromptFieldLabel htmlFor="versionId">
 									Template version
-								</label>
+								</PromptFieldLabel>
 								<TemplateVersionSelect
 									templateId={selectedTemplateId}
 									activeVersionId={selectedTemplate.active_version_id}
 									value={selectedVersionId}
 									onValueChange={setSelectedVersionId}
 								/>
-							</div>
+							</PromptField>
 						)}
 
-						<div className="min-w-0 w-full md:w-auto md:max-w-[33%] flex flex-col gap-2 md:gap-0">
-							<label
-								htmlFor="presetID"
-								className="text-xs font-medium text-content-secondary pl-4 md:sr-only"
-							>
-								Preset
-							</label>
+						<PromptField>
+							<PromptFieldLabel htmlFor="presetID">Preset</PromptFieldLabel>
 							{isLoadingPresets ? (
 								<Skeleton className="w-[140px] h-8 rounded-full" />
 							) : (
@@ -379,7 +367,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									</Select>
 								)
 							)}
-						</div>
+						</PromptField>
 					</div>
 
 					<div className="flex items-center gap-2 md:shrink-0">
