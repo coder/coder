@@ -50,6 +50,13 @@ func OnCoderd() string {
 type Coderd struct {
 	haCount int64
 
+	// ExtraEnv contains additional "KEY=VALUE" environment variables
+	// for the coderd container, set by Configure callbacks.
+	ExtraEnv []string
+	// ExtraArgs contains additional CLI arguments for the coderd
+	// server command, set by Configure callbacks.
+	ExtraArgs []string
+
 	containerID string
 	result      CoderdResult
 }
@@ -188,6 +195,39 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 	cntLogger := slog.Make(cntSink)
 	defer cntSink.Close()
 
+	env := []string{
+		// Use host networking for postgres since it's on localhost.
+		fmt.Sprintf("CODER_PG_CONNECTION_URL=%s", pg.Result().URL),
+		fmt.Sprintf("CODER_HTTP_ADDRESS=%s", httpAddress),
+		fmt.Sprintf("CODER_ACCESS_URL=%s", accessURL),
+		"CODER_SWAGGER_ENABLE=true",
+		"CODER_DANGEROUS_ALLOW_CORS_REQUESTS=true",
+		"CODER_TELEMETRY_ENABLE=false",
+		"GOMODCACHE=/go-cache/mod",
+		"GOCACHE=/go-cache/build",
+		"CODER_CACHE_DIRECTORY=/cache",
+		fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
+		"CODER_PPROF_ENABLE=true",
+		fmt.Sprintf("CODER_PPROF_ADDRESS=0.0.0.0:%d", PprofPortNum(index)),
+	}
+	env = append(env, c.ExtraEnv...)
+
+	cmd := []string{
+		"go", "run", "./enterprise/cmd/coder", "server",
+		"--http-address", httpAddress,
+		"--access-url", accessURL,
+		"--swagger-enable",
+		"--dangerous-allow-cors-requests=true",
+		"--enable-terraform-debug-mode",
+		"--pprof-enable",
+		"--pprof-address", fmt.Sprintf("127.0.0.1:%d", PprofPortNum(index)),
+		// OIDC configuration from the OIDC service.
+		"--oidc-issuer-url", oidc.Result().IssuerURL,
+		"--oidc-client-id", oidc.Result().ClientID,
+		"--oidc-client-secret", oidc.Result().ClientSecret,
+	}
+	cmd = append(cmd, c.ExtraArgs...)
+
 	// Start new container.
 	result, err := RunContainer(ctx, pool, CDevCoderd, ContainerRunOptions{
 		CreateOpts: docker.CreateContainerOptions{
@@ -195,35 +235,8 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 			Config: &docker.Config{
 				Image:      dogfoodImage + ":" + dogfoodTag,
 				WorkingDir: "/app",
-				Env: []string{
-					// Use host networking for postgres since it's on localhost.
-					fmt.Sprintf("CODER_PG_CONNECTION_URL=%s", pg.Result().URL),
-					fmt.Sprintf("CODER_HTTP_ADDRESS=%s", httpAddress),
-					fmt.Sprintf("CODER_ACCESS_URL=%s", accessURL),
-					"CODER_SWAGGER_ENABLE=true",
-					"CODER_DANGEROUS_ALLOW_CORS_REQUESTS=true",
-					"CODER_TELEMETRY_ENABLE=false",
-					"GOMODCACHE=/go-cache/mod",
-					"GOCACHE=/go-cache/build",
-					"CODER_CACHE_DIRECTORY=/cache",
-					fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
-					"CODER_PPROF_ENABLE=true",
-					fmt.Sprintf("CODER_PPROF_ADDRESS=0.0.0.0:%d", PprofPortNum(index)),
-				},
-				Cmd: []string{
-					"go", "run", "./enterprise/cmd/coder", "server",
-					"--http-address", httpAddress,
-					"--access-url", accessURL,
-					"--swagger-enable",
-					"--dangerous-allow-cors-requests=true",
-					"--enable-terraform-debug-mode",
-					"--pprof-enable",
-					"--pprof-address", fmt.Sprintf("127.0.0.1:%d", PprofPortNum(index)),
-					// OIDC configuration from the OIDC service.
-					"--oidc-issuer-url", oidc.Result().IssuerURL,
-					"--oidc-client-id", oidc.Result().ClientID,
-					"--oidc-client-secret", oidc.Result().ClientSecret,
-				},
+				Env:        env,
+				Cmd:        cmd,
 				Labels: labels,
 				ExposedPorts: map[docker.Port]struct{}{
 					docker.Port(portStr + "/tcp"):      {},
