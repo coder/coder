@@ -494,7 +494,10 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 								key={`${conn.type}-${conn.created_at}-${idx}`}
 								className="flex items-center gap-3 py-1.5 text-xs"
 							>
-								<span>{connectionTypeLabel(conn.type, conn.detail)}</span>
+								<span>
+									{conn.short_description ||
+										connectionTypeLabel(conn.type, conn.detail)}
+								</span>
 								<span className="text-content-secondary">
 									{new Date(
 										conn.connected_at ?? conn.created_at,
