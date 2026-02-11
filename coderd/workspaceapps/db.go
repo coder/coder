@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -444,7 +445,12 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			userID = aReq.apiKey.UserID
 		}
 		userAgent := r.UserAgent()
+		// Strip the port from RemoteAddr (which is "host:port")
+		// so that database.ParseIP can parse the bare IP address.
 		ip := r.RemoteAddr
+		if host, _, err := net.SplitHostPort(ip); err == nil {
+			ip = host
+		}
 
 		// Approximation of the status code.
 		// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)

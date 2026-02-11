@@ -2110,7 +2110,7 @@ SET
     disconnect_reason = COALESCE(cl.disconnect_reason, $2),
     session_id = ns.id
 FROM connections_to_close ctc
-JOIN new_sessions ns ON ctc.ip = ns.ip
+JOIN new_sessions ns ON ctc.ip IS NOT DISTINCT FROM ns.ip
 WHERE cl.id = ctc.id
 `
 
