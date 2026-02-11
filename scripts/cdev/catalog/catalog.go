@@ -114,7 +114,7 @@ func (c *Catalog) registerOne(s ServiceBase) error {
 	}
 
 	// Register with unit manager.
-	if err := c.manager.Register(unit.ID(name)); err != nil {
+	if err := c.manager.Register(unit.ID(name)); err != nil && !xerrors.Is(err, unit.ErrUnitAlreadyRegistered) {
 		return xerrors.Errorf("register %s with manager: %w", name, err)
 	}
 

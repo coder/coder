@@ -13,6 +13,7 @@ const (
 	CDevBuildSlim ServiceName = "build-slim"
 	CDevPostgres  ServiceName = "postgres"
 	CDevCoderd    ServiceName = "coderd"
+	CDevOIDC      ServiceName = "oidc"
 )
 
 type Labels map[string]string

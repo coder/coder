@@ -58,6 +58,7 @@ func (c *Coderd) DependsOn() []string {
 		OnDocker(),
 		OnPostgres(),
 		OnBuildSlim(),
+		OnOIDC(),
 	}
 }
 

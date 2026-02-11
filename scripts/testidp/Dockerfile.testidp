@@ -1,0 +1,25 @@
+# Dockerfile for testidp - a fake OIDC identity provider for development.
+# This is used by the cdev catalog to run a local OIDC provider.
+FROM golang:1.25.6-alpine AS builder
+
+WORKDIR /app
+
+# Copy go mod files first for better caching.
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code (testidp has many transitive deps within the repo).
+COPY . .
+
+# Build the testidp binary.
+RUN CGO_ENABLED=0 go build -o /testidp ./scripts/testidp
+
+# Runtime image.
+FROM alpine:3.21
+
+COPY --from=builder /testidp /testidp
+
+# Default port for the IDP.
+EXPOSE 4500
+
+ENTRYPOINT ["/testidp"]
