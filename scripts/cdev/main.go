@@ -27,6 +27,7 @@ func main() {
 		Children: []*serpent.Command{
 			upCmd(),
 			watchCmd(),
+			downCmd(),
 			cleanCmd(),
 		},
 	}
@@ -51,6 +52,23 @@ func cleanCmd() *serpent.Command {
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 
 			return cleanup.Cleanup(inv.Context(), logger, pool)
+		},
+	}
+}
+
+func downCmd() *serpent.Command {
+	return &serpent.Command{
+		Use:   "down",
+		Short: "Stop all running cdev-managed containers, but keep volumes and other resources.",
+		Handler: func(inv *serpent.Invocation) error {
+			pool, err := dockertest.NewPool("")
+			if err != nil {
+				return fmt.Errorf("failed to connect to docker: %w", err)
+			}
+
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+
+			return cleanup.Down(inv.Context(), logger, pool)
 		},
 	}
 }
