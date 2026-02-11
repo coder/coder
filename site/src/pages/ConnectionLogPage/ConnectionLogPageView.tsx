@@ -1,4 +1,4 @@
-import type { ConnectionLog } from "api/typesGenerated";
+import type { GlobalWorkspaceSession } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
@@ -20,36 +20,36 @@ import type { ComponentProps, FC } from "react";
 import { docs } from "utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
-import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
+import { GlobalSessionRow } from "./GlobalSessionRow";
 
 const Language = {
 	title: "Connection Log",
-	subtitle: "View workspace connection events.",
+	subtitle: "View workspace connection sessions.",
 };
 
 interface ConnectionLogPageViewProps {
-	connectionLogs?: readonly ConnectionLog[];
+	sessions?: readonly GlobalWorkspaceSession[];
 	isNonInitialPage: boolean;
 	isConnectionLogVisible: boolean;
 	error?: unknown;
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
-	connectionLogsQuery: PaginationResult;
+	sessionsQuery: PaginationResult;
 }
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
-	connectionLogs,
+	sessions,
 	isNonInitialPage,
 	isConnectionLogVisible,
 	error,
 	filterProps,
-	connectionLogsQuery: paginationResult,
+	sessionsQuery: paginationResult,
 }) => {
 	const isLoading =
-		(connectionLogs === undefined ||
+		(sessions === undefined ||
 			paginationResult.totalRecords === undefined) &&
 		!error;
 
-	const isEmpty = !isLoading && connectionLogs?.length === 0;
+	const isEmpty = !isLoading && sessions?.length === 0;
 
 	return (
 		<Margins className="pb-12">
@@ -69,7 +69,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 
 					<PaginationContainer
 						query={paginationResult}
-						paginationUnitLabel="logs"
+						paginationUnitLabel="sessions"
 					>
 						<Table>
 							<TableBody>
@@ -78,7 +78,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 									<Cond condition={Boolean(error)}>
 										<TableRow>
 											<TableCell colSpan={999}>
-												<EmptyState message="An error occurred while loading connection logs" />
+												<EmptyState message="An error occurred while loading sessions" />
 											</TableCell>
 										</TableRow>
 									</Cond>
@@ -92,7 +92,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 											<Cond condition={isNonInitialPage}>
 												<TableRow>
 													<TableCell colSpan={999}>
-														<EmptyState message="No connection logs available on this page" />
+														<EmptyState message="No sessions available on this page" />
 													</TableCell>
 												</TableRow>
 											</Cond>
@@ -100,7 +100,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 											<Cond>
 												<TableRow>
 													<TableCell colSpan={999}>
-														<EmptyState message="No connection logs available" />
+														<EmptyState message="No sessions available" />
 													</TableCell>
 												</TableRow>
 											</Cond>
@@ -108,12 +108,15 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 									</Cond>
 
 									<Cond>
-										{connectionLogs && (
+										{sessions && (
 											<Timeline
-												items={connectionLogs}
-												getDate={(log) => new Date(log.connect_time)}
-												row={(log) => (
-													<ConnectionLogRow key={log.id} connectionLog={log} />
+												items={sessions}
+												getDate={(session) => new Date(session.started_at)}
+												row={(session) => (
+													<GlobalSessionRow
+														key={session.id ?? session.started_at}
+														session={session}
+													/>
 												)}
 											/>
 										)}

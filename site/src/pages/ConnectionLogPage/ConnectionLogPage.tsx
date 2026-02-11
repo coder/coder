@@ -1,4 +1,4 @@
-import { paginatedConnectionLogs } from "api/queries/connectionlog";
+import { paginatedGlobalWorkspaceSessions } from "api/queries/globalWorkspaceSessions";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
@@ -9,7 +9,6 @@ import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
-import { useStatusFilterMenu, useTypeFilterMenu } from "./ConnectionLogFilter";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 const ConnectionLogPage: FC = () => {
@@ -24,13 +23,13 @@ const ConnectionLogPage: FC = () => {
 	const { showOrganizations } = useDashboard();
 
 	const [searchParams, setSearchParams] = useSearchParams();
-	const connectionlogsQuery = usePaginatedQuery(
-		paginatedConnectionLogs(searchParams),
+	const sessionsQuery = usePaginatedQuery(
+		paginatedGlobalWorkspaceSessions(searchParams),
 	);
 	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		onUpdate: connectionlogsQuery.goToFirstPage,
+		onUpdate: sessionsQuery.goToFirstPage,
 	});
 
 	const userMenu = useUserFilterMenu({
@@ -39,24 +38,6 @@ const ConnectionLogPage: FC = () => {
 			filter.update({
 				...filter.values,
 				workspace_owner: option?.value,
-			}),
-	});
-
-	const statusMenu = useStatusFilterMenu({
-		value: filter.values.status,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				status: option?.value,
-			}),
-	});
-
-	const typeMenu = useTypeFilterMenu({
-		value: filter.values.type,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				type: option?.value,
 			}),
 	});
 
@@ -74,18 +55,16 @@ const ConnectionLogPage: FC = () => {
 			<title>{pageTitle("Connection Log")}</title>
 
 			<ConnectionLogPageView
-				connectionLogs={connectionlogsQuery.data?.connection_logs}
+				sessions={sessionsQuery.data?.sessions}
 				isNonInitialPage={isNonInitialPage(searchParams)}
 				isConnectionLogVisible={isConnectionLogVisible}
-				connectionLogsQuery={connectionlogsQuery}
-				error={connectionlogsQuery.error}
+				sessionsQuery={sessionsQuery}
+				error={sessionsQuery.error}
 				filterProps={{
 					filter,
-					error: connectionlogsQuery.error,
+					error: sessionsQuery.error,
 					menus: {
 						user: userMenu,
-						status: statusMenu,
-						type: typeMenu,
 						organization: showOrganizations ? organizationsMenu : undefined,
 					},
 				}}

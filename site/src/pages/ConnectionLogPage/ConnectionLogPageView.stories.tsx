@@ -1,9 +1,6 @@
+import type { GlobalWorkspaceSession } from "api/typesGenerated";
 import { chromaticWithTablet } from "testHelpers/chromatic";
-import {
-	MockConnectedSSHConnectionLog,
-	MockDisconnectedSSHConnectionLog,
-	MockUserOwner,
-} from "testHelpers/entities";
+import { MockUserOwner } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	getDefaultFilterProps,
@@ -20,28 +17,63 @@ import { ConnectionLogPageView } from "./ConnectionLogPageView";
 type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-	query: `username:${MockUserOwner.username}`,
+	query: `workspace_owner:${MockUserOwner.username}`,
 	values: {
-		username: MockUserOwner.username,
-		status: undefined,
-		type: undefined,
+		workspace_owner: MockUserOwner.username,
 		organization: undefined,
 	},
 	menus: {
 		user: MockMenu,
-		status: MockMenu,
-		type: MockMenu,
 	},
 });
+
+const MockGlobalSession: GlobalWorkspaceSession = {
+	id: "session-1",
+	workspace_id: "workspace-1",
+	workspace_name: "my-workspace",
+	workspace_owner_username: "testuser",
+	ip: "192.168.1.100",
+	client_hostname: "dev-laptop",
+	status: "ongoing",
+	started_at: "2024-01-15T10:00:00Z",
+	connections: [
+		{
+			ip: "192.168.1.100",
+			status: "ongoing",
+			created_at: "2024-01-15T10:00:00Z",
+			connected_at: "2024-01-15T10:00:01Z",
+			type: "ssh",
+			client_hostname: "dev-laptop",
+		},
+	],
+};
+
+const MockEndedSession: GlobalWorkspaceSession = {
+	id: "session-2",
+	workspace_id: "workspace-2",
+	workspace_name: "staging-env",
+	workspace_owner_username: "admin",
+	ip: "10.0.0.5",
+	status: "clean_disconnected",
+	started_at: "2024-01-15T08:00:00Z",
+	ended_at: "2024-01-15T09:30:00Z",
+	connections: [
+		{
+			ip: "10.0.0.5",
+			status: "clean_disconnected",
+			created_at: "2024-01-15T08:00:00Z",
+			connected_at: "2024-01-15T08:00:01Z",
+			ended_at: "2024-01-15T09:30:00Z",
+			type: "vscode",
+		},
+	],
+};
 
 const meta: Meta<typeof ConnectionLogPageView> = {
 	title: "pages/ConnectionLogPage",
 	component: ConnectionLogPageView,
 	args: {
-		connectionLogs: [
-			MockConnectedSSHConnectionLog,
-			MockDisconnectedSSHConnectionLog,
-		],
+		sessions: [MockGlobalSession, MockEndedSession],
 		isConnectionLogVisible: true,
 		filterProps: defaultFilterProps,
 	},
@@ -50,37 +82,37 @@ const meta: Meta<typeof ConnectionLogPageView> = {
 export default meta;
 type Story = StoryObj<typeof ConnectionLogPageView>;
 
-export const ConnectionLog: Story = {
+export const Sessions: Story = {
 	parameters: { chromatic: chromaticWithTablet },
 	args: {
-		connectionLogsQuery: mockSuccessResult,
+		sessionsQuery: mockSuccessResult,
 	},
 };
 
 export const Loading: Story = {
 	args: {
-		connectionLogs: undefined,
+		sessions: undefined,
 		isNonInitialPage: false,
-		connectionLogsQuery: mockInitialRenderResult,
+		sessionsQuery: mockInitialRenderResult,
 	},
 };
 
 export const EmptyPage: Story = {
 	args: {
-		connectionLogs: [],
+		sessions: [],
 		isNonInitialPage: true,
-		connectionLogsQuery: {
+		sessionsQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
 		} as UsePaginatedQueryResult,
 	},
 };
 
-export const NoLogs: Story = {
+export const NoSessions: Story = {
 	args: {
-		connectionLogs: [],
+		sessions: [],
 		isNonInitialPage: false,
-		connectionLogsQuery: {
+		sessionsQuery: {
 			...mockSuccessResult,
 			totalRecords: 0,
 		} as UsePaginatedQueryResult,
@@ -90,6 +122,6 @@ export const NoLogs: Story = {
 export const NotVisible: Story = {
 	args: {
 		isConnectionLogVisible: false,
-		connectionLogsQuery: mockInitialRenderResult,
+		sessionsQuery: mockInitialRenderResult,
 	},
 };

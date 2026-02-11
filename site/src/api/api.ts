@@ -1917,6 +1917,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getGlobalWorkspaceSessions = async (
+		options: TypesGen.GlobalWorkspaceSessionsRequest,
+	): Promise<TypesGen.GlobalWorkspaceSessionsResponse> => {
+		const url = getURLWithSearchParams(
+			"/api/v2/connectionlog/sessions",
+			options,
+		);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
 	getTemplateDAUs = async (
 		templateId: string,
 	): Promise<TypesGen.DAUsResponse> => {
