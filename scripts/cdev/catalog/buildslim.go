@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/ory/dockertest/v3"
@@ -42,6 +41,7 @@ func (b *BuildSlim) DependsOn() []string {
 }
 
 func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
+	logger := c.Logger()
 	dkr := c.MustGet(OnDocker()).(*Docker)
 	goCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_go_cache",
@@ -87,95 +87,44 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 		echo "Slim binaries built and cached."
 	`
 
-	// Configure container run options.
-	runOpts := &dockertest.RunOptions{
-		Repository: dogfoodImage,
-		Tag:        dogfoodTag,
-		WorkingDir: "/app",
-		Env: []string{
-			"GOMODCACHE=/go-cache/mod",
-			"GOCACHE=/go-cache/build",
-			fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
-		},
-		Mounts: []string{
-			fmt.Sprintf("%s:/app", cwd),
-			fmt.Sprintf("%s:/go-cache", goCache.Name),
-			fmt.Sprintf("%s:/cache", coderCache.Name),
-			fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
-		},
-		Cmd:    []string{"sh", "-c", buildCmd},
-		Labels: map[string]string{"cdev": "true"},
-	}
+	logger.Info(ctx, "building slim binaries")
 
-	// Set up output handling.
 	var stdout, stderr bytes.Buffer
-	var stdoutWriter, stderrWriter io.Writer = &stdout, &stderr
-	if b.Verbose {
-		stdoutWriter = io.MultiWriter(&stdout, os.Stdout)
-		stderrWriter = io.MultiWriter(&stderr, os.Stderr)
-	}
-	fmt.Println("🔨 Building slim binaries...")
-
-	// Create container (don't start yet, so we can attach first).
-	container, err := pool.Client.CreateContainer(docker.CreateContainerOptions{
-		Config: &docker.Config{
-			Image:        dogfoodImage + ":" + dogfoodTag,
-			WorkingDir:   "/app",
-			Env:          runOpts.Env,
-			Cmd:          runOpts.Cmd,
-			Labels:       runOpts.Labels,
-			AttachStdout: true,
-			AttachStderr: true,
+	_, err = RunContainer(ctx, pool, CDevBuildSlim, ContainerRunOptions{
+		CreateOpts: docker.CreateContainerOptions{
+			Config: &docker.Config{
+				Image:      dogfoodImage + ":" + dogfoodTag,
+				WorkingDir: "/app",
+				Env: []string{
+					"GOMODCACHE=/go-cache/mod",
+					"GOCACHE=/go-cache/build",
+					fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
+				},
+				Cmd:          []string{"sh", "-c", buildCmd},
+				Labels:       NewLabels(CDevBuildSlim),
+				AttachStdout: true,
+				AttachStderr: true,
+			},
+			HostConfig: &docker.HostConfig{
+				Binds: []string{
+					fmt.Sprintf("%s:/app", cwd),
+					fmt.Sprintf("%s:/go-cache", goCache.Name),
+					fmt.Sprintf("%s:/cache", coderCache.Name),
+					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
+				},
+				GroupAdd:    []string{dockerGroup},
+				NetworkMode: "host",
+			},
 		},
-		HostConfig: &docker.HostConfig{
-			Binds:       runOpts.Mounts,
-			GroupAdd:    []string{dockerGroup},
-			NetworkMode: "host",
-		},
+		Logger: logger,
+		Stdout: &stdout,
+		Stderr: &stderr,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create build container: %w", err)
+		return err
 	}
 
-	defer func() {
-		_ = pool.Client.RemoveContainer(docker.RemoveContainerOptions{
-			ID:    container.ID,
-			Force: true,
-		})
-	}()
-
-	// Attach BEFORE starting to capture all output from the beginning.
-	attachDone := make(chan error, 1)
-	go func() {
-		attachDone <- pool.Client.AttachToContainer(docker.AttachToContainerOptions{
-			Container:    container.ID,
-			OutputStream: stdoutWriter,
-			ErrorStream:  stderrWriter,
-			Stdout:       true,
-			Stderr:       true,
-			Stream:       true,
-		})
-	}()
-
-	// Start the container.
-	if err := pool.Client.StartContainer(container.ID, nil); err != nil {
-		return fmt.Errorf("failed to start build container: %w", err)
-	}
-
-	// Wait for container to complete.
-	exitCode, err := pool.Client.WaitContainerWithContext(container.ID, ctx)
-	if err != nil {
-		return fmt.Errorf("failed waiting for build: %w", err)
-	}
-
-	// Wait for attach to finish (ensures all logs are flushed).
-	<-attachDone
-
-	if exitCode != 0 {
-		return fmt.Errorf("build failed with exit code %d", exitCode)
-	}
-
-	fmt.Println("✅ Slim binaries built successfully")
+	logger.Info(ctx, "slim binaries built successfully")
 	return nil
 }
 

@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	CDevLabel          = "cdev"
 	CDevLabelEphemeral = "cdev/ephemeral"
 	CDevLabelCache     = "cdev/cache"
 )
@@ -54,6 +53,10 @@ func New(logger slog.Logger) *Catalog {
 		manager:  unit.NewManager(),
 		logger:   logger,
 	}
+}
+// Logger returns the catalog's logger.
+func (c *Catalog) Logger() slog.Logger {
+	return c.logger
 }
 
 func Get[T Service[R], R any](c *Catalog) R {
