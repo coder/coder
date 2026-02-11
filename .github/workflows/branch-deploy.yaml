@@ -119,20 +119,46 @@ jobs:
         run: |
           set -euo pipefail
 
+          wildcard_name="*.${BRANCH_HOSTNAME}"
+
+          echo "Checking whether DNS record ${wildcard_name} already exists."
+          set +e
+          existing_raw_response="$(
+            curl -sS -G "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+              -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type:application/json" \
+              --data-urlencode "name=${wildcard_name}" \
+              --data-urlencode "per_page=1" \
+              -w '\n%{http_code}'
+          )"
+          existing_curl_exit_code=$?
+          set -e
+
+          if [ "$existing_curl_exit_code" -eq 0 ]; then
+            existing_response="${existing_raw_response%$'\n'*}"
+            existing_http_code="${existing_raw_response##*$'\n'}"
+            if [ "$existing_http_code" = "200" ] && echo "$existing_response" | jq -e '.success == true and (.result | length) > 0' > /dev/null 2>&1; then
+              echo "DNS record already exists for ${wildcard_name}."
+              exit 0
+            fi
+          else
+            echo "Unable to check DNS record existence before create; continuing."
+          fi
+
           max_attempts=6
           attempt=1
           last_response=""
           last_http_code=""
 
           while [ "$attempt" -le "$max_attempts" ]; do
-            echo "Creating DNS record for ${BRANCH_HOSTNAME} (attempt ${attempt}/${max_attempts})."
+            echo "Creating DNS record for ${wildcard_name} (attempt ${attempt}/${max_attempts})."
 
             set +e
             raw_response="$(
               curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
                 -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
                 -H "Content-Type:application/json" \
-                --data '{"type":"CNAME","name":"*.'"${BRANCH_HOSTNAME}"'","content":"'"${BRANCH_HOSTNAME}"'","ttl":1,"proxied":false}' \
+                --data '{"type":"CNAME","name":"'"${wildcard_name}"'","content":"'"${BRANCH_HOSTNAME}"'","ttl":1,"proxied":false}' \
                 -w '\n%{http_code}'
             )"
             curl_exit_code=$?
@@ -152,13 +178,14 @@ jobs:
             last_http_code="$http_code"
 
             if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
-              echo "Created DNS record for ${BRANCH_HOSTNAME}."
+              echo "Created DNS record for ${wildcard_name}."
               exit 0
             fi
 
             # Cloudflare returns 81057 when the record already exists.
-            if echo "$response" | jq -e '.errors[]? | select(.code == 81057)' > /dev/null 2>&1; then
-              echo "DNS record already exists for ${BRANCH_HOSTNAME}."
+            # Cloudflare returns 81053 when another record with the host exists.
+            if echo "$response" | jq -e '.errors[]? | select(.code == 81057 or .code == 81053)' > /dev/null 2>&1; then
+              echo "DNS record already exists for ${wildcard_name}."
               exit 0
             fi
 
