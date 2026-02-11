@@ -98,8 +98,7 @@ RUN apt-get update && \
 	rm -rf /tmp/go/pkg && \
 	rm -rf /tmp/go/src
 
-# alpine:3.18
-FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
+FROM alpine:3.18 AS proto
 ARG TARGETARCH
 WORKDIR /tmp
 RUN apk add curl unzip
