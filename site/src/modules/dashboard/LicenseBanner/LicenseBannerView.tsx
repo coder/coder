@@ -5,7 +5,7 @@ import {
 import { Expander } from "components/Expander/Expander";
 import { Link } from "components/Link/Link";
 import { Pill } from "components/Pill/Pill";
-import { type FC, useState } from "react";
+import React, { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
@@ -17,20 +17,26 @@ const formatMessage = (message: string) => {
 	return message;
 };
 
-const messageLink = (message: string): { href: string; label: string } => {
+const messageLink = (
+	message: string,
+): Pick<React.ComponentProps<typeof Link>, "href" | "children" | "target"> => {
 	if (message === LicenseManagedAgentLimitExceededErrorText) {
 		return {
 			href: docs("/ai-coder/ai-governance"),
-			label: "View AI Governance",
+			children: "View AI Governance",
+			target: "_blank",
 		};
 	}
 	if (message === LicenseTelemetryRequiredErrorText) {
 		return {
 			href: "mailto:sales@coder.com",
-			label: "Contact sales@coder.com if you need an exception.",
+			children: "Contact sales@coder.com if you need an exception.",
 		};
 	}
-	return { href: "mailto:sales@coder.com", label: "Contact sales@coder.com." };
+	return {
+		href: "mailto:sales@coder.com",
+		children: "Contact sales@coder.com.",
+	};
 };
 
 interface LicenseBannerViewProps {
@@ -49,7 +55,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 
 	if (messages.length === 1) {
 		const [message] = messages;
-		const { href, label } = messageLink(message);
+		const { ...props } = messageLink(message);
 
 		return (
 			<div
@@ -67,10 +73,8 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 							"font-medium",
 							isError ? "!text-content-destructive" : "!text-content-warning",
 						)}
-						href={href}
-					>
-						{label}
-					</Link>
+						{...props}
+					/>
 				</div>
 			</div>
 		);
@@ -89,7 +93,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 				<Expander expanded={showDetails} setExpanded={setShowDetails}>
 					<ul className="p-2 m-0">
 						{messages.map((message) => {
-							const { href, label } = messageLink(message);
+							const { ...props } = messageLink(message);
 							return (
 								<li className="m-1" key={message}>
 									{formatMessage(message)}&nbsp;
@@ -100,10 +104,8 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 												? "!text-content-destructive"
 												: "!text-content-warning",
 										)}
-										href={href}
-									>
-										{label}
-									</Link>
+										{...props}
+									/>
 								</li>
 							);
 						})}
