@@ -146,3 +146,9 @@ INSERT INTO tailnet_peering_events (
 )
 VALUES
 	($1, $2, $3, $4, $5, $6);
+
+-- name: GetAllTailnetPeeringEventsByPeerID :many
+SELECT *
+FROM tailnet_peering_events
+WHERE src_peer_id = $1 OR dst_peer_id = $1
+ORDER BY peering_id, occurred_at;

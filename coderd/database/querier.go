@@ -178,6 +178,7 @@ type sqlcQuerier interface {
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
+	GetAllTailnetPeeringEventsByPeerID(ctx context.Context, srcPeerID uuid.NullUUID) ([]TailnetPeeringEvent, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
 	GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel, error)
 	// Atomic read+delete prevents replicas that flush between a separate read and

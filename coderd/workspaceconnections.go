@@ -7,13 +7,15 @@ import (
 	"slices"
 	"time"
 
+	"cdr.dev/slog/v3"
 	"github.com/google/uuid"
+	gProto "google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
-	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 const (
@@ -79,74 +81,75 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 	return conn
 }
 
-// mergeWorkspaceConnections combines coordinator tunnel peers with connection
-// logs into a unified view. Tunnel peers provide real-time network status,
+type peeringRecord struct {
+	agentID        uuid.UUID
+	controlEvents  []database.TailnetPeeringEvent
+	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow
+}
+
+// mergeWorkspaceConnections combines coordinator peering events with connection
+// logs into a unified view. Peering events provide control plane events,
 // connection logs provide the application-layer type (ssh, vscode, etc.).
 // Entries are correlated by tailnet IP address.
 func mergeWorkspaceConnections(
-	tunnelPeers []*tailnet.TunnelPeerInfo,
+	logger slog.Logger,
+	agentID uuid.UUID,
+	peeringEvents []database.TailnetPeeringEvent,
 	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
 ) []codersdk.WorkspaceConnection {
-	if len(tunnelPeers) == 0 && len(connectionLogs) == 0 {
+	if len(peeringEvents) == 0 && len(connectionLogs) == 0 {
+		logger.Info(context.Background(), "no peering events or connection logs", slog.F("agent_id", agentID))
 		return nil
 	}
+	agentAddr := tailnet.CoderServicePrefix.AddrFromUUID(agentID)
+	logger.Info(context.Background(), "agent address", slog.F("agent_id", agentID), slog.F("agent_addr", agentAddr))
 
-	// Build IP -> tunnel peer lookup. A single peer has one tailnet IP.
-	type peerEntry struct {
-		ip     netip.Addr
-		peer   *tailnet.TunnelPeerInfo
-		status codersdk.WorkspaceConnectionStatus
-	}
-	peersByIP := make(map[netip.Addr]*peerEntry, len(tunnelPeers))
-	for _, tp := range tunnelPeers {
-		if tp.Node == nil || len(tp.Node.Addresses) == 0 {
-			continue
+	peeringRecords := make(map[string]*peeringRecord)
+
+	for _, pe := range peeringEvents {
+		record, ok := peeringRecords[string(pe.PeeringID)]
+		if !ok {
+			logger.Info(context.Background(), "new peering record from event",
+				slog.F("peering_id", pe.PeeringID),
+				slog.F("agent_id", agentID),
+				slog.F("src_peer_id", pe.SrcPeerID.UUID),
+				slog.F("dst_peer_id", pe.DstPeerID.UUID),
+			)
+			record = &peeringRecord{
+				agentID: agentID,
+			}
+			peeringRecords[string(pe.PeeringID)] = record
 		}
-		prefix, err := netip.ParsePrefix(tp.Node.Addresses[0])
-		if err != nil {
-			continue
-		}
-		addr := prefix.Addr()
-		status := codersdk.ConnectionStatusOngoing
-		if tp.Status == tailnetproto.CoordinateResponse_PeerUpdate_LOST {
-			status = codersdk.ConnectionStatusControlLost
-		}
-		peersByIP[addr] = &peerEntry{ip: addr, peer: tp, status: status}
+		record.controlEvents = append(record.controlEvents, pe)
 	}
 
-	matchedPeerIPs := make(map[netip.Addr]bool)
 	var connections []codersdk.WorkspaceConnection
 
-	// Connection logs enriched with coordinator status.
 	for _, log := range connectionLogs {
-		conn := connectionFromLog(log)
-
-		// Try to match with a tunnel peer by IP.
-		if conn.IP != nil {
-			if pe, ok := peersByIP[*conn.IP]; ok {
-				conn.Status = pe.status
-				matchedPeerIPs[pe.ip] = true
-				conn.ClientHostname = pe.peer.Node.Hostname
-				conn.ShortDescription = pe.peer.Node.ShortDescription
-			}
-		}
-		connections = append(connections, conn)
-	}
-
-	// Unmatched tunnel peers (active tunnel, no app-layer log).
-	for ip, pe := range peersByIP {
-		if matchedPeerIPs[ip] {
+		if !log.Ip.Valid {
+			connections = append(connections, connectionFromLog(log))
 			continue
 		}
-		addr := pe.ip
-		connections = append(connections, codersdk.WorkspaceConnection{
-			IP:               &addr,
-			Status:           pe.status,
-			CreatedAt:        pe.peer.Start,
-			ConnectedAt:      &pe.peer.Start,
-			ClientHostname:   pe.peer.Node.Hostname,
-			ShortDescription: pe.peer.Node.ShortDescription,
-		})
+		clientIP, ok := netip.AddrFromSlice(log.Ip.IPNet.IP)
+		if !ok || clientIP.Is4() {
+			connections = append(connections, connectionFromLog(log))
+			continue
+		}
+		peeringID := tailnet.PeeringIDFromAddrs(agentAddr, clientIP)
+		record, ok := peeringRecords[string(peeringID)]
+		if !ok {
+			logger.Info(context.Background(), "new peering record from log", slog.F("peering_id", peeringID), slog.F("agent_id", agentID), slog.F("client_ip", clientIP))
+			record = &peeringRecord{
+				agentID: agentID,
+			}
+			peeringRecords[string(peeringID)] = record
+
+		}
+		record.connectionLogs = append(record.connectionLogs, log)
+	}
+
+	for _, record := range peeringRecords {
+		connections = append(connections, connectionFromRecord(record))
 	}
 
 	// Sort by IP then newest first for stable display order.
@@ -165,4 +168,68 @@ func mergeWorkspaceConnections(
 	})
 
 	return connections
+}
+
+func connectionFromRecord(record *peeringRecord) codersdk.WorkspaceConnection {
+	slices.SortFunc(record.controlEvents, func(a, b database.TailnetPeeringEvent) int {
+		return a.OccurredAt.Compare(b.OccurredAt)
+	})
+	slices.SortFunc(record.connectionLogs, func(a, b database.GetOngoingAgentConnectionsLast24hRow) int {
+		return a.ConnectTime.Compare(b.ConnectTime)
+	})
+	conn := codersdk.WorkspaceConnection{
+		Status: codersdk.ConnectionStatusOngoing,
+	}
+	for _, ce := range record.controlEvents {
+		if conn.CreatedAt.IsZero() {
+			conn.CreatedAt = ce.OccurredAt
+		}
+		switch ce.EventType {
+		case database.TailnetPeeringEventTypePeerUpdateLost:
+			conn.Status = codersdk.ConnectionStatusControlLost
+		case database.TailnetPeeringEventTypePeerUpdateDisconnected:
+			conn.Status = codersdk.ConnectionStatusCleanDisconnected
+			conn.EndedAt = &ce.OccurredAt
+		case database.TailnetPeeringEventTypeRemovedTunnel:
+			conn.Status = codersdk.ConnectionStatusCleanDisconnected
+			conn.EndedAt = &ce.OccurredAt
+		case database.TailnetPeeringEventTypeAddedTunnel:
+			clientIP := tailnet.CoderServicePrefix.AddrFromUUID(ce.SrcPeerID.UUID)
+			conn.IP = &clientIP
+		case database.TailnetPeeringEventTypePeerUpdateNode:
+			if ce.SrcPeerID.Valid && ce.SrcPeerID.UUID != record.agentID && ce.Node != nil {
+				pNode := new(proto.Node)
+				if err := gProto.Unmarshal(ce.Node, pNode); err == nil {
+					conn.ClientHostname = pNode.Hostname
+					conn.ShortDescription = pNode.ShortDescription
+				}
+			}
+		}
+	}
+	for _, log := range record.connectionLogs {
+		if conn.CreatedAt.IsZero() {
+			conn.CreatedAt = log.ConnectTime
+		}
+		if log.Ip.Valid {
+			if addr, ok := netip.AddrFromSlice(log.Ip.IPNet.IP); ok {
+				addr = addr.Unmap()
+				conn.IP = &addr
+			}
+		}
+		if log.SlugOrPort.Valid {
+			conn.Detail = log.SlugOrPort.String
+		}
+		if log.Type.Valid() {
+			conn.Type = codersdk.ConnectionType(log.Type)
+		}
+		if conn.Status != codersdk.ConnectionStatusControlLost &&
+			conn.Status != codersdk.ConnectionStatusCleanDisconnected && log.DisconnectTime.Valid {
+			conn.Status = codersdk.ConnectionStatusClientDisconnected
+		}
+		if conn.EndedAt == nil && log.DisconnectTime.Valid {
+			conn.EndedAt = &log.DisconnectTime.Time
+		}
+	}
+
+	return conn
 }

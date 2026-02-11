@@ -138,8 +138,15 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	tunnelPeers := (*api.TailnetCoordinator.Load()).TunnelPeers(waws.WorkspaceAgent.ID)
-	if conns := mergeWorkspaceConnections(tunnelPeers, connectionLogs); len(conns) > 0 {
+	peeringEvents, err := api.Database.GetAllTailnetPeeringEventsByPeerID(dbauthz.AsTailnetCoordinator(api.ctx), uuid.NullUUID{UUID: waws.WorkspaceAgent.ID, Valid: true})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent peering events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if conns := mergeWorkspaceConnections(api.Logger, waws.WorkspaceAgent.ID, peeringEvents, connectionLogs); len(conns) > 0 {
 		apiAgent.Connections = conns
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)

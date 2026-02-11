@@ -1302,8 +1302,12 @@ func (api *API) convertWorkspaceBuild(
 					agentLogs = byAgent[agent.Name]
 				}
 			}
-			tunnelPeers := (*api.TailnetCoordinator.Load()).TunnelPeers(agent.ID)
-			if conns := mergeWorkspaceConnections(tunnelPeers, agentLogs); len(conns) > 0 {
+
+			peeringEvents, err := api.Database.GetAllTailnetPeeringEventsByPeerID(dbauthz.AsTailnetCoordinator(api.ctx), uuid.NullUUID{UUID: agent.ID, Valid: true})
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("getting tailnet peering events: %w", err)
+			}
+			if conns := mergeWorkspaceConnections(api.Logger, agent.ID, peeringEvents, agentLogs); len(conns) > 0 {
 				apiAgent.Connections = conns
 			}
 			apiAgents = append(apiAgents, apiAgent)

@@ -74,6 +74,7 @@ const (
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
 	SubjectTypeSystemOAuth                  SubjectType = "system_oauth"
+	SubjectTypeTailnetCoordinator           SubjectType = "tailnet_coordinator"
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"
