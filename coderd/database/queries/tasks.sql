@@ -100,3 +100,76 @@ FROM
 	task_snapshots
 WHERE
 	task_id = $1;
+
+-- name: GetTelemetryTaskEvents :many
+-- Returns all data needed to build task lifecycle events for telemetry
+-- in a single round-trip. For each task whose workspace is in the
+-- given set, fetches:
+--   - the latest workspace app binding (task_workspace_apps)
+--   - the most recent stop and start builds (workspace_builds)
+--   - the last "working" app status (workspace_app_statuses)
+--   - the first app status after resume, for active workspaces
+WITH task_event_data AS (
+    SELECT
+        t.id AS task_id,
+        t.workspace_id,
+        twa.workspace_app_id,
+        -- Latest stop build.
+        stop_build.created_at   AS stop_build_created_at,
+        stop_build.reason       AS stop_build_reason,
+        -- Latest start build.
+        start_build.created_at  AS start_build_created_at,
+        -- Last "working" app status (for idle duration).
+        lws.created_at          AS last_working_status_at,
+        -- First app status after resume (for resume-to-status duration).
+        -- Only populated for workspaces in an active phase (started more
+        -- recently than stopped).
+        fsar.created_at         AS first_status_after_resume_at
+    FROM tasks t
+    LEFT JOIN LATERAL (
+        SELECT task_app.workspace_app_id
+        FROM task_workspace_apps task_app
+        WHERE task_app.task_id = t.id
+        ORDER BY task_app.workspace_build_number DESC
+        LIMIT 1
+    ) twa ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT wb.created_at, wb.reason
+        FROM workspace_builds wb
+        WHERE wb.workspace_id = t.workspace_id
+          AND wb.transition = 'stop'
+        ORDER BY wb.build_number DESC
+        LIMIT 1
+    ) stop_build ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT wb.created_at
+        FROM workspace_builds wb
+        WHERE wb.workspace_id = t.workspace_id
+          AND wb.transition = 'start'
+        ORDER BY wb.build_number DESC
+        LIMIT 1
+    ) start_build ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT was.created_at
+        FROM workspace_app_statuses was
+        WHERE was.app_id = twa.workspace_app_id
+          AND was.state = 'working'
+        ORDER BY was.created_at DESC
+        LIMIT 1
+    ) lws ON twa.workspace_app_id IS NOT NULL
+    LEFT JOIN LATERAL (
+        SELECT was.created_at
+        FROM workspace_app_statuses was
+        WHERE was.app_id = twa.workspace_app_id
+          AND was.created_at > start_build.created_at
+        ORDER BY was.created_at ASC
+        LIMIT 1
+    ) fsar ON twa.workspace_app_id IS NOT NULL
+        AND start_build.created_at IS NOT NULL
+        AND (stop_build.created_at IS NULL
+             OR start_build.created_at > stop_build.created_at)
+    WHERE t.deleted_at IS NULL
+      AND t.workspace_id IS NOT NULL
+)
+SELECT * FROM task_event_data
+ORDER BY task_id;

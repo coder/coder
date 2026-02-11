@@ -3133,6 +3133,13 @@ func (q *querier) GetTelemetryItems(ctx context.Context) ([]database.TelemetryIt
 	return q.db.GetTelemetryItems(ctx)
 }
 
+func (q *querier) GetTelemetryTaskEvents(ctx context.Context) ([]database.GetTelemetryTaskEventsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTask.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetTelemetryTaskEvents(ctx)
+}
+
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
