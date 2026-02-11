@@ -9,16 +9,20 @@ RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-ess
 RUN cargo install jj-cli typos-cli watchexec-cli
 
 FROM ubuntu:jammy@sha256:c7eb020043d8fc2ae0793fb35a37bff1cf33f156d4d4b12ccc7f3ef8706c38b1 AS go
+ARG TARGETARCH
 
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.25.6
-ARG GO_CHECKSUM="f022b6aad78e362bcba9b0b94d09ad58c5a70c6ba3b7582905fababf5fe0181a"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
 	apt-get install --yes curl && \
+	case ${TARGETARCH} in \
+		amd64) GO_CHECKSUM="f022b6aad78e362bcba9b0b94d09ad58c5a70c6ba3b7582905fababf5fe0181a" ;; \
+		arm64) GO_CHECKSUM="738ef87d79c34272424ccdf83302b7b0300b8b096ed443896089306117943dd5" ;; \
+	esac && \
 	curl --silent --show-error --location \
-	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+	"https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" \
 	-o /usr/local/go.tar.gz && \
 	echo "$GO_CHECKSUM /usr/local/go.tar.gz" | sha256sum -c && \
 	rm -rf /var/lib/apt/lists/*
@@ -96,15 +100,18 @@ RUN apt-get update && \
 
 # alpine:3.18
 FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
+ARG TARGETARCH
 WORKDIR /tmp
 RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
+RUN case ${TARGETARCH} in amd64) PROTOC_ARCH=x86_64;; arm64) PROTOC_ARCH=aarch_64;; esac && \
+	curl -L -o protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-${PROTOC_ARCH}.zip" && \
 	unzip protoc.zip && \
 	rm protoc.zip
 
 FROM ubuntu:jammy@sha256:c7eb020043d8fc2ae0793fb35a37bff1cf33f156d4d4b12ccc7f3ef8706c38b1
 
 SHELL ["/bin/bash", "-c"]
+ARG TARGETARCH
 
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
@@ -214,7 +221,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.12.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.14.1/terraform_1.14.1_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.14.1/terraform_1.14.1_linux_${TARGETARCH}.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
@@ -223,27 +230,28 @@ RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.14.1/
 # Install the docker buildx component.
 RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
 	mkdir -p /usr/local/lib/docker/cli-plugins && \
-	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
+	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-${TARGETARCH}" && \
 	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
 
 # See https://github.com/cli/cli/issues/6175#issuecomment-1235984381 for proof
 # the apt repository is unreliable
 RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
-	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
+	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_${TARGETARCH}.deb -o gh.deb && \
 	dpkg -i gh.deb && \
 	rm gh.deb
 
 # Install Lazygit
 # See https://github.com/jesseduffield/lazygit#ubuntu
-RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
-	curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
+RUN case ${TARGETARCH} in amd64) LAZYGIT_ARCH=x86_64;; arm64) LAZYGIT_ARCH=arm64;; esac && \
+	LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
+	curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_${LAZYGIT_ARCH}.tar.gz" && \
 	tar xf lazygit.tar.gz -C /usr/local/bin lazygit && \
 	rm lazygit.tar.gz
 
 # Install doctl
 # See https://docs.digitalocean.com/reference/doctl/how-to/install
 RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
-	curl -L https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz -o doctl.tar.gz && \
+	curl -L https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-${TARGETARCH}.tar.gz -o doctl.tar.gz && \
 	tar xf doctl.tar.gz -C /usr/local/bin doctl && \
 	rm doctl.tar.gz
 
@@ -303,58 +311,67 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	COSIGN_VERSION=2.4.3 \
 	BUN_VERSION=1.2.15
 
-# cloud_sql_proxy, for connecting to cloudsql instances
-# the upstream go.mod prevents this from being installed with go install
-RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.amd64" && \
+# Map TARGETARCH to variant names used by different projects.
+# ALT_ARCH: amd64->x86_64, arm64->arm64 (lazygit, kubectx, kubens, stripe)
+# TRIVY_ARCH: amd64->Linux-64bit, arm64->Linux-ARM64
+# BUN_ARCH/BUN_DIR: amd64->x64/bun-linux-x64, arm64->aarch64/bun-linux-aarch64
+# KUBE_LINTER_SUFFIX: amd64->"", arm64->"-arm64"
+RUN case ${TARGETARCH} in \
+		amd64) ALT_ARCH=x86_64; TRIVY_ARCH=Linux-64bit; BUN_ARCH=x64; BUN_DIR=bun-linux-x64; KUBE_LINTER_SUFFIX="" ;; \
+		arm64) ALT_ARCH=arm64; TRIVY_ARCH=Linux-ARM64; BUN_ARCH=aarch64; BUN_DIR=bun-linux-aarch64; KUBE_LINTER_SUFFIX="-arm64" ;; \
+	esac && \
+	# cloud_sql_proxy, for connecting to cloudsql instances
+	# the upstream go.mod prevents this from being installed with go install
+	curl --silent --show-error --location --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.${TARGETARCH}" && \
 	chmod a=rx /usr/local/bin/cloud_sql_proxy && \
 	# dive for scanning image layer utilization metrics in CI
-	curl --silent --show-error --location "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_${TARGETARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- dive && \
 	# docker-credential-gcr is a Docker credential helper for pushing/pulling
 	# images from Google Container Registry and Artifact Registry
-	curl --silent --show-error --location "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v${DOCKER_GCR_VERSION}/docker-credential-gcr_linux_amd64-${DOCKER_GCR_VERSION}.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v${DOCKER_GCR_VERSION}/docker-credential-gcr_linux_${TARGETARCH}-${DOCKER_GCR_VERSION}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- docker-credential-gcr && \
 	# golangci-lint performs static code analysis for our Go code
-	curl --silent --show-error --location "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" && \
+	curl --silent --show-error --location "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${TARGETARCH}.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-${TARGETARCH}/golangci-lint" && \
 	# Anchore Grype for scanning container images for security issues
-	curl --silent --show-error --location "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_${TARGETARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- grype && \
 	# Helm is necessary for deploying Coder
-	curl --silent --show-error --location "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
+	curl --silent --show-error --location "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH}.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-${TARGETARCH}/helm && \
 	# kube-linter for linting Kubernetes objects, including those
 	# that Helm generates from our charts
-	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux" --output /usr/local/bin/kube-linter && \
+	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux${KUBE_LINTER_SUFFIX}" --output /usr/local/bin/kube-linter && \
 	# kubens and kubectx for managing Kubernetes namespaces and contexts
-	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_${ALT_ARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
-	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_${ALT_ARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- kubens && \
 	# stripe for coder.com billing API
-	curl --silent --show-error --location "https://github.com/stripe/stripe-cli/releases/download/v${STRIPE_VERSION}/stripe_${STRIPE_VERSION}_linux_x86_64.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/stripe/stripe-cli/releases/download/v${STRIPE_VERSION}/stripe_${STRIPE_VERSION}_linux_${ALT_ARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- stripe && \
 	# terragrunt for running Terraform and Terragrunt files
-	curl --silent --show-error --location --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" && \
+	curl --silent --show-error --location --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${TARGETARCH}" && \
 	chmod a=rx /usr/local/bin/terragrunt && \
 	# AquaSec Trivy for scanning container images for security issues
-	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_${TRIVY_ARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
 	# Anchore Syft for SBOM generation
-	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
+	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_${TARGETARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
-	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
+	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-${TARGETARCH}" && \
 	chmod a=rx /usr/local/bin/cosign && \
 	# Install Bun JavaScript runtime to /usr/local/bin
 	# Ensure unzip is installed right before using it and use multiple mirrors for reliability
 	(apt-get update || (sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && apt-get update)) && \
 	apt-get install -y unzip && \
-	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
+	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-${BUN_ARCH}.zip" --output /tmp/bun.zip && \
 	unzip -q /tmp/bun.zip -d /tmp && \
-	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
+	mv /tmp/${BUN_DIR}/bun /usr/local/bin/ && \
 	chmod a=rx /usr/local/bin/bun && \
-	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
+	rm -rf /tmp/bun.zip /tmp/${BUN_DIR} && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # We use yq during "make deploy" to manually substitute out fields in
@@ -366,7 +383,7 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 #       tar --extract --gzip --directory=/usr/local/bin --file=- ./yq_linux_amd64 && \
 #     mv /usr/local/bin/yq_linux_amd64 /usr/local/bin/yq
 
-RUN curl --silent --show-error --location --output /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/3.3.0/yq_linux_amd64" && \
+RUN curl --silent --show-error --location --output /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/3.3.0/yq_linux_${TARGETARCH}" && \
 	chmod a=rx /usr/local/bin/yq
 
 # Install GoLand.
