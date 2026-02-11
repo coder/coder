@@ -3,11 +3,13 @@ package coderd
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"net/netip"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
+	tailcfg "tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -86,6 +88,8 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 func mergeWorkspaceConnections(
 	tunnelPeers []*tailnet.TunnelPeerInfo,
 	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
+	derpMap *tailcfg.DERPMap,
+	peerTelemetry map[uuid.UUID]*PeerNetworkTelemetry,
 ) []codersdk.WorkspaceConnection {
 	if len(tunnelPeers) == 0 && len(connectionLogs) == 0 {
 		return nil
@@ -96,6 +100,10 @@ func mergeWorkspaceConnections(
 		ip     netip.Addr
 		peer   *tailnet.TunnelPeerInfo
 		status codersdk.WorkspaceConnectionStatus
+	}
+	type connectionEntry struct {
+		connection codersdk.WorkspaceConnection
+		peerID     uuid.UUID
 	}
 	peersByIP := make(map[netip.Addr]*peerEntry, len(tunnelPeers))
 	for _, tp := range tunnelPeers {
@@ -115,11 +123,12 @@ func mergeWorkspaceConnections(
 	}
 
 	matchedPeerIPs := make(map[netip.Addr]bool)
-	var connections []codersdk.WorkspaceConnection
+	var connectionEntries []connectionEntry
 
 	// Connection logs enriched with coordinator status.
 	for _, log := range connectionLogs {
 		conn := connectionFromLog(log)
+		matchedPeerID := uuid.Nil
 
 		// Try to match with a tunnel peer by IP.
 		if conn.IP != nil {
@@ -128,9 +137,13 @@ func mergeWorkspaceConnections(
 				matchedPeerIPs[pe.ip] = true
 				conn.ClientHostname = pe.peer.Node.Hostname
 				conn.ShortDescription = pe.peer.Node.ShortDescription
+				matchedPeerID = pe.peer.ID
 			}
 		}
-		connections = append(connections, conn)
+		connectionEntries = append(connectionEntries, connectionEntry{
+			connection: conn,
+			peerID:     matchedPeerID,
+		})
 	}
 
 	// Unmatched tunnel peers (active tunnel, no app-layer log).
@@ -139,30 +152,79 @@ func mergeWorkspaceConnections(
 			continue
 		}
 		addr := pe.ip
-		connections = append(connections, codersdk.WorkspaceConnection{
-			IP:               &addr,
-			Status:           pe.status,
-			CreatedAt:        pe.peer.Start,
-			ConnectedAt:      &pe.peer.Start,
-			ClientHostname:   pe.peer.Node.Hostname,
-			ShortDescription: pe.peer.Node.ShortDescription,
+		connectionEntries = append(connectionEntries, connectionEntry{
+			connection: codersdk.WorkspaceConnection{
+				IP:               &addr,
+				Status:           pe.status,
+				CreatedAt:        pe.peer.Start,
+				ConnectedAt:      &pe.peer.Start,
+				Type:             codersdk.ConnectionTypeSystem,
+				ClientHostname:   pe.peer.Node.Hostname,
+				ShortDescription: pe.peer.Node.ShortDescription,
+			},
+			peerID: pe.peer.ID,
 		})
 	}
 
 	// Sort by IP then newest first for stable display order.
-	slices.SortFunc(connections, func(a, b codersdk.WorkspaceConnection) int {
+	slices.SortFunc(connectionEntries, func(a, b connectionEntry) int {
 		aIP, bIP := "", ""
-		if a.IP != nil {
-			aIP = a.IP.String()
+		if a.connection.IP != nil {
+			aIP = a.connection.IP.String()
 		}
-		if b.IP != nil {
-			bIP = b.IP.String()
+		if b.connection.IP != nil {
+			bIP = b.connection.IP.String()
 		}
 		return cmp.Or(
 			cmp.Compare(aIP, bIP),
-			b.CreatedAt.Compare(a.CreatedAt), // Newest first.
+			b.connection.CreatedAt.Compare(a.connection.CreatedAt), // Newest first.
 		)
 	})
 
+	// Apply network telemetry per peer to ongoing connections.
+	if len(peerTelemetry) > 0 {
+		for i := range connectionEntries {
+			conn := &connectionEntries[i].connection
+			if conn.Status != codersdk.ConnectionStatusOngoing {
+				continue
+			}
+			if connectionEntries[i].peerID == uuid.Nil {
+				continue
+			}
+			netTelemetry := peerTelemetry[connectionEntries[i].peerID]
+			if netTelemetry == nil {
+				continue
+			}
+			if netTelemetry.P2P != nil {
+				p2p := *netTelemetry.P2P
+				conn.P2P = &p2p
+			}
+			if netTelemetry.HomeDERP > 0 {
+				regionID := netTelemetry.HomeDERP
+				name := fmt.Sprintf("Unnamed %d", regionID)
+				if derpMap != nil {
+					if region, ok := derpMap.Regions[regionID]; ok && region != nil && region.RegionName != "" {
+						name = region.RegionName
+					}
+				}
+				conn.HomeDERP = &codersdk.WorkspaceConnectionHomeDERP{
+					ID:   regionID,
+					Name: name,
+				}
+			}
+			if netTelemetry.P2P != nil && *netTelemetry.P2P && netTelemetry.P2PLatency != nil {
+				ms := float64(*netTelemetry.P2PLatency) / float64(time.Millisecond)
+				conn.LatencyMS = &ms
+			} else if netTelemetry.DERPLatency != nil {
+				ms := float64(*netTelemetry.DERPLatency) / float64(time.Millisecond)
+				conn.LatencyMS = &ms
+			}
+		}
+	}
+
+	connections := make([]codersdk.WorkspaceConnection, 0, len(connectionEntries))
+	for _, entry := range connectionEntries {
+		connections = append(connections, entry.connection)
+	}
 	return connections
 }

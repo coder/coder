@@ -145,7 +145,9 @@ export const useTypeFilterMenu = ({
 	value,
 	onChange,
 }: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const typeOptions: SelectFilterOption[] = ConnectionTypes.map((type) => {
+	const typeOptions: SelectFilterOption[] = ConnectionTypes.filter(
+		(type) => type !== "system",
+	).map((type) => {
 		const label: string = connectionTypeToFriendlyName(type);
 		return {
 			value: type,

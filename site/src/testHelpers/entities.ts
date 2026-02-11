@@ -1002,6 +1002,40 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	],
 };
 
+export const MockWorkspaceConnectionP2P: TypesGen.WorkspaceConnection = {
+	status: "ongoing",
+	created_at: "2026-02-11T05:49:29.969985Z",
+	connected_at: "2026-02-11T05:49:29.969985Z",
+	type: "ssh",
+	client_hostname: "dev-laptop",
+	short_description: "Coder CLI",
+	p2p: true,
+	latency_ms: 0.14,
+	home_derp: { id: 1, name: "New York City" },
+};
+
+export const MockWorkspaceConnectionDERP: TypesGen.WorkspaceConnection = {
+	status: "ongoing",
+	created_at: "2026-02-11T05:30:00.000000Z",
+	connected_at: "2026-02-11T05:30:00.000000Z",
+	type: "vscode",
+	client_hostname: "work-pc",
+	short_description: "VS Code Remote",
+	p2p: false,
+	latency_ms: 45,
+	home_derp: { id: 3, name: "Frankfurt" },
+};
+
+export const MockWorkspaceConnectionNoTelemetry: TypesGen.WorkspaceConnection =
+	{
+		status: "ongoing",
+		created_at: "2026-02-11T04:00:00.000000Z",
+		connected_at: "2026-02-11T04:00:00.000000Z",
+		type: "reconnecting_pty",
+		client_hostname: "old-client",
+		short_description: "Web Terminal",
+	};
+
 export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	apps: [],

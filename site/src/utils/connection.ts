@@ -14,6 +14,8 @@ export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 			return "Port Forwarding";
 		case "workspace_app":
 			return "Workspace App";
+		case "system":
+			return "System";
 	}
 };
 
@@ -26,7 +28,8 @@ export const connectionTypeIsWeb = (type: ConnectionType): boolean => {
 		case "reconnecting_pty":
 		case "ssh":
 		case "jetbrains":
-		case "vscode": {
+		case "vscode":
+		case "system": {
 			return false;
 		}
 	}

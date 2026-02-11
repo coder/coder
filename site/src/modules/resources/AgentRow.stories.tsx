@@ -334,3 +334,16 @@ export const FoundDevcontainer: Story = {
 		webSocket: [],
 	},
 };
+
+export const WithConnections: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			connections: [
+				M.MockWorkspaceConnectionP2P,
+				M.MockWorkspaceConnectionDERP,
+				M.MockWorkspaceConnectionNoTelemetry,
+			],
+		},
+	},
+};

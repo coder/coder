@@ -99,6 +99,7 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/eventsink"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
@@ -766,15 +767,21 @@ func New(options *Options) *API {
 		api.Options.NetworkTelemetryBatchMaxSize,
 		api.handleNetworkTelemetry,
 	)
+	api.PeerNetworkTelemetryStore = NewPeerNetworkTelemetryStore()
 	if options.CoordinatorResumeTokenProvider == nil {
 		panic("CoordinatorResumeTokenProvider is nil")
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                   api.Logger.Named("tailnetclient"),
-		CoordPtr:                 &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:   api.Options.DERPMapUpdateFrequency,
-		DERPMapFn:                api.DERPMap,
-		NetworkTelemetryHandler:  api.NetworkTelemetryBatcher.Handler,
+		Logger:                  api.Logger.Named("tailnetclient"),
+		CoordPtr:                &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:               api.DERPMap,
+		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
+		IdentifiedTelemetryHandler: func(agentID, peerID uuid.UUID, events []*tailnetproto.TelemetryEvent) {
+			for _, event := range events {
+				api.PeerNetworkTelemetryStore.Update(agentID, peerID, event)
+			}
+		},
 		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
 		WorkspaceUpdatesProvider: api.UpdatesProvider,
 	})
@@ -1831,6 +1838,7 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
+	PeerNetworkTelemetryStore         *PeerNetworkTelemetryStore
 	TailnetClientService              *tailnet.ClientService
 	// WebpushDispatcher is a way to send notifications to users via Web Push.
 	WebpushDispatcher webpush.Dispatcher

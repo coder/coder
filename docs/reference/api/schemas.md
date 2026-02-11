@@ -1773,9 +1773,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                             |
-|--------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `vscode`, `workspace_app` |
+| Value(s)                                                                                       |
+|------------------------------------------------------------------------------------------------|
+| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `system`, `vscode`, `workspace_app` |
 
 ## codersdk.ConvertLoginRequest
 
@@ -10024,7 +10024,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "created_at": "2019-08-24T14:15:22Z",
                 "detail": "string",
                 "ended_at": "2019-08-24T14:15:22Z",
+                "home_derp": {
+                  "id": 0,
+                  "name": "string"
+                },
                 "ip": "string",
+                "latency_ms": 0,
+                "p2p": true,
                 "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
@@ -10319,7 +10325,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "created_at": "2019-08-24T14:15:22Z",
       "detail": "string",
       "ended_at": "2019-08-24T14:15:22Z",
+      "home_derp": {
+        "id": 0,
+        "name": "string"
+      },
       "ip": "string",
+      "latency_ms": 0,
+      "p2p": true,
       "short_description": "string",
       "status": "ongoing",
       "type": "ssh"
@@ -11208,7 +11220,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "created_at": "2019-08-24T14:15:22Z",
               "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
+              "home_derp": {
+                "id": 0,
+                "name": "string"
+              },
               "ip": "string",
+              "latency_ms": 0,
+              "p2p": true,
               "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
@@ -11430,7 +11448,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "detail": "string",
   "ended_at": "2019-08-24T14:15:22Z",
+  "home_derp": {
+    "id": 0,
+    "name": "string"
+  },
   "ip": "string",
+  "latency_ms": 0,
+  "p2p": true,
   "short_description": "string",
   "status": "ongoing",
   "type": "ssh"
@@ -11439,17 +11463,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                | Type                                                                     | Required | Restrictions | Description                                                                                               |
-|---------------------|--------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
-| `client_hostname`   | string                                                                   | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.   |
-| `connected_at`      | string                                                                   | false    |              |                                                                                                           |
-| `created_at`        | string                                                                   | false    |              |                                                                                                           |
-| `detail`            | string                                                                   | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                  |
-| `ended_at`          | string                                                                   | false    |              |                                                                                                           |
-| `ip`                | string                                                                   | false    |              |                                                                                                           |
-| `short_description` | string                                                                   | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client. |
-| `status`            | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |                                                                                                           |
-| `type`              | [codersdk.ConnectionType](#codersdkconnectiontype)                       | false    |              |                                                                                                           |
+| Name                | Type                                                                         | Required | Restrictions | Description                                                                                                     |
+|---------------------|------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `client_hostname`   | string                                                                       | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.         |
+| `connected_at`      | string                                                                       | false    |              |                                                                                                                 |
+| `created_at`        | string                                                                       | false    |              |                                                                                                                 |
+| `detail`            | string                                                                       | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                        |
+| `ended_at`          | string                                                                       | false    |              |                                                                                                                 |
+| `home_derp`         | [codersdk.WorkspaceConnectionHomeDERP](#codersdkworkspaceconnectionhomederp) | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                               |
+| `ip`                | string                                                                       | false    |              |                                                                                                                 |
+| `latency_ms`        | number                                                                       | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise. |
+| `p2p`               | boolean                                                                      | false    |              | P2p indicates a direct peer-to-peer connection (true) or DERP relay (false). Nil if telemetry unavailable.      |
+| `short_description` | string                                                                       | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.       |
+| `status`            | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus)     | false    |              |                                                                                                                 |
+| `type`              | [codersdk.ConnectionType](#codersdkconnectiontype)                           | false    |              |                                                                                                                 |
+
+## codersdk.WorkspaceConnectionHomeDERP
+
+```json
+{
+  "id": 0,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+|--------|---------|----------|--------------|-------------|
+| `id`   | integer | false    |              |             |
+| `name` | string  | false    |              |             |
 
 ## codersdk.WorkspaceConnectionLatencyMS
 
@@ -11732,7 +11775,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "created_at": "2019-08-24T14:15:22Z",
           "detail": "string",
           "ended_at": "2019-08-24T14:15:22Z",
+          "home_derp": {
+            "id": 0,
+            "name": "string"
+          },
           "ip": "string",
+          "latency_ms": 0,
+          "p2p": true,
           "short_description": "string",
           "status": "ongoing",
           "type": "ssh"
@@ -12082,7 +12131,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "home_derp": {},
                     "ip": "string",
+                    "latency_ms": 0,
+                    "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
                     "type": "ssh"

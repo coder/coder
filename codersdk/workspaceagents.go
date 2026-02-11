@@ -181,6 +181,13 @@ type WorkspaceAgent struct {
 	Connections []WorkspaceConnection `json:"connections,omitempty"`
 }
 
+// WorkspaceConnectionHomeDERP identifies the DERP relay region
+// used as the agent's home relay.
+type WorkspaceConnectionHomeDERP struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 type WorkspaceConnection struct {
 	IP          *netip.Addr               `json:"ip,omitempty"`
 	Status      WorkspaceConnectionStatus `json:"status"`
@@ -194,6 +201,14 @@ type WorkspaceConnection struct {
 	ClientHostname string `json:"client_hostname,omitempty"`
 	// ShortDescription is the human-readable short description of the connection. Self-reported by the client.
 	ShortDescription string `json:"short_description,omitempty"`
+	// P2P indicates a direct peer-to-peer connection (true) or
+	// DERP relay (false). Nil if telemetry unavailable.
+	P2P *bool `json:"p2p,omitempty"`
+	// LatencyMS is the most recent round-trip latency in
+	// milliseconds. Uses P2P latency when direct, DERP otherwise.
+	LatencyMS *float64 `json:"latency_ms,omitempty"`
+	// HomeDERP is the DERP region metadata for the agent's home relay.
+	HomeDERP *WorkspaceConnectionHomeDERP `json:"home_derp,omitempty"`
 }
 
 type WorkspaceConnectionStatus string

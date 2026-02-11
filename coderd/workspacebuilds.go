@@ -1303,7 +1303,8 @@ func (api *API) convertWorkspaceBuild(
 				}
 			}
 			tunnelPeers := (*api.TailnetCoordinator.Load()).TunnelPeers(agent.ID)
-			if conns := mergeWorkspaceConnections(tunnelPeers, agentLogs); len(conns) > 0 {
+			peerTelemetry := api.PeerNetworkTelemetryStore.GetAll(agent.ID)
+			if conns := mergeWorkspaceConnections(tunnelPeers, agentLogs, api.DERPMap(), peerTelemetry); len(conns) > 0 {
 				apiAgent.Connections = conns
 			}
 			apiAgents = append(apiAgents, apiAgent)

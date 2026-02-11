@@ -927,6 +927,11 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	e.Status = proto.TelemetryEvent_CONNECTED
 	e.ConnectionSetup = durationpb.New(time.Since(c.createdAt))
 	c.sendTelemetryBackground(e)
+	// Capture initial latency/mode immediately after connection
+	// establishment. markConnected has set connectedIP and
+	// AwaitReachable has returned, so the peer is reachable and
+	// pingPeer will not bail on the nil-connectedIP guard.
+	c.telemetryStore.pingPeer(c)
 }
 
 func (c *Conn) SendDisconnectedTelemetry() {

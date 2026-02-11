@@ -135,7 +135,13 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "created_at": "2019-08-24T14:15:22Z",
               "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
+              "home_derp": {
+                "id": 0,
+                "name": "string"
+              },
               "ip": "string",
+              "latency_ms": 0,
+              "p2p": true,
               "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
@@ -388,7 +394,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "created_at": "2019-08-24T14:15:22Z",
               "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
+              "home_derp": {
+                "id": 0,
+                "name": "string"
+              },
               "ip": "string",
+              "latency_ms": 0,
+              "p2p": true,
               "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
@@ -760,7 +772,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "created_at": "2019-08-24T14:15:22Z",
             "detail": "string",
             "ended_at": "2019-08-24T14:15:22Z",
+            "home_derp": {
+              "id": 0,
+              "name": "string"
+            },
             "ip": "string",
+            "latency_ms": 0,
+            "p2p": true,
             "short_description": "string",
             "status": "ongoing",
             "type": "ssh"
@@ -914,7 +932,12 @@ Status Code **200**
 | `»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» detail`                    | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
 | `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» home_derp`                 | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
+| `»»»» id`                       | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» name`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» latency_ms`                | number                                                                                                 | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise.                                                                                                                                |
+| `»»» p2p`                       | boolean                                                                                                | false    |              | P2p indicates a direct peer-to-peer connection (true) or DERP relay (false). Nil if telemetry unavailable.                                                                                                                                     |
 | `»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
 | `»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -993,7 +1016,7 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `status`                  | `clean_disconnected`, `client_disconnected`, `connected`, `connecting`, `control_lost`, `disconnected`, `ongoing`, `timeout` |
-| `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `vscode`, `workspace_app`                                         |
+| `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `system`, `vscode`, `workspace_app`                               |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
@@ -1133,7 +1156,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "created_at": "2019-08-24T14:15:22Z",
               "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
+              "home_derp": {
+                "id": 0,
+                "name": "string"
+              },
               "ip": "string",
+              "latency_ms": 0,
+              "p2p": true,
               "short_description": "string",
               "status": "ongoing",
               "type": "ssh"
@@ -1497,7 +1526,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "created_at": "2019-08-24T14:15:22Z",
                 "detail": "string",
                 "ended_at": "2019-08-24T14:15:22Z",
+                "home_derp": {
+                  "id": 0,
+                  "name": "string"
+                },
                 "ip": "string",
+                "latency_ms": 0,
+                "p2p": true,
                 "short_description": "string",
                 "status": "ongoing",
                 "type": "ssh"
@@ -1713,7 +1748,12 @@ Status Code **200**
 | `»»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» detail`                    | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
 | `»»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» home_derp`                 | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
+| `»»»»» id`                       | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» name`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» latency_ms`                | number                                                                                                 | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise.                                                                                                                                |
+| `»»»» p2p`                       | boolean                                                                                                | false    |              | P2p indicates a direct peer-to-peer connection (true) or DERP relay (false). Nil if telemetry unavailable.                                                                                                                                     |
 | `»»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
 | `»»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1800,7 +1840,7 @@ Status Code **200**
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `error_code`              | `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                                                                |
 | `status`                  | `canceled`, `canceling`, `clean_disconnected`, `client_disconnected`, `connected`, `connecting`, `control_lost`, `deleted`, `deleting`, `disconnected`, `failed`, `ongoing`, `pending`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timeout` |
-| `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `template_version_dry_run`, `template_version_import`, `vscode`, `workspace_app`, `workspace_build`                                                                                               |
+| `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `system`, `template_version_dry_run`, `template_version_import`, `vscode`, `workspace_app`, `workspace_build`                                                                                     |
 | `reason`                  | `autostart`, `autostop`, `initiator`                                                                                                                                                                                                                         |
 | `health`                  | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                                           |
 | `open_in`                 | `slim-window`, `tab`                                                                                                                                                                                                                                         |
@@ -1971,7 +2011,13 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "created_at": "2019-08-24T14:15:22Z",
               "detail": "string",
               "ended_at": "2019-08-24T14:15:22Z",
+              "home_derp": {
+                "id": 0,
+                "name": "string"
+              },
               "ip": "string",
+              "latency_ms": 0,
+              "p2p": true,
               "short_description": "string",
               "status": "ongoing",
               "type": "ssh"

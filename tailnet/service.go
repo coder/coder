@@ -40,6 +40,13 @@ func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 	return context.WithValue(ctx, streamIDContextKey{}, streamID)
 }
 
+// StreamIDFromContext extracts the StreamID from a context
+// set by WithStreamID. Returns ok=false if not present.
+func StreamIDFromContext(ctx context.Context) (StreamID, bool) {
+	id, ok := ctx.Value(streamIDContextKey{}).(StreamID)
+	return id, ok
+}
+
 type WorkspaceUpdatesProvider interface {
 	io.Closer
 	Subscribe(ctx context.Context, userID uuid.UUID) (Subscription, error)
@@ -55,13 +62,14 @@ type TunnelAuthorizer interface {
 }
 
 type ClientServiceOptions struct {
-	Logger                   slog.Logger
-	CoordPtr                 *atomic.Pointer[Coordinator]
-	DERPMapUpdateFrequency   time.Duration
-	DERPMapFn                func() *tailcfg.DERPMap
-	NetworkTelemetryHandler  func(batch []*proto.TelemetryEvent)
-	ResumeTokenProvider      ResumeTokenProvider
-	WorkspaceUpdatesProvider WorkspaceUpdatesProvider
+	Logger                     slog.Logger
+	CoordPtr                   *atomic.Pointer[Coordinator]
+	DERPMapUpdateFrequency     time.Duration
+	DERPMapFn                  func() *tailcfg.DERPMap
+	NetworkTelemetryHandler    func(batch []*proto.TelemetryEvent)
+	IdentifiedTelemetryHandler func(agentID, peerID uuid.UUID, events []*proto.TelemetryEvent)
+	ResumeTokenProvider        ResumeTokenProvider
+	WorkspaceUpdatesProvider   WorkspaceUpdatesProvider
 }
 
 // ClientService is a tailnet coordination service that accepts a connection and version from a
@@ -80,13 +88,14 @@ func NewClientService(options ClientServiceOptions) (
 	s := &ClientService{Logger: options.Logger, CoordPtr: options.CoordPtr}
 	mux := drpcmux.New()
 	drpcService := &DRPCService{
-		CoordPtr:                 options.CoordPtr,
-		Logger:                   options.Logger,
-		DerpMapUpdateFrequency:   options.DERPMapUpdateFrequency,
-		DerpMapFn:                options.DERPMapFn,
-		NetworkTelemetryHandler:  options.NetworkTelemetryHandler,
-		ResumeTokenProvider:      options.ResumeTokenProvider,
-		WorkspaceUpdatesProvider: options.WorkspaceUpdatesProvider,
+		CoordPtr:                   options.CoordPtr,
+		Logger:                     options.Logger,
+		DerpMapUpdateFrequency:     options.DERPMapUpdateFrequency,
+		DerpMapFn:                  options.DERPMapFn,
+		NetworkTelemetryHandler:    options.NetworkTelemetryHandler,
+		IdentifiedTelemetryHandler: options.IdentifiedTelemetryHandler,
+		ResumeTokenProvider:        options.ResumeTokenProvider,
+		WorkspaceUpdatesProvider:   options.WorkspaceUpdatesProvider,
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
@@ -137,16 +146,31 @@ func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID 
 
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
 type DRPCService struct {
-	CoordPtr                 *atomic.Pointer[Coordinator]
-	Logger                   slog.Logger
-	DerpMapUpdateFrequency   time.Duration
-	DerpMapFn                func() *tailcfg.DERPMap
-	NetworkTelemetryHandler  func(batch []*proto.TelemetryEvent)
-	ResumeTokenProvider      ResumeTokenProvider
-	WorkspaceUpdatesProvider WorkspaceUpdatesProvider
+	CoordPtr                *atomic.Pointer[Coordinator]
+	Logger                  slog.Logger
+	DerpMapUpdateFrequency  time.Duration
+	DerpMapFn               func() *tailcfg.DERPMap
+	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
+	// IdentifiedTelemetryHandler is called with the agent ID, peer ID,
+	// and events when telemetry arrives from a CLI client connected
+	// to a specific agent. Optional — nil disables per-agent
+	// capture.
+	IdentifiedTelemetryHandler func(agentID, peerID uuid.UUID, events []*proto.TelemetryEvent)
+	ResumeTokenProvider        ResumeTokenProvider
+	WorkspaceUpdatesProvider   WorkspaceUpdatesProvider
 }
 
-func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+func (s *DRPCService) PostTelemetry(ctx context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+	// Extract agent identity from the StreamID on the DRPC
+	// context. Set by ServeConnV2 for client connections where
+	// Auth is ClientCoordinateeAuth{AgentID}.
+	if s.IdentifiedTelemetryHandler != nil {
+		if streamID, ok := StreamIDFromContext(ctx); ok {
+			if auth, ok := streamID.Auth.(ClientCoordinateeAuth); ok {
+				s.IdentifiedTelemetryHandler(auth.AgentID, streamID.ID, req.Events)
+			}
+		}
+	}
 	if s.NetworkTelemetryHandler != nil {
 		s.NetworkTelemetryHandler(req.Events)
 	}

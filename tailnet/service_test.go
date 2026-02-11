@@ -178,6 +178,91 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	require.ErrorIs(t, err, tailnet.ErrUnsupportedVersion)
 }
 
+func TestIdentifiedTelemetryHandler(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ClientAuth", func(t *testing.T) {
+		t.Parallel()
+
+		agentID := uuid.New()
+		peerID := uuid.New()
+		events := []*proto.TelemetryEvent{
+			{Id: []byte("one")},
+			{Id: []byte("two")},
+		}
+
+		var (
+			identifiedCalled     bool
+			gotIdentifiedAgentID uuid.UUID
+			gotIdentifiedPeerID  uuid.UUID
+			gotIdentifiedBatch   []*proto.TelemetryEvent
+			networkCalled        bool
+			gotNetworkBatch      []*proto.TelemetryEvent
+		)
+
+		service := tailnet.DRPCService{
+			NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {
+				networkCalled = true
+				gotNetworkBatch = batch
+			},
+			IdentifiedTelemetryHandler: func(id, peer uuid.UUID, batch []*proto.TelemetryEvent) {
+				identifiedCalled = true
+				gotIdentifiedAgentID = id
+				gotIdentifiedPeerID = peer
+				gotIdentifiedBatch = batch
+			},
+		}
+
+		ctx := tailnet.WithStreamID(context.Background(), tailnet.StreamID{
+			Name: "test",
+			ID:   peerID,
+			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
+		})
+		res, err := service.PostTelemetry(ctx, &proto.TelemetryRequest{Events: events})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.True(t, identifiedCalled)
+		require.Equal(t, agentID, gotIdentifiedAgentID)
+		require.Equal(t, peerID, gotIdentifiedPeerID)
+		require.Equal(t, events, gotIdentifiedBatch)
+		require.True(t, networkCalled)
+		require.Equal(t, events, gotNetworkBatch)
+	})
+
+	t.Run("NonClientAuth", func(t *testing.T) {
+		t.Parallel()
+
+		events := []*proto.TelemetryEvent{{Id: []byte("single")}}
+		var (
+			identifiedCalled bool
+			networkCalled    bool
+			gotNetworkBatch  []*proto.TelemetryEvent
+		)
+
+		service := tailnet.DRPCService{
+			NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {
+				networkCalled = true
+				gotNetworkBatch = batch
+			},
+			IdentifiedTelemetryHandler: func(uuid.UUID, uuid.UUID, []*proto.TelemetryEvent) {
+				identifiedCalled = true
+			},
+		}
+
+		ctx := tailnet.WithStreamID(context.Background(), tailnet.StreamID{
+			Name: "test",
+			ID:   uuid.New(),
+			Auth: tailnet.SingleTailnetCoordinateeAuth{},
+		})
+		res, err := service.PostTelemetry(ctx, &proto.TelemetryRequest{Events: events})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.False(t, identifiedCalled)
+		require.True(t, networkCalled)
+		require.Equal(t, events, gotNetworkBatch)
+	})
+}
+
 func TestNetworkTelemetryBatcher(t *testing.T) {
 	t.Parallel()
 

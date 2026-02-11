@@ -1132,6 +1132,7 @@ export type ConnectionType =
 	| "port_forwarding"
 	| "reconnecting_pty"
 	| "ssh"
+	| "system"
 	| "vscode"
 	| "workspace_app";
 
@@ -1140,6 +1141,7 @@ export const ConnectionTypes: ConnectionType[] = [
 	"port_forwarding",
 	"reconnecting_pty",
 	"ssh",
+	"system",
 	"vscode",
 	"workspace_app",
 ];
@@ -6744,6 +6746,30 @@ export interface WorkspaceConnection {
 	 * ShortDescription is the human-readable short description of the connection. Self-reported by the client.
 	 */
 	readonly short_description?: string;
+	/**
+	 * P2P indicates a direct peer-to-peer connection (true) or
+	 * DERP relay (false). Nil if telemetry unavailable.
+	 */
+	readonly p2p?: boolean;
+	/**
+	 * LatencyMS is the most recent round-trip latency in
+	 * milliseconds. Uses P2P latency when direct, DERP otherwise.
+	 */
+	readonly latency_ms?: number;
+	/**
+	 * HomeDERP is the DERP region metadata for the agent's home relay.
+	 */
+	readonly home_derp?: WorkspaceConnectionHomeDERP;
+}
+
+// From codersdk/workspaceagents.go
+/**
+ * WorkspaceConnectionHomeDERP identifies the DERP relay region
+ * used as the agent's home relay.
+ */
+export interface WorkspaceConnectionHomeDERP {
+	readonly id: number;
+	readonly name: string;
 }
 
 // From codersdk/deployment.go

@@ -13598,7 +13598,8 @@ const docTemplate = `{
                 "jetbrains",
                 "reconnecting_pty",
                 "workspace_app",
-                "port_forwarding"
+                "port_forwarding",
+                "system"
             ],
             "x-enum-varnames": [
                 "ConnectionTypeSSH",
@@ -13606,7 +13607,8 @@ const docTemplate = `{
                 "ConnectionTypeJetBrains",
                 "ConnectionTypeReconnectingPTY",
                 "ConnectionTypeWorkspaceApp",
-                "ConnectionTypePortForwarding"
+                "ConnectionTypePortForwarding",
+                "ConnectionTypeSystem"
             ]
         },
         "codersdk.ConvertLoginRequest": {
@@ -21538,8 +21540,24 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "home_derp": {
+                    "description": "HomeDERP is the DERP region metadata for the agent's home relay.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceConnectionHomeDERP"
+                        }
+                    ]
+                },
                 "ip": {
                     "type": "string"
+                },
+                "latency_ms": {
+                    "description": "LatencyMS is the most recent round-trip latency in\nmilliseconds. Uses P2P latency when direct, DERP otherwise.",
+                    "type": "number"
+                },
+                "p2p": {
+                    "description": "P2P indicates a direct peer-to-peer connection (true) or\nDERP relay (false). Nil if telemetry unavailable.",
+                    "type": "boolean"
                 },
                 "short_description": {
                     "description": "ShortDescription is the human-readable short description of the connection. Self-reported by the client.",
@@ -21550,6 +21568,17 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.ConnectionType"
+                }
+            }
+        },
+        "codersdk.WorkspaceConnectionHomeDERP": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },

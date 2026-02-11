@@ -15,6 +15,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -59,6 +60,7 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/eventsink"
+	agpltailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
 
@@ -186,7 +188,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
 		DERPMapFn:               api.AGPL.DERPMap,
 		NetworkTelemetryHandler: api.AGPL.NetworkTelemetryBatcher.Handler,
-		ResumeTokenProvider:     api.AGPL.CoordinatorResumeTokenProvider,
+		IdentifiedTelemetryHandler: func(agentID, peerID uuid.UUID, events []*agpltailnetproto.TelemetryEvent) {
+			for _, event := range events {
+				api.AGPL.PeerNetworkTelemetryStore.Update(agentID, peerID, event)
+			}
+		},
+		ResumeTokenProvider: api.AGPL.CoordinatorResumeTokenProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))

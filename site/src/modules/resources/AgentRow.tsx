@@ -28,6 +28,7 @@ import {
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { getLatencyColor } from "utils/latency";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentExternal } from "./AgentExternal";
@@ -418,6 +419,8 @@ function connectionTypeLabel(type_: ConnectionType, detail?: string): string {
 			return detail ? `App: ${detail}` : "Workspace App";
 		case "port_forwarding":
 			return detail ? `Port ${detail}` : "Port Forwarding";
+		case "system":
+			return "System";
 		default:
 			return type_;
 	}
@@ -441,6 +444,27 @@ const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
 					Connections
 				</h4>
 				<table className="w-full text-sm border-collapse">
+					<thead>
+						<tr className="border-b border-border text-content-secondary">
+							<th className="py-2 pr-4 text-left text-xs font-medium">
+								Client
+							</th>
+							<th className="py-2 pr-4 text-left text-xs font-medium">Type</th>
+							<th className="py-2 pr-4 text-left text-xs font-medium">
+								Transport
+							</th>
+							<th className="py-2 pr-4 text-left text-xs font-medium">
+								Status
+							</th>
+							<th className="py-2 pr-4 text-left text-xs font-medium">
+								Latency
+							</th>
+							<th className="py-2 pr-4 text-left text-xs font-medium">
+								Home DERP
+							</th>
+							<th className="py-2 text-left text-xs font-medium">Connected</th>
+						</tr>
+					</thead>
 					<tbody>
 						{connections.map((conn, idx) => {
 							const connectedTime = conn.connected_at ?? conn.created_at;
@@ -457,6 +481,13 @@ const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
 									<td className="py-2 pr-4 text-xs">
 										{connectionTypeLabel(conn.type, conn.detail)}
 									</td>
+									<td className="py-2 pr-4 text-xs">
+										{conn.p2p === true
+											? "P2P"
+											: conn.p2p === false
+												? "DERP Relay"
+												: "—"}
+									</td>
 									<td className="py-2 pr-4">
 										<span className="inline-flex items-center gap-1.5 text-xs">
 											<span
@@ -466,6 +497,16 @@ const AgentConnectionsTable: FC<AgentConnectionsTableProps> = ({
 												{connectionStatusLabel(conn.status)}
 											</span>
 										</span>
+									</td>
+									<td
+										className={`py-2 pr-4 text-xs ${getLatencyColor(conn.latency_ms ?? undefined)}`}
+									>
+										{conn.latency_ms != null
+											? `${conn.latency_ms < 1 ? conn.latency_ms.toFixed(2) : Math.round(conn.latency_ms)} ms`
+											: "—"}
+									</td>
+									<td className="py-2 pr-4 text-xs text-content-secondary">
+										{conn.home_derp ? conn.home_derp.name : "—"}
 									</td>
 									<td className="py-2 text-xs text-content-secondary">
 										{new Date(connectedTime).toLocaleString()}

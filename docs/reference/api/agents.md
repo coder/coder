@@ -575,7 +575,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "created_at": "2019-08-24T14:15:22Z",
       "detail": "string",
       "ended_at": "2019-08-24T14:15:22Z",
+      "home_derp": {
+        "id": 0,
+        "name": "string"
+      },
       "ip": "string",
+      "latency_ms": 0,
+      "p2p": true,
       "short_description": "string",
       "status": "ongoing",
       "type": "ssh"
