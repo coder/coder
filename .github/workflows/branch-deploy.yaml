@@ -92,14 +92,28 @@ jobs:
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
           chmod 600 ~/.kube/config
 
+      - name: Verify cluster authentication
+        run: |
+          set -euo pipefail
+          kubectl auth can-i get namespaces > /dev/null
+
       - name: Check if deployment exists
         id: check
         run: |
           set -euo pipefail
-          if helm status "${{ github.ref_name }}" --namespace "${{ github.ref_name }}" > /dev/null 2>&1; then
+
+          set +e
+          helm_status_output="$(helm status "${{ github.ref_name }}" --namespace "${{ github.ref_name }}" 2>&1)"
+          helm_status_code=$?
+          set -e
+
+          if [ "$helm_status_code" -eq 0 ]; then
             echo "new=false" >> "$GITHUB_OUTPUT"
-          else
+          elif echo "$helm_status_output" | grep -qi "release: not found"; then
             echo "new=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$helm_status_output"
+            exit "$helm_status_code"
           fi
 
       # ---- First deploy only ----
@@ -107,10 +121,29 @@ jobs:
       - name: Add DNS record
         if: steps.check.outputs.new == 'true'
         run: |
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
-            -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type:application/json" \
-            --data '{"type":"CNAME","name":"*.'"${PR_HOSTNAME}"'","content":"'"${PR_HOSTNAME}"'","ttl":1,"proxied":false}'
+          set -euo pipefail
+
+          response="$({
+            curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+              -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type:application/json" \
+              --data '{"type":"CNAME","name":"*.'"${PR_HOSTNAME}"'","content":"'"${PR_HOSTNAME}"'","ttl":1,"proxied":false}'
+          })"
+
+          if echo "$response" | jq -e '.success == true' > /dev/null; then
+            echo "Created DNS record for ${PR_HOSTNAME}."
+            exit 0
+          fi
+
+          # Cloudflare returns 81057 when the record already exists.
+          if echo "$response" | jq -e '.errors[]? | select(.code == 81057)' > /dev/null; then
+            echo "DNS record already exists for ${PR_HOSTNAME}."
+            exit 0
+          fi
+
+          echo "Cloudflare API error while creating DNS record:"
+          echo "$response"
+          exit 1
 
       - name: Create namespace
         if: steps.check.outputs.new == 'true'
