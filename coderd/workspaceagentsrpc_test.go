@@ -251,4 +251,3 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 	// SDK without setting a role. The server defaults to monitoring
 	// when the role query parameter is omitted.
 }
-
