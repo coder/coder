@@ -384,7 +384,7 @@ func (api *API) postWorkspaceBuildsInternal(
 		Experiments(api.Experiments).
 		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
 
-	if transition == database.WorkspaceTransitionStart && createBuild.Reason != "" {
+	if (transition == database.WorkspaceTransitionStart || transition == database.WorkspaceTransitionStop) && createBuild.Reason != "" {
 		builder = builder.Reason(database.BuildReason(createBuild.Reason))
 	}
 

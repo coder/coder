@@ -96,11 +96,18 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			return;
 		}
 
-		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
-			sendInitialParameters();
+		// Skip stale responses. If we've already sent a newer request,
+		// this response contains outdated parameter values that would
+		// overwrite the user's more recent input.
+		if (response.id < wsResponseId.current) {
+			return;
 		}
 
 		setLatestResponse(response);
+
+		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
+			sendInitialParameters();
+		}
 	});
 
 	useEffect(() => {
@@ -197,7 +204,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 	if (
 		latestBuildParametersLoading ||
-		!latestResponse ||
+		(!latestResponse && !wsError) ||
 		(ws.current && ws.current.readyState === WebSocket.CONNECTING)
 	) {
 		return <Loader />;
@@ -244,7 +251,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					autofillParameters={autofillParameters}
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
-					diagnostics={latestResponse.diagnostics}
+					diagnostics={latestResponse?.diagnostics ?? []}
 					isSubmitting={updateParameters.isPending}
 					onSubmit={handleSubmit}
 					onCancel={() =>

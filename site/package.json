@@ -32,7 +32,7 @@
 		"test:watch": "vitest",
 		"test:watch-jest": "jest --watch",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
+		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png"
 	},
 	"dependencies": {
 		"@emoji-mart/data": "1.2.1",
@@ -49,7 +49,6 @@
 		"@monaco-editor/react": "4.7.0",
 		"@mui/material": "5.18.0",
 		"@mui/system": "5.18.0",
-		"@mui/utils": "5.17.1",
 		"@mui/x-tree-view": "7.29.10",
 		"@radix-ui/react-avatar": "1.1.11",
 		"@radix-ui/react-checkbox": "1.3.3",
