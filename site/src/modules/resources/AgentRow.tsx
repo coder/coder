@@ -481,13 +481,22 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 					{!hasMultiple && <div className="w-4" />}
 					<span className="font-mono text-xs">{displayName}</span>
 					<span className="text-xs text-content-secondary">
-						{activeCount === 1
-							? session.connections[0].short_description ||
-								connectionTypeLabel(
+						{activeCount === 1 ? (
+							<>
+								{connectionTypeLabel(
 									session.connections[0].type,
 									session.connections[0].detail,
-								)
-							: `${activeCount} active connections`}
+								)}
+								{session.connections[0].short_description && (
+									<span className="text-content-secondary">
+										{" "}
+										({session.connections[0].short_description})
+									</span>
+								)}
+							</>
+						) : (
+							`${activeCount} active connections`
+						)}
 					</span>
 					<span className="inline-flex items-center gap-1.5 text-xs">
 						<span
@@ -507,10 +516,17 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 								key={`${conn.type}-${conn.created_at}-${idx}`}
 								className="flex items-center gap-3 py-1.5 text-xs"
 							>
-								<span>
-									{conn.short_description ||
-										connectionTypeLabel(conn.type, conn.detail)}
-								</span>
+								<span>{connectionTypeLabel(conn.type, conn.detail)}</span>
+								{conn.short_description && (
+									<span className="text-content-secondary">
+										({conn.short_description})
+									</span>
+								)}
+								{conn.ip && (
+									<span className="text-content-tertiary font-mono">
+										{conn.ip}
+									</span>
+								)}
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<span className="text-content-secondary cursor-default">
