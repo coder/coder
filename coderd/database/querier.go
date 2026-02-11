@@ -69,6 +69,10 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	// Atomically closes open connections and creates sessions grouping by IP.
+	// TODO: Update grouping to use COALESCE(client_hostname, ip::text) to match
+	// the Go-side grouping in mergeWorkspaceConnectionsIntoSessions, which groups
+	// by ClientHostname (with IP fallback) so connections from the same machine
+	// collapse into one session.
 	// Used when a workspace is stopped/deleted.
 	CloseConnectionLogsAndCreateSessions(ctx context.Context, arg CloseConnectionLogsAndCreateSessionsParams) (int64, error)
 	CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error)
@@ -171,6 +175,10 @@ type sqlcQuerier interface {
 	// The lock CTE acquires a transaction-scoped advisory lock keyed on
 	// (workspace_id, ip) so concurrent disconnects from the same client
 	// serialize instead of creating duplicate sessions.
+	// TODO: Update matching to prefer client_hostname over ip to match the Go-side
+	// grouping in mergeWorkspaceConnectionsIntoSessions, which groups by
+	// ClientHostname (with IP fallback) so connections from the same machine
+	// collapse into one session.
 	FindOrCreateSessionForDisconnect(ctx context.Context, arg FindOrCreateSessionForDisconnectParams) (interface{}, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)

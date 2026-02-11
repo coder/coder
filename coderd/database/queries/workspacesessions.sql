@@ -4,6 +4,10 @@
 -- The lock CTE acquires a transaction-scoped advisory lock keyed on
 -- (workspace_id, ip) so concurrent disconnects from the same client
 -- serialize instead of creating duplicate sessions.
+-- TODO: Update matching to prefer client_hostname over ip to match the Go-side
+-- grouping in mergeWorkspaceConnectionsIntoSessions, which groups by
+-- ClientHostname (with IP fallback) so connections from the same machine
+-- collapse into one session.
 WITH lock AS (
     SELECT pg_advisory_xact_lock(hashtext(@workspace_id::text || @ip::text))
 ),

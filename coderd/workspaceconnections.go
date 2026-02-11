@@ -81,8 +81,12 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 	return conn
 }
 
-// mergeWorkspaceConnectionsIntoSessions groups ongoing connections by IP.
-// Live sessions don't have session_id yet - they're computed at query time.
+// mergeWorkspaceConnectionsIntoSessions groups ongoing connections into
+// sessions. Connections are grouped by ClientHostname when available
+// (so that SSH, Coder Desktop, and IDE connections from the same machine
+// become one expandable session), falling back to IP when hostname is
+// unknown. Live sessions don't have session_id yet - they're computed
+// at query time.
 func mergeWorkspaceConnectionsIntoSessions(
 	tunnelPeers []*tailnet.TunnelPeerInfo,
 	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
@@ -96,19 +100,19 @@ func mergeWorkspaceConnectionsIntoSessions(
 	// Build existing flat connections using the current merging logic.
 	connections := mergeConnectionsFlat(tunnelPeers, connectionLogs)
 
-	// Group by (IP, ClientHostname).
-	type sessionKey struct {
-		ip       string
-		hostname string
-	}
-	groups := make(map[sessionKey][]codersdk.WorkspaceConnection)
+	// Group by ClientHostname when available, otherwise by IP.
+	// This ensures connections from the same machine (e.g. SSH +
+	// Coder Desktop + IDE) collapse into a single session even if
+	// they use different tailnet IPs.
+	groups := make(map[string][]codersdk.WorkspaceConnection)
 
 	for _, conn := range connections {
-		ipStr := ""
-		if conn.IP != nil {
-			ipStr = conn.IP.String()
+		var key string
+		if conn.ClientHostname != "" {
+			key = "host:" + conn.ClientHostname
+		} else if conn.IP != nil {
+			key = "ip:" + conn.IP.String()
 		}
-		key := sessionKey{ip: ipStr, hostname: conn.ClientHostname}
 		groups[key] = append(groups[key], conn)
 	}
 
@@ -129,8 +133,11 @@ func mergeWorkspaceConnectionsIntoSessions(
 		})
 	}
 
-	// Sort sessions by IP for stable ordering.
+	// Sort sessions by hostname first, then IP for stable ordering.
 	slices.SortFunc(sessions, func(a, b codersdk.WorkspaceSession) int {
+		if c := cmp.Compare(a.ClientHostname, b.ClientHostname); c != 0 {
+			return c
+		}
 		aIP, bIP := "", ""
 		if a.IP != nil {
 			aIP = a.IP.String()

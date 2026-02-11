@@ -398,6 +398,10 @@ ORDER BY
 
 -- name: CloseConnectionLogsAndCreateSessions :execrows
 -- Atomically closes open connections and creates sessions grouping by IP.
+-- TODO: Update grouping to use COALESCE(client_hostname, ip::text) to match
+-- the Go-side grouping in mergeWorkspaceConnectionsIntoSessions, which groups
+-- by ClientHostname (with IP fallback) so connections from the same machine
+-- collapse into one session.
 -- Used when a workspace is stopped/deleted.
 WITH connections_to_close AS (
     SELECT id, ip, connect_time, agent_id, client_hostname, short_description
