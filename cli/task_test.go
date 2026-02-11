@@ -255,17 +255,17 @@ func fakeAgentAPIEcho(ctx context.Context, t testing.TB, initMsg agentapisdk.Mes
 // setupCLITaskTest creates a test workspace with an AI task template and agent,
 // with a fake agent API configured with the provided set of handlers.
 // Returns the user client and workspace.
-func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (*codersdk.Client, codersdk.Task) {
+func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (ownerClient *codersdk.Client, memberClient *codersdk.Client, task codersdk.Task) {
 	t.Helper()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	owner := coderdtest.CreateFirstUser(t, client)
-	userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	ownerClient = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	fakeAPI := startFakeAgentAPI(t, agentAPIHandlers)
 
 	authToken := uuid.NewString()
-	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
+	template := createAITaskTemplate(t, ownerClient, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
 
 	wantPrompt := "test prompt"
 	task, err := userClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
@@ -279,17 +279,17 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
 	workspace, err := userClient.Workspace(ctx, task.WorkspaceID.UUID)
 	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
-	_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+	agentClient := agentsdk.New(userClient.URL, agentsdk.WithFixedToken(authToken))
+	_ = agenttest.New(t, userClient.URL, authToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
 
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).
+	coderdtest.NewWorkspaceAgentWaiter(t, userClient, workspace.ID).
 		WaitFor(coderdtest.AgentsReady)
 
-	return userClient, task
+	return ownerClient, userClient, task
 }
 
 // setupCLITaskTestWithSnapshot creates a task in the specified status with a log snapshot.

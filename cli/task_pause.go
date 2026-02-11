@@ -7,6 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
@@ -48,6 +49,10 @@ func (r *RootCmd) taskPause() *serpent.Command {
 			}
 
 			display := fmt.Sprintf("%s/%s", task.OwnerName, task.Name)
+
+			if task.Status == codersdk.TaskStatusPaused {
+				return xerrors.Errorf("task %q is already paused", display)
+			}
 
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Pause task %s?", pretty.Sprint(cliui.DefaultStyles.Code, display)),
