@@ -168,6 +168,9 @@ type sqlcQuerier interface {
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
 	// Find existing session within time window, or create new one.
 	// Uses advisory lock to prevent duplicate sessions from concurrent disconnects.
+	// The lock CTE acquires a transaction-scoped advisory lock keyed on
+	// (workspace_id, ip) so concurrent disconnects from the same client
+	// serialize instead of creating duplicate sessions.
 	FindOrCreateSessionForDisconnect(ctx context.Context, arg FindOrCreateSessionForDisconnectParams) (interface{}, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)

@@ -1,9 +1,13 @@
 -- name: FindOrCreateSessionForDisconnect :one
 -- Find existing session within time window, or create new one.
 -- Uses advisory lock to prevent duplicate sessions from concurrent disconnects.
-SELECT pg_advisory_xact_lock(hashtext(@workspace_id::text || @ip::text));
-
-WITH existing AS (
+-- The lock CTE acquires a transaction-scoped advisory lock keyed on
+-- (workspace_id, ip) so concurrent disconnects from the same client
+-- serialize instead of creating duplicate sessions.
+WITH lock AS (
+    SELECT pg_advisory_xact_lock(hashtext(@workspace_id::text || @ip::text))
+),
+existing AS (
     SELECT id FROM workspace_sessions
     WHERE workspace_id = @workspace_id
       AND ip = @ip

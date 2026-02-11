@@ -24681,21 +24681,65 @@ func (q *sqlQuerier) CountWorkspaceSessions(ctx context.Context, arg CountWorksp
 }
 
 const findOrCreateSessionForDisconnect = `-- name: FindOrCreateSessionForDisconnect :one
-SELECT pg_advisory_xact_lock(hashtext($1::text || $2::text))
+WITH lock AS (
+    SELECT pg_advisory_xact_lock(hashtext($1::text || $2::text))
+),
+existing AS (
+    SELECT id FROM workspace_sessions
+    WHERE workspace_id = $1
+      AND ip = $2
+      AND (client_hostname IS NOT DISTINCT FROM $3)
+      AND $4 BETWEEN started_at - INTERVAL '30 minutes' AND ended_at + INTERVAL '30 minutes'
+    ORDER BY started_at DESC
+    LIMIT 1
+),
+new_session AS (
+    INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
+    SELECT $1, $5, $2, $3, $6, $4, $7
+    WHERE NOT EXISTS (SELECT 1 FROM existing)
+    RETURNING id
+),
+updated_session AS (
+    UPDATE workspace_sessions
+    SET started_at = LEAST(started_at, $4),
+        ended_at = GREATEST(ended_at, $7)
+    WHERE id = (SELECT id FROM existing)
+    RETURNING id
+)
+SELECT COALESCE(
+    (SELECT id FROM updated_session),
+    (SELECT id FROM new_session)
+) AS id
 `
 
 type FindOrCreateSessionForDisconnectParams struct {
-	WorkspaceID string `db:"workspace_id" json:"workspace_id"`
-	Ip          string `db:"ip" json:"ip"`
+	WorkspaceID      string         `db:"workspace_id" json:"workspace_id"`
+	Ip               string         `db:"ip" json:"ip"`
+	ClientHostname   sql.NullString `db:"client_hostname" json:"client_hostname"`
+	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
+	AgentID          uuid.NullUUID  `db:"agent_id" json:"agent_id"`
+	ShortDescription sql.NullString `db:"short_description" json:"short_description"`
+	DisconnectTime   time.Time      `db:"disconnect_time" json:"disconnect_time"`
 }
 
 // Find existing session within time window, or create new one.
 // Uses advisory lock to prevent duplicate sessions from concurrent disconnects.
+// The lock CTE acquires a transaction-scoped advisory lock keyed on
+// (workspace_id, ip) so concurrent disconnects from the same client
+// serialize instead of creating duplicate sessions.
 func (q *sqlQuerier) FindOrCreateSessionForDisconnect(ctx context.Context, arg FindOrCreateSessionForDisconnectParams) (interface{}, error) {
-	row := q.db.QueryRowContext(ctx, findOrCreateSessionForDisconnect, arg.WorkspaceID, arg.Ip)
-	var pg_advisory_xact_lock interface{}
-	err := row.Scan(&pg_advisory_xact_lock)
-	return pg_advisory_xact_lock, err
+	row := q.db.QueryRowContext(ctx, findOrCreateSessionForDisconnect,
+		arg.WorkspaceID,
+		arg.Ip,
+		arg.ClientHostname,
+		arg.ConnectTime,
+		arg.AgentID,
+		arg.ShortDescription,
+		arg.DisconnectTime,
+	)
+	var id interface{}
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getConnectionLogByConnectionID = `-- name: GetConnectionLogByConnectionID :one
