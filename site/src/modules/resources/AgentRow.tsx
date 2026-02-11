@@ -459,11 +459,9 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 	const [expanded, setExpanded] = useState(false);
 	const hasMultiple = session.connections.length > 1;
 
-	const displayName =
-		session.short_description ||
-		session.client_hostname ||
-		session.ip ||
-		"Unknown";
+	const displayName = session.client_hostname || session.ip || "Unknown";
+
+	const activeCount = session.connections.length;
 
 	return (
 		<Collapsible open={expanded} onOpenChange={setExpanded}>
@@ -471,12 +469,12 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 				<div
 					className={`flex items-center gap-3 py-2 rounded ${hasMultiple ? "cursor-pointer hover:bg-surface-secondary" : ""}`}
 				>
-					{hasMultiple && <DropdownArrow close={!expanded} margin={false} />}
+					{hasMultiple && <DropdownArrow close={expanded} margin={false} />}
 					{!hasMultiple && <div className="w-4" />}
 					<span className="font-mono text-xs">{displayName}</span>
 					<span className="text-xs text-content-secondary">
-						{session.connections.length}{" "}
-						{session.connections.length === 1 ? "connection" : "connections"}
+						{activeCount} active{" "}
+						{activeCount === 1 ? "connection" : "connections"}
 					</span>
 					<span className="inline-flex items-center gap-1.5 text-xs">
 						<span
