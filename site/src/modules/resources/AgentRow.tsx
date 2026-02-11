@@ -23,6 +23,8 @@ import { useProxy } from "contexts/ProxyContext";
 import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
+import { relativeTime } from "utils/time";
+
 import {
 	type FC,
 	useCallback,
@@ -504,9 +506,7 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 										connectionTypeLabel(conn.type, conn.detail)}
 								</span>
 								<span className="text-content-secondary">
-									{new Date(
-										conn.connected_at ?? conn.created_at,
-									).toLocaleString()}
+									{relativeTime(conn.connected_at ?? conn.created_at)}
 								</span>
 							</div>
 						))}
