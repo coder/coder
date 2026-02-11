@@ -85,18 +85,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 		>
 			<Pill type={type}>{`${messages.length} License Issues`}</Pill>
 			<div className="mx-2">
-				<div>
-					It looks like you've exceeded some limits of your license. &nbsp;
-					<a
-						className={cn(
-							"font-medium underline",
-							isError ? "text-content-destructive" : "text-content-warning",
-						)}
-						href="mailto:sales@coder.com"
-					>
-						Contact sales@coder.com.
-					</a>
-				</div>
+				<div>It looks like you've exceeded some limits of your license.</div>
 				<Expander expanded={showDetails} setExpanded={setShowDetails}>
 					<ul className="p-2 m-0">
 						{messages.map((message) => {
@@ -106,7 +95,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 									{formatMessage(message)}&nbsp;
 									<Link
 										className={cn(
-											"font-medium",
+											"font-medium text-xs px-0",
 											isError
 												? "!text-content-destructive"
 												: "!text-content-warning",
