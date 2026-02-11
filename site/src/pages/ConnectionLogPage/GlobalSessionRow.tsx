@@ -1,16 +1,20 @@
 import Collapse from "@mui/material/Collapse";
 import type {
-	ConnectionType,
 	GlobalWorkspaceSession,
 	WorkspaceConnection,
-	WorkspaceConnectionStatus,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import {
+	connectionStatusColor,
+	connectionStatusDot,
+	connectionStatusLabel,
+	connectionTypeLabel,
+} from "modules/resources/ConnectionStatus";
+import { ConnectionDetailDialog } from "pages/WorkspaceSessionsPage/ConnectionDetailDialog";
 import { type FC, useState } from "react";
-import { ConnectionDetailDialog } from "./ConnectionDetailDialog";
 
 interface GlobalSessionRowProps {
 	session: GlobalWorkspaceSession;
@@ -127,75 +131,12 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 
 			<ConnectionDetailDialog
 				connection={selectedConnection}
+				open={selectedConnection !== null}
 				onClose={() => setSelectedConnection(null)}
 			/>
 		</>
 	);
 };
-
-function connectionStatusLabel(status: WorkspaceConnectionStatus): string {
-	switch (status) {
-		case "ongoing":
-			return "Connected";
-		case "control_lost":
-			return "Control Lost";
-		case "client_disconnected":
-			return "Disconnected";
-		case "clean_disconnected":
-			return "Disconnected";
-		default:
-			return status;
-	}
-}
-
-function connectionStatusColor(status: WorkspaceConnectionStatus): string {
-	switch (status) {
-		case "ongoing":
-			return "text-content-success";
-		case "control_lost":
-			return "text-content-warning";
-		case "client_disconnected":
-		case "clean_disconnected":
-			return "text-content-secondary";
-		default:
-			return "text-content-secondary";
-	}
-}
-
-function connectionStatusDot(status: WorkspaceConnectionStatus): string {
-	switch (status) {
-		case "ongoing":
-			return "bg-content-success";
-		case "control_lost":
-			return "bg-content-warning";
-		case "client_disconnected":
-		case "clean_disconnected":
-			return "bg-content-secondary";
-		default:
-			return "bg-content-secondary";
-	}
-}
-
-function connectionTypeLabel(type_: ConnectionType, detail?: string): string {
-	switch (type_) {
-		case "ssh":
-			return "SSH";
-		case "reconnecting_pty":
-			return "ReconnectingPTY";
-		case "vscode":
-			return "VSCode";
-		case "jetbrains":
-			return "JetBrains";
-		case "workspace_app":
-			return detail ? `App: ${detail}` : "Workspace App";
-		case "port_forwarding":
-			return detail ? `Port ${detail}` : "Port Forwarding";
-		case "system":
-			return "System";
-		default:
-			return type_;
-	}
-}
 
 function formatTimeRange(startedAt: string, endedAt?: string): string {
 	const start = new Date(startedAt);
