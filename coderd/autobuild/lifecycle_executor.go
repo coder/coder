@@ -231,6 +231,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					job                   *database.ProvisionerJob
 					auditLog              *auditParams
 					shouldNotifyDormancy  bool
+					shouldNotifyTaskPause bool
 					nextBuild             *database.WorkspaceBuild
 					activeTemplateVersion database.TemplateVersion
 					ws                    database.Workspace
@@ -314,6 +315,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						// doesn't matter since the transaction is  read-only up to
 						// this point.
 						return nil
+					}
+
+					if reason == database.BuildReasonTaskAutoPause {
+						shouldNotifyTaskPause = true
 					}
 
 					// Get the template version job to access tags
@@ -480,6 +485,27 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					)
 					if err != nil {
 						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
+					}
+				}
+				if shouldNotifyTaskPause {
+					task, err := e.db.GetTaskByID(e.ctx, ws.TaskID.UUID)
+					if err != nil {
+						log.Warn(e.ctx, "failed to get task for pause notification", slog.Error(err), slog.F("task_id", ws.TaskID.UUID), slog.F("workspace_id", ws.ID))
+					} else {
+						if _, err := e.notificationsEnqueuer.Enqueue(
+							e.ctx,
+							ws.OwnerID,
+							notifications.TemplateTaskPaused,
+							map[string]string{
+								"task":         task.Name,
+								"workspace":    ws.Name,
+								"pause_reason": "idle timeout",
+							},
+							"lifecycle_executor",
+							ws.ID, ws.OwnerID, ws.OrganizationID,
+						); err != nil {
+							log.Warn(e.ctx, "failed to notify of task paused", slog.Error(err), slog.F("task_id", ws.TaskID.UUID), slog.F("workspace_id", ws.ID))
+						}
 					}
 				}
 				return nil
