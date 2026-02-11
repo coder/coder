@@ -1637,6 +1637,13 @@ func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountCon
 	return q.db.CountAuthorizedConnectionLogs(ctx, arg, prep)
 }
 
+func (q *querier) CountGlobalWorkspaceSessions(ctx context.Context, arg database.CountGlobalWorkspaceSessionsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog); err != nil {
+		return 0, err
+	}
+	return q.db.CountGlobalWorkspaceSessions(ctx, arg)
+}
+
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
@@ -2486,6 +2493,13 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
+}
+
+func (q *querier) GetGlobalWorkspaceSessionsOffset(ctx context.Context, arg database.GetGlobalWorkspaceSessionsOffsetParams) ([]database.GetGlobalWorkspaceSessionsOffsetRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog); err != nil {
+		return nil, err
+	}
+	return q.db.GetGlobalWorkspaceSessionsOffset(ctx, arg)
 }
 
 func (q *querier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {

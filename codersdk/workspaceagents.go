@@ -209,6 +209,12 @@ type WorkspaceConnection struct {
 	LatencyMS *float64 `json:"latency_ms,omitempty"`
 	// HomeDERP is the DERP region metadata for the agent's home relay.
 	HomeDERP *WorkspaceConnectionHomeDERP `json:"home_derp,omitempty"`
+	// DisconnectReason is the reason the connection was closed.
+	DisconnectReason string `json:"disconnect_reason,omitempty"`
+	// ExitCode is the exit code of the SSH session.
+	ExitCode *int32 `json:"exit_code,omitempty"`
+	// UserAgent is the HTTP user agent string from web connections.
+	UserAgent string `json:"user_agent,omitempty"`
 }
 
 // WorkspaceSession represents a client's session containing one or more connections.

@@ -24660,6 +24660,40 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 	return items, nil
 }
 
+const countGlobalWorkspaceSessions = `-- name: CountGlobalWorkspaceSessions :one
+SELECT COUNT(*) FROM workspace_sessions ws
+JOIN workspaces w ON w.id = ws.workspace_id
+JOIN users workspace_owner ON workspace_owner.id = w.owner_id
+WHERE
+  CASE WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+    THEN ws.workspace_id = $1 ELSE true END
+  AND CASE WHEN $2::text != ''
+    THEN workspace_owner.username = $2 ELSE true END
+  AND CASE WHEN $3::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at >= $3 ELSE true END
+  AND CASE WHEN $4::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at <= $4 ELSE true END
+`
+
+type CountGlobalWorkspaceSessionsParams struct {
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwner string    `db:"workspace_owner" json:"workspace_owner"`
+	StartedAfter   time.Time `db:"started_after" json:"started_after"`
+	StartedBefore  time.Time `db:"started_before" json:"started_before"`
+}
+
+func (q *sqlQuerier) CountGlobalWorkspaceSessions(ctx context.Context, arg CountGlobalWorkspaceSessionsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countGlobalWorkspaceSessions,
+		arg.WorkspaceID,
+		arg.WorkspaceOwner,
+		arg.StartedAfter,
+		arg.StartedBefore,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countWorkspaceSessions = `-- name: CountWorkspaceSessions :one
 SELECT COUNT(*) FROM workspace_sessions ws
 WHERE ws.workspace_id = $1
@@ -24828,6 +24862,96 @@ func (q *sqlQuerier) GetConnectionLogsBySessionIDs(ctx context.Context, sessionI
 			&i.SessionID,
 			&i.ClientHostname,
 			&i.ShortDescription,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGlobalWorkspaceSessionsOffset = `-- name: GetGlobalWorkspaceSessionsOffset :many
+SELECT
+    ws.id, ws.workspace_id, ws.agent_id, ws.ip, ws.client_hostname, ws.short_description, ws.started_at, ws.ended_at, ws.created_at,
+    w.name AS workspace_name,
+    workspace_owner.username AS workspace_owner_username,
+    (SELECT COUNT(*) FROM connection_logs cl WHERE cl.session_id = ws.id) AS connection_count
+FROM workspace_sessions ws
+JOIN workspaces w ON w.id = ws.workspace_id
+JOIN users workspace_owner ON workspace_owner.id = w.owner_id
+WHERE
+  CASE WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+    THEN ws.workspace_id = $1 ELSE true END
+  AND CASE WHEN $2::text != ''
+    THEN workspace_owner.username = $2 ELSE true END
+  AND CASE WHEN $3::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at >= $3 ELSE true END
+  AND CASE WHEN $4::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at <= $4 ELSE true END
+ORDER BY ws.started_at DESC
+LIMIT $6
+OFFSET $5
+`
+
+type GetGlobalWorkspaceSessionsOffsetParams struct {
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwner string    `db:"workspace_owner" json:"workspace_owner"`
+	StartedAfter   time.Time `db:"started_after" json:"started_after"`
+	StartedBefore  time.Time `db:"started_before" json:"started_before"`
+	OffsetCount    int32     `db:"offset_count" json:"offset_count"`
+	LimitCount     int32     `db:"limit_count" json:"limit_count"`
+}
+
+type GetGlobalWorkspaceSessionsOffsetRow struct {
+	ID                     uuid.UUID      `db:"id" json:"id"`
+	WorkspaceID            uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	AgentID                uuid.NullUUID  `db:"agent_id" json:"agent_id"`
+	Ip                     pqtype.Inet    `db:"ip" json:"ip"`
+	ClientHostname         sql.NullString `db:"client_hostname" json:"client_hostname"`
+	ShortDescription       sql.NullString `db:"short_description" json:"short_description"`
+	StartedAt              time.Time      `db:"started_at" json:"started_at"`
+	EndedAt                time.Time      `db:"ended_at" json:"ended_at"`
+	CreatedAt              time.Time      `db:"created_at" json:"created_at"`
+	WorkspaceName          string         `db:"workspace_name" json:"workspace_name"`
+	WorkspaceOwnerUsername string         `db:"workspace_owner_username" json:"workspace_owner_username"`
+	ConnectionCount        int64          `db:"connection_count" json:"connection_count"`
+}
+
+func (q *sqlQuerier) GetGlobalWorkspaceSessionsOffset(ctx context.Context, arg GetGlobalWorkspaceSessionsOffsetParams) ([]GetGlobalWorkspaceSessionsOffsetRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGlobalWorkspaceSessionsOffset,
+		arg.WorkspaceID,
+		arg.WorkspaceOwner,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.OffsetCount,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGlobalWorkspaceSessionsOffsetRow
+	for rows.Next() {
+		var i GetGlobalWorkspaceSessionsOffsetRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.Ip,
+			&i.ClientHostname,
+			&i.ShortDescription,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+			&i.WorkspaceName,
+			&i.WorkspaceOwnerUsername,
+			&i.ConnectionCount,
 		); err != nil {
 			return nil, err
 		}

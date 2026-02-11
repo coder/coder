@@ -396,6 +396,21 @@ func (mr *MockStoreMockRecorder) CountConnectionLogs(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountConnectionLogs), ctx, arg)
 }
 
+// CountGlobalWorkspaceSessions mocks base method.
+func (m *MockStore) CountGlobalWorkspaceSessions(ctx context.Context, arg database.CountGlobalWorkspaceSessionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountGlobalWorkspaceSessions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountGlobalWorkspaceSessions indicates an expected call of CountGlobalWorkspaceSessions.
+func (mr *MockStoreMockRecorder) CountGlobalWorkspaceSessions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountGlobalWorkspaceSessions", reflect.TypeOf((*MockStore)(nil).CountGlobalWorkspaceSessions), ctx, arg)
+}
+
 // CountInProgressPrebuilds mocks base method.
 func (m *MockStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	m.ctrl.T.Helper()
@@ -2097,6 +2112,21 @@ func (m *MockStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (databas
 func (mr *MockStoreMockRecorder) GetGitSSHKey(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitSSHKey", reflect.TypeOf((*MockStore)(nil).GetGitSSHKey), ctx, userID)
+}
+
+// GetGlobalWorkspaceSessionsOffset mocks base method.
+func (m *MockStore) GetGlobalWorkspaceSessionsOffset(ctx context.Context, arg database.GetGlobalWorkspaceSessionsOffsetParams) ([]database.GetGlobalWorkspaceSessionsOffsetRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGlobalWorkspaceSessionsOffset", ctx, arg)
+	ret0, _ := ret[0].([]database.GetGlobalWorkspaceSessionsOffsetRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGlobalWorkspaceSessionsOffset indicates an expected call of GetGlobalWorkspaceSessionsOffset.
+func (mr *MockStoreMockRecorder) GetGlobalWorkspaceSessionsOffset(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGlobalWorkspaceSessionsOffset", reflect.TypeOf((*MockStore)(nil).GetGlobalWorkspaceSessionsOffset), ctx, arg)
 }
 
 // GetGroupByID mocks base method.

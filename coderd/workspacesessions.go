@@ -101,13 +101,15 @@ func (api *API) workspaceSessions(rw http.ResponseWriter, r *http.Request) {
 		Count:    totalCount,
 	}
 	for i, s := range sessions {
-		response.Sessions[i] = convertDBSessionToSDK(s, connsBySession[s.ID])
+		response.Sessions[i] = ConvertDBSessionToSDK(s, connsBySession[s.ID])
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-func convertDBSessionToSDK(s database.GetWorkspaceSessionsOffsetRow, connections []database.ConnectionLog) codersdk.WorkspaceSession {
+// ConvertDBSessionToSDK converts a database workspace session row and its
+// connection logs into the SDK representation.
+func ConvertDBSessionToSDK(s database.GetWorkspaceSessionsOffsetRow, connections []database.ConnectionLog) codersdk.WorkspaceSession {
 	id := s.ID
 	session := codersdk.WorkspaceSession{
 		ID:          &id,
@@ -133,13 +135,15 @@ func convertDBSessionToSDK(s database.GetWorkspaceSessionsOffsetRow, connections
 	}
 
 	for i, conn := range connections {
-		session.Connections[i] = convertConnectionLogToSDK(conn)
+		session.Connections[i] = ConvertConnectionLogToSDK(conn)
 	}
 
 	return session
 }
 
-func convertConnectionLogToSDK(conn database.ConnectionLog) codersdk.WorkspaceConnection {
+// ConvertConnectionLogToSDK converts a database connection log into the
+// SDK representation used within workspace sessions.
+func ConvertConnectionLogToSDK(conn database.ConnectionLog) codersdk.WorkspaceConnection {
 	wc := codersdk.WorkspaceConnection{
 		Status:    codersdk.ConnectionStatusCleanDisconnected,
 		CreatedAt: conn.ConnectTime,
@@ -160,6 +164,23 @@ func convertConnectionLogToSDK(conn database.ConnectionLog) codersdk.WorkspaceCo
 
 	if conn.DisconnectTime.Valid {
 		wc.EndedAt = &conn.DisconnectTime.Time
+	}
+
+	if conn.DisconnectReason.Valid {
+		wc.DisconnectReason = conn.DisconnectReason.String
+	}
+	if conn.Code.Valid {
+		code := conn.Code.Int32
+		wc.ExitCode = &code
+	}
+	if conn.UserAgent.Valid {
+		wc.UserAgent = conn.UserAgent.String
+	}
+	if conn.ClientHostname.Valid {
+		wc.ClientHostname = conn.ClientHostname.String
+	}
+	if conn.ShortDescription.Valid {
+		wc.ShortDescription = conn.ShortDescription.String
 	}
 
 	return wc

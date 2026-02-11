@@ -71,3 +71,40 @@ WHERE connection_id = @connection_id
   AND workspace_id = @workspace_id
   AND agent_name = @agent_name
 LIMIT 1;
+
+-- name: GetGlobalWorkspaceSessionsOffset :many
+SELECT
+    ws.*,
+    w.name AS workspace_name,
+    workspace_owner.username AS workspace_owner_username,
+    (SELECT COUNT(*) FROM connection_logs cl WHERE cl.session_id = ws.id) AS connection_count
+FROM workspace_sessions ws
+JOIN workspaces w ON w.id = ws.workspace_id
+JOIN users workspace_owner ON workspace_owner.id = w.owner_id
+WHERE
+  CASE WHEN @workspace_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+    THEN ws.workspace_id = @workspace_id ELSE true END
+  AND CASE WHEN @workspace_owner::text != ''
+    THEN workspace_owner.username = @workspace_owner ELSE true END
+  AND CASE WHEN @started_after::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at >= @started_after ELSE true END
+  AND CASE WHEN @started_before::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at <= @started_before ELSE true END
+ORDER BY ws.started_at DESC
+LIMIT @limit_count
+OFFSET @offset_count;
+
+-- name: CountGlobalWorkspaceSessions :one
+SELECT COUNT(*) FROM workspace_sessions ws
+JOIN workspaces w ON w.id = ws.workspace_id
+JOIN users workspace_owner ON workspace_owner.id = w.owner_id
+WHERE
+  CASE WHEN @workspace_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+    THEN ws.workspace_id = @workspace_id ELSE true END
+  AND CASE WHEN @workspace_owner::text != ''
+    THEN workspace_owner.username = @workspace_owner ELSE true END
+  AND CASE WHEN @started_after::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at >= @started_after ELSE true END
+  AND CASE WHEN @started_before::timestamptz != '0001-01-01 00:00:00Z'::timestamptz
+    THEN ws.started_at <= @started_before ELSE true END;
+

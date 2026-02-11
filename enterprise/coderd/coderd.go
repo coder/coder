@@ -258,6 +258,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/", api.connectionLogs)
 			r.Get("/diagnostics/{username}", api.userDiagnostic)
+			r.Get("/sessions", api.globalWorkspaceSessions)
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

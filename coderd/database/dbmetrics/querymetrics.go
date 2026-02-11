@@ -271,6 +271,14 @@ func (m queryMetricsStore) CountConnectionLogs(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountGlobalWorkspaceSessions(ctx context.Context, arg database.CountGlobalWorkspaceSessionsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountGlobalWorkspaceSessions(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountGlobalWorkspaceSessions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountGlobalWorkspaceSessions").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountInProgressPrebuilds(ctx)
@@ -1139,6 +1147,14 @@ func (m queryMetricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (
 	r0, r1 := m.s.GetGitSSHKey(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetGitSSHKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGitSSHKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGlobalWorkspaceSessionsOffset(ctx context.Context, arg database.GetGlobalWorkspaceSessionsOffsetParams) ([]database.GetGlobalWorkspaceSessionsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGlobalWorkspaceSessionsOffset(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGlobalWorkspaceSessionsOffset").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGlobalWorkspaceSessionsOffset").Inc()
 	return r0, r1
 }
 

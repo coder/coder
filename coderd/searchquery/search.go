@@ -142,6 +142,46 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	return filter, countFilter, parser.Errors
 }
 
+// WorkspaceSessions parses a search query string into database filter
+// parameters for the global workspace sessions endpoint.
+func WorkspaceSessions(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetGlobalWorkspaceSessionsOffsetParams, database.CountGlobalWorkspaceSessionsParams, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
+		return database.GetGlobalWorkspaceSessionsOffsetParams{}, database.CountGlobalWorkspaceSessionsParams{}, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetGlobalWorkspaceSessionsOffsetParams{
+		WorkspaceOwner: parser.String(values, "", "workspace_owner"),
+		WorkspaceID:    parser.UUID(values, uuid.Nil, "workspace_id"),
+		StartedAfter:   parser.Time3339Nano(values, time.Time{}, "started_after"),
+		StartedBefore:  parser.Time3339Nano(values, time.Time{}, "started_before"),
+	}
+
+	if filter.WorkspaceOwner == "me" {
+		// The "me" keyword is not supported for workspace_owner in
+		// global sessions since we filter by workspace owner, not
+		// the requesting user. Reset to empty to avoid confusion.
+		filter.WorkspaceOwner = ""
+	}
+
+	// This MUST be kept in sync with the above.
+	countFilter := database.CountGlobalWorkspaceSessionsParams{
+		WorkspaceOwner: filter.WorkspaceOwner,
+		WorkspaceID:    filter.WorkspaceID,
+		StartedAfter:   filter.StartedAfter,
+		StartedBefore:  filter.StartedBefore,
+	}
+	parser.ErrorExcessParams(values)
+	return filter, countFilter, parser.Errors
+}
+
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)

@@ -2541,6 +2541,36 @@ export interface GithubAuthMethod {
 	readonly default_provider_configured: boolean;
 }
 
+// From codersdk/workspacesessions.go
+/**
+ * GlobalWorkspaceSession extends WorkspaceSession with workspace
+ * metadata for the global sessions view.
+ */
+export interface GlobalWorkspaceSession extends WorkspaceSession {
+	readonly workspace_id: string;
+	readonly workspace_name: string;
+	readonly workspace_owner_username: string;
+}
+
+// From codersdk/workspacesessions.go
+/**
+ * GlobalWorkspaceSessionsRequest is the request for the global
+ * workspace sessions endpoint.
+ */
+export interface GlobalWorkspaceSessionsRequest extends Pagination {
+	readonly q?: string;
+}
+
+// From codersdk/workspacesessions.go
+/**
+ * GlobalWorkspaceSessionsResponse is the response for the global
+ * workspace sessions endpoint.
+ */
+export interface GlobalWorkspaceSessionsResponse {
+	readonly sessions: readonly GlobalWorkspaceSession[];
+	readonly count: number;
+}
+
 // From codersdk/groups.go
 export interface Group {
 	readonly id: string;
@@ -7062,6 +7092,18 @@ export interface WorkspaceConnection {
 	 * HomeDERP is the DERP region metadata for the agent's home relay.
 	 */
 	readonly home_derp?: WorkspaceConnectionHomeDERP;
+	/**
+	 * DisconnectReason is the reason the connection was closed.
+	 */
+	readonly disconnect_reason?: string;
+	/**
+	 * ExitCode is the exit code of the SSH session.
+	 */
+	readonly exit_code?: number;
+	/**
+	 * UserAgent is the HTTP user agent string from web connections.
+	 */
+	readonly user_agent?: string;
 }
 
 // From codersdk/workspaceagents.go

@@ -83,6 +83,134 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get global workspace sessions
+// @ID get-global-workspace-sessions
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param q query string false "Search query"
+// @Param limit query int true "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.GlobalWorkspaceSessionsResponse
+// @Router /connectionlog/sessions [get]
+func (api *API) globalWorkspaceSessions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	page, ok := agpl.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	queryStr := r.URL.Query().Get("q")
+	filter, countFilter, errs := searchquery.WorkspaceSessions(ctx, api.Database, queryStr, apiKey)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid session search query.",
+			Validations: errs,
+		})
+		return
+	}
+	// #nosec G115 - Safe conversion as pagination offset is expected to be within int32 range.
+	filter.OffsetCount = int32(page.Offset)
+	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range.
+	filter.LimitCount = int32(page.Limit)
+
+	count, err := api.Database.CountGlobalWorkspaceSessions(ctx, countFilter)
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if count == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.GlobalWorkspaceSessionsResponse{
+			Sessions: []codersdk.GlobalWorkspaceSession{},
+			Count:    0,
+		})
+		return
+	}
+
+	dbSessions, err := api.Database.GetGlobalWorkspaceSessionsOffset(ctx, filter)
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Batch-fetch connection logs for all sessions.
+	sessionIDs := make([]uuid.UUID, len(dbSessions))
+	for i, s := range dbSessions {
+		sessionIDs[i] = s.ID
+	}
+	connLogs, err := api.Database.GetConnectionLogsBySessionIDs(ctx, sessionIDs)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Group connections by session ID.
+	connsBySession := make(map[uuid.UUID][]database.ConnectionLog)
+	for _, cl := range connLogs {
+		if cl.SessionID.Valid {
+			connsBySession[cl.SessionID.UUID] = append(connsBySession[cl.SessionID.UUID], cl)
+		}
+	}
+
+	sessions := make([]codersdk.GlobalWorkspaceSession, 0, len(dbSessions))
+	for _, s := range dbSessions {
+		sessions = append(sessions, convertDBGlobalSessionToSDK(s, connsBySession[s.ID]))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GlobalWorkspaceSessionsResponse{
+		Sessions: sessions,
+		Count:    count,
+	})
+}
+
+func convertDBGlobalSessionToSDK(s database.GetGlobalWorkspaceSessionsOffsetRow, connections []database.ConnectionLog) codersdk.GlobalWorkspaceSession {
+	id := s.ID
+	session := codersdk.WorkspaceSession{
+		ID:          &id,
+		Status:      codersdk.ConnectionStatusCleanDisconnected,
+		StartedAt:   s.StartedAt,
+		EndedAt:     &s.EndedAt,
+		Connections: make([]codersdk.WorkspaceConnection, len(connections)),
+	}
+
+	// Parse IP.
+	if s.Ip.Valid {
+		if addr, ok := netip.AddrFromSlice(s.Ip.IPNet.IP); ok {
+			addr = addr.Unmap()
+			session.IP = &addr
+		}
+	}
+
+	if s.ClientHostname.Valid {
+		session.ClientHostname = s.ClientHostname.String
+	}
+	if s.ShortDescription.Valid {
+		session.ShortDescription = s.ShortDescription.String
+	}
+
+	for i, conn := range connections {
+		session.Connections[i] = agpl.ConvertConnectionLogToSDK(conn)
+	}
+
+	return codersdk.GlobalWorkspaceSession{
+		WorkspaceSession:       session,
+		WorkspaceID:            s.WorkspaceID,
+		WorkspaceName:          s.WorkspaceName,
+		WorkspaceOwnerUsername: s.WorkspaceOwnerUsername,
+	}
+}
+
 func convertConnectionLogs(dblogs []database.GetConnectionLogsOffsetRow) []codersdk.ConnectionLog {
 	clogs := make([]codersdk.ConnectionLog, 0, len(dblogs))
 
