@@ -14,8 +14,10 @@ COPY . .
 # Build the testidp binary.
 RUN CGO_ENABLED=0 go build -o /testidp ./scripts/testidp
 
-# Runtime image.
+# Runtime image with debug tools.
 FROM alpine:3.21
+
+RUN apk add --no-cache curl wget netcat-openbsd bind-tools
 
 COPY --from=builder /testidp /testidp
 

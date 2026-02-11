@@ -15,9 +15,10 @@ import (
 
 // ContainerRunOptions configures a container run.
 type ContainerRunOptions struct {
-	CreateOpts docker.CreateContainerOptions
-	Logger     slog.Logger
-	Detached   bool
+	CreateOpts      docker.CreateContainerOptions
+	Logger          slog.Logger
+	Detached        bool
+	DestroyExisting bool // If true, will remove any existing container with the same name before creating.
 	// Stdout is an optional extra writer to tee container stdout
 	// into (e.g. a buffer for capturing output). nil = discard.
 	Stdout io.Writer
@@ -59,7 +60,19 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 		Filters: existsFilter,
 	})
 	if len(cnts) > 0 {
-		return nil, fmt.Errorf("container with name %q already exists", containerName)
+		if opts.DestroyExisting {
+			for _, cnt := range cnts {
+				logger.Info(ctx, "removing existing container with same name", slog.F("container_name", containerName))
+				if err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+					ID:    cnt.ID,
+					Force: true,
+				}); err != nil {
+					return nil, fmt.Errorf("remove existing container: %w", err)
+				}
+			}
+		} else {
+			return nil, fmt.Errorf("container with name %q already exists", containerName)
+		}
 	}
 
 	container, err := pool.Client.CreateContainer(opts.CreateOpts)

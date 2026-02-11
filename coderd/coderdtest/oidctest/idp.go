@@ -541,6 +541,9 @@ func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 		}
 	}
 
+	srvURL = strings.ReplaceAll(srvURL, "127.0.0.1", "0.0.0.0")
+	srvURL = strings.ReplaceAll(srvURL, "localhost", "0.0.0.0")
+
 	l, err := net.Listen("tcp", srvURL)
 	require.NoError(t, err, "failed to create listener")
 

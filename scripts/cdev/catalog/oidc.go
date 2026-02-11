@@ -86,7 +86,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 	// Start new container (ephemeral, will be removed on stop).
 	result, err := RunContainer(ctx, o.pool, CDevOIDC, ContainerRunOptions{
 		CreateOpts: docker.CreateContainerOptions{
-			Name: fmt.Sprintf("cdev_oidc_%d", time.Now().UnixNano()),
+			Name: "cdev_oidc",
 			Config: &docker.Config{
 				Image: testidpImage + ":" + testidpTag,
 				Cmd: []string{
@@ -103,8 +103,9 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 				},
 			},
 		},
-		Logger:   cntLogger,
-		Detached: true,
+		Logger:          cntLogger,
+		Detached:        true,
+		DestroyExisting: true,
 	})
 	if err != nil {
 		return fmt.Errorf("run container: %w", err)
@@ -135,6 +136,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 	return o.waitForReady(ctx, logger)
 }
 
+// TODO: Reuse the old image if there is no diffs
 func (o *OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
 	cwd, err := os.Getwd()
 	if err != nil {
