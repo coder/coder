@@ -325,45 +325,47 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										<PromptSelectTrigger
 											id="presetID"
 											tooltip="Preset"
-											className="max-w-full [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span>span]:truncate [&>span>span]:min-w-0 [&_svg[data-slot='preset-description']]:hidden"
+											className="max-w-full [&_[data-slot=preset-name]]:truncate [&_[data-slot=preset-name]]:min-w-0 [&_[data-slot=preset-description]]:hidden"
 										>
 											<SelectValue placeholder="Select a preset" />
 										</PromptSelectTrigger>
 										<SelectContent>
 											{presets?.toSorted(sortByDefault).map((preset) => (
-												<SelectItem
-													value={preset.ID}
-													key={preset.ID}
-													className="[&_span]:flex [&_span]:items-center [&_span]:gap-2"
-												>
-													{preset.Icon && (
-														<img
-															src={preset.Icon}
-															alt={preset.Name}
-															className="size-icon-sm shrink-0"
-														/>
-													)}
-													<span className="truncate min-w-0">
-														{preset.Name}
-													</span>
-													{preset.Default && (
-														<Badge size="xs" className="shrink-0">
-															Default
-														</Badge>
-													)}
-													{preset.Description && (
-														<Tooltip>
-															<TooltipTrigger asChild>
-																<InfoIcon
-																	className="size-4"
-																	data-slot="preset-description"
-																/>
-															</TooltipTrigger>
-															<TooltipContent>
-																{preset.Description}
-															</TooltipContent>
-														</Tooltip>
-													)}
+												<SelectItem value={preset.ID} key={preset.ID}>
+													<div className="flex items-center gap-2">
+														{preset.Icon && (
+															<img
+																data-slot="preset-icon"
+																src={preset.Icon}
+																alt={preset.Name}
+																className="size-icon-sm shrink-0"
+															/>
+														)}
+														<span
+															data-slot="preset-name"
+															className="truncate min-w-0"
+														>
+															{preset.Name}
+														</span>
+														{preset.Default && (
+															<Badge size="xs" className="shrink-0">
+																Default
+															</Badge>
+														)}
+														{preset.Description && (
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<InfoIcon
+																		className="size-4"
+																		data-slot="preset-description"
+																	/>
+																</TooltipTrigger>
+																<TooltipContent>
+																	{preset.Description}
+																</TooltipContent>
+															</Tooltip>
+														)}
+													</div>
 												</SelectItem>
 											))}
 										</SelectContent>
