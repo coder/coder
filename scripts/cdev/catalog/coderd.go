@@ -14,8 +14,14 @@ import (
 )
 
 const (
-	coderdPort = "3000/tcp"
+	coderdBasePort = 3000
 )
+
+// coderdPortNum returns the port number for a given coderd instance index.
+// Instance 0 uses port 3000, instance 1 uses 3001, etc.
+func coderdPortNum(index int) int {
+	return coderdBasePort + index
+}
 
 // CoderdResult contains the connection info for the running Coderd instance.
 type CoderdResult struct {
@@ -106,11 +112,12 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 			return fmt.Errorf("start coderd instance %d: %w", i, err)
 		}
 		if i == 0 {
-			// With host networking, port is always 3000.
+			// Primary instance uses base port, others use base + index.
+			port := coderdPortNum(0)
 			c.containerID = container.Container.ID
 			c.result = CoderdResult{
-				URL:  "http://localhost:3000",
-				Port: "3000",
+				URL:  fmt.Sprintf("http://localhost:%d", port),
+				Port: fmt.Sprintf("%d", port),
 			}
 		}
 	}
@@ -155,7 +162,13 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 		dockerSocket = "/var/run/docker.sock"
 	}
 
-	logger.Info(ctx, "starting coderd container")
+	// Calculate port for this instance (base port + index).
+	port := coderdPortNum(index)
+	portStr := fmt.Sprintf("%d", port)
+	httpAddress := fmt.Sprintf("0.0.0.0:%d", port)
+	accessURL := fmt.Sprintf("http://localhost:%d", port)
+
+	logger.Info(ctx, "starting coderd container", slog.F("index", index), slog.F("port", port))
 
 	cntSink := controllableLoggerSink(logger)
 	cntLogger := slog.Make(cntSink)
@@ -171,8 +184,8 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 				Env: []string{
 					// Use host networking for postgres since it's on localhost.
 					fmt.Sprintf("CODER_PG_CONNECTION_URL=%s", pg.Result().URL),
-					"CODER_HTTP_ADDRESS=0.0.0.0:3000",
-					"CODER_ACCESS_URL=http://localhost:3000",
+					fmt.Sprintf("CODER_HTTP_ADDRESS=%s", httpAddress),
+					fmt.Sprintf("CODER_ACCESS_URL=%s", accessURL),
 					"CODER_SWAGGER_ENABLE=true",
 					"CODER_DANGEROUS_ALLOW_CORS_REQUESTS=true",
 					"CODER_TELEMETRY_ENABLE=false",
@@ -183,14 +196,14 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 				},
 				Cmd: []string{
 					"go", "run", "./enterprise/cmd/coder", "server",
-					"--http-address", "0.0.0.0:3000",
-					"--access-url", "http://localhost:3000",
+					"--http-address", httpAddress,
+					"--access-url", accessURL,
 					"--swagger-enable",
 					"--dangerous-allow-cors-requests=true",
 					"--enable-terraform-debug-mode",
 				},
 				Labels:       labels,
-				ExposedPorts: map[docker.Port]struct{}{coderdPort: {}},
+				ExposedPorts: map[docker.Port]struct{}{docker.Port(portStr + "/tcp"): {}},
 			},
 			HostConfig: &docker.HostConfig{
 				Binds: []string{
@@ -204,7 +217,7 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 				NetworkMode:   "host",
 				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
 				PortBindings: map[docker.Port][]docker.PortBinding{
-					coderdPort: {{HostIP: "127.0.0.1", HostPort: ""}},
+					docker.Port(portStr + "/tcp"): {{HostIP: "127.0.0.1", HostPort: portStr}},
 				},
 			},
 		},
