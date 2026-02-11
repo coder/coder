@@ -5,11 +5,11 @@ import (
 	"os"
 
 	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
+	"github.com/coder/coder/v2/scripts/cdev/cleanup"
 	"github.com/coder/serpent"
 )
 
@@ -41,41 +41,9 @@ func cleanCmd() *serpent.Command {
 				return fmt.Errorf("failed to connect to docker: %w", err)
 			}
 
-			res, err := pool.Client.PruneContainers(docker.PruneContainersOptions{
-				Filters: map[string][]string{
-					"label": {catalog.CDevLabel},
-				},
-				Context: nil,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to prune containers: %w", err)
-			}
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 
-			_, _ = fmt.Fprintf(inv.Stdout, "🧹 Deleted %d containers and reclaimed %d bytes of space\n", len(res.ContainersDeleted), res.SpaceReclaimed)
-			for _, id := range res.ContainersDeleted {
-				_, _ = fmt.Fprintf(inv.Stdout, "🧹 Deleted container %s\n", id)
-			}
-
-			vols, err := pool.Client.ListVolumes(docker.ListVolumesOptions{
-				Filters: map[string][]string{
-					"label": {catalog.CDevLabel},
-				},
-			})
-
-			for _, vol := range vols {
-				err = pool.Client.RemoveVolumeWithOptions(docker.RemoveVolumeOptions{
-					Context: nil,
-					Name:    vol.Name,
-					Force:   true,
-				})
-				if err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "failed to remove volume %s: %v\n", vol.Name, err)
-					// Continue trying to remove other volumes even if one fails.
-				}
-				_, _ = fmt.Fprintf(inv.Stdout, "🧹 Deleted volume %s\n", vol.Name)
-			}
-
-			return nil
+			return cleanup.Cleanup(inv.Context(), logger, pool)
 		},
 	}
 }
