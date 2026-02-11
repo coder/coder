@@ -440,6 +440,20 @@ function connectionTypeLabel(type_: ConnectionType, detail?: string): string {
 	}
 }
 
+// Build a single display label for a connection. Uses short_description
+// (client identity like "Coder Desktop", "CLI ssh") as primary, with
+// the protocol/app type as secondary detail after a separator.
+function connectionLabel(conn: WorkspaceConnection): string {
+	const typeLabel = conn.type
+		? connectionTypeLabel(conn.type, conn.detail)
+		: "";
+	const desc = conn.short_description || "";
+	if (desc && typeLabel) {
+		return `${desc} · ${typeLabel}`;
+	}
+	return desc || typeLabel || "Unknown";
+}
+
 interface AgentSessionsTableProps {
 	sessions: readonly WorkspaceSession[];
 }
@@ -481,22 +495,9 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 					{!hasMultiple && <div className="w-4" />}
 					<span className="font-mono text-xs">{displayName}</span>
 					<span className="text-xs text-content-secondary">
-						{activeCount === 1 ? (
-							<>
-								{connectionTypeLabel(
-									session.connections[0].type,
-									session.connections[0].detail,
-								)}
-								{session.connections[0].short_description && (
-									<span className="text-content-secondary">
-										{" "}
-										({session.connections[0].short_description})
-									</span>
-								)}
-							</>
-						) : (
-							`${activeCount} active connections`
-						)}
+						{activeCount === 1
+							? connectionLabel(session.connections[0])
+							: `${activeCount} active connections`}
 					</span>
 					<span className="inline-flex items-center gap-1.5 text-xs">
 						<span
@@ -516,17 +517,7 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 								key={`${conn.type}-${conn.created_at}-${idx}`}
 								className="flex items-center gap-3 py-1.5 text-xs"
 							>
-								<span>{connectionTypeLabel(conn.type, conn.detail)}</span>
-								{conn.short_description && (
-									<span className="text-content-secondary">
-										({conn.short_description})
-									</span>
-								)}
-								{conn.ip && (
-									<span className="text-content-tertiary font-mono">
-										{conn.ip}
-									</span>
-								)}
+								<span>{connectionLabel(conn)}</span>
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<span className="text-content-secondary cursor-default">
