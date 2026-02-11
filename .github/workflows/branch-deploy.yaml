@@ -364,7 +364,7 @@ jobs:
             "https://${BRANCH_HOSTNAME}"
 
           cd .github/pr-deployments/template
-          /tmp/coder templates push -y --variable "namespace=${DEPLOY_NAME}" kubernetes
+          /tmp/coder templates push -y --directory . --variable "namespace=${DEPLOY_NAME}" kubernetes
           /tmp/coder create --template="kubernetes" kube \
             --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
           /tmp/coder stop kube -y
