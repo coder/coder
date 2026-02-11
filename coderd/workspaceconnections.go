@@ -78,6 +78,12 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 	if log.SlugOrPort.Valid {
 		conn.Detail = log.SlugOrPort.String
 	}
+	if log.ClientHostname.Valid {
+		conn.ClientHostname = log.ClientHostname.String
+	}
+	if log.ShortDescription.Valid {
+		conn.ShortDescription = log.ShortDescription.String
+	}
 	return conn
 }
 
