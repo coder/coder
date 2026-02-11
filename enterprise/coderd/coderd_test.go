@@ -689,11 +689,7 @@ func TestManagedAgentLimit(t *testing.T) {
 	require.True(t, agentLimit.Enabled)
 	require.NotNil(t, agentLimit.Limit)
 	require.EqualValues(t, 1, *agentLimit.Limit)
-	require.NotNil(t, agentLimit.SoftLimit)
-	require.EqualValues(t, 1, *agentLimit.SoftLimit)
 	require.Empty(t, sdkEntitlements.Errors)
-	// There should be a warning since we're really close to our agent limit.
-	require.Equal(t, sdkEntitlements.Warnings[0], "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
 
 	// Create a fake provision response that claims there are agents in the
 	// template and every built workspace.
