@@ -21,6 +21,10 @@ func (r *RootCmd) taskPause() *serpent.Command {
 				Command:     "coder task pause my-task",
 			},
 			Example{
+				Description: "Pause another user's task",
+				Command:     "coder task pause alice/my-task",
+			},
+			Example{
 				Description: "Pause a task without confirmation",
 				Command:     "coder task pause my-task --yes",
 			},

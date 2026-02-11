@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -20,8 +21,9 @@ func TestExpTaskPause(t *testing.T) {
 
 	// setup creates an AI task with a completed workspace build, ready
 	// to be paused. Follows the pattern from TestPauseTask in
-	// coderd/aitasks_test.go.
-	setup := func(t *testing.T) (*codersdk.Client, codersdk.Task) {
+	// coderd/aitasks_test.go. Returns the admin client, the member
+	// client that owns the task, and the task itself.
+	setup := func(t *testing.T) (adminClient *codersdk.Client, memberClient *codersdk.Client, task codersdk.Task) {
 		t.Helper()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -52,13 +54,13 @@ func TestExpTaskPause(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-		return userClient, task
+		return client, userClient, task
 	}
 
 	t.Run("WithYesFlag", func(t *testing.T) {
 		t.Parallel()
 
-		client, task := setup(t)
+		_, client, task := setup(t)
 
 		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "pause", task.Name, "--yes")
@@ -76,10 +78,35 @@ func TestExpTaskPause(t *testing.T) {
 		require.Equal(t, codersdk.TaskStatusPaused, updated.Status)
 	})
 
+	// OtherUserTask verifies that an admin can pause a task owned by
+	// another user using the "owner/name" identifier format.
+	t.Run("OtherUserTask", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, task := setup(t)
+
+		identifier := fmt.Sprintf("%s/%s", task.OwnerName, task.Name)
+
+		var stdout strings.Builder
+		inv, root := clitest.New(t, "task", "pause", identifier, "--yes")
+		inv.Stdout = &stdout
+		clitest.SetupConfig(t, adminClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, stdout.String(), "has been paused")
+
+		// Verify the task is actually paused on the server.
+		updated, err := adminClient.TaskByIdentifier(ctx, identifier)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TaskStatusPaused, updated.Status)
+	})
+
 	t.Run("PromptConfirm", func(t *testing.T) {
 		t.Parallel()
 
-		client, task := setup(t)
+		_, client, task := setup(t)
 
 		inv, root := clitest.New(t, "task", "pause", task.Name)
 		clitest.SetupConfig(t, client, root)
@@ -102,7 +129,7 @@ func TestExpTaskPause(t *testing.T) {
 	t.Run("PromptDecline", func(t *testing.T) {
 		t.Parallel()
 
-		client, task := setup(t)
+		_, client, task := setup(t)
 
 		inv, root := clitest.New(t, "task", "pause", task.Name)
 		clitest.SetupConfig(t, client, root)

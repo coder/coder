@@ -9,6 +9,10 @@ USAGE:
   
        $ coder task pause my-task
   
+    - Pause another user's task:
+  
+       $ coder task pause alice/my-task
+  
     - Pause a task without confirmation:
   
        $ coder task pause my-task --yes
