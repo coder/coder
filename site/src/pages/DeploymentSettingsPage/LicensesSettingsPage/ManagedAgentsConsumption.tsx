@@ -40,7 +40,6 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 
 	const usage = managedAgentFeature.actual;
 	const included = managedAgentFeature.soft_limit;
-	const limit = managedAgentFeature.limit;
 	const startDate = managedAgentFeature.usage_period?.start;
 	const endDate = managedAgentFeature.usage_period?.end;
 
@@ -48,12 +47,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		return <ErrorAlert error="Invalid usage data" />;
 	}
 
-	if (
-		included === undefined ||
-		included < 0 ||
-		limit === undefined ||
-		limit < 0
-	) {
+	if (included === undefined || included < 0) {
 		return <ErrorAlert error="Invalid license usage limits" />;
 	}
 
@@ -67,9 +61,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		return <ErrorAlert error="Invalid license usage period" />;
 	}
 
-	const usagePercentage = Math.min((usage / limit) * 100, 100);
-	const includedPercentage = Math.min((included / limit) * 100, 100);
-	const remainingPercentage = Math.max(100 - includedPercentage, 0);
+	const usagePercentage = Math.min((usage / included) * 100, 100);
 
 	return (
 		<section className="border border-solid rounded">
@@ -133,10 +125,13 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								Amount of started workspaces with an AI agent.
 							</li>
 							<li className="flex items-center gap-2">
-								<div className="rounded-[2px] bg-content-disabled size-3 inline-block">
-									<span className="sr-only">Legend for included allowance</span>
+								<div className="rounded-[2px] bg-highlight-orange size-3 inline-block">
+									<span className="sr-only">
+										Legend for usage exceeding included allowance
+									</span>
 								</div>
-								Included allowance from your current license plan.
+								Usage has exceeded included allowance from your current license
+								plan.
 							</li>
 						</ul>
 					</CollapsibleContent>
@@ -160,14 +155,6 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								: "bg-highlight-orange",
 						)}
 						style={{ width: `${usagePercentage}%` }}
-					/>
-
-					<div
-						className="absolute top-0 h-full bg-content-disabled opacity-30"
-						style={{
-							left: `${includedPercentage}%`,
-							width: `${remainingPercentage}%`,
-						}}
 					/>
 				</div>
 
