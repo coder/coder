@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -39,8 +40,13 @@ func (api *API) workspaceSessions(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch sessions.
-	sessions, err := api.Database.GetWorkspaceSessionsOffset(ctx, database.GetWorkspaceSessionsOffsetParams{
+	// Fetch sessions. Use AsSystemRestricted because the user is
+	// already authorized to access the workspace via route
+	// middleware; the ResourceConnectionLog RBAC check would
+	// incorrectly reject regular workspace owners.
+	//nolint:gocritic // Workspace access is verified by middleware.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	sessions, err := api.Database.GetWorkspaceSessionsOffset(sysCtx, database.GetWorkspaceSessionsOffsetParams{
 		WorkspaceID:   workspace.ID,
 		LimitCount:    int32(limit),  //nolint:gosec // query param is validated and bounded
 		OffsetCount:   int32(offset), //nolint:gosec // query param is validated and bounded
@@ -56,7 +62,8 @@ func (api *API) workspaceSessions(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get total count for pagination.
-	totalCount, err := api.Database.CountWorkspaceSessions(ctx, database.CountWorkspaceSessionsParams{
+	//nolint:gocritic // Workspace access is verified by middleware.
+	totalCount, err := api.Database.CountWorkspaceSessions(sysCtx, database.CountWorkspaceSessionsParams{
 		WorkspaceID:   workspace.ID,
 		StartedAfter:  time.Time{},
 		StartedBefore: time.Time{},
@@ -77,7 +84,8 @@ func (api *API) workspaceSessions(rw http.ResponseWriter, r *http.Request) {
 
 	var connections []database.ConnectionLog
 	if len(sessionIDs) > 0 {
-		connections, err = api.Database.GetConnectionLogsBySessionIDs(ctx, sessionIDs)
+		//nolint:gocritic // Workspace access is verified by middleware.
+		connections, err = api.Database.GetConnectionLogsBySessionIDs(sysCtx, sessionIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching connections.",

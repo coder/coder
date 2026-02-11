@@ -20,7 +20,7 @@ const WorkspaceSessionsPage: FC = () => {
 	const workspace = workspaceQuery.data;
 
 	const sessionsQuery = usePaginatedQuery(
-		paginatedWorkspaceSessions(workspace?.id ?? ""),
+		paginatedWorkspaceSessions(workspace?.id),
 	);
 
 	return (
