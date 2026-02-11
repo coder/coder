@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/coder/coder/v2/scripts/cdev/catalog"
+	"github.com/coder/coder/v2/scripts/cdevmux/catalog"
 )
 
 func main() {
