@@ -78,14 +78,15 @@ func TestWorkspaceAgentConnections_FromConnectionLogs(t *testing.T) {
 
 	agent := workspace.LatestBuild.Resources[0].Agents[0]
 	require.Equal(t, r.Agents[0].Name, agent.Name)
-	require.Len(t, agent.Connections, 1)
-	require.Equal(t, codersdk.ConnectionStatusOngoing, agent.Connections[0].Status)
-	require.Equal(t, codersdk.ConnectionTypeSSH, agent.Connections[0].Type)
-	require.NotNil(t, agent.Connections[0].IP)
-	require.Equal(t, "127.0.0.1", agent.Connections[0].IP.String())
+	require.Len(t, agent.Sessions, 1)
+	require.Equal(t, codersdk.ConnectionStatusOngoing, agent.Sessions[0].Status)
+	require.NotEmpty(t, agent.Sessions[0].Connections)
+	require.Equal(t, codersdk.ConnectionTypeSSH, agent.Sessions[0].Connections[0].Type)
+	require.NotNil(t, agent.Sessions[0].IP)
+	require.Equal(t, "127.0.0.1", agent.Sessions[0].IP.String())
 
 	apiAgent, err := client.WorkspaceAgent(ctx, agent.ID)
 	require.NoError(t, err)
-	require.Len(t, apiAgent.Connections, 1)
-	require.Equal(t, codersdk.ConnectionTypeSSH, apiAgent.Connections[0].Type)
+	require.Len(t, apiAgent.Sessions, 1)
+	require.Equal(t, codersdk.ConnectionTypeSSH, apiAgent.Sessions[0].Connections[0].Type)
 }
