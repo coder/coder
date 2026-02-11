@@ -15,7 +15,15 @@ import (
 
 const (
 	coderdBasePort = 3000
+	pprofBasePort  = 6060
 )
+
+// PprofPortNum returns the pprof port number for a given coderd
+// instance index. Instance 0 uses port 6060, instance 1 uses 6061,
+// etc.
+func PprofPortNum(index int) int {
+	return pprofBasePort + index
+}
 
 // coderdPortNum returns the port number for a given coderd instance index.
 // Instance 0 uses port 3000, instance 1 uses 3001, etc.
@@ -169,6 +177,8 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 	// Calculate port for this instance (base port + index).
 	port := coderdPortNum(index)
 	portStr := fmt.Sprintf("%d", port)
+	pprofPort := PprofPortNum(index)
+	pprofPortStr := fmt.Sprintf("%d", pprofPort)
 	httpAddress := fmt.Sprintf("0.0.0.0:%d", port)
 	accessURL := fmt.Sprintf("http://localhost:%d", port)
 
@@ -197,6 +207,8 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 					"GOCACHE=/go-cache/build",
 					"CODER_CACHE_DIRECTORY=/cache",
 					fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
+					"CODER_PPROF_ENABLE=true",
+					fmt.Sprintf("CODER_PPROF_ADDRESS=127.0.0.1:%d", PprofPortNum(index)),
 				},
 				Cmd: []string{
 					"go", "run", "./enterprise/cmd/coder", "server",
@@ -205,9 +217,14 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 					"--swagger-enable",
 					"--dangerous-allow-cors-requests=true",
 					"--enable-terraform-debug-mode",
+					"--pprof-enable",
+					"--pprof-address", fmt.Sprintf("127.0.0.1:%d", PprofPortNum(index)),
 				},
 				Labels:       labels,
-				ExposedPorts: map[docker.Port]struct{}{docker.Port(portStr + "/tcp"): {}},
+				ExposedPorts: map[docker.Port]struct{}{
+					docker.Port(portStr + "/tcp"):      {},
+					docker.Port(pprofPortStr + "/tcp"): {},
+				},
 			},
 			HostConfig: &docker.HostConfig{
 				Binds: []string{
@@ -221,7 +238,8 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 				NetworkMode:   "host",
 				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
 				PortBindings: map[docker.Port][]docker.PortBinding{
-					docker.Port(portStr + "/tcp"): {{HostIP: "127.0.0.1", HostPort: portStr}},
+					docker.Port(portStr + "/tcp"):      {{HostIP: "127.0.0.1", HostPort: portStr}},
+					docker.Port(pprofPortStr + "/tcp"): {{HostIP: "127.0.0.1", HostPort: pprofPortStr}},
 				},
 			},
 		},

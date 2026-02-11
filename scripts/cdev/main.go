@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -28,6 +29,7 @@ func main() {
 			watchCmd(),
 			downCmd(),
 			cleanCmd(),
+			pprofCmd(),
 		},
 	}
 
@@ -253,6 +255,49 @@ func formatLabels(labels map[string]string) string {
 	// Sort for deterministic output.
 	slices.Sort(parts)
 	return strings.Join(parts, ", ")
+}
+
+func pprofCmd() *serpent.Command {
+	return &serpent.Command{
+		Use:   "pprof <profile>",
+		Short: "Open pprof web UI for a running coderd instance",
+		Long: `Open the pprof web UI for a running coderd instance.
+
+Supported profiles:
+  profile      CPU profile (30s sample)
+  heap         Heap memory allocations
+  goroutine    Stack traces of all goroutines
+  allocs       Past memory allocations
+  block        Stack traces of blocking operations
+  mutex        Stack traces of mutex contention
+  threadcreate Stack traces that led to new OS threads
+  trace        Execution trace (30s sample)
+
+Examples:
+  cdev pprof heap
+  cdev pprof profile
+  cdev pprof goroutine`,
+		Handler: func(inv *serpent.Invocation) error {
+			if len(inv.Args) != 1 {
+				_ = serpent.DefaultHelpFn()(inv)
+				return fmt.Errorf("expected exactly one argument: the profile name")
+			}
+			profile := inv.Args[0]
+
+			url := fmt.Sprintf("http://localhost:%d/debug/pprof/%s", catalog.PprofPortNum(0), profile)
+			if profile == "profile" || profile == "trace" {
+				url += "?seconds=30"
+			}
+
+			fmt.Fprintf(inv.Stdout, "Opening pprof web UI for %q at %s\n", profile, url)
+
+			//nolint:gosec // User-provided profile name is passed as a URL path.
+			cmd := exec.CommandContext(inv.Context(), "go", "tool", "pprof", "-http=:", url)
+			cmd.Stdout = inv.Stdout
+			cmd.Stderr = inv.Stderr
+			return cmd.Run()
+		},
+	}
 }
 
 func upCmd() *serpent.Command {
