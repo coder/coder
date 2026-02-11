@@ -372,10 +372,6 @@ type Feature struct {
 
 	// Below is only for features that use usage periods.
 
-	// SoftLimit is the soft limit of the feature, and is only used for showing
-	// included limits in the dashboard. No license validation or warnings are
-	// generated from this value.
-	SoftLimit *int64 `json:"soft_limit,omitempty"`
 	// UsagePeriod denotes that the usage is a counter that accumulates over
 	// this period (and most likely resets with the issuance of the next
 	// license).

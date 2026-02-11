@@ -58,15 +58,11 @@ var (
 		},
 	}
 
-	// Features that are forbidden to be set in a license. These are the SDK
-	// features in the usagedBasedFeatureGrouping map.
-	licenseForbiddenFeatures = func() map[codersdk.FeatureName]struct{} {
-		features := make(map[codersdk.FeatureName]struct{})
-		for _, feature := range featureGrouping {
-			features[feature.sdkFeature] = struct{}{}
-		}
-		return features
-	}()
+	// Features that are forbidden to be set directly in a license.
+	// Previously, we had a usageBasedFeatureGrouping map that grouped features
+	// by their usage period. This is no longer used and the features are now
+	// grouped by their SDK feature name.
+	licenseForbiddenFeatures = map[codersdk.FeatureName]struct{}{}
 )
 
 // Entitlements processes licenses to return whether features are enabled or not.
@@ -280,17 +276,15 @@ func LicensesEntitlements(
 				// licenses with the corresponding features actually set
 				// trump this default entitlement, even if they are set to a
 				// smaller value.
-				defaultManagedAgentsIsuedAt         = time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
-				defaultManagedAgentsStart           = defaultManagedAgentsIsuedAt
-				defaultManagedAgentsEnd             = defaultManagedAgentsStart.AddDate(100, 0, 0)
-				defaultManagedAgentsSoftLimit int64 = 1000
-				defaultManagedAgentsHardLimit int64 = 1000
+				defaultManagedAgentsIsuedAt       = time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
+				defaultManagedAgentsStart         = defaultManagedAgentsIsuedAt
+				defaultManagedAgentsEnd           = defaultManagedAgentsStart.AddDate(100, 0, 0)
+				defaultManagedAgentsLimit   int64 = 1000
 			)
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, codersdk.Feature{
 				Enabled:     true,
 				Entitlement: entitlement,
-				SoftLimit:   &defaultManagedAgentsSoftLimit,
-				Limit:       &defaultManagedAgentsHardLimit,
+				Limit:       &defaultManagedAgentsLimit,
 				UsagePeriod: &codersdk.UsagePeriod{
 					IssuedAt: defaultManagedAgentsIsuedAt,
 					Start:    defaultManagedAgentsStart,
@@ -372,6 +366,22 @@ func LicensesEntitlements(
 
 			// Handling for limit features.
 			switch {
+			case featureName.UsesUsagePeriod():
+				// New-style license: managed_agent_limit set directly
+				// as a single value instead of separate soft/hard keys.
+				if featureValue <= 0 {
+					continue
+				}
+				entitlements.AddFeature(featureName, codersdk.Feature{
+					Enabled:     true,
+					Entitlement: entitlement,
+					Limit:       &featureValue,
+					UsagePeriod: &codersdk.UsagePeriod{
+						IssuedAt: claims.IssuedAt.Time,
+						Start:    usagePeriodStart,
+						End:      usagePeriodEnd,
+					},
+				})
 			case featureName.UsesLimit():
 				if featureValue <= 0 {
 					// 0 limit value or less doesn't make sense, so we skip it.
@@ -403,6 +413,9 @@ func LicensesEntitlements(
 		}
 
 		// Apply uncommitted usage features to the entitlements.
+		// Old licenses encode soft and hard limits as separate features.
+		// We use the soft limit as the single Limit value and discard
+		// the hard limit, since limits are now advisory only.
 		for featureName, ul := range uncommittedUsageFeatures {
 			if ul.Soft == nil || ul.Hard == nil {
 				// Invalid license.
@@ -410,12 +423,7 @@ func LicensesEntitlements(
 					fmt.Sprintf("Invalid license (%s): feature %s has missing soft or hard limit values", license.UUID.String(), featureName))
 				continue
 			}
-			if *ul.Hard < *ul.Soft {
-				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Invalid license (%s): feature %s has a hard limit less than the soft limit", license.UUID.String(), featureName))
-				continue
-			}
-			if *ul.Hard < 0 || *ul.Soft < 0 {
+			if *ul.Soft < 0 || *ul.Hard < 0 {
 				entitlements.Errors = append(entitlements.Errors,
 					fmt.Sprintf("Invalid license (%s): feature %s has a soft or hard limit less than 0", license.UUID.String(), featureName))
 				continue
@@ -424,8 +432,7 @@ func LicensesEntitlements(
 			feature := codersdk.Feature{
 				Enabled:     true,
 				Entitlement: entitlement,
-				SoftLimit:   ul.Soft,
-				Limit:       ul.Hard,
+				Limit:       ul.Soft,
 				// `Actual` will be populated below when warnings are generated.
 				UsagePeriod: &codersdk.UsagePeriod{
 					IssuedAt: claims.IssuedAt.Time,
@@ -433,10 +440,9 @@ func LicensesEntitlements(
 					End:      usagePeriodEnd,
 				},
 			}
-			// If the hard limit is 0, the feature is disabled.
-			if *ul.Hard <= 0 {
+			// If both limits are 0, the feature is disabled.
+			if *ul.Soft <= 0 && *ul.Hard <= 0 {
 				feature.Enabled = false
-				feature.SoftLimit = ptr.Ref(int64(0))
 				feature.Limit = ptr.Ref(int64(0))
 			}
 			entitlements.AddFeature(featureName, feature)
@@ -557,32 +563,9 @@ func LicensesEntitlements(
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 
 			// Only issue warnings if the feature is enabled.
-			if agentLimit.Enabled {
-				var softLimit int64
-				if agentLimit.SoftLimit != nil {
-					softLimit = *agentLimit.SoftLimit
-				}
-				var hardLimit int64
-				if agentLimit.Limit != nil {
-					hardLimit = *agentLimit.Limit
-				}
-
-				// Issue a warning early:
-				// 1. If the soft limit and hard limit are equal, at 75% of the hard
-				//    limit.
-				// 2. If the limit is greater than the soft limit, at 75% of the
-				//    difference between the hard limit and the soft limit.
-				softWarningThreshold := int64(float64(hardLimit) * 0.75)
-				if hardLimit > softLimit && softLimit > 0 {
-					softWarningThreshold = softLimit + int64(float64(hardLimit-softLimit)*0.75)
-				}
-				if managedAgentCount >= *agentLimit.Limit {
-					entitlements.Warnings = append(entitlements.Warnings,
-						codersdk.LicenseManagedAgentLimitExceededErrorText)
-				} else if managedAgentCount >= softWarningThreshold {
-					entitlements.Warnings = append(entitlements.Warnings,
-						"You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
-				}
+			if agentLimit.Enabled && agentLimit.Limit != nil && managedAgentCount >= *agentLimit.Limit {
+				entitlements.Warnings = append(entitlements.Warnings,
+					codersdk.LicenseManagedAgentLimitExceededErrorText)
 			}
 		}
 	}
