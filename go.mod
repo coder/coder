@@ -484,6 +484,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/icholy/replace v0.6.0
 	github.com/mark3labs/mcp-go v0.38.0
+	github.com/spf13/cobra v1.10.2
 	gonum.org/v1/gonum v0.17.0
 )
 
@@ -556,7 +557,6 @@ require (
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
 	github.com/sony/gobreaker/v2 v2.3.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tmaxmax/go-sse v0.11.0 // indirect
