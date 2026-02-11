@@ -19,6 +19,7 @@ import {
 	CopyIcon,
 	DownloadIcon,
 	EllipsisVertical,
+	ClockIcon,
 	HistoryIcon,
 	SettingsIcon,
 	SquareIcon,
@@ -133,6 +134,15 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						>
 							<SettingsIcon />
 							Settings
+						</RouterLink>
+					</DropdownMenuItem>
+
+					<DropdownMenuItem asChild>
+						<RouterLink
+							to={`/@${workspace.owner_name}/${workspace.name}/sessions`}
+						>
+							<ClockIcon />
+							Session history
 						</RouterLink>
 					</DropdownMenuItem>
 

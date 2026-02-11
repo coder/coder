@@ -1905,6 +1905,18 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceSessions = async (
+		workspaceId: string,
+		options: TypesGen.Pagination,
+	): Promise<TypesGen.WorkspaceSessionsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/workspaces/${workspaceId}/sessions`,
+			options,
+		);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
 	getTemplateDAUs = async (
 		templateId: string,
 	): Promise<TypesGen.DAUsResponse> => {

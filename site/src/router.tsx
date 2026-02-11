@@ -80,6 +80,10 @@ const WorkspaceBuildPage = lazy(
 	() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
 );
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"));
+const WorkspaceSessionsPage = lazy(
+	() => import("./pages/WorkspaceSessionsPage/WorkspaceSessionsPage"),
+);
+
 const WorkspaceSchedulePage = lazy(
 	() =>
 		import(
@@ -575,7 +579,12 @@ export const router = createBrowserRouter(
 							path="builds/:buildNumber"
 							element={<WorkspaceBuildPage />}
 						/>
+						<Route
+							path="sessions"
+							element={<WorkspaceSessionsPage />}
+						/>
 						<Route path="settings" element={<WorkspaceSettingsLayout />}>
+
 							<Route index element={<WorkspaceSettingsPage />} />
 							<Route
 								path="parameters"
