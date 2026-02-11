@@ -473,8 +473,13 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 					{!hasMultiple && <div className="w-4" />}
 					<span className="font-mono text-xs">{displayName}</span>
 					<span className="text-xs text-content-secondary">
-						{activeCount} active{" "}
-						{activeCount === 1 ? "connection" : "connections"}
+						{activeCount === 1
+							? session.connections[0].short_description ||
+								connectionTypeLabel(
+									session.connections[0].type,
+									session.connections[0].detail,
+								)
+							: `${activeCount} active connections`}
 					</span>
 					<span className="inline-flex items-center gap-1.5 text-xs">
 						<span
