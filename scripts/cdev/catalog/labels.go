@@ -14,6 +14,7 @@ const (
 	CDevPostgres  ServiceName = "postgres"
 	CDevCoderd    ServiceName = "coderd"
 	CDevOIDC      ServiceName = "oidc"
+	CDevProvisioner ServiceName = "provisioner"
 )
 
 type Labels map[string]string
