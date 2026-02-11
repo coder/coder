@@ -5,11 +5,11 @@ USAGE:
 
   Pause a task
 
-    - Pause a task by name.:
+    - Pause a task by name:
   
        $ coder task pause my-task
   
-    - Pause a task without confirmation.:
+    - Pause a task without confirmation:
   
        $ coder task pause my-task --yes
 

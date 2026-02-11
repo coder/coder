@@ -17,11 +17,11 @@ func (r *RootCmd) taskPause() *serpent.Command {
 		Short: "Pause a task",
 		Long: FormatExamples(
 			Example{
-				Description: "Pause a task by name.",
+				Description: "Pause a task by name",
 				Command:     "coder task pause my-task",
 			},
 			Example{
-				Description: "Pause a task without confirmation.",
+				Description: "Pause a task without confirmation",
 				Command:     "coder task pause my-task --yes",
 			},
 		),
@@ -59,16 +59,9 @@ func (r *RootCmd) taskPause() *serpent.Command {
 				return xerrors.Errorf("pause task %q: %w", display, err)
 			}
 
-			if resp.WorkspaceBuild != nil {
-				err = cliui.WorkspaceBuild(ctx, inv.Stdout, client, resp.WorkspaceBuild.ID)
-				if err != nil {
-					return xerrors.Errorf("watch pause build for task %q: %w", display, err)
-				}
-			} else {
-				cliui.Warn(inv.Stderr,
-					"Pause was accepted but no workspace build was returned.",
-					"The task may not be fully paused yet.",
-				)
+			err = cliui.WorkspaceBuild(ctx, inv.Stdout, client, resp.WorkspaceBuild.ID)
+			if err != nil {
+				return xerrors.Errorf("watch pause build for task %q: %w", display, err)
 			}
 
 			_, _ = fmt.Fprintf(
