@@ -70,7 +70,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				)}
 			</NavLink>
 
-			<NavItems className="ml-4" user={user} />
+			<NavItems className="flex-1 overflow-y-auto px-4" user={user} />
 
 			<div className="flex items-center gap-3 ml-auto">
 				{supportLinks.filter(isNavbarLink).map((link) => (
