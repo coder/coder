@@ -355,13 +355,51 @@ jobs:
             --from-literal=password="$password" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          /tmp/coder login \
-            --first-user-username "${BRANCH_NAME}-admin" \
-            --first-user-email "${BRANCH_NAME}@coder.com" \
-            --first-user-password "$password" \
-            --first-user-trial=false \
-            --use-token-as-session \
-            "https://${BRANCH_HOSTNAME}"
+          admin_username="${BRANCH_NAME}-admin"
+          admin_email="${BRANCH_NAME}@coder.com"
+          coder_url="https://${BRANCH_HOSTNAME}"
+
+          first_user_status="$(curl -sS -o /dev/null -w '%{http_code}' "${coder_url}/api/v2/users/first")"
+          if [ "$first_user_status" = "404" ]; then
+            /tmp/coder login \
+              --first-user-username "$admin_username" \
+              --first-user-email "$admin_email" \
+              --first-user-password "$password" \
+              --first-user-trial=false \
+              --use-token-as-session \
+              "$coder_url"
+          elif [ "$first_user_status" = "200" ]; then
+            login_payload="$(jq -n --arg email "$admin_email" --arg password "$password" '{email: $email, password: $password}')"
+            login_response="$(
+              curl -sS -X POST "${coder_url}/api/v2/users/login" \
+                -H "Content-Type: application/json" \
+                --data "$login_payload" \
+                -w '\n%{http_code}'
+            )"
+            login_body="${login_response%$'\n'*}"
+            login_status="${login_response##*$'\n'}"
+
+            if [ "$login_status" != "201" ]; then
+              echo "Password login failed for existing deployment (HTTP ${login_status})."
+              echo "$login_body"
+              exit 1
+            fi
+
+            session_token="$(echo "$login_body" | jq -r '.session_token // empty')"
+            if [ -z "$session_token" ]; then
+              echo "Password login response is missing session_token."
+              exit 1
+            fi
+            echo "::add-mask::$session_token"
+
+            /tmp/coder login \
+              --token "$session_token" \
+              --use-token-as-session \
+              "$coder_url"
+          else
+            echo "Unexpected status from /api/v2/users/first: ${first_user_status}."
+            exit 1
+          fi
 
           cd .github/pr-deployments/template
           /tmp/coder templates push -y --directory . --variable "namespace=${DEPLOY_NAME}" kubernetes
