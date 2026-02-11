@@ -349,12 +349,6 @@ jobs:
           fi
           echo "::add-mask::$password"
 
-          kubectl create secret generic coder-admin-credentials -n "${DEPLOY_NAME}" \
-            --from-literal=username="${BRANCH_NAME}-admin" \
-            --from-literal=email="${BRANCH_NAME}@coder.com" \
-            --from-literal=password="$password" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
           admin_username="${BRANCH_NAME}-admin"
           admin_email="${BRANCH_NAME}@coder.com"
           coder_url="https://${BRANCH_HOSTNAME}"
