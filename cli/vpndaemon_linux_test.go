@@ -14,7 +14,11 @@ import (
 )
 
 func TestVPNDaemonRun(t *testing.T) {
+	t.Parallel()
+
 	t.Run("InvalidFlags", func(t *testing.T) {
+		t.Parallel()
+
 		cases := []struct {
 			Name          string
 			Args          []string
@@ -49,6 +53,7 @@ func TestVPNDaemonRun(t *testing.T) {
 
 		for _, c := range cases {
 			t.Run(c.Name, func(t *testing.T) {
+				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
 				inv, _ := clitest.New(t, append([]string{"vpn-daemon", "run"}, c.Args...)...)
 				err := inv.WithContext(ctx).Run()
@@ -58,6 +63,8 @@ func TestVPNDaemonRun(t *testing.T) {
 	})
 
 	t.Run("StartsTunnel", func(t *testing.T) {
+		t.Parallel()
+
 		r1, w1, err := os.Pipe()
 		require.NoError(t, err)
 		defer r1.Close()
@@ -71,11 +78,10 @@ func TestVPNDaemonRun(t *testing.T) {
 		inv, _ := clitest.New(t, "vpn-daemon", "run", "--rpc-read-fd", fmt.Sprint(r1.Fd()), "--rpc-write-fd", fmt.Sprint(w2.Fd()))
 		waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
-		// Send garbage which should cause the handshake to fail and the daemon
-		// to exit.
-		_, err = w1.Write([]byte("garbage"))
+		// Send an invalid header, including a newline delimiter, so the handshake
+		// fails without requiring context cancellation.
+		_, err = w1.Write([]byte("garbage\n"))
 		require.NoError(t, err)
-		waiter.Cancel()
 		err = waiter.Wait()
 		require.ErrorContains(t, err, "handshake failed")
 	})
