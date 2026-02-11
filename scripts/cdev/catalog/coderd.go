@@ -10,6 +10,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/serpent"
 )
 
 const (
@@ -32,6 +33,8 @@ func OnCoderd() string {
 
 // Coderd runs the Coder server inside a Docker container.
 type Coderd struct {
+	haCount int64
+
 	containerID string
 	result      CoderdResult
 }
@@ -52,6 +55,20 @@ func (c *Coderd) DependsOn() []string {
 	}
 }
 
+func (c *Coderd) Options() serpent.OptionSet {
+	return serpent.OptionSet{
+		{
+			Name:        "Coderd HA Count",
+			Description: "Number of coderd instances to run in HA mode.",
+			Required:    false,
+			Flag:        "coderd-count",
+			Env:         "CDEV_CODERD_COUNT",
+			Default:     "1",
+			Value:       serpent.Int64Of(&c.haCount),
+		},
+	}
+}
+
 func OnBuildSlim() string {
 	return (&BuildSlim{}).Name()
 }
@@ -60,15 +77,11 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 	logger := cat.Logger()
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
-	pg := cat.MustGet(OnPostgres()).(*Postgres)
-	build := Get[*BuildSlim](cat)
 
-	name := "cdev_coderd"
 	labels := NewServiceLabels(CDevCoderd)
 	filter := labels.Filter()
-	filter["name"] = []string{name}
 
-	// Check if container already exists and is running.
+	// Kill any existing coderd containers
 	containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
 		Filters: filter,
 	})
@@ -76,41 +89,58 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 		return fmt.Errorf("list containers: %w", err)
 	}
 
-	if len(containers) > 0 {
-		// Reuse existing container.
-		container := containers[0]
-		c.containerID = container.ID
-		for _, port := range container.Ports {
-			if port.PrivatePort == 3000 {
-				c.result = CoderdResult{
-					URL:  fmt.Sprintf("http://localhost:%d", port.PublicPort),
-					Port: fmt.Sprintf("%d", port.PublicPort),
-				}
-				break
-			}
+	for _, cnt := range containers {
+		logger.Info(ctx, "removing existing coderd container", slog.F("id", cnt.ID), slog.F("names", cnt.Names))
+		if err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            cnt.ID,
+			Force:         true,
+			RemoveVolumes: true,
+		}); err != nil {
+			return fmt.Errorf("remove container %s: %w", cnt.ID, err)
 		}
-		logger.Info(ctx, "reusing existing coderd container", slog.F("container_id", c.containerID[:12]))
-		return c.waitForReady(ctx, logger)
 	}
 
-	// Reuse volumes from build step.
-	goCache := build.GoCache
-	coderCache := build.CoderCache
+	for i := range c.haCount {
+		container, err := c.startCoderd(ctx, cat, int(i))
+		if err != nil {
+			return fmt.Errorf("start coderd instance %d: %w", i, err)
+		}
+		if i == 0 {
+			// With host networking, port is always 3000.
+			c.containerID = container.Container.ID
+			c.result = CoderdResult{
+				URL:  "http://localhost:3000",
+				Port: "3000",
+			}
+		}
+	}
+
+	return c.waitForReady(ctx, logger)
+}
+
+func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*ContainerRunResult, error) {
+	logger := cat.Logger()
+	dkr := cat.MustGet(OnDocker()).(*Docker)
+	pool := dkr.Result()
+	pg := cat.MustGet(OnPostgres()).(*Postgres)
+	build := Get[*BuildSlim](cat)
+
+	labels := NewServiceLabels(CDevCoderd)
 
 	// Ensure config volume exists (not created by build step).
 	coderConfig, err := dkr.EnsureVolume(ctx, VolumeOptions{
-		Name:   "cdev_coderv2_config",
+		Name:   fmt.Sprintf("cdev_coderv2_config_%d", index),
 		Labels: labels,
 		UID:    1000, GID: 1000,
 	})
 	if err != nil {
-		return fmt.Errorf("ensure coderv2 config volume: %w", err)
+		return nil, fmt.Errorf("ensure coderv2 config volume: %w", err)
 	}
 
 	// Get current working directory for mounting.
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+		return nil, fmt.Errorf("get working directory: %w", err)
 	}
 
 	// Get docker group ID for socket access.
@@ -134,7 +164,7 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 	// Start new container.
 	result, err := RunContainer(ctx, pool, CDevCoderd, ContainerRunOptions{
 		CreateOpts: docker.CreateContainerOptions{
-			Name: name,
+			Name: fmt.Sprintf("cdev_coderd_%d", index),
 			Config: &docker.Config{
 				Image:      dogfoodImage + ":" + dogfoodTag,
 				WorkingDir: "/app",
@@ -165,8 +195,8 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 			HostConfig: &docker.HostConfig{
 				Binds: []string{
 					fmt.Sprintf("%s:/app", cwd),
-					fmt.Sprintf("%s:/go-cache", goCache.Name),
-					fmt.Sprintf("%s:/cache", coderCache.Name),
+					fmt.Sprintf("%s:/go-cache", build.GoCache.Name),
+					fmt.Sprintf("%s:/cache", build.CoderCache.Name),
 					fmt.Sprintf("%s:/home/coder/.config/coderv2", coderConfig.Name),
 					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
 				},
@@ -182,18 +212,10 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 		Detached: true,
 	})
 	if err != nil {
-		return fmt.Errorf("run container: %w", err)
+		return nil, fmt.Errorf("run container: %w", err)
 	}
 
-	c.containerID = result.Container.ID
-
-	// With host networking, port is always 3000.
-	c.result = CoderdResult{
-		URL:  "http://localhost:3000",
-		Port: "3000",
-	}
-
-	return c.waitForReady(ctx, logger)
+	return result, nil
 }
 
 func (c *Coderd) waitForReady(ctx context.Context, logger slog.Logger) error {

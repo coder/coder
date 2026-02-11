@@ -239,25 +239,35 @@ func formatLabels(labels map[string]string) string {
 }
 
 func upCmd() *serpent.Command {
+	services := catalog.New()
+	err := services.Register(
+		catalog.NewDocker(),
+		catalog.NewBuildSlim(),
+		catalog.NewPostgres(),
+		catalog.NewCoderd(),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("failed to register services: %v", err))
+	}
+
+	optionSet := serpent.OptionSet{}
+	_ = services.ForEach(func(srv catalog.ServiceBase) error {
+		if configurable, ok := srv.(catalog.ConfigurableService); ok {
+			optionSet = append(optionSet, configurable.Options()...)
+		}
+		return nil
+	})
+
 	return &serpent.Command{
-		Use:   "up",
-		Short: "Start the development environment",
+		Use:     "up",
+		Short:   "Start the development environment",
+		Options: optionSet,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			services.SetLogger(logger)
 
 			fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
-
-			services := catalog.New(logger)
-			err := services.Register(
-				catalog.NewDocker(),
-				catalog.NewBuildSlim(),
-				catalog.NewPostgres(),
-				catalog.NewCoderd(),
-			)
-			if err != nil {
-				return err
-			}
 
 			err = services.Start(ctx, logger)
 			if err != nil {

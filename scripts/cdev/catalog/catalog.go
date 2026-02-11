@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/unit"
+	"github.com/coder/serpent"
 )
 
 const (
@@ -33,6 +34,11 @@ type ServiceBase interface {
 	Stop(ctx context.Context) error
 }
 
+type ConfigurableService interface {
+	ServiceBase
+	Options() serpent.OptionSet
+}
+
 type Service[Result any] interface {
 	ServiceBase
 	// Result is usable by other services.
@@ -47,12 +53,15 @@ type Catalog struct {
 	manager *unit.Manager
 }
 
-func New(logger slog.Logger) *Catalog {
+func New() *Catalog {
 	return &Catalog{
 		services: make(map[string]ServiceBase),
 		manager:  unit.NewManager(),
-		logger:   logger,
 	}
+}
+
+func (c *Catalog) SetLogger(logger slog.Logger) {
+	c.logger = logger
 }
 
 // Logger returns the catalog's logger.
@@ -72,6 +81,18 @@ func Get[T Service[R], R any](c *Catalog) R {
 		panic(fmt.Sprintf("catalog.Get[%q] has wrong type: %T", zero.Name(), s))
 	}
 	return typed.Result()
+}
+
+func (c *Catalog) ForEach(f func(s ServiceBase) error) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, srv := range c.services {
+		if err := f(srv); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Catalog) Register(s ...ServiceBase) error {
