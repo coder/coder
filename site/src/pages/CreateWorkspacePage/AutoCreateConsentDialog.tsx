@@ -29,7 +29,7 @@ export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 			<DialogContent
 				onPointerDownOutside={(e) => e.preventDefault()}
 				onEscapeKeyDown={(e) => e.preventDefault()}
-				className="max-w-2xl"
+				className="max-w-2xl overflow-hidden min-w-0"
 			>
 				<DialogHeader>
 					<DialogTitle>
@@ -44,11 +44,11 @@ export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 				</DialogHeader>
 
 				{autofillParameters.length > 0 && (
-					<div className="flex flex-col gap-2">
+					<div className="flex min-w-0 flex-col gap-2">
 						<span className="text-sm font-semibold text-content-primary">
 							Parameters:
 						</span>
-						<code className="whitespace-pre overflow-x-auto">
+						<code className="block whitespace-pre overflow-x-auto">
 							{autofillParameters
 								.map((p) => `${p.name}: ${p.value}`)
 								.join("\n")}
