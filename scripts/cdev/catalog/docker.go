@@ -44,6 +44,9 @@ func NewDocker() *Docker {
 func (d *Docker) Name() string {
 	return "docker"
 }
+func (d *Docker) Emoji() string {
+	return "🐳"
+}
 
 func (d *Docker) DependsOn() []string {
 	return []string{}

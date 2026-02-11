@@ -55,6 +55,10 @@ func (o *OIDC) Name() string {
 	return "oidc"
 }
 
+func (o *OIDC) Emoji() string {
+	return "🔒"
+}
+
 func (o *OIDC) DependsOn() []string {
 	return []string{
 		OnDocker(),
@@ -75,7 +79,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 
 	logger.Info(ctx, "starting oidc container")
 
-	cntSink := controllableLoggerSink(logger)
+	cntSink := NewLoggerSink(c.w, o)
 	cntLogger := slog.Make(cntSink)
 	defer cntSink.Close()
 

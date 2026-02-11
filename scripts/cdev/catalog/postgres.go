@@ -49,6 +49,9 @@ func NewPostgres() *Postgres {
 func (p *Postgres) Name() string {
 	return "postgres"
 }
+func (p *Postgres) Emoji() string {
+	return "🐘"
+}
 
 func (p *Postgres) DependsOn() []string {
 	return []string{
@@ -57,7 +60,7 @@ func (p *Postgres) DependsOn() []string {
 }
 
 func (p *Postgres) Start(ctx context.Context, c *Catalog) error {
-	logger := c.Logger()
+	logger := c.ServiceLogger(p.Name())
 	d := c.MustGet(OnDocker()).(*Docker)
 	pool := d.Result()
 
@@ -102,7 +105,7 @@ func (p *Postgres) Start(ctx context.Context, c *Catalog) error {
 
 	logger.Info(ctx, "starting postgres container")
 
-	cntSink := controllableLoggerSink(logger)
+	cntSink := NewLoggerSink(c.w, p)
 	cntLogger := slog.Make(cntSink)
 	// This stops all postgres logs from dumping to the console. We only want the
 	// logs until the database is ready, after that we can let it log as normal since

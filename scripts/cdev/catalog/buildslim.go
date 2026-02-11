@@ -45,6 +45,9 @@ func (d *BuildSlim) Result() BuildResult {
 func (b *BuildSlim) Name() string {
 	return "build-slim"
 }
+func (b *BuildSlim) Emoji() string {
+	return "🔨"
+}
 
 func (b *BuildSlim) DependsOn() []string {
 	return []string{
@@ -53,7 +56,7 @@ func (b *BuildSlim) DependsOn() []string {
 }
 
 func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
-	logger := c.Logger()
+	logger := c.ServiceLogger(b.Name())
 	dkr := c.MustGet(OnDocker()).(*Docker)
 	goCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_go_cache",

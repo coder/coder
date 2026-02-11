@@ -52,6 +52,9 @@ func NewCoderd() *Coderd {
 func (c *Coderd) Name() string {
 	return "coderd"
 }
+func (c *Coderd) Emoji() string {
+	return "🖥️"
+}
 
 func (c *Coderd) DependsOn() []string {
 	return []string{
@@ -81,7 +84,7 @@ func OnBuildSlim() string {
 }
 
 func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
-	logger := cat.Logger()
+	logger := cat.ServiceLogger(c.Name())
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
 
@@ -127,7 +130,7 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 }
 
 func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*ContainerRunResult, error) {
-	logger := cat.Logger()
+	logger := cat.ServiceLogger(c.Name())
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
 	pg := cat.MustGet(OnPostgres()).(*Postgres)
@@ -171,7 +174,7 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 
 	logger.Info(ctx, "starting coderd container", slog.F("index", index), slog.F("port", port))
 
-	cntSink := controllableLoggerSink(logger)
+	cntSink := NewLoggerSink(cat.w, c)
 	cntLogger := slog.Make(cntSink)
 	defer cntSink.Close()
 

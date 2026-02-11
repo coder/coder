@@ -13,7 +13,6 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
 	"github.com/coder/coder/v2/scripts/cdev/cleanup"
 	"github.com/coder/serpent"
@@ -49,7 +48,7 @@ func cleanCmd() *serpent.Command {
 				return fmt.Errorf("failed to connect to docker: %w", err)
 			}
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
 
 			return cleanup.Cleanup(inv.Context(), logger, pool)
 		},
@@ -66,7 +65,7 @@ func downCmd() *serpent.Command {
 				return fmt.Errorf("failed to connect to docker: %w", err)
 			}
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
 
 			return cleanup.Down(inv.Context(), logger, pool)
 		},
@@ -283,12 +282,11 @@ func upCmd() *serpent.Command {
 		Options: optionSet,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			services.SetLogger(logger)
+			services.Init(inv.Stderr)
 
 			fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
 
-			err = services.Start(ctx, logger)
+			err = services.Start(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to start services: %w", err)
 			}

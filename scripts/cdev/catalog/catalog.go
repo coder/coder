@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -22,6 +23,10 @@ const (
 type ServiceBase interface {
 	// Name returns a unique identifier for this service.
 	Name() string
+
+	// Emoji returns a single emoji used to identify this service
+	// in log output.
+	Emoji() string
 
 	// DependsOn returns the names of services this service depends on before "Start" can be called.
 	// This is used to determine the order in which services should be started and stopped.
@@ -48,7 +53,9 @@ type Service[Result any] interface {
 type Catalog struct {
 	mu       sync.RWMutex
 	services map[string]ServiceBase
+	loggers  map[string]slog.Logger
 	logger   slog.Logger
+	w        io.Writer
 
 	manager *unit.Manager
 }
@@ -56,17 +63,36 @@ type Catalog struct {
 func New() *Catalog {
 	return &Catalog{
 		services: make(map[string]ServiceBase),
+		loggers:  make(map[string]slog.Logger),
 		manager:  unit.NewManager(),
 	}
 }
 
-func (c *Catalog) SetLogger(logger slog.Logger) {
-	c.logger = logger
+// Init sets the writer and builds the base logger and all
+// per-service loggers. Call this after registration and before
+// Start.
+func (c *Catalog) Init(w io.Writer) {
+	c.w = w
+	c.logger = slog.Make(NewLoggerSink(w, nil))
+	for name, svc := range c.services {
+		c.loggers[name] = slog.Make(NewLoggerSink(w, svc))
+	}
 }
 
 // Logger returns the catalog's logger.
 func (c *Catalog) Logger() slog.Logger {
 	return c.logger
+}
+
+// ServiceLogger returns the per-service logger for the named
+// service, falling back to the base logger if not found.
+func (c *Catalog) ServiceLogger(name string) slog.Logger {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if l, ok := c.loggers[name]; ok {
+		return l
+	}
+	return c.Logger()
 }
 
 func Get[T Service[R], R any](c *Catalog) R {
@@ -147,7 +173,7 @@ func (c *Catalog) Get(name string) (ServiceBase, bool) {
 
 // Start launches all registered services concurrently.
 // Services block until their dependencies (tracked by unit.Manager) are ready.
-func (c *Catalog) Start(ctx context.Context, logger slog.Logger) error {
+func (c *Catalog) Start(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -161,6 +187,7 @@ func (c *Catalog) Start(ctx context.Context, logger slog.Logger) error {
 				}
 			}()
 			name := srv.Name()
+			svcLogger := c.loggers[name]
 
 			if err := c.waitForReady(ctx, name); err != nil {
 				return xerrors.Errorf("wait for %s to be ready: %w", name, err)
@@ -170,9 +197,7 @@ func (c *Catalog) Start(ctx context.Context, logger slog.Logger) error {
 				return xerrors.Errorf("update status for %s: %w", name, err)
 			}
 
-			logger.Info(ctx, "Starting service",
-				slog.F("name", name),
-			)
+			svcLogger.Info(ctx, "starting service")
 			// Start the service.
 			if err := srv.Start(ctx, c); err != nil {
 				return xerrors.Errorf("start %s: %w", name, err)
@@ -183,6 +208,7 @@ func (c *Catalog) Start(ctx context.Context, logger slog.Logger) error {
 				return xerrors.Errorf("update status for %s: %w", name, err)
 			}
 
+			svcLogger.Info(ctx, "service started")
 			return nil
 		})
 	}
