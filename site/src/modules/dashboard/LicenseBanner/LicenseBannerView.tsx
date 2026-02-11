@@ -17,6 +17,22 @@ const formatMessage = (message: string) => {
 	return message;
 };
 
+const messageLink = (message: string): { href: string; label: string } => {
+	if (message === LicenseManagedAgentLimitExceededErrorText) {
+		return {
+			href: docs("/ai-coder/ai-governance"),
+			label: "View AI Governance",
+		};
+	}
+	if (message === LicenseTelemetryRequiredErrorText) {
+		return {
+			href: "mailto:sales@coder.com",
+			label: "Contact sales@coder.com if you need an exception.",
+		};
+	}
+	return { href: "mailto:sales@coder.com", label: "Contact sales@coder.com." };
+};
+
 interface LicenseBannerViewProps {
 	errors: readonly string[];
 	warnings: readonly string[];
@@ -33,6 +49,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 
 	if (messages.length === 1) {
 		const [message] = messages;
+		const { href, label } = messageLink(message);
 
 		return (
 			<div
@@ -43,24 +60,16 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 			>
 				<Pill type={type}>License Issue</Pill>
 				<div className="mx-2">
-					<span>{formatMessage(messages[0])}</span>
+					<span>{formatMessage(message)}</span>
 					&nbsp;
 					<Link
 						className={cn(
 							"font-medium",
 							isError ? "!text-content-destructive" : "!text-content-warning",
 						)}
-						href={
-							message === LicenseManagedAgentLimitExceededErrorText
-								? docs("/ai-coder/ai-governance")
-								: "mailto:sales@coder.com"
-						}
+						href={href}
 					>
-						{message === LicenseManagedAgentLimitExceededErrorText
-							? "View AI Governance"
-							: message === LicenseTelemetryRequiredErrorText
-								? "Contact sales@coder.com if you need an exception."
-								: "Contact sales@coder.com."}
+						{label}
 					</Link>
 				</div>
 			</div>
@@ -90,11 +99,25 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 				</div>
 				<Expander expanded={showDetails} setExpanded={setShowDetails}>
 					<ul className="p-2 m-0">
-						{messages.map((message) => (
-							<li className="m-1" key={message}>
-								{formatMessage(message)}
-							</li>
-						))}
+						{messages.map((message) => {
+							const { href, label } = messageLink(message);
+							return (
+								<li className="m-1" key={message}>
+									{formatMessage(message)}&nbsp;
+									<Link
+										className={cn(
+											"font-medium",
+											isError
+												? "!text-content-destructive"
+												: "!text-content-warning",
+										)}
+										href={href}
+									>
+										{label}
+									</Link>
+								</li>
+							);
+						})}
 					</ul>
 				</Expander>
 			</div>
