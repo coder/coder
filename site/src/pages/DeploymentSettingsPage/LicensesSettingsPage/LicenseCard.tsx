@@ -86,24 +86,14 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						</span>
 					</Stack>
 					{license.claims.nbf && (
-						<Stack
-							direction="column"
-							spacing={0}
-							alignItems="center"
-							width="134px" // standardize width of date column
-						>
+						<Stack direction="column" spacing={0} alignItems="center">
 							<span css={styles.secondaryMaincolor}>Valid From</span>
 							<span css={styles.licenseExpires} className="license-valid-from">
 								{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
 							</span>
 						</Stack>
 					)}
-					<Stack
-						direction="column"
-						spacing={0}
-						alignItems="center"
-						width="134px" // standardize width of date column
-					>
+					<Stack direction="column" spacing={0} alignItems="center">
 						{dayjs(license.claims.license_expires * 1000).isBefore(dayjs()) ? (
 							<Pill css={styles.expiredBadge} type="error">
 								Expired

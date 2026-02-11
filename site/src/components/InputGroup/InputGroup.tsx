@@ -1,10 +1,9 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button, type ButtonProps } from "components/Button/Button";
 import { Input } from "components/Input/Input";
-import { type FC, forwardRef } from "react";
 import { cn } from "utils/cn";
 
-const InputGroup: FC<React.ComponentProps<"div">> = ({
+export const InputGroup: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -42,7 +41,7 @@ const inputGroupAddonVariants = cva(
 	},
 );
 
-const InputGroupAddon: FC<
+export const InputGroupAddon: React.FC<
 	React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>
 > = ({ className, align = "inline-start", ...props }) => {
 	return (
@@ -63,13 +62,11 @@ const InputGroupAddon: FC<
 	);
 };
 
-const InputGroupInput = forwardRef<
-	HTMLInputElement,
-	React.ComponentProps<typeof Input>
->(({ className, ...props }, ref) => {
+export const InputGroupInput: React.FC<
+	React.ComponentPropsWithRef<typeof Input>
+> = ({ className, ...props }) => {
 	return (
 		<Input
-			ref={ref}
 			className={cn(
 				// Reset Input's default styles that conflict with group
 				"flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0",
@@ -81,9 +78,9 @@ const InputGroupInput = forwardRef<
 			{...props}
 		/>
 	);
-});
+};
 
-const InputGroupButton: FC<ButtonProps> = ({
+export const InputGroupButton: React.FC<ButtonProps> = ({
 	className,
 	size = "sm",
 	variant = "subtle",
@@ -102,5 +99,3 @@ const InputGroupButton: FC<ButtonProps> = ({
 		/>
 	);
 };
-
-export { InputGroup, InputGroupAddon, InputGroupInput, InputGroupButton };
