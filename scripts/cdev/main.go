@@ -308,6 +308,7 @@ func upCmd() *serpent.Command {
 		catalog.NewPostgres(),
 		catalog.NewCoderd(),
 		catalog.NewOIDC(),
+		catalog.NewProvisioner(services),
 	)
 	if err != nil {
 		panic(fmt.Sprintf("failed to register services: %v", err))
@@ -328,6 +329,10 @@ func upCmd() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			services.Init(inv.Stderr)
+
+			if err := services.ApplyConfigurations(); err != nil {
+				return fmt.Errorf("failed to apply configurations: %w", err)
+			}
 
 			fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
 
