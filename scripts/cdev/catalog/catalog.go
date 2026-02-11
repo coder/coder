@@ -54,6 +54,7 @@ func New(logger slog.Logger) *Catalog {
 		logger:   logger,
 	}
 }
+
 // Logger returns the catalog's logger.
 func (c *Catalog) Logger() slog.Logger {
 	return c.logger
@@ -160,9 +161,6 @@ func (c *Catalog) Start(ctx context.Context, logger slog.Logger) error {
 			if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusComplete); err != nil {
 				return xerrors.Errorf("update status for %s: %w", name, err)
 			}
-			logger.Info(ctx, "Service started",
-				slog.F("name", name),
-			)
 
 			return nil
 		})

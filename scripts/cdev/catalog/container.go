@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -16,6 +17,7 @@ import (
 type ContainerRunOptions struct {
 	CreateOpts docker.CreateContainerOptions
 	Logger     slog.Logger
+	Detached   bool
 	// Stdout is an optional extra writer to tee container stdout
 	// into (e.g. a buffer for capturing output). nil = discard.
 	Stdout io.Writer
@@ -26,7 +28,8 @@ type ContainerRunOptions struct {
 
 // ContainerRunResult holds the outcome of a container run.
 type ContainerRunResult struct {
-	ExitCode int
+	ExitCode  int
+	Container *docker.Container
 }
 
 // RunContainer creates, attaches to, starts, and waits for a Docker
@@ -64,6 +67,9 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 		return nil, xerrors.Errorf("create container: %w", err)
 	}
 	defer func() {
+		if opts.Detached {
+			return // Don't remove if detached since caller is expected to manage lifecycle.
+		}
 		_ = pool.Client.RemoveContainer(docker.RemoveContainerOptions{
 			ID:    container.ID,
 			Force: true,
@@ -99,6 +105,25 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 		return nil, fmt.Errorf("start container: %w", err)
 	}
 
+	if opts.Detached {
+		// Wait for it to be running at least
+		for {
+			container, err = pool.Client.InspectContainer(container.ID)
+			if err != nil {
+				return nil, fmt.Errorf("inspect container: %w", err)
+			}
+			if container.State.Running {
+				break
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+
+		// If detached, return immediately without waiting for the container to exit.
+		return &ContainerRunResult{
+			ExitCode:  0,
+			Container: container,
+		}, nil
+	}
 	exitCode, err := pool.Client.WaitContainerWithContext(container.ID, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("wait for container: %w", err)
@@ -115,5 +140,8 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 		return nil, fmt.Errorf("container exited with code %d", exitCode)
 	}
 
-	return &ContainerRunResult{ExitCode: exitCode}, nil
+	return &ContainerRunResult{
+		ExitCode:  exitCode,
+		Container: container,
+	}, nil
 }
