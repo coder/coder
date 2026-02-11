@@ -1,8 +1,13 @@
-import { LicenseTelemetryRequiredErrorText } from "api/typesGenerated";
+import {
+	LicenseManagedAgentLimitExceededErrorText,
+	LicenseTelemetryRequiredErrorText,
+} from "api/typesGenerated";
 import { Expander } from "components/Expander/Expander";
+import { Link } from "components/Link/Link";
 import { Pill } from "components/Pill/Pill";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
+import { docs } from "utils/docs";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.
@@ -40,17 +45,23 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 				<div className="mx-2">
 					<span>{formatMessage(messages[0])}</span>
 					&nbsp;
-					<a
+					<Link
 						className={cn(
-							"font-medium underline",
-							isError ? "text-content-destructive" : "text-content-warning",
+							"font-medium",
+							isError ? "!text-content-destructive" : "!text-content-warning",
 						)}
-						href="mailto:sales@coder.com"
+						href={
+							message === LicenseManagedAgentLimitExceededErrorText
+								? docs("/ai-coder/ai-governance")
+								: "mailto:sales@coder.com"
+						}
 					>
 						{message === LicenseTelemetryRequiredErrorText
 							? "Contact sales@coder.com if you need an exception."
-							: "Contact sales@coder.com."}
-					</a>
+							: message === LicenseManagedAgentLimitExceededErrorText
+								? "View AI Governance"
+								: "Contact sales@coder.com."}
+					</Link>
 				</div>
 			</div>
 		);
