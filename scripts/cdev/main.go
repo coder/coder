@@ -13,12 +13,6 @@ import (
 	"github.com/coder/serpent"
 )
 
-const (
-	// Volume names for cdev caches.
-	VolumeGoCache    = "cdev_go_cache"
-	VolumeCoderCache = "cdev_coder_cache"
-)
-
 func main() {
 	cmd := &serpent.Command{
 		Use:   "cdev",
@@ -99,8 +93,6 @@ func upCmd() *serpent.Command {
 			services := catalog.New(logger)
 			err := services.Register(
 				catalog.NewDocker(),
-				catalog.VolumeCoderCache(),
-				catalog.VolumeGoCache(),
 				catalog.NewBuildSlim(),
 			)
 			if err != nil {

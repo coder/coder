@@ -38,15 +38,28 @@ func (b *BuildSlim) Name() string {
 func (b *BuildSlim) DependsOn() []string {
 	return []string{
 		OnDocker(),
-		OnVolumeOnGoCache(),
-		OnVolumeCoderCache(),
 	}
 }
 
 func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
-	pool := Get[*Docker](c)
-	goCache := c.MustGet(VolumeGoCache().Name()).(*Volume).Result()
-	coderCache := c.MustGet(VolumeCoderCache().Name()).(*Volume).Result()
+	dkr := c.MustGet(OnDocker()).(*Docker)
+	goCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
+		Name:   "cdev_go_cache",
+		Labels: map[string]string{CDevLabel: "true", CDevLabelCache: "true"},
+		UID:    1000, GID: 1000,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to ensure go cache volume: %w", err)
+	}
+	coderCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
+		Name:   "cdev_coder_cache",
+		Labels: map[string]string{CDevLabel: "true", CDevLabelCache: "true"},
+		UID:    1000, GID: 1000,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to ensure coder cache volume: %w", err)
+	}
+	pool := dkr.Result()
 
 	// Get current working directory for mounting.
 	cwd, err := os.Getwd()
