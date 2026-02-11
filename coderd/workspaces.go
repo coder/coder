@@ -814,7 +814,8 @@ func createWorkspace(
 		return codersdk.Workspace{}, err
 	}
 
-	if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
+	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
+	if err != nil {
 		// Client probably doesn't care about this error, so just log it.
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
