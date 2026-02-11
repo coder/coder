@@ -208,7 +208,7 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 					"CODER_CACHE_DIRECTORY=/cache",
 					fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
 					"CODER_PPROF_ENABLE=true",
-					fmt.Sprintf("CODER_PPROF_ADDRESS=127.0.0.1:%d", PprofPortNum(index)),
+					fmt.Sprintf("CODER_PPROF_ADDRESS=0.0.0.0:%d", PprofPortNum(index)),
 				},
 				Cmd: []string{
 					"go", "run", "./enterprise/cmd/coder", "server",
@@ -263,7 +263,7 @@ func (c *Coderd) waitForReady(ctx context.Context, logger slog.Logger) error {
 
 	// Coderd can take a while to start, especially on first run with go run.
 	timeout := time.After(5 * time.Minute)
-	healthURL := c.result.URL + "/healthz"
+	healthURL := c.result.URL + "/api/v2/buildinfo" // this actually returns when the server is ready, as opposed to healthz
 
 	logger.Info(ctx, "waiting for coderd to be ready", slog.F("health_url", healthURL))
 
