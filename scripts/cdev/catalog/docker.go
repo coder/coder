@@ -103,12 +103,12 @@ func (d *Docker) ensureVolume(ctx context.Context, opts VolumeOptions) (*docker.
 }
 
 func (d *Docker) chownVolume(ctx context.Context, opts VolumeOptions) error {
-	initCmd := fmt.Sprintf("chown -R %d:%d /", opts.UID, opts.GID)
+	initCmd := fmt.Sprintf("chown -R %d:%d /mnt/volume", opts.UID, opts.GID)
 	runOpts := &dockertest.RunOptions{
 		Repository: dogfoodImage,
 		Tag:        dogfoodTag,
 		User:       "0:0",
-		Mounts:     []string{fmt.Sprintf("%s:/", opts.Name)},
+		Mounts:     []string{fmt.Sprintf("%s:/mnt/volume", opts.Name)},
 		Cmd:        []string{"sh", "-c", initCmd},
 		Labels: map[string]string{
 			CDevLabel:          "true",
