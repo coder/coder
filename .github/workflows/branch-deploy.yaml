@@ -24,7 +24,7 @@ jobs:
     permissions:
       packages: write
     env:
-      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:${{ github.ref_name }}"
+      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:pr${{ github.ref_name }}"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -71,8 +71,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BRANCH_NAME: ${{ github.ref_name }}
+      DEPLOY_NAME: "pr${{ github.ref_name }}"
       BRANCH_HOSTNAME: "${{ github.ref_name }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:${{ github.ref_name }}"
+      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:pr${{ github.ref_name }}"
       REPO: ghcr.io/coder/coder-preview
       EXPERIMENTS: "*"
     steps:
@@ -99,7 +100,7 @@ jobs:
           set -euo pipefail
 
           set +e
-          helm_status_output="$(helm status "${BRANCH_NAME}" --namespace "${BRANCH_NAME}" 2>&1)"
+          helm_status_output="$(helm status "${DEPLOY_NAME}" --namespace "${DEPLOY_NAME}" 2>&1)"
           helm_status_code=$?
           set -e
 
@@ -220,8 +221,8 @@ jobs:
         if: steps.check.outputs.new == 'true'
         run: |
           set -euo pipefail
-          kubectl delete namespace "${BRANCH_NAME}" || true
-          kubectl create namespace "${BRANCH_NAME}"
+          kubectl delete namespace "${DEPLOY_NAME}" || true
+          kubectl create namespace "${DEPLOY_NAME}"
 
       - name: Create certificate
         if: steps.check.outputs.new == 'true'
@@ -230,7 +231,7 @@ jobs:
           PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
         run: |
           set -euo pipefail
-          cert_secret_name="pr${BRANCH_NAME}-tls"
+          cert_secret_name="${DEPLOY_NAME}-tls"
 
           if ! kubectl get certificate "${cert_secret_name}" -n pr-deployment-certs > /dev/null 2>&1; then
             envsubst < ./.github/pr-deployments/certificate.yaml | kubectl apply -f -
@@ -256,21 +257,21 @@ jobs:
 
           kubectl get secret "${cert_secret_name}" -n pr-deployment-certs -o json |
             jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |
-            kubectl -n "${BRANCH_NAME}" apply -f -
+            kubectl -n "${DEPLOY_NAME}" apply -f -
 
       - name: Set up PostgreSQL
         if: steps.check.outputs.new == 'true'
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm install coder-db bitnami/postgresql \
-            --namespace "${BRANCH_NAME}" \
+            --namespace "${DEPLOY_NAME}" \
             --set image.repository=bitnamilegacy/postgresql \
             --set auth.username=coder \
             --set auth.password=coder \
             --set auth.database=coder \
             --set persistence.size=10Gi
-          kubectl create secret generic coder-db-url -n "${BRANCH_NAME}" \
-            --from-literal=url="postgres://coder:coder@coder-db-postgresql.${BRANCH_NAME}.svc.cluster.local:5432/coder?sslmode=disable"
+          kubectl create secret generic coder-db-url -n "${DEPLOY_NAME}" \
+            --from-literal=url="postgres://coder:coder@coder-db-postgresql.${DEPLOY_NAME}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Create RBAC
         if: steps.check.outputs.new == 'true'
@@ -294,8 +295,8 @@ jobs:
         run: |
           set -euo pipefail
           helm dependency update --skip-refresh ./helm/coder
-          helm upgrade --install "${BRANCH_NAME}" ./helm/coder \
-            --namespace "${BRANCH_NAME}" \
+          helm upgrade --install "${DEPLOY_NAME}" ./helm/coder \
+            --namespace "${DEPLOY_NAME}" \
             --values ./deploy-values.yaml \
             --force
 
@@ -304,7 +305,7 @@ jobs:
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
-            --namespace "${BRANCH_NAME}" \
+            --namespace "${DEPLOY_NAME}" \
             --set url="https://${BRANCH_HOSTNAME}"
 
       - name: Create first user and template
@@ -332,7 +333,7 @@ jobs:
             "https://${BRANCH_HOSTNAME}"
 
           cd .github/pr-deployments/template
-          /tmp/coder templates push -y --variable "namespace=${BRANCH_NAME}" kubernetes
+          /tmp/coder templates push -y --variable "namespace=${DEPLOY_NAME}" kubernetes
           /tmp/coder create --template="kubernetes" kube \
             --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
           /tmp/coder stop kube -y
