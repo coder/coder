@@ -51,6 +51,11 @@ type Service[Result any] interface {
 	Result() Result
 }
 
+type configurator struct {
+	target string
+	apply  func(ServiceBase)
+}
+
 type Catalog struct {
 	mu       sync.RWMutex
 	services map[string]ServiceBase
@@ -59,6 +64,9 @@ type Catalog struct {
 	w        io.Writer
 
 	manager *unit.Manager
+
+	configurators []configurator
+	configured    bool
 }
 
 func New() *Catalog {
@@ -159,6 +167,35 @@ func (c *Catalog) MustGet(name string) ServiceBase {
 func (c *Catalog) Get(name string) (ServiceBase, bool) {
 	s, ok := c.services[name]
 	return s, ok
+}
+
+// Configure registers a typed callback to mutate a target service
+// before startup. Panics if called after ApplyConfigurations.
+func Configure[T ServiceBase](c *Catalog, target string, fn func(T)) {
+	if c.configured {
+		panic(fmt.Sprintf("catalog: Configure(%q) called after ApplyConfigurations", target))
+	}
+	c.configurators = append(c.configurators, configurator{
+		target: target,
+		apply: func(s ServiceBase) {
+			fn(s.(T))
+		},
+	})
+}
+
+// ApplyConfigurations runs all registered Configure callbacks,
+// then prevents further Configure calls. Must be called after
+// option parsing but before Start.
+func (c *Catalog) ApplyConfigurations() error {
+	for _, cfg := range c.configurators {
+		svc, ok := c.services[cfg.target]
+		if !ok {
+			return xerrors.Errorf("configure target %q not found", cfg.target)
+		}
+		cfg.apply(svc)
+	}
+	c.configured = true
+	return nil
 }
 
 // Start launches all registered services concurrently.
