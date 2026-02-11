@@ -120,6 +120,36 @@ func (r *RootCmd) start() *serpent.Command {
 func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 
+	// Check if the template requires the active version and whether
+	// the current user can bypass that requirement. This mirrors
+	// the frontend's permission check so non-admin members
+	// proactively use the active version instead of hitting a
+	// 403 and retrying.
+	if workspace.TemplateRequireActiveVersion && action != WorkspaceUpdate {
+		resp, err := client.AuthCheck(inv.Context(), codersdk.AuthorizationRequest{
+			Checks: map[string]codersdk.AuthorizationCheck{
+				"updateTemplates": {
+					Object: codersdk.AuthorizationObject{
+						ResourceType: codersdk.ResourceTemplate,
+						ResourceID:   workspace.TemplateID.String(),
+					},
+					Action: codersdk.ActionUpdate,
+				},
+			},
+		})
+		if err == nil && !resp["updateTemplates"] {
+			// Non-admin: must use the active template version.
+			version = workspace.TemplateActiveVersionID
+			if version != workspace.LatestBuild.TemplateVersionID {
+				action = WorkspaceUpdate
+			}
+		}
+		// If the check fails or user has template admin
+		// permissions, fall through to the existing logic
+		// which may still auto-update based on
+		// workspace.AutomaticUpdates.
+	}
+
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
 		version = workspace.TemplateActiveVersionID
 		if version != workspace.LatestBuild.TemplateVersionID {
