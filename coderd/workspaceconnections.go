@@ -104,7 +104,7 @@ func mergeWorkspaceConnectionsIntoSessions(
 	}
 
 	// Build existing flat connections using the current merging logic.
-	connections := mergeConnectionsFlat(tunnelPeers, connectionLogs)
+	connections := mergeConnectionsFlat(tunnelPeers, connectionLogs, derpMap, peerTelemetry)
 
 	// Group by ClientHostname when available, otherwise by IP.
 	// This ensures connections from the same machine (e.g. SSH +
@@ -164,6 +164,8 @@ func mergeWorkspaceConnectionsIntoSessions(
 func mergeConnectionsFlat(
 	tunnelPeers []*tailnet.TunnelPeerInfo,
 	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
+	derpMap *tailcfg.DERPMap,
+	peerTelemetry map[uuid.UUID]*PeerNetworkTelemetry,
 ) []codersdk.WorkspaceConnection {
 	// Build IP -> tunnel peer lookup. A single peer has one tailnet IP.
 	type peerEntry struct {

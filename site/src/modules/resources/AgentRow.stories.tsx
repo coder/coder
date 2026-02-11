@@ -339,10 +339,18 @@ export const WithConnections: Story = {
 	args: {
 		agent: {
 			...M.MockWorkspaceAgent,
-			connections: [
-				M.MockWorkspaceConnectionP2P,
-				M.MockWorkspaceConnectionDERP,
-				M.MockWorkspaceConnectionNoTelemetry,
+			sessions: [
+				{
+					ip: "192.168.1.100",
+					client_hostname: "dev-laptop",
+					status: "ongoing",
+					started_at: "2026-02-11T05:49:29.969985Z",
+					connections: [
+						M.MockWorkspaceConnectionP2P,
+						M.MockWorkspaceConnectionDERP,
+						M.MockWorkspaceConnectionNoTelemetry,
+					],
+				},
 			],
 		},
 	},
