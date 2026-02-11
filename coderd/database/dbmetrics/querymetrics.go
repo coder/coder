@@ -870,6 +870,14 @@ func (m queryMetricsStore) GetAllTailnetCoordinators(ctx context.Context) ([]dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAllTailnetPeeringEventsByPeerID(ctx context.Context, srcPeerID uuid.NullUUID) ([]database.TailnetPeeringEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetPeeringEventsByPeerID(ctx, srcPeerID)
+	m.queryLatencies.WithLabelValues("GetAllTailnetPeeringEventsByPeerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAllTailnetPeeringEventsByPeerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAllTailnetPeers(ctx context.Context) ([]database.TailnetPeer, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetPeers(ctx)

@@ -35,6 +35,7 @@ import (
 var errMatchAny = xerrors.New("match any error")
 
 var skipMethods = map[string]string{
+
 	"InTx":                                 "Not relevant",
 	"Ping":                                 "Not relevant",
 	"PGLocks":                              "Not relevant",
@@ -52,6 +53,7 @@ var skipMethods = map[string]string{
 	"GetGlobalWorkspaceSessionsOffset":     "Hackathon",
 	"GetWorkspaceSessionsOffset":           "Hackathon",
 	"UpdateConnectionLogSessionID":         "Hackathon",
+	"GetAllTailnetPeeringEventsByPeerID":   "Hackathon",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.

@@ -13254,6 +13254,43 @@ func (q *sqlQuerier) GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCo
 	return items, nil
 }
 
+const getAllTailnetPeeringEventsByPeerID = `-- name: GetAllTailnetPeeringEventsByPeerID :many
+SELECT peering_id, event_type, src_peer_id, dst_peer_id, node, occurred_at
+FROM tailnet_peering_events
+WHERE src_peer_id = $1 OR dst_peer_id = $1
+ORDER BY peering_id, occurred_at
+`
+
+func (q *sqlQuerier) GetAllTailnetPeeringEventsByPeerID(ctx context.Context, srcPeerID uuid.NullUUID) ([]TailnetPeeringEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetPeeringEventsByPeerID, srcPeerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetPeeringEvent
+	for rows.Next() {
+		var i TailnetPeeringEvent
+		if err := rows.Scan(
+			&i.PeeringID,
+			&i.EventType,
+			&i.SrcPeerID,
+			&i.DstPeerID,
+			&i.Node,
+			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAllTailnetPeers = `-- name: GetAllTailnetPeers :many
 SELECT id, coordinator_id, updated_at, node, status FROM tailnet_peers
 `

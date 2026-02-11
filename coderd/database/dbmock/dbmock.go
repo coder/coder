@@ -1484,6 +1484,21 @@ func (mr *MockStoreMockRecorder) GetAllTailnetCoordinators(ctx any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetCoordinators", reflect.TypeOf((*MockStore)(nil).GetAllTailnetCoordinators), ctx)
 }
 
+// GetAllTailnetPeeringEventsByPeerID mocks base method.
+func (m *MockStore) GetAllTailnetPeeringEventsByPeerID(ctx context.Context, srcPeerID uuid.NullUUID) ([]database.TailnetPeeringEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllTailnetPeeringEventsByPeerID", ctx, srcPeerID)
+	ret0, _ := ret[0].([]database.TailnetPeeringEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllTailnetPeeringEventsByPeerID indicates an expected call of GetAllTailnetPeeringEventsByPeerID.
+func (mr *MockStoreMockRecorder) GetAllTailnetPeeringEventsByPeerID(ctx, srcPeerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetPeeringEventsByPeerID", reflect.TypeOf((*MockStore)(nil).GetAllTailnetPeeringEventsByPeerID), ctx, srcPeerID)
+}
+
 // GetAllTailnetPeers mocks base method.
 func (m *MockStore) GetAllTailnetPeers(ctx context.Context) ([]database.TailnetPeer, error) {
 	m.ctrl.T.Helper()

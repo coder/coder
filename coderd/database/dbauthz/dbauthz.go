@@ -461,6 +461,24 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectTailnetCoordinator = rbac.Subject{
+		Type:         rbac.SubjectTypeTailnetCoordinator,
+		FriendlyName: "Tailnet Coordinator",
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "tailnetcoordinator"},
+				DisplayName: "Tailnet Coordinator",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceTailnetCoordinator.Type: {policy.WildcardSymbol},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemOAuth2 = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemOAuth,
 		FriendlyName: "System OAuth2",
@@ -724,6 +742,12 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 // required for various system operations (login, logout, metrics cache).
 func AsSystemRestricted(ctx context.Context) context.Context {
 	return As(ctx, subjectSystemRestricted)
+}
+
+// AsTailnetCoordinator returns a context with an actor that has permissions
+// required for tailnet coordinator operations.
+func AsTailnetCoordinator(ctx context.Context) context.Context {
+	return As(ctx, subjectTailnetCoordinator)
 }
 
 // AsSystemOAuth2 returns a context with an actor that has permissions
@@ -2235,6 +2259,13 @@ func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.Tai
 		return nil, err
 	}
 	return q.db.GetAllTailnetCoordinators(ctx)
+}
+
+func (q *querier) GetAllTailnetPeeringEventsByPeerID(ctx context.Context, srcPeerID uuid.NullUUID) ([]database.TailnetPeeringEvent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetAllTailnetPeeringEventsByPeerID(ctx, srcPeerID)
 }
 
 func (q *querier) GetAllTailnetPeers(ctx context.Context) ([]database.TailnetPeer, error) {

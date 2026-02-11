@@ -138,9 +138,19 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// nolint:gocritic // Reading tailnet peering events requires coordinator
+	// context since they record control-plane state transitions.
+	peeringEvents, err := api.Database.GetAllTailnetPeeringEventsByPeerID(dbauthz.AsTailnetCoordinator(api.ctx), uuid.NullUUID{UUID: waws.WorkspaceAgent.ID, Valid: true})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent peering events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	tunnelPeers := (*api.TailnetCoordinator.Load()).TunnelPeers(waws.WorkspaceAgent.ID)
 	peerTelemetry := api.PeerNetworkTelemetryStore.GetAll(waws.WorkspaceAgent.ID)
-	if sessions := mergeWorkspaceConnectionsIntoSessions(tunnelPeers, connectionLogs, api.DERPMap(), peerTelemetry); len(sessions) > 0 {
+	if sessions := mergeWorkspaceConnectionsIntoSessions(waws.WorkspaceAgent.ID, tunnelPeers, peeringEvents, connectionLogs, api.DERPMap(), peerTelemetry); len(sessions) > 0 {
 		apiAgent.Sessions = sessions
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)

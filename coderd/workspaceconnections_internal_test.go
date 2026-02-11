@@ -66,6 +66,9 @@ func makeNetTelemetry(p2p *bool, derpLatency, p2pLatency *time.Duration, homeDER
 	}
 }
 
+// testAgentID is a fixed UUID used as the agentID parameter in tests.
+var testAgentID = uuid.Nil
+
 func TestMergeConnectionsFlat(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +84,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 
 	t.Run("BothEmpty", func(t *testing.T) {
 		t.Parallel()
-		result := mergeConnectionsFlat(nil, nil, nil, nil)
+		result := mergeConnectionsFlat(testAgentID, nil, nil, nil, nil, nil)
 		assert.Empty(t, result)
 	})
 
@@ -95,7 +98,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeConnectionLog(ip2, database.ConnectionTypeVscode, now.Add(-time.Minute)),
 		}
 
-		result := mergeConnectionsFlat(nil, logs, nil, nil)
+		result := mergeConnectionsFlat(testAgentID, nil, nil, logs, nil, nil)
 		require.Len(t, result, 2)
 
 		assert.Equal(t, codersdk.ConnectionType("ssh"), result[0].Type)
@@ -119,7 +122,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeTunnelPeer(ip2, tailnetproto.CoordinateResponse_PeerUpdate_LOST, now.Add(-time.Minute)),
 		}
 
-		result := mergeConnectionsFlat(peers, nil, nil, nil)
+		result := mergeConnectionsFlat(testAgentID, peers, nil, nil, nil, nil)
 		require.Len(t, result, 2)
 
 		// Map iteration order is nondeterministic, find each by IP.
@@ -150,7 +153,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeSsh, now.Add(-time.Second)),
 		}
 
-		result := mergeConnectionsFlat(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(testAgentID, peers, nil, logs, nil, nil)
 		require.Len(t, result, 1)
 
 		assert.Equal(t, codersdk.ConnectionType("ssh"), result[0].Type)
@@ -170,7 +173,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeSsh, now),
 		}
 
-		result := mergeConnectionsFlat(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(testAgentID, peers, nil, logs, nil, nil)
 		require.Len(t, result, 1)
 
 		assert.Equal(t, codersdk.ConnectionType("ssh"), result[0].Type)
@@ -190,7 +193,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeConnectionLog(ip1, database.ConnectionTypeVscode, now.Add(-time.Second)),
 		}
 
-		result := mergeConnectionsFlat(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(testAgentID, peers, nil, logs, nil, nil)
 		require.Len(t, result, 2)
 
 		// First entry is the matched log (preserves log order).
@@ -219,7 +222,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeJetbrains, now.Add(-2*time.Second)),
 		}
 
-		result := mergeConnectionsFlat(peers, logs, nil, nil)
+		result := mergeConnectionsFlat(testAgentID, peers, nil, logs, nil, nil)
 		require.Len(t, result, 3)
 
 		// All three should inherit the peer's LOST status.
@@ -244,7 +247,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeSsh, now.Add(-time.Second)),
 		}
 
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, nil, nil)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, nil, nil)
 		require.Len(t, result, 1)
 		assert.Equal(t, codersdk.ConnectionStatusOngoing, result[0].Status)
 		assert.Nil(t, result[0].Connections[0].P2P)
@@ -272,7 +275,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		require.NotNil(t, result[0].Connections[0].P2P)
 		assert.True(t, *result[0].Connections[0].P2P)
@@ -298,7 +301,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		require.NotNil(t, result[0].Connections[0].HomeDERP)
 		assert.Equal(t, 1, result[0].Connections[0].HomeDERP.ID)
@@ -320,7 +323,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		require.NotNil(t, result[0].Connections[0].HomeDERP)
 		assert.Equal(t, 99, result[0].Connections[0].HomeDERP.ID)
@@ -342,7 +345,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		assert.Nil(t, result[0].Connections[0].HomeDERP)
 	})
@@ -367,7 +370,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		assert.Equal(t, codersdk.ConnectionStatusControlLost, result[0].Status)
 		assert.Nil(t, result[0].Connections[0].P2P)
@@ -394,7 +397,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		require.NotNil(t, result[0].Connections[0].LatencyMS)
 		assert.InDelta(t, 15.0, *result[0].Connections[0].LatencyMS, 0.001)
@@ -420,7 +423,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		require.NotNil(t, result[0].Connections[0].LatencyMS)
 		assert.InDelta(t, 50.0, *result[0].Connections[0].LatencyMS, 0.001)
@@ -446,7 +449,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		assert.Nil(t, result[0].Connections[0].LatencyMS)
 	})
@@ -478,7 +481,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			),
 		}
 
-		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, peers, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 2)
 
 		byIP := make(map[netip.Addr]codersdk.WorkspaceSession, len(result))
@@ -526,7 +529,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			),
 		}
 
-		result := mergeWorkspaceConnectionsIntoSessions(nil, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(testAgentID, nil, nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		assert.Equal(t, codersdk.ConnectionStatusOngoing, result[0].Status)
 		assert.Nil(t, result[0].Connections[0].P2P)
