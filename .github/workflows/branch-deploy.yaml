@@ -3,6 +3,12 @@ name: Deploy Branch
 on:
   push:
   workflow_dispatch:
+    inputs:
+      deploy_only:
+        description: "Skip build and only run deploy (debug-only)."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -13,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.deploy_only != 'true' }}
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
       packages: write
@@ -65,6 +72,7 @@ jobs:
 
   deploy:
     needs: build
+    if: ${{ needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_only == 'true' && needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     env:
       # The existing pr-deployments templates use PR_NUMBER and
