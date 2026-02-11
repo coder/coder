@@ -19,6 +19,9 @@ importers:
 
   .:
     dependencies:
+      '@biomejs/cli-linux-x64':
+        specifier: 2.3.14
+        version: 2.3.14
       '@emoji-mart/data':
         specifier: 1.2.1
         version: 1.2.1
@@ -706,6 +709,12 @@ packages:
 
   '@biomejs/cli-linux-x64@2.2.4':
     resolution: {integrity: sha512-orr3nnf2Dpb2ssl6aihQtvcKtLySLta4E2UcXdp7+RTa7mfJjBgIsbS0B9GC8gVu0hjOu021aU8b3/I1tn+pVQ==, tarball: https://registry.npmjs.org/@biomejs/cli-linux-x64/-/cli-linux-x64-2.2.4.tgz}
+    engines: {node: '>=14.21.3'}
+    cpu: [x64]
+    os: [linux]
+
+  '@biomejs/cli-linux-x64@2.3.14':
+    resolution: {integrity: sha512-ZsZzQsl9U+wxFrGGS4f6UxREUlgHwmEfu1IrXlgNFrNnd5Th6lIJr8KmSzu/+meSa9f4rzFrbEW9LBBA6ScoMA==, tarball: https://registry.npmjs.org/@biomejs/cli-linux-x64/-/cli-linux-x64-2.3.14.tgz}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
@@ -6769,6 +6778,8 @@ snapshots:
 
   '@biomejs/cli-linux-x64@2.2.4':
     optional: true
+
+  '@biomejs/cli-linux-x64@2.3.14': {}
 
   '@biomejs/cli-win32-arm64@2.2.4':
     optional: true

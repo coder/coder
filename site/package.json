@@ -35,6 +35,7 @@
 		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
 	},
 	"dependencies": {
+		"@biomejs/cli-linux-x64": "2.3.14",
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
 		"@emotion/cache": "11.14.0",
