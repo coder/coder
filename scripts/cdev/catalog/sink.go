@@ -48,9 +48,14 @@ func (l *loggerSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 
 	serviceLabel := fmt.Sprintf("%s %-10s", l.emoji, l.serviceName)
 
+	var fields string
+	for _, f := range e.Fields {
+		fields += fmt.Sprintf(" %s=%v", f.Name, f.Value)
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	fmt.Fprintf(l.w, "%s %s [%s] %s\n", serviceLabel, ts, streamTag, e.Message)
+	fmt.Fprintf(l.w, "%s %s [%s] %s%s\n", serviceLabel, ts, streamTag, e.Message, fields)
 }
 
 func (l *loggerSink) Sync() {}
