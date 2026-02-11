@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -177,6 +178,17 @@ func (c *Catalog) Start(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Log the service dependency graph on startup.
+	c.logger.Info(ctx, "service dependency graph")
+	for _, srv := range c.services {
+		deps := srv.DependsOn()
+		if len(deps) == 0 {
+			c.logger.Info(ctx, fmt.Sprintf("  %s %s (no dependencies)", srv.Emoji(), srv.Name()))
+		} else {
+			c.logger.Info(ctx, fmt.Sprintf("  %s %s -> [%s]", srv.Emoji(), srv.Name(), strings.Join(deps, ", ")))
+		}
+	}
+
 	wg, ctx := errgroup.WithContext(ctx)
 	wg.SetLimit(-1) // No limit on concurrency, since unit.Manager tracks dependencies.
 	for _, srv := range c.services {
@@ -223,6 +235,9 @@ func (c *Catalog) Start(ctx context.Context) error {
 
 // waitForReady polls until the service's dependencies are satisfied.
 func (c *Catalog) waitForReady(ctx context.Context, name string) error {
+	logTicker := time.NewTicker(5 * time.Second)
+	defer logTicker.Stop()
+
 	for {
 		ready, err := c.manager.IsReady(unit.ID(name))
 		if err != nil {
@@ -235,8 +250,17 @@ func (c *Catalog) waitForReady(ctx context.Context, name string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-logTicker.C:
+			unmet, _ := c.manager.GetUnmetDependencies(unit.ID(name))
+			if len(unmet) > 0 {
+				depNames := make([]string, 0, len(unmet))
+				for _, d := range unmet {
+					depNames = append(depNames, string(d.DependsOn))
+				}
+				c.loggers[name].Info(ctx, "waiting for dependencies",
+					slog.F("unmet", strings.Join(depNames, ", ")))
+			}
 		default:
-			// Small sleep to avoid busy loop - could use a channel-based approach for better perf.
 			time.Sleep(time.Millisecond * 15)
 			continue
 		}
