@@ -1,6 +1,5 @@
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "hooks";
 import { type FC, Suspense } from "react";
 import { Outlet } from "react-router";
@@ -15,14 +14,14 @@ const Layout: FC = () => {
 			<title>{pageTitle("Settings")}</title>
 
 			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+				<div className="flex flex-col md:flex-row gap-12 py-12">
 					<Sidebar user={me} />
 					<Suspense fallback={<Loader />}>
-						<main css={{ maxWidth: 800, width: "100%" }}>
+						<main className="max-w-[800px] w-full">
 							<Outlet />
 						</main>
 					</Suspense>
-				</Stack>
+				</div>
 			</Margins>
 		</>
 	);

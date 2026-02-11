@@ -1,6 +1,8 @@
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
-import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router";
+import { MenuIcon, XIcon } from "lucide-react";
+import { type ElementType, type FC, type ReactNode, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router";
 import { cn } from "utils/cn";
 
 interface SidebarProps {
@@ -9,15 +11,45 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
+	const location = useLocation();
+
 	return (
-		<nav
-			className={cn(
-				"hidden md:block w-60 flex-shrink-0 sticky top-[72px] h-[calc(100vh-72px)] py-4",
-				className,
-			)}
-		>
-			<div className="max-h-screen overflow-y-auto">{children}</div>
-		</nav>
+		<>
+			{/* Mobile collapsible sidebar. Keyed on pathname so
+			    state resets (menu closes) on navigation. */}
+			<SidebarMobileNavigation key={location.pathname}>
+				{children}
+			</SidebarMobileNavigation>
+
+			{/* Desktop sticky sidebar */}
+			<nav
+				className={cn(
+					"hidden md:block w-60 flex-shrink-0 sticky top-[72px] h-[calc(100vh-72px)] py-4",
+					className,
+				)}
+			>
+				<div className="max-h-screen overflow-y-auto">{children}</div>
+			</nav>
+		</>
+	);
+};
+
+const SidebarMobileNavigation: FC<{ children: ReactNode }> = ({ children }) => {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<div className="md:hidden w-full">
+			<Button
+				variant="outline"
+				aria-label={open ? "Close menu" : "Open menu"}
+				onClick={() => setOpen((prev) => !prev)}
+				className="justify-start gap-2 w-full"
+			>
+				{open ? <XIcon className="size-4" /> : <MenuIcon className="size-4" />}
+				Menu
+			</Button>
+			{open && <nav className="py-4">{children}</nav>}
+		</div>
 	);
 };
 

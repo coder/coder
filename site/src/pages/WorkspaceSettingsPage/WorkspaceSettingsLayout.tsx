@@ -4,7 +4,6 @@ import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
@@ -53,7 +52,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 			<title>{pageTitle(workspaceName, "Settings")}</title>
 
 			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
+				<div className="flex flex-col md:flex-row gap-10 md:gap-20 py-12">
 					{isError ? (
 						<ErrorAlert error={error} />
 					) : (
@@ -65,14 +64,14 @@ export const WorkspaceSettingsLayout: FC = () => {
 									sharingDisabled={sharingDisabled}
 								/>
 								<Suspense fallback={<Loader />}>
-									<main css={{ width: "100%" }}>
+									<main className="w-full">
 										<Outlet />
 									</main>
 								</Suspense>
 							</WorkspaceSettings.Provider>
 						)
 					)}
-				</Stack>
+				</div>
 			</Margins>
 		</>
 	);
