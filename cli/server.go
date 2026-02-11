@@ -95,6 +95,7 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -934,6 +935,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			options.StatsBatcher = batcher
 			defer closeBatcher()
+
+			wsBuilderMetrics, err := wsbuilder.NewMetrics(options.PrometheusRegistry)
+			if err != nil {
+				return xerrors.Errorf("failed to register workspace builder metrics: %w", err)
+			}
+			options.WorkspaceBuilderMetrics = wsBuilderMetrics
 
 			// Manage notifications.
 			var (
