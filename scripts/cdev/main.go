@@ -308,11 +308,14 @@ func upCmd() *serpent.Command {
 		catalog.NewPostgres(),
 		catalog.NewCoderd(),
 		catalog.NewOIDC(),
-		catalog.NewProvisioner(services),
 	)
 	if err != nil {
 		panic(fmt.Sprintf("failed to register services: %v", err))
 	}
+
+	// Create provisioner to collect its options, but don't register
+	// it yet — we only register when count > 0 (after option parsing).
+	provisioner := catalog.NewProvisioner(services)
 
 	optionSet := serpent.OptionSet{}
 	_ = services.ForEach(func(srv catalog.ServiceBase) error {
@@ -321,6 +324,9 @@ func upCmd() *serpent.Command {
 		}
 		return nil
 	})
+	// Add provisioner options even though it's not registered yet,
+	// so --provisioner-count always appears in help text.
+	optionSet = append(optionSet, provisioner.Options()...)
 
 	return &serpent.Command{
 		Use:     "up",
@@ -328,6 +334,14 @@ func upCmd() *serpent.Command {
 		Options: optionSet,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+
+			// Register provisioner only if count > 0.
+			if provisioner.Count() > 0 {
+				if err := services.Register(provisioner); err != nil {
+					return fmt.Errorf("failed to register provisioner: %w", err)
+				}
+			}
+
 			services.Init(inv.Stderr)
 
 			if err := services.ApplyConfigurations(); err != nil {

@@ -58,6 +58,9 @@ func NewProvisioner(cat *Catalog) *Provisioner {
 	return p
 }
 
+// Count returns the configured number of provisioner instances.
+func (p *Provisioner) Count() int64 { return p.count }
+
 func (p *Provisioner) Name() string {
 	return "provisioner"
 }
