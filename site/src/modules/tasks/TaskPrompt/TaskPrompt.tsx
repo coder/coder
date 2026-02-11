@@ -251,7 +251,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				/>
 				<div className="flex items-center justify-between pt-2 gap-2">
 					<div className="flex items-center gap-1 flex-1 min-w-0">
-						<div className="min-w-0 max-w-[33%]">
+						<div className="min-w-0 max-w-[33.3%]">
 							<label htmlFor="templateID" className="sr-only">
 								Select template
 							</label>
@@ -293,7 +293,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						</div>
 
 						{permissions.updateTemplates && (
-							<div className="min-w-0 max-w-[33%]">
+							<div className="min-w-0 max-w-[33.3%]">
 								<label htmlFor="versionId" className="sr-only">
 									Template version
 								</label>
