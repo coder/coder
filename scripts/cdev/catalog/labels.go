@@ -15,11 +15,23 @@ const (
 
 type Labels map[string]string
 
-func NewLabels(service ServiceName) Labels {
+func NewServiceLabels(service ServiceName) Labels {
+	return NewLabels().WithService(service)
+}
+
+func NewLabels() Labels {
 	return map[string]string{
-		CDevLabel:   "true",
-		CDevService: string(service),
+		CDevLabel: "true",
 	}
+}
+
+func (l Labels) WithService(service ServiceName) Labels {
+	return l.With(CDevService, string(service))
+}
+
+func (l Labels) With(key, value string) Labels {
+	l[key] = value
+	return l
 }
 
 func (l Labels) Filter() map[string][]string {

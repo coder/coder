@@ -12,6 +12,10 @@ import (
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
 )
 
+// TODO: Cleanup old build-slim images? Can we reliably identify stale coder images that have been replaced
+//
+//	by a new "latest" tag? If so, we can delete those, and reduce the random "my disk is out of space"
+//	"time to docker system prune"
 func Cleanup(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
