@@ -1,15 +1,15 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: coder-workspace-pr${PR_NUMBER}
-  namespace: pr${PR_NUMBER}
+  name: coder-workspace-${DEPLOY_NAME}
+  namespace: ${DEPLOY_NAME}
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: coder-workspace-pr${PR_NUMBER}
-  namespace: pr${PR_NUMBER}
+  name: coder-workspace-${DEPLOY_NAME}
+  namespace: ${DEPLOY_NAME}
 rules:
   - apiGroups: ["*"]
     resources: ["*"]
@@ -19,13 +19,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: coder-workspace-pr${PR_NUMBER}
-  namespace: pr${PR_NUMBER}
+  name: coder-workspace-${DEPLOY_NAME}
+  namespace: ${DEPLOY_NAME}
 subjects:
   - kind: ServiceAccount
-    name: coder-workspace-pr${PR_NUMBER}
-    namespace: pr${PR_NUMBER}
+    name: coder-workspace-${DEPLOY_NAME}
+    namespace: ${DEPLOY_NAME}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: coder-workspace-pr${PR_NUMBER}
+  name: coder-workspace-${DEPLOY_NAME}

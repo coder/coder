@@ -285,6 +285,8 @@ jobs:
       PR_NUMBER: ${{ needs.get_info.outputs.PR_NUMBER }}
       PR_TITLE: ${{ needs.get_info.outputs.PR_TITLE }}
       PR_URL: ${{ needs.get_info.outputs.PR_URL }}
+      DEPLOY_NAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}"
+      DEPLOY_HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
       PR_HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
       - name: Harden Runner

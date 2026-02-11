@@ -17,7 +17,7 @@ jobs:
     permissions:
       packages: write
     env:
-      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:pr${{ github.ref_name }}"
+      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:${{ github.ref_name }}"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -63,10 +63,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BRANCH_NAME: ${{ github.ref_name }}
-      DEPLOY_NAME: "pr${{ github.ref_name }}"
+      DEPLOY_NAME: "${{ github.ref_name }}"
       TEST_DOMAIN_SUFFIX: "${{ startsWith(secrets.PR_DEPLOYMENTS_DOMAIN, 'test.') && secrets.PR_DEPLOYMENTS_DOMAIN || format('test.{0}', secrets.PR_DEPLOYMENTS_DOMAIN) }}"
       BRANCH_HOSTNAME: "${{ github.ref_name }}.${{ startsWith(secrets.PR_DEPLOYMENTS_DOMAIN, 'test.') && secrets.PR_DEPLOYMENTS_DOMAIN || format('test.{0}', secrets.PR_DEPLOYMENTS_DOMAIN) }}"
-      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:pr${{ github.ref_name }}"
+      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:${{ github.ref_name }}"
       REPO: ghcr.io/coder/coder-preview
       EXPERIMENTS: "*"
     steps:
@@ -263,8 +263,7 @@ jobs:
 
       - name: Ensure certificate
         env:
-          PR_NUMBER: ${{ env.BRANCH_NAME }}
-          PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
+          DEPLOY_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
         run: |
           set -euo pipefail
           cert_secret_name="${DEPLOY_NAME}-tls"
@@ -298,17 +297,13 @@ jobs:
 
       - name: Create RBAC
         if: steps.check.outputs.new == 'true'
-        env:
-          PR_NUMBER: ${{ env.BRANCH_NAME }}
-          PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
         run: envsubst < ./.github/pr-deployments/rbac.yaml | kubectl apply -f -
 
       # ---- Every push ----
 
       - name: Create values.yaml
         env:
-          PR_NUMBER: ${{ env.BRANCH_NAME }}
-          PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
+          DEPLOY_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
           REPO: ${{ env.REPO }}
           PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID: ${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}
           PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET: ${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}
@@ -329,10 +324,13 @@ jobs:
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
             --namespace "${DEPLOY_NAME}" \
-            --set url="https://${BRANCH_HOSTNAME}"
+            --set url="https://${BRANCH_HOSTNAME}" \
+            --set "namespaces[0]=${DEPLOY_NAME}"
 
       - name: Create first user and template
         if: steps.check.outputs.new == 'true'
+        env:
+          PR_DEPLOYMENTS_ADMIN_PASSWORD: ${{ secrets.PR_DEPLOYMENTS_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
           URL="https://${BRANCH_HOSTNAME}/bin/coder-linux-amd64"
@@ -344,8 +342,18 @@ jobs:
           done
           curl -fsSL "$URL" -o /tmp/coder && chmod +x /tmp/coder
 
-          password=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-12)
+          password="${PR_DEPLOYMENTS_ADMIN_PASSWORD}"
+          if [ -z "$password" ]; then
+            echo "Missing PR_DEPLOYMENTS_ADMIN_PASSWORD repository secret."
+            exit 1
+          fi
           echo "::add-mask::$password"
+
+          kubectl create secret generic coder-admin-credentials -n "${DEPLOY_NAME}" \
+            --from-literal=username="${BRANCH_NAME}-admin" \
+            --from-literal=email="${BRANCH_NAME}@coder.com" \
+            --from-literal=password="$password" \
+            --dry-run=client -o yaml | kubectl apply -f -
 
           /tmp/coder login \
             --first-user-username "${BRANCH_NAME}-admin" \

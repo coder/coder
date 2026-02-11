@@ -1,24 +1,24 @@
 coder:
   image:
     repo: "${REPO}"
-    tag: "pr${PR_NUMBER}"
+    tag: "${DEPLOY_NAME}"
     pullPolicy: Always
   service:
     type: ClusterIP
   ingress:
     enable: true
     className: traefik
-    host: "${PR_HOSTNAME}"
-    wildcardHost: "*.${PR_HOSTNAME}"
+    host: "${DEPLOY_HOSTNAME}"
+    wildcardHost: "*.${DEPLOY_HOSTNAME}"
     tls:
       enable: true
-      secretName: "pr${PR_NUMBER}-tls"
-      wildcardSecretName: "pr${PR_NUMBER}-tls"
+      secretName: "${DEPLOY_NAME}-tls"
+      wildcardSecretName: "${DEPLOY_NAME}-tls"
   env:
     - name: "CODER_ACCESS_URL"
-      value: "https://${PR_HOSTNAME}"
+      value: "https://${DEPLOY_HOSTNAME}"
     - name: "CODER_WILDCARD_ACCESS_URL"
-      value: "*.${PR_HOSTNAME}"
+      value: "*.${DEPLOY_HOSTNAME}"
     - name: "CODER_EXPERIMENTS"
       value: "${EXPERIMENTS}"
     - name: CODER_PG_CONNECTION_URL

@@ -1,13 +1,13 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: pr${PR_NUMBER}-tls
+  name: ${DEPLOY_NAME}-tls
   namespace: pr-deployment-certs
 spec:
-  secretName: pr${PR_NUMBER}-tls
+  secretName: ${DEPLOY_NAME}-tls
   issuerRef:
     name: letsencrypt
     kind: ClusterIssuer
   dnsNames:
-    - "${PR_HOSTNAME}"
-    - "*.${PR_HOSTNAME}"
+    - "${DEPLOY_HOSTNAME}"
+    - "*.${DEPLOY_HOSTNAME}"
