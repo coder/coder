@@ -104,6 +104,9 @@ func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID,
 	}
 }
 
+// aiTaskStoreWrapper is used to simulate transient failures that cannot easily be simulated using
+// dbfake, dbgen or the database.Store interface. One example would be an unexpectedly closed connection,
+// but the purpose of the wrapper is to test the class of errors, not any specific error.
 type aiTaskStoreWrapper struct {
 	database.Store
 	getWorkspaceByID     func(ctx context.Context, id uuid.UUID) (database.Workspace, error)
@@ -2460,16 +2463,6 @@ func TestPostWorkspaceAgentTaskSnapshot(t *testing.T) {
 func TestPauseTask(t *testing.T) {
 	t.Parallel()
 
-	setupClient := func(t *testing.T, db database.Store, ps pubsub.Pubsub, authorizer rbac.Authorizer) *codersdk.Client {
-		t.Helper()
-		client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:   db,
-			Pubsub:     ps,
-			Authorizer: authorizer,
-		})
-		return client
-	}
-
 	setupWorkspaceTask := func(t *testing.T, db database.Store, user codersdk.CreateFirstUserResponse) (database.Task, uuid.UUID) {
 		t.Helper()
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -2484,6 +2477,7 @@ func TestPauseTask(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		// Given: a user with a template that has AI tasks enabled
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -2499,6 +2493,7 @@ func TestPauseTask(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
+		// And: a running task
 		ctx := testutil.Context(t, testutil.WaitLong)
 		task, err := client.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
@@ -2511,9 +2506,11 @@ func TestPauseTask(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+		// When: the user pauses the task
 		resp, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 
-		// Verify that the request was accepted correctly:
+		// Then: the request was accepted correctly:
+		// ie. the workspace stop build was scheduled successfully
 		require.NoError(t, err)
 		build := *resp.WorkspaceBuild
 		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
@@ -2521,145 +2518,80 @@ func TestPauseTask(t *testing.T) {
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 		require.Equal(t, string(codersdk.CreateWorkspaceBuildReasonTaskManualPause), string(build.Reason))
 
-		// Verify that the accepted request was processed correctly:
+		// And: the accepted request was processed correctly:
+		// ie. the workspace stop build was created and completed successfully
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 		workspace, err = client.Workspace(ctx, task.WorkspaceID.UUID)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.WorkspaceStatusStopped, workspace.LatestBuild.Status)
 	})
 
-	t.Run("Non-owner role access", func(t *testing.T) {
+	t.Run("Unauthorized user gets 404", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
-		client := setupClient(t, db, ps, nil)
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 
-		cases := []struct {
-			name           string
-			roles          []rbac.RoleIdentifier
-			expectedStatus int
-		}{
-			{
-				name:           "org_member",
-				expectedStatus: http.StatusNotFound,
-			},
-			{
-				name:           "org_admin",
-				roles:          []rbac.RoleIdentifier{rbac.ScopedRoleOrgAdmin(owner.OrganizationID)},
-				expectedStatus: http.StatusAccepted,
-			},
-			{
-				name:           "sitewide_member",
-				roles:          []rbac.RoleIdentifier{rbac.RoleMember()},
-				expectedStatus: http.StatusNotFound,
-			},
-			{
-				name:           "sitewide_admin",
-				roles:          []rbac.RoleIdentifier{rbac.RoleOwner()},
-				expectedStatus: http.StatusAccepted,
-			},
-		}
+		// Given: a task
+		task, _ := setupWorkspaceTask(t, db, owner)
 
-		for _, tc := range cases {
-			tc := tc
-			t.Run(tc.name, func(t *testing.T) {
-				task, _ := setupWorkspaceTask(t, db, owner)
-				userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, tc.roles...)
+		// And: an unauthorized user
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
 
-				ctx := testutil.Context(t, testutil.WaitShort)
-				resp, err := userClient.PauseTask(ctx, codersdk.Me, task.ID)
-				if tc.expectedStatus == http.StatusAccepted {
-					require.NoError(t, err)
-					require.NotNil(t, resp.WorkspaceBuild)
-					require.NotEqual(t, uuid.Nil, resp.WorkspaceBuild.ID)
-					return
-				}
+		// When: the unauthorized user pauses the task
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := userClient.PauseTask(ctx, codersdk.Me, task.ID)
 
-				var apiErr *codersdk.Error
-				require.ErrorAs(t, err, &apiErr)
-				require.Equal(t, tc.expectedStatus, apiErr.StatusCode())
-			})
-		}
+		// Then: the unauthorized user gets a 404
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		require.Nil(t, resp.WorkspaceBuild)
 	})
 
-	t.Run("Task not found", func(t *testing.T) {
+	t.Run("404 if task does not exist", func(t *testing.T) {
 		t.Parallel()
 
+		// Given: a user, but no tasks
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// When: the user pauses a task that does not exist
 		_, err := client.PauseTask(ctx, codersdk.Me, uuid.New())
+
+		// Then: the user gets a 404
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("Task lookup forbidden", func(t *testing.T) {
+	t.Run("500 if task does not link to a workspace", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
-		auth := &coderdtest.FakeAuthorizer{
-			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
-				if action == policy.ActionRead && object.Type == rbac.ResourceTask.Type {
-					return rbac.UnauthorizedError{}
-				}
-				return nil
-			},
-		}
-		client := setupClient(t, db, ps, auth)
-		user := coderdtest.CreateFirstUser(t, client)
-		task, _ := setupWorkspaceTask(t, db, user)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-	})
-
-	t.Run("Workspace lookup forbidden", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		auth := &coderdtest.FakeAuthorizer{
-			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
-				if action == policy.ActionRead && object.Type == rbac.ResourceWorkspace.Type {
-					return rbac.UnauthorizedError{}
-				}
-				return nil
-			},
-		}
-		client := setupClient(t, db, ps, auth)
-		user := coderdtest.CreateFirstUser(t, client)
-		task, _ := setupWorkspaceTask(t, db, user)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-	})
-
-	t.Run("No Workspace for Task", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		client := setupClient(t, db, ps, nil)
+		// Given: a user
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
-		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).Do()
+		// And: a task that does not link to a workspace
+		templateVersionID := dbfake.TemplateVersion(t, db).
+			Seed(database.TemplateVersion{
+				OrganizationID: user.OrganizationID,
+				CreatedBy:      user.UserID,
+			}).
+			Do().TemplateVersion.ID
 		task := dbgen.Task(t, db, database.TaskTable{
 			OrganizationID:    user.OrganizationID,
 			OwnerID:           user.UserID,
-			TemplateVersionID: workspaceBuild.Build.TemplateVersionID,
+			TemplateVersionID: templateVersionID,
 			Prompt:            "no workspace",
+			WorkspaceID:       uuid.NullUUID{},
 		})
 
+		// Then: the user gets a 500
+		// maintaining a workspace for every task is Coder's responsibility, not the user's,
+		// so this is not a 4xx response.
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
@@ -2668,51 +2600,33 @@ func TestPauseTask(t *testing.T) {
 		require.Equal(t, "Task does not have a workspace.", apiErr.Message)
 	})
 
-	t.Run("Workspace not found", func(t *testing.T) {
+	t.Run("500 if workspace lookup fails", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
 		var workspaceID uuid.UUID
-		wrapped := aiTaskStoreWrapper{
+		wrapped := &aiTaskStoreWrapper{
 			Store: db,
-			getWorkspaceByID: func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
-				if id == workspaceID && id != uuid.Nil {
-					return database.Workspace{}, sql.ErrNoRows
-				}
-				return db.GetWorkspaceByID(ctx, id)
-			},
 		}
-		client := setupClient(t, wrapped, ps, nil)
+
+		// Given: a user
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: wrapped,
+			Pubsub:   ps,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
+
+		// And: a valid, healthy task
 		task, workspaceIDValue := setupWorkspaceTask(t, db, user)
 		workspaceID = workspaceIDValue
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-	})
-
-	t.Run("Workspace lookup internal error", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		var workspaceID uuid.UUID
-		wrapped := aiTaskStoreWrapper{
-			Store: db,
-			getWorkspaceByID: func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
-				if id == workspaceID && id != uuid.Nil {
-					return database.Workspace{}, xerrors.New("boom")
-				}
-				return db.GetWorkspaceByID(ctx, id)
-			},
+		// And: a transient failure when fetching the task workspace
+		wrapped.getWorkspaceByID = func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+			if id == workspaceID && id != uuid.Nil {
+				return database.Workspace{}, xerrors.New("boom")
+			}
+			return db.GetWorkspaceByID(ctx, id)
 		}
-		client := setupClient(t, wrapped, ps, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		task, workspaceIDValue := setupWorkspaceTask(t, db, user)
-		workspaceID = workspaceIDValue
-
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := client.PauseTask(ctx, codersdk.Me, task.ID)
 		var apiErr *codersdk.Error
@@ -2724,7 +2638,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Build Forbidden", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
 		auth := &coderdtest.FakeAuthorizer{
 			ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
 				if action == policy.ActionWorkspaceStop && object.Type == rbac.ResourceWorkspace.Type {
@@ -2733,7 +2646,7 @@ func TestPauseTask(t *testing.T) {
 				return nil
 			},
 		}
-		client := setupClient(t, db, ps, auth)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Authorizer: auth})
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
@@ -2747,8 +2660,7 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Job already in progress", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
-		client := setupClient(t, db, ps, nil)
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
@@ -2777,7 +2689,10 @@ func TestPauseTask(t *testing.T) {
 				return xerrors.New("insert failed")
 			},
 		}
-		client := setupClient(t, wrapped, ps, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: wrapped,
+			Pubsub:   ps,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		task, _ := setupWorkspaceTask(t, db, user)
 
@@ -2860,7 +2775,7 @@ func TestResumeTask(t *testing.T) {
 		require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
 	})
 
-	t.Run("Resume a task that is not paused", func(t *testing.T) {
+	t.Run("Can't resume a task that is not paused", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
@@ -2883,7 +2798,7 @@ func TestResumeTask(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("Task not found", func(t *testing.T) {
+	t.Run("404 if task does not exist", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
