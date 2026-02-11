@@ -101,7 +101,7 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 					fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
 				},
 				Cmd:          []string{"sh", "-c", buildCmd},
-				Labels:       NewLabels(CDevBuildSlim),
+				Labels:       NewServiceLabels(CDevBuildSlim),
 				AttachStdout: true,
 				AttachStderr: true,
 			},
