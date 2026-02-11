@@ -16,18 +16,30 @@ const (
 	dogfoodTag   = "latest"
 )
 
+var _ Service[BuildResult] = (*BuildSlim)(nil)
+
 // BuildSlim builds the slim Coder binaries inside a Docker container.
 type BuildSlim struct {
 	// Verbose enables verbose output from the build.
 	Verbose bool
 
-	pool *dockertest.Pool
+	pool   *dockertest.Pool
+	result BuildResult
+}
+
+type BuildResult struct {
+	CoderCache *docker.Volume
+	GoCache    *docker.Volume
 }
 
 func NewBuildSlim() *BuildSlim {
 	return &BuildSlim{
 		Verbose: true, // Default to verbose for dev experience.
 	}
+}
+
+func (d *BuildSlim) Result() BuildResult {
+	return d.result
 }
 
 func (b *BuildSlim) Name() string {
@@ -127,6 +139,8 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 	}
 
 	logger.Info(ctx, "slim binaries built successfully")
+	b.result.CoderCache = coderCache
+	b.result.GoCache = goCache
 	return nil
 }
 

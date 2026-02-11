@@ -253,6 +253,7 @@ func upCmd() *serpent.Command {
 				catalog.NewDocker(),
 				catalog.NewBuildSlim(),
 				catalog.NewPostgres(),
+				catalog.NewCoderd(),
 			)
 			if err != nil {
 				return err
@@ -263,7 +264,8 @@ func upCmd() *serpent.Command {
 				return fmt.Errorf("failed to start services: %w", err)
 			}
 
-			fmt.Fprintln(inv.Stdout, "✅ Volumes ready!")
+			coderd := services.MustGet(catalog.OnCoderd()).(*catalog.Coderd)
+			fmt.Fprintf(inv.Stdout, "✅ Coder is ready at %s\n", coderd.Result().URL)
 			return nil
 		},
 	}
