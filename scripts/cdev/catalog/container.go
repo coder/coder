@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	"cdr.dev/slog/v3"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 // ContainerRunOptions configures a container run.
@@ -34,9 +36,32 @@ type ContainerRunResult struct {
 func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceName, opts ContainerRunOptions) (*ContainerRunResult, error) {
 	logger := opts.Logger.With(slog.F("service", string(service)))
 
+	// Derive a human-readable container name for log lines.
+	containerName := opts.CreateOpts.Name
+	if containerName == "" {
+		return nil, fmt.Errorf("human container name is required")
+	}
+
+	// Always start with the base cdev labels, and include whatever custom labels the
+	// caller provided ontop.
+	labels := NewLabels()
+	for k, v := range opts.CreateOpts.Config.Labels {
+		labels[k] = v
+	}
+	opts.CreateOpts.Config.Labels = labels
+
+	existsFilter := labels.Filter()
+	existsFilter["name"] = []string{containerName}
+	cnts, err := pool.Client.ListContainers(docker.ListContainersOptions{
+		Filters: existsFilter,
+	})
+	if len(cnts) > 0 {
+		return nil, fmt.Errorf("container with name %q already exists", containerName)
+	}
+
 	container, err := pool.Client.CreateContainer(opts.CreateOpts)
 	if err != nil {
-		return nil, fmt.Errorf("create container: %w", err)
+		return nil, xerrors.Errorf("create container: %w", err)
 	}
 	defer func() {
 		_ = pool.Client.RemoveContainer(docker.RemoveContainerOptions{
@@ -44,12 +69,6 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 			Force: true,
 		})
 	}()
-
-	// Derive a human-readable container name for log lines.
-	containerName := opts.CreateOpts.Name
-	if containerName == "" {
-		containerName = container.ID[:12]
-	}
 
 	// Build output streams with logging.
 	stdoutLog := LogWriter(logger, slog.LevelInfo, containerName)

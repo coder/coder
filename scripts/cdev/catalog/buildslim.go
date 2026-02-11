@@ -45,7 +45,7 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 	dkr := c.MustGet(OnDocker()).(*Docker)
 	goCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_go_cache",
-		Labels: map[string]string{CDevLabel: "true", CDevLabelCache: "true"},
+		Labels: NewServiceLabels(CDevBuildSlim),
 		UID:    1000, GID: 1000,
 	})
 	if err != nil {
@@ -53,7 +53,7 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 	}
 	coderCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_coder_cache",
-		Labels: map[string]string{CDevLabel: "true", CDevLabelCache: "true"},
+		Labels: NewServiceLabels(CDevBuildSlim),
 		UID:    1000, GID: 1000,
 	})
 	if err != nil {
@@ -92,6 +92,7 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 	var stdout, stderr bytes.Buffer
 	_, err = RunContainer(ctx, pool, CDevBuildSlim, ContainerRunOptions{
 		CreateOpts: docker.CreateContainerOptions{
+			Name: "cdev-build-slim",
 			Config: &docker.Config{
 				Image:      dogfoodImage + ":" + dogfoodTag,
 				WorkingDir: "/app",
@@ -106,6 +107,7 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 				AttachStderr: true,
 			},
 			HostConfig: &docker.HostConfig{
+				AutoRemove: true,
 				Binds: []string{
 					fmt.Sprintf("%s:/app", cwd),
 					fmt.Sprintf("%s:/go-cache", goCache.Name),
