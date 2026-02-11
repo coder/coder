@@ -404,9 +404,9 @@ ORDER BY
 -- collapse into one session.
 -- Used when a workspace is stopped/deleted.
 WITH connections_to_close AS (
-    SELECT id, ip, connect_time, agent_id, client_hostname, short_description
+    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description
     FROM connection_logs
-    WHERE disconnect_time IS NULL
+    WHERE (disconnect_time IS NULL OR session_id IS NULL)
       AND connection_logs.workspace_id = @workspace_id
       AND type = ANY(@types::connection_type[])
 ),
@@ -414,7 +414,7 @@ session_groups AS (
     SELECT 
         ip,
         MIN(connect_time) AS started_at,
-        @closed_at::timestamptz AS ended_at,
+        MAX(COALESCE(disconnect_time, @closed_at::timestamptz)) AS ended_at,
         (array_agg(agent_id ORDER BY connect_time))[1] AS agent_id,
         (array_agg(client_hostname ORDER BY connect_time) FILTER (WHERE client_hostname IS NOT NULL))[1] AS client_hostname,
         (array_agg(short_description ORDER BY connect_time) FILTER (WHERE short_description IS NOT NULL))[1] AS short_description
@@ -429,8 +429,8 @@ new_sessions AS (
 )
 UPDATE connection_logs cl
 SET 
-    disconnect_time = @closed_at,
-    disconnect_reason = COALESCE(disconnect_reason, @reason),
+    disconnect_time = COALESCE(cl.disconnect_time, @closed_at),
+    disconnect_reason = COALESCE(cl.disconnect_reason, @reason),
     session_id = ns.id
 FROM connections_to_close ctc
 JOIN new_sessions ns ON ctc.ip = ns.ip
