@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
 
 	_ "github.com/lib/pq"
 
@@ -59,8 +60,7 @@ func (p *Postgres) DependsOn() []string {
 	}
 }
 
-func (p *Postgres) Start(ctx context.Context, c *Catalog) error {
-	logger := c.ServiceLogger(p.Name())
+func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
 	d := c.MustGet(OnDocker()).(*Docker)
 	pool := d.Result()
 
@@ -74,7 +74,7 @@ func (p *Postgres) Start(ctx context.Context, c *Catalog) error {
 		Filters: filter,
 	})
 	if err != nil {
-		return fmt.Errorf("list containers: %w", err)
+		return xerrors.Errorf("list containers: %w", err)
 	}
 
 	if len(containers) > 0 {
@@ -100,7 +100,7 @@ func (p *Postgres) Start(ctx context.Context, c *Catalog) error {
 		Labels: labels.With(CDevLabelCache, "true"),
 	})
 	if err != nil {
-		return fmt.Errorf("ensure postgres volume: %w", err)
+		return xerrors.Errorf("ensure postgres volume: %w", err)
 	}
 
 	logger.Info(ctx, "starting postgres container")
@@ -143,7 +143,7 @@ func (p *Postgres) Start(ctx context.Context, c *Catalog) error {
 		Stderr:   nil,
 	})
 	if err != nil {
-		return fmt.Errorf("run container: %w", err)
+		return xerrors.Errorf("run container: %w", err)
 	}
 
 	// The networking port takes some time to be available.
@@ -152,7 +152,7 @@ func (p *Postgres) Start(ctx context.Context, c *Catalog) error {
 	defer cancel()
 	for {
 		if timeout.Err() != nil {
-			return fmt.Errorf("timeout waiting for postgres container to start: %w", timeout.Err())
+			return xerrors.Errorf("timeout waiting for postgres container to start: %w", timeout.Err())
 		}
 		if len(result.Container.NetworkSettings.Ports["5432/tcp"]) > 0 {
 			break
@@ -180,7 +180,7 @@ func (p *Postgres) waitForReady(ctx context.Context, logger slog.Logger) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timeout:
-			return fmt.Errorf("timeout waiting for postgres to be ready")
+			return xerrors.New("timeout waiting for postgres to be ready")
 		case <-ticker.C:
 			db, err := sql.Open("postgres", p.result.URL)
 			if err != nil {

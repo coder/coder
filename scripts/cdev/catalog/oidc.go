@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -10,18 +9,19 @@ import (
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 )
 
 const (
-	testidpImage      = "cdev-testidp"
-	testidpTag        = "latest"
-	testidpPort       = "4500/tcp"
-	testidpHostPort   = "4500"
-	testidpClientID   = "static-client-id"
-	testidpClientSec  = "static-client-secret"
-	testidpIssuerURL  = "http://localhost:4500"
+	testidpImage     = "cdev-testidp"
+	testidpTag       = "latest"
+	testidpPort      = "4500/tcp"
+	testidpHostPort  = "4500"
+	testidpClientID  = "static-client-id"
+	testidpClientSec = "static-client-secret"
+	testidpIssuerURL = "http://localhost:4500"
 )
 
 // OIDCResult contains the connection info for the running OIDC IDP.
@@ -67,8 +67,7 @@ func (o *OIDC) DependsOn() []string {
 	}
 }
 
-func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
-	logger := c.ServiceLogger(o.Name())
+func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
 	d := c.MustGet(OnDocker()).(*Docker)
 	o.pool = d.Result()
 
@@ -76,7 +75,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 
 	// Build the testidp image from the Dockerfile.
 	if err := o.buildImage(ctx, logger); err != nil {
-		return fmt.Errorf("build testidp image: %w", err)
+		return xerrors.Errorf("build testidp image: %w", err)
 	}
 
 	logger.Info(ctx, "starting oidc container")
@@ -111,7 +110,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 		DestroyExisting: true,
 	})
 	if err != nil {
-		return fmt.Errorf("run container: %w", err)
+		return xerrors.Errorf("run container: %w", err)
 	}
 
 	// The networking port takes some time to be available.
@@ -119,7 +118,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 	defer cancel()
 	for {
 		if timeout.Err() != nil {
-			return fmt.Errorf("timeout waiting for oidc container to start: %w", timeout.Err())
+			return xerrors.Errorf("timeout waiting for oidc container to start: %w", timeout.Err())
 		}
 		if len(result.Container.NetworkSettings.Ports["4500/tcp"]) > 0 {
 			break
@@ -149,7 +148,7 @@ func (o *OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+		return xerrors.Errorf("get working directory: %w", err)
 	}
 
 	logger.Info(ctx, "building testidp image")
@@ -192,7 +191,7 @@ func (o *OIDC) waitForReady(ctx context.Context, logger slog.Logger) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timeout:
-			return fmt.Errorf("timeout waiting for oidc to be ready")
+			return xerrors.New("timeout waiting for oidc to be ready")
 		case <-ticker.C:
 			// Check the well-known endpoint.
 			resp, err := client.Get(o.result.IssuerURL + "/.well-known/openid-configuration")

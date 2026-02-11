@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/serpent"
@@ -91,8 +92,7 @@ func OnBuildSlim() string {
 	return (&BuildSlim{}).Name()
 }
 
-func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
-	logger := cat.ServiceLogger(c.Name())
+func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) error {
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
 
@@ -104,7 +104,7 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 		Filters: filter,
 	})
 	if err != nil {
-		return fmt.Errorf("list containers: %w", err)
+		return xerrors.Errorf("list containers: %w", err)
 	}
 
 	for _, cnt := range containers {
@@ -114,14 +114,14 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 			Force:         true,
 			RemoveVolumes: true,
 		}); err != nil {
-			return fmt.Errorf("remove container %s: %w", cnt.ID, err)
+			return xerrors.Errorf("remove container %s: %w", cnt.ID, err)
 		}
 	}
 
 	for i := range c.haCount {
-		container, err := c.startCoderd(ctx, cat, int(i))
+		container, err := c.startCoderd(ctx, logger, cat, int(i))
 		if err != nil {
-			return fmt.Errorf("start coderd instance %d: %w", i, err)
+			return xerrors.Errorf("start coderd instance %d: %w", i, err)
 		}
 		if i == 0 {
 			// Primary instance uses base port, others use base + index.
@@ -137,8 +137,7 @@ func (c *Coderd) Start(ctx context.Context, cat *Catalog) error {
 	return c.waitForReady(ctx, logger)
 }
 
-func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*ContainerRunResult, error) {
-	logger := cat.ServiceLogger(c.Name())
+func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catalog, index int) (*ContainerRunResult, error) {
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
 	pg := cat.MustGet(OnPostgres()).(*Postgres)
@@ -154,13 +153,13 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 		UID:    1000, GID: 1000,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("ensure coderv2 config volume: %w", err)
+		return nil, xerrors.Errorf("ensure coderv2 config volume: %w", err)
 	}
 
 	// Get current working directory for mounting.
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("get working directory: %w", err)
+		return nil, xerrors.Errorf("get working directory: %w", err)
 	}
 
 	// Get docker group ID for socket access.
@@ -225,7 +224,7 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 					"--oidc-client-id", oidc.Result().ClientID,
 					"--oidc-client-secret", oidc.Result().ClientSecret,
 				},
-				Labels:       labels,
+				Labels: labels,
 				ExposedPorts: map[docker.Port]struct{}{
 					docker.Port(portStr + "/tcp"):      {},
 					docker.Port(pprofPortStr + "/tcp"): {},
@@ -252,7 +251,7 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 		Detached: true,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("run container: %w", err)
+		return nil, xerrors.Errorf("run container: %w", err)
 	}
 
 	return result, nil
@@ -273,7 +272,7 @@ func (c *Coderd) waitForReady(ctx context.Context, logger slog.Logger) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timeout:
-			return fmt.Errorf("timeout waiting for coderd to be ready")
+			return xerrors.New("timeout waiting for coderd to be ready")
 		case <-ticker.C:
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
 			if err != nil {

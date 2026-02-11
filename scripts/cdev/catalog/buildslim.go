@@ -8,6 +8,9 @@ import (
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 const (
@@ -55,8 +58,7 @@ func (b *BuildSlim) DependsOn() []string {
 	}
 }
 
-func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
-	logger := c.ServiceLogger(b.Name())
+func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
 	dkr := c.MustGet(OnDocker()).(*Docker)
 	goCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_go_cache",
@@ -64,7 +66,7 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 		UID:    1000, GID: 1000,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to ensure go cache volume: %w", err)
+		return xerrors.Errorf("failed to ensure go cache volume: %w", err)
 	}
 	coderCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_coder_cache",
@@ -72,14 +74,14 @@ func (b *BuildSlim) Start(ctx context.Context, c *Catalog) error {
 		UID:    1000, GID: 1000,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to ensure coder cache volume: %w", err)
+		return xerrors.Errorf("failed to ensure coder cache volume: %w", err)
 	}
 	pool := dkr.Result()
 
 	// Get current working directory for mounting.
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
+		return xerrors.Errorf("failed to get working directory: %w", err)
 	}
 
 	// Get docker group ID for socket access.

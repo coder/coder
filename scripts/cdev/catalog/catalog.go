@@ -33,8 +33,8 @@ type ServiceBase interface {
 	// This is used to determine the order in which services should be started and stopped.
 	DependsOn() []string
 
-	// Start launches the service. This should not block
-	Start(ctx context.Context, c *Catalog) error
+	// Start launches the service. This should not block.
+	Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 
 	// Stop gracefully shuts down the service.
 	Stop(ctx context.Context) error
@@ -83,15 +83,6 @@ func (c *Catalog) Init(w io.Writer) {
 // Logger returns the catalog's logger.
 func (c *Catalog) Logger() slog.Logger {
 	return c.logger
-}
-
-// ServiceLogger returns the per-service logger for the named
-// service, falling back to the base logger if not found.
-func (c *Catalog) ServiceLogger(name string) slog.Logger {
-	if l, ok := c.loggers[name]; ok {
-		return l
-	}
-	return c.Logger()
 }
 
 func Get[T Service[R], R any](c *Catalog) R {
@@ -174,7 +165,6 @@ func (c *Catalog) Get(name string) (ServiceBase, bool) {
 // Services block until their dependencies (tracked by unit.Manager) are ready.
 func (c *Catalog) Start(ctx context.Context) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	// Log the service dependency graph on startup.
 	c.logger.Info(ctx, "service dependency graph")
@@ -187,17 +177,27 @@ func (c *Catalog) Start(ctx context.Context) error {
 		}
 	}
 
+	type svcEntry struct {
+		srv    ServiceBase
+		logger slog.Logger
+	}
+	entries := make([]svcEntry, 0, len(c.services))
+	for _, srv := range c.services {
+		entries = append(entries, svcEntry{srv: srv, logger: c.loggers[srv.Name()]})
+	}
+	c.mu.Unlock()
+
 	wg, ctx := errgroup.WithContext(ctx)
 	wg.SetLimit(-1) // No limit on concurrency, since unit.Manager tracks dependencies.
-	for _, srv := range c.services {
+	for _, e := range entries {
 		wg.Go(func() (failure error) {
 			defer func() {
 				if err := recover(); err != nil {
-					failure = fmt.Errorf("panic: %v", err)
+					failure = xerrors.Errorf("panic: %v", err)
 				}
 			}()
-			name := srv.Name()
-			svcLogger := c.loggers[name]
+			name := e.srv.Name()
+			svcLogger := e.logger
 
 			if err := c.waitForReady(ctx, name); err != nil {
 				return xerrors.Errorf("wait for %s to be ready: %w", name, err)
@@ -208,8 +208,7 @@ func (c *Catalog) Start(ctx context.Context) error {
 			}
 
 			svcLogger.Info(ctx, "starting service")
-			// Start the service.
-			if err := srv.Start(ctx, c); err != nil {
+			if err := e.srv.Start(ctx, svcLogger, c); err != nil {
 				return xerrors.Errorf("start %s: %w", name, err)
 			}
 

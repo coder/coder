@@ -7,6 +7,9 @@ import (
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 var _ Service[*dockertest.Pool] = (*Docker)(nil)
@@ -52,7 +55,7 @@ func (d *Docker) DependsOn() []string {
 	return []string{}
 }
 
-func (d *Docker) Start(ctx context.Context, _ *Catalog) error {
+func (d *Docker) Start(ctx context.Context, _ slog.Logger, _ *Catalog) error {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return err
@@ -94,11 +97,11 @@ func (d *Docker) ensureVolume(ctx context.Context, opts VolumeOptions) (*docker.
 			Labels: opts.Labels,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create volume %s: %w", opts.Name, err)
+			return nil, xerrors.Errorf("failed to create volume %s: %w", opts.Name, err)
 		}
 		if opts.UID != 0 || opts.GID != 0 {
 			if err := d.chownVolume(ctx, opts); err != nil {
-				return nil, fmt.Errorf("failed to chown volume %s: %w", opts.Name, err)
+				return nil, xerrors.Errorf("failed to chown volume %s: %w", opts.Name, err)
 			}
 		}
 	}
@@ -122,14 +125,14 @@ func (d *Docker) chownVolume(ctx context.Context, opts VolumeOptions) error {
 		config.AutoRemove = true
 	})
 	if err != nil {
-		return fmt.Errorf("failed to start init container: %w", err)
+		return xerrors.Errorf("failed to start init container: %w", err)
 	}
 	exitCode, err := d.pool.Client.WaitContainerWithContext(resource.Container.ID, ctx)
 	if err != nil {
-		return fmt.Errorf("failed waiting for init: %w", err)
+		return xerrors.Errorf("failed waiting for init: %w", err)
 	}
 	if exitCode != 0 {
-		return fmt.Errorf("init volumes failed with exit code %d", exitCode)
+		return xerrors.Errorf("init volumes failed with exit code %d", exitCode)
 	}
 	return nil
 }

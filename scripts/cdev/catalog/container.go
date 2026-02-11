@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -43,7 +42,7 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 	// Derive a human-readable container name for log lines.
 	containerName := opts.CreateOpts.Name
 	if containerName == "" {
-		return nil, fmt.Errorf("human container name is required")
+		return nil, xerrors.New("human container name is required")
 	}
 
 	// Always start with the base cdev labels, and include whatever custom labels the
@@ -67,11 +66,11 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 					ID:    cnt.ID,
 					Force: true,
 				}); err != nil {
-					return nil, fmt.Errorf("remove existing container: %w", err)
+					return nil, xerrors.Errorf("remove existing container: %w", err)
 				}
 			}
 		} else {
-			return nil, fmt.Errorf("container with name %q already exists", containerName)
+			return nil, xerrors.Errorf("container with name %q already exists", containerName)
 		}
 	}
 
@@ -115,7 +114,7 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 	}()
 
 	if err := pool.Client.StartContainer(container.ID, nil); err != nil {
-		return nil, fmt.Errorf("start container: %w", err)
+		return nil, xerrors.Errorf("start container: %w", err)
 	}
 
 	if opts.Detached {
@@ -123,7 +122,7 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 		for {
 			container, err = pool.Client.InspectContainer(container.ID)
 			if err != nil {
-				return nil, fmt.Errorf("inspect container: %w", err)
+				return nil, xerrors.Errorf("inspect container: %w", err)
 			}
 			if container.State.Running {
 				break
@@ -139,7 +138,7 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 	}
 	exitCode, err := pool.Client.WaitContainerWithContext(container.ID, ctx)
 	if err != nil {
-		return nil, fmt.Errorf("wait for container: %w", err)
+		return nil, xerrors.Errorf("wait for container: %w", err)
 	}
 
 	// Wait for attach to finish (ensures all logs are flushed).
@@ -150,7 +149,7 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 	_ = stderrLog.Close()
 
 	if exitCode != 0 {
-		return nil, fmt.Errorf("container exited with code %d", exitCode)
+		return nil, xerrors.Errorf("container exited with code %d", exitCode)
 	}
 
 	return &ContainerRunResult{
