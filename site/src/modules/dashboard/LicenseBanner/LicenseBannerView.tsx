@@ -56,10 +56,10 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 								: "mailto:sales@coder.com"
 						}
 					>
-						{message === LicenseTelemetryRequiredErrorText
-							? "Contact sales@coder.com if you need an exception."
-							: message === LicenseManagedAgentLimitExceededErrorText
-								? "View AI Governance"
+						{message === LicenseManagedAgentLimitExceededErrorText
+							? "View AI Governance"
+							: message === LicenseTelemetryRequiredErrorText
+								? "Contact sales@coder.com if you need an exception."
 								: "Contact sales@coder.com."}
 					</Link>
 				</div>
