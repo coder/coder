@@ -57,9 +57,7 @@ func CleanupContainers(ctx context.Context, logger slog.Logger, pool *dockertest
 
 func CleanupVolumes(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
 	vols, err := pool.Client.ListVolumes(docker.ListVolumesOptions{
-		Filters: map[string][]string{
-			"label": {catalog.CDevLabel},
-		},
+		Filters: catalog.NewLabels().Filter(),
 	})
 
 	for _, vol := range vols {
