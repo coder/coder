@@ -1,32 +1,8 @@
-import {
-	type CSSObject,
-	css,
-	type Interpolation,
-	type Theme,
-	useTheme,
-} from "@emotion/react";
-import Link from "@mui/material/Link";
 import { LicenseTelemetryRequiredErrorText } from "api/typesGenerated";
 import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";
 import { type FC, useState } from "react";
-
-const Language = {
-	licenseIssue: "License Issue",
-	licenseIssues: (num: number): string => `${num} License Issues`,
-	upgrade: "Contact sales@coder.com.",
-	exception: "Contact sales@coder.com if you need an exception.",
-	exceeded: "It looks like you've exceeded some limits of your license.",
-	lessDetails: "Less",
-	moreDetails: "More",
-};
-
-const styles = {
-	leftContent: {
-		marginRight: 8,
-		marginLeft: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+import { cn } from "utils/cn";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.
@@ -45,63 +21,66 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 	errors,
 	warnings,
 }) => {
-	const theme = useTheme();
 	const [showDetails, setShowDetails] = useState(false);
 	const isError = errors.length > 0;
 	const messages = [...errors, ...warnings];
 	const type = isError ? "error" : "warning";
 
-	const containerStyles = css`
-    ${theme.typography.body2 as CSSObject}
-
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    background-color: ${theme.roles[type].background};
-  `;
-
-	const textColor = theme.roles[type].text;
-
 	if (messages.length === 1) {
+		const [message] = messages;
+
 		return (
-			<div css={containerStyles}>
-				<Pill type={type}>{Language.licenseIssue}</Pill>
-				<div css={styles.leftContent}>
+			<div
+				className={cn(
+					"flex items-center p-3 text-sm",
+					isError ? "bg-surface-red" : "bg-surface-orange",
+				)}
+			>
+				<Pill type={type}>License Issue</Pill>
+				<div className="mx-2">
 					<span>{formatMessage(messages[0])}</span>
 					&nbsp;
-					<Link
-						color={textColor}
-						fontWeight="medium"
+					<a
+						className={cn(
+							"font-medium underline",
+							isError ? "text-content-destructive" : "text-content-warning",
+						)}
 						href="mailto:sales@coder.com"
 					>
-						{messages[0] === LicenseTelemetryRequiredErrorText
-							? Language.exception
-							: Language.upgrade}
-					</Link>
+						{message === LicenseTelemetryRequiredErrorText
+							? "Contact sales@coder.com if you need an exception."
+							: "Contact sales@coder.com."}
+					</a>
 				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div css={containerStyles}>
-			<Pill type={type}>{Language.licenseIssues(messages.length)}</Pill>
-			<div css={styles.leftContent}>
+		<div
+			className={cn(
+				"flex items-center p-3 text-sm",
+				isError ? "bg-surface-red" : "bg-surface-orange",
+			)}
+		>
+			<Pill type={type}>{`${messages.length} License Issues`}</Pill>
+			<div className="mx-2">
 				<div>
-					{Language.exceeded}
-					&nbsp;
-					<Link
-						color={textColor}
-						fontWeight="medium"
+					It looks like you've exceeded some limits of your license. &nbsp;
+					<a
+						className={cn(
+							"font-medium underline",
+							isError ? "text-content-destructive" : "text-content-warning",
+						)}
 						href="mailto:sales@coder.com"
 					>
-						{Language.upgrade}
-					</Link>
+						Contact sales@coder.com.
+					</a>
 				</div>
 				<Expander expanded={showDetails} setExpanded={setShowDetails}>
-					<ul css={{ padding: 8, margin: 0 }}>
+					<ul className="p-2 m-0">
 						{messages.map((message) => (
-							<li css={{ margin: 4 }} key={message}>
+							<li className="m-1" key={message}>
 								{formatMessage(message)}
 							</li>
 						))}
