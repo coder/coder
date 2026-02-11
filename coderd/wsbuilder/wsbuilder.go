@@ -343,7 +343,7 @@ func (b *Builder) recordBuildMetrics(job *database.ProvisionerJob, err error) {
 	// in the database but we want to track them separately in metrics.
 	buildReason := string(b.reason)
 	if b.prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CREATE {
-		buildReason = BuildReasonPrebuild
+		buildReason = provisionerdserver.BuildReasonPrebuild
 	}
 
 	b.buildMetrics.RecordBuildEnqueued(string(job.Provisioner), buildReason, string(b.trans), err)

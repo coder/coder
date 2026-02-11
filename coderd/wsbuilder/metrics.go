@@ -13,12 +13,6 @@ const (
 	BuildStatusFailed  = "failed"
 )
 
-// BuildReasonPrebuild is the build_reason metric label value for prebuild
-// operations. This is distinct from database.BuildReason values since prebuilds
-// use BuildReasonInitiator in the database but we want to track them separately
-// in metrics.
-const BuildReasonPrebuild = "prebuild"
-
 func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 	m := &Metrics{
 		workspaceBuildsEnqueued: prometheus.NewCounterVec(prometheus.CounterOpts{
