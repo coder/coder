@@ -317,6 +317,13 @@ func upCmd() *serpent.Command {
 	// it yet — we only register when count > 0 (after option parsing).
 	provisioner := catalog.NewProvisioner(services)
 
+	// Fail fast if HA is enabled without a license.
+	catalog.Configure[*catalog.Coderd](services, catalog.OnCoderd(), func(c *catalog.Coderd) {
+		if c.HACount() > 1 {
+			catalog.RequireLicense("HA coderd (--coderd-count > 1)")
+		}
+	})
+
 	optionSet := serpent.OptionSet{}
 	_ = services.ForEach(func(srv catalog.ServiceBase) error {
 		if configurable, ok := srv.(catalog.ConfigurableService); ok {

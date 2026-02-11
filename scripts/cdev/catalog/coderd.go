@@ -72,6 +72,9 @@ func (c *Coderd) Emoji() string {
 	return "🖥️"
 }
 
+// HACount returns the number of coderd instances configured for HA.
+func (c *Coderd) HACount() int64 { return c.haCount }
+
 func (c *Coderd) DependsOn() []string {
 	return []string{
 		OnDocker(),
@@ -100,11 +103,6 @@ func OnBuildSlim() string {
 }
 
 func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) error {
-	// Fail fast: HA requires an enterprise license.
-	if c.haCount > 1 && os.Getenv("CODER_LICENSE") == "" {
-		return xerrors.New("CODER_LICENSE must be set when using HA coderd (--coderd-count > 1)")
-	}
-
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
 
