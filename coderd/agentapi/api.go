@@ -204,6 +204,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	api.ConnLogAPI = &ConnLogAPI{
 		AgentFn:                  api.agent,
 		ConnectionLogger:         opts.ConnectionLogger,
+		TailnetCoordinator:       opts.TailnetCoordinator,
 		Database:                 opts.Database,
 		Workspace:                api.cachedWorkspaceFields,
 		Log:                      opts.Log,

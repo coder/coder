@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"net/netip"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -16,11 +17,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 type ConnLogAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	ConnectionLogger         *atomic.Pointer[connectionlog.ConnectionLogger]
+	TailnetCoordinator       *atomic.Pointer[tailnet.Coordinator]
 	Workspace                *CachedWorkspaceFields
 	Database                 database.Store
 	Log                      slog.Logger
@@ -90,6 +93,35 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	}
 	logIP := database.ParseIP(logIPRaw) // will return null if invalid
 
+	// At connect time, look up the tailnet peer to capture the
+	// client hostname and description for session grouping later.
+	var clientHostname, shortDescription sql.NullString
+	if action == database.ConnectionStatusConnected && a.TailnetCoordinator != nil {
+		if coord := a.TailnetCoordinator.Load(); coord != nil {
+			for _, peer := range (*coord).TunnelPeers(workspaceAgent.ID) {
+				if peer.Node != nil {
+					// Match peer by checking if any of its addresses
+					// match the connection IP.
+					for _, addr := range peer.Node.Addresses {
+						prefix, err := netip.ParsePrefix(addr)
+						if err != nil {
+							continue
+						}
+						if logIP.Valid && prefix.Addr().String() == logIP.IPNet.IP.String() {
+							if peer.Node.Hostname != "" {
+								clientHostname = sql.NullString{String: peer.Node.Hostname, Valid: true}
+							}
+							if peer.Node.ShortDescription != "" {
+								shortDescription = sql.NullString{String: peer.Node.ShortDescription, Valid: true}
+							}
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
 	reason := req.GetConnection().GetReason()
 	connLogger := *a.ConnectionLogger.Load()
 	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
@@ -124,7 +156,9 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 			Valid: false,
 		},
 		// N/A
-		UserAgent: sql.NullString{},
+		UserAgent:        sql.NullString{},
+		ClientHostname:   clientHostname,
+		ShortDescription: shortDescription,
 		SlugOrPort: sql.NullString{
 			String: req.GetConnection().GetSlugOrPort(),
 			Valid:  req.GetConnection().GetSlugOrPort() != "",
@@ -134,6 +168,12 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		return nil, xerrors.Errorf("export connection log: %w", err)
 	}
 
+	// At disconnect time, find or create a session for this connection.
+	// This groups related connection logs into workspace sessions.
+	if action == database.ConnectionStatusDisconnected {
+		a.assignSessionForDisconnect(ctx, connectionID, ws, workspaceAgent, logIPRaw, req)
+	}
+
 	if a.PublishWorkspaceUpdateFn != nil {
 		if err := a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindConnectionLogUpdate); err != nil {
 			a.Log.Warn(ctx, "failed to publish connection log update", slog.Error(err))
@@ -141,4 +181,44 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// assignSessionForDisconnect looks up the existing connection log for this
+// connection ID and finds or creates a session to group it with.
+func (a *ConnLogAPI) assignSessionForDisconnect(
+	ctx context.Context,
+	connectionID uuid.UUID,
+	ws database.WorkspaceIdentity,
+	workspaceAgent database.WorkspaceAgent,
+	logIPRaw string,
+	req *agentproto.ReportConnectionRequest,
+) {
+	existingLog, err := a.Database.GetConnectionLogByConnectionID(ctx, database.GetConnectionLogByConnectionIDParams{
+		ConnectionID: uuid.NullUUID{UUID: connectionID, Valid: true},
+		WorkspaceID:  ws.ID,
+		AgentName:    workspaceAgent.Name,
+	})
+	if err != nil {
+		a.Log.Warn(ctx, "failed to look up connection log for session assignment",
+			slog.Error(err),
+			slog.F("connection_id", connectionID),
+		)
+		return
+	}
+
+	_, err = a.Database.FindOrCreateSessionForDisconnect(ctx, database.FindOrCreateSessionForDisconnectParams{
+		WorkspaceID:      ws.ID.String(),
+		Ip:               logIPRaw,
+		ClientHostname:   existingLog.ClientHostname,
+		ShortDescription: existingLog.ShortDescription,
+		ConnectTime:      existingLog.ConnectTime,
+		DisconnectTime:   req.GetConnection().GetTimestamp().AsTime(),
+		AgentID:          uuid.NullUUID{UUID: workspaceAgent.ID, Valid: true},
+	})
+	if err != nil {
+		a.Log.Warn(ctx, "failed to find or create session for disconnect",
+			slog.Error(err),
+			slog.F("connection_id", connectionID),
+		)
+	}
 }
