@@ -1589,7 +1589,10 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 }
 
 func (q *querier) CloseConnectionLogsAndCreateSessions(ctx context.Context, arg database.CloseConnectionLogsAndCreateSessionsParams) (int64, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
+		return 0, err
+	}
+	return q.db.CloseConnectionLogsAndCreateSessions(ctx, arg)
 }
 
 func (q *querier) CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg database.CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error) {
@@ -1656,7 +1659,10 @@ func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, use
 }
 
 func (q *querier) CountWorkspaceSessions(ctx context.Context, arg database.CountWorkspaceSessionsParams) (int64, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog); err != nil {
+		return 0, err
+	}
+	return q.db.CountWorkspaceSessions(ctx, arg)
 }
 
 func (q *querier) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
@@ -2134,7 +2140,10 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 }
 
 func (q *querier) FindOrCreateSessionForDisconnect(ctx context.Context, arg database.FindOrCreateSessionForDisconnectParams) (interface{}, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
+		return nil, err
+	}
+	return q.db.FindOrCreateSessionForDisconnect(ctx, arg)
 }
 
 func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
@@ -2291,11 +2300,17 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetConnectionLogByConnectionID(ctx context.Context, arg database.GetConnectionLogByConnectionIDParams) (database.ConnectionLog, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog); err != nil {
+		return database.ConnectionLog{}, err
+	}
+	return q.db.GetConnectionLogByConnectionID(ctx, arg)
 }
 
 func (q *querier) GetConnectionLogsBySessionIDs(ctx context.Context, sessionIds []uuid.UUID) ([]database.ConnectionLog, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog); err != nil {
+		return nil, err
+	}
+	return q.db.GetConnectionLogsBySessionIDs(ctx, sessionIds)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -4130,7 +4145,10 @@ func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, created
 }
 
 func (q *querier) GetWorkspaceSessionsOffset(ctx context.Context, arg database.GetWorkspaceSessionsOffsetParams) ([]database.GetWorkspaceSessionsOffsetRow, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceSessionsOffset(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
