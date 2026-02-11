@@ -194,6 +194,11 @@ func (a *ConnLogAPI) assignSessionForDisconnect(
 	logIPRaw string,
 	req *agentproto.ReportConnectionRequest,
 ) {
+	//nolint:gocritic // The agent context doesn't have connection_log
+	// permissions. Session creation is authorized by the workspace
+	// access already validated in ReportConnection.
+	ctx = dbauthz.AsConnectionLogger(ctx)
+
 	existingLog, err := a.Database.GetConnectionLogByConnectionID(ctx, database.GetConnectionLogByConnectionIDParams{
 		ConnectionID: uuid.NullUUID{UUID: connectionID, Valid: true},
 		WorkspaceID:  ws.ID,
