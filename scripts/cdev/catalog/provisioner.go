@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/serpent"
 
@@ -45,6 +48,10 @@ func NewProvisioner(cat *Catalog) *Provisioner {
 	p := &Provisioner{}
 	Configure[*Coderd](cat, OnCoderd(), func(c *Coderd) {
 		if p.count > 0 {
+			// Fail fast: license is required for external provisioners.
+			if os.Getenv("CODER_LICENSE") == "" {
+				panic("CODER_LICENSE must be set when using external provisioners (--provisioner-count > 0)")
+			}
 			c.ExtraEnv = append(c.ExtraEnv, "CODER_PROVISIONER_DAEMONS=0")
 		}
 	})
@@ -90,6 +97,12 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 
 	store := database.New(sqlDB)
 
+	// Ensure license is in the database.
+	licenseJWT := os.Getenv("CODER_LICENSE")
+	if err := p.ensureLicense(ctx, logger, store, licenseJWT); err != nil {
+		return xerrors.Errorf("ensure license: %w", err)
+	}
+
 	// Get default organization.
 	org, err := store.GetDefaultOrganization(ctx)
 	if err != nil {
@@ -125,6 +138,59 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 		}
 	}
 
+	return nil
+}
+
+// ensureLicense checks if the given license JWT is already in the
+// database, and inserts it if not. The JWT is parsed without
+// verification to extract the exp and uuid claims — this is safe
+// since cdev is a development tool.
+func (p *Provisioner) ensureLicense(ctx context.Context, logger slog.Logger, store database.Store, licenseJWT string) error {
+	// Check if this exact JWT is already in the database.
+	licenses, err := store.GetLicenses(ctx)
+	if err != nil {
+		return xerrors.Errorf("get licenses: %w", err)
+	}
+	for _, lic := range licenses {
+		if lic.JWT == licenseJWT {
+			logger.Info(ctx, "license already present in database")
+			return nil
+		}
+	}
+
+	// Parse JWT claims without verification to extract exp and uuid.
+	parser := jwt.NewParser()
+	claims := &jwt.RegisteredClaims{}
+	_, _, err = parser.ParseUnverified(licenseJWT, claims)
+	if err != nil {
+		return xerrors.Errorf("parse license JWT: %w", err)
+	}
+
+	if claims.ExpiresAt == nil {
+		return xerrors.New("license JWT missing exp claim")
+	}
+
+	// UUID comes from the standard "jti" claim (claims.ID).
+	// Fallback to random UUID for older licenses without one.
+	licenseUUID, err := uuid.Parse(claims.ID)
+	if err != nil {
+		licenseUUID = uuid.New()
+	}
+
+	_, err = store.InsertLicense(ctx, database.InsertLicenseParams{
+		UploadedAt: dbtime.Now(),
+		JWT:        licenseJWT,
+		Exp:        claims.ExpiresAt.Time,
+		UUID:       licenseUUID,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert license: %w", err)
+	}
+
+	logger.Info(ctx, "license inserted into database",
+		slog.F("uuid", licenseUUID),
+		slog.F("expires", claims.ExpiresAt.Time),
+	)
 	return nil
 }
 
