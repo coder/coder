@@ -2365,10 +2365,10 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		)
 		defer cancel()
 
-		rowsClosed, closeErr := s.Database.CloseOpenAgentConnectionLogsForWorkspace(sysCtx, database.CloseOpenAgentConnectionLogsForWorkspaceParams{
+		rowsClosed, closeErr := s.Database.CloseConnectionLogsAndCreateSessions(sysCtx, database.CloseConnectionLogsAndCreateSessionsParams{
 			WorkspaceID: workspaceBuild.WorkspaceID,
-			ClosedAt:    completedAt,
-			Reason:      reason,
+			ClosedAt:    sql.NullTime{Time: completedAt, Valid: true},
+			Reason:      sql.NullString{String: reason, Valid: true},
 			Types:       agentConnectionTypes,
 		})
 		if closeErr != nil {
