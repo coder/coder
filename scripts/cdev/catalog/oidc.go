@@ -161,8 +161,12 @@ func (o *OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
 
 	//nolint:gosec // Arguments are controlled, not arbitrary user input.
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	stdoutLog := LogWriter(logger, slog.LevelInfo, "testidp-build")
+	stderrLog := LogWriter(logger, slog.LevelWarn, "testidp-build")
+	defer stdoutLog.Close()
+	defer stderrLog.Close()
+	cmd.Stdout = stdoutLog
+	cmd.Stderr = stderrLog
 
 	return cmd.Run()
 }
