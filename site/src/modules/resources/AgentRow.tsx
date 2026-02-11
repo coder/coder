@@ -19,11 +19,17 @@ import {
 } from "components/Collapsible/Collapsible";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+
 import { useProxy } from "contexts/ProxyContext";
 import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
-import { relativeTime } from "utils/time";
+import { formatDate, relativeTime } from "utils/time";
 
 import {
 	type FC,
@@ -505,9 +511,17 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 									{conn.short_description ||
 										connectionTypeLabel(conn.type, conn.detail)}
 								</span>
-								<span className="text-content-secondary">
-									{relativeTime(conn.connected_at ?? conn.created_at)}
-								</span>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="text-content-secondary cursor-default">
+											{relativeTime(conn.connected_at ?? conn.created_at)}
+										</span>
+									</TooltipTrigger>
+									<TooltipContent>
+										Connected at{" "}
+										{formatDate(new Date(conn.connected_at ?? conn.created_at))}
+									</TooltipContent>
+								</Tooltip>
 							</div>
 						))}
 					</div>
