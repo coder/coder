@@ -276,6 +276,21 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), ctx)
 }
 
+// CloseConnectionLogsAndCreateSessions mocks base method.
+func (m *MockStore) CloseConnectionLogsAndCreateSessions(ctx context.Context, arg database.CloseConnectionLogsAndCreateSessionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseConnectionLogsAndCreateSessions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CloseConnectionLogsAndCreateSessions indicates an expected call of CloseConnectionLogsAndCreateSessions.
+func (mr *MockStoreMockRecorder) CloseConnectionLogsAndCreateSessions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseConnectionLogsAndCreateSessions", reflect.TypeOf((*MockStore)(nil).CloseConnectionLogsAndCreateSessions), ctx, arg)
+}
+
 // CloseOpenAgentConnectionLogsForWorkspace mocks base method.
 func (m *MockStore) CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg database.CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -424,6 +439,21 @@ func (m *MockStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, u
 func (mr *MockStoreMockRecorder) CountUnreadInboxNotificationsByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).CountUnreadInboxNotificationsByUserID), ctx, userID)
+}
+
+// CountWorkspaceSessions mocks base method.
+func (m *MockStore) CountWorkspaceSessions(ctx context.Context, arg database.CountWorkspaceSessionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountWorkspaceSessions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountWorkspaceSessions indicates an expected call of CountWorkspaceSessions.
+func (mr *MockStoreMockRecorder) CountWorkspaceSessions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountWorkspaceSessions", reflect.TypeOf((*MockStore)(nil).CountWorkspaceSessions), ctx, arg)
 }
 
 // CreateUserSecret mocks base method.
@@ -1214,6 +1244,21 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// FindOrCreateSessionForDisconnect mocks base method.
+func (m *MockStore) FindOrCreateSessionForDisconnect(ctx context.Context, arg database.FindOrCreateSessionForDisconnectParams) (any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrCreateSessionForDisconnect", ctx, arg)
+	ret0, _ := ret[0].(any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOrCreateSessionForDisconnect indicates an expected call of FindOrCreateSessionForDisconnect.
+func (mr *MockStoreMockRecorder) FindOrCreateSessionForDisconnect(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrCreateSessionForDisconnect", reflect.TypeOf((*MockStore)(nil).FindOrCreateSessionForDisconnect), ctx, arg)
+}
+
 // GetAIBridgeInterceptionByID mocks base method.
 func (m *MockStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	m.ctrl.T.Helper()
@@ -1662,6 +1707,36 @@ func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Contex
 func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
+}
+
+// GetConnectionLogByConnectionID mocks base method.
+func (m *MockStore) GetConnectionLogByConnectionID(ctx context.Context, arg database.GetConnectionLogByConnectionIDParams) (database.ConnectionLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConnectionLogByConnectionID", ctx, arg)
+	ret0, _ := ret[0].(database.ConnectionLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetConnectionLogByConnectionID indicates an expected call of GetConnectionLogByConnectionID.
+func (mr *MockStoreMockRecorder) GetConnectionLogByConnectionID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConnectionLogByConnectionID", reflect.TypeOf((*MockStore)(nil).GetConnectionLogByConnectionID), ctx, arg)
+}
+
+// GetConnectionLogsBySessionIDs mocks base method.
+func (m *MockStore) GetConnectionLogsBySessionIDs(ctx context.Context, sessionIds []uuid.UUID) ([]database.ConnectionLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConnectionLogsBySessionIDs", ctx, sessionIds)
+	ret0, _ := ret[0].([]database.ConnectionLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetConnectionLogsBySessionIDs indicates an expected call of GetConnectionLogsBySessionIDs.
+func (mr *MockStoreMockRecorder) GetConnectionLogsBySessionIDs(ctx, sessionIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConnectionLogsBySessionIDs", reflect.TypeOf((*MockStore)(nil).GetConnectionLogsBySessionIDs), ctx, sessionIds)
 }
 
 // GetConnectionLogsOffset mocks base method.
@@ -4887,6 +4962,21 @@ func (m *MockStore) GetWorkspaceResourcesCreatedAfter(ctx context.Context, creat
 func (mr *MockStoreMockRecorder) GetWorkspaceResourcesCreatedAfter(ctx, createdAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceResourcesCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceResourcesCreatedAfter), ctx, createdAt)
+}
+
+// GetWorkspaceSessionsOffset mocks base method.
+func (m *MockStore) GetWorkspaceSessionsOffset(ctx context.Context, arg database.GetWorkspaceSessionsOffsetParams) ([]database.GetWorkspaceSessionsOffsetRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceSessionsOffset", ctx, arg)
+	ret0, _ := ret[0].([]database.GetWorkspaceSessionsOffsetRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceSessionsOffset indicates an expected call of GetWorkspaceSessionsOffset.
+func (mr *MockStoreMockRecorder) GetWorkspaceSessionsOffset(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceSessionsOffset", reflect.TypeOf((*MockStore)(nil).GetWorkspaceSessionsOffset), ctx, arg)
 }
 
 // GetWorkspaceUniqueOwnerCountByTemplateIDs mocks base method.
