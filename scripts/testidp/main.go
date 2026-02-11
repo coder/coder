@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -26,6 +27,7 @@ var (
 	clientID     = flag.String("client-id", "static-client-id", "Client ID, set empty to be random")
 	clientSecret = flag.String("client-sec", "static-client-secret", "Client Secret, set empty to be random")
 	deviceFlow   = flag.Bool("device-flow", false, "Enable device flow")
+	issuerURL    = flag.String("issuer", "http://localhost:4500", "Issuer URL that clients will use to reach this IDP")
 	// By default, no regex means it will never match anything. So at least default to matching something.
 	extRegex        = flag.String("ext-regex", `^(https?://)?example\.com(/.*)?$`, "External auth regex")
 	tooManyRequests = flag.String("429", "", "Simulate too many requests for a given endpoint.")
@@ -84,7 +86,9 @@ func RunIDP() func(t *testing.T) {
 
 	return func(t *testing.T) {
 		idp := oidctest.NewFakeIDP(t,
-			oidctest.WithServing(),
+			// Don't use WithServing() - it overrides the issuer URL with the
+			// actual server address. We serve manually below to preserve our
+			// configured issuer URL.
 			oidctest.WithStaticUserInfo(jwt.MapClaims{
 				// This is a static set of auth fields. Might be beneficial to make flags
 				// to allow different values here. This is only required for using the
@@ -101,10 +105,21 @@ func RunIDP() func(t *testing.T) {
 			}),
 			oidctest.WithDefaultExpire(*expiry),
 			oidctest.WithStaticCredentials(*clientID, *clientSecret),
-			oidctest.WithIssuer("http://localhost:4500"),
+			oidctest.WithIssuer(*issuerURL),
 			oidctest.WithLogger(slog.Make(sloghuman.Sink(os.Stderr))),
 			oidctest.With429(tooManyRequestParams),
 		)
+
+		// Serve the IDP manually on port 4500 to preserve the configured issuer URL.
+		srv := &http.Server{
+			Addr:    ":4500",
+			Handler: idp.Handler(),
+		}
+		go func() {
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("IDP server error: %v", err)
+			}
+		}()
 		id, sec := idp.AppCredentials()
 		prov := idp.WellknownConfig()
 		const appID = "fake"

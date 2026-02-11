@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	testidpImage     = "cdev-testidp"
-	testidpTag       = "latest"
-	testidpPort      = "4500/tcp"
-	testidpClientID  = "static-client-id"
-	testidpClientSec = "static-client-secret"
+	testidpImage      = "cdev-testidp"
+	testidpTag        = "latest"
+	testidpPort       = "4500/tcp"
+	testidpHostPort   = "4500"
+	testidpClientID   = "static-client-id"
+	testidpClientSec  = "static-client-secret"
+	testidpIssuerURL  = "http://localhost:4500"
 )
 
 // OIDCResult contains the connection info for the running OIDC IDP.
@@ -66,7 +68,7 @@ func (o *OIDC) DependsOn() []string {
 }
 
 func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
-	logger := c.Logger()
+	logger := c.ServiceLogger(o.Name())
 	d := c.MustGet(OnDocker()).(*Docker)
 	o.pool = d.Result()
 
@@ -92,6 +94,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 				Cmd: []string{
 					"-client-id", testidpClientID,
 					"-client-sec", testidpClientSec,
+					"-issuer", testidpIssuerURL,
 				},
 				Labels:       labels,
 				ExposedPorts: map[docker.Port]struct{}{testidpPort: {}},
@@ -99,7 +102,7 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 			HostConfig: &docker.HostConfig{
 				AutoRemove: true,
 				PortBindings: map[docker.Port][]docker.PortBinding{
-					testidpPort: {{HostIP: "127.0.0.1", HostPort: ""}},
+					testidpPort: {{HostIP: "127.0.0.1", HostPort: testidpHostPort}},
 				},
 			},
 		},
@@ -125,19 +128,25 @@ func (o *OIDC) Start(ctx context.Context, c *Catalog) error {
 	}
 
 	o.containerID = result.Container.ID
-	hostPort := result.Container.NetworkSettings.Ports["4500/tcp"][0].HostPort
 	o.result = OIDCResult{
-		IssuerURL:    fmt.Sprintf("http://localhost:%s", hostPort),
+		IssuerURL:    testidpIssuerURL,
 		ClientID:     testidpClientID,
 		ClientSecret: testidpClientSec,
-		Port:         hostPort,
+		Port:         testidpHostPort,
 	}
 
 	return o.waitForReady(ctx, logger)
 }
 
-// TODO: Reuse the old image if there is no diffs
 func (o *OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
+	// Check if image already exists.
+	//nolint:gosec // Arguments are controlled.
+	checkCmd := exec.CommandContext(ctx, "docker", "image", "inspect", testidpImage+":"+testidpTag)
+	if err := checkCmd.Run(); err == nil {
+		logger.Info(ctx, "testidp image already exists, skipping build")
+		return nil
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get working directory: %w", err)

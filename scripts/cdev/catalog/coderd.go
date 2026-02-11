@@ -142,6 +142,7 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
 	pg := cat.MustGet(OnPostgres()).(*Postgres)
+	oidc := cat.MustGet(OnOIDC()).(*OIDC)
 	build := Get[*BuildSlim](cat)
 
 	labels := NewServiceLabels(CDevCoderd)
@@ -219,6 +220,10 @@ func (c *Coderd) startCoderd(ctx context.Context, cat *Catalog, index int) (*Con
 					"--enable-terraform-debug-mode",
 					"--pprof-enable",
 					"--pprof-address", fmt.Sprintf("127.0.0.1:%d", PprofPortNum(index)),
+					// OIDC configuration from the OIDC service.
+					"--oidc-issuer-url", oidc.Result().IssuerURL,
+					"--oidc-client-id", oidc.Result().ClientID,
+					"--oidc-client-secret", oidc.Result().ClientSecret,
 				},
 				Labels:       labels,
 				ExposedPorts: map[docker.Port]struct{}{

@@ -504,6 +504,13 @@ func (f *FakeIDP) IssuerURL() *url.URL {
 	return f.locked.IssuerURL()
 }
 
+// Handler returns the HTTP handler for the fake IDP. This can be used to serve
+// the IDP on a custom address without using WithServing() which overrides the
+// issuer URL.
+func (f *FakeIDP) Handler() http.Handler {
+	return f.locked.Handler()
+}
+
 func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	t.Helper()
 

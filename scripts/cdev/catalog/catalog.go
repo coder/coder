@@ -88,8 +88,6 @@ func (c *Catalog) Logger() slog.Logger {
 // ServiceLogger returns the per-service logger for the named
 // service, falling back to the base logger if not found.
 func (c *Catalog) ServiceLogger(name string) slog.Logger {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	if l, ok := c.loggers[name]; ok {
 		return l
 	}
@@ -220,7 +218,7 @@ func (c *Catalog) Start(ctx context.Context) error {
 				return xerrors.Errorf("update status for %s: %w", name, err)
 			}
 
-			svcLogger.Info(ctx, "service started")
+			svcLogger.Info(ctx, "service started", slog.F("name", name))
 			return nil
 		})
 	}

@@ -53,6 +53,11 @@ func Cleanup(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) err
 		logger.Error(ctx, "Failed to clean up volumes: %v", slog.F("error", err))
 	}
 
+	err = CleanupImages(ctx, logger, pool, filter)
+	if err != nil {
+		logger.Error(ctx, "Failed to clean up images: %v", slog.F("error", err))
+	}
+
 	return nil
 }
 
@@ -122,6 +127,25 @@ func CleanupVolumes(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 		} else {
 			logger.Debug(ctx, "🧹 Deleted volume %s",
 				slog.F("volume_name", vol.Name),
+			)
+		}
+	}
+	return nil
+}
+
+func CleanupImages(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
+	imgs, err := pool.Client.ListImages(docker.ListImagesOptions{
+		Filters: filter,
+	})
+
+	for _, img := range imgs {
+		err = pool.Client.RemoveImage(img.ID)
+		if err != nil {
+			logger.Error(ctx, fmt.Sprintf("Failed to remove image %s: %v", img.ID, err))
+		} else {
+			logger.Debug(ctx, "🧹 Deleted image %s",
+				slog.F("image_id", img.ID),
+				slog.F("image_size", humanize.Bytes(uint64(img.Size))),
 			)
 		}
 	}
