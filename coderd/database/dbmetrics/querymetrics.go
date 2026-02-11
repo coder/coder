@@ -231,6 +231,14 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CloseConnectionLogsAndCreateSessions(ctx context.Context, arg database.CloseConnectionLogsAndCreateSessionsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CloseConnectionLogsAndCreateSessions(ctx, arg)
+	m.queryLatencies.WithLabelValues("CloseConnectionLogsAndCreateSessions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CloseConnectionLogsAndCreateSessions").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg database.CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CloseOpenAgentConnectionLogsForWorkspace(ctx, arg)
@@ -284,6 +292,14 @@ func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Con
 	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("CountUnreadInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountUnreadInboxNotificationsByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountWorkspaceSessions(ctx context.Context, arg database.CountWorkspaceSessionsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountWorkspaceSessions(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountWorkspaceSessions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountWorkspaceSessions").Inc()
 	return r0, r1
 }
 
@@ -726,6 +742,14 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) FindOrCreateSessionForDisconnect(ctx context.Context, arg database.FindOrCreateSessionForDisconnectParams) (interface{}, error) {
+	start := time.Now()
+	r0, r1 := m.s.FindOrCreateSessionForDisconnect(ctx, arg)
+	m.queryLatencies.WithLabelValues("FindOrCreateSessionForDisconnect").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FindOrCreateSessionForDisconnect").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeInterceptionByID(ctx, id)
@@ -907,6 +931,22 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationUserRoles").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetConnectionLogByConnectionID(ctx context.Context, arg database.GetConnectionLogByConnectionIDParams) (database.ConnectionLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetConnectionLogByConnectionID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetConnectionLogByConnectionID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetConnectionLogByConnectionID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetConnectionLogsBySessionIDs(ctx context.Context, sessionIds []uuid.UUID) ([]database.ConnectionLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetConnectionLogsBySessionIDs(ctx, sessionIds)
+	m.queryLatencies.WithLabelValues("GetConnectionLogsBySessionIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetConnectionLogsBySessionIDs").Inc()
 	return r0, r1
 }
 
@@ -2611,6 +2651,14 @@ func (m queryMetricsStore) GetWorkspaceResourcesCreatedAfter(ctx context.Context
 	r0, r1 := m.s.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetWorkspaceResourcesCreatedAfter").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceResourcesCreatedAfter").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceSessionsOffset(ctx context.Context, arg database.GetWorkspaceSessionsOffsetParams) ([]database.GetWorkspaceSessionsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceSessionsOffset(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceSessionsOffset").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceSessionsOffset").Inc()
 	return r0, r1
 }
 

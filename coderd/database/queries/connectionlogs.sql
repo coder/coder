@@ -390,7 +390,7 @@ SELECT
 FROM
 	ranked
 WHERE
-	rn <= @per_agent_limit
+	sqlc.arg('rn')::bigint <= @per_agent_limit
 ORDER BY
 	workspace_id,
 	agent_name,

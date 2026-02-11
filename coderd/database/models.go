@@ -3769,7 +3769,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	AgentID          uuid.NullUUID  `db:"agent_id" json:"agent_id"`
 	// Last time this connection log was confirmed active. For agent connections, equals connect_time. For web connections, bumped while the session is active.
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	SessionID        uuid.NullUUID  `db:"session_id" json:"session_id"`
+	ClientHostname   sql.NullString `db:"client_hostname" json:"client_hostname"`
+	ShortDescription sql.NullString `db:"short_description" json:"short_description"`
 }
 
 type CryptoKey struct {
@@ -5125,6 +5128,18 @@ type WorkspaceResourceMetadatum struct {
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 	ID                  int64          `db:"id" json:"id"`
+}
+
+type WorkspaceSession struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	AgentID          uuid.NullUUID  `db:"agent_id" json:"agent_id"`
+	Ip               pqtype.Inet    `db:"ip" json:"ip"`
+	ClientHostname   sql.NullString `db:"client_hostname" json:"client_hostname"`
+	ShortDescription sql.NullString `db:"short_description" json:"short_description"`
+	StartedAt        time.Time      `db:"started_at" json:"started_at"`
+	EndedAt          time.Time      `db:"ended_at" json:"ended_at"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
 }
 
 type WorkspaceTable struct {

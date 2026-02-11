@@ -1588,6 +1588,10 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CloseConnectionLogsAndCreateSessions(ctx context.Context, arg database.CloseConnectionLogsAndCreateSessionsParams) (int64, error) {
+	panic("not implemented")
+}
+
 func (q *querier) CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg database.CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
 		return 0, err
@@ -1649,6 +1653,10 @@ func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, use
 		return 0, err
 	}
 	return q.db.CountUnreadInboxNotificationsByUserID(ctx, userID)
+}
+
+func (q *querier) CountWorkspaceSessions(ctx context.Context, arg database.CountWorkspaceSessionsParams) (int64, error) {
+	panic("not implemented")
 }
 
 func (q *querier) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
@@ -2125,6 +2133,10 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) FindOrCreateSessionForDisconnect(ctx context.Context, arg database.FindOrCreateSessionForDisconnectParams) (interface{}, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	return fetch(q.log, q.auth, q.db.GetAIBridgeInterceptionByID)(ctx, id)
 }
@@ -2276,6 +2288,14 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetConnectionLogByConnectionID(ctx context.Context, arg database.GetConnectionLogByConnectionIDParams) (database.ConnectionLog, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetConnectionLogsBySessionIDs(ctx context.Context, sessionIds []uuid.UUID) ([]database.ConnectionLog, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -4107,6 +4127,10 @@ func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, created
 		return nil, err
 	}
 	return q.db.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
+}
+
+func (q *querier) GetWorkspaceSessionsOffset(ctx context.Context, arg database.GetWorkspaceSessionsOffsetParams) ([]database.GetWorkspaceSessionsOffsetRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
