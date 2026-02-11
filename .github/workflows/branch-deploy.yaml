@@ -256,7 +256,13 @@ jobs:
         if: steps.check.outputs.new == 'true'
         run: |
           set -euo pipefail
-          kubectl delete namespace "${DEPLOY_NAME}" || true
+          kubectl delete namespace "${DEPLOY_NAME}" --wait=true || true
+          # Delete any orphaned PVs that were bound to PVCs in this
+          # namespace. Without this, the old PV (with stale Postgres
+          # data) gets reused on reinstall, causing auth failures.
+          kubectl get pv -o json | \
+            jq -r '.items[] | select(.spec.claimRef.namespace=='"${DEPLOY_NAME}"') | .metadata.name' | \
+            xargs -r kubectl delete pv || true
           kubectl create namespace "${DEPLOY_NAME}"
 
       # ---- Every push: ensure deployment certificate ----
