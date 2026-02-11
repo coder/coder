@@ -30,7 +30,7 @@ export const Default: Story = {
 		},
 	],
 	render: () => (
-		<Sidebar>
+		<Sidebar title="Navigation">
 			<SidebarHeader
 				avatar={<Avatar fallback="Jon" />}
 				title="Jon"

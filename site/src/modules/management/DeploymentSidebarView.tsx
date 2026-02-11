@@ -30,7 +30,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 	buildInfo,
 }) => {
 	return (
-		<BaseSidebar>
+		<BaseSidebar title="Deployment">
 			<div className="flex flex-col gap-1">
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/overview">Overview</SidebarNavItem>

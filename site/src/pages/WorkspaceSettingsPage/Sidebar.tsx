@@ -28,7 +28,7 @@ export const Sidebar: FC<SidebarProps> = ({
 	const { experiments } = useDashboard();
 
 	return (
-		<BaseSidebar>
+		<BaseSidebar title="Workspace Settings">
 			<SidebarHeader
 				avatar={
 					<Avatar

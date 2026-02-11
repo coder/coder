@@ -22,7 +22,7 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
 	const getLink = useLinks();
 
 	return (
-		<BaseSidebar>
+		<BaseSidebar title="Template Settings">
 			<SidebarHeader
 				avatar={
 					<Avatar variant="icon" src={template.icon} fallback={template.name} />

@@ -30,7 +30,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 		entitlements.features.advanced_template_scheduling.enabled;
 
 	return (
-		<BaseSidebar>
+		<BaseSidebar title="User Settings">
 			<SidebarHeader
 				avatar={<Avatar fallback={user.username} src={user.avatar_url} />}
 				title={user.username}

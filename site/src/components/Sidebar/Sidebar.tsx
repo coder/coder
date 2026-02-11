@@ -1,23 +1,24 @@
 import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
-import { MenuIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { type ElementType, type FC, type ReactNode, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import { cn } from "utils/cn";
 
 interface SidebarProps {
+	title: string;
 	children?: ReactNode;
 	className?: string;
 }
 
-export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
+export const Sidebar: FC<SidebarProps> = ({ title, className, children }) => {
 	const location = useLocation();
 
 	return (
 		<>
 			{/* Mobile collapsible sidebar. Keyed on pathname so
 			    state resets (menu closes) on navigation. */}
-			<SidebarMobileNavigation key={location.pathname}>
+			<SidebarMobileNavigation title={title} key={location.pathname}>
 				{children}
 			</SidebarMobileNavigation>
 
@@ -34,7 +35,10 @@ export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
 	);
 };
 
-const SidebarMobileNavigation: FC<{ children: ReactNode }> = ({ children }) => {
+const SidebarMobileNavigation: FC<{ title: string; children: ReactNode }> = ({
+	title,
+	children,
+}) => {
 	const [open, setOpen] = useState(false);
 
 	return (
@@ -43,10 +47,10 @@ const SidebarMobileNavigation: FC<{ children: ReactNode }> = ({ children }) => {
 				variant="outline"
 				aria-label={open ? "Close menu" : "Open menu"}
 				onClick={() => setOpen((prev) => !prev)}
-				className="justify-start gap-2 w-full"
+				className="justify-between gap-2 w-full"
 			>
-				{open ? <XIcon className="size-4" /> : <MenuIcon className="size-4" />}
-				Menu
+				{title}
+				<ChevronDownIcon />
 			</Button>
 			{open && <nav className="py-4">{children}</nav>}
 		</div>
