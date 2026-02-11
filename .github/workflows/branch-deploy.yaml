@@ -72,7 +72,8 @@ jobs:
     env:
       BRANCH_NAME: ${{ github.ref_name }}
       DEPLOY_NAME: "pr${{ github.ref_name }}"
-      BRANCH_HOSTNAME: "${{ github.ref_name }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+      TEST_DOMAIN_SUFFIX: "${{ startsWith(secrets.PR_DEPLOYMENTS_DOMAIN, 'test.') && secrets.PR_DEPLOYMENTS_DOMAIN || format('test.{0}', secrets.PR_DEPLOYMENTS_DOMAIN) }}"
+      BRANCH_HOSTNAME: "${{ github.ref_name }}.${{ startsWith(secrets.PR_DEPLOYMENTS_DOMAIN, 'test.') && secrets.PR_DEPLOYMENTS_DOMAIN || format('test.{0}', secrets.PR_DEPLOYMENTS_DOMAIN) }}"
       CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:pr${{ github.ref_name }}"
       REPO: ghcr.io/coder/coder-preview
       EXPERIMENTS: "*"
@@ -113,109 +114,151 @@ jobs:
             exit "$helm_status_code"
           fi
 
-      # ---- First deploy only ----
+      # ---- Every push: ensure routing + TLS ----
 
-      - name: Add DNS record
-        if: steps.check.outputs.new == 'true'
+      - name: Ensure DNS records
         run: |
           set -euo pipefail
 
+          api_base_url="https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records"
+          base_name="${BRANCH_HOSTNAME}"
+          base_target="${TEST_DOMAIN_SUFFIX}"
           wildcard_name="*.${BRANCH_HOSTNAME}"
 
-          echo "Checking whether DNS record ${wildcard_name} already exists."
-          set +e
-          existing_raw_response="$(
-            curl -sS -G "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
-              -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
-              -H "Content-Type:application/json" \
-              --data-urlencode "name=${wildcard_name}" \
-              --data-urlencode "per_page=1" \
-              -w '\n%{http_code}'
-          )"
-          existing_curl_exit_code=$?
-          set -e
+          ensure_cname_record() {
+            local record_name="$1"
+            local record_content="$2"
 
-          if [ "$existing_curl_exit_code" -eq 0 ]; then
-            existing_response="${existing_raw_response%$'\n'*}"
-            existing_http_code="${existing_raw_response##*$'\n'}"
-            if [ "$existing_http_code" = "200" ] && echo "$existing_response" | jq -e '.success == true and (.result | length) > 0' > /dev/null 2>&1; then
-              echo "DNS record already exists for ${wildcard_name}."
-              exit 0
-            fi
-          else
-            echo "Unable to check DNS record existence before create; continuing."
-          fi
-
-          max_attempts=6
-          attempt=1
-          last_response=""
-          last_http_code=""
-
-          while [ "$attempt" -le "$max_attempts" ]; do
-            echo "Creating DNS record for ${wildcard_name} (attempt ${attempt}/${max_attempts})."
+            echo "Ensuring CNAME ${record_name} -> ${record_content}."
 
             set +e
-            raw_response="$(
-              curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+            lookup_raw_response="$(
+              curl -sS -G "${api_base_url}" \
                 -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
                 -H "Content-Type:application/json" \
-                --data '{"type":"CNAME","name":"'"${wildcard_name}"'","content":"'"${BRANCH_HOSTNAME}"'","ttl":1,"proxied":false}' \
+                --data-urlencode "name=${record_name}" \
+                --data-urlencode "per_page=100" \
                 -w '\n%{http_code}'
             )"
-            curl_exit_code=$?
+            lookup_exit_code=$?
             set -e
 
-            curl_failed=false
-            if [ "$curl_exit_code" -eq 0 ]; then
-              response="${raw_response%$'\n'*}"
-              http_code="${raw_response##*$'\n'}"
+            if [ "$lookup_exit_code" -eq 0 ]; then
+              lookup_response="${lookup_raw_response%$'\n'*}"
+              lookup_http_code="${lookup_raw_response##*$'\n'}"
+
+              if [ "$lookup_http_code" = "200" ] && echo "$lookup_response" | jq -e '.success == true' > /dev/null 2>&1; then
+                if echo "$lookup_response" | jq -e '.result[]? | select(.type != "CNAME")' > /dev/null 2>&1; then
+                  echo "Conflicting non-CNAME DNS record exists for ${record_name}."
+                  echo "$lookup_response"
+                  return 1
+                fi
+
+                existing_cname_id="$(echo "$lookup_response" | jq -r '.result[]? | select(.type == "CNAME") | .id' | head -n1)"
+                if [ -n "$existing_cname_id" ]; then
+                  existing_content="$(echo "$lookup_response" | jq -r --arg id "$existing_cname_id" '.result[] | select(.id == $id) | .content')"
+                  if [ "$existing_content" = "$record_content" ]; then
+                    echo "CNAME already set for ${record_name}."
+                    return 0
+                  fi
+
+                  echo "Updating existing CNAME for ${record_name}."
+                  update_response="$(
+                    curl -sS -X PUT "${api_base_url}/${existing_cname_id}" \
+                      -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+                      -H "Content-Type:application/json" \
+                      --data '{"type":"CNAME","name":"'"${record_name}"'","content":"'"${record_content}"'","ttl":1,"proxied":false}'
+                  )"
+
+                  if echo "$update_response" | jq -e '.success == true' > /dev/null 2>&1; then
+                    echo "Updated CNAME for ${record_name}."
+                    return 0
+                  fi
+
+                  echo "Cloudflare API error while updating ${record_name}:"
+                  echo "$update_response"
+                  return 1
+                fi
+              fi
             else
-              response="curl exited with code ${curl_exit_code}."
-              http_code="000"
-              curl_failed=true
+              echo "Could not query DNS record ${record_name}; attempting create."
             fi
 
-            last_response="$response"
-            last_http_code="$http_code"
+            max_attempts=6
+            attempt=1
+            last_response=""
+            last_http_code=""
 
-            if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
-              echo "Created DNS record for ${wildcard_name}."
-              exit 0
-            fi
+            while [ "$attempt" -le "$max_attempts" ]; do
+              echo "Creating DNS record ${record_name} (attempt ${attempt}/${max_attempts})."
 
-            # Cloudflare returns 81057 when the record already exists.
-            # Cloudflare returns 81053 when another record with the host exists.
-            if echo "$response" | jq -e '.errors[]? | select(.code == 81057 or .code == 81053)' > /dev/null 2>&1; then
-              echo "DNS record already exists for ${wildcard_name}."
-              exit 0
-            fi
+              set +e
+              raw_response="$(
+                curl -sS -X POST "${api_base_url}" \
+                  -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+                  -H "Content-Type:application/json" \
+                  --data '{"type":"CNAME","name":"'"${record_name}"'","content":"'"${record_content}"'","ttl":1,"proxied":false}' \
+                  -w '\n%{http_code}'
+              )"
+              curl_exit_code=$?
+              set -e
 
-            transient_error=false
-            if [ "$curl_failed" = true ] || [ "$http_code" = "429" ]; then
-              transient_error=true
-            elif [[ "$http_code" =~ ^[0-9]{3}$ ]] && [ "$http_code" -ge 500 ] && [ "$http_code" -lt 600 ]; then
-              transient_error=true
-            fi
+              curl_failed=false
+              if [ "$curl_exit_code" -eq 0 ]; then
+                response="${raw_response%$'\n'*}"
+                http_code="${raw_response##*$'\n'}"
+              else
+                response="curl exited with code ${curl_exit_code}."
+                http_code="000"
+                curl_failed=true
+              fi
 
-            if echo "$response" | jq -e '.errors[]? | select(.code == 10000 or .code == 10001)' > /dev/null 2>&1; then
-              transient_error=true
-            fi
+              last_response="$response"
+              last_http_code="$http_code"
 
-            if [ "$transient_error" = true ] && [ "$attempt" -lt "$max_attempts" ]; then
-              sleep_seconds=$((attempt * 5))
-              echo "Transient Cloudflare API error (HTTP ${http_code}). Retrying in ${sleep_seconds}s."
-              sleep "$sleep_seconds"
-              attempt=$((attempt + 1))
-              continue
-            fi
+              if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+                echo "Created DNS record ${record_name}."
+                return 0
+              fi
 
-            break
-          done
+              # 81057: identical record exists. 81053: host record conflict.
+              if echo "$response" | jq -e '.errors[]? | select(.code == 81057 or .code == 81053)' > /dev/null 2>&1; then
+                echo "DNS record already exists for ${record_name}."
+                return 0
+              fi
 
-          echo "Cloudflare API error while creating DNS record after ${attempt} attempt(s):"
-          echo "HTTP status: ${last_http_code}"
-          echo "$last_response"
-          exit 1
+              transient_error=false
+              if [ "$curl_failed" = true ] || [ "$http_code" = "429" ]; then
+                transient_error=true
+              elif [[ "$http_code" =~ ^[0-9]{3}$ ]] && [ "$http_code" -ge 500 ] && [ "$http_code" -lt 600 ]; then
+                transient_error=true
+              fi
+
+              if echo "$response" | jq -e '.errors[]? | select(.code == 10000 or .code == 10001)' > /dev/null 2>&1; then
+                transient_error=true
+              fi
+
+              if [ "$transient_error" = true ] && [ "$attempt" -lt "$max_attempts" ]; then
+                sleep_seconds=$((attempt * 5))
+                echo "Transient Cloudflare API error (HTTP ${http_code}). Retrying in ${sleep_seconds}s."
+                sleep "$sleep_seconds"
+                attempt=$((attempt + 1))
+                continue
+              fi
+
+              break
+            done
+
+            echo "Cloudflare API error while creating DNS record ${record_name} after ${attempt} attempt(s):"
+            echo "HTTP status: ${last_http_code}"
+            echo "$last_response"
+            return 1
+          }
+
+          ensure_cname_record "${base_name}" "${base_target}"
+          ensure_cname_record "${wildcard_name}" "${base_name}"
+
+      # ---- First deploy only ----
 
       - name: Create namespace
         if: steps.check.outputs.new == 'true'
@@ -224,8 +267,9 @@ jobs:
           kubectl delete namespace "${DEPLOY_NAME}" || true
           kubectl create namespace "${DEPLOY_NAME}"
 
-      - name: Create certificate
-        if: steps.check.outputs.new == 'true'
+      # ---- Every push: ensure deployment certificate ----
+
+      - name: Ensure certificate
         env:
           PR_NUMBER: ${{ env.BRANCH_NAME }}
           PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
@@ -233,23 +277,10 @@ jobs:
           set -euo pipefail
           cert_secret_name="${DEPLOY_NAME}-tls"
 
-          if ! kubectl get certificate "${cert_secret_name}" -n pr-deployment-certs > /dev/null 2>&1; then
-            envsubst < ./.github/pr-deployments/certificate.yaml | kubectl apply -f -
-          fi
+          envsubst < ./.github/pr-deployments/certificate.yaml | kubectl apply -f -
 
-          cert_ready=false
-          for attempt in $(seq 1 120); do
-            if kubectl get secret "${cert_secret_name}" -n pr-deployment-certs > /dev/null 2>&1; then
-              cert_ready=true
-              break
-            fi
-
-            echo "Waiting for certificate secret ${cert_secret_name} (${attempt}/120)..."
-            sleep 5
-          done
-
-          if [ "$cert_ready" != true ]; then
-            echo "Timed out waiting for certificate secret ${cert_secret_name} after 10 minutes."
+          if ! kubectl -n pr-deployment-certs wait --for=condition=Ready "certificate/${cert_secret_name}" --timeout=10m; then
+            echo "Timed out waiting for certificate ${cert_secret_name} to become Ready after 10 minutes."
             kubectl -n pr-deployment-certs describe certificate "${cert_secret_name}" || true
             kubectl -n pr-deployment-certs get certificaterequest,order,challenge -l "cert-manager.io/certificate-name=${cert_secret_name}" || true
             exit 1
