@@ -27,8 +27,8 @@ coder task pause [flags] <task>
 ## Options
 ### -y, --yes
  
-| | |
-| --- | --- |
+|      |                   |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass confirmation prompts.
