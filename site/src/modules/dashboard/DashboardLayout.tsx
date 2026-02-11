@@ -26,7 +26,7 @@ export const DashboardLayout: FC = () => {
 			<div className="flex flex-col min-h-screen justify-between">
 				<Navbar />
 
-				<div className="relative flex flex-col flex-1 min-h-0 overflow-y-auto">
+				<div className="relative flex flex-col flex-1 min-h-0">
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>

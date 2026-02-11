@@ -52,7 +52,7 @@ const DeploymentSettingsLayout: FC = () => {
 				</Breadcrumb>
 				<hr className="h-px border-none bg-border" />
 				<div className="px-10 max-w-screen-2xl">
-					<div className="flex flex-row gap-28 py-10">
+					<div className="flex flex-col md:flex-row gap-10 md:gap-28 py-10">
 						<DeploymentSidebar />
 						<main css={{ flexGrow: 1 }}>
 							<Suspense fallback={<Loader />}>

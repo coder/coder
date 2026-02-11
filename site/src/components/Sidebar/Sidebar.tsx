@@ -9,7 +9,16 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
-	return <nav className={cn("w-60 flex-shrink-0", className)}>{children}</nav>;
+	return (
+		<nav
+			className={cn(
+				"hidden md:block w-60 flex-shrink-0 sticky top-[72px] h-[calc(100vh-72px)] py-4",
+				className,
+			)}
+		>
+			<div className="max-h-screen overflow-y-auto">{children}</div>
+		</nav>
+	);
 };
 
 interface SidebarHeaderProps {
