@@ -6223,7 +6223,6 @@ export interface WorkspaceAgent {
 	 * Deprecated: Remove in the future!
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
-	readonly connections?: readonly WorkspaceConnection[];
 	readonly sessions?: readonly WorkspaceSession[];
 }
 
@@ -6793,22 +6792,6 @@ export const WorkspaceConnectionStatuses: WorkspaceConnectionStatus[] = [
 	"ongoing",
 ];
 
-// From codersdk/workspaceagents.go
-/**
- * WorkspaceSession represents a client's session containing one or more connections.
- */
-export interface WorkspaceSession {
-	readonly id?: string;
-	readonly ip?: string;
-	readonly client_hostname?: string;
-	readonly short_description?: string;
-	readonly status: WorkspaceConnectionStatus;
-	readonly started_at: string;
-	readonly ended_at?: string;
-	readonly connections: readonly WorkspaceConnection[];
-}
-
-
 // From codersdk/deployment.go
 export interface WorkspaceDeploymentStats {
 	readonly pending: number;
@@ -6934,6 +6917,31 @@ export interface WorkspaceResourceMetadata {
 export type WorkspaceRole = "admin" | "" | "use";
 
 export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
+
+// From codersdk/workspaceagents.go
+/**
+ * WorkspaceSession represents a client's session containing one or more connections.
+ * Live sessions are grouped by IP at query time; historic sessions have a database ID.
+ */
+export interface WorkspaceSession {
+	readonly id?: string; // nil for live sessions
+	readonly ip?: string;
+	readonly client_hostname?: string;
+	readonly short_description?: string;
+	readonly status: WorkspaceConnectionStatus;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly connections: readonly WorkspaceConnection[];
+}
+
+// From codersdk/workspacesessions.go
+/**
+ * WorkspaceSessionsResponse is the response for listing workspace sessions.
+ */
+export interface WorkspaceSessionsResponse {
+	readonly sessions: readonly WorkspaceSession[];
+	readonly count: number;
+}
 
 // From codersdk/workspacesharing.go
 /**
