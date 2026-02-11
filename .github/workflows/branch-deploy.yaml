@@ -1,0 +1,362 @@
+name: Deploy Branch
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      packages: write
+    env:
+      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:pr${{ github.ref_name }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: GHCR Login
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          set -euo pipefail
+          go mod download
+          make gen/mark-fresh
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          version="$(./scripts/version.sh)"
+          CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          export CODER_IMAGE_BUILD_BASE_TAG
+          make -j build/coder_linux_amd64
+          ./scripts/build_docker.sh \
+            --arch amd64 \
+            --target "${CODER_IMAGE_TAG}" \
+            --version "$version" \
+            --push \
+            build/coder_linux_amd64
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      BRANCH_NAME: ${{ github.ref_name }}
+      DEPLOY_NAME: "pr${{ github.ref_name }}"
+      TEST_DOMAIN_SUFFIX: "${{ startsWith(secrets.PR_DEPLOYMENTS_DOMAIN, 'test.') && secrets.PR_DEPLOYMENTS_DOMAIN || format('test.{0}', secrets.PR_DEPLOYMENTS_DOMAIN) }}"
+      BRANCH_HOSTNAME: "${{ github.ref_name }}.${{ startsWith(secrets.PR_DEPLOYMENTS_DOMAIN, 'test.') && secrets.PR_DEPLOYMENTS_DOMAIN || format('test.{0}', secrets.PR_DEPLOYMENTS_DOMAIN) }}"
+      CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:pr${{ github.ref_name }}"
+      REPO: ghcr.io/coder/coder-preview
+      EXPERIMENTS: "*"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up kubeconfig
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.kube
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify cluster authentication
+        run: |
+          set -euo pipefail
+          kubectl auth can-i get namespaces > /dev/null
+
+      - name: Check if deployment exists
+        id: check
+        run: |
+          set -euo pipefail
+
+          set +e
+          helm_status_output="$(helm status "${DEPLOY_NAME}" --namespace "${DEPLOY_NAME}" 2>&1)"
+          helm_status_code=$?
+          set -e
+
+          if [ "$helm_status_code" -eq 0 ]; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          elif echo "$helm_status_output" | grep -qi "release: not found"; then
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$helm_status_output"
+            exit "$helm_status_code"
+          fi
+
+      # ---- Every push: ensure routing + TLS ----
+
+      - name: Ensure DNS records
+        run: |
+          set -euo pipefail
+
+          api_base_url="https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records"
+          base_name="${BRANCH_HOSTNAME}"
+          base_target="${TEST_DOMAIN_SUFFIX}"
+          wildcard_name="*.${BRANCH_HOSTNAME}"
+
+          ensure_cname_record() {
+            local record_name="$1"
+            local record_content="$2"
+
+            echo "Ensuring CNAME ${record_name} -> ${record_content}."
+
+            set +e
+            lookup_raw_response="$(
+              curl -sS -G "${api_base_url}" \
+                -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+                -H "Content-Type:application/json" \
+                --data-urlencode "name=${record_name}" \
+                --data-urlencode "per_page=100" \
+                -w '\n%{http_code}'
+            )"
+            lookup_exit_code=$?
+            set -e
+
+            if [ "$lookup_exit_code" -eq 0 ]; then
+              lookup_response="${lookup_raw_response%$'\n'*}"
+              lookup_http_code="${lookup_raw_response##*$'\n'}"
+
+              if [ "$lookup_http_code" = "200" ] && echo "$lookup_response" | jq -e '.success == true' > /dev/null 2>&1; then
+                if echo "$lookup_response" | jq -e '.result[]? | select(.type != "CNAME")' > /dev/null 2>&1; then
+                  echo "Conflicting non-CNAME DNS record exists for ${record_name}."
+                  echo "$lookup_response"
+                  return 1
+                fi
+
+                existing_cname_id="$(echo "$lookup_response" | jq -r '.result[]? | select(.type == "CNAME") | .id' | head -n1)"
+                if [ -n "$existing_cname_id" ]; then
+                  existing_content="$(echo "$lookup_response" | jq -r --arg id "$existing_cname_id" '.result[] | select(.id == $id) | .content')"
+                  if [ "$existing_content" = "$record_content" ]; then
+                    echo "CNAME already set for ${record_name}."
+                    return 0
+                  fi
+
+                  echo "Updating existing CNAME for ${record_name}."
+                  update_response="$(
+                    curl -sS -X PUT "${api_base_url}/${existing_cname_id}" \
+                      -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+                      -H "Content-Type:application/json" \
+                      --data '{"type":"CNAME","name":"'"${record_name}"'","content":"'"${record_content}"'","ttl":1,"proxied":false}'
+                  )"
+
+                  if echo "$update_response" | jq -e '.success == true' > /dev/null 2>&1; then
+                    echo "Updated CNAME for ${record_name}."
+                    return 0
+                  fi
+
+                  echo "Cloudflare API error while updating ${record_name}:"
+                  echo "$update_response"
+                  return 1
+                fi
+              fi
+            else
+              echo "Could not query DNS record ${record_name}; attempting create."
+            fi
+
+            max_attempts=6
+            attempt=1
+            last_response=""
+            last_http_code=""
+
+            while [ "$attempt" -le "$max_attempts" ]; do
+              echo "Creating DNS record ${record_name} (attempt ${attempt}/${max_attempts})."
+
+              set +e
+              raw_response="$(
+                curl -sS -X POST "${api_base_url}" \
+                  -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+                  -H "Content-Type:application/json" \
+                  --data '{"type":"CNAME","name":"'"${record_name}"'","content":"'"${record_content}"'","ttl":1,"proxied":false}' \
+                  -w '\n%{http_code}'
+              )"
+              curl_exit_code=$?
+              set -e
+
+              curl_failed=false
+              if [ "$curl_exit_code" -eq 0 ]; then
+                response="${raw_response%$'\n'*}"
+                http_code="${raw_response##*$'\n'}"
+              else
+                response="curl exited with code ${curl_exit_code}."
+                http_code="000"
+                curl_failed=true
+              fi
+
+              last_response="$response"
+              last_http_code="$http_code"
+
+              if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+                echo "Created DNS record ${record_name}."
+                return 0
+              fi
+
+              # 81057: identical record exists. 81053: host record conflict.
+              if echo "$response" | jq -e '.errors[]? | select(.code == 81057 or .code == 81053)' > /dev/null 2>&1; then
+                echo "DNS record already exists for ${record_name}."
+                return 0
+              fi
+
+              transient_error=false
+              if [ "$curl_failed" = true ] || [ "$http_code" = "429" ]; then
+                transient_error=true
+              elif [[ "$http_code" =~ ^[0-9]{3}$ ]] && [ "$http_code" -ge 500 ] && [ "$http_code" -lt 600 ]; then
+                transient_error=true
+              fi
+
+              if echo "$response" | jq -e '.errors[]? | select(.code == 10000 or .code == 10001)' > /dev/null 2>&1; then
+                transient_error=true
+              fi
+
+              if [ "$transient_error" = true ] && [ "$attempt" -lt "$max_attempts" ]; then
+                sleep_seconds=$((attempt * 5))
+                echo "Transient Cloudflare API error (HTTP ${http_code}). Retrying in ${sleep_seconds}s."
+                sleep "$sleep_seconds"
+                attempt=$((attempt + 1))
+                continue
+              fi
+
+              break
+            done
+
+            echo "Cloudflare API error while creating DNS record ${record_name} after ${attempt} attempt(s):"
+            echo "HTTP status: ${last_http_code}"
+            echo "$last_response"
+            return 1
+          }
+
+          ensure_cname_record "${base_name}" "${base_target}"
+          ensure_cname_record "${wildcard_name}" "${base_name}"
+
+      # ---- First deploy only ----
+
+      - name: Create namespace
+        if: steps.check.outputs.new == 'true'
+        run: |
+          set -euo pipefail
+          kubectl delete namespace "${DEPLOY_NAME}" || true
+          kubectl create namespace "${DEPLOY_NAME}"
+
+      # ---- Every push: ensure deployment certificate ----
+
+      - name: Ensure certificate
+        env:
+          PR_NUMBER: ${{ env.BRANCH_NAME }}
+          PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
+        run: |
+          set -euo pipefail
+          cert_secret_name="${DEPLOY_NAME}-tls"
+
+          envsubst < ./.github/pr-deployments/certificate.yaml | kubectl apply -f -
+
+          if ! kubectl -n pr-deployment-certs wait --for=condition=Ready "certificate/${cert_secret_name}" --timeout=10m; then
+            echo "Timed out waiting for certificate ${cert_secret_name} to become Ready after 10 minutes."
+            kubectl -n pr-deployment-certs describe certificate "${cert_secret_name}" || true
+            kubectl -n pr-deployment-certs get certificaterequest,order,challenge -l "cert-manager.io/certificate-name=${cert_secret_name}" || true
+            exit 1
+          fi
+
+          kubectl get secret "${cert_secret_name}" -n pr-deployment-certs -o json |
+            jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |
+            kubectl -n "${DEPLOY_NAME}" apply -f -
+
+      - name: Set up PostgreSQL
+        if: steps.check.outputs.new == 'true'
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm install coder-db bitnami/postgresql \
+            --namespace "${DEPLOY_NAME}" \
+            --set image.repository=bitnamilegacy/postgresql \
+            --set auth.username=coder \
+            --set auth.password=coder \
+            --set auth.database=coder \
+            --set persistence.size=10Gi
+          kubectl create secret generic coder-db-url -n "${DEPLOY_NAME}" \
+            --from-literal=url="postgres://coder:coder@coder-db-postgresql.${DEPLOY_NAME}.svc.cluster.local:5432/coder?sslmode=disable"
+
+      - name: Create RBAC
+        if: steps.check.outputs.new == 'true'
+        env:
+          PR_NUMBER: ${{ env.BRANCH_NAME }}
+          PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
+        run: envsubst < ./.github/pr-deployments/rbac.yaml | kubectl apply -f -
+
+      # ---- Every push ----
+
+      - name: Create values.yaml
+        env:
+          PR_NUMBER: ${{ env.BRANCH_NAME }}
+          PR_HOSTNAME: ${{ env.BRANCH_HOSTNAME }}
+          REPO: ${{ env.REPO }}
+          PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID: ${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}
+          PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET: ${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}
+        run: envsubst < ./.github/pr-deployments/values.yaml > ./deploy-values.yaml
+
+      - name: Install/Upgrade Helm chart
+        run: |
+          set -euo pipefail
+          helm dependency update --skip-refresh ./helm/coder
+          helm upgrade --install "${DEPLOY_NAME}" ./helm/coder \
+            --namespace "${DEPLOY_NAME}" \
+            --values ./deploy-values.yaml \
+            --force
+
+      - name: Install coder-logstream-kube
+        if: steps.check.outputs.new == 'true'
+        run: |
+          helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
+          helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
+            --namespace "${DEPLOY_NAME}" \
+            --set url="https://${BRANCH_HOSTNAME}"
+
+      - name: Create first user and template
+        if: steps.check.outputs.new == 'true'
+        run: |
+          set -euo pipefail
+          URL="https://${BRANCH_HOSTNAME}/bin/coder-linux-amd64"
+          COUNT=0
+          until curl --output /dev/null --silent --head --fail "$URL"; do
+            sleep 5
+            COUNT=$((COUNT+1))
+            if [ "$COUNT" -ge 60 ]; then echo "Timed out"; exit 1; fi
+          done
+          curl -fsSL "$URL" -o /tmp/coder && chmod +x /tmp/coder
+
+          password=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-12)
+          echo "::add-mask::$password"
+
+          /tmp/coder login \
+            --first-user-username "${BRANCH_NAME}-admin" \
+            --first-user-email "${BRANCH_NAME}@coder.com" \
+            --first-user-password "$password" \
+            --first-user-trial=false \
+            --use-token-as-session \
+            "https://${BRANCH_HOSTNAME}"
+
+          cd .github/pr-deployments/template
+          /tmp/coder templates push -y --variable "namespace=${DEPLOY_NAME}" kubernetes
+          /tmp/coder create --template="kubernetes" kube \
+            --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
+          /tmp/coder stop kube -y
