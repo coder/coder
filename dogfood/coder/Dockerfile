@@ -296,12 +296,12 @@ RUN systemctl enable \
 # Install tools with published releases, where that is the
 # preferred/recommended installation method.
 ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
-	DIVE_VERSION=0.10.0 \
+	DIVE_VERSION=0.12.0 \
 	DOCKER_GCR_VERSION=2.1.8 \
 	GOLANGCI_LINT_VERSION=1.64.8 \
 	GRYPE_VERSION=0.61.1 \
 	HELM_VERSION=3.12.0 \
-	KUBE_LINTER_VERSION=0.6.3 \
+	KUBE_LINTER_VERSION=0.8.1 \
 	KUBECTX_VERSION=0.9.4 \
 	STRIPE_VERSION=1.14.5 \
 	TERRAGRUNT_VERSION=0.45.11 \
@@ -314,10 +314,9 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 # ALT_ARCH: amd64->x86_64, arm64->arm64 (lazygit, kubectx, kubens, stripe)
 # TRIVY_ARCH: amd64->Linux-64bit, arm64->Linux-ARM64
 # BUN_ARCH/BUN_DIR: amd64->x64/bun-linux-x64, arm64->aarch64/bun-linux-aarch64
-# KUBE_LINTER_SUFFIX: amd64->"", arm64->"-arm64"
 RUN case ${TARGETARCH} in \
-		amd64) ALT_ARCH=x86_64; TRIVY_ARCH=Linux-64bit; BUN_ARCH=x64; BUN_DIR=bun-linux-x64; KUBE_LINTER_SUFFIX="" ;; \
-		arm64) ALT_ARCH=arm64; TRIVY_ARCH=Linux-ARM64; BUN_ARCH=aarch64; BUN_DIR=bun-linux-aarch64; KUBE_LINTER_SUFFIX="-arm64" ;; \
+		amd64) ALT_ARCH=x86_64; TRIVY_ARCH=Linux-64bit; BUN_ARCH=x64; BUN_DIR=bun-linux-x64 ;; \
+		arm64) ALT_ARCH=arm64; TRIVY_ARCH=Linux-ARM64; BUN_ARCH=aarch64; BUN_DIR=bun-linux-aarch64 ;; \
 	esac && \
 	# cloud_sql_proxy, for connecting to cloudsql instances
 	# the upstream go.mod prevents this from being installed with go install
@@ -341,7 +340,7 @@ RUN case ${TARGETARCH} in \
 	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-${TARGETARCH}/helm && \
 	# kube-linter for linting Kubernetes objects, including those
 	# that Helm generates from our charts
-	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux${KUBE_LINTER_SUFFIX}" --output /usr/local/bin/kube-linter && \
+	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/v${KUBE_LINTER_VERSION}/kube-linter-linux_${TARGETARCH}" --output /usr/local/bin/kube-linter && \
 	# kubens and kubectx for managing Kubernetes namespaces and contexts
 	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_${ALT_ARCH}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
