@@ -100,6 +100,11 @@ func OnBuildSlim() string {
 }
 
 func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) error {
+	// Fail fast: HA requires an enterprise license.
+	if c.haCount > 1 && os.Getenv("CODER_LICENSE") == "" {
+		return xerrors.New("CODER_LICENSE must be set when using HA coderd (--coderd-count > 1)")
+	}
+
 	dkr := cat.MustGet(OnDocker()).(*Docker)
 	pool := dkr.Result()
 
@@ -122,6 +127,14 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 			RemoveVolumes: true,
 		}); err != nil {
 			return xerrors.Errorf("remove container %s: %w", cnt.ID, err)
+		}
+	}
+
+	// Ensure license is present for HA deployments.
+	if c.haCount > 1 {
+		pg := cat.MustGet(OnPostgres()).(*Postgres)
+		if err := EnsureLicense(ctx, logger, pg.Result().URL); err != nil {
+			return xerrors.Errorf("ensure license: %w", err)
 		}
 	}
 
