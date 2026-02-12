@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -238,9 +239,40 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	dialer := NewWebsocketDialer(options.Logger, coordinateURL, wsOptions)
 	clk := quartz.NewReal()
 	controller := tailnet.NewController(options.Logger, dialer)
-	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
+	resumeTokenCtrl := tailnet.NewBasicResumeTokenController(options.Logger, clk)
+	controller.ResumeTokenCtrl = resumeTokenCtrl
 
-	ip := tailnet.TailscaleServicePrefix.RandomAddr()
+	// Pre-dial to obtain a server-assigned PeerID. This opens a temporary
+	// DRPC connection, calls RefreshResumeToken (which now returns the
+	// PeerID), then closes. The resume token is seeded into the controller
+	// so subsequent dials reuse the same PeerID.
+	var addresses []netip.Prefix
+	var connID uuid.UUID
+	tokenResp, err := c.preDialPeerID(dialCtx, coordinateURL, wsOptions, options.Logger)
+	if err != nil {
+		// Graceful fallback: if the pre-dial fails (e.g. old server),
+		// use a random IP address like before.
+		options.Logger.Warn(dialCtx, "failed to pre-dial for peer ID, falling back to random address", slog.Error(err))
+		ip := tailnet.CoderServicePrefix.RandomAddr()
+		addresses = []netip.Prefix{netip.PrefixFrom(ip, 128)}
+	} else {
+		peerID, parseErr := uuid.FromBytes(tokenResp.PeerId)
+		if parseErr != nil || peerID == uuid.Nil {
+			// Server returned a response without a PeerID (old server).
+			options.Logger.Warn(dialCtx, "server did not return peer ID, falling back to random address")
+			ip := tailnet.TailscaleServicePrefix.RandomAddr()
+			addresses = []netip.Prefix{netip.PrefixFrom(ip, 128)}
+		} else {
+			connID = peerID
+			addresses = []netip.Prefix{
+				tailnet.CoderServicePrefix.PrefixFromUUID(peerID),
+			}
+			resumeTokenCtrl.SetInitialToken(tokenResp)
+			options.Logger.Debug(dialCtx, "obtained server-assigned peer ID",
+				slog.F("peer_id", peerID.String()))
+		}
+	}
+
 	var header http.Header
 	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
 		header = headerTransport.Header
@@ -254,7 +286,8 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 
 	c.RewriteDERPMap(connInfo.DERPMap)
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		ID:                  connID,
+		Addresses:           addresses,
 		DERPMap:             connInfo.DERPMap,
 		DERPHeader:          &header,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
@@ -307,6 +340,47 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 
 	return agentConn, nil
+}
+
+// preDialPeerID opens a temporary DRPC connection to the coordinate endpoint
+// and calls RefreshResumeToken to obtain the server-assigned PeerID and an
+// initial resume token. The connection is closed before returning. This
+// allows the caller to derive tailnet IP addresses from the PeerID before
+// creating the tailnet.Conn.
+func (*Client) preDialPeerID(
+	ctx context.Context,
+	coordinateURL *url.URL,
+	wsOptions *websocket.DialOptions,
+	logger slog.Logger,
+) (*proto.RefreshResumeTokenResponse, error) {
+	u := new(url.URL)
+	*u = *coordinateURL
+	q := u.Query()
+	// Use version 2.0 for the pre-dial. RefreshResumeToken was added in
+	// 2.3 but fails gracefully as "unimplemented" on older servers.
+	q.Add("version", "2.0")
+	u.RawQuery = q.Encode()
+
+	// nolint:bodyclose
+	ws, _, err := websocket.Dial(ctx, u.String(), wsOptions)
+	if err != nil {
+		return nil, xerrors.Errorf("pre-dial websocket: %w", err)
+	}
+	defer ws.Close(websocket.StatusNormalClosure, "pre-dial complete")
+
+	client, err := tailnet.NewDRPCClient(
+		websocket.NetConn(ctx, ws, websocket.MessageBinary),
+		logger,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("pre-dial DRPC client: %w", err)
+	}
+
+	resp, err := client.RefreshResumeToken(ctx, &proto.RefreshResumeTokenRequest{})
+	if err != nil {
+		return nil, xerrors.Errorf("pre-dial RefreshResumeToken: %w", err)
+	}
+	return resp, nil
 }
 
 // @typescript-ignore:WorkspaceAgentReconnectingPTYOpts

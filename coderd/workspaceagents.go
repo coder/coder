@@ -138,6 +138,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// nolint:gocritic // This is a system operation for a workspace we are cleared to access.
 	peeringEvents, err := api.Database.GetAllTailnetPeeringEventsByPeerID(dbauthz.AsTailnetCoordinator(api.ctx), uuid.NullUUID{UUID: waws.WorkspaceAgent.ID, Valid: true})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -146,7 +147,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if conns := mergeWorkspaceConnections(api.Logger, waws.WorkspaceAgent.ID, peeringEvents, connectionLogs); len(conns) > 0 {
+	if conns := mergeWorkspaceConnections(waws.WorkspaceAgent.ID, peeringEvents, connectionLogs); len(conns) > 0 {
 		apiAgent.Connections = conns
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)

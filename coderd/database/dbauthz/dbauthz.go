@@ -464,7 +464,7 @@ var (
 	subjectTailnetCoordinator = rbac.Subject{
 		Type:         rbac.SubjectTypeTailnetCoordinator,
 		FriendlyName: "Tailnet Coordinator",
-		ID: uuid.Nil.String(),
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "tailnetcoordinator"},

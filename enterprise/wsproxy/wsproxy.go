@@ -273,6 +273,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	agentProvider, err := coderd.NewServerTailnet(ctx,
 		s.Logger,
 		nil,
+		uuid.New(),
 		dialer,
 		regResp.DERPForceWebSockets,
 		opts.BlockDirect,

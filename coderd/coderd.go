@@ -736,16 +736,18 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.ConnectionLogger.Store(&options.ConnectionLogger)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	serverTailnetID := uuid.New()
 	dialer := &InmemTailnetDialer{
 		CoordPtr:            &api.TailnetCoordinator,
 		DERPFn:              api.DERPMap,
 		Logger:              options.Logger,
-		ClientID:            uuid.New(),
+		ClientID:            serverTailnetID,
 		DatabaseHealthCheck: api.Database,
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
 		options.DERPServer,
+		serverTailnetID,
 		dialer,
 		options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		options.DeploymentValues.DERP.Config.BlockDirect.Value(),

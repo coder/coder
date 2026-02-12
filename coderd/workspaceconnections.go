@@ -7,7 +7,6 @@ import (
 	"slices"
 	"time"
 
-	"cdr.dev/slog/v3"
 	"github.com/google/uuid"
 	gProto "google.golang.org/protobuf/proto"
 
@@ -92,29 +91,20 @@ type peeringRecord struct {
 // connection logs provide the application-layer type (ssh, vscode, etc.).
 // Entries are correlated by tailnet IP address.
 func mergeWorkspaceConnections(
-	logger slog.Logger,
 	agentID uuid.UUID,
 	peeringEvents []database.TailnetPeeringEvent,
 	connectionLogs []database.GetOngoingAgentConnectionsLast24hRow,
 ) []codersdk.WorkspaceConnection {
 	if len(peeringEvents) == 0 && len(connectionLogs) == 0 {
-		logger.Info(context.Background(), "no peering events or connection logs", slog.F("agent_id", agentID))
 		return nil
 	}
 	agentAddr := tailnet.CoderServicePrefix.AddrFromUUID(agentID)
-	logger.Info(context.Background(), "agent address", slog.F("agent_id", agentID), slog.F("agent_addr", agentAddr))
 
 	peeringRecords := make(map[string]*peeringRecord)
 
 	for _, pe := range peeringEvents {
 		record, ok := peeringRecords[string(pe.PeeringID)]
 		if !ok {
-			logger.Info(context.Background(), "new peering record from event",
-				slog.F("peering_id", pe.PeeringID),
-				slog.F("agent_id", agentID),
-				slog.F("src_peer_id", pe.SrcPeerID.UUID),
-				slog.F("dst_peer_id", pe.DstPeerID.UUID),
-			)
 			record = &peeringRecord{
 				agentID: agentID,
 			}
@@ -138,7 +128,6 @@ func mergeWorkspaceConnections(
 		peeringID := tailnet.PeeringIDFromAddrs(agentAddr, clientIP)
 		record, ok := peeringRecords[string(peeringID)]
 		if !ok {
-			logger.Info(context.Background(), "new peering record from log", slog.F("peering_id", peeringID), slog.F("agent_id", agentID), slog.F("client_ip", clientIP))
 			record = &peeringRecord{
 				agentID: agentID,
 			}

@@ -1302,12 +1302,12 @@ func (api *API) convertWorkspaceBuild(
 					agentLogs = byAgent[agent.Name]
 				}
 			}
-
+			// nolint:gocritic // This is a system operation for a workspace we are cleared to access.
 			peeringEvents, err := api.Database.GetAllTailnetPeeringEventsByPeerID(dbauthz.AsTailnetCoordinator(api.ctx), uuid.NullUUID{UUID: agent.ID, Valid: true})
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("getting tailnet peering events: %w", err)
 			}
-			if conns := mergeWorkspaceConnections(api.Logger, agent.ID, peeringEvents, agentLogs); len(conns) > 0 {
+			if conns := mergeWorkspaceConnections(agent.ID, peeringEvents, agentLogs); len(conns) > 0 {
 				apiAgent.Connections = conns
 			}
 			apiAgents = append(apiAgents, apiAgent)
