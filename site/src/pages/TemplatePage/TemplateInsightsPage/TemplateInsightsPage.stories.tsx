@@ -187,6 +187,29 @@ export const Loaded: Story = {
 						{
 							template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
 							display_name: "",
+							name: "GitHub Dotfiles",
+							type: "string",
+							description: "This string is optional",
+							values: [
+								{
+									value:
+										"https://github.com/jakehwll/my-comprehensive-dotfiles-with-neovim-tmux-zsh-and-alacritty-configurations",
+									count: 1,
+								},
+								{
+									value: "https://github.com/aslilac/dotfiles",
+									count: 1000000000,
+								},
+								{
+									value:
+										"https://github.com/jaaydenh/dotfiles-and-shell-scripts",
+									count: 3,
+								},
+							],
+						},
+						{
+							template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+							display_name: "",
 							name: "Region",
 							type: "string",
 							description: "These are options.",
