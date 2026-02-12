@@ -58,6 +58,10 @@ func (o *OIDC) CurrentStep() string {
 	return ""
 }
 
+func (o *OIDC) URL() string {
+	return o.result.IssuerURL
+}
+
 func (o *OIDC) setStep(step string) {
 	o.currentStep.Store(&step)
 }

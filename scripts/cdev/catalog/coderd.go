@@ -83,6 +83,10 @@ func (c *Coderd) CurrentStep() string {
 	return ""
 }
 
+func (c *Coderd) URL() string {
+	return c.result.URL
+}
+
 func (c *Coderd) setStep(step string) {
 	c.currentStep.Store(&step)
 }

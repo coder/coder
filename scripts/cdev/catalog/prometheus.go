@@ -50,6 +50,10 @@ func (p *Prometheus) CurrentStep() string {
 	return ""
 }
 
+func (p *Prometheus) URL() string {
+	return p.result.URL
+}
+
 func (p *Prometheus) setStep(step string) {
 	p.currentStep.Store(&step)
 }

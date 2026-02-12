@@ -46,6 +46,11 @@ type ServiceBase interface {
 	Stop(ctx context.Context) error
 }
 
+// ServiceAddressable is implemented by services that expose a URL.
+type ServiceAddressable interface {
+	URL() string
+}
+
 type ConfigurableService interface {
 	ServiceBase
 	Options() serpent.OptionSet

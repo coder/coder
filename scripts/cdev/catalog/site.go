@@ -46,6 +46,10 @@ func (s *Site) CurrentStep() string {
 	return ""
 }
 
+func (s *Site) URL() string {
+	return s.result.URL
+}
+
 func (s *Site) setStep(step string) {
 	s.currentStep.Store(&step)
 }

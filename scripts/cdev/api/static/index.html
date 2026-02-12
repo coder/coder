@@ -140,6 +140,59 @@
     }
     button.danger { background: rgba(248, 113, 113, 0.3); }
     button.danger:hover { background: var(--error); }
+    /* Modal styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      padding: 2rem;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--card-bg);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 1000px;
+      height: 80vh;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--accent);
+    }
+    .modal-title { font-size: 1.1rem; font-weight: 600; }
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+    }
+    .modal-close:hover { color: var(--text); background: transparent; }
+    .modal-body {
+      flex: 1;
+      overflow: auto;
+      padding: 1rem;
+      background: #0d1117;
+    }
+    .log-content {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #c9d1d9;
+    }
+    .log-error { color: var(--error); padding: 1rem; }
     .volumes { display: flex; flex-direction: column; gap: 0.5rem; }
     .volume {
       background: var(--card-bg);
@@ -164,6 +217,19 @@
   </style>
 </head>
 <body>
+  <!-- Logs Modal -->
+  <div id="logs-modal" class="modal-overlay" onclick="if(event.target===this)closeLogs()">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title" id="logs-title">Logs</span>
+        <button class="modal-close" onclick="closeLogs()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="logs-content" class="log-content"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
     <header>
       <h1><span class="status-dot"></span> cdev</h1>
@@ -317,6 +383,83 @@
       btns.forEach(btn => btn.disabled = loading);
     }
 
+    async function copyURL(url) {
+      try {
+        await navigator.clipboard.writeText(url);
+        // Brief visual feedback - find the button and flash it.
+        const btn = document.querySelector(`button[title="${url}"]`);
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = '✓ Copied';
+          setTimeout(() => btn.textContent = orig, 1500);
+        }
+      } catch (err) {
+        showError(`Failed to copy URL: ${err.message}`);
+      }
+    }
+
+    // Logs modal
+    let logsAbortController = null;
+
+    function showLogs(serviceName) {
+      const modal = document.getElementById('logs-modal');
+      const title = document.getElementById('logs-title');
+      const content = document.getElementById('logs-content');
+      
+      title.textContent = `Logs: ${serviceName}`;
+      content.textContent = 'Loading...';
+      modal.classList.add('active');
+      
+      // Abort any existing stream.
+      if (logsAbortController) {
+        logsAbortController.abort();
+      }
+      logsAbortController = new AbortController();
+      
+      // Fetch streaming logs.
+      fetch(`${API_BASE}/api/services/${serviceName}/logs`, {
+        signal: logsAbortController.signal
+      }).then(async response => {
+        if (!response.ok) {
+          const data = await response.json();
+          content.innerHTML = `<div class="log-error">Error: ${data.error || response.statusText}</div>`;
+          return;
+        }
+        
+        content.textContent = '';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        const modalBody = content.parentElement;
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          content.textContent += decoder.decode(value, { stream: true });
+          // Auto-scroll to bottom.
+          modalBody.scrollTop = modalBody.scrollHeight;
+        }
+      }).catch(err => {
+        if (err.name !== 'AbortError') {
+          content.innerHTML = `<div class="log-error">Error: ${err.message}</div>`;
+        }
+      });
+    }
+
+    function closeLogs() {
+      const modal = document.getElementById('logs-modal');
+      modal.classList.remove('active');
+      if (logsAbortController) {
+        logsAbortController.abort();
+        logsAbortController = null;
+      }
+    }
+
+    // Close modal on Escape key.
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeLogs();
+    });
+
     let errorTimeout = null;
 
     function showError(msg) {
@@ -366,6 +509,8 @@
             </div>
             <span class="service-status ${statusClass}">${statusLabel}</span>
             <div class="service-actions">
+              ${svc.url ? `<button onclick="copyURL('${svc.url}')" title="${svc.url}">📋 URL</button>` : ''}
+              <button onclick="showLogs('${svc.name}')">Logs</button>
               ${svc.status === 'pending' ? `<button onclick="startService('${svc.name}')">Start</button>` : ''}
               ${svc.status !== 'pending' ? `<button onclick="restartService('${svc.name}')">Restart</button>` : ''}
               ${svc.status !== 'pending' ? `<button onclick="stopService('${svc.name}')">Stop</button>` : ''}

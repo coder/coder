@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"time"
@@ -24,6 +25,7 @@ type ServiceInfo struct {
 	CurrentStep       string      `json:"current_step,omitempty"`
 	DependsOn         []string    `json:"depends_on"`
 	UnmetDependencies []string    `json:"unmet_dependencies,omitempty"`
+	URL               string      `json:"url,omitempty"`
 }
 
 // ListServicesResponse is the response for GET /api/services.
@@ -54,6 +56,11 @@ func (s *Server) buildListServicesResponse() ListServicesResponse {
 			Status:      status,
 			CurrentStep: svc.CurrentStep(),
 			DependsOn:   serviceNamesToStrings(svc.DependsOn()),
+		}
+
+		// Include URL if service is addressable.
+		if addressable, ok := svc.(catalog.ServiceAddressable); ok {
+			info.URL = addressable.URL()
 		}
 
 		// Include unmet dependencies for non-completed services.
@@ -146,6 +153,89 @@ func (s *Server) handleStopService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+}
+
+func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+
+	dockerSvc, ok := s.catalog.Get(catalog.CDevDocker)
+	if !ok {
+		s.writeError(w, http.StatusServiceUnavailable, "docker service not available")
+		return
+	}
+
+	dockerService, ok := dockerSvc.(*catalog.Docker)
+	if !ok {
+		s.writeError(w, http.StatusInternalServerError, "invalid docker service type")
+		return
+	}
+
+	pool := dockerService.Result()
+	if pool == nil {
+		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
+		return
+	}
+
+	// Find containers matching the service label.
+	filter := catalog.NewServiceLabels(catalog.ServiceName(name)).Filter()
+	containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+		All:     true,
+		Filters: filter,
+	})
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to list containers: "+err.Error())
+		return
+	}
+
+	if len(containers) == 0 {
+		s.writeError(w, http.StatusNotFound, "no container found for service")
+		return
+	}
+
+	// Set headers for streaming.
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		s.writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+
+	// Create a flushing writer that flushes after each write.
+	fw := &flushWriter{w: w, f: flusher}
+
+	// Stream logs from container.
+	ctx := r.Context()
+	err = pool.Client.Logs(docker.LogsOptions{
+		Context:      ctx,
+		Container:    containers[0].ID,
+		OutputStream: fw,
+		ErrorStream:  fw,
+		Follow:       true,
+		Stdout:       true,
+		Stderr:       true,
+		Tail:         "100", // Start with last 100 lines.
+		Timestamps:   true,
+	})
+	if err != nil && ctx.Err() == nil {
+		// Only log error if context wasn't cancelled (client disconnect).
+		s.logger.Error(ctx, "log streaming error", slog.Error(err))
+	}
+}
+
+// flushWriter wraps a writer and flusher to flush after each write.
+type flushWriter struct {
+	w io.Writer
+	f http.Flusher
+}
+
+func (fw *flushWriter) Write(p []byte) (n int, err error) {
+	n, err = fw.w.Write(p)
+	fw.f.Flush()
+	return
 }
 
 func (s *Server) handleStartAllServices(w http.ResponseWriter, r *http.Request) {
