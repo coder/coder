@@ -173,10 +173,11 @@ func scanFile(path string) ([]Metric, error) {
 
 		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
-			// TODO(ssncferreira): Consider filtering out metrics with empty Help descriptions.
-			//   These indicate missing documentation in the source code.
 			if metric.Help == "" {
-				log.Printf("WARNING: metric %q has no HELP description, consider updating the source code", metric.Name)
+				log.Printf("WARNING: metric %q has no HELP description, skipping", metric.Name)
+				// Skip metrics without descriptions, they should be fixed in the source code
+				// or added to the static metrics file with a manual description.
+				return true
 			}
 			metrics = append(metrics, metric)
 		}
