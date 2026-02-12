@@ -79,7 +79,7 @@ services:
     restart: unless-stopped
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.6.1
     container_name: tempo
     ports:
       - "3200:3200"   # Tempo HTTP

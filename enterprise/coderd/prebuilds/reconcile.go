@@ -1051,10 +1051,10 @@ func (c *StoreReconciler) provision(
 
 	// Strip trace context - provisionerd is a separate service and should
 	// start its own trace rather than continuing the prebuilds trace.
-	buildCtx := trace.ContextWithSpan(ctx, tracing.NoopSpan)
+	//buildCtx := trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
 	_, provisionerJob, _, err := builder.Build(
-		buildCtx,
+		ctx,
 		db,
 		c.fileCache,
 		func(_ policy.Action, _ rbac.Objecter) bool {

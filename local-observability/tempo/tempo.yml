@@ -46,10 +46,10 @@ metrics_generator:
       # Persist blocks so you can query a longer window than just in-memory
       flush_to_storage: true
 
-compactor:
-  compaction:
+        #compactor:
+        # compaction:
     # Totally fine to tweak; this is just a sane default for local dev
-    block_retention: 24h
+    #block_retention: 24h
 
 storage:
   trace:
