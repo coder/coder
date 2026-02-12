@@ -487,6 +487,27 @@ func (c *Catalog) RestartService(ctx context.Context, name ServiceName, logger s
 	return nil
 }
 
+// StartService starts a previously stopped service, transitioning its
+// unit.Manager status through pending → started → completed.
+func (c *Catalog) StartService(ctx context.Context, name ServiceName, logger slog.Logger) error {
+	svc, ok := c.services[name]
+	if !ok {
+		return xerrors.Errorf("service %q not found", name)
+	}
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusStarted); err != nil {
+		return xerrors.Errorf("update status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+	if err := svc.Start(ctx, logger, c); err != nil {
+		return xerrors.Errorf("start %s: %w", name, err)
+	}
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusComplete); err != nil {
+		return xerrors.Errorf("update status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+	return nil
+}
+
 // StopService stops a service and resets its unit.Manager status to pending.
 func (c *Catalog) StopService(ctx context.Context, name ServiceName) error {
 	svc, ok := c.services[name]

@@ -100,6 +100,19 @@ func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, info)
 }
 
+func (s *Server) handleStartService(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if _, ok := s.catalog.Get(catalog.ServiceName(name)); !ok {
+		s.writeError(w, http.StatusNotFound, "service not found")
+		return
+	}
+	if err := s.catalog.StartService(r.Context(), catalog.ServiceName(name), s.logger); err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to start service: "+err.Error())
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]string{"status": "started"})
+}
+
 func (s *Server) handleRestartService(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if _, ok := s.catalog.Get(catalog.ServiceName(name)); !ok {

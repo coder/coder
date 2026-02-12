@@ -131,6 +131,21 @@
       }
     }
 
+    async function startService(name) {
+      setLoading(name, true);
+      try {
+        const res = await fetch(`${API_BASE}/api/services/${name}/start`, { method: 'POST' });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+      } catch (err) {
+        showError(`Failed to start ${name}: ${err.message}`);
+      } finally {
+        setLoading(name, false);
+      }
+    }
+
     async function restartService(name) {
       setLoading(name, true);
       try {
@@ -206,8 +221,9 @@
             </div>
             <span class="service-status ${statusClass}">${statusLabel}</span>
             <div class="service-actions">
-              <button onclick="restartService('${svc.name}')">Restart</button>
-              <button onclick="stopService('${svc.name}')">Stop</button>
+              ${svc.status === 'pending' ? `<button onclick="startService('${svc.name}')">Start</button>` : ''}
+              ${svc.status !== 'pending' ? `<button onclick="restartService('${svc.name}')">Restart</button>` : ''}
+              ${svc.status !== 'pending' ? `<button onclick="stopService('${svc.name}')">Stop</button>` : ''}
             </div>
           </div>
         `;

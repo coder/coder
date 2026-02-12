@@ -41,6 +41,7 @@ func NewServer(c *catalog.Catalog, logger slog.Logger, addr string) *Server {
 	mux.HandleFunc("GET /api/services", s.handleListServices)
 	mux.HandleFunc("GET /api/services/{name}", s.handleGetService)
 	mux.HandleFunc("POST /api/services/{name}/restart", s.handleRestartService)
+	mux.HandleFunc("POST /api/services/{name}/start", s.handleStartService)
 	mux.HandleFunc("POST /api/services/{name}/stop", s.handleStopService)
 
 	// Health endpoint.
