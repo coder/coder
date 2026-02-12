@@ -28,12 +28,18 @@ coderd_insights_templates_active_users{template_name=""} 0
 # HELP coderd_license_active_users The number of active users.
 # TYPE coderd_license_active_users gauge
 coderd_license_active_users 0
+# HELP coderd_license_errors The number of active license errors.
+# TYPE coderd_license_errors gauge
+coderd_license_errors 0
 # HELP coderd_license_limit_users The user seats limit based on the active Coder license.
 # TYPE coderd_license_limit_users gauge
 coderd_license_limit_users 0
 # HELP coderd_license_user_limit_enabled Returns 1 if the current license enforces the user limit.
 # TYPE coderd_license_user_limit_enabled gauge
 coderd_license_user_limit_enabled 0
+# HELP coderd_license_warnings The number of active license warnings.
+# TYPE coderd_license_warnings gauge
+coderd_license_warnings 0
 # HELP coderd_prebuilt_workspaces_claimed_total Total number of prebuilt workspaces which were claimed by users. Claiming refers to creating a workspace with a preset selected for which eligible prebuilt workspaces are available and one is reassigned to a user.
 # TYPE coderd_prebuilt_workspaces_claimed_total counter
 coderd_prebuilt_workspaces_claimed_total{template_name="",preset_name="",organization_name=""} 0

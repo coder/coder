@@ -196,6 +196,8 @@ func resolveBinaryExpr(expr *ast.BinaryExpr, decls declarations) string {
 }
 
 // extractStringSlice extracts a []string from a composite literal.
+// Example:
+//   - []string{"a", "b", myConst}: ["a", "b", <resolved value of myConst>]
 func extractStringSlice(lit *ast.CompositeLit, decls declarations) []string {
 	var labels []string
 	for _, elt := range lit.Elts {
@@ -242,8 +244,8 @@ func collectDecls(file *ast.File) declarations {
 					}
 				case *ast.CompositeLit:
 					// Slice literal: var labels = []string{"a", "b"}
-					if labels := extractStringSlice(v, decls); labels != nil {
-						decls.stringSlices[name.Name] = labels
+					if resolved := extractStringSlice(v, decls); resolved != nil {
+						decls.stringSlices[name.Name] = resolved
 					}
 				}
 			}
@@ -253,8 +255,12 @@ func collectDecls(file *ast.File) declarations {
 	return decls
 }
 
-// extractLabels extracts label names from an expression.
-// Handles []string{...} literals and variable references.
+// extractLabels extracts label names from an expression passed as an argument
+// to a metric constructor. Handles both inline []string literals and
+// variable references from decls.
+// Examples:
+//   - []string{"label1", "label2"}: ["label1", "label2"] (inline literal)
+//   - myLabels: resolved value of myLabels variable (variable reference)
 func extractLabels(expr ast.Expr, decls declarations) []string {
 	switch e := expr.(type) {
 	case *ast.CompositeLit:
@@ -281,6 +287,9 @@ func extractNewDescMetric(call *ast.CallExpr, decls declarations) (Metric, bool)
 		return Metric{}, false
 	}
 
+	// Match calls that are exactly "prometheus.NewDesc()". This checks the local
+	// package identifier, not the resolved import path. If the prometheus package
+	// is imported with an alias, this will not match.
 	ident, ok := sel.X.(*ast.Ident)
 	if !ok || ident.Name != "prometheus" || sel.Sel.Name != "NewDesc" {
 		return Metric{}, false
@@ -294,6 +303,7 @@ func extractNewDescMetric(call *ast.CallExpr, decls declarations) (Metric, bool)
 	// Extract name (first argument).
 	name := resolveStringExpr(call.Args[0], decls)
 	if name == "" {
+		log.Printf("extractNewDescMetric: skipping prometheus.NewDesc() call: could not resolve metric name")
 		return Metric{}, false
 	}
 
