@@ -1,39 +1,128 @@
 # Agent Boundaries
 
 Agent Boundaries are process-level firewalls that restrict and audit what
-autonomous programs, such as AI agents, can access and use.
+autonomous programs — such as AI coding agents — can access over the network.
+They use a **default-deny architecture** where administrators explicitly
+allowlist which domains, HTTP methods, and URL paths agents can reach. Everything
+else is blocked and logged.
 
 ![Screenshot of Agent Boundaries blocking a process](../../images/guides/ai-agents/boundary.png)Example
 of Agent Boundaries blocking a process.
 
-## Supported Agents
+## Architecture
 
-Agent Boundaries support the securing of any terminal-based agent, including
-your own custom agents.
+Agent Boundaries use Linux kernel-level isolation to create a separate network
+namespace around the wrapped process. All outbound network requests from the
+agent are routed through a proxy where the allowlist policy is applied.
+
+### How it works
+
+Boundary operates at the **process level**, not at the workspace or VM level. It
+wraps individual agent processes (like `claude` or `codex`) and ensures that the
+wrapped process can only reach the network through Boundary's proxy.
+
+### Enforcement lifecycle
+
+1. A template admin defines a `config.yaml` with network policies (allowed
+   domains, HTTP methods, URL paths).
+2. The config is mounted into the workspace via a `coder_script` resource.
+3. Agent Boundaries wraps the agent process:
+   `boundary -- claude` (or via the Claude Code module with
+   `enable_boundary = true`).
+4. All outbound network requests from the wrapped process are intercepted.
+5. Each request is checked against the policy (URL pattern + HTTP method).
+6. Allowed requests pass through; blocked requests are denied and logged.
+7. Audit logs (policy decisions) stream to the Coder control plane for
+   centralized monitoring.
+8. Application logs (debugging info) are written locally to the workspace.
+
+### Key architectural points
+
+- **Process-level isolation.** Boundary wraps individual processes, not entire
+  workspaces. The agent cannot reach the network except through Boundary's
+  proxy.
+- **Default-deny.** If a domain is not on the allowlist, the request is blocked.
+- **Template-level governance.** Policies are defined in workspace templates
+  (infrastructure as code), not per-user. Every workspace launched from a
+  template picks up the same policy.
+- **Agent-agnostic.** Works with any terminal-based agent, including Claude Code,
+  Codex, and custom agents.
+
+## Supported agents
+
+Agent Boundaries work with any terminal-based agent that runs inside a Coder
+workspace, including:
+
+- Claude Code
+- Codex CLI
+- Custom agents and scripts
+
+> **Note:** Agent Boundaries only protect agents running inside Coder
+> workspaces. IDE-based agents running on a developer's local machine (such as
+> Cursor running locally) cannot be wrapped by Boundary — the agent's runtime
+> must be inside the workspace for Boundary to be effective.
 
 ## Features
 
-Agent Boundaries offer network policy enforcement, which blocks domains and HTTP
-verbs to prevent exfiltration, and writes logs to the workspace.
+- **Data exfiltration prevention**: Agents can only reach explicitly allowed
+  domains. Unauthorized destinations (e.g., pastebin, public S3 buckets) are
+  blocked by default.
+- **Prompt injection mitigation**: Even if an agent is tricked by malicious
+  content (e.g., a crafted README), Boundary limits what network actions the
+  agent can actually take.
+- **Supply chain protection**: Control which package registries agents can pull
+  from.
+- **Centralized audit logs**: All policy decisions (allow/deny) stream to the
+  Coder control plane as structured logs, available for any log aggregation
+  system.
+- **Template-level governance**: Policies travel with the template — define
+  once, apply to every workspace.
 
-Agent Boundaries also stream audit logs to Coder's control plane for centralized
-monitoring of HTTP requests.
+## Getting started
 
-## Getting Started with Agent Boundaries
+There are two ways to adopt Agent Boundaries. We recommend doing both simultaneously.
 
-The easiest way to use Agent Boundaries is through existing Coder modules, such
-as the
-[Claude Code module](https://registry.coder.com/modules/coder/claude-code). It
-can also be ran directly in the terminal by installing the
-[CLI](https://github.com/coder/boundary).
+### Via Coder modules 
+
+Enable Agent Boundaries in existing agent modules. The module handles
+installation and wrapping automatically, including within
+[Coder Tasks](../tasks.md).
+
+```hcl
+module "claude-code" {
+  source           = "dev.registry.coder.com/coder/claude-code/coder"
+  version          = "4.7.0"
+  enable_boundary  = true
+}
+```
+
+### Via standalone CLI
+
+Install the `boundary` CLI directly and wrap any terminal-based agent manually:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
+```
+
+Then wrap your agent:
+
+```bash
+boundary -- claude
+boundary -- codex
+boundary -- ./my-custom-agent.sh
+```
+
+This approach is necessary when developers SSH into workspaces and run agents
+directly rather than through Coder Tasks.
 
 ## Configuration
 
-> [!NOTE]
-> For information about version requirements and compatibility, see the [Version Requirements](./version.md) documentation.
+> For version requirements and compatibility, see the
+> [Version Requirements](./version.md) documentation.
 
-Agent Boundaries is configured using a `config.yaml` file. This allows you to
-maintain allow lists and share detailed policies with teammates.
+Agent Boundaries are configured using a `config.yaml` file placed at
+`~/.config/coder_boundary/config.yaml`. This allows you to maintain allowlists
+and share detailed policies with teammates through version control.
 
 In your Terraform module, enable Agent Boundaries with minimal configuration:
 
@@ -45,7 +134,11 @@ module "claude-code" {
 }
 ```
 
-Create a `config.yaml` file in your template directory with your policy. For the
+### Minimal configuration
+
+Create a `config.yaml` file in your template directory:
+
+For the
 Claude Code module, use the following minimal configuration:
 
 ```yaml
@@ -60,14 +153,14 @@ proxy_port: 8087
 log_level: warn
 ```
 
-For a basic recommendation of what to allow for agents, see the
+For a recommended starting point, see the
 [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
-For a comprehensive example of a production Agent Boundaries configuration, see
-the
-[Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
+For a comprehensive production example, see the
+[Coder dogfood policy](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
 
-Add a `coder_script` resource to mount the configuration file into the workspace
-filesystem:
+### Mounting the configuration
+
+Add a `coder_script` resource to mount the config into the workspace:
 
 ```tf
 resource "coder_script" "boundary_config_setup" {
@@ -85,34 +178,34 @@ resource "coder_script" "boundary_config_setup" {
 ```
 
 Agent Boundaries automatically reads `config.yaml` from
-`~/.config/coder_boundary/` when it starts, so everyone who launches Agent
-Boundaries manually inside the workspace picks up the same configuration without
-extra flags. This is especially convenient for managing extensive allow lists in
+`~/.config/coder_boundary/` when it starts. Everyone who launches Agent
+Boundaries inside the workspace picks up the same configuration without extra
+flags. This is especially convenient for managing extensive allow lists in
 version control.
 
-### Configuration Parameters
+### Configuration parameters
 
-- `log_dir` defines where boundary writes log files
-- `log_level` defines the verbosity at which requests are logged. Agent
-  Boundaries uses the following verbosity levels:
-  - `WARN`: logs only requests that have been blocked by Agent Boundaries
-  - `INFO`: logs all requests at a high level
-  - `DEBUG`: logs all requests in detail
-- `proxy_port` defines the port used by the HTTP proxy.
-- `allowlist` defines the URLs that the agent can access, in addition to the
-  default URLs required for the agent to work. Rules use the format
-  `"key=value [key=value ...]"`:
-  - `domain=github.com` - allows the domain and all its subdomains
-  - `domain=*.github.com` - allows only subdomains (the specific domain is
-    excluded)
-  - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a
-    domain
-  - `method=POST domain=api.example.com path=/users,/posts` - allows specific
-    methods, domain, and paths
-  - `path=/api/v1/*,/api/v2/*` - allows specific URL paths
+| Parameter    | Description                                                      |
+|------------- |------------------------------------------------------------------|
+| `allowlist`  | URL patterns the agent can access. See [allowlist rules](#allowlist-rules) below. |
+| `log_dir`    | Directory where Boundary writes local log files.                 |
+| `log_level`  | Verbosity: `WARN` (blocked only), `INFO` (all requests), `DEBUG` (detailed). |
+| `proxy_port` | Port used by the HTTP proxy.                                     |
 
-For detailed information about the rules engine and how to construct allowlist
-rules, see the [rules engine documentation](./rules-engine.md).
+### Allowlist rules
+
+Rules use the format `"key=value [key=value ...]"`:
+
+| Pattern | Description |
+|---------|-------------|
+| `domain=github.com` | Allows the domain and all its subdomains. |
+| `domain=*.github.com` | Allows only subdomains (the specific domain is excluded). |
+| `method=GET,HEAD domain=api.github.com` | Allows specific HTTP methods for a domain. |
+| `method=POST domain=api.example.com path=/users,/posts` | Allows specific methods, domain, and paths. |
+| `path=/api/v1/*,/api/v2/*` | Allows specific URL paths. |
+
+For detailed information about rule construction, see the
+[rules engine documentation](./rules-engine.md).
 
 You can also run Agent Boundaries directly in your workspace and configure it
 per template. You can do so by installing the
@@ -125,18 +218,25 @@ curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | ba
 
 ## Jail Types
 
-Agent Boundaries supports two different jail types for process isolation, each
-with different characteristics and requirements:
+Agent Boundaries supports two jail types for process isolation:
 
-1. **nsjail** - Uses Linux namespaces for isolation. This is the default jail
-   type and provides network namespace isolation. See
-   [nsjail documentation](./nsjail.md) for detailed information about runtime
-   requirements and Docker configuration.
+### nsjail (default)
 
-2. **landjail** - Uses Landlock V4 for network isolation. This provides network
-   isolation through the Landlock Linux Security Module (LSM) without requiring
-   network namespace capabilities. See [landjail documentation](./landjail.md)
-   for implementation details.
+Uses Linux namespaces for isolation. Creates a separate network namespace at the
+kernel level and routes all traffic through the proxy. Requires `CAP_NET_ADMIN`.
+
+See [nsjail documentation](./nsjail.md) for runtime requirements and Docker
+configuration.
+
+### landjail
+
+Uses Landlock V4 for network isolation. **Requires no special permissions**,
+making it suitable for environments where granting `CAP_NET_ADMIN` is not
+feasible.
+
+See [landjail documentation](./landjail.md) for implementation details.
+
+### Choosing a jail type
 
 The choice of jail type depends on your security requirements, available Linux
 capabilities, and runtime environment. Both nsjail and landjail provide network
@@ -199,12 +299,62 @@ Each Agent Boundaries audit log entry includes:
 
 ### Viewing Audit Logs
 
-Agent Boundaries audit logs are emitted as structured log entries from the Coder
-server. You can collect and analyze these logs using any log aggregation system
-such as Grafana Loki.
+Audit logs are emitted as structured log entries from the Coder server. Collect
+and analyze them using any log aggregation system (Grafana Loki, Splunk,
+Elastic, etc.)
 
 Example of an allowed request (assuming stderr):
 
 ```console
 2026-01-16 00:11:40.564 [info]  coderd.agentrpc: boundary_request owner=joe  workspace_name=some-task-c88d agent_name=dev  decision=allow  workspace_id=f2bd4e9f-7e27-49fc-961e-be4d1c2aa987  http_method=GET http_url=https://dev.coder.com  event_time=2026-01-16T00:11:39.388607657Z  matched_rule=domain=dev.coder.com request_id=9f30d667-1fc9-47ba-b9e5-8eac46e0abef trace=478b2b45577307c4fd1bcfc64fad6ffb span=9ece4bc70c311edb
 ```
+## Using Agent Boundaries with AI Bridge
+
+Agent Boundaries and [AI Bridge](../ai-bridge/index.md) are independent features
+that deliver maximum value when deployed together:
+
+- **AI Bridge** governs the *LLM layer* — identity, audit, cost, and tool
+  management.
+- **Agent Boundaries** governs the *network layer* — restricting which domains
+  agents can reach.
+
+A common pattern is to use Boundaries to **block direct access to LLM provider
+APIs** (e.g., `api.openai.com`, `api.anthropic.com`) and force all AI traffic
+through Bridge. This ensures every AI interaction is authenticated, logged, and
+attributed — with no way for agents to bypass the governance layer.
+
+## Current scope and limitations
+
+Agent Boundaries are under active development. The following describes the
+current scope to help you plan your deployment:
+
+- **Process-level, not network-level.** Boundary wraps individual processes. If
+  an agent is launched directly without the `boundary` wrapper (e.g., `claude`
+  instead of `boundary -- claude`), it will not be subject to Boundary policies.
+  To enforce Boundary usage, run agents through
+  [Coder Tasks](../tasks.md), where Boundary can be required by the template.
+- **Per-template scoping.** Policies are scoped per-template, not per-user or
+  per-group. To apply different policies to different teams, use separate
+  templates. Policies are updated when workspaces are rebuilt with the latest
+  template version.
+- **CLI-based agents only.** Boundary protects agents running inside Coder
+  workspaces. It does not protect IDE-based agents running on a developer's
+  local machine — the agent runtime must be inside the workspace.
+- **No agent source discrimination.** Boundary currently cannot differentiate
+  between requests originating from a user command versus an AI agent within the
+  same wrapped process. To apply different trust levels, use separate templates
+  (e.g., a human+agent template with broader access vs. an agent-only template
+  with restricted access).
+- **Log correlation with AI Bridge.** Correlating Boundary audit logs with AI
+  Bridge logs currently requires exporting both streams to an external SIEM and
+  joining on shared fields (user, workspace, timestamp). Built-in
+  cross-referencing is planned for a future release.
+
+## Next steps
+
+- [nsjail](./nsjail.md) — Namespace-based jail configuration and requirements.
+- [landjail](./landjail.md) — Landlock V4-based jail without extra permissions.
+- [Rules Engine](./rules-engine.md) — Detailed guide to constructing allowlist
+  rules.
+- [Version Compatibility](./version.md) — Version requirements for Coder and
+  Agent Boundaries.
