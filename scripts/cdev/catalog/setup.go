@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 
 	"golang.org/x/xerrors"
 
@@ -50,7 +51,19 @@ func OnSetup() ServiceName {
 // Setup creates the first user and a regular member user for the Coder
 // deployment. This is a one-shot service that runs after coderd is ready.
 type Setup struct {
-	result SetupResult
+	currentStep atomic.Pointer[string]
+	result      SetupResult
+}
+
+func (s *Setup) CurrentStep() string {
+	if st := s.currentStep.Load(); st != nil {
+		return *st
+	}
+	return ""
+}
+
+func (s *Setup) setStep(step string) {
+	s.currentStep.Store(&step)
 }
 
 func NewSetup() *Setup {
@@ -72,6 +85,8 @@ func (*Setup) DependsOn() []ServiceName {
 }
 
 func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
+	defer s.setStep("")
+
 	coderd, ok := c.MustGet(OnCoderd()).(*Coderd)
 	if !ok {
 		return xerrors.New("unexpected type for Coderd service")
@@ -111,6 +126,7 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 
 	if !hasFirstUser {
 		// Create the first admin user.
+		s.setStep("Creating first admin user")
 		logger.Info(ctx, "creating first admin user",
 			slog.F("email", defaultAdminEmail),
 			slog.F("username", defaultAdminUsername))
@@ -131,6 +147,7 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 	}
 
 	// Login to get a session token.
+	s.setStep("Logging in as admin")
 	logger.Info(ctx, "logging in as admin user")
 	loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 		Email:    defaultAdminEmail,
@@ -167,6 +184,7 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 		}
 
 		// Create a regular member user.
+		s.setStep("Creating member user")
 		logger.Info(ctx, "creating regular member user",
 			slog.F("email", defaultMemberEmail),
 			slog.F("username", defaultMemberUsername))

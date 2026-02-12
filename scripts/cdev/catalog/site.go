@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/ory/dockertest/v3/docker"
@@ -33,8 +34,20 @@ func OnSite() ServiceName {
 
 // Site runs the Coder frontend dev server inside a Docker container.
 type Site struct {
+	currentStep atomic.Pointer[string]
 	containerID string
 	result      SiteResult
+}
+
+func (s *Site) CurrentStep() string {
+	if st := s.currentStep.Load(); st != nil {
+		return *st
+	}
+	return ""
+}
+
+func (s *Site) setStep(step string) {
+	s.currentStep.Store(&step)
 }
 
 func NewSite() *Site {
@@ -57,6 +70,8 @@ func (*Site) DependsOn() []ServiceName {
 }
 
 func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
+	defer s.setStep("")
+
 	dkr, ok := c.MustGet(OnDocker()).(*Docker)
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
@@ -91,6 +106,7 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	portStr := fmt.Sprintf("%d", sitePort)
 	httpAddress := fmt.Sprintf("0.0.0.0:%d", sitePort)
 
+	s.setStep("Starting frontend dev server")
 	logger.Info(ctx, "starting site dev server container", slog.F("port", sitePort))
 
 	cntSink := NewLoggerSink(c.w, s)
@@ -106,6 +122,7 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	}
 
 	// Command to install dependencies and start the dev server.
+	s.setStep("Installing pnpm dependencies")
 	cmd := []string{
 		"sh", "-c",
 		"pnpm install --frozen-lockfile && pnpm dev --host",
@@ -151,6 +168,7 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 		Port: portStr,
 	}
 
+	s.setStep("Waiting for dev server")
 	return s.waitForReady(ctx, logger)
 }
 

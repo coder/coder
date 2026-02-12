@@ -3,15 +3,18 @@ package api
 import (
 	"net/http"
 
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
 )
 
 // ServiceInfo represents a service in the API response.
 type ServiceInfo struct {
-	Name      string   `json:"name"`
-	Emoji     string   `json:"emoji"`
-	Status    string   `json:"status"`
-	DependsOn []string `json:"depends_on"`
+	Name              string      `json:"name"`
+	Emoji             string      `json:"emoji"`
+	Status            unit.Status `json:"status"`
+	CurrentStep       string      `json:"current_step,omitempty"`
+	DependsOn         []string    `json:"depends_on"`
+	UnmetDependencies []string    `json:"unmet_dependencies,omitempty"`
 }
 
 // ListServicesResponse is the response for GET /api/services.
@@ -31,12 +34,25 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 	var services []ServiceInfo
 
 	_ = s.catalog.ForEach(func(svc catalog.ServiceBase) error {
-		info := ServiceInfo{
-			Name:      string(svc.Name()),
-			Emoji:     svc.Emoji(),
-			Status:    "running", // TODO: Track actual status in catalog.
-			DependsOn: serviceNamesToStrings(svc.DependsOn()),
+		status, err := s.catalog.Status(svc.Name())
+		if err != nil {
+			return err
 		}
+
+		info := ServiceInfo{
+			Name:        string(svc.Name()),
+			Emoji:       svc.Emoji(),
+			Status:      status,
+			CurrentStep: svc.CurrentStep(),
+			DependsOn:   serviceNamesToStrings(svc.DependsOn()),
+		}
+
+		// Include unmet dependencies for non-completed services.
+		if status != unit.StatusComplete {
+			unmet, _ := s.catalog.UnmetDependencies(svc.Name())
+			info.UnmetDependencies = unmet
+		}
+
 		services = append(services, info)
 		return nil
 	})
@@ -53,11 +69,24 @@ func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	status, err := s.catalog.Status(catalog.ServiceName(name))
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to get service status: "+err.Error())
+		return
+	}
+
 	info := ServiceInfo{
-		Name:      string(svc.Name()),
-		Emoji:     svc.Emoji(),
-		Status:    "running", // TODO: Track actual status in catalog.
-		DependsOn: serviceNamesToStrings(svc.DependsOn()),
+		Name:        string(svc.Name()),
+		Emoji:       svc.Emoji(),
+		Status:      status,
+		CurrentStep: svc.CurrentStep(),
+		DependsOn:   serviceNamesToStrings(svc.DependsOn()),
+	}
+
+	// Include unmet dependencies for non-completed services.
+	if status != unit.StatusComplete {
+		unmet, _ := s.catalog.UnmetDependencies(svc.Name())
+		info.UnmetDependencies = unmet
 	}
 
 	s.writeJSON(w, http.StatusOK, info)

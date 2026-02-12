@@ -22,7 +22,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/scripts/cdev/api"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
-	"github.com/coder/coder/v2/scripts/cdev/cleanup"
 	"github.com/coder/serpent"
 )
 
@@ -43,6 +42,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	sigs := make(chan os.Signal, 1)
 	// We want to catch SIGINT (Ctrl+C) and SIGTERM (graceful shutdown).
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -60,8 +60,6 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-
-	<-ctx.Done()
 }
 
 func cleanCmd() *serpent.Command {
@@ -76,7 +74,7 @@ func cleanCmd() *serpent.Command {
 
 			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
 
-			return cleanup.Cleanup(inv.Context(), logger, pool)
+			return catalog.Cleanup(inv.Context(), logger, pool)
 		},
 	}
 }
@@ -93,7 +91,7 @@ func downCmd() *serpent.Command {
 
 			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
 
-			return cleanup.Down(inv.Context(), logger, pool)
+			return catalog.Down(inv.Context(), logger, pool)
 		},
 	}
 }
@@ -218,7 +216,7 @@ func (m *psModel) View() string {
 	var s strings.Builder
 	_, _ = s.WriteString("SERVICES\n")
 	tw := tabwriter.NewWriter(&s, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "NAME\tEMOJI\tSTATUS\tDEPENDS ON")
+	_, _ = fmt.Fprintln(tw, "NAME\tEMOJI\tSTATUS\tCURRENT STEP\tDEPENDS ON")
 
 	// Sort services by name.
 	services := slices.Clone(m.services)
@@ -231,7 +229,11 @@ func (m *psModel) View() string {
 		if len(svc.DependsOn) > 0 {
 			deps = strings.Join(svc.DependsOn, ", ")
 		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", svc.Name, svc.Emoji, svc.Status, deps)
+		step := "-"
+		if svc.CurrentStep != "" {
+			step = svc.CurrentStep
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", svc.Name, svc.Emoji, svc.Status, step, deps)
 	}
 	_ = tw.Flush()
 

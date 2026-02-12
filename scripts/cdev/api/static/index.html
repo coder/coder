@@ -61,6 +61,8 @@
     .service-info { flex: 1; }
     .service-name { font-weight: 600; font-size: 1.1rem; }
     .service-deps { color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; }
+    .service-step { color: var(--primary); font-size: 0.8rem; margin-top: 0.25rem; font-style: italic; }
+    .service-unmet { color: var(--warning); font-size: 0.8rem; margin-top: 0.25rem; }
     .service-status {
       padding: 0.25rem 0.75rem;
       border-radius: 9999px;
@@ -68,9 +70,10 @@
       font-weight: 500;
       text-transform: uppercase;
     }
-    .status-running { background: rgba(74, 222, 128, 0.2); color: var(--success); }
-    .status-stopped { background: rgba(248, 113, 113, 0.2); color: var(--error); }
-    .status-starting { background: rgba(251, 191, 36, 0.2); color: var(--warning); }
+    .status-completed { background: rgba(74, 222, 128, 0.2); color: var(--success); }
+    .status-started { background: rgba(251, 191, 36, 0.2); color: var(--warning); }
+    .status-pending { background: rgba(160, 160, 160, 0.2); color: var(--text-muted); }
+    .status-not-registered { background: rgba(248, 113, 113, 0.2); color: var(--error); }
     .service-actions { display: flex; gap: 0.5rem; }
     button {
       background: var(--accent);
@@ -183,20 +186,34 @@
       }
 
       const sorted = [...services].sort((a, b) => a.name.localeCompare(b.name));
-      container.innerHTML = sorted.map(svc => `
-        <div class="service" data-service="${svc.name}">
-          <span class="service-emoji">${svc.emoji}</span>
-          <div class="service-info">
-            <div class="service-name">${svc.name}</div>
-            <div class="service-deps">${svc.depends_on?.length ? `depends on: ${svc.depends_on.join(', ')}` : 'no dependencies'}</div>
+      container.innerHTML = sorted.map(svc => {
+        // Handle empty status (not registered) and format for CSS class.
+        const status = svc.status || 'not-registered';
+        const statusClass = 'status-' + status.replace('_', '-');
+        const statusLabel = status === 'not-registered' ? 'not registered' : status;
+        const stepHtml = svc.current_step
+          ? `<div class="service-step">▶ ${svc.current_step}</div>`
+          : '';
+        const unmetHtml = svc.unmet_dependencies?.length
+          ? `<div class="service-unmet">⏳ waiting for: ${svc.unmet_dependencies.join(', ')}</div>`
+          : '';
+        return `
+          <div class="service" data-service="${svc.name}">
+            <span class="service-emoji">${svc.emoji}</span>
+            <div class="service-info">
+              <div class="service-name">${svc.name}</div>
+              <div class="service-deps">${svc.depends_on?.length ? `depends on: ${svc.depends_on.join(', ')}` : 'no dependencies'}</div>
+              ${stepHtml}
+              ${unmetHtml}
+            </div>
+            <span class="service-status ${statusClass}">${statusLabel}</span>
+            <div class="service-actions">
+              <button onclick="restartService('${svc.name}')">Restart</button>
+              <button onclick="stopService('${svc.name}')">Stop</button>
+            </div>
           </div>
-          <span class="service-status status-${svc.status}">${svc.status}</span>
-          <div class="service-actions">
-            <button onclick="restartService('${svc.name}')">Restart</button>
-            <button onclick="stopService('${svc.name}')">Stop</button>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     // Initial fetch and auto-refresh.

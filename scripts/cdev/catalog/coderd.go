@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
+	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
@@ -56,7 +58,8 @@ func OnCoderd() ServiceName {
 
 // Coderd runs the Coder server inside a Docker container.
 type Coderd struct {
-	haCount int64
+	currentStep atomic.Pointer[string]
+	haCount     int64
 
 	// ExtraEnv contains additional "KEY=VALUE" environment variables
 	// for the coderd container, set by Configure callbacks.
@@ -67,6 +70,19 @@ type Coderd struct {
 
 	containerID string
 	result      CoderdResult
+	logger      slog.Logger
+	pool        *dockertest.Pool
+}
+
+func (c *Coderd) CurrentStep() string {
+	if s := c.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (c *Coderd) setStep(step string) {
+	c.currentStep.Store(&step)
 }
 
 func NewCoderd() *Coderd {
@@ -111,11 +127,15 @@ func OnBuildSlim() ServiceName {
 }
 
 func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) error {
+	defer c.setStep("")
+
+	c.logger = logger
 	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
 	}
 	pool := dkr.Result()
+	c.pool = pool
 
 	labels := NewServiceLabels(CDevCoderd)
 	filter := labels.Filter()
@@ -139,6 +159,7 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 		}
 	}
 
+	c.setStep("Inserting license if set")
 	logger.Info(ctx, "inserting license for coderd", slog.F("ha_count", c.haCount))
 	if err := EnsureLicense(ctx, logger, cat); err != nil {
 		if c.haCount > 1 {
@@ -148,6 +169,7 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 	}
 
 	for i := range c.haCount {
+		c.setStep(fmt.Sprintf("Starting coderd container %d", i))
 		logger.Info(ctx, "starting coderd instance", slog.F("index", i))
 		container, err := c.startCoderd(ctx, logger, cat, int(i))
 		if err != nil {
@@ -164,6 +186,7 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 		}
 	}
 
+	c.setStep("Waiting for coderd to be ready")
 	return c.waitForReady(ctx, logger)
 }
 
@@ -300,8 +323,9 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 				},
 			},
 		},
-		Logger:   cntLogger,
-		Detached: true,
+		Logger:          cntLogger,
+		Detached:        true,
+		DestroyExisting: true,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("run container: %w", err)
@@ -344,10 +368,8 @@ func (c *Coderd) waitForReady(ctx context.Context, logger slog.Logger) error {
 	}
 }
 
-func (*Coderd) Stop(_ context.Context) error {
-	// Don't stop the container - it persists across runs.
-	// Use "cdev down" to fully clean up.
-	return nil
+func (c *Coderd) Stop(ctx context.Context) error {
+	return StopContainers(ctx, c.logger, c.pool, NewServiceLabels(CDevCoderd).Filter())
 }
 
 func (c *Coderd) Result() CoderdResult {

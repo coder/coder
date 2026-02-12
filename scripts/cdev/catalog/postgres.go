@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/ory/dockertest/v3/docker"
@@ -39,8 +40,20 @@ func OnPostgres() ServiceName {
 
 // Postgres runs a PostgreSQL database in a Docker container.
 type Postgres struct {
+	currentStep atomic.Pointer[string]
 	containerID string
 	result      PostgresResult
+}
+
+func (p *Postgres) CurrentStep() string {
+	if s := p.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (p *Postgres) setStep(step string) {
+	p.currentStep.Store(&step)
 }
 
 func NewPostgres() *Postgres {
@@ -61,6 +74,8 @@ func (*Postgres) DependsOn() []ServiceName {
 }
 
 func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
+	defer p.setStep("")
+
 	d, ok := c.MustGet(OnDocker()).(*Docker)
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
@@ -94,6 +109,7 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 			}
 		}
 		logger.Info(ctx, "reusing existing postgres container", slog.F("container_id", p.containerID[:12]))
+		p.setStep("Waiting for PostgreSQL to be ready")
 		return p.waitForReady(ctx, logger)
 	}
 
@@ -106,6 +122,7 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 		return xerrors.Errorf("ensure postgres volume: %w", err)
 	}
 
+	p.setStep("Starting PostgreSQL container")
 	logger.Info(ctx, "starting postgres container")
 
 	cntSink := NewLoggerSink(c.w, p)
@@ -170,6 +187,7 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 		Port: hostPort,
 	}
 
+	p.setStep("Waiting for PostgreSQL to be ready")
 	return p.waitForReady(ctx, logger)
 }
 

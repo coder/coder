@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/ory/dockertest/v3/docker"
@@ -37,8 +38,20 @@ func OnPrometheus() ServiceName {
 
 // Prometheus runs a Prometheus container that scrapes coderd metrics.
 type Prometheus struct {
-	enabled bool
-	result  PrometheusResult
+	currentStep atomic.Pointer[string]
+	enabled     bool
+	result      PrometheusResult
+}
+
+func (p *Prometheus) CurrentStep() string {
+	if s := p.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (p *Prometheus) setStep(step string) {
+	p.currentStep.Store(&step)
 }
 
 // NewPrometheus creates a new Prometheus service.
@@ -91,6 +104,8 @@ scrape_configs:
 }
 
 func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog) error {
+	defer p.setStep("")
+
 	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
@@ -153,6 +168,7 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 	}
 
 	// Start Prometheus container.
+	p.setStep("Starting Prometheus container")
 	logger.Info(ctx, "starting prometheus container")
 
 	cntSink := NewLoggerSink(cat.w, p)

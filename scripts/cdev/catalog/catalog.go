@@ -35,6 +35,10 @@ type ServiceBase interface {
 	// This is used to determine the order in which services should be started and stopped.
 	DependsOn() []ServiceName
 
+	// CurrentStep returns a human-readable description of what the service
+	// is currently doing. Returns empty string if idle/complete.
+	CurrentStep() string
+
 	// Start launches the service. This should not block.
 	Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 
@@ -169,6 +173,29 @@ func (c *Catalog) MustGet(name ServiceName) ServiceBase {
 func (c *Catalog) Get(name ServiceName) (ServiceBase, bool) {
 	s, ok := c.services[name]
 	return s, ok
+}
+
+func (c *Catalog) Status(name ServiceName) (unit.Status, error) {
+	u, err := c.manager.Unit(unit.ID(name))
+	if err != nil {
+		return unit.StatusPending, xerrors.Errorf("get unit for %q: %w", name, err)
+	}
+	return u.Status(), nil
+}
+
+// UnmetDependencies returns the list of dependencies that are not yet satisfied
+// for the given service.
+func (c *Catalog) UnmetDependencies(name ServiceName) ([]string, error) {
+	deps, err := c.manager.GetUnmetDependencies(unit.ID(name))
+	if err != nil {
+		return nil, xerrors.Errorf("get unmet dependencies for %q: %w", name, err)
+	}
+
+	result := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		result = append(result, string(dep.DependsOn))
+	}
+	return result, nil
 }
 
 // Configure registers a typed callback to mutate a target service

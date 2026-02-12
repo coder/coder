@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync/atomic"
 
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
@@ -22,6 +23,8 @@ var _ Service[BuildResult] = (*BuildSlim)(nil)
 
 // BuildSlim builds the slim Coder binaries inside a Docker container.
 type BuildSlim struct {
+	currentStep atomic.Pointer[string]
+
 	// Verbose enables verbose output from the build.
 	Verbose bool
 
@@ -56,7 +59,19 @@ func (*BuildSlim) DependsOn() []ServiceName {
 	}
 }
 
+func (b *BuildSlim) CurrentStep() string {
+	if s := b.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (b *BuildSlim) setStep(step string) {
+	b.currentStep.Store(&step)
+}
+
 func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
+	b.setStep("Initializing Docker volumes")
 	dkr, ok := c.MustGet(OnDocker()).(*Docker)
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
@@ -105,6 +120,7 @@ func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) e
 		echo "Slim binaries built and cached."
 	`
 
+	b.setStep("Running make build-slim")
 	logger.Info(ctx, "building slim binaries")
 
 	var stdout, stderr bytes.Buffer
@@ -144,6 +160,7 @@ func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) e
 		return err
 	}
 
+	b.setStep("")
 	logger.Info(ctx, "slim binaries built successfully")
 	b.result.CoderCache = coderCache
 	b.result.GoCache = goCache

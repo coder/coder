@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -33,9 +34,10 @@ type volumeOnce struct {
 }
 
 type Docker struct {
-	pool      *dockertest.Pool
-	volumes   map[string]*volumeOnce
-	volumesMu sync.Mutex
+	currentStep atomic.Pointer[string]
+	pool        *dockertest.Pool
+	volumes     map[string]*volumeOnce
+	volumesMu   sync.Mutex
 }
 
 func NewDocker() *Docker {
@@ -55,12 +57,25 @@ func (*Docker) DependsOn() []ServiceName {
 	return []ServiceName{}
 }
 
+func (d *Docker) CurrentStep() string {
+	if s := d.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (d *Docker) setStep(step string) {
+	d.currentStep.Store(&step)
+}
+
 func (d *Docker) Start(_ context.Context, _ slog.Logger, _ *Catalog) error {
+	d.setStep("Connecting to Docker daemon")
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return err
 	}
 	d.pool = pool
+	d.setStep("")
 	return nil
 }
 

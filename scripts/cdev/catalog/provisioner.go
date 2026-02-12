@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync/atomic"
 
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
@@ -33,8 +34,20 @@ func OnProvisioner() ServiceName {
 
 // Provisioner runs external provisioner daemons in Docker containers.
 type Provisioner struct {
-	count  int64
-	result ProvisionerResult
+	currentStep atomic.Pointer[string]
+	count       int64
+	result      ProvisionerResult
+}
+
+func (p *Provisioner) CurrentStep() string {
+	if s := p.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (p *Provisioner) setStep(step string) {
+	p.currentStep.Store(&step)
 }
 
 // NewProvisioner creates a new Provisioner and registers a Configure
@@ -82,6 +95,7 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 	if p.count == 0 {
 		return nil
 	}
+	defer p.setStep("")
 
 	pg, ok := cat.MustGet(OnPostgres()).(*Postgres)
 	if !ok {
@@ -131,6 +145,7 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 	logger.Info(ctx, "provisioner key created", slog.F("name", "cdev-external"))
 
 	// Start provisioner containers.
+	p.setStep("Starting provisioner daemon")
 	for i := range p.count {
 		if err := p.startProvisioner(ctx, logger, cat, int(i), secret); err != nil {
 			return xerrors.Errorf("start provisioner %d: %w", i, err)

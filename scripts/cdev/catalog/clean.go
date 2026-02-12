@@ -1,4 +1,4 @@
-package cleanup
+package catalog
 
 import (
 	"context"
@@ -11,22 +11,21 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/scripts/cdev/catalog"
 )
 
 // Down stops and deletes selective resources, while keeping things like caches
 func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
-	servicesToDown := []catalog.ServiceName{
-		catalog.CDevPostgres,
-		catalog.CDevCoderd,
-		catalog.CDevOIDC,
-		catalog.CDevSite,
-		catalog.CDevPrometheus,
-		catalog.CDevProvisioner,
+	servicesToDown := []ServiceName{
+		CDevPostgres,
+		CDevCoderd,
+		CDevOIDC,
+		CDevSite,
+		CDevPrometheus,
+		CDevProvisioner,
 	}
 
 	for _, service := range servicesToDown {
-		err := Containers(ctx, logger.With(slog.F("service", service)), pool, catalog.NewServiceLabels(service).Filter())
+		err := Containers(ctx, logger.With(slog.F("service", service)), pool, NewServiceLabels(service).Filter())
 		if err != nil {
 			return xerrors.Errorf("stop %s containers: %w", service, err)
 		}
@@ -40,7 +39,7 @@ func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error 
 //	by a new "latest" tag? If so, we can delete those, and reduce the random "my disk is out of space"
 //	"time to docker system prune"
 func Cleanup(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
-	filter := catalog.NewLabels().Filter() // Remove it all
+	filter := NewLabels().Filter() // Remove it all
 
 	err := Containers(ctx, logger, pool, filter)
 	if err != nil {
@@ -81,7 +80,7 @@ func StopContainers(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 }
 
 func Containers(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
-	err := StopContainers(ctx, logger, pool, catalog.NewLabels().Filter())
+	err := StopContainers(ctx, logger, pool, NewLabels().Filter())
 	if err != nil {
 		return xerrors.Errorf("stop containers: %w", err)
 	}

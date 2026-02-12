@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sync/atomic"
 	"time"
 
 	"github.com/ory/dockertest/v3"
@@ -44,9 +45,21 @@ func OnOIDC() ServiceName {
 
 // OIDC runs a fake OIDC identity provider in a Docker container using testidp.
 type OIDC struct {
+	currentStep atomic.Pointer[string]
 	containerID string
 	result      OIDCResult
 	pool        *dockertest.Pool
+}
+
+func (o *OIDC) CurrentStep() string {
+	if s := o.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (o *OIDC) setStep(step string) {
+	o.currentStep.Store(&step)
 }
 
 func NewOIDC() *OIDC {
@@ -68,6 +81,8 @@ func (*OIDC) DependsOn() []ServiceName {
 }
 
 func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
+	defer o.setStep("")
+
 	d, ok := c.MustGet(OnDocker()).(*Docker)
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
@@ -76,11 +91,13 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 
 	labels := NewServiceLabels(CDevOIDC).With(CDevLabelEphemeral, "true")
 
+	o.setStep("building testidp docker image (this can take awhile)")
 	// Build the testidp image from the Dockerfile.
 	if err := o.buildImage(ctx, logger); err != nil {
 		return xerrors.Errorf("build testidp image: %w", err)
 	}
 
+	o.setStep("Starting OIDC mock server")
 	logger.Info(ctx, "starting oidc container")
 
 	cntSink := NewLoggerSink(c.w, o)
