@@ -43,15 +43,15 @@ func (b *BuildSlim) Result() BuildResult {
 	return b.result
 }
 
-func (*BuildSlim) Name() string {
-	return "build-slim"
+func (*BuildSlim) Name() ServiceName {
+	return CDevBuildSlim
 }
 func (*BuildSlim) Emoji() string {
 	return "🔨"
 }
 
-func (*BuildSlim) DependsOn() []string {
-	return []string{
+func (*BuildSlim) DependsOn() []ServiceName {
+	return []ServiceName{
 		OnDocker(),
 	}
 }

@@ -38,7 +38,7 @@ type OIDCResult struct {
 
 var _ Service[OIDCResult] = (*OIDC)(nil)
 
-func OnOIDC() string {
+func OnOIDC() ServiceName {
 	return (&OIDC{}).Name()
 }
 
@@ -53,16 +53,16 @@ func NewOIDC() *OIDC {
 	return &OIDC{}
 }
 
-func (*OIDC) Name() string {
-	return "oidc"
+func (*OIDC) Name() ServiceName {
+	return CDevOIDC
 }
 
 func (*OIDC) Emoji() string {
 	return "🔒"
 }
 
-func (*OIDC) DependsOn() []string {
-	return []string{
+func (*OIDC) DependsOn() []ServiceName {
+	return []ServiceName{
 		OnDocker(),
 	}
 }

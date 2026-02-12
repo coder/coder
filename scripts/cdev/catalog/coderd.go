@@ -50,7 +50,7 @@ type CoderdResult struct {
 
 var _ Service[CoderdResult] = (*Coderd)(nil)
 
-func OnCoderd() string {
+func OnCoderd() ServiceName {
 	return (&Coderd{}).Name()
 }
 
@@ -73,8 +73,8 @@ func NewCoderd() *Coderd {
 	return &Coderd{}
 }
 
-func (*Coderd) Name() string {
-	return "coderd"
+func (*Coderd) Name() ServiceName {
+	return CDevCoderd
 }
 func (*Coderd) Emoji() string {
 	return "🖥️"
@@ -83,8 +83,8 @@ func (*Coderd) Emoji() string {
 // HACount returns the number of coderd instances configured for HA.
 func (c *Coderd) HACount() int64 { return c.haCount }
 
-func (*Coderd) DependsOn() []string {
-	return []string{
+func (*Coderd) DependsOn() []ServiceName {
+	return []ServiceName{
 		OnDocker(),
 		OnPostgres(),
 		OnBuildSlim(),
@@ -106,7 +106,7 @@ func (c *Coderd) Options() serpent.OptionSet {
 	}
 }
 
-func OnBuildSlim() string {
+func OnBuildSlim() ServiceName {
 	return (&BuildSlim{}).Name()
 }
 

@@ -17,7 +17,7 @@ type LoggerSink struct {
 	mu          sync.Mutex
 	w           io.Writer
 	emoji       string
-	serviceName string
+	serviceName ServiceName
 	done        atomic.Bool
 }
 

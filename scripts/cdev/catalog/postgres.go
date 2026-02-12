@@ -33,7 +33,7 @@ type PostgresResult struct {
 
 var _ Service[PostgresResult] = (*Postgres)(nil)
 
-func OnPostgres() string {
+func OnPostgres() ServiceName {
 	return (&Postgres{}).Name()
 }
 
@@ -47,15 +47,15 @@ func NewPostgres() *Postgres {
 	return &Postgres{}
 }
 
-func (*Postgres) Name() string {
-	return "postgres"
+func (*Postgres) Name() ServiceName {
+	return CDevPostgres
 }
 func (*Postgres) Emoji() string {
 	return "🐘"
 }
 
-func (*Postgres) DependsOn() []string {
-	return []string{
+func (*Postgres) DependsOn() []ServiceName {
+	return []ServiceName{
 		OnDocker(),
 	}
 }

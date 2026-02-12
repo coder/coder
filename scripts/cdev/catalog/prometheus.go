@@ -31,7 +31,7 @@ var _ Service[PrometheusResult] = (*Prometheus)(nil)
 var _ ConfigurableService = (*Prometheus)(nil)
 
 // OnPrometheus returns the service name for the Prometheus service.
-func OnPrometheus() string {
+func OnPrometheus() ServiceName {
 	return (&Prometheus{}).Name()
 }
 
@@ -49,16 +49,16 @@ func NewPrometheus() *Prometheus {
 // Enabled returns whether the Prometheus service is enabled.
 func (p *Prometheus) Enabled() bool { return p.enabled }
 
-func (*Prometheus) Name() string {
-	return "prometheus"
+func (*Prometheus) Name() ServiceName {
+	return CDevPrometheus
 }
 
 func (*Prometheus) Emoji() string {
 	return "📊"
 }
 
-func (*Prometheus) DependsOn() []string {
-	return []string{OnDocker(), OnCoderd()}
+func (*Prometheus) DependsOn() []ServiceName {
+	return []ServiceName{OnDocker(), OnCoderd()}
 }
 
 func (p *Prometheus) Options() serpent.OptionSet {

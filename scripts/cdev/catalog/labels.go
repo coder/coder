@@ -10,6 +10,7 @@ const (
 type ServiceName string
 
 const (
+	CDevDocker      ServiceName = "docker"
 	CDevBuildSlim   ServiceName = "build-slim"
 	CDevPostgres    ServiceName = "postgres"
 	CDevCoderd      ServiceName = "coderd"

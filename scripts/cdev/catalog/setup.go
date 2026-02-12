@@ -43,7 +43,7 @@ type SetupResult struct {
 
 var _ Service[SetupResult] = (*Setup)(nil)
 
-func OnSetup() string {
+func OnSetup() ServiceName {
 	return (&Setup{}).Name()
 }
 
@@ -57,16 +57,16 @@ func NewSetup() *Setup {
 	return &Setup{}
 }
 
-func (*Setup) Name() string {
-	return "setup"
+func (*Setup) Name() ServiceName {
+	return CDevSetup
 }
 
 func (*Setup) Emoji() string {
 	return "👤"
 }
 
-func (*Setup) DependsOn() []string {
-	return []string{
+func (*Setup) DependsOn() []ServiceName {
+	return []ServiceName{
 		OnCoderd(),
 	}
 }

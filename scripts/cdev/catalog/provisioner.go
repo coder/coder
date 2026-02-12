@@ -27,7 +27,7 @@ var _ Service[ProvisionerResult] = (*Provisioner)(nil)
 var _ ConfigurableService = (*Provisioner)(nil)
 
 // OnProvisioner returns the service name for the provisioner service.
-func OnProvisioner() string {
+func OnProvisioner() ServiceName {
 	return (&Provisioner{}).Name()
 }
 
@@ -55,16 +55,16 @@ func NewProvisioner(cat *Catalog) *Provisioner {
 // Count returns the configured number of provisioner instances.
 func (p *Provisioner) Count() int64 { return p.count }
 
-func (*Provisioner) Name() string {
-	return "provisioner"
+func (*Provisioner) Name() ServiceName {
+	return CDevProvisioner
 }
 
 func (*Provisioner) Emoji() string {
 	return "⚙️"
 }
 
-func (*Provisioner) DependsOn() []string {
-	return []string{OnCoderd()}
+func (*Provisioner) DependsOn() []ServiceName {
+	return []ServiceName{OnCoderd()}
 }
 
 func (p *Provisioner) Options() serpent.OptionSet {

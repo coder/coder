@@ -27,7 +27,7 @@ type SiteResult struct {
 
 var _ Service[SiteResult] = (*Site)(nil)
 
-func OnSite() string {
+func OnSite() ServiceName {
 	return (&Site{}).Name()
 }
 
@@ -41,16 +41,16 @@ func NewSite() *Site {
 	return &Site{}
 }
 
-func (*Site) Name() string {
-	return "site"
+func (*Site) Name() ServiceName {
+	return CDevSite
 }
 
 func (*Site) Emoji() string {
 	return "🌐"
 }
 
-func (*Site) DependsOn() []string {
-	return []string{
+func (*Site) DependsOn() []ServiceName {
+	return []ServiceName{
 		OnDocker(),
 		OnSetup(),
 	}

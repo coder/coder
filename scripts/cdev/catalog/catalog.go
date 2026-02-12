@@ -13,6 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/unit"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/serpent"
 )
 
@@ -23,7 +24,7 @@ const (
 
 type ServiceBase interface {
 	// Name returns a unique identifier for this service.
-	Name() string
+	Name() ServiceName
 
 	// Emoji returns a single emoji used to identify this service
 	// in log output.
@@ -31,7 +32,7 @@ type ServiceBase interface {
 
 	// DependsOn returns the names of services this service depends on before "Start" can be called.
 	// This is used to determine the order in which services should be started and stopped.
-	DependsOn() []string
+	DependsOn() []ServiceName
 
 	// Start launches the service. This should not block.
 	Start(ctx context.Context, logger slog.Logger, c *Catalog) error
@@ -52,14 +53,14 @@ type Service[Result any] interface {
 }
 
 type configurator struct {
-	target string
+	target ServiceName
 	apply  func(ServiceBase)
 }
 
 type Catalog struct {
 	mu       sync.RWMutex
-	services map[string]ServiceBase
-	loggers  map[string]slog.Logger
+	services map[ServiceName]ServiceBase
+	loggers  map[ServiceName]slog.Logger
 	logger   slog.Logger
 	w        io.Writer
 
@@ -71,8 +72,8 @@ type Catalog struct {
 
 func New() *Catalog {
 	return &Catalog{
-		services: make(map[string]ServiceBase),
-		loggers:  make(map[string]slog.Logger),
+		services: make(map[ServiceName]ServiceBase),
+		loggers:  make(map[ServiceName]slog.Logger),
 		manager:  unit.NewManager(),
 	}
 }
@@ -155,7 +156,7 @@ func (c *Catalog) registerOne(s ServiceBase) error {
 	return nil
 }
 
-func (c *Catalog) MustGet(name string) ServiceBase {
+func (c *Catalog) MustGet(name ServiceName) ServiceBase {
 	s, ok := c.Get(name)
 	if !ok {
 		panic(fmt.Sprintf("catalog.MustGet: service %q not found", name))
@@ -164,14 +165,14 @@ func (c *Catalog) MustGet(name string) ServiceBase {
 }
 
 // Get returns a service by name.
-func (c *Catalog) Get(name string) (ServiceBase, bool) {
+func (c *Catalog) Get(name ServiceName) (ServiceBase, bool) {
 	s, ok := c.services[name]
 	return s, ok
 }
 
 // Configure registers a typed callback to mutate a target service
 // before startup. Panics if called after ApplyConfigurations.
-func Configure[T ServiceBase](c *Catalog, target string, fn func(T)) {
+func Configure[T ServiceBase](c *Catalog, target ServiceName, fn func(T)) {
 	if c.configured {
 		panic(fmt.Sprintf("catalog: Configure(%q) called after ApplyConfigurations", target))
 	}
@@ -214,7 +215,7 @@ func (c *Catalog) Start(ctx context.Context) error {
 		if len(deps) == 0 {
 			c.logger.Info(ctx, fmt.Sprintf("  %s %s (no dependencies)", srv.Emoji(), srv.Name()))
 		} else {
-			c.logger.Info(ctx, fmt.Sprintf("  %s %s -> [%s]", srv.Emoji(), srv.Name(), strings.Join(deps, ", ")))
+			c.logger.Info(ctx, fmt.Sprintf("  %s %s -> [%s]", srv.Emoji(), srv.Name(), strings.Join(slice.ToStrings(deps), ", ")))
 		}
 	}
 
@@ -272,7 +273,7 @@ func (c *Catalog) Start(ctx context.Context) error {
 }
 
 // waitForReady polls until the service's dependencies are satisfied.
-func (c *Catalog) waitForReady(ctx context.Context, name string) error {
+func (c *Catalog) waitForReady(ctx context.Context, name ServiceName) error {
 	logTicker := time.NewTicker(5 * time.Second)
 	defer logTicker.Stop()
 

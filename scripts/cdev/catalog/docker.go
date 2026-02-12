@@ -14,7 +14,7 @@ import (
 
 var _ Service[*dockertest.Pool] = (*Docker)(nil)
 
-func OnDocker() string {
+func OnDocker() ServiceName {
 	return (&Docker{}).Name()
 }
 
@@ -44,15 +44,15 @@ func NewDocker() *Docker {
 	}
 }
 
-func (*Docker) Name() string {
-	return "docker"
+func (*Docker) Name() ServiceName {
+	return CDevDocker
 }
 func (*Docker) Emoji() string {
 	return "🐳"
 }
 
-func (*Docker) DependsOn() []string {
-	return []string{}
+func (*Docker) DependsOn() []ServiceName {
+	return []ServiceName{}
 }
 
 func (d *Docker) Start(_ context.Context, _ slog.Logger, _ *Catalog) error {
