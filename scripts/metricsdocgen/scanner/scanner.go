@@ -66,6 +66,8 @@ type declarations struct {
 
 // packageDeclarations holds exported string constants collected from all scanned files,
 // keyed by package name. This allows resolving cross-file references.
+// Note: resolution depends on directory scan order in scanDirs, i.e.,
+// constants from later directories won't be available when scanning earlier ones.
 var packageDeclarations = make(map[string]map[string]string)
 
 func main() {
@@ -171,6 +173,11 @@ func scanFile(path string) ([]Metric, error) {
 
 		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
+			// TODO(ssncferreira): Consider filtering out metrics with empty Help descriptions.
+			//   These indicate missing documentation in the source code.
+			if metric.Help == "" {
+				log.Printf("WARNING: metric %q has no HELP description, consider updating the source code", metric.Name)
+			}
 			metrics = append(metrics, metric)
 		}
 
@@ -464,17 +471,19 @@ func extractOpts(expr ast.Expr, decls declarations) (metricOpts, bool) {
 
 // buildMetricName constructs the full metric name from namespace, subsystem, and name.
 func buildMetricName(namespace, subsystem, name string) string {
-	parts := make([]string, 0, 3)
+	metricNameParts := make([]string, 0, 3)
 	if namespace != "" {
-		parts = append(parts, namespace)
+		metricNameParts = append(metricNameParts, namespace)
 	}
 	if subsystem != "" {
-		parts = append(parts, subsystem)
+		metricNameParts = append(metricNameParts, subsystem)
 	}
 	if name != "" {
-		parts = append(parts, name)
+		metricNameParts = append(metricNameParts, name)
 	}
-	return strings.Join(parts, "_")
+	// Join non-empty parts with "_" to handle optional namespace/subsystem.
+	// e.g., ("coderd", "", "agents_up"): "coderd_agents_up"
+	return strings.Join(metricNameParts, "_")
 }
 
 // extractOptsMetric extracts a metric from prometheus.New*() or prometheus.New*Vec() calls.
@@ -493,7 +502,9 @@ func extractOptsMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
 		return Metric{}, false
 	}
 
-	// Check for prometheus.New* pattern.
+	// Match calls that are exactly "prometheus.New*(...)". This checks the local
+	// package identifier, not the resolved import path. If the prometheus package
+	// is imported with an alias, this will not match.
 	ident, ok := sel.X.(*ast.Ident)
 	if !ok || ident.Name != "prometheus" {
 		return Metric{}, false
@@ -513,6 +524,7 @@ func extractOptsMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
 	// Extract metric info from the Opts struct.
 	opts, ok := extractOpts(call.Args[0], decls)
 	if !ok {
+		log.Printf("extractOptsMetric: skipping prometheus.%s() call: could not extract opts", funcName)
 		return Metric{}, false
 	}
 
@@ -525,6 +537,7 @@ func extractOptsMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
 	// Build the full metric name.
 	name := buildMetricName(opts.Namespace, opts.Subsystem, opts.Name)
 	if name == "" {
+		log.Printf("extractOptsMetric: skipping prometheus.%s() call: could not build metric name", funcName)
 		return Metric{}, false
 	}
 
