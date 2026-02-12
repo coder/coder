@@ -5,7 +5,6 @@ package cli_test
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -69,15 +68,28 @@ func TestVPNDaemonRun(t *testing.T) {
 		r1, w1, err := os.Pipe()
 		require.NoError(t, err)
 		defer w1.Close()
+
 		r2, w2, err := os.Pipe()
 		require.NoError(t, err)
 		defer r2.Close()
 
-		// The daemon takes ownership of r1/w2 via NewBidirectionalPipe and closes
-		// them internally. Closing them again here can close reused FDs under race.
+		// The daemon closes the handles passed via NewBidirectionalPipe. Since our
+		// CLI tests run in-process, pass duplicated handles so we can close the
+		// originals without risking a double-close on FD reuse.
+		rpcReadHandle := dupHandle(t, r1)
+		rpcWriteHandle := dupHandle(t, w2)
+		require.NoError(t, r1.Close())
+		require.NoError(t, w2.Close())
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, _ := clitest.New(t, "vpn-daemon", "run", "--rpc-read-handle", fmt.Sprint(r1.Fd()), "--rpc-write-handle", fmt.Sprint(w2.Fd()))
+		inv, _ := clitest.New(t,
+			"vpn-daemon",
+			"run",
+			"--rpc-read-handle",
+			fmt.Sprint(rpcReadHandle),
+			"--rpc-write-handle",
+			fmt.Sprint(rpcWriteHandle),
+		)
 		waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
 		// Send an invalid header, including a newline delimiter, so the handshake
@@ -85,8 +97,6 @@ func TestVPNDaemonRun(t *testing.T) {
 		_, err = w1.Write([]byte("garbage\n"))
 		require.NoError(t, err)
 		err = waiter.Wait()
-		runtime.KeepAlive(r1)
-		runtime.KeepAlive(w2)
 		require.ErrorContains(t, err, "handshake failed")
 	})
 
