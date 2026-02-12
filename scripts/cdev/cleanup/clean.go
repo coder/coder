@@ -26,7 +26,7 @@ func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error 
 	}
 
 	for _, service := range servicesToDown {
-		err := Containers(ctx, logger, pool, catalog.NewServiceLabels(service).Filter())
+		err := Containers(ctx, logger.With(slog.F("service", service)), pool, catalog.NewServiceLabels(service).Filter())
 		if err != nil {
 			return xerrors.Errorf("stop %s containers: %w", service, err)
 		}
