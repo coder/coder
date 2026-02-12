@@ -52,6 +52,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - Destructure imports when possible (eg. import { foo } from 'bar')
 - Prefer `for...of` over `forEach` for iteration
 - **Biome** handles both linting and formatting (not ESLint/Prettier)
+- Always use react-query for data fetching. Do not attempt to manage any data life cycle manually. Do not ever call an `API` function directly within a component.
 
 ## Workflow
 
