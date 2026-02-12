@@ -90,6 +90,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -772,18 +773,14 @@ func New(options *Options) *API {
 		panic("CoordinatorResumeTokenProvider is nil")
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                  api.Logger.Named("tailnetclient"),
-		CoordPtr:                &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
-		DERPMapFn:               api.DERPMap,
-		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
-		IdentifiedTelemetryHandler: func(agentID, peerID uuid.UUID, events []*tailnetproto.TelemetryEvent) {
-			for _, event := range events {
-				api.PeerNetworkTelemetryStore.Update(agentID, peerID, event)
-			}
-		},
-		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
-		WorkspaceUpdatesProvider: api.UpdatesProvider,
+		Logger:                     api.Logger.Named("tailnetclient"),
+		CoordPtr:                   &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:     api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:                  api.DERPMap,
+		NetworkTelemetryHandler:    api.NetworkTelemetryBatcher.Handler,
+		IdentifiedTelemetryHandler: api.handleIdentifiedTelemetry,
+		ResumeTokenProvider:        api.Options.CoordinatorResumeTokenProvider,
+		WorkspaceUpdatesProvider:   api.UpdatesProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(context.Background(), "failed to initialize tailnet client service", slog.Error(err))
@@ -1972,6 +1969,34 @@ func (api *API) Close() error {
 	}
 
 	return nil
+}
+
+// handleIdentifiedTelemetry stores peer telemetry events and publishes a
+// workspace update so watch subscribers see fresh data.
+func (api *API) handleIdentifiedTelemetry(agentID, peerID uuid.UUID, events []*tailnetproto.TelemetryEvent) {
+	if len(events) == 0 {
+		return
+	}
+
+	for _, event := range events {
+		api.PeerNetworkTelemetryStore.Update(agentID, peerID, event)
+	}
+
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, agentID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to resolve workspace for telemetry update",
+			slog.F("agent_id", agentID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindConnectionLogUpdate,
+		WorkspaceID: workspace.ID,
+		AgentID:     &agentID,
+	})
 }
 
 func compressHandler(h http.Handler) http.Handler {

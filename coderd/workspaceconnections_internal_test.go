@@ -82,7 +82,7 @@ func TestMergeConnectionsFlat(t *testing.T) {
 	t.Run("BothEmpty", func(t *testing.T) {
 		t.Parallel()
 		result := mergeConnectionsFlat(nil, nil, nil, nil)
-		assert.Nil(t, result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("LogsOnly", func(t *testing.T) {
@@ -244,12 +244,12 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			makeConnectionLog(ip, database.ConnectionTypeSsh, now.Add(-time.Second)),
 		}
 
-		result := mergeWorkspaceConnections(peers, logs, nil, nil)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, nil, nil)
 		require.Len(t, result, 1)
 		assert.Equal(t, codersdk.ConnectionStatusOngoing, result[0].Status)
-		assert.Nil(t, result[0].P2P)
-		assert.Nil(t, result[0].LatencyMS)
-		assert.Nil(t, result[0].HomeDERP)
+		assert.Nil(t, result[0].Connections[0].P2P)
+		assert.Nil(t, result[0].Connections[0].LatencyMS)
+		assert.Nil(t, result[0].Connections[0].HomeDERP)
 	})
 
 	t.Run("TelemetryAppliedToOngoing", func(t *testing.T) {
@@ -272,15 +272,15 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
-		require.NotNil(t, result[0].P2P)
-		assert.True(t, *result[0].P2P)
-		require.NotNil(t, result[0].LatencyMS)
-		assert.InDelta(t, 10.0, *result[0].LatencyMS, 0.001)
-		require.NotNil(t, result[0].HomeDERP)
-		assert.Equal(t, 1, result[0].HomeDERP.ID)
-		assert.Equal(t, "New York City", result[0].HomeDERP.Name)
+		require.NotNil(t, result[0].Connections[0].P2P)
+		assert.True(t, *result[0].Connections[0].P2P)
+		require.NotNil(t, result[0].Connections[0].LatencyMS)
+		assert.InDelta(t, 10.0, *result[0].Connections[0].LatencyMS, 0.001)
+		require.NotNil(t, result[0].Connections[0].HomeDERP)
+		assert.Equal(t, 1, result[0].Connections[0].HomeDERP.ID)
+		assert.Equal(t, "New York City", result[0].Connections[0].HomeDERP.Name)
 	})
 
 	t.Run("HomeDERPNameResolvedFromDERPMap", func(t *testing.T) {
@@ -298,11 +298,11 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
-		require.NotNil(t, result[0].HomeDERP)
-		assert.Equal(t, 1, result[0].HomeDERP.ID)
-		assert.Equal(t, "New York City", result[0].HomeDERP.Name)
+		require.NotNil(t, result[0].Connections[0].HomeDERP)
+		assert.Equal(t, 1, result[0].Connections[0].HomeDERP.ID)
+		assert.Equal(t, "New York City", result[0].Connections[0].HomeDERP.Name)
 	})
 
 	t.Run("HomeDERPUnknownRegionFallback", func(t *testing.T) {
@@ -320,11 +320,11 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
-		require.NotNil(t, result[0].HomeDERP)
-		assert.Equal(t, 99, result[0].HomeDERP.ID)
-		assert.Equal(t, "Unnamed 99", result[0].HomeDERP.Name)
+		require.NotNil(t, result[0].Connections[0].HomeDERP)
+		assert.Equal(t, 99, result[0].Connections[0].HomeDERP.ID)
+		assert.Equal(t, "Unnamed 99", result[0].Connections[0].HomeDERP.Name)
 	})
 
 	t.Run("HomeDERPZeroIsOmitted", func(t *testing.T) {
@@ -342,9 +342,9 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
-		assert.Nil(t, result[0].HomeDERP)
+		assert.Nil(t, result[0].Connections[0].HomeDERP)
 	})
 
 	t.Run("TelemetrySkipsNonOngoing", func(t *testing.T) {
@@ -367,12 +367,12 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		assert.Equal(t, codersdk.ConnectionStatusControlLost, result[0].Status)
-		assert.Nil(t, result[0].P2P)
-		assert.Nil(t, result[0].LatencyMS)
-		assert.Nil(t, result[0].HomeDERP)
+		assert.Nil(t, result[0].Connections[0].P2P)
+		assert.Nil(t, result[0].Connections[0].LatencyMS)
+		assert.Nil(t, result[0].Connections[0].HomeDERP)
 	})
 	t.Run("P2PLatencyUsedWhenP2P", func(t *testing.T) {
 		t.Parallel()
@@ -394,10 +394,10 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
-		require.NotNil(t, result[0].LatencyMS)
-		assert.InDelta(t, 15.0, *result[0].LatencyMS, 0.001)
+		require.NotNil(t, result[0].Connections[0].LatencyMS)
+		assert.InDelta(t, 15.0, *result[0].Connections[0].LatencyMS, 0.001)
 	})
 
 	t.Run("DERPLatencyUsedWhenNotP2P", func(t *testing.T) {
@@ -420,10 +420,10 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
-		require.NotNil(t, result[0].LatencyMS)
-		assert.InDelta(t, 50.0, *result[0].LatencyMS, 0.001)
+		require.NotNil(t, result[0].Connections[0].LatencyMS)
+		assert.InDelta(t, 50.0, *result[0].Connections[0].LatencyMS, 0.001)
 	})
 
 	t.Run("BothLatenciesNil", func(t *testing.T) {
@@ -446,9 +446,9 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		peerTelemetry := map[uuid.UUID]*PeerNetworkTelemetry{
 			peers[0].ID: telemetry,
 		}
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
-		assert.Nil(t, result[0].LatencyMS)
+		assert.Nil(t, result[0].Connections[0].LatencyMS)
 	})
 
 	t.Run("TelemetryPerPeerAttribution", func(t *testing.T) {
@@ -478,16 +478,18 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			),
 		}
 
-		result := mergeWorkspaceConnections(peers, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(peers, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 2)
 
-		byIP := make(map[netip.Addr]codersdk.WorkspaceConnection, len(result))
-		for _, c := range result {
-			require.NotNil(t, c.IP)
-			byIP[*c.IP] = c
+		byIP := make(map[netip.Addr]codersdk.WorkspaceSession, len(result))
+		for _, s := range result {
+			require.NotNil(t, s.IP)
+			byIP[*s.IP] = s
 		}
 
-		conn1 := byIP[ip1]
+		session1 := byIP[ip1]
+		require.Len(t, session1.Connections, 1)
+		conn1 := session1.Connections[0]
 		require.NotNil(t, conn1.P2P)
 		assert.True(t, *conn1.P2P)
 		require.NotNil(t, conn1.LatencyMS)
@@ -496,7 +498,9 @@ func TestMergeConnectionsFlat(t *testing.T) {
 		assert.Equal(t, 1, conn1.HomeDERP.ID)
 		assert.Equal(t, "New York City", conn1.HomeDERP.Name)
 
-		conn2 := byIP[ip2]
+		session2 := byIP[ip2]
+		require.Len(t, session2.Connections, 1)
+		conn2 := session2.Connections[0]
 		require.NotNil(t, conn2.P2P)
 		assert.False(t, *conn2.P2P)
 		require.NotNil(t, conn2.LatencyMS)
@@ -522,11 +526,11 @@ func TestMergeConnectionsFlat(t *testing.T) {
 			),
 		}
 
-		result := mergeWorkspaceConnections(nil, logs, testDERPMap, peerTelemetry)
+		result := mergeWorkspaceConnectionsIntoSessions(nil, logs, testDERPMap, peerTelemetry)
 		require.Len(t, result, 1)
 		assert.Equal(t, codersdk.ConnectionStatusOngoing, result[0].Status)
-		assert.Nil(t, result[0].P2P)
-		assert.Nil(t, result[0].LatencyMS)
-		assert.Nil(t, result[0].HomeDERP)
+		assert.Nil(t, result[0].Connections[0].P2P)
+		assert.Nil(t, result[0].Connections[0].LatencyMS)
+		assert.Nil(t, result[0].Connections[0].HomeDERP)
 	})
 }
