@@ -9,7 +9,7 @@ import type {
 import { Button } from "components/Button/Button";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
-import { ChevronUpIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import {
@@ -108,9 +108,8 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				css={styles.collapseTrigger}
 				onClick={() => setIsOpen((o) => !o)}
 			>
-				<ChevronUpIcon
-					css={{ width: 16, height: 16, marginRight: 16 }}
-					className={cn("mr-4 transition-transform", isOpen && "rotate-180")}
+				<ChevronDownIcon
+					className={cn("size-4 mr-4 transition-transform", isOpen && "rotate-180")}
 				/>
 
 				<span>Build timeline</span>
