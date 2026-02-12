@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import type { Chat } from "api/typesGenerated";
-import { formatDistanceToNow } from "date-fns";
+import { relativeTime } from "utils/time";
 import { cn } from "utils/cn";
 
 interface AgentsSidebarProps {
@@ -35,9 +35,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = ({
 						>
 							<div className="text-sm truncate">{chat.title}</div>
 							<div className="text-xs text-content-secondary mt-0.5">
-								{formatDistanceToNow(new Date(chat.updated_at), {
-									addSuffix: true,
-								})}
+								{relativeTime(chat.updated_at)}
 							</div>
 						</button>
 					</li>
