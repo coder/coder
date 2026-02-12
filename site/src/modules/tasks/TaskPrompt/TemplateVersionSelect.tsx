@@ -55,6 +55,7 @@ export const TemplateVersionSelect: FC<TemplateVersionSelectProps> = ({
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<DropdownMenuTrigger
+							id="versionId"
 							className="w-full md:w-auto max-w-full overflow-hidden border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-4 md:px-3
 								[&_svg]:text-inherit cursor-pointer hover:bg-surface-quaternary rounded-full
 								h-10 md:h-8 data-[state=open]:bg-surface-tertiary
