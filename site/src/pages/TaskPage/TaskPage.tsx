@@ -1,10 +1,11 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
-import { pauseTask, resumeTask } from "api/queries/tasks";
+import { pauseTask, resumeTask, taskLogs } from "api/queries/tasks";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type {
 	Task,
+	TaskLogEntry,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceStatus,
@@ -32,6 +33,7 @@ import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceEr
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
+	type DependencyList,
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
@@ -137,13 +139,7 @@ const TaskPage = () => {
 			/>
 		);
 	} else if (workspace.latest_build.status === "failed") {
-		content = (
-			<TaskBuildFailed
-				workspaceOwner={workspace.owner_name}
-				workspaceName={workspace.name}
-				buildNumber={workspace.latest_build.build_number}
-			/>
-		);
+		content = <TaskBuildFailed task={task} workspace={workspace} />;
 	} else if (workspace.latest_build.status === "stopping") {
 		content = (
 			<TaskTransitioning
@@ -303,32 +299,102 @@ const TaskDeleted: FC = () => {
 	);
 };
 
-type TaskBuildFailedProps = {
-	workspaceOwner: string;
-	workspaceName: string;
-	buildNumber: number;
+/**
+ * Auto-scrolls a ScrollArea to the bottom whenever deps change.
+ * Shared by BuildingWorkspace (build logs) and TaskLogPreview (chat logs).
+ */
+function useScrollAreaAutoScroll(deps: DependencyList) {
+	const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+	useLayoutEffect(() => {
+		if (isChromatic()) {
+			return;
+		}
+		const scrollAreaEl = scrollAreaRef.current;
+		const scrollAreaViewportEl = scrollAreaEl?.querySelector<HTMLDivElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (scrollAreaViewportEl) {
+			scrollAreaViewportEl.scrollTop = scrollAreaViewportEl.scrollHeight;
+		}
+		// biome-ignore lint/correctness/useExhaustiveDependencies: caller controls deps
+	}, deps);
+
+	return scrollAreaRef;
+}
+
+type TaskLogPreviewProps = {
+	logs: readonly TaskLogEntry[];
+	maxLines?: number;
+	headerAction?: ReactNode;
 };
 
-const TaskBuildFailed: FC<TaskBuildFailedProps> = ({
-	workspaceOwner,
-	workspaceName,
-	buildNumber,
+const TaskLogPreview: FC<TaskLogPreviewProps> = ({
+	logs,
+	maxLines = 30,
+	headerAction,
 }) => {
+	const lines = logs.flatMap((entry) => entry.content.split("\n"));
+	const visibleLines = lines.slice(-maxLines);
+	const scrollAreaRef = useScrollAreaAutoScroll([visibleLines]);
+
 	return (
-		<TaskStateMessage
-			title="Task build failed"
-			description="Please check the logs for more details."
-			icon={<TriangleAlertIcon className="size-4 text-content-destructive" />}
-			actions={
-				<Button size="sm" variant="outline" asChild>
-					<RouterLink
-						to={`/@${workspaceOwner}/${workspaceName}/builds/${buildNumber}`}
-					>
-						View full logs
-					</RouterLink>
-				</Button>
-			}
-		/>
+		<div className="w-full max-w-screen-lg flex flex-col gap-2">
+			<div className="flex items-center justify-between text-sm text-content-secondary px-1">
+				<span>Last {maxLines} lines of AI chat logs</span>
+				{headerAction}
+			</div>
+			<ScrollArea
+				ref={scrollAreaRef}
+				className="h-96 border border-solid border-border rounded-lg"
+			>
+				<div className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words">
+					{visibleLines.map((line, i) => (
+						<div key={i}>{line || "\u00A0"}</div>
+					))}
+				</div>
+			</ScrollArea>
+		</div>
+	);
+};
+
+type TaskBuildFailedProps = {
+	task: Task;
+	workspace: Workspace;
+};
+
+const TaskBuildFailed: FC<TaskBuildFailedProps> = ({ task, workspace }) => {
+	const { data: logsData } = useQuery({
+		...taskLogs(task.owner_name, task.id),
+		retry: false,
+	});
+
+	const buildLogsLink = `/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`;
+	const hasLogs = logsData && logsData.logs.length > 0;
+
+	return (
+		<>
+			<TaskStateMessage
+				title="Task build failed"
+				description="Please check the logs for more details."
+				icon={<TriangleAlertIcon className="size-4 text-content-destructive" />}
+				actions={
+					<Button size="sm" variant="outline" asChild>
+						<RouterLink to={buildLogsLink}>View full logs</RouterLink>
+					</Button>
+				}
+			/>
+			{hasLogs && (
+				<TaskLogPreview
+					logs={logsData.logs}
+					headerAction={
+						<Button size="sm" variant="subtle" asChild>
+							<RouterLink to={buildLogsLink}>View full logs</RouterLink>
+						</Button>
+					}
+				/>
+			)}
+		</>
 	);
 };
 
@@ -352,6 +418,11 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 		},
 	});
 
+	const { data: logsData } = useQuery({
+		...taskLogs(task.owner_name, task.id),
+		retry: false,
+	});
+
 	// After requesting a task resume, it may take a while to become ready.
 	const isWaitingForStart =
 		resumeMutation.isPending || resumeMutation.isSuccess;
@@ -362,6 +433,8 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 	const apiError = isApiError(resumeMutation.error)
 		? resumeMutation.error
 		: undefined;
+
+	const hasLogs = logsData && logsData.logs.length > 0;
 
 	return (
 		<>
@@ -401,6 +474,22 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 					</div>
 				}
 			/>
+			{hasLogs && (
+				<TaskLogPreview
+					logs={logsData.logs}
+					headerAction={
+						<Button
+							size="sm"
+							variant="subtle"
+							disabled={isWaitingForStart}
+							onClick={() => resumeMutation.mutate()}
+						>
+							<Spinner loading={isWaitingForStart} />
+							Resume to view full logs
+						</Button>
+					}
+				/>
+			)}
 
 			<WorkspaceErrorDialog
 				open={apiError !== undefined}
@@ -438,20 +527,7 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 		P95: null,
 	};
 
-	const scrollAreaRef = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect should run when build logs change
-	useLayoutEffect(() => {
-		if (isChromatic()) {
-			return;
-		}
-		const scrollAreaEl = scrollAreaRef.current;
-		const scrollAreaViewportEl = scrollAreaEl?.querySelector<HTMLDivElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (scrollAreaViewportEl) {
-			scrollAreaViewportEl.scrollTop = scrollAreaViewportEl.scrollHeight;
-		}
-	}, [buildLogs]);
+	const scrollAreaRef = useScrollAreaAutoScroll([buildLogs]);
 
 	return (
 		<section className="p-16 overflow-y-auto">
