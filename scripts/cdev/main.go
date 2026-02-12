@@ -31,6 +31,7 @@ func main() {
 			downCmd(),
 			cleanCmd(),
 			pprofCmd(),
+			logsCmd(),
 		},
 	}
 
@@ -363,6 +364,78 @@ Examples:
 
 			//nolint:gosec // User-provided profile name is passed as a URL path.
 			cmd := exec.CommandContext(inv.Context(), "go", "tool", "pprof", "-http=:", url)
+			cmd.Stdout = inv.Stdout
+			cmd.Stderr = inv.Stderr
+			return cmd.Run()
+		},
+	}
+}
+
+func logsCmd() *serpent.Command {
+	var follow bool
+	return &serpent.Command{
+		Use:   "logs <service>",
+		Short: "Show logs for a cdev-managed service",
+		Long: `Show logs for a cdev-managed service container.
+
+Available services:
+  coderd       Main Coder API server
+  postgres     PostgreSQL database
+  oidc         OIDC test provider
+  provisioner  Provisioner daemon
+  prometheus   Prometheus metrics server
+  site         Frontend development server
+
+Examples:
+  cdev logs coderd
+  cdev logs -f postgres`,
+		Options: serpent.OptionSet{
+			{
+				Flag:          "follow",
+				FlagShorthand: "f",
+				Description:   "Follow log output (like tail -f).",
+				Default:       "false",
+				Value:         serpent.BoolOf(&follow),
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			if len(inv.Args) != 1 {
+				_ = serpent.DefaultHelpFn()(inv)
+				return xerrors.New("expected exactly one argument: the service name")
+			}
+			service := inv.Args[0]
+
+			pool, err := dockertest.NewPool("")
+			if err != nil {
+				return xerrors.Errorf("failed to connect to docker: %w", err)
+			}
+
+			// Find containers matching the service label.
+			filter := catalog.NewServiceLabels(catalog.ServiceName(service)).Filter()
+			containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+				All:     true,
+				Filters: filter,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to list containers: %w", err)
+			}
+
+			if len(containers) == 0 {
+				return xerrors.Errorf("no container found for service %q", service)
+			}
+
+			// Use the first container's name (strip leading slash).
+			containerName := strings.TrimPrefix(containers[0].Names[0], "/")
+
+			// Build docker logs command.
+			args := []string{"logs"}
+			if follow {
+				args = append(args, "-f")
+			}
+			args = append(args, containerName)
+
+			//nolint:gosec // User-provided service name is validated by docker.
+			cmd := exec.CommandContext(inv.Context(), "docker", args...)
 			cmd.Stdout = inv.Stdout
 			cmd.Stderr = inv.Stderr
 			return cmd.Run()
