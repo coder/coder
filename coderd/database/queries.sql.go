@@ -2618,9 +2618,9 @@ WITH ranked AS (
 	FROM
 		connection_logs
 	WHERE
-		workspace_id = ANY($3 :: uuid[])
-		AND agent_name = ANY($4 :: text[])
-		AND type = ANY($5 :: connection_type[])
+		workspace_id = ANY($2 :: uuid[])
+		AND agent_name = ANY($3 :: text[])
+		AND type = ANY($4 :: connection_type[])
 		AND disconnect_time IS NULL
 		AND (
 			-- Non-web types always included while connected.
@@ -2630,9 +2630,9 @@ WITH ranked AS (
 			OR user_agent IS NULL
 			-- Proxy-reported web connections (non-NULL user_agent)
 			-- rely on updated_at being bumped on each token refresh.
-			OR updated_at >= $6 :: timestamp with time zone
+			OR updated_at >= $5 :: timestamp with time zone
 		)
-		AND connect_time >= $7 :: timestamp with time zone
+		AND connect_time >= $6 :: timestamp with time zone
 )
 SELECT
 	id,
@@ -2658,7 +2658,7 @@ SELECT
 FROM
 	ranked
 WHERE
-	$1::bigint <= $2
+	rn <= $1
 ORDER BY
 	workspace_id,
 	agent_name,
@@ -2666,8 +2666,7 @@ ORDER BY
 `
 
 type GetOngoingAgentConnectionsLast24hParams struct {
-	Rn             int64            `db:"rn" json:"rn"`
-	PerAgentLimit  interface{}      `db:"per_agent_limit" json:"per_agent_limit"`
+	PerAgentLimit  int64            `db:"per_agent_limit" json:"per_agent_limit"`
 	WorkspaceIds   []uuid.UUID      `db:"workspace_ids" json:"workspace_ids"`
 	AgentNames     []string         `db:"agent_names" json:"agent_names"`
 	Types          []ConnectionType `db:"types" json:"types"`
@@ -2700,7 +2699,6 @@ type GetOngoingAgentConnectionsLast24hRow struct {
 
 func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg GetOngoingAgentConnectionsLast24hParams) ([]GetOngoingAgentConnectionsLast24hRow, error) {
 	rows, err := q.db.QueryContext(ctx, getOngoingAgentConnectionsLast24h,
-		arg.Rn,
 		arg.PerAgentLimit,
 		pq.Array(arg.WorkspaceIds),
 		pq.Array(arg.AgentNames),

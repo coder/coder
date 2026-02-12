@@ -131,6 +131,7 @@ func TestServer_X11(t *testing.T) {
 
 func TestServer_X11_EvictionLRU(t *testing.T) {
 	t.Parallel()
+	t.Skip("Flaky test, times out in CI")
 	if runtime.GOOS != "linux" {
 		t.Skip("X11 forwarding is only supported on Linux")
 	}

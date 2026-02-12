@@ -1982,7 +1982,9 @@ func (api *API) handleIdentifiedTelemetry(agentID, peerID uuid.UUID, events []*t
 		api.PeerNetworkTelemetryStore.Update(agentID, peerID, event)
 	}
 
-	ctx := dbauthz.AsSystemRestricted(context.Background())
+	// Telemetry callback runs outside any user request, so we use a system
+	// context to look up the workspace for the pubsub notification.
+	ctx := dbauthz.AsSystemRestricted(context.Background()) //nolint:gocritic // Telemetry callback has no user context.
 	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, agentID)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to resolve workspace for telemetry update",

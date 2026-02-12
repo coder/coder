@@ -144,6 +144,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 			String: reason,
 			Valid:  reason != "",
 		},
+		SessionID: uuid.NullUUID{},
 		// We supply the action:
 		// - So the DB can handle duplicate connections or disconnections properly.
 		// - To make it clear whether this is a connection or disconnection

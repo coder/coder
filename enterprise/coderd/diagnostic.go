@@ -139,7 +139,6 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 			HealthReason:        healthReason,
 			Sessions:            sessions,
 		})
-
 	}
 
 	// Build current connections and enrich with live telemetry.

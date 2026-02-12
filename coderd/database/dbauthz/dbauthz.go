@@ -2306,11 +2306,11 @@ func (q *querier) GetConnectionLogByConnectionID(ctx context.Context, arg databa
 	return q.db.GetConnectionLogByConnectionID(ctx, arg)
 }
 
-func (q *querier) GetConnectionLogsBySessionIDs(ctx context.Context, sessionIds []uuid.UUID) ([]database.ConnectionLog, error) {
+func (q *querier) GetConnectionLogsBySessionIDs(ctx context.Context, sessionIDs []uuid.UUID) ([]database.ConnectionLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog); err != nil {
 		return nil, err
 	}
-	return q.db.GetConnectionLogsBySessionIDs(ctx, sessionIds)
+	return q.db.GetConnectionLogsBySessionIDs(ctx, sessionIDs)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {

@@ -14,7 +14,7 @@ export interface UserDiagnosticResponse {
 	patterns: DiagnosticPattern[];
 }
 
-export interface DiagnosticUser {
+interface DiagnosticUser {
 	id: string;
 	username: string;
 	name: string;
@@ -118,7 +118,7 @@ export interface DiagnosticSessionConnection {
 	explanation: string;
 }
 
-export type DiagnosticTimelineEventKind =
+type DiagnosticTimelineEventKind =
 	| "tunnel_created"
 	| "tunnel_removed"
 	| "node_update"
@@ -139,7 +139,7 @@ export interface DiagnosticTimelineEvent {
 	severity: "info" | "warning" | "error";
 }
 
-export type DiagnosticPatternType =
+type DiagnosticPatternType =
 	| "device_sleep"
 	| "workspace_autostart"
 	| "network_policy"

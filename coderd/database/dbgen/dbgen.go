@@ -127,6 +127,18 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			String: takeFirst(seed.DisconnectReason.String, ""),
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
+		SessionID: uuid.NullUUID{
+			UUID:  takeFirst(seed.SessionID.UUID, uuid.Nil),
+			Valid: takeFirst(seed.SessionID.Valid, false),
+		},
+		ClientHostname: sql.NullString{
+			String: takeFirst(seed.ClientHostname.String, ""),
+			Valid:  takeFirst(seed.ClientHostname.Valid, false),
+		},
+		ShortDescription: sql.NullString{
+			String: takeFirst(seed.ShortDescription.String, ""),
+			Valid:  takeFirst(seed.ShortDescription.Valid, false),
+		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	})
 	require.NoError(t, err, "insert connection log")

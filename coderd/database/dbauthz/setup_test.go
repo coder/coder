@@ -35,14 +35,20 @@ import (
 var errMatchAny = xerrors.New("match any error")
 
 var skipMethods = map[string]string{
-	"InTx":                              "Not relevant",
-	"Ping":                              "Not relevant",
-	"PGLocks":                           "Not relevant",
-	"Wrappers":                          "Not relevant",
-	"AcquireLock":                       "Not relevant",
-	"TryAcquireLock":                    "Not relevant",
-	"GetOngoingAgentConnectionsLast24h": "Hackathon",
-	"InsertTailnetPeeringEvent":         "Hackathon",
+	"InTx":                                 "Not relevant",
+	"Ping":                                 "Not relevant",
+	"PGLocks":                              "Not relevant",
+	"Wrappers":                             "Not relevant",
+	"AcquireLock":                          "Not relevant",
+	"TryAcquireLock":                       "Not relevant",
+	"GetOngoingAgentConnectionsLast24h":    "Hackathon",
+	"InsertTailnetPeeringEvent":            "Hackathon",
+	"CloseConnectionLogsAndCreateSessions": "Hackathon",
+	"CountWorkspaceSessions":               "Hackathon",
+	"FindOrCreateSessionForDisconnect":     "Hackathon",
+	"GetConnectionLogByConnectionID":       "Hackathon",
+	"GetConnectionLogsBySessionIDs":        "Hackathon",
+	"GetWorkspaceSessionsOffset":           "Hackathon",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.

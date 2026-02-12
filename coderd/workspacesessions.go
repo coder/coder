@@ -42,8 +42,8 @@ func (api *API) workspaceSessions(rw http.ResponseWriter, r *http.Request) {
 	// Fetch sessions.
 	sessions, err := api.Database.GetWorkspaceSessionsOffset(ctx, database.GetWorkspaceSessionsOffsetParams{
 		WorkspaceID:   workspace.ID,
-		LimitCount:    int32(limit),
-		OffsetCount:   int32(offset),
+		LimitCount:    int32(limit),  //nolint:gosec // query param is validated and bounded
+		OffsetCount:   int32(offset), //nolint:gosec // query param is validated and bounded
 		StartedAfter:  time.Time{},
 		StartedBefore: time.Time{},
 	})

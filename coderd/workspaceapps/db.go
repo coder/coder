@@ -544,6 +544,9 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			ConnectionStatus: database.ConnectionStatusConnected,
 			ConnectionID:     result.ConnectionID,
 			DisconnectReason: sql.NullString{},
+			SessionID:        uuid.NullUUID{},
+			ClientHostname:   sql.NullString{},
+			ShortDescription: sql.NullString{},
 		}
 
 		if !result.NewOrStale {

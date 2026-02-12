@@ -140,6 +140,10 @@ func TestConnectionLog(t *testing.T) {
 
 			mDB := dbmock.NewMockStore(gomock.NewController(t))
 			mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
+			// Disconnect actions trigger session assignment which calls
+			// GetConnectionLogByConnectionID and FindOrCreateSessionForDisconnect.
+			mDB.EXPECT().GetConnectionLogByConnectionID(gomock.Any(), gomock.Any()).Return(database.ConnectionLog{}, nil).AnyTimes()
+			mDB.EXPECT().FindOrCreateSessionForDisconnect(gomock.Any(), gomock.Any()).Return(database.WorkspaceSession{}, nil).AnyTimes()
 
 			api := &agentapi.ConnLogAPI{
 				ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),

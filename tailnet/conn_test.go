@@ -461,7 +461,7 @@ func TestTailnet(t *testing.T) {
 					return connectedEvents >= 3
 				}
 			}
-		}, testutil.WaitShort, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
 	t.Run("TelemetryHeartbeatStopsOnClose", func(t *testing.T) {
@@ -511,7 +511,7 @@ func TestTailnet(t *testing.T) {
 					return connectedEvents >= 3
 				}
 			}
-		}, testutil.WaitShort, 25*time.Millisecond)
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		drainEvents := func() {
 			for {

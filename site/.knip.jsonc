@@ -5,6 +5,7 @@
 	"ignore": ["**/*Generated.ts"],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
+		"@biomejs/cli-linux-x64",
 		"@types/react-virtualized-auto-sizer",
 		"jest_workaround",
 		"ts-proto"
