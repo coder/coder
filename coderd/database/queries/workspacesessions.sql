@@ -9,12 +9,12 @@
 -- ClientHostname (with IP fallback) so connections from the same machine
 -- collapse into one session.
 WITH lock AS (
-    SELECT pg_advisory_xact_lock(hashtext(@workspace_id::text || @ip::text))
+    SELECT pg_advisory_xact_lock(hashtext(@workspace_id::text || CAST(@ip::inet AS text)))
 ),
 existing AS (
     SELECT id FROM workspace_sessions
     WHERE workspace_id = @workspace_id::uuid
-      AND ip = @ip
+      AND ip = @ip::inet
       AND (client_hostname IS NOT DISTINCT FROM @client_hostname)
       AND @connect_time BETWEEN started_at - INTERVAL '30 minutes' AND ended_at + INTERVAL '30 minutes'
     ORDER BY started_at DESC
@@ -22,7 +22,7 @@ existing AS (
 ),
 new_session AS (
     INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
-    SELECT @workspace_id::uuid, @agent_id, @ip, @client_hostname, @short_description, @connect_time, @disconnect_time
+    SELECT @workspace_id::uuid, @agent_id, @ip::inet, @client_hostname, @short_description, @connect_time, @disconnect_time
     WHERE NOT EXISTS (SELECT 1 FROM existing)
     RETURNING id
 ),

@@ -24766,12 +24766,12 @@ func (q *sqlQuerier) CountWorkspaceSessions(ctx context.Context, arg CountWorksp
 
 const findOrCreateSessionForDisconnect = `-- name: FindOrCreateSessionForDisconnect :one
 WITH lock AS (
-    SELECT pg_advisory_xact_lock(hashtext($1::text || $2::text))
+    SELECT pg_advisory_xact_lock(hashtext($1::text || CAST($2::inet AS text)))
 ),
 existing AS (
     SELECT id FROM workspace_sessions
     WHERE workspace_id = $1::uuid
-      AND ip = $2
+      AND ip = $2::inet
       AND (client_hostname IS NOT DISTINCT FROM $3)
       AND $4 BETWEEN started_at - INTERVAL '30 minutes' AND ended_at + INTERVAL '30 minutes'
     ORDER BY started_at DESC
@@ -24779,7 +24779,7 @@ existing AS (
 ),
 new_session AS (
     INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
-    SELECT $1::uuid, $5, $2, $3, $6, $4, $7
+    SELECT $1::uuid, $5, $2::inet, $3, $6, $4, $7
     WHERE NOT EXISTS (SELECT 1 FROM existing)
     RETURNING id
 ),
@@ -24798,7 +24798,7 @@ SELECT COALESCE(
 
 type FindOrCreateSessionForDisconnectParams struct {
 	WorkspaceID      string         `db:"workspace_id" json:"workspace_id"`
-	Ip               string         `db:"ip" json:"ip"`
+	Ip               pqtype.Inet    `db:"ip" json:"ip"`
 	ClientHostname   sql.NullString `db:"client_hostname" json:"client_hostname"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
 	AgentID          uuid.NullUUID  `db:"agent_id" json:"agent_id"`

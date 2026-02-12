@@ -214,7 +214,7 @@ func (a *ConnLogAPI) assignSessionForDisconnect(
 
 	sessionIDRaw, err := a.Database.FindOrCreateSessionForDisconnect(ctx, database.FindOrCreateSessionForDisconnectParams{
 		WorkspaceID:      ws.ID.String(),
-		Ip:               logIPRaw,
+		Ip:               existingLog.Ip,
 		ClientHostname:   existingLog.ClientHostname,
 		ShortDescription: existingLog.ShortDescription,
 		ConnectTime:      existingLog.ConnectTime,
