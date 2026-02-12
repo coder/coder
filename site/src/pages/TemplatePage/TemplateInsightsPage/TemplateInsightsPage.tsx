@@ -510,9 +510,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 									{parameter.description}
 								</p>
 							</div>
-							<div
-								className="flex-1 grow-2 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline"
-							>
+							<div className="flex-1 grow-2 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
 								<div className="font-medium text-[13px] text-content-secondary py-1">
 									Value
 								</div>
