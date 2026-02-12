@@ -835,6 +835,7 @@ latest_status_before_range AS (
         usc.changed_at,
         ud.deleted
     FROM user_status_changes usc
+	INNER JOIN users u ON u.id = usc.user_id AND NOT u.is_system
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
 		FROM user_deleted ud
@@ -854,6 +855,7 @@ status_changes_during_range AS (
         usc.changed_at,
         ud.deleted
     FROM user_status_changes usc
+	INNER JOIN users u ON u.id = usc.user_id AND NOT u.is_system
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
 		FROM user_deleted ud
