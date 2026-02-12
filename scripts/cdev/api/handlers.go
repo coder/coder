@@ -102,45 +102,27 @@ func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRestartService(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-
-	svc, ok := s.catalog.Get(catalog.ServiceName(name))
-	if !ok {
+	if _, ok := s.catalog.Get(catalog.ServiceName(name)); !ok {
 		s.writeError(w, http.StatusNotFound, "service not found")
 		return
 	}
-
-	ctx := r.Context()
-
-	// Stop then start the service.
-	if err := svc.Stop(ctx); err != nil {
-		s.writeError(w, http.StatusInternalServerError, "failed to stop service: "+err.Error())
+	if err := s.catalog.RestartService(r.Context(), catalog.ServiceName(name), s.logger); err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to restart service: "+err.Error())
 		return
 	}
-
-	if err := svc.Start(ctx, s.logger, s.catalog); err != nil {
-		s.writeError(w, http.StatusInternalServerError, "failed to start service: "+err.Error())
-		return
-	}
-
-	s.catalog.NotifySubscribers()
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "restarted"})
 }
 
 func (s *Server) handleStopService(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-
-	svc, ok := s.catalog.Get(catalog.ServiceName(name))
-	if !ok {
+	if _, ok := s.catalog.Get(catalog.ServiceName(name)); !ok {
 		s.writeError(w, http.StatusNotFound, "service not found")
 		return
 	}
-
-	if err := svc.Stop(r.Context()); err != nil {
+	if err := s.catalog.StopService(r.Context(), catalog.ServiceName(name)); err != nil {
 		s.writeError(w, http.StatusInternalServerError, "failed to stop service: "+err.Error())
 		return
 	}
-
-	s.catalog.NotifySubscribers()
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 }
 
