@@ -40,6 +40,7 @@ test("create workspace in auto mode", async ({ page }) => {
 			waitUntil: "domcontentloaded",
 		},
 	);
+	await page.getByRole("button", { name: /confirm and create/i }).click();
 	await expect(page).toHaveTitle(`${users.member.username}/${name} - Coder`);
 });
 
@@ -53,6 +54,7 @@ test("use an existing workspace that matches the `match` parameter instead of cr
 			waitUntil: "domcontentloaded",
 		},
 	);
+	await page.getByRole("button", { name: /confirm and create/i }).click();
 	await expect(page).toHaveTitle(
 		`${users.member.username}/${prevWorkspace} - Coder`,
 	);
@@ -66,5 +68,6 @@ test("show error if `match` parameter is invalid", async ({ page }) => {
 			waitUntil: "domcontentloaded",
 		},
 	);
+	await page.getByRole("button", { name: /confirm and create/i }).click();
 	await expect(page.getByText("Invalid match value")).toBeVisible();
 });

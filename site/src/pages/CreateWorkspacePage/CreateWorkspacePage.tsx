@@ -25,6 +25,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
 	type CreateWorkspacePermissions,
@@ -46,6 +47,7 @@ const CreateWorkspacePage: FC = () => {
 	const defaultName = searchParams.get("name");
 	const disabledParams = searchParams.get("disable_params")?.split(",");
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
+	const [autoCreateConsented, setAutoCreateConsented] = useState(false);
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
 
@@ -168,7 +170,11 @@ const CreateWorkspacePage: FC = () => {
 	let autoCreateReady =
 		mode === "auto" &&
 		(!autofillEnabled || userParametersQuery.isSuccess) &&
-		hasAllRequiredExternalAuth;
+		hasAllRequiredExternalAuth &&
+		autoCreateConsented;
+
+	const showAutoCreateConsent =
+		mode === "auto" && !autoCreateConsented && !autoCreateError;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
@@ -203,6 +209,13 @@ const CreateWorkspacePage: FC = () => {
 	return (
 		<>
 			<title>{pageTitle(title)}</title>
+
+			<AutoCreateConsentDialog
+				open={showAutoCreateConsent}
+				autofillParameters={autofillParameters}
+				onConfirm={() => setAutoCreateConsented(true)}
+				onDeny={() => setMode("form")}
+			/>
 
 			{isLoadingFormData || isLoadingExternalAuth || autoCreateReady ? (
 				<Loader />
