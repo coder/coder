@@ -50,7 +50,7 @@ You must also have External Auth configured for the services you want to expose
 as MCP tools.
 
 AI Bridge makes use of [External Auth](../../admin/external-auth/index.md)
-applications, as they define OAuth2 connections to upstream services. If your
+applications to define OAuth2 connections to upstream services. If your
 External Auth application hosts a remote MCP server, you can configure AI Bridge
 to connect to it, retrieve its tools and inject them into requests automatically
 — all while using each individual user's access token.
