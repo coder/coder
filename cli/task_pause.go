@@ -68,6 +68,10 @@ func (r *RootCmd) taskPause() *serpent.Command {
 				return xerrors.Errorf("pause task %q: %w", display, err)
 			}
 
+			if resp.WorkspaceBuild == nil {
+				return xerrors.Errorf("pause task %q: no workspace build returned", display)
+			}
+
 			err = cliui.WorkspaceBuild(ctx, inv.Stdout, client, resp.WorkspaceBuild.ID)
 			if err != nil {
 				return xerrors.Errorf("watch pause build for task %q: %w", display, err)
