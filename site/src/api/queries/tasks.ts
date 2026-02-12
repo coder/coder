@@ -2,6 +2,11 @@ import { API } from "api/api";
 import type { Task } from "api/typesGenerated";
 import type { QueryClient } from "react-query";
 
+export const taskLogs = (user: string, taskId: string) => ({
+	queryKey: ["tasks", user, taskId, "logs"],
+	queryFn: () => API.getTaskLogs(user, taskId),
+});
+
 export const pauseTask = (task: Task, queryClient: QueryClient) => {
 	return {
 		mutationFn: async () => {
