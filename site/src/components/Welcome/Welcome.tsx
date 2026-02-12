@@ -13,7 +13,7 @@ export const Welcome: FC<WelcomeProps> = ({ children, className }) => {
 				<CoderIcon className="w-12 h-12" />
 			</div>
 
-			<h1 className="text-3xl font-semibold m-0 flex items-center text-center leading-snug">
+			<h1 className="text-3xl font-semibold m-0 flex justify-center items-center text-center leading-snug">
 				{children || "Welcome to Coder"}
 			</h1>
 		</div>
