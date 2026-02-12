@@ -565,12 +565,16 @@ func isPromautoCall(expr ast.Expr) bool {
 		if !ok {
 			return false
 		}
+		// Match calls that are exactly "promauto.With(...)". This checks the local
+		// package identifier, not the resolved import path. If the promauto package
+		// is imported with an alias, this will not match.
 		return ident.Name == "promauto" && sel.Sel.Name == "With"
 	case *ast.Ident:
-		// Check for factory.New*() where factory is a variable.
-		// We assume any identifier used as receiver for New*Vec/New* methods
-		// that isn't "prometheus" is a promauto factory.
-		// This is a heuristic but works for the codebase patterns.
+		// Heuristic: assume any identifier that isn't "prometheus" used as a
+		// receiver for New*() methods is a promauto factory variable.
+		// This works for the codebase patterns (e.g., factory.NewGaugeVec(...))
+		// but could false-positive on other receivers. Downstream extractOpts
+		// validation prevents incorrect metrics from being emitted.
 		return e.Name != "prometheus"
 	}
 	return false
@@ -605,6 +609,7 @@ func extractPromautoMetric(call *ast.CallExpr, decls declarations) (Metric, bool
 	// Extract metric info from the Opts struct.
 	opts, ok := extractOpts(call.Args[0], decls)
 	if !ok {
+		log.Printf("extractPromautoMetric: skipping promauto.%s() call: could not extract opts", funcName)
 		return Metric{}, false
 	}
 
@@ -617,6 +622,7 @@ func extractPromautoMetric(call *ast.CallExpr, decls declarations) (Metric, bool
 	// Build the full metric name.
 	name := buildMetricName(opts.Namespace, opts.Subsystem, opts.Name)
 	if name == "" {
+		log.Printf("extractPromautoMetric: skipping promauto.%s() call: could not build metric name", funcName)
 		return Metric{}, false
 	}
 
