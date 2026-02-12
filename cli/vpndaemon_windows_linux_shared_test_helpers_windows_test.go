@@ -15,10 +15,14 @@ func dupHandle(t *testing.T, f *os.File) uintptr {
 
 	src := syscall.Handle(f.Fd())
 	var dup syscall.Handle
-	err := syscall.DuplicateHandle(
-		syscall.GetCurrentProcess(),
+
+	proc, err := syscall.GetCurrentProcess()
+	require.NoError(t, err)
+
+	err = syscall.DuplicateHandle(
+		proc,
 		src,
-		syscall.GetCurrentProcess(),
+		proc,
 		&dup,
 		0,
 		false,
