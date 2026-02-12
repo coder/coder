@@ -148,3 +148,10 @@ You have no security keys registered. Run 'coder webauthn register' to set up yo
   proxy are not behind FIDO2 enforcement.
 - The `coder-fido2` helper binary must be built and distributed separately from
   the main Coder binary due to its CGo dependency.
+- **High-availability deployments**: The single-use token replay cache
+  (`--fido2-token-duration 0s`) is stored in-memory per `coderd` process. In
+  multi-replica deployments, a stolen JWT could theoretically be replayed once
+  per replica within the 10-second validity window. If strict single-use is
+  critical in an HA environment, consider using a very short positive duration
+  (e.g., `10s`) instead, which relies on time-based expiry rather than the
+  per-process JTI cache.

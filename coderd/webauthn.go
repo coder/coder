@@ -394,6 +394,10 @@ func (api *API) listWebAuthnCredentials(rw http.ResponseWriter, r *http.Request)
 
 	creds, err := api.Database.GetWebAuthnCredentialsByUserID(ctx, user.ID)
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list credentials.",
 			Detail:  err.Error(),
@@ -689,8 +693,11 @@ func (api *API) VerifyWebAuthnConnectJWT(ctx context.Context, token string) (uui
 		return uuid.Nil, xerrors.Errorf("verify connection JWT: %w", err)
 	}
 
-	// Reject replayed tokens by tracking the JTI.
-	if claims.ID != "" {
+	// In single-use mode (--fido2-token-duration=0), reject replayed
+	// tokens by tracking the JTI. When duration > 0, the token is
+	// intentionally reusable within its validity window (e.g., for
+	// multiple SSH sessions or parallel port-forwards).
+	if api.DeploymentValues.Sessions.FIDO2TokenDuration.Value() == 0 && claims.ID != "" {
 		expiry := time.Now().Add(10 * time.Minute) // conservative TTL
 		if claims.Expiry != nil {
 			expiry = claims.Expiry.Time()

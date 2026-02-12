@@ -625,37 +625,28 @@ type DeploymentValues struct {
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
 	EnableAuthzRecording            serpent.Bool                         `json:"enable_authz_recording,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
-	// RequireFIDO2Connect requires users with registered FIDO2 security
-	// keys to verify with their key before SSH, port-forward, and other
-	// sensitive workspace connections. When enabled, the coordination
-	// endpoint rejects connections without a valid WebAuthn JWT from
-	// users who have registered credentials.
-	RequireFIDO2Connect serpent.Bool `json:"require_fido2_connect,omitempty" typescript:",notnull"`
-	// RequireFIDO2UserVerification requires PIN or biometric verification
-	// in addition to physical key touch during FIDO2 ceremonies. When
-	// enabled, the server sets UserVerification to "required" in WebAuthn
-	// options, and the authenticator must verify the user (e.g., PIN entry).
-	RequireFIDO2UserVerification serpent.Bool                 `json:"require_fido2_user_verification,omitempty" typescript:",notnull"`
-	SSHConfig                    SSHConfig                    `json:"config_ssh,omitempty" typescript:",notnull"`
-	WgtunnelHost                 serpent.String               `json:"wgtunnel_host,omitempty" typescript:",notnull"`
-	DisableOwnerWorkspaceExec    serpent.Bool                 `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
-	DisableWorkspaceSharing      serpent.Bool                 `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
-	ProxyHealthStatusInterval    serpent.Duration             `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
-	EnableTerraformDebugMode     serpent.Bool                 `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
-	UserQuietHoursSchedule       UserQuietHoursScheduleConfig `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
-	WebTerminalRenderer          serpent.String               `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
-	AllowWorkspaceRenames        serpent.Bool                 `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
-	Healthcheck                  HealthcheckConfig            `json:"healthcheck,omitempty" typescript:",notnull"`
-	Retention                    RetentionConfig              `json:"retention,omitempty" typescript:",notnull"`
-	CLIUpgradeMessage            serpent.String               `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
-	TermsOfServiceURL            serpent.String               `json:"terms_of_service_url,omitempty" typescript:",notnull"`
-	Notifications                NotificationsConfig          `json:"notifications,omitempty" typescript:",notnull"`
-	AdditionalCSPPolicy          serpent.StringArray          `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	WorkspaceHostnameSuffix      serpent.String               `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
-	Prebuilds                    PrebuildsConfig              `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	HideAITasks                  serpent.Bool                 `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
-	AI                           AIConfig                     `json:"ai,omitempty"`
-	StatsCollection              StatsCollectionConfig        `json:"stats_collection,omitempty" typescript:",notnull"`
+	RequireFIDO2Connect             serpent.Bool                         `json:"require_fido2_connect,omitempty" typescript:",notnull"`
+	RequireFIDO2UserVerification    serpent.Bool                         `json:"require_fido2_user_verification,omitempty" typescript:",notnull"`
+	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
+	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
+	DisableWorkspaceSharing         serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
+	ProxyHealthStatusInterval       serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
+	EnableTerraformDebugMode        serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
+	WebTerminalRenderer             serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
+	AllowWorkspaceRenames           serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
+	Retention                       RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
+	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
+	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	AI                              AIConfig                             `json:"ai,omitempty"`
+	StatsCollection                 StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -733,10 +724,6 @@ type SessionLifetime struct {
 
 	MaximumAdminTokenDuration serpent.Duration `json:"max_admin_token_lifetime,omitempty" typescript:",notnull"`
 
-	// FIDO2TokenDuration controls how long a FIDO2/WebAuthn connection
-	// JWT is valid after the user touches their security key. Set to
-	// 0 for single-use tokens (one connection per touch). Negative
-	// values are rejected at startup.
 	FIDO2TokenDuration serpent.Duration `json:"fido2_token_duration,omitempty" typescript:",notnull"`
 }
 

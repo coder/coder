@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestWebAuthnListCredentials(t *testing.T) {
@@ -286,7 +287,12 @@ func TestVerifyWebAuthnConnectJWT_ReplayRejected(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	// Single-use mode (duration=0) enables JTI replay tracking.
+	dv := coderdtest.DeploymentValues(t)
+	dv.Sessions.FIDO2TokenDuration = serpent.Duration(0)
+	_, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
 
 	userID := uuid.New()
 	now := time.Now()
