@@ -73,6 +73,12 @@ type sqlcQuerier interface {
 	// same session if their time ranges overlap within a 30-minute tolerance
 	// (matching FindOrCreateSessionForDisconnect). Used when a workspace is
 	// stopped/deleted.
+	// Only processes connections that are still open (disconnect_time IS
+	// NULL). Connections already disconnected by the agent are handled by
+	// FindOrCreateSessionForDisconnect in the normal disconnect flow.
+	// Including "session_id IS NULL" here would race with
+	// assignSessionForDisconnect (which sets disconnect_time and
+	// session_id in separate transactions) and create duplicate sessions.
 	// Step 1: Order by IP then time, compute running max of end times
 	// to detect gaps between connection groups.
 	// Step 2: Mark group boundaries. A new group starts when the gap
