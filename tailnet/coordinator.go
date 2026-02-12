@@ -427,7 +427,7 @@ func (c *core) updateTunnelPeersLocked(id uuid.UUID, n *proto.Node, k proto.Coor
 
 func (c *core) addTunnelLocked(src *peer, dstID uuid.UUID) error {
 	c.tunnels.add(src.id, dstID)
-	c.eventSink.AddedTunnel(src.id, dstID)
+	c.eventSink.AddedTunnel(src.id, dstID, src.node)
 	c.logger.Debug(context.Background(), "adding tunnel",
 		slog.F("src_id", src.id),
 		slog.F("dst_id", dstID))

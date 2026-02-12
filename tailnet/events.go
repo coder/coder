@@ -11,7 +11,7 @@ import (
 )
 
 type EventSink interface {
-	AddedTunnel(src, dst uuid.UUID)
+	AddedTunnel(src, dst uuid.UUID, srcNode *proto.Node)
 	RemovedTunnel(src, dst uuid.UUID)
 	SentPeerUpdate(recipient uuid.UUID, update *proto.CoordinateResponse_PeerUpdate)
 }
@@ -49,7 +49,7 @@ func PeeringIDFromAddrs(a, b netip.Addr) []byte {
 
 type noopEventSink struct{}
 
-func (noopEventSink) AddedTunnel(_, _ uuid.UUID)   {}
+func (noopEventSink) AddedTunnel(_, _ uuid.UUID, _ *proto.Node) {}
 func (noopEventSink) RemovedTunnel(_, _ uuid.UUID) {}
 func (noopEventSink) SentPeerUpdate(_ uuid.UUID, _ *proto.CoordinateResponse_PeerUpdate) {
 }

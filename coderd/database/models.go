@@ -1101,6 +1101,7 @@ const (
 	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	ConnectionTypeSystem          ConnectionType = "system"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -1145,7 +1146,8 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeJetbrains,
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding:
+		ConnectionTypePortForwarding,
+		ConnectionTypeSystem:
 		return true
 	}
 	return false
@@ -1159,6 +1161,7 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
+		ConnectionTypeSystem,
 	}
 }
 

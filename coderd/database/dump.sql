@@ -271,7 +271,8 @@ CREATE TYPE connection_type AS ENUM (
     'jetbrains',
     'reconnecting_pty',
     'workspace_app',
-    'port_forwarding'
+    'port_forwarding',
+    'system'
 );
 
 CREATE TYPE cors_behavior AS ENUM (

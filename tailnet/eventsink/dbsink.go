@@ -2,8 +2,12 @@ package eventsink
 
 import (
 	"context"
+	"database/sql"
+	"net/netip"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
@@ -46,7 +50,7 @@ func NewEventSink(ctx context.Context, db database.Store, logger slog.Logger) ta
 	}
 }
 
-func (s *Sink) AddedTunnel(src, dst uuid.UUID) {
+func (s *Sink) AddedTunnel(src, dst uuid.UUID, srcNode *proto.Node) {
 	// This is very janky, the Coordinator is calling this while holding a lock, so we can't block
 	// here.
 	go func() {
@@ -61,6 +65,10 @@ func (s *Sink) AddedTunnel(src, dst uuid.UUID) {
 		if err != nil {
 			s.logger.Error(s.ctx, "failed to added tunnel event", slog.Error(err))
 		}
+
+		// Also create a connection_log entry for the tunnel so that
+		// workspace session history tracks system/tunnel connections.
+		s.logTunnelConnection(src, dst, srcNode, database.ConnectionStatusConnected)
 	}()
 }
 
@@ -79,6 +87,9 @@ func (s *Sink) RemovedTunnel(src, dst uuid.UUID) {
 		if err != nil {
 			s.logger.Error(s.ctx, "failed to insert removed tunnel event", slog.Error(err))
 		}
+
+		// Log the disconnect in connection_log.
+		s.logTunnelConnection(src, dst, nil, database.ConnectionStatusDisconnected)
 	}()
 }
 
@@ -122,4 +133,94 @@ func (s *Sink) SentPeerUpdate(recipient uuid.UUID, update *proto.CoordinateRespo
 			s.logger.Error(s.ctx, "failed to insert peer update event", slog.Error(err))
 		}
 	}()
+}
+
+// logTunnelConnection creates or updates a connection_log entry for a
+// tunnel connection so that system/tunnel peers appear in workspace
+// session history. It uses a separate auth context with connection_log
+// write permissions since the default eventSinkSubject only covers
+// tailnet coordinator resources.
+func (s *Sink) logTunnelConnection(src, dst uuid.UUID, srcNode *proto.Node, status database.ConnectionStatus) {
+	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	defer cancel()
+
+	// Use a context with connection_log permissions. The default
+	// eventSinkSubject only has tailnet_coordinator permissions.
+	connLogCtx := dbauthz.AsConnectionLogger(ctx)
+
+	// dst is the workspace agent ID. Look up agent and workspace info.
+	agent, err := s.db.GetWorkspaceAgentByID(connLogCtx, dst)
+	if err != nil {
+		// Not all tunnel peers are workspace agents. Skip silently.
+		return
+	}
+
+	resource, err := s.db.GetWorkspaceResourceByID(connLogCtx, agent.ResourceID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to get resource for tunnel connection log", slog.Error(err))
+		return
+	}
+
+	build, err := s.db.GetWorkspaceBuildByJobID(connLogCtx, resource.JobID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to get build for tunnel connection log", slog.Error(err))
+		return
+	}
+
+	workspace, err := s.db.GetWorkspaceByID(connLogCtx, build.WorkspaceID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to get workspace for tunnel connection log", slog.Error(err))
+		return
+	}
+
+	// Deterministic connection_id from (src, dst) so connect and
+	// disconnect upsert the same row.
+	connectionID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("tunnel:"+src.String()+":"+dst.String()))
+
+	// Extract IP and metadata from node if available.
+	var ip pqtype.Inet
+	var hostname, shortDesc sql.NullString
+	if srcNode != nil {
+		if len(srcNode.Addresses) > 0 {
+			if prefix, err := netip.ParsePrefix(srcNode.Addresses[0]); err == nil {
+				ipAddr := prefix.Addr()
+				ip = database.ParseIP(ipAddr.String())
+			}
+		}
+		if srcNode.Hostname != "" {
+			hostname = sql.NullString{String: srcNode.Hostname, Valid: true}
+		}
+		if srcNode.ShortDescription != "" {
+			shortDesc = sql.NullString{String: srcNode.ShortDescription, Valid: true}
+		}
+	}
+
+	now := dbtime.Now()
+	_, err = s.db.UpsertConnectionLog(connLogCtx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		OrganizationID:   workspace.OrganizationID,
+		WorkspaceOwnerID: workspace.OwnerID,
+		WorkspaceID:      workspace.ID,
+		WorkspaceName:    workspace.Name,
+		AgentName:        agent.Name,
+		AgentID:          uuid.NullUUID{UUID: agent.ID, Valid: true},
+		Type:             database.ConnectionTypeSystem,
+		ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+		ConnectionStatus: status,
+		Ip:               ip,
+		ClientHostname:   hostname,
+		ShortDescription: shortDesc,
+		Time:             now,
+		// No user info available for tunnel connections.
+		UserID:           uuid.NullUUID{},
+		UserAgent:        sql.NullString{},
+		Code:             sql.NullInt32{},
+		SlugOrPort:       sql.NullString{},
+		DisconnectReason: sql.NullString{},
+		SessionID:        uuid.NullUUID{},
+	})
+	if err != nil {
+		s.logger.Warn(ctx, "failed to log tunnel connection",
+			slog.Error(err), slog.F("src", src), slog.F("dst", dst))
+	}
 }
