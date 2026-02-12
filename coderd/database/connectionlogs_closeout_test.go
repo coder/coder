@@ -145,3 +145,109 @@ func TestCloseOpenAgentConnectionLogsForWorkspace(t *testing.T) {
 	require.Equal(t, sshLog2.ID, ws2Rows[0].ConnectionLog.ID)
 	require.False(t, ws2Rows[0].ConnectionLog.DisconnectTime.Valid)
 }
+// Regression test: CloseConnectionLogsAndCreateSessions must not fail
+// when connection_logs have NULL IPs (e.g., disconnect-only tunnel
+// events). NULL-IP logs should be closed but no session created for
+// them.
+func TestCloseConnectionLogsAndCreateSessions_NullIP(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	validIP := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   net.IPv4(10, 0, 0, 1),
+			Mask: net.IPv4Mask(255, 255, 255, 255),
+		},
+		Valid: true,
+	}
+	now := dbtime.Now()
+
+	// Connection with a valid IP.
+	sshLog, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-30 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               validIP,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	// Connection with a NULL IP — simulates a disconnect-only tunnel
+	// event where the source node info is unavailable.
+	nullIPLog, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-25 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               pqtype.Inet{Valid: false},
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	// This previously failed with: "pq: null value in column ip of
+	// relation workspace_sessions violates not-null constraint".
+	closedAt := now.Add(-5 * time.Minute)
+	_, err = db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSsh,
+			database.ConnectionTypeSystem,
+		},
+	})
+	require.NoError(t, err)
+
+	// Verify both logs were closed.
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	for _, row := range rows {
+		cl := row.ConnectionLog
+		require.True(t, cl.DisconnectTime.Valid,
+			"connection log %s (type=%s) should be closed", cl.ID, cl.Type)
+
+		switch cl.ID {
+		case sshLog.ID:
+			// Valid-IP log should have a session.
+			require.True(t, cl.SessionID.Valid,
+				"valid-IP log should be linked to a session")
+		case nullIPLog.ID:
+			// NULL-IP log should NOT have a session.
+			require.False(t, cl.SessionID.Valid,
+				"NULL-IP log should not be linked to a session")
+		default:
+			t.Fatalf("unexpected connection log id: %s", cl.ID)
+		}
+	}
+}
+

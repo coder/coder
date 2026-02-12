@@ -79,6 +79,13 @@ type sqlcQuerier interface {
 	// between this connection's start and the running max end exceeds
 	// 30 minutes (matching FindOrCreateSessionForDisconnect's window).
 	// Step 3: Aggregate per (ip, group_id) into session-level rows.
+	// Exclude NULL-IP connections from session creation since
+	// workspace_sessions.ip is NOT NULL. NULL IPs can occur when
+	// only a tunnel disconnect event is received without a prior
+	// connect (e.g., during shutdown races).
+	// Use LEFT JOINs so that connection logs with NULL IPs (which
+	// have no session) are still closed with disconnect_time and
+	// disconnect_reason set. They get session_id = NULL.
 	CloseConnectionLogsAndCreateSessions(ctx context.Context, arg CloseConnectionLogsAndCreateSessionsParams) (int64, error)
 	CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error)
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)

@@ -2114,6 +2114,7 @@ session_groups AS (
         (array_agg(client_hostname ORDER BY connect_time) FILTER (WHERE client_hostname IS NOT NULL))[1] AS client_hostname,
         (array_agg(short_description ORDER BY connect_time) FILTER (WHERE short_description IS NOT NULL))[1] AS short_description
     FROM with_boundaries
+    WHERE ip IS NOT NULL
     GROUP BY ip, group_id
 ),
 new_sessions AS (
@@ -2127,10 +2128,11 @@ SET
     disconnect_time = COALESCE(cl.disconnect_time, $1),
     disconnect_reason = COALESCE(cl.disconnect_reason, $2),
     session_id = ns.id
-FROM with_boundaries wb
-JOIN session_groups sg ON wb.ip IS NOT DISTINCT FROM sg.ip AND wb.group_id = sg.group_id
-JOIN new_sessions ns ON sg.ip IS NOT DISTINCT FROM ns.ip AND sg.started_at = ns.started_at
-WHERE cl.id = wb.id
+FROM connections_to_close ctc
+LEFT JOIN with_boundaries wb ON ctc.id = wb.id
+LEFT JOIN session_groups sg ON wb.ip = sg.ip AND wb.group_id = sg.group_id
+LEFT JOIN new_sessions ns ON sg.ip = ns.ip AND sg.started_at = ns.started_at
+WHERE cl.id = ctc.id
 `
 
 type CloseConnectionLogsAndCreateSessionsParams struct {
@@ -2151,6 +2153,13 @@ type CloseConnectionLogsAndCreateSessionsParams struct {
 // between this connection's start and the running max end exceeds
 // 30 minutes (matching FindOrCreateSessionForDisconnect's window).
 // Step 3: Aggregate per (ip, group_id) into session-level rows.
+// Exclude NULL-IP connections from session creation since
+// workspace_sessions.ip is NOT NULL. NULL IPs can occur when
+// only a tunnel disconnect event is received without a prior
+// connect (e.g., during shutdown races).
+// Use LEFT JOINs so that connection logs with NULL IPs (which
+// have no session) are still closed with disconnect_time and
+// disconnect_reason set. They get session_id = NULL.
 func (q *sqlQuerier) CloseConnectionLogsAndCreateSessions(ctx context.Context, arg CloseConnectionLogsAndCreateSessionsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, closeConnectionLogsAndCreateSessions,
 		arg.ClosedAt,
