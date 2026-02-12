@@ -2,13 +2,16 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/ory/dockertest/v3/docker"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
 )
@@ -58,6 +61,9 @@ func (s *Server) buildListServicesResponse() ListServicesResponse {
 			unmet, _ := s.catalog.UnmetDependencies(svc.Name())
 			info.UnmetDependencies = unmet
 		}
+
+		sort.Strings(info.DependsOn)
+		sort.Strings(info.UnmetDependencies)
 
 		services = append(services, info)
 		return nil
@@ -139,6 +145,19 @@ func (s *Server) handleStopService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+}
+
+func (s *Server) handleStartAllServices(w http.ResponseWriter, r *http.Request) {
+	// Start all services in background since this can take a while.
+	// Use a background context since the request context will be cancelled
+	// when the response is sent.
+	go func() {
+		ctx := context.Background()
+		if err := s.catalog.Start(ctx); err != nil {
+			s.logger.Error(ctx, "failed to start all services", slog.Error(err))
+		}
+	}()
+	s.writeJSON(w, http.StatusAccepted, map[string]string{"status": "starting"})
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {

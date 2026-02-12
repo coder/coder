@@ -309,14 +309,23 @@
       btns.forEach(btn => btn.disabled = loading);
     }
 
+    let errorTimeout = null;
+
     function showError(msg) {
       const el = document.getElementById('error');
       el.textContent = msg;
       el.style.display = 'block';
+      // Clear any existing timeout and set a new one to auto-hide after 15s.
+      if (errorTimeout) clearTimeout(errorTimeout);
+      errorTimeout = setTimeout(hideError, 15000);
     }
 
     function hideError() {
       document.getElementById('error').style.display = 'none';
+      if (errorTimeout) {
+        clearTimeout(errorTimeout);
+        errorTimeout = null;
+      }
     }
 
     function renderServices() {
@@ -422,7 +431,7 @@
     evtSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       services = data.services || [];
-      hideError();
+      // Don't hide errors here - let them timeout naturally.
       renderServices();
     };
     evtSource.onerror = () => {

@@ -642,6 +642,7 @@ func upCmd() *serpent.Command {
 	})
 
 	var apiAddr string
+	var startPaused bool
 
 	optionSet := serpent.OptionSet{
 		{
@@ -649,6 +650,12 @@ func upCmd() *serpent.Command {
 			Description: "Address for the cdev control API server.",
 			Default:     "localhost:" + api.DefaultAPIPort,
 			Value:       serpent.StringOf(&apiAddr),
+		},
+		{
+			Flag:        "start-paused",
+			Description: "Start cdev without auto-starting services. Services can be started via the API or UI.",
+			Default:     "false",
+			Value:       serpent.BoolOf(&startPaused),
 		},
 	}
 	_ = services.ForEach(func(srv catalog.ServiceBase) error {
@@ -696,6 +703,14 @@ func upCmd() *serpent.Command {
 				return xerrors.Errorf("failed to start API server: %w", err)
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "🔌 API server is ready at http://%s\n", apiAddr)
+
+			if startPaused {
+				_, _ = fmt.Fprintln(inv.Stdout, "⏸️  Started in paused mode. Services can be started via the API or UI.")
+				_, _ = fmt.Fprintf(inv.Stdout, "   Start all: curl -X POST http://%s/api/services/start\n", apiAddr)
+				_, _ = fmt.Fprintf(inv.Stdout, "   UI: http://%s\n", apiAddr)
+				<-inv.Context().Done()
+				return nil
+			}
 
 			_, _ = fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
 
