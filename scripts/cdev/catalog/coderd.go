@@ -139,9 +139,9 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 		}
 	}
 
-	// Ensure license is present for HA deployments.
-	if c.haCount > 1 {
-		if err := EnsureLicense(ctx, logger, cat); err != nil {
+	if err := EnsureLicense(ctx, logger, cat); err != nil {
+		if c.haCount > 1 {
+			// Ensure license is present for HA deployments.
 			return xerrors.Errorf("ensure license: %w", err)
 		}
 	}
