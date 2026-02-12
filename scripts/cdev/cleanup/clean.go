@@ -8,6 +8,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
@@ -22,9 +23,9 @@ func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error 
 	}
 
 	for _, service := range servicesToDown {
-		err := CleanupContainers(ctx, logger, pool, catalog.NewServiceLabels(service).Filter())
+		err := Containers(ctx, logger, pool, catalog.NewServiceLabels(service).Filter())
 		if err != nil {
-			return fmt.Errorf("stop %s containers: %w", service, err)
+			return xerrors.Errorf("stop %s containers: %w", service, err)
 		}
 	}
 
@@ -38,24 +39,19 @@ func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error 
 func Cleanup(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
 	filter := catalog.NewLabels().Filter() // Remove it all
 
-	pool, err := dockertest.NewPool("")
+	err := Containers(ctx, logger, pool, filter)
 	if err != nil {
-		return fmt.Errorf("failed to connect to docker: %w", err)
+		logger.Error(ctx, "failed to clean up containers", slog.Error(err))
 	}
 
-	err = CleanupContainers(ctx, logger, pool, filter)
+	err = Volumes(ctx, logger, pool, filter)
 	if err != nil {
-		logger.Error(ctx, "Failed to clean up containers: %v", slog.F("error", err))
+		logger.Error(ctx, "failed to clean up volumes", slog.Error(err))
 	}
 
-	err = CleanupVolumes(ctx, logger, pool, filter)
+	err = Images(ctx, logger, pool, filter)
 	if err != nil {
-		logger.Error(ctx, "Failed to clean up volumes: %v", slog.F("error", err))
-	}
-
-	err = CleanupImages(ctx, logger, pool, filter)
-	if err != nil {
-		logger.Error(ctx, "Failed to clean up images: %v", slog.F("error", err))
+		logger.Error(ctx, "failed to clean up images", slog.Error(err))
 	}
 
 	return nil
@@ -68,7 +64,7 @@ func StopContainers(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 		Context: ctx,
 	})
 	if err != nil {
-		return fmt.Errorf("list containers: %w", err)
+		return xerrors.Errorf("list containers: %w", err)
 	}
 	for _, cnt := range containers {
 		err := pool.Client.StopContainer(cnt.ID, 10)
@@ -81,10 +77,10 @@ func StopContainers(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 	return nil
 }
 
-func CleanupContainers(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
+func Containers(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
 	err := StopContainers(ctx, logger, pool, catalog.NewLabels().Filter())
 	if err != nil {
-		return fmt.Errorf("stop containers: %w", err)
+		return xerrors.Errorf("stop containers: %w", err)
 	}
 
 	res, err := pool.Client.PruneContainers(docker.PruneContainersOptions{
@@ -92,7 +88,7 @@ func CleanupContainers(ctx context.Context, logger slog.Logger, pool *dockertest
 		Context: ctx,
 	})
 	if err != nil {
-		return fmt.Errorf("prune containers: %w", err)
+		return xerrors.Errorf("prune containers: %w", err)
 	}
 
 	if len(res.ContainersDeleted) == 0 {
@@ -100,7 +96,7 @@ func CleanupContainers(ctx context.Context, logger slog.Logger, pool *dockertest
 	}
 
 	logger.Info(ctx, fmt.Sprintf("📋 Deleted %d containers and reclaimed %s bytes of space",
-		len(res.ContainersDeleted), humanize.Bytes(uint64(res.SpaceReclaimed)),
+		len(res.ContainersDeleted), humanize.Bytes(uint64(max(0, res.SpaceReclaimed))), //nolint:gosec // G115 SpaceReclaimed is non-negative in practice
 	))
 	for _, id := range res.ContainersDeleted {
 		logger.Debug(ctx, "🧹 Deleted container %s",
@@ -110,10 +106,13 @@ func CleanupContainers(ctx context.Context, logger slog.Logger, pool *dockertest
 	return nil
 }
 
-func CleanupVolumes(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
+func Volumes(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
 	vols, err := pool.Client.ListVolumes(docker.ListVolumesOptions{
 		Filters: filter,
 	})
+	if err != nil {
+		return xerrors.Errorf("list volumes: %w", err)
+	}
 
 	for _, vol := range vols {
 		err = pool.Client.RemoveVolumeWithOptions(docker.RemoveVolumeOptions{
@@ -133,10 +132,13 @@ func CleanupVolumes(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 	return nil
 }
 
-func CleanupImages(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
+func Images(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
 	imgs, err := pool.Client.ListImages(docker.ListImagesOptions{
 		Filters: filter,
 	})
+	if err != nil {
+		return xerrors.Errorf("list images: %w", err)
+	}
 
 	for _, img := range imgs {
 		err = pool.Client.RemoveImage(img.ID)
@@ -145,7 +147,7 @@ func CleanupImages(ctx context.Context, logger slog.Logger, pool *dockertest.Poo
 		} else {
 			logger.Debug(ctx, "🧹 Deleted image %s",
 				slog.F("image_id", img.ID),
-				slog.F("image_size", humanize.Bytes(uint64(img.Size))),
+				slog.F("image_size", humanize.Bytes(uint64(max(0, img.Size)))), //nolint:gosec // G115 Size is non-negative in practice
 			)
 		}
 	}
