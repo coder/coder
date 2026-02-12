@@ -24761,7 +24761,7 @@ WITH lock AS (
 ),
 existing AS (
     SELECT id FROM workspace_sessions
-    WHERE workspace_id = $1
+    WHERE workspace_id = $1::uuid
       AND ip = $2
       AND (client_hostname IS NOT DISTINCT FROM $3)
       AND $4 BETWEEN started_at - INTERVAL '30 minutes' AND ended_at + INTERVAL '30 minutes'
@@ -24770,7 +24770,7 @@ existing AS (
 ),
 new_session AS (
     INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
-    SELECT $1, $5, $2, $3, $6, $4, $7
+    SELECT $1::uuid, $5, $2, $3, $6, $4, $7
     WHERE NOT EXISTS (SELECT 1 FROM existing)
     RETURNING id
 ),
