@@ -458,6 +458,53 @@ func (c *Catalog) notifySubscribers() {
 }
 
 // waitForReady polls until the service's dependencies are satisfied.
+// RestartService stops a service, resets its status, and starts it again,
+// updating the unit.Manager status throughout the lifecycle.
+func (c *Catalog) RestartService(ctx context.Context, name ServiceName, logger slog.Logger) error {
+	svc, ok := c.services[name]
+	if !ok {
+		return xerrors.Errorf("service %q not found", name)
+	}
+	if err := svc.Stop(ctx); err != nil {
+		return xerrors.Errorf("stop %s: %w", name, err)
+	}
+	// Reset status to pending, then follow the same lifecycle as Catalog.Start().
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusPending); err != nil {
+		return xerrors.Errorf("reset status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusStarted); err != nil {
+		return xerrors.Errorf("update status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+	if err := svc.Start(ctx, logger, c); err != nil {
+		return xerrors.Errorf("start %s: %w", name, err)
+	}
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusComplete); err != nil {
+		return xerrors.Errorf("update status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+	return nil
+}
+
+// StopService stops a service and resets its unit.Manager status to pending.
+func (c *Catalog) StopService(ctx context.Context, name ServiceName) error {
+	svc, ok := c.services[name]
+	if !ok {
+		return xerrors.Errorf("service %q not found", name)
+	}
+	if err := svc.Stop(ctx); err != nil {
+		return xerrors.Errorf("stop %s: %w", name, err)
+	}
+	// Reset to pending since the service is no longer running.
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusPending); err != nil {
+		return xerrors.Errorf("reset status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+	return nil
+}
+
+
 func (c *Catalog) waitForReady(ctx context.Context, name ServiceName) error {
 	for {
 		ready, err := c.manager.IsReady(unit.ID(name))
