@@ -65,7 +65,8 @@ type StoreReconciler struct {
 	// Prebuild state metrics
 	metrics *MetricsCollector
 	// Operational metrics
-	reconciliationDuration prometheus.Histogram
+	reconciliationDuration  prometheus.Histogram
+	workspaceBuilderMetrics *wsbuilder.Metrics
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -99,6 +100,7 @@ func NewStoreReconciler(store database.Store,
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 	tracerProvider trace.TracerProvider,
 	maxDBConnections int,
+	workspaceBuilderMetrics *wsbuilder.Metrics,
 ) *StoreReconciler {
 	reconciliationConcurrency := calculateReconciliationConcurrency(maxDBConnections)
 
@@ -120,6 +122,7 @@ func NewStoreReconciler(store database.Store,
 		done:                      make(chan struct{}, 1),
 		provisionNotifyCh:         make(chan database.ProvisionerJob, 10),
 		reconciliationConcurrency: reconciliationConcurrency,
+		workspaceBuilderMetrics:   workspaceBuilderMetrics,
 	}
 
 	if registerer != nil {
@@ -1052,7 +1055,8 @@ func (c *StoreReconciler) provision(
 	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
-		MarkPrebuild()
+		MarkPrebuild().
+		BuildMetrics(c.workspaceBuilderMetrics)
 
 	if transition != database.WorkspaceTransitionDelete {
 		// We don't specify the version for a delete transition,

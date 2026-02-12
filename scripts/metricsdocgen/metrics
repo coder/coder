@@ -990,3 +990,13 @@ coderd_license_warnings 0
 # HELP coderd_license_errors The number of active license errors.
 # TYPE coderd_license_errors gauge
 coderd_license_errors 0
+# HELP coderd_provisioner_job_queue_wait_seconds Time from job creation to acquisition by a provisioner daemon.
+# TYPE coderd_provisioner_job_queue_wait_seconds histogram
+coderd_provisioner_job_queue_wait_seconds_bucket{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop",le="300"} 1
+coderd_provisioner_job_queue_wait_seconds_bucket{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop",le="+Inf"} 1
+coderd_provisioner_job_queue_wait_seconds_sum{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop"} 0.01191
+coderd_provisioner_job_queue_wait_seconds_count{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop"} 1
+# HELP coderd_workspace_builds_enqueued_total Total number of workspace build enqueue attempts.
+# TYPE coderd_workspace_builds_enqueued_total counter
+coderd_workspace_builds_enqueued_total{build_reason="dashboard",provisioner_type="terraform",status="success",transition="start"} 1
+coderd_workspace_builds_enqueued_total{build_reason="initiator",provisioner_type="terraform",status="success",transition="stop"} 1
