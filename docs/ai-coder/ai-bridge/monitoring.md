@@ -114,7 +114,8 @@ in the AI Bridge setup guide.
 
 AI Bridge supports tracing via [OpenTelemetry](https://opentelemetry.io/),
 providing visibility into request processing, upstream API calls, and MCP server
-interactions.
+interactions. Traces can be exported to any OTEL-compatible backend: Grafana
+Tempo, Datadog, New Relic, Jaeger, or any other collector.
 
 ### Enabling Tracing
 
@@ -128,6 +129,12 @@ export CODER_TRACE_ENABLE=true
 
 ```sh
 coder server --trace
+```
+To configure a specific trace endpoint:
+
+```bash
+export CODER_TRACE_ENABLE=true
+export CODER_TRACE_ENDPOINT=<your-otel-collector-endpoint>
 ```
 
 ### What is Traced
