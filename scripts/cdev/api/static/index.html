@@ -100,6 +100,67 @@
       padding: 3rem;
       color: var(--text-muted);
     }
+    .section-title {
+      font-size: 1.25rem;
+      margin: 2rem 0 1rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section-title:first-of-type { margin-top: 0; }
+    .images { display: flex; flex-direction: column; gap: 0.5rem; }
+    .image {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.9rem;
+    }
+    .image-info { flex: 1; min-width: 0; }
+    .image-tags { 
+      font-family: monospace; 
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+    .image-meta { 
+      color: var(--text-muted); 
+      font-size: 0.75rem; 
+      margin-top: 0.25rem;
+    }
+    .image-id { 
+      font-family: monospace; 
+      font-size: 0.75rem; 
+      color: var(--text-muted);
+      width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    button.danger { background: rgba(248, 113, 113, 0.3); }
+    button.danger:hover { background: var(--error); }
+    .volumes { display: flex; flex-direction: column; gap: 0.5rem; }
+    .volume {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.9rem;
+    }
+    .volume-info { flex: 1; min-width: 0; }
+    .volume-name { 
+      font-family: monospace; 
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+    .volume-meta { 
+      color: var(--text-muted); 
+      font-size: 0.75rem; 
+      margin-top: 0.25rem;
+    }
   </style>
 </head>
 <body>
@@ -109,14 +170,28 @@
       <span class="refresh-info">Live (SSE)</span>
     </header>
     <div id="error" class="error" style="display: none;"></div>
+    
+    <h2 class="section-title">📦 Services</h2>
     <div id="services" class="services">
       <div class="loading">Loading services...</div>
+    </div>
+
+    <h2 class="section-title">🐳 Docker Images</h2>
+    <div id="images" class="images">
+      <div class="loading">Loading images...</div>
+    </div>
+
+    <h2 class="section-title">💾 Docker Volumes</h2>
+    <div id="volumes" class="volumes">
+      <div class="loading">Loading volumes...</div>
     </div>
   </div>
 
   <script>
     const API_BASE = '';
     let services = [];
+    let images = [];
+    let volumes = [];
 
     async function fetchServices() {
       try {
@@ -125,7 +200,7 @@
         const data = await res.json();
         services = data.services || [];
         hideError();
-        render();
+        renderServices();
       } catch (err) {
         showError(`Failed to fetch services: ${err.message}`);
       }
@@ -145,6 +220,31 @@
         setLoading(name, false);
       }
     }
+
+    async function fetchImages() {
+      try {
+        const res = await fetch(`${API_BASE}/api/images`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        images = data.images || [];
+        renderImages();
+      } catch (err) {
+        console.error('Failed to fetch images:', err);
+      }
+    }
+
+    async function fetchVolumes() {
+      try {
+        const res = await fetch(`${API_BASE}/api/volumes`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        volumes = data.volumes || [];
+        renderVolumes();
+      } catch (err) {
+        console.error('Failed to fetch volumes:', err);
+      }
+    }
+
 
     async function restartService(name) {
       setLoading(name, true);
@@ -176,6 +276,34 @@
       }
     }
 
+    async function deleteImage(id) {
+      if (!confirm('Delete this image?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/images/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        fetchImages();
+      } catch (err) {
+        showError(`Failed to delete image: ${err.message}`);
+      }
+    }
+
+    async function deleteVolume(name) {
+      if (!confirm(`Delete volume "${name}"?`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/volumes/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        fetchVolumes();
+      } catch (err) {
+        showError(`Failed to delete volume: ${err.message}`);
+      }
+    }
+
     function setLoading(name, loading) {
       const btns = document.querySelectorAll(`[data-service="${name}"] button`);
       btns.forEach(btn => btn.disabled = loading);
@@ -191,7 +319,7 @@
       document.getElementById('error').style.display = 'none';
     }
 
-    function render() {
+    function renderServices() {
       const container = document.getElementById('services');
       if (services.length === 0) {
         container.innerHTML = '<div class="loading">No services found</div>';
@@ -230,17 +358,82 @@
       }).join('');
     }
 
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function formatDate(timestamp) {
+      return new Date(timestamp * 1000).toLocaleDateString();
+    }
+
+    function renderImages() {
+      const container = document.getElementById('images');
+      if (images.length === 0) {
+        container.innerHTML = '<div class="loading">No images found</div>';
+        return;
+      }
+
+      // Sort by creation date, newest first.
+      const sorted = [...images].sort((a, b) => b.created - a.created);
+      container.innerHTML = sorted.map(img => {
+        const shortId = img.id.replace('sha256:', '').substring(0, 12);
+        const tags = img.tags?.length ? img.tags.join(', ') : '<none>';
+        return `
+          <div class="image">
+            <span class="image-id" title="${img.id}">${shortId}</span>
+            <div class="image-info">
+              <div class="image-tags">${tags}</div>
+              <div class="image-meta">${formatBytes(img.size)} • ${formatDate(img.created)}</div>
+            </div>
+            <button class="danger" onclick="deleteImage('${img.id}')">Delete</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderVolumes() {
+      const container = document.getElementById('volumes');
+      if (volumes.length === 0) {
+        container.innerHTML = '<div class="loading">No volumes found</div>';
+        return;
+      }
+
+      // Sort by name.
+      const sorted = [...volumes].sort((a, b) => a.name.localeCompare(b.name));
+      container.innerHTML = sorted.map(vol => {
+        return `
+          <div class="volume">
+            <div class="volume-info">
+              <div class="volume-name">${vol.name}</div>
+              <div class="volume-meta">${vol.driver}</div>
+            </div>
+            <button class="danger" onclick="deleteVolume('${vol.name}')">Delete</button>
+          </div>
+        `;
+      }).join('');
+    }
+
     // Use Server-Sent Events for live updates.
     const evtSource = new EventSource('/api/events');
     evtSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       services = data.services || [];
       hideError();
-      render();
+      renderServices();
     };
     evtSource.onerror = () => {
       showError('SSE connection lost, retrying...');
     };
+
+    // Fetch images and volumes on load and periodically refresh.
+    fetchImages();
+    fetchVolumes();
+    setInterval(fetchImages, 10000);
+    setInterval(fetchVolumes, 10000);
   </script>
 </body>
 </html>

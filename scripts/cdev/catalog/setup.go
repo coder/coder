@@ -357,6 +357,12 @@ func (s *Setup) prepareTemplateDir(ctx context.Context, logger slog.Logger, srcD
 		return "", xerrors.Errorf("copy template files: %w", err)
 	}
 
+	// Inject additional modules into main.tf for development.
+	if err := s.injectDevModules(filepath.Join(tempDir, "main.tf")); err != nil {
+		os.RemoveAll(tempDir)
+		return "", xerrors.Errorf("inject dev modules: %w", err)
+	}
+
 	// Run terraform init to download providers and create lock file.
 	logger.Info(ctx, "running terraform init", slog.F("dir", tempDir))
 
@@ -378,6 +384,36 @@ func (s *Setup) prepareTemplateDir(ctx context.Context, logger slog.Logger, srcD
 	}
 
 	return tempDir, nil
+}
+
+// injectDevModules appends additional Terraform modules to main.tf for development.
+func (s *Setup) injectDevModules(mainTFPath string) error {
+	const filebrowserModule = `
+# ============================================================
+# Development modules injected by cdev
+# ============================================================
+
+# See https://registry.coder.com/modules/coder/filebrowser
+module "filebrowser" {
+  count      = data.coder_workspace.me.start_count
+  source     = "registry.coder.com/coder/filebrowser/coder"
+  version    = "~> 1.0"
+  agent_id   = coder_agent.main.id
+  agent_name = "main"
+}
+`
+
+	f, err := os.OpenFile(mainTFPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return xerrors.Errorf("open main.tf: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(filebrowserModule); err != nil {
+		return xerrors.Errorf("write filebrowser module: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Setup) waitForTemplateVersion(ctx context.Context, logger slog.Logger, client *codersdk.Client, versionID uuid.UUID) (codersdk.TemplateVersion, error) {

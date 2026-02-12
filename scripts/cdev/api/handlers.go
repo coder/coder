@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ory/dockertest/v3/docker"
+
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
 )
@@ -142,6 +144,167 @@ func (s *Server) handleStopService(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+
+// ImageInfo represents a Docker image in the API response.
+type ImageInfo struct {
+	ID      string   `json:"id"`
+	Tags    []string `json:"tags"`
+	Size    int64    `json:"size"`
+	Created int64    `json:"created"`
+}
+
+// ListImagesResponse is the response for GET /api/images.
+type ListImagesResponse struct {
+	Images []ImageInfo `json:"images"`
+}
+
+func (s *Server) handleListImages(w http.ResponseWriter, _ *http.Request) {
+	dockerSvc, ok := s.catalog.Get(catalog.CDevDocker)
+	if !ok {
+		s.writeError(w, http.StatusServiceUnavailable, "docker service not available")
+		return
+	}
+
+	dockerService, ok := dockerSvc.(*catalog.Docker)
+	if !ok {
+		s.writeError(w, http.StatusInternalServerError, "invalid docker service type")
+		return
+	}
+
+	pool := dockerService.Result()
+	if pool == nil {
+		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
+		return
+	}
+
+	images, err := pool.Client.ListImages(docker.ListImagesOptions{
+		Filters: catalog.NewLabels().Filter(),
+	})
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to list images: "+err.Error())
+		return
+	}
+
+	var result []ImageInfo
+	for _, img := range images {
+		result = append(result, ImageInfo{
+			ID:      img.ID,
+			Tags:    img.RepoTags,
+			Size:    img.Size,
+			Created: img.Created,
+		})
+	}
+
+	s.writeJSON(w, http.StatusOK, ListImagesResponse{Images: result})
+}
+
+func (s *Server) handleDeleteImage(w http.ResponseWriter, r *http.Request) {
+	imageID := r.PathValue("id")
+
+	dockerSvc, ok := s.catalog.Get(catalog.CDevDocker)
+	if !ok {
+		s.writeError(w, http.StatusServiceUnavailable, "docker service not available")
+		return
+	}
+
+	dockerService, ok := dockerSvc.(*catalog.Docker)
+	if !ok {
+		s.writeError(w, http.StatusInternalServerError, "invalid docker service type")
+		return
+	}
+
+	pool := dockerService.Result()
+	if pool == nil {
+		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
+		return
+	}
+
+	if err := pool.Client.RemoveImage(imageID); err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to delete image: "+err.Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// VolumeInfo represents a Docker volume in the API response.
+type VolumeInfo struct {
+	Name   string `json:"name"`
+	Driver string `json:"driver"`
+}
+
+// ListVolumesResponse is the response for GET /api/volumes.
+type ListVolumesResponse struct {
+	Volumes []VolumeInfo `json:"volumes"`
+}
+
+func (s *Server) handleListVolumes(w http.ResponseWriter, _ *http.Request) {
+	dockerSvc, ok := s.catalog.Get(catalog.CDevDocker)
+	if !ok {
+		s.writeError(w, http.StatusServiceUnavailable, "docker service not available")
+		return
+	}
+
+	dockerService, ok := dockerSvc.(*catalog.Docker)
+	if !ok {
+		s.writeError(w, http.StatusInternalServerError, "invalid docker service type")
+		return
+	}
+
+	pool := dockerService.Result()
+	if pool == nil {
+		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
+		return
+	}
+
+	volumes, err := pool.Client.ListVolumes(docker.ListVolumesOptions{
+		Filters: catalog.NewLabels().Filter(),
+	})
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to list volumes: "+err.Error())
+		return
+	}
+
+	var result []VolumeInfo
+	for _, vol := range volumes {
+		result = append(result, VolumeInfo{
+			Name:   vol.Name,
+			Driver: vol.Driver,
+		})
+	}
+
+	s.writeJSON(w, http.StatusOK, ListVolumesResponse{Volumes: result})
+}
+
+func (s *Server) handleDeleteVolume(w http.ResponseWriter, r *http.Request) {
+	volumeName := r.PathValue("name")
+
+	dockerSvc, ok := s.catalog.Get(catalog.CDevDocker)
+	if !ok {
+		s.writeError(w, http.StatusServiceUnavailable, "docker service not available")
+		return
+	}
+
+	dockerService, ok := dockerSvc.(*catalog.Docker)
+	if !ok {
+		s.writeError(w, http.StatusInternalServerError, "invalid docker service type")
+		return
+	}
+
+	pool := dockerService.Result()
+	if pool == nil {
+		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
+		return
+	}
+
+	if err := pool.Client.RemoveVolume(volumeName); err != nil {
+		s.writeError(w, http.StatusInternalServerError, "failed to delete volume: "+err.Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {

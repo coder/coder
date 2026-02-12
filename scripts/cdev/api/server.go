@@ -44,6 +44,14 @@ func NewServer(c *catalog.Catalog, logger slog.Logger, addr string) *Server {
 	mux.HandleFunc("POST /api/services/{name}/start", s.handleStartService)
 	mux.HandleFunc("POST /api/services/{name}/stop", s.handleStopService)
 
+	// Image endpoints.
+	mux.HandleFunc("GET /api/images", s.handleListImages)
+	mux.HandleFunc("DELETE /api/images/{id}", s.handleDeleteImage)
+
+	// Volume endpoints.
+	mux.HandleFunc("GET /api/volumes", s.handleListVolumes)
+	mux.HandleFunc("DELETE /api/volumes/{name}", s.handleDeleteVolume)
+
 	// Health endpoint.
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 
