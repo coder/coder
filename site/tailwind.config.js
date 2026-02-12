@@ -9,7 +9,7 @@ module.exports = {
 	theme: {
 		extend: {
 			fontFamily: {
-				sans: `"Inter Variable", system-ui, sans-serif`,
+				sans: `"Geist Variable", system-ui, sans-serif`,
 			},
 			size: {
 				"icon-lg": "1.5rem",
