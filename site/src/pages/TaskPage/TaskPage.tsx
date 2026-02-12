@@ -325,23 +325,22 @@ function useScrollAreaAutoScroll(deps: DependencyList) {
 
 type TaskLogPreviewProps = {
 	logs: readonly TaskLogEntry[];
-	maxLines?: number;
+	maxMessages?: number;
 	headerAction?: ReactNode;
 };
 
 const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	logs,
-	maxLines = 30,
+	maxMessages = 30,
 	headerAction,
 }) => {
-	const lines = logs.flatMap((entry) => entry.content.split("\n"));
-	const visibleLines = lines.slice(-maxLines);
-	const scrollAreaRef = useScrollAreaAutoScroll([visibleLines]);
+	const visibleLogs = logs.slice(-maxMessages);
+	const scrollAreaRef = useScrollAreaAutoScroll([visibleLogs]);
 
 	return (
 		<div className="w-full max-w-screen-lg flex flex-col gap-2">
 			<div className="flex items-center justify-between text-sm text-content-secondary px-1">
-				<span>Last {maxLines} lines of AI chat logs</span>
+				<span>Last {maxMessages} messages of AI chat logs</span>
 				{headerAction}
 			</div>
 			<ScrollArea
@@ -349,8 +348,8 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 				className="h-96 border border-solid border-border rounded-lg"
 			>
 				<div className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words">
-					{visibleLines.map((line, i) => (
-						<div key={i}>{line || "\u00A0"}</div>
+					{visibleLogs.map((entry) => (
+						<div key={entry.id}>{entry.content || "\u00A0"}</div>
 					))}
 				</div>
 			</ScrollArea>
