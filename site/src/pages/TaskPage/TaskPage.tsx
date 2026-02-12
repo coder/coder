@@ -338,21 +338,20 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	const scrollAreaRef = useScrollAreaAutoScroll([visibleLogs]);
 
 	return (
-		<div className="w-full max-w-screen-lg flex flex-col gap-2">
-			<div className="flex items-center justify-between text-sm text-content-secondary px-1">
-				<span>Last {maxMessages} messages of AI chat logs</span>
-				{headerAction}
-			</div>
-			<ScrollArea
-				ref={scrollAreaRef}
-				className="h-96 border border-solid border-border rounded-lg"
-			>
-				<div className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words">
-					{visibleLogs.map((entry) => (
-						<div key={entry.id}>{entry.content || "\u00A0"}</div>
-					))}
+		<div className="w-full max-w-screen-lg mx-auto px-16">
+			<div className="border border-solid border-border rounded-lg overflow-hidden">
+				<div className="flex items-center justify-between px-4 py-2 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
+					<span>Last {maxMessages} messages of AI chat logs</span>
+					{headerAction}
 				</div>
-			</ScrollArea>
+				<ScrollArea ref={scrollAreaRef} className="h-96">
+					<div className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words">
+						{visibleLogs.map((entry) => (
+							<div key={entry.id}>{entry.content || "\u00A0"}</div>
+						))}
+					</div>
+				</ScrollArea>
+			</div>
 		</div>
 	);
 };
