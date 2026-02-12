@@ -2083,7 +2083,7 @@ const closeConnectionLogsAndCreateSessions = `-- name: CloseConnectionLogsAndCre
 WITH connections_to_close AS (
     SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description
     FROM connection_logs
-    WHERE disconnect_time IS NULL
+    WHERE (disconnect_time IS NULL OR session_id IS NULL)
       AND connection_logs.workspace_id = $3
       AND type = ANY($4::connection_type[])
 ),
@@ -2117,21 +2117,44 @@ session_groups AS (
     WHERE ip IS NOT NULL
     GROUP BY ip, group_id
 ),
+existing_sessions AS (
+    SELECT DISTINCT ON (sg.ip, sg.group_id)
+        sg.ip, sg.group_id, ws.id AS session_id
+    FROM session_groups sg
+    JOIN workspace_sessions ws
+      ON ws.workspace_id = $3
+     AND ws.ip = sg.ip
+     AND sg.started_at <= ws.ended_at + INTERVAL '30 minutes'
+     AND sg.ended_at >= ws.started_at - INTERVAL '30 minutes'
+    ORDER BY sg.ip, sg.group_id, ws.started_at DESC
+),
 new_sessions AS (
     INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
-    SELECT $3, agent_id, ip, client_hostname, short_description, started_at, ended_at
-    FROM session_groups
+    SELECT $3, sg.agent_id, sg.ip, sg.client_hostname, sg.short_description, sg.started_at, sg.ended_at
+    FROM session_groups sg
+    WHERE NOT EXISTS (
+        SELECT 1 FROM existing_sessions es
+        WHERE es.ip = sg.ip AND es.group_id = sg.group_id
+    )
     RETURNING id, ip, started_at
+),
+all_sessions AS (
+    SELECT ns.id, ns.ip, ns.started_at
+    FROM new_sessions ns
+    UNION ALL
+    SELECT es.session_id, es.ip, sg.started_at
+    FROM existing_sessions es
+    JOIN session_groups sg ON es.ip = sg.ip AND es.group_id = sg.group_id
 )
 UPDATE connection_logs cl
 SET
     disconnect_time = COALESCE(cl.disconnect_time, $1),
     disconnect_reason = COALESCE(cl.disconnect_reason, $2),
-    session_id = ns.id
+    session_id = COALESCE(cl.session_id, alls.id)
 FROM connections_to_close ctc
 LEFT JOIN with_boundaries wb ON ctc.id = wb.id
 LEFT JOIN session_groups sg ON wb.ip = sg.ip AND wb.group_id = sg.group_id
-LEFT JOIN new_sessions ns ON sg.ip = ns.ip AND sg.started_at = ns.started_at
+LEFT JOIN all_sessions alls ON sg.ip = alls.ip AND sg.started_at = alls.started_at
 WHERE cl.id = ctc.id
 `
 
@@ -2147,12 +2170,16 @@ type CloseConnectionLogsAndCreateSessionsParams struct {
 // same session if their time ranges overlap within a 30-minute tolerance
 // (matching FindOrCreateSessionForDisconnect). Used when a workspace is
 // stopped/deleted.
-// Only processes connections that are still open (disconnect_time IS
-// NULL). Connections already disconnected by the agent are handled by
-// FindOrCreateSessionForDisconnect in the normal disconnect flow.
-// Including "session_id IS NULL" here would race with
-// assignSessionForDisconnect (which sets disconnect_time and
-// session_id in separate transactions) and create duplicate sessions.
+//
+// Processes connections that are still open (disconnect_time IS NULL) OR
+// already disconnected but not yet assigned to a session (session_id IS
+// NULL). The latter covers system/tunnel connections whose disconnect is
+// recorded by dbsink but which have no session-assignment code path.
+//
+// To avoid creating duplicate sessions when assignSessionForDisconnect
+// has already created one (race with agent-reported disconnects), the
+// new_sessions CTE checks workspace_sessions for existing overlapping
+// sessions and reuses them instead of inserting duplicates.
 // Step 1: Order by IP then time, compute running max of end times
 // to detect gaps between connection groups.
 // Step 2: Mark group boundaries. A new group starts when the gap
@@ -2163,6 +2190,12 @@ type CloseConnectionLogsAndCreateSessionsParams struct {
 // workspace_sessions.ip is NOT NULL. NULL IPs can occur when
 // only a tunnel disconnect event is received without a prior
 // connect (e.g., during shutdown races).
+// Step 4: Find existing sessions that overlap with our groups.
+// This prevents duplicates when assignSessionForDisconnect already
+// created a session for the same IP/time range (race window between
+// disconnect_time and session_id being set on agent-reported connections).
+// Step 5: Only insert sessions for groups that don't already have one.
+// Combine existing and newly created sessions for the final update.
 // Use LEFT JOINs so that connection logs with NULL IPs (which
 // have no session) are still closed with disconnect_time and
 // disconnect_reason set. They get session_id = NULL.

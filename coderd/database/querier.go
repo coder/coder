@@ -73,12 +73,16 @@ type sqlcQuerier interface {
 	// same session if their time ranges overlap within a 30-minute tolerance
 	// (matching FindOrCreateSessionForDisconnect). Used when a workspace is
 	// stopped/deleted.
-	// Only processes connections that are still open (disconnect_time IS
-	// NULL). Connections already disconnected by the agent are handled by
-	// FindOrCreateSessionForDisconnect in the normal disconnect flow.
-	// Including "session_id IS NULL" here would race with
-	// assignSessionForDisconnect (which sets disconnect_time and
-	// session_id in separate transactions) and create duplicate sessions.
+	//
+	// Processes connections that are still open (disconnect_time IS NULL) OR
+	// already disconnected but not yet assigned to a session (session_id IS
+	// NULL). The latter covers system/tunnel connections whose disconnect is
+	// recorded by dbsink but which have no session-assignment code path.
+	//
+	// To avoid creating duplicate sessions when assignSessionForDisconnect
+	// has already created one (race with agent-reported disconnects), the
+	// new_sessions CTE checks workspace_sessions for existing overlapping
+	// sessions and reuses them instead of inserting duplicates.
 	// Step 1: Order by IP then time, compute running max of end times
 	// to detect gaps between connection groups.
 	// Step 2: Mark group boundaries. A new group starts when the gap
@@ -89,6 +93,12 @@ type sqlcQuerier interface {
 	// workspace_sessions.ip is NOT NULL. NULL IPs can occur when
 	// only a tunnel disconnect event is received without a prior
 	// connect (e.g., during shutdown races).
+	// Step 4: Find existing sessions that overlap with our groups.
+	// This prevents duplicates when assignSessionForDisconnect already
+	// created a session for the same IP/time range (race window between
+	// disconnect_time and session_id being set on agent-reported connections).
+	// Step 5: Only insert sessions for groups that don't already have one.
+	// Combine existing and newly created sessions for the final update.
 	// Use LEFT JOINs so that connection logs with NULL IPs (which
 	// have no session) are still closed with disconnect_time and
 	// disconnect_reason set. They get session_id = NULL.

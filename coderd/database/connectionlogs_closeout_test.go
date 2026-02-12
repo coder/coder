@@ -3,6 +3,7 @@ package database_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -252,13 +253,12 @@ func TestCloseConnectionLogsAndCreateSessions_NullIP(t *testing.T) {
 	}
 }
 
-// Regression test: CloseConnectionLogsAndCreateSessions must not
-// create sessions for connections that already have disconnect_time
-// set (i.e., already disconnected by the agent). Those connections
-// are handled by FindOrCreateSessionForDisconnect in the normal
-// disconnect flow. Processing them here would create duplicate
-// sessions due to a race between the two code paths.
-func TestCloseConnectionLogsAndCreateSessions_SkipsAlreadyDisconnected(t *testing.T) {
+// Regression test: CloseConnectionLogsAndCreateSessions must handle
+// connections that are already disconnected but have no session_id
+// (e.g., system/tunnel connections disconnected by dbsink). It must
+// also avoid creating duplicate sessions when assignSessionForDisconnect
+// has already created one for the same IP/time range.
+func TestCloseConnectionLogsAndCreateSessions_AlreadyDisconnectedGetsSession(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -286,47 +286,10 @@ func TestCloseConnectionLogsAndCreateSessions_SkipsAlreadyDisconnected(t *testin
 	}
 	now := dbtime.Now()
 
-	// Simulate an SSH connection that was already disconnected by the
-	// agent (disconnect_time is set) but session_id is still NULL
-	// because assignSessionForDisconnect hasn't finished yet.
-	connID := uuid.New()
-
-	// First, create the connect event.
+	// A system connection that was already disconnected (by dbsink)
+	// but has no session_id — dbsink doesn't assign sessions.
+	sysConnID := uuid.New()
 	_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
-		ID:               uuid.New(),
-		Time:             now.Add(-10 * time.Minute),
-		OrganizationID:   ws.OrganizationID,
-		WorkspaceOwnerID: ws.OwnerID,
-		WorkspaceID:      ws.ID,
-		WorkspaceName:    ws.Name,
-		AgentName:        "agent",
-		Type:             database.ConnectionTypeSsh,
-		Ip:               ip,
-		ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
-		ConnectionStatus: database.ConnectionStatusConnected,
-	})
-	require.NoError(t, err)
-
-	// Then upsert the disconnect (sets disconnect_time but NOT
-	// session_id — simulating the gap before
-	// assignSessionForDisconnect runs).
-	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
-		ID:               uuid.New(),
-		Time:             now.Add(-5 * time.Minute),
-		OrganizationID:   ws.OrganizationID,
-		WorkspaceOwnerID: ws.OwnerID,
-		WorkspaceID:      ws.ID,
-		WorkspaceName:    ws.Name,
-		AgentName:        "agent",
-		Type:             database.ConnectionTypeSsh,
-		Ip:               ip,
-		ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
-		ConnectionStatus: database.ConnectionStatusDisconnected,
-	})
-	require.NoError(t, err)
-
-	// Also create a still-open system connection (no disconnect_time).
-	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
 		Time:             now.Add(-10 * time.Minute),
 		OrganizationID:   ws.OrganizationID,
@@ -336,14 +299,28 @@ func TestCloseConnectionLogsAndCreateSessions_SkipsAlreadyDisconnected(t *testin
 		AgentName:        "agent",
 		Type:             database.ConnectionTypeSystem,
 		Ip:               ip,
-		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionID:     uuid.NullUUID{UUID: sysConnID, Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-5 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: sysConnID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusDisconnected,
 	})
 	require.NoError(t, err)
 
 	// Run CloseConnectionLogsAndCreateSessions (workspace stop).
 	closedAt := now
-	rowsClosed, err := db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+	_, err = db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
 		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
 		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
 		WorkspaceID: ws.ID,
@@ -354,9 +331,155 @@ func TestCloseConnectionLogsAndCreateSessions_SkipsAlreadyDisconnected(t *testin
 	})
 	require.NoError(t, err)
 
-	// Only the system connection (still open) should have been
-	// processed. The already-disconnected SSH connection should be
-	// skipped to avoid creating a duplicate session.
-	require.EqualValues(t, 1, rowsClosed,
-		"only the still-open system connection should be closed")
+	// The system connection should now have a session_id.
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.True(t, rows[0].ConnectionLog.SessionID.Valid,
+		"already-disconnected system connection should be assigned to a session")
+}
+
+// Regression test: when assignSessionForDisconnect has already
+// created a session for an SSH connection,
+// CloseConnectionLogsAndCreateSessions must reuse that session
+// instead of creating a duplicate.
+func TestCloseConnectionLogsAndCreateSessions_ReusesExistingSession(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	ip := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   net.IPv4(127, 0, 0, 1),
+			Mask: net.IPv4Mask(255, 255, 255, 255),
+		},
+		Valid: true,
+	}
+	now := dbtime.Now()
+
+	// Simulate an SSH connection where assignSessionForDisconnect
+	// already created a session but the connection log's session_id
+	// was set (the normal successful path).
+	sshConnID := uuid.New()
+	_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-10 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: sshConnID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+	sshLog, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-5 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: sshConnID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+	})
+	require.NoError(t, err)
+
+	// Create the session that assignSessionForDisconnect would have
+	// created, and link the connection log to it.
+	existingSessionIDRaw, err := db.FindOrCreateSessionForDisconnect(ctx, database.FindOrCreateSessionForDisconnectParams{
+		WorkspaceID:    ws.ID.String(),
+		Ip:             ip,
+		ConnectTime:    sshLog.ConnectTime,
+		DisconnectTime: sshLog.DisconnectTime.Time,
+	})
+	require.NoError(t, err)
+	existingSessionID, err := uuid.Parse(fmt.Sprintf("%s", existingSessionIDRaw))
+	require.NoError(t, err)
+	err = db.UpdateConnectionLogSessionID(ctx, database.UpdateConnectionLogSessionIDParams{
+		ID:        sshLog.ID,
+		SessionID: uuid.NullUUID{UUID: existingSessionID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Also add a system connection (no session, already disconnected).
+	sysConnID := uuid.New()
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-10 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: sysConnID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-5 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: sysConnID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+	})
+	require.NoError(t, err)
+
+	// Run CloseConnectionLogsAndCreateSessions.
+	closedAt := now
+	_, err = db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSsh,
+			database.ConnectionTypeSystem,
+		},
+	})
+	require.NoError(t, err)
+
+	// Verify: the system connection should be assigned to the
+	// EXISTING session (reused), not a new one.
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	for _, row := range rows {
+		cl := row.ConnectionLog
+		require.True(t, cl.SessionID.Valid,
+			"connection log %s (type=%s) should have a session", cl.ID, cl.Type)
+		require.Equal(t, existingSessionID, cl.SessionID.UUID,
+			"connection log %s should reuse the existing session, not create a new one", cl.ID)
+	}
 }
