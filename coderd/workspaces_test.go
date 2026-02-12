@@ -5623,21 +5623,22 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 func TestWorkspaceAvailableUsers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OwnerCanListUsers", func(t *testing.T) {
+	t.Run("OrgAdminCanListUsers", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		// Create additional users
+		// Create an org admin and additional users
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 		_, user1 := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		// Owner should be able to list available users
-		users, err := client.WorkspaceAvailableUsers(ctx, owner.OrganizationID, "me")
+		// Org admin should be able to list available users
+		users, err := orgAdminClient.WorkspaceAvailableUsers(ctx, owner.OrganizationID, "me")
 		require.NoError(t, err)
-		require.GreaterOrEqual(t, len(users), 3) // owner + 2 users
+		require.GreaterOrEqual(t, len(users), 4) // owner + orgAdmin + 2 users
 
 		// Verify the users we created are in the list
 		usernames := make([]string, 0, len(users))
@@ -5650,7 +5651,7 @@ func TestWorkspaceAvailableUsers(t *testing.T) {
 
 	t.Run("MemberCannotListUsers", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
