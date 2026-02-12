@@ -1,6 +1,6 @@
 import Skeleton from "@mui/material/Skeleton";
+import { API } from "api/api";
 import { templateVersion } from "api/queries/templates";
-import { apiKey } from "api/queries/users";
 import {
 	cancelBuild,
 	deleteWorkspace,
@@ -638,8 +638,9 @@ type WorkspaceAppsProps = {
 };
 
 const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
-	const { data: apiKeyResponse } = useQuery(apiKey());
-	const token = apiKeyResponse?.key;
+	const [vscodeLoading, setVscodeLoading] = useState<
+		"vscode" | "vscode-insiders" | null
+	>(null);
 
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
@@ -676,15 +677,32 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		buttons.push(
 			<BaseIconLink
 				key="vscode"
-				isLoading={!token}
+				isLoading={vscodeLoading === "vscode"}
 				label="Open VSCode"
-				href={getVSCodeHref("vscode", {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					agent: agent.name,
-					token: token ?? "",
-					folder: agent.expanded_directory,
-				})}
+				href="#"
+				onClick={(event) => {
+					event.preventDefault();
+					if (vscodeLoading) {
+						return;
+					}
+					setVscodeLoading("vscode");
+					API.getApiKey()
+						.then(({ key }) => {
+							location.href = getVSCodeHref("vscode", {
+								owner: workspace.owner_name,
+								workspace: workspace.name,
+								agent: agent.name,
+								token: key,
+								folder: agent.expanded_directory,
+							});
+						})
+						.catch((ex) => {
+							console.error(ex);
+						})
+						.finally(() => {
+							setVscodeLoading(null);
+						});
+				}}
 			>
 				<VSCodeIcon />
 			</BaseIconLink>,
@@ -696,14 +714,31 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 			<BaseIconLink
 				key="vscode-insiders"
 				label="Open VSCode Insiders"
-				isLoading={!token}
-				href={getVSCodeHref("vscode-insiders", {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					agent: agent.name,
-					token: token ?? "",
-					folder: agent.expanded_directory,
-				})}
+				isLoading={vscodeLoading === "vscode-insiders"}
+				href="#"
+				onClick={(event) => {
+					event.preventDefault();
+					if (vscodeLoading) {
+						return;
+					}
+					setVscodeLoading("vscode-insiders");
+					API.getApiKey()
+						.then(({ key }) => {
+							location.href = getVSCodeHref("vscode-insiders", {
+								owner: workspace.owner_name,
+								workspace: workspace.name,
+								agent: agent.name,
+								token: key,
+								folder: agent.expanded_directory,
+							});
+						})
+						.catch((ex) => {
+							console.error(ex);
+						})
+						.finally(() => {
+							setVscodeLoading(null);
+						});
+				}}
 			>
 				<VSCodeInsidersIcon />
 			</BaseIconLink>,
