@@ -57,14 +57,14 @@ export const SelectMenuButton: React.FC<SelectMenuButtonProps> = ({
 			size="lg"
 			// Shrink padding right slightly to account for visual weight of
 			// the chevron
-			className={cn("flex flex-row gap-2 pr-1.5", className)}
+			className={cn("flex flex-row gap-2 pr-1.5 group", className)}
 			{...props}
 		>
 			{startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
 				{children}
 			</span>
-			<ChevronDownIcon />
+			<ChevronDownIcon className="group-data-[state=open]:rotate-180 transition-transform" />
 		</Button>
 	);
 };

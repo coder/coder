@@ -9,7 +9,7 @@ import {
 	type StatusIndicatorProps,
 } from "components/StatusIndicator/StatusIndicator";
 import { TableCell, TableRow } from "components/Table/Table";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
 import {
 	ProvisionerTag,
@@ -60,7 +60,9 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							setIsOpen((v) => !v);
 						}}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{provisioner.name}
 					</Button>

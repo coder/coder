@@ -608,7 +608,12 @@ export const MultiSelectCombobox = forwardRef<
 							>
 								<X className="h-5 w-5" />
 							</button>
-							<ChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
+							<ChevronDown
+								className={cn(
+									"size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary transition-transform",
+									open && "rotate-180",
+								)}
+							/>
 						</div>
 					</div>
 				</div>

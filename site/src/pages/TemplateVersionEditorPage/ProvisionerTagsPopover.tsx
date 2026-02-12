@@ -11,6 +11,7 @@ import {
 import { ChevronDownIcon } from "lucide-react";
 import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
 interface ProvisionerTagsPopoverProps {
@@ -27,11 +28,13 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<TopbarButton
-					color="neutral"
-					css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
-				>
-					<ChevronDownIcon className="size-icon-xs" />
+				<TopbarButton color="neutral" className="group px-0 !min-w-7">
+					<ChevronDownIcon
+						className={cn(
+							"size-icon-xs",
+							"group-data-[state=open]:rotate-180 transition-transform",
+						)}
+					/>
 					<span className="sr-only">Expand provisioner tags</span>
 				</TopbarButton>
 			</PopoverTrigger>

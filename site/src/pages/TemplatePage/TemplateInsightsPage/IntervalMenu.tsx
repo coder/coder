@@ -8,6 +8,7 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 
 const insightsIntervals = {
 	day: {
@@ -29,9 +30,13 @@ export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline">
+				<Button variant="outline" className="group">
 					{insightsIntervals[value].label}
-					<ChevronDownIcon className="!size-icon-xs" />
+					<ChevronDownIcon
+						className={cn(
+							"group-data-[state=open]:rotate-180 transition-transform",
+						)}
+					/>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">

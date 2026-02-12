@@ -21,6 +21,7 @@ import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
+import { cn } from "utils/cn";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */
@@ -62,7 +63,7 @@ export const OrganizationSidebarView: FC<
 					<Button
 						variant="outline"
 						aria-expanded={isPopoverOpen}
-						className="w-60 gap-2 justify-start"
+						className="w-60 gap-2 justify-start group"
 					>
 						{activeOrganization ? (
 							<>
@@ -78,7 +79,12 @@ export const OrganizationSidebarView: FC<
 						) : (
 							<span className="truncate">No organization selected</span>
 						)}
-						<ChevronDown className="ml-auto !size-icon-sm" />
+						<ChevronDown
+							className={cn(
+								"ml-auto !size-icon-sm",
+								"group-data-[state=open]:rotate-180 transition-transform",
+							)}
+						/>
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">

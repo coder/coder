@@ -146,11 +146,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									disabled={isRunningBatchAction}
 									variant="outline"
 									size="sm"
-									className="ml-auto"
+									className="ml-auto group"
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon className="size-4" />
+										<ChevronDownIcon className="size-4 transition-transform group-data-[state=open]:rotate-180" />
 									</Spinner>
 								</Button>
 							</DropdownMenuTrigger>
