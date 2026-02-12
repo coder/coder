@@ -139,6 +139,7 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 		}
 	}
 
+	logger.Info(ctx, "inserting license for coderd", slog.F("ha_count", c.haCount))
 	if err := EnsureLicense(ctx, logger, cat); err != nil {
 		if c.haCount > 1 {
 			// Ensure license is present for HA deployments.
@@ -147,6 +148,7 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 	}
 
 	for i := range c.haCount {
+		logger.Info(ctx, "starting coderd instance", slog.F("index", i))
 		container, err := c.startCoderd(ctx, logger, cat, int(i))
 		if err != nil {
 			return xerrors.Errorf("start coderd instance %d: %w", i, err)

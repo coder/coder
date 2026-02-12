@@ -77,6 +77,10 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 		}
 	}
 
+	// Build output streams with logging.
+	stdoutLog := LogWriter(logger, slog.LevelInfo, containerName)
+	stderrLog := LogWriter(logger, slog.LevelWarn, containerName)
+
 	// Pull the image if it's not already present locally.
 	image := opts.CreateOpts.Config.Image
 	if _, err := pool.Client.InspectImage(image); err != nil {
@@ -87,9 +91,10 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 		}
 		logger.Info(ctx, "pulling image", slog.F("image", image))
 		if err := pool.Client.PullImage(docker.PullImageOptions{
-			Repository: repo,
-			Tag:        tag,
-			Context:    ctx,
+			Repository:   repo,
+			Tag:          tag,
+			Context:      ctx,
+			OutputStream: stdoutLog,
 		}, docker.AuthConfiguration{}); err != nil {
 			return nil, xerrors.Errorf("pull image %s: %w", image, err)
 		}
@@ -108,10 +113,6 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 			Force: true,
 		})
 	}()
-
-	// Build output streams with logging.
-	stdoutLog := LogWriter(logger, slog.LevelInfo, containerName)
-	stderrLog := LogWriter(logger, slog.LevelWarn, containerName)
 
 	var stdoutWriter, stderrWriter io.Writer = stdoutLog, stderrLog
 	if opts.Stdout != nil {
