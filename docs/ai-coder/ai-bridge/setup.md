@@ -16,7 +16,7 @@ Before enabling AI Bridge:
 - If your environment uses a **corporate HTTP proxy**, confirm the proxy path to
   your model provider endpoints (e.g., `api.openai.com`,
   `api.anthropic.com`) is open and pre-approved by your network security team.
-  See [AI Bridge Proxy](./ai-bridge-proxy.md) for proxy configuration details.
+  See [AI Bridge Proxy](./ai-bridge-proxy/index.md) for proxy configuration details.
 - Have API keys ready for the LLM providers you want to use.
 
 ## Activation
@@ -122,7 +122,7 @@ Bridge is complementary to existing gateways — it adds Coder-level identity
 attribution and audit logging on top of your existing routing infrastructure.
 
 > **Note:** See the
-> [Supported APIs](/docs/ai-coder/ai-bridge/reference#supported-apis) section
+> [Supported APIs](https://coder.com/docs/ai-coder/ai-bridge/reference#supported-apis) section
 > for precise endpoint coverage and interception behavior.
 
 ## Configure templates
@@ -208,6 +208,6 @@ the request appear in the AI Bridge dashboards.
 - [Monitoring](./monitoring.md) — Set up observability, export data, and
   configure tracing.
 - [MCP Tools Injection](./mcp.md) — Centrally configure MCP servers.
-- [AI Bridge Proxy](./ai-bridge-proxy.md) — Support tools behind corporate
+- [AI Bridge Proxy](./ai-bridge-proxy/index.md) — Support tools behind corporate
   proxies or without base URL overrides.
 - [Reference](./reference.md) — Full configuration reference.

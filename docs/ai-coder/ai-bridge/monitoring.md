@@ -188,7 +188,7 @@ Metrics include request counts, token usage, latency histograms, and error
 rates — all labeled by user, model, and provider.
 
 For general Prometheus setup, see the
-[Coder Prometheus documentation](/docs/admin/integrations/prometheus).
+[Coder Prometheus documentation](https://coder.com/docs/admin/integrations/prometheus).
 
 ## Rate limiting
 

@@ -158,7 +158,7 @@ defined by _Claude Code_) cannot be invoked by AI Bridge, and the tool call from
 the model will be relayed to the client, after which it will invoke the tool.
 
 If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have
-[`CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS=true`](../../reference/cli/server#--aibridge-inject-coder-mcp-tools)
+[`CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS=true`](https://coder.com/docs/reference/cli/server#--aibridge-inject-coder-mcp-tools)
 set, Coder's MCP tools will be injected into intercepted requests.
 
 ## Troubleshooting

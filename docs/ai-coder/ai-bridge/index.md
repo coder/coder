@@ -58,7 +58,7 @@ plane). It does not require a separate deployment or infrastructure.
   template, and it propagates to every workspace created from that template.
 - **Universal client compatibility.** Works with any AI tool that supports base
   URL overrides, including Claude Code, Codex, Cline, Zed, and more. For tools
-  that don't support base URL overrides, [AI Bridge Proxy](./ai-bridge-proxy.md)
+  that don't support base URL overrides, [AI Bridge Proxy](./ai-bridge-proxy/index.md)
   can intercept traffic transparently.
 
 ## When to use AI Bridge
@@ -135,7 +135,7 @@ to help you plan your deployment:
   through Bridge.
 - [MCP Tools Injection](./mcp.md) — Centrally manage MCP servers and tool
   access.
-- [AI Bridge Proxy](./ai-bridge-proxy.md) — Support tools that don't allow base
+- [AI Bridge Proxy](./ai-bridge-proxy/index.md) — Support tools that don't allow base
   URL overrides.
 - [Monitoring](./monitoring.md) — Export logs, metrics, and traces for
   observability.

@@ -61,5 +61,5 @@ CODER_AI_BRIDGE_PROXY_UPSTREAM_CA=/path/to/corporate-ca.pem
 
 - [Client Configuration](../clients/index.md) — Configure tools that support
   base URL overrides.
-- [Setup](./setup.md) — Enable AI Bridge and configure providers.
-- [Monitoring](./monitoring.md) — Monitor proxied traffic.
+- [Setup](../setup.md) — Enable AI Bridge and configure providers.
+- [Monitoring](../monitoring.md) — Monitor proxied traffic.
