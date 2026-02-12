@@ -36,9 +36,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 			<PopoverTrigger asChild={true}>
 				<Button size="sm" variant="subtle" className="group">
 					Connect via SSH
-					<ChevronDownIcon
-						className="group-data-[state=open]:rotate-180 transition-transform"
-					/>
+					<ChevronDownIcon className="group-data-[state=open]:rotate-180 transition-transform" />
 				</Button>
 			</PopoverTrigger>
 

@@ -37,7 +37,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 			<ChevronDown
 				className={cn(
 					"size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary",
-					"transition-transform group-data-[state=open]:rotate-180"
+					"transition-transform group-data-[state=open]:rotate-180",
 				)}
 			/>
 		</SelectPrimitive.Icon>

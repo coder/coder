@@ -92,7 +92,9 @@ export const IconField: FC<IconFieldProps> = ({
 					<Button variant="outline" size="lg" className="group flex-shrink-0">
 						Emoji
 						<ChevronDownIcon
-							className={cn("transition-transform group-data-[state=open]:rotate-180")}
+							className={cn(
+								"transition-transform group-data-[state=open]:rotate-180",
+							)}
 						/>
 					</Button>
 				</PopoverTrigger>

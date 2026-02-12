@@ -109,7 +109,10 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				onClick={() => setIsOpen((o) => !o)}
 			>
 				<ChevronDownIcon
-					className={cn("size-4 mr-4 transition-transform", isOpen && "rotate-180")}
+					className={cn(
+						"size-4 mr-4 transition-transform",
+						isOpen && "rotate-180",
+					)}
 				/>
 
 				<span>Build timeline</span>
