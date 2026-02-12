@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { useQuery, useMutation, useQueryClient } from "react-query";
-import { useNavigate, useParams, Outlet } from "react-router-dom";
+import { useNavigate, useParams, Outlet } from "react-router";
 import { chats, createChat } from "api/queries/chats";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
