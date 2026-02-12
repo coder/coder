@@ -4291,7 +4291,6 @@ func TestGroupRemovalTrigger(t *testing.T) {
 
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
-	t.Skip("https://github.com/coder/internal/issues/464")
 
 	timezones := []string{
 		"America/St_Johns",
