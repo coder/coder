@@ -119,6 +119,7 @@ type watchModel struct {
 	filter     map[string][]string
 	containers []docker.APIContainers
 	volumes    []docker.Volume
+	images     []docker.APIImages
 	err        error
 }
 
@@ -150,12 +151,21 @@ func (m *watchModel) fetchData() tea.Msg {
 		return err
 	}
 
-	return dataMsg{containers: containers, volumes: vols}
+	imgs, err := m.pool.Client.ListImages(docker.ListImagesOptions{
+		Filters: m.filter,
+		All:     true,
+	})
+	if err != nil {
+		return err
+	}
+
+	return dataMsg{containers: containers, volumes: vols, images: imgs}
 }
 
 type dataMsg struct {
 	containers []docker.APIContainers
 	volumes    []docker.Volume
+	images     []docker.APIImages
 }
 
 func (m *watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -170,6 +180,7 @@ func (m *watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dataMsg:
 		m.containers = msg.containers
 		m.volumes = msg.volumes
+		m.images = msg.images
 		return m, nil
 	case error:
 		m.err = msg
@@ -224,6 +235,30 @@ func (m *watchModel) View() string {
 		_, _ = s.WriteString("  (none)\n")
 	}
 
+	// Images table.
+	_, _ = s.WriteString("\nIMAGES\n")
+	tw = tabwriter.NewWriter(&s, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "TAG\tID\tSIZE\tLABELS")
+
+	// Sort images by tag.
+	images := slices.Clone(m.images)
+	slices.SortFunc(images, func(a, b docker.APIImages) int {
+		aTag := formatImageTag(a.RepoTags)
+		bTag := formatImageTag(b.RepoTags)
+		return strings.Compare(aTag, bTag)
+	})
+	for _, img := range images {
+		tag := formatImageTag(img.RepoTags)
+		id := formatImageID(img.ID)
+		size := formatSize(img.Size)
+		labels := formatLabels(img.Labels)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", tag, id, size, labels)
+	}
+	_ = tw.Flush()
+	if len(images) == 0 {
+		_, _ = s.WriteString("  (none)\n")
+	}
+
 	_, _ = s.WriteString(fmt.Sprintf("\nRefreshing every %s. Press q to quit.\n", m.interval))
 
 	return s.String()
@@ -256,6 +291,40 @@ func formatLabels(labels map[string]string) string {
 	// Sort for deterministic output.
 	slices.Sort(parts)
 	return strings.Join(parts, ", ")
+}
+
+func formatImageTag(repoTags []string) string {
+	if len(repoTags) == 0 {
+		return "<none>"
+	}
+	return repoTags[0]
+}
+
+func formatImageID(id string) string {
+	// Shorten "sha256:abc123..." to "abc123..." (first 12 chars of hash).
+	id = strings.TrimPrefix(id, "sha256:")
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
+}
+
+func formatSize(bytes int64) string {
+	const (
+		kb = 1024
+		mb = kb * 1024
+		gb = mb * 1024
+	)
+	switch {
+	case bytes >= gb:
+		return fmt.Sprintf("%.1fGB", float64(bytes)/gb)
+	case bytes >= mb:
+		return fmt.Sprintf("%.1fMB", float64(bytes)/mb)
+	case bytes >= kb:
+		return fmt.Sprintf("%.1fKB", float64(bytes)/kb)
+	default:
+		return fmt.Sprintf("%dB", bytes)
+	}
 }
 
 func pprofCmd() *serpent.Command {
