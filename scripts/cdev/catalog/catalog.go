@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -264,12 +265,124 @@ func (c *Catalog) Start(ctx context.Context) error {
 		})
 	}
 
+	// Start a goroutine that prints startup progress every 3 seconds.
+	startTime := time.Now()
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if c.allUnitsComplete() {
+					return
+				}
+				c.unitsWaiting(ctx, startTime)
+			}
+		}
+	}()
+
 	err := wg.Wait()
+	close(done)
 	if err != nil {
 		return xerrors.Errorf("start services: %w", err)
 	}
 
 	return nil
+}
+
+// allUnitsComplete returns true if all registered units have completed.
+func (c *Catalog) allUnitsComplete() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for name := range c.services {
+		u, err := c.manager.Unit(unit.ID(name))
+		if err != nil {
+			return false
+		}
+		if u.Status() != unit.StatusComplete {
+			return false
+		}
+	}
+	return true
+}
+
+// unitsWaiting logs the current state of all units, showing which dependencies
+// are blocking each waiting unit. This helps debug startup DAG issues.
+func (c *Catalog) unitsWaiting(ctx context.Context, startTime time.Time) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	elapsed := time.Since(startTime).Truncate(time.Millisecond)
+
+	var waiting, started, completed []string
+
+	for name := range c.services {
+		u, err := c.manager.Unit(unit.ID(name))
+		if err != nil {
+			c.logger.Warn(ctx, "failed to get unit", slog.F("name", name), slog.Error(err))
+			continue
+		}
+
+		switch u.Status() {
+		case unit.StatusPending:
+			waiting = append(waiting, string(name))
+		case unit.StatusStarted:
+			started = append(started, string(name))
+		case unit.StatusComplete:
+			completed = append(completed, string(name))
+		}
+	}
+
+	// Sort for deterministic output.
+	slices.Sort(waiting)
+	slices.Sort(started)
+	slices.Sort(completed)
+
+	c.logger.Info(ctx, "startup progress",
+		slog.F("elapsed", elapsed.String()),
+		slog.F("completed", len(completed)),
+		slog.F("started", len(started)),
+		slog.F("waiting", len(waiting)),
+	)
+
+	// Log details for each waiting unit.
+	for _, name := range waiting {
+		unmet, err := c.manager.GetUnmetDependencies(unit.ID(name))
+		if err != nil {
+			c.logger.Warn(ctx, "failed to get unmet dependencies",
+				slog.F("name", name), slog.Error(err))
+			continue
+		}
+
+		if len(unmet) == 0 {
+			c.logger.Info(ctx, "unit waiting (ready to start)",
+				slog.F("name", name))
+			continue
+		}
+
+		// Build a summary of unmet dependencies.
+		blockers := make([]string, 0, len(unmet))
+		for _, dep := range unmet {
+			blockers = append(blockers, fmt.Sprintf("%s(%s!=%s)",
+				dep.DependsOn, dep.CurrentStatus, dep.RequiredStatus))
+		}
+		slices.Sort(blockers)
+		c.logger.Info(ctx, "unit waiting on dependencies",
+			slog.F("name", name),
+			slog.F("blocked_by", strings.Join(blockers, ", ")),
+		)
+	}
+
+	// Log started units (in progress).
+	for _, name := range started {
+		c.logger.Info(ctx, "unit in progress", slog.F("name", name))
+	}
 }
 
 // waitForReady polls until the service's dependencies are satisfied.
@@ -290,16 +403,16 @@ func (c *Catalog) waitForReady(ctx context.Context, name ServiceName) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-logTicker.C:
-			unmet, _ := c.manager.GetUnmetDependencies(unit.ID(name))
-			if len(unmet) > 0 {
-				depNames := make([]string, 0, len(unmet))
-				for _, d := range unmet {
-					depNames = append(depNames, string(d.DependsOn))
-				}
-				c.loggers[name].Info(ctx, "waiting for dependencies",
-					slog.F("name", name),
-					slog.F("unmet", strings.Join(depNames, ", ")))
-			}
+			//unmet, _ := c.manager.GetUnmetDependencies(unit.ID(name))
+			//if len(unmet) > 0 {
+			//	depNames := make([]string, 0, len(unmet))
+			//	for _, d := range unmet {
+			//		depNames = append(depNames, string(d.DependsOn))
+			//	}
+			//	c.loggers[name].Info(ctx, "waiting for dependencies",
+			//		slog.F("name", name),
+			//		slog.F("unmet", strings.Join(depNames, ", ")))
+			//}
 		default:
 			time.Sleep(time.Millisecond * 15)
 			continue
