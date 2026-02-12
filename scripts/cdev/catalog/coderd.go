@@ -160,15 +160,6 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 		}
 	}
 
-	c.setStep("Inserting license if set")
-	logger.Info(ctx, "inserting license for coderd", slog.F("ha_count", c.haCount))
-	if err := EnsureLicense(ctx, logger, cat); err != nil {
-		if c.haCount > 1 {
-			// Ensure license is present for HA deployments.
-			return xerrors.Errorf("ensure license: %w", err)
-		}
-	}
-
 	for i := range c.haCount {
 		c.setStep(fmt.Sprintf("Starting coderd container %d", i))
 		logger.Info(ctx, "starting coderd instance", slog.F("index", i))
@@ -184,6 +175,15 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 				URL:  fmt.Sprintf("http://localhost:%d", port),
 				Port: fmt.Sprintf("%d", port),
 			}
+		}
+	}
+
+	c.setStep("Inserting license if set")
+	logger.Info(ctx, "inserting license for coderd", slog.F("ha_count", c.haCount))
+	if err := EnsureLicense(ctx, logger, cat); err != nil {
+		if c.haCount > 1 {
+			// Ensure license is present for HA deployments.
+			return xerrors.Errorf("ensure license: %w", err)
 		}
 	}
 
@@ -246,6 +246,7 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 	prometheusPortStr := fmt.Sprintf("%d", prometheusPort)
 	httpAddress := fmt.Sprintf("0.0.0.0:%d", port)
 	accessURL := fmt.Sprintf("http://localhost:%d", port)
+	wildcardAccessURL := fmt.Sprintf("*.localhost:%d", port)
 
 	logger.Info(ctx, "starting coderd container", slog.F("index", index), slog.F("port", port))
 
@@ -258,6 +259,7 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		fmt.Sprintf("CODER_PG_CONNECTION_URL=%s", pg.Result().URL),
 		fmt.Sprintf("CODER_HTTP_ADDRESS=%s", httpAddress),
 		fmt.Sprintf("CODER_ACCESS_URL=%s", accessURL),
+		fmt.Sprintf("CODER_WILDCARD_ACCESS_URL=%s", wildcardAccessURL),
 		"CODER_SWAGGER_ENABLE=true",
 		"CODER_DANGEROUS_ALLOW_CORS_REQUESTS=true",
 		"CODER_TELEMETRY_ENABLE=false",
@@ -276,6 +278,7 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		"go", "run", "./enterprise/cmd/coder", "server",
 		"--http-address", httpAddress,
 		"--access-url", accessURL,
+		"--wildcard-access-url", wildcardAccessURL,
 		"--swagger-enable",
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",

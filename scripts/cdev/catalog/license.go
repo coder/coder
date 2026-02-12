@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -41,10 +42,12 @@ func EnsureLicense(ctx context.Context, logger slog.Logger, cat *Catalog) error 
 
 	// Wait for coderd to finish running migrations before
 	// attempting to read or write the licenses table.
+	beforeMig := time.Now()
 	err := pg.waitForMigrations(ctx, logger)
 	if err != nil {
 		return xerrors.Errorf("wait for postgres migrations: %w", err)
 	}
+	logger.Info(ctx, "waited for postgres migrations", slog.F("duration", time.Since(beforeMig)))
 
 	db, err := pg.sqlDB()
 	if err != nil {

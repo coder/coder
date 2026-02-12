@@ -1,11 +1,17 @@
 package catalog
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sync/atomic"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -206,6 +212,13 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 		logger.Info(ctx, "member user already exists, skipping creation")
 	}
 
+	// Create docker template if it doesn't exist.
+	s.setStep("Creating docker template")
+	if err := s.createDockerTemplate(ctx, logger, client); err != nil {
+		// Don't fail setup if template creation fails - it's not critical.
+		logger.Warn(ctx, "failed to create docker template", slog.Error(err))
+	}
+
 	logger.Info(ctx, "setup completed",
 		slog.F("admin_email", s.result.AdminEmail),
 		slog.F("admin_username", s.result.AdminUsername),
@@ -213,6 +226,160 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 		slog.F("member_username", s.result.MemberUsername))
 
 	return nil
+}
+
+func (s *Setup) createDockerTemplate(ctx context.Context, logger slog.Logger, client *codersdk.Client) error {
+	const templateName = "docker"
+
+	// Check if template already exists.
+	org, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+	if err != nil {
+		return xerrors.Errorf("get default organization: %w", err)
+	}
+
+	_, err = client.TemplateByName(ctx, org.ID, templateName)
+	if err == nil {
+		logger.Info(ctx, "docker template already exists, skipping creation")
+		return nil
+	}
+
+	// Template doesn't exist, create it.
+	logger.Info(ctx, "creating docker template")
+
+	// Create a tar archive of the template files.
+	templateDir := filepath.Join("examples", "templates", "docker")
+	tarData, err := createTarFromDir(templateDir)
+	if err != nil {
+		return xerrors.Errorf("create tar archive: %w", err)
+	}
+
+	// Upload the template files.
+	s.setStep("Uploading template files")
+	uploadResp, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(tarData))
+	if err != nil {
+		return xerrors.Errorf("upload template files: %w", err)
+	}
+
+	// Create a template version.
+	s.setStep("Creating template version")
+	version, err := client.CreateTemplateVersion(ctx, org.ID, codersdk.CreateTemplateVersionRequest{
+		Name:          "v1.0.0",
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		FileID:        uploadResp.ID,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+	})
+	if err != nil {
+		return xerrors.Errorf("create template version: %w", err)
+	}
+
+	// Wait for the template version to be ready.
+	s.setStep("Waiting for template to build")
+	version, err = s.waitForTemplateVersion(ctx, logger, client, version.ID)
+	if err != nil {
+		return xerrors.Errorf("wait for template version: %w", err)
+	}
+
+	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
+		return xerrors.Errorf("template version failed: %s", version.Job.Status)
+	}
+
+	// Create the template.
+	s.setStep("Finalizing template")
+	_, err = client.CreateTemplate(ctx, org.ID, codersdk.CreateTemplateRequest{
+		Name:        templateName,
+		DisplayName: "Docker",
+		Description: "Develop in Docker containers",
+		Icon:        "/icon/docker.png",
+		VersionID:   version.ID,
+	})
+	if err != nil {
+		return xerrors.Errorf("create template: %w", err)
+	}
+
+	logger.Info(ctx, "docker template created successfully")
+	return nil
+}
+
+func (s *Setup) waitForTemplateVersion(ctx context.Context, logger slog.Logger, client *codersdk.Client, versionID uuid.UUID) (codersdk.TemplateVersion, error) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	timeout := time.After(5 * time.Minute)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return codersdk.TemplateVersion{}, ctx.Err()
+		case <-timeout:
+			return codersdk.TemplateVersion{}, xerrors.New("timeout waiting for template version")
+		case <-ticker.C:
+			version, err := client.TemplateVersion(ctx, versionID)
+			if err != nil {
+				logger.Warn(ctx, "failed to get template version", slog.Error(err))
+				continue
+			}
+
+			if !version.Job.Status.Active() {
+				return version, nil
+			}
+
+			logger.Debug(ctx, "template version still building",
+				slog.F("status", version.Job.Status))
+		}
+	}
+}
+
+// createTarFromDir creates a tar archive from a directory.
+func createTarFromDir(dir string) ([]byte, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories.
+		if info.IsDir() {
+			return nil
+		}
+
+		// Get relative path.
+		relPath, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+
+		// Create tar header.
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = relPath
+
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		// Write file content.
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tw, file)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 func (*Setup) Stop(_ context.Context) error {
