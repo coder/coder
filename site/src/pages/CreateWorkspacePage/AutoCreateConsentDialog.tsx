@@ -60,7 +60,7 @@ export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 					<Button variant="outline" onClick={onDeny}>
 						Cancel
 					</Button>
-					<Button variant="destructive" onClick={onConfirm}>
+					<Button variant="default" onClick={onConfirm}>
 						Confirm and Create
 					</Button>
 				</DialogFooter>
