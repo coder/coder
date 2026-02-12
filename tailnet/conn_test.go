@@ -533,7 +533,6 @@ func TestTailnet(t *testing.T) {
 		case <-time.After(350 * time.Millisecond):
 		}
 	})
-
 }
 
 // TestConn_PreferredDERP tests that we only trigger the NodeCallback when we have a preferred DERP server.
