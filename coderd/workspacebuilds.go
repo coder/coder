@@ -1308,9 +1308,9 @@ func (api *API) convertWorkspaceBuild(
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("getting tailnet peering events: %w", err)
 			}
-			tunnelPeers := (*api.TailnetCoordinator.Load()).TunnelPeers(agent.ID)
+
 			peerTelemetry := api.PeerNetworkTelemetryStore.GetAll(agent.ID)
-			if sessions := mergeWorkspaceConnectionsIntoSessions(agent.ID, tunnelPeers, peeringEvents, agentLogs, api.DERPMap(), peerTelemetry); len(sessions) > 0 {
+			if sessions := mergeWorkspaceConnectionsIntoSessions(agent.ID, peeringEvents, agentLogs, api.DERPMap(), peerTelemetry); len(sessions) > 0 {
 				apiAgent.Sessions = sessions
 			}
 			apiAgents = append(apiAgents, apiAgent)

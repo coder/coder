@@ -148,9 +148,8 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	tunnelPeers := (*api.TailnetCoordinator.Load()).TunnelPeers(waws.WorkspaceAgent.ID)
 	peerTelemetry := api.PeerNetworkTelemetryStore.GetAll(waws.WorkspaceAgent.ID)
-	if sessions := mergeWorkspaceConnectionsIntoSessions(waws.WorkspaceAgent.ID, tunnelPeers, peeringEvents, connectionLogs, api.DERPMap(), peerTelemetry); len(sessions) > 0 {
+	if sessions := mergeWorkspaceConnectionsIntoSessions(waws.WorkspaceAgent.ID, peeringEvents, connectionLogs, api.DERPMap(), peerTelemetry); len(sessions) > 0 {
 		apiAgent.Sessions = sessions
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
