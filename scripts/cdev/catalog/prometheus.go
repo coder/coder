@@ -129,7 +129,7 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 		CreateOpts: docker.CreateContainerOptions{
 			Name: "cdev_prometheus_init",
 			Config: &docker.Config{
-				Image: "busybox:latest",
+				Image: prometheusImage + ":" + prometheusTag,
 				Cmd: []string{
 					"sh", "-c",
 					fmt.Sprintf(
