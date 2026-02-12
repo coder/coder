@@ -71,6 +71,20 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 
 *Legend: ✅ supported, ⚙️ requires AI Bridge Proxy, ❌ not supported, - not applicable.*
 
+### Why some clients are not supported
+
+AI Bridge requires clients to support two capabilities:
+
+1. **Base URL override** — the client must allow redirecting API requests from
+   the default provider endpoint to the Bridge endpoint.
+2. **Token-based authentication** — the client must allow replacing the
+   provider API key with a Coder session token.
+
+Clients marked as unsupported either do not expose these configuration options
+or have known issues that prevent reliable operation. For unsupported clients,
+consider using [AI Bridge Proxy](../ai-bridge-proxy.md) where applicable, or
+use a supported alternative client.
+
 ## Configuring In-Workspace Tools
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
