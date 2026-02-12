@@ -145,6 +145,7 @@ func TestCloseOpenAgentConnectionLogsForWorkspace(t *testing.T) {
 	require.Equal(t, sshLog2.ID, ws2Rows[0].ConnectionLog.ID)
 	require.False(t, ws2Rows[0].ConnectionLog.DisconnectTime.Valid)
 }
+
 // Regression test: CloseConnectionLogsAndCreateSessions must not fail
 // when connection_logs have NULL IPs (e.g., disconnect-only tunnel
 // events). NULL-IP logs should be closed but no session created for
@@ -250,4 +251,3 @@ func TestCloseConnectionLogsAndCreateSessions_NullIP(t *testing.T) {
 		}
 	}
 }
-

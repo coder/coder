@@ -229,8 +229,25 @@ func (a *ConnLogAPI) assignSessionForDisconnect(
 		return
 	}
 
-	sessionID, ok := sessionIDRaw.(uuid.UUID)
-	if !ok {
+	// The query uses COALESCE which returns a generic type. The
+	// database/sql driver may return the UUID as a string or
+	// []byte rather than uuid.UUID, so we handle both.
+	var sessionID uuid.UUID
+	switch v := sessionIDRaw.(type) {
+	case uuid.UUID:
+		sessionID = v
+	case string:
+		parsed, parseErr := uuid.Parse(v)
+		if parseErr != nil {
+			a.Log.Warn(ctx, "failed to parse session ID from FindOrCreateSessionForDisconnect",
+				slog.Error(parseErr),
+				slog.F("connection_id", connectionID),
+				slog.F("session_id_raw", sessionIDRaw),
+			)
+			return
+		}
+		sessionID = parsed
+	default:
 		a.Log.Warn(ctx, "unexpected session ID type from FindOrCreateSessionForDisconnect",
 			slog.F("connection_id", connectionID),
 			slog.F("session_id_raw", sessionIDRaw),
