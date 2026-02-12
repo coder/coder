@@ -37,6 +37,7 @@ func NewServer(c *catalog.Catalog, logger slog.Logger, addr string) *Server {
 	mux := http.NewServeMux()
 
 	// Service endpoints.
+	mux.HandleFunc("GET /api/events", s.handleSSE)
 	mux.HandleFunc("GET /api/services", s.handleListServices)
 	mux.HandleFunc("GET /api/services/{name}", s.handleGetService)
 	mux.HandleFunc("POST /api/services/{name}/restart", s.handleRestartService)

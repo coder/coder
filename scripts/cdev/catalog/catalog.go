@@ -71,15 +71,19 @@ type Catalog struct {
 
 	manager *unit.Manager
 
+	subscribers   map[chan struct{}]struct{}
+	subscribersMu sync.Mutex
+
 	configurators []configurator
 	configured    bool
 }
 
 func New() *Catalog {
 	return &Catalog{
-		services: make(map[ServiceName]ServiceBase),
-		loggers:  make(map[ServiceName]slog.Logger),
-		manager:  unit.NewManager(),
+		services:    make(map[ServiceName]ServiceBase),
+		loggers:     make(map[ServiceName]slog.Logger),
+		manager:     unit.NewManager(),
+		subscribers: make(map[chan struct{}]struct{}),
 	}
 }
 
@@ -276,6 +280,7 @@ func (c *Catalog) Start(ctx context.Context) error {
 			if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusStarted); err != nil {
 				return xerrors.Errorf("update status for %s: %w", name, err)
 			}
+			c.notifySubscribers()
 
 			svcLogger.Info(ctx, "starting service")
 			if err := e.srv.Start(ctx, svcLogger, c); err != nil {
@@ -286,6 +291,7 @@ func (c *Catalog) Start(ctx context.Context) error {
 			if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusComplete); err != nil {
 				return xerrors.Errorf("update status for %s: %w", name, err)
 			}
+			c.notifySubscribers()
 
 			svcLogger.Info(ctx, "service started", slog.F("name", name))
 			return nil
@@ -409,6 +415,45 @@ func (c *Catalog) unitsWaiting(ctx context.Context, startTime time.Time) {
 	// Log started units (in progress).
 	for _, name := range started {
 		c.logger.Info(ctx, "unit in progress", slog.F("name", name))
+	}
+}
+
+// Subscribe returns a channel that receives a notification whenever
+// service state changes. The channel is buffered with size 1 so
+// sends never block. Pass the returned channel to Unsubscribe when
+// done.
+func (c *Catalog) Subscribe() chan struct{} {
+	ch := make(chan struct{}, 1)
+	c.subscribersMu.Lock()
+	c.subscribers[ch] = struct{}{}
+	c.subscribersMu.Unlock()
+	return ch
+}
+
+// Unsubscribe removes and closes a subscriber channel.
+func (c *Catalog) Unsubscribe(ch chan struct{}) {
+	c.subscribersMu.Lock()
+	delete(c.subscribers, ch)
+	c.subscribersMu.Unlock()
+	close(ch)
+}
+
+// NotifySubscribers does a non-blocking send to every subscriber.
+// It is exported so that API handlers can trigger notifications
+// after operations like restart or stop.
+func (c *Catalog) NotifySubscribers() {
+	c.notifySubscribers()
+}
+
+// notifySubscribers does a non-blocking send to every subscriber.
+func (c *Catalog) notifySubscribers() {
+	c.subscribersMu.Lock()
+	defer c.subscribersMu.Unlock()
+	for ch := range c.subscribers {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
 	}
 }
 

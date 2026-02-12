@@ -106,7 +106,7 @@
   <div class="container">
     <header>
       <h1><span class="status-dot"></span> cdev</h1>
-      <span class="refresh-info">Auto-refresh: 2s</span>
+      <span class="refresh-info">Live (SSE)</span>
     </header>
     <div id="error" class="error" style="display: none;"></div>
     <div id="services" class="services">
@@ -139,7 +139,6 @@
           const data = await res.json();
           throw new Error(data.error || `HTTP ${res.status}`);
         }
-        await fetchServices();
       } catch (err) {
         showError(`Failed to restart ${name}: ${err.message}`);
       } finally {
@@ -155,7 +154,6 @@
           const data = await res.json();
           throw new Error(data.error || `HTTP ${res.status}`);
         }
-        await fetchServices();
       } catch (err) {
         showError(`Failed to stop ${name}: ${err.message}`);
       } finally {
@@ -216,9 +214,17 @@
       }).join('');
     }
 
-    // Initial fetch and auto-refresh.
-    fetchServices();
-    setInterval(fetchServices, 2000);
+    // Use Server-Sent Events for live updates.
+    const evtSource = new EventSource('/api/events');
+    evtSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      services = data.services || [];
+      hideError();
+      render();
+    };
+    evtSource.onerror = () => {
+      showError('SSE connection lost, retrying...');
+    };
   </script>
 </body>
 </html>

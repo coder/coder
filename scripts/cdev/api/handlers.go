@@ -1,7 +1,11 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
@@ -30,7 +34,7 @@ func serviceNamesToStrings(names []catalog.ServiceName) []string {
 	return result
 }
 
-func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
+func (s *Server) buildListServicesResponse() ListServicesResponse {
 	var services []ServiceInfo
 
 	_ = s.catalog.ForEach(func(svc catalog.ServiceBase) error {
@@ -57,7 +61,11 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	s.writeJSON(w, http.StatusOK, ListServicesResponse{Services: services})
+	return ListServicesResponse{Services: services}
+}
+
+func (s *Server) handleListServices(w http.ResponseWriter, _ *http.Request) {
+	s.writeJSON(w, http.StatusOK, s.buildListServicesResponse())
 }
 
 func (s *Server) handleGetService(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +122,7 @@ func (s *Server) handleRestartService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.catalog.NotifySubscribers()
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "restarted"})
 }
 
@@ -131,9 +140,57 @@ func (s *Server) handleStopService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.catalog.NotifySubscribers()
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	sub := s.catalog.Subscribe()
+	defer s.catalog.Unsubscribe(sub)
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	var lastData []byte
+
+	sendState := func() {
+		data, err := json.Marshal(s.buildListServicesResponse())
+		if err != nil {
+			return
+		}
+		if bytes.Equal(data, lastData) {
+			return
+		}
+		lastData = data
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	// Send initial state immediately.
+	sendState()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-sub:
+			sendState()
+		case <-ticker.C:
+			sendState()
+		}
+	}
+}
+
