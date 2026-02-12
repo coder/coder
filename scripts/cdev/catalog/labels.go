@@ -16,6 +16,7 @@ const (
 	CDevOIDC        ServiceName = "oidc"
 	CDevProvisioner ServiceName = "provisioner"
 	CDevPrometheus  ServiceName = "prometheus"
+	CDevSite        ServiceName = "site"
 )
 
 type Labels map[string]string

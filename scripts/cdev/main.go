@@ -378,6 +378,7 @@ func upCmd() *serpent.Command {
 		catalog.NewPostgres(),
 		catalog.NewCoderd(),
 		catalog.NewOIDC(),
+		catalog.NewSite(),
 	)
 	if err != nil {
 		panic(fmt.Sprintf("failed to register services: %v", err))
