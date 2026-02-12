@@ -16,7 +16,17 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 
-export const DropdownMenu = DropdownMenuPrimitive.Root;
+export const DropdownMenu = ({
+	children,
+	modal = false,
+	...props
+}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
+	return (
+		<DropdownMenuPrimitive.Root modal={modal} {...props}>
+			{children}
+		</DropdownMenuPrimitive.Root>
+	);
+};
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
