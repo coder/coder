@@ -1,5 +1,5 @@
 import { type FC, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "react-query";
 import { chat, createChatMessage } from "api/queries/chats";
 import { Loader } from "components/Loader/Loader";
