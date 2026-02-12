@@ -13,6 +13,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+
 // ChatGitChange represents a git file change detected during a chat session.
 type ChatGitChange struct {
 	ID          uuid.UUID      `db:"id" json:"id"`
