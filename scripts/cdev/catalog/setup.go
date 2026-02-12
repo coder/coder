@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -246,9 +247,17 @@ func (s *Setup) createDockerTemplate(ctx context.Context, logger slog.Logger, cl
 	// Template doesn't exist, create it.
 	logger.Info(ctx, "creating docker template")
 
-	// Create a tar archive of the template files.
+	// Copy template to temp directory and run terraform init to generate lock file.
+	s.setStep("Initializing terraform providers")
 	templateDir := filepath.Join("examples", "templates", "docker")
-	tarData, err := createTarFromDir(templateDir)
+	tempDir, err := s.prepareTemplateDir(ctx, logger, templateDir)
+	if err != nil {
+		return xerrors.Errorf("prepare template directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a tar archive of the initialized template files.
+	tarData, err := createTarFromDir(tempDir)
 	if err != nil {
 		return xerrors.Errorf("create tar archive: %w", err)
 	}
@@ -280,6 +289,7 @@ func (s *Setup) createDockerTemplate(ctx context.Context, logger slog.Logger, cl
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
+		logger.Error(ctx, "template version build failed", slog.F("error", version.Job.Error))
 		return xerrors.Errorf("template version failed: %s", version.Job.Status)
 	}
 
@@ -298,6 +308,76 @@ func (s *Setup) createDockerTemplate(ctx context.Context, logger slog.Logger, cl
 
 	logger.Info(ctx, "docker template created successfully")
 	return nil
+}
+
+// prepareTemplateDir copies the template to a temp directory and runs terraform init
+// to generate the lock file that Coder's provisioner needs.
+func (s *Setup) prepareTemplateDir(ctx context.Context, logger slog.Logger, srcDir string) (string, error) {
+	// Create temp directory.
+	tempDir, err := os.MkdirTemp("", "cdev-template-*")
+	if err != nil {
+		return "", xerrors.Errorf("create temp dir: %w", err)
+	}
+
+	// Copy all files from source to temp directory.
+	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+
+		destPath := filepath.Join(tempDir, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(destPath, info.Mode())
+		}
+
+		// Copy file.
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		destFile, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer destFile.Close()
+
+		_, err = io.Copy(destFile, srcFile)
+		return err
+	})
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return "", xerrors.Errorf("copy template files: %w", err)
+	}
+
+	// Run terraform init to download providers and create lock file.
+	logger.Info(ctx, "running terraform init", slog.F("dir", tempDir))
+
+	cmd := exec.CommandContext(ctx, "terraform", "init")
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return "", xerrors.Errorf("terraform init failed: %w\nOutput: %s", err, string(output))
+	}
+
+	logger.Debug(ctx, "terraform init completed", slog.F("output", string(output)))
+
+	// Remove the .terraform directory - we only need the lock file.
+	// The provisioner will download the providers itself.
+	tfDir := filepath.Join(tempDir, ".terraform")
+	if err := os.RemoveAll(tfDir); err != nil {
+		logger.Warn(ctx, "failed to remove .terraform directory", slog.Error(err))
+	}
+
+	return tempDir, nil
 }
 
 func (s *Setup) waitForTemplateVersion(ctx context.Context, logger slog.Logger, client *codersdk.Client, versionID uuid.UUID) (codersdk.TemplateVersion, error) {

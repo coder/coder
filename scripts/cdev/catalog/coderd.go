@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -225,16 +227,16 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		return nil, xerrors.Errorf("get working directory: %w", err)
 	}
 
-	// Get docker group ID for socket access.
-	dockerGroup := os.Getenv("DOCKER_GROUP")
-	if dockerGroup == "" {
-		dockerGroup = "999"
-	}
-
 	// Get docker socket path.
 	dockerSocket := os.Getenv("DOCKER_SOCKET")
 	if dockerSocket == "" {
 		dockerSocket = "/var/run/docker.sock"
+	}
+
+	// Get docker group ID for socket access. Auto-detect via getent if not set.
+	dockerGroup := os.Getenv("DOCKER_GROUP")
+	if dockerGroup == "" {
+		dockerGroup = getDockerGroupID()
 	}
 
 	// Calculate port for this instance (base port + index).
@@ -378,4 +380,18 @@ func (c *Coderd) Stop(ctx context.Context) error {
 
 func (c *Coderd) Result() CoderdResult {
 	return c.result
+}
+
+// getDockerGroupID returns the GID of the docker group via getent,
+// falling back to "999" if the lookup fails.
+func getDockerGroupID() string {
+	out, err := exec.Command("getent", "group", "docker").Output()
+	if err == nil {
+		// Format is "docker:x:GID:users", we want the third field.
+		parts := strings.Split(strings.TrimSpace(string(out)), ":")
+		if len(parts) >= 3 {
+			return parts[2]
+		}
+	}
+	return "999"
 }
