@@ -58,19 +58,21 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 	cnts, err := pool.Client.ListContainers(docker.ListContainersOptions{
 		Filters: existsFilter,
 	})
+	if err != nil {
+		return nil, xerrors.Errorf("list containers: %w", err)
+	}
 	if len(cnts) > 0 {
-		if opts.DestroyExisting {
-			for _, cnt := range cnts {
-				logger.Info(ctx, "removing existing container with same name", slog.F("container_name", containerName))
-				if err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
-					ID:    cnt.ID,
-					Force: true,
-				}); err != nil {
-					return nil, xerrors.Errorf("remove existing container: %w", err)
-				}
-			}
-		} else {
+		if !opts.DestroyExisting {
 			return nil, xerrors.Errorf("container with name %q already exists", containerName)
+		}
+		for _, cnt := range cnts {
+			logger.Info(ctx, "removing existing container with same name", slog.F("container_name", containerName))
+			if err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+				ID:    cnt.ID,
+				Force: true,
+			}); err != nil {
+				return nil, xerrors.Errorf("remove existing container: %w", err)
+			}
 		}
 	}
 

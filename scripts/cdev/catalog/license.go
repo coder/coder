@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // Imported for postgres driver side effects.
 )
 
 // RequireLicense panics if CODER_LICENSE is not set. Call this
@@ -124,7 +124,7 @@ func EnsureLicense(ctx context.Context, logger slog.Logger, pgURL string) error 
 	}
 
 	logger.Info(ctx, "license inserted into database",
-		slog.F("uuid", licenseUUID),
+		slog.F("license_id", licenseUUID),
 		slog.F("expires", claims.ExpiresAt.Time),
 	)
 	return nil

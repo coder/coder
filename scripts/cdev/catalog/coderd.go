@@ -65,17 +65,17 @@ func NewCoderd() *Coderd {
 	return &Coderd{}
 }
 
-func (c *Coderd) Name() string {
+func (*Coderd) Name() string {
 	return "coderd"
 }
-func (c *Coderd) Emoji() string {
+func (*Coderd) Emoji() string {
 	return "🖥️"
 }
 
 // HACount returns the number of coderd instances configured for HA.
 func (c *Coderd) HACount() int64 { return c.haCount }
 
-func (c *Coderd) DependsOn() []string {
+func (*Coderd) DependsOn() []string {
 	return []string{
 		OnDocker(),
 		OnPostgres(),
@@ -103,7 +103,10 @@ func OnBuildSlim() string {
 }
 
 func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) error {
-	dkr := cat.MustGet(OnDocker()).(*Docker)
+	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return xerrors.New("unexpected type for Docker service")
+	}
 	pool := dkr.Result()
 
 	labels := NewServiceLabels(CDevCoderd)
@@ -130,7 +133,10 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 
 	// Ensure license is present for HA deployments.
 	if c.haCount > 1 {
-		pg := cat.MustGet(OnPostgres()).(*Postgres)
+		pg, ok := cat.MustGet(OnPostgres()).(*Postgres)
+		if !ok {
+			return xerrors.New("unexpected type for Postgres service")
+		}
 		if err := EnsureLicense(ctx, logger, pg.Result().URL); err != nil {
 			return xerrors.Errorf("ensure license: %w", err)
 		}
@@ -156,10 +162,19 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 }
 
 func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catalog, index int) (*ContainerRunResult, error) {
-	dkr := cat.MustGet(OnDocker()).(*Docker)
+	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return nil, xerrors.New("unexpected type for Docker service")
+	}
 	pool := dkr.Result()
-	pg := cat.MustGet(OnPostgres()).(*Postgres)
-	oidc := cat.MustGet(OnOIDC()).(*OIDC)
+	pg, ok := cat.MustGet(OnPostgres()).(*Postgres)
+	if !ok {
+		return nil, xerrors.New("unexpected type for Postgres service")
+	}
+	oidc, ok := cat.MustGet(OnOIDC()).(*OIDC)
+	if !ok {
+		return nil, xerrors.New("unexpected type for OIDC service")
+	}
 	build := Get[*BuildSlim](cat)
 
 	labels := NewServiceLabels(CDevCoderd)
@@ -248,7 +263,7 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 				WorkingDir: "/app",
 				Env:        env,
 				Cmd:        cmd,
-				Labels: labels,
+				Labels:     labels,
 				ExposedPorts: map[docker.Port]struct{}{
 					docker.Port(portStr + "/tcp"):      {},
 					docker.Port(pprofPortStr + "/tcp"): {},
@@ -306,16 +321,16 @@ func (c *Coderd) waitForReady(ctx context.Context, logger slog.Logger) error {
 			if err != nil {
 				continue
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
-				logger.Info(ctx, "coderd is ready", slog.F("url", c.result.URL))
+				logger.Info(ctx, "coderd server is ready and accepting connections", slog.F("url", c.result.URL))
 				return nil
 			}
 		}
 	}
 }
 
-func (c *Coderd) Stop(_ context.Context) error {
+func (*Coderd) Stop(_ context.Context) error {
 	// Don't stop the container - it persists across runs.
 	// Use "cdev down" to fully clean up.
 	return nil

@@ -12,7 +12,8 @@ import (
 	"github.com/coder/pretty"
 )
 
-type loggerSink struct {
+// LoggerSink is a controllable slog.Sink with pretty formatting.
+type LoggerSink struct {
 	mu          sync.Mutex
 	w           io.Writer
 	emoji       string
@@ -23,8 +24,8 @@ type loggerSink struct {
 // NewLoggerSink returns a controllable sink with pretty formatting.
 // If svc is non-nil, lines are prefixed with the service's emoji
 // and name. Pass nil for non-service contexts.
-func NewLoggerSink(w io.Writer, svc ServiceBase) *loggerSink {
-	s := &loggerSink{w: w, emoji: "🚀", serviceName: "cdev"}
+func NewLoggerSink(w io.Writer, svc ServiceBase) *LoggerSink {
+	s := &LoggerSink{w: w, emoji: "🚀", serviceName: "cdev"}
 	if svc != nil {
 		s.emoji = svc.Emoji()
 		s.serviceName = svc.Name()
@@ -32,7 +33,7 @@ func NewLoggerSink(w io.Writer, svc ServiceBase) *loggerSink {
 	return s
 }
 
-func (l *loggerSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+func (l *LoggerSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 	if l.done.Load() {
 		return
 	}
@@ -55,11 +56,11 @@ func (l *loggerSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	fmt.Fprintf(l.w, "%s %s [%s] %s%s\n", serviceLabel, ts, streamTag, e.Message, fields)
+	_, _ = fmt.Fprintf(l.w, "%s %s [%s] %s%s\n", serviceLabel, ts, streamTag, e.Message, fields)
 }
 
-func (l *loggerSink) Sync() {}
+func (*LoggerSink) Sync() {}
 
-func (l *loggerSink) Close() {
+func (l *LoggerSink) Close() {
 	l.done.Store(true)
 }

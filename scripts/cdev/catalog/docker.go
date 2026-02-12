@@ -44,18 +44,18 @@ func NewDocker() *Docker {
 	}
 }
 
-func (d *Docker) Name() string {
+func (*Docker) Name() string {
 	return "docker"
 }
-func (d *Docker) Emoji() string {
+func (*Docker) Emoji() string {
 	return "🐳"
 }
 
-func (d *Docker) DependsOn() []string {
+func (*Docker) DependsOn() []string {
 	return []string{}
 }
 
-func (d *Docker) Start(ctx context.Context, _ slog.Logger, _ *Catalog) error {
+func (d *Docker) Start(_ context.Context, _ slog.Logger, _ *Catalog) error {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func (d *Docker) Start(ctx context.Context, _ slog.Logger, _ *Catalog) error {
 	return nil
 }
 
-func (d *Docker) Stop(ctx context.Context) error {
+func (*Docker) Stop(_ context.Context) error {
 	return nil
 }
 
@@ -84,12 +84,12 @@ func (d *Docker) EnsureVolume(ctx context.Context, opts VolumeOptions) (*docker.
 	d.volumesMu.Unlock()
 
 	vo.once.Do(func() {
-		vo.vol, vo.err = d.ensureVolume(ctx, opts)
+		vo.vol, vo.err = d.createVolumeIfNeeded(ctx, opts)
 	})
 	return vo.vol, vo.err
 }
 
-func (d *Docker) ensureVolume(ctx context.Context, opts VolumeOptions) (*docker.Volume, error) {
+func (d *Docker) createVolumeIfNeeded(ctx context.Context, opts VolumeOptions) (*docker.Volume, error) {
 	vol, err := d.pool.Client.InspectVolume(opts.Name)
 	if err != nil {
 		vol, err = d.pool.Client.CreateVolume(docker.CreateVolumeOptions{

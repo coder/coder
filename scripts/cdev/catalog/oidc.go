@@ -53,22 +53,25 @@ func NewOIDC() *OIDC {
 	return &OIDC{}
 }
 
-func (o *OIDC) Name() string {
+func (*OIDC) Name() string {
 	return "oidc"
 }
 
-func (o *OIDC) Emoji() string {
+func (*OIDC) Emoji() string {
 	return "🔒"
 }
 
-func (o *OIDC) DependsOn() []string {
+func (*OIDC) DependsOn() []string {
 	return []string{
 		OnDocker(),
 	}
 }
 
 func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
-	d := c.MustGet(OnDocker()).(*Docker)
+	d, ok := c.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return xerrors.New("unexpected type for Docker service")
+	}
 	o.pool = d.Result()
 
 	labels := NewServiceLabels(CDevOIDC).With(CDevLabelEphemeral, "true")
@@ -137,7 +140,7 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	return o.waitForReady(ctx, logger)
 }
 
-func (o *OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
+func (*OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
 	// Check if image already exists.
 	//nolint:gosec // Arguments are controlled.
 	checkCmd := exec.CommandContext(ctx, "docker", "image", "inspect", testidpImage+":"+testidpTag)
@@ -194,13 +197,18 @@ func (o *OIDC) waitForReady(ctx context.Context, logger slog.Logger) error {
 			return xerrors.New("timeout waiting for oidc to be ready")
 		case <-ticker.C:
 			// Check the well-known endpoint.
-			resp, err := client.Get(o.result.IssuerURL + "/.well-known/openid-configuration")
+			wellKnownURL := o.result.IssuerURL + "/.well-known/openid-configuration"
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
 			if err != nil {
 				continue
 			}
-			resp.Body.Close()
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
-				logger.Info(ctx, "oidc is ready",
+				logger.Info(ctx, "oidc provider is ready and accepting connections",
 					slog.F("issuer_url", o.result.IssuerURL),
 					slog.F("client_id", o.result.ClientID),
 				)

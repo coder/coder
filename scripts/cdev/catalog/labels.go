@@ -10,10 +10,10 @@ const (
 type ServiceName string
 
 const (
-	CDevBuildSlim ServiceName = "build-slim"
-	CDevPostgres  ServiceName = "postgres"
-	CDevCoderd    ServiceName = "coderd"
-	CDevOIDC      ServiceName = "oidc"
+	CDevBuildSlim   ServiceName = "build-slim"
+	CDevPostgres    ServiceName = "postgres"
+	CDevCoderd      ServiceName = "coderd"
+	CDevOIDC        ServiceName = "oidc"
 	CDevProvisioner ServiceName = "provisioner"
 )
 

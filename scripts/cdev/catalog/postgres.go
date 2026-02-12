@@ -9,7 +9,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // Imported for postgres driver side effects.
 
 	"cdr.dev/slog/v3"
 )
@@ -47,21 +47,24 @@ func NewPostgres() *Postgres {
 	return &Postgres{}
 }
 
-func (p *Postgres) Name() string {
+func (*Postgres) Name() string {
 	return "postgres"
 }
-func (p *Postgres) Emoji() string {
+func (*Postgres) Emoji() string {
 	return "🐘"
 }
 
-func (p *Postgres) DependsOn() []string {
+func (*Postgres) DependsOn() []string {
 	return []string{
 		OnDocker(),
 	}
 }
 
 func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
-	d := c.MustGet(OnDocker()).(*Docker)
+	d, ok := c.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return xerrors.New("unexpected type for Docker service")
+	}
 	pool := d.Result()
 
 	name := "cdev_postgres"
@@ -187,7 +190,7 @@ func (p *Postgres) waitForReady(ctx context.Context, logger slog.Logger) error {
 				continue
 			}
 			err = db.PingContext(ctx)
-			db.Close()
+			_ = db.Close()
 			if err == nil {
 				logger.Info(ctx, "postgres is ready", slog.F("url", p.result.URL))
 				return nil
@@ -196,7 +199,7 @@ func (p *Postgres) waitForReady(ctx context.Context, logger slog.Logger) error {
 	}
 }
 
-func (p *Postgres) Stop(_ context.Context) error {
+func (*Postgres) Stop(_ context.Context) error {
 	// Don't stop the container - it persists across runs.
 	// Use "cdev down" to fully clean up.
 	return nil

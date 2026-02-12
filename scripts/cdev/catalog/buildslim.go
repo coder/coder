@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
@@ -26,7 +25,6 @@ type BuildSlim struct {
 	// Verbose enables verbose output from the build.
 	Verbose bool
 
-	pool   *dockertest.Pool
 	result BuildResult
 }
 
@@ -41,25 +39,28 @@ func NewBuildSlim() *BuildSlim {
 	}
 }
 
-func (d *BuildSlim) Result() BuildResult {
-	return d.result
+func (b *BuildSlim) Result() BuildResult {
+	return b.result
 }
 
-func (b *BuildSlim) Name() string {
+func (*BuildSlim) Name() string {
 	return "build-slim"
 }
-func (b *BuildSlim) Emoji() string {
+func (*BuildSlim) Emoji() string {
 	return "🔨"
 }
 
-func (b *BuildSlim) DependsOn() []string {
+func (*BuildSlim) DependsOn() []string {
 	return []string{
 		OnDocker(),
 	}
 }
 
 func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
-	dkr := c.MustGet(OnDocker()).(*Docker)
+	dkr, ok := c.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return xerrors.New("unexpected type for Docker service")
+	}
 	goCache, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_go_cache",
 		Labels: NewServiceLabels(CDevBuildSlim),
@@ -149,7 +150,7 @@ func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) e
 	return nil
 }
 
-func (b *BuildSlim) Stop(_ context.Context) error {
+func (*BuildSlim) Stop(_ context.Context) error {
 	// Build is a one-shot task, nothing to stop.
 	return nil
 }

@@ -178,7 +178,11 @@ func Configure[T ServiceBase](c *Catalog, target string, fn func(T)) {
 	c.configurators = append(c.configurators, configurator{
 		target: target,
 		apply: func(s ServiceBase) {
-			fn(s.(T))
+			typed, ok := s.(T)
+			if !ok {
+				panic(fmt.Sprintf("catalog: Configure(%q) type mismatch: got %T", target, s))
+			}
+			fn(typed)
 		},
 	})
 }

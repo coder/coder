@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/serpent"
 
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // Imported for postgres driver side effects.
 )
 
 // ProvisionerResult contains the provisioner key for connecting
@@ -56,15 +56,15 @@ func NewProvisioner(cat *Catalog) *Provisioner {
 // Count returns the configured number of provisioner instances.
 func (p *Provisioner) Count() int64 { return p.count }
 
-func (p *Provisioner) Name() string {
+func (*Provisioner) Name() string {
 	return "provisioner"
 }
 
-func (p *Provisioner) Emoji() string {
+func (*Provisioner) Emoji() string {
 	return "⚙️"
 }
 
-func (p *Provisioner) DependsOn() []string {
+func (*Provisioner) DependsOn() []string {
 	return []string{OnCoderd()}
 }
 
@@ -84,7 +84,10 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 		return nil
 	}
 
-	pg := cat.MustGet(OnPostgres()).(*Postgres)
+	pg, ok := cat.MustGet(OnPostgres()).(*Postgres)
+	if !ok {
+		return xerrors.New("unexpected type for Postgres service")
+	}
 
 	// Ensure license is in the database before provisioner setup.
 	if err := EnsureLicense(ctx, logger, pg.Result().URL); err != nil {
@@ -139,9 +142,15 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 }
 
 func (p *Provisioner) startProvisioner(ctx context.Context, logger slog.Logger, cat *Catalog, index int, key string) error {
-	dkr := cat.MustGet(OnDocker()).(*Docker)
+	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return xerrors.New("unexpected type for Docker service")
+	}
 	pool := dkr.Result()
-	coderd := cat.MustGet(OnCoderd()).(*Coderd)
+	coderd, ok := cat.MustGet(OnCoderd()).(*Coderd)
+	if !ok {
+		return xerrors.New("unexpected type for Coderd service")
+	}
 	build := Get[*BuildSlim](cat)
 
 	labels := NewServiceLabels(CDevProvisioner)
@@ -209,7 +218,7 @@ func (p *Provisioner) startProvisioner(ctx context.Context, logger slog.Logger, 
 	return nil
 }
 
-func (p *Provisioner) Stop(_ context.Context) error {
+func (*Provisioner) Stop(_ context.Context) error {
 	return nil
 }
 
