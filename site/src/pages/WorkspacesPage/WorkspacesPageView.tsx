@@ -150,7 +150,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon className="size-4" />
+										<ChevronDownIcon />
 									</Spinner>
 								</Button>
 							</DropdownMenuTrigger>

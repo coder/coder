@@ -143,11 +143,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							isOpen && "text-content-primary",
 						])}
 					>
-						{isOpen ? (
-							<ChevronDownIcon className="size-icon-xs" />
-						) : (
-							<ChevronRightIcon className="size-icon-xs" />
-						)}
+						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{formatDate(new Date(interception.started_at))}
 					</div>

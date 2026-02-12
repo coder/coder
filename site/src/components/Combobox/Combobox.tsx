@@ -86,7 +86,7 @@ export const Combobox: FC<ComboboxProps> = ({
 					<span className={cn(!value && "text-content-secondary")}>
 						{optionsMap.get(value)?.displayName || value || placeholder}
 					</span>
-					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
+					<ChevronDown className="text-content-secondary group-hover:text-content-primary" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="w-[var(--radix-popover-trigger-width)]">
