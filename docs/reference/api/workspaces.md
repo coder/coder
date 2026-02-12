@@ -183,25 +183,6 @@ of the template will be used.
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "connections": [
-              {
-                "client_hostname": "string",
-                "connected_at": "2019-08-24T14:15:22Z",
-                "created_at": "2019-08-24T14:15:22Z",
-                "detail": "string",
-                "ended_at": "2019-08-24T14:15:22Z",
-                "home_derp": {
-                  "id": 0,
-                  "name": "string"
-                },
-                "ip": "string",
-                "latency_ms": 0,
-                "p2p": true,
-                "short_description": "string",
-                "status": "ongoing",
-                "type": "ssh"
-              }
-            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -263,6 +244,33 @@ of the template will be used.
                 "script": "string",
                 "start_blocks_login": true,
                 "timeout": 0
+              }
+            ],
+            "sessions": [
+              {
+                "client_hostname": "string",
+                "connections": [
+                  {
+                    "client_hostname": "string",
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "detail": "string",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "home_derp": {},
+                    "ip": "string",
+                    "latency_ms": 0,
+                    "p2p": true,
+                    "short_description": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
+                "ended_at": "2019-08-24T14:15:22Z",
+                "id": "string",
+                "ip": "string",
+                "short_description": "string",
+                "started_at": "2019-08-24T14:15:22Z",
+                "status": "ongoing"
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -507,25 +515,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "connections": [
-              {
-                "client_hostname": "string",
-                "connected_at": "2019-08-24T14:15:22Z",
-                "created_at": "2019-08-24T14:15:22Z",
-                "detail": "string",
-                "ended_at": "2019-08-24T14:15:22Z",
-                "home_derp": {
-                  "id": 0,
-                  "name": "string"
-                },
-                "ip": "string",
-                "latency_ms": 0,
-                "p2p": true,
-                "short_description": "string",
-                "status": "ongoing",
-                "type": "ssh"
-              }
-            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -587,6 +576,33 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "script": "string",
                 "start_blocks_login": true,
                 "timeout": 0
+              }
+            ],
+            "sessions": [
+              {
+                "client_hostname": "string",
+                "connections": [
+                  {
+                    "client_hostname": "string",
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "detail": "string",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "home_derp": {},
+                    "ip": "string",
+                    "latency_ms": 0,
+                    "p2p": true,
+                    "short_description": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
+                "ended_at": "2019-08-24T14:15:22Z",
+                "id": "string",
+                "ip": "string",
+                "short_description": "string",
+                "started_at": "2019-08-24T14:15:22Z",
+                "status": "ongoing"
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -856,25 +872,6 @@ of the template will be used.
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "connections": [
-              {
-                "client_hostname": "string",
-                "connected_at": "2019-08-24T14:15:22Z",
-                "created_at": "2019-08-24T14:15:22Z",
-                "detail": "string",
-                "ended_at": "2019-08-24T14:15:22Z",
-                "home_derp": {
-                  "id": 0,
-                  "name": "string"
-                },
-                "ip": "string",
-                "latency_ms": 0,
-                "p2p": true,
-                "short_description": "string",
-                "status": "ongoing",
-                "type": "ssh"
-              }
-            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -936,6 +933,33 @@ of the template will be used.
                 "script": "string",
                 "start_blocks_login": true,
                 "timeout": 0
+              }
+            ],
+            "sessions": [
+              {
+                "client_hostname": "string",
+                "connections": [
+                  {
+                    "client_hostname": "string",
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "detail": "string",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "home_derp": {},
+                    "ip": "string",
+                    "latency_ms": 0,
+                    "p2p": true,
+                    "short_description": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
+                "ended_at": "2019-08-24T14:15:22Z",
+                "id": "string",
+                "ip": "string",
+                "short_description": "string",
+                "started_at": "2019-08-24T14:15:22Z",
+                "status": "ongoing"
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -1166,22 +1190,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 ],
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
-                "connections": [
-                  {
-                    "client_hostname": "string",
-                    "connected_at": "2019-08-24T14:15:22Z",
-                    "created_at": "2019-08-24T14:15:22Z",
-                    "detail": "string",
-                    "ended_at": "2019-08-24T14:15:22Z",
-                    "home_derp": {},
-                    "ip": "string",
-                    "latency_ms": 0,
-                    "p2p": true,
-                    "short_description": "string",
-                    "status": "ongoing",
-                    "type": "ssh"
-                  }
-                ],
                 "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
@@ -1243,6 +1251,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "script": "string",
                     "start_blocks_login": true,
                     "timeout": 0
+                  }
+                ],
+                "sessions": [
+                  {
+                    "client_hostname": "string",
+                    "connections": [],
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "id": "string",
+                    "ip": "string",
+                    "short_description": "string",
+                    "started_at": "2019-08-24T14:15:22Z",
+                    "status": "ongoing"
                   }
                 ],
                 "started_at": "2019-08-24T14:15:22Z",
@@ -1488,25 +1508,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "connections": [
-              {
-                "client_hostname": "string",
-                "connected_at": "2019-08-24T14:15:22Z",
-                "created_at": "2019-08-24T14:15:22Z",
-                "detail": "string",
-                "ended_at": "2019-08-24T14:15:22Z",
-                "home_derp": {
-                  "id": 0,
-                  "name": "string"
-                },
-                "ip": "string",
-                "latency_ms": 0,
-                "p2p": true,
-                "short_description": "string",
-                "status": "ongoing",
-                "type": "ssh"
-              }
-            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -1568,6 +1569,33 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "script": "string",
                 "start_blocks_login": true,
                 "timeout": 0
+              }
+            ],
+            "sessions": [
+              {
+                "client_hostname": "string",
+                "connections": [
+                  {
+                    "client_hostname": "string",
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "detail": "string",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "home_derp": {},
+                    "ip": "string",
+                    "latency_ms": 0,
+                    "p2p": true,
+                    "short_description": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
+                "ended_at": "2019-08-24T14:15:22Z",
+                "id": "string",
+                "ip": "string",
+                "short_description": "string",
+                "started_at": "2019-08-24T14:15:22Z",
+                "status": "ongoing"
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -2072,25 +2100,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "connections": [
-              {
-                "client_hostname": "string",
-                "connected_at": "2019-08-24T14:15:22Z",
-                "created_at": "2019-08-24T14:15:22Z",
-                "detail": "string",
-                "ended_at": "2019-08-24T14:15:22Z",
-                "home_derp": {
-                  "id": 0,
-                  "name": "string"
-                },
-                "ip": "string",
-                "latency_ms": 0,
-                "p2p": true,
-                "short_description": "string",
-                "status": "ongoing",
-                "type": "ssh"
-              }
-            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -2152,6 +2161,33 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "script": "string",
                 "start_blocks_login": true,
                 "timeout": 0
+              }
+            ],
+            "sessions": [
+              {
+                "client_hostname": "string",
+                "connections": [
+                  {
+                    "client_hostname": "string",
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "detail": "string",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "home_derp": {},
+                    "ip": "string",
+                    "latency_ms": 0,
+                    "p2p": true,
+                    "short_description": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
+                "ended_at": "2019-08-24T14:15:22Z",
+                "id": "string",
+                "ip": "string",
+                "short_description": "string",
+                "started_at": "2019-08-24T14:15:22Z",
+                "status": "ongoing"
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -2379,6 +2415,75 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 | Status | Meaning                                                 | Description | Schema                                                                           |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ResolveAutostartResponse](schemas.md#codersdkresolveautostartresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace sessions
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/sessions \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/sessions`
+
+### Parameters
+
+| Name        | In    | Type         | Required | Description  |
+|-------------|-------|--------------|----------|--------------|
+| `workspace` | path  | string(uuid) | true     | Workspace ID |
+| `limit`     | query | integer      | false    | Page limit   |
+| `offset`    | query | integer      | false    | Page offset  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "sessions": [
+    {
+      "client_hostname": "string",
+      "connections": [
+        {
+          "client_hostname": "string",
+          "connected_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
+          "detail": "string",
+          "ended_at": "2019-08-24T14:15:22Z",
+          "home_derp": {
+            "id": 0,
+            "name": "string"
+          },
+          "ip": "string",
+          "latency_ms": 0,
+          "p2p": true,
+          "short_description": "string",
+          "status": "ongoing",
+          "type": "ssh"
+        }
+      ],
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "ip": "string",
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceSessionsResponse](schemas.md#codersdkworkspacesessionsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

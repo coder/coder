@@ -1,3 +1,4 @@
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -29,6 +30,7 @@ interface OperatorDiagnosticPageViewProps {
 	onUserSelect: (username: string) => void;
 	onTimeWindowChange: (hours: number) => void;
 	selectedHours: number;
+	isDemo: boolean;
 }
 
 const TIME_WINDOW_OPTIONS = [24, 48, 72] as const;
@@ -42,6 +44,7 @@ export const OperatorDiagnosticPageView: FC<
 	onUserSelect,
 	onTimeWindowChange,
 	selectedHours,
+	isDemo,
 }) => {
 	return (
 		<Margins className="pb-12">
@@ -61,12 +64,37 @@ export const OperatorDiagnosticPageView: FC<
 
 			<PageHeader>
 				<PageHeaderTitle>Connection Diagnostics</PageHeaderTitle>
-				<PageHeaderSubtitle>{username}</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					{data ? (
+						<div className="flex items-center gap-3 mt-1">
+							<Avatar
+								src={data.user.avatar_url}
+								fallback={data.user.username}
+							/>
+							<div>
+								<span className="text-sm font-medium text-content-primary">
+									{data.user.name || data.user.username}
+								</span>
+								{data.user.email && (
+									<span className="text-xs text-content-secondary ml-2">
+										{data.user.email}
+									</span>
+								)}
+							</div>
+						</div>
+					) : (
+						username
+					)}
+				</PageHeaderSubtitle>
 			</PageHeader>
 
 			{/* Toolbar: user selector + time window */}
 			<div className="flex items-center justify-between mb-4">
-				<UserSelector currentUsername={username} onSelect={onUserSelect} />
+				<UserSelector
+					currentUsername={username}
+					onSelect={onUserSelect}
+					isDemo={isDemo}
+				/>
 				<div className="flex items-center gap-1">
 					{TIME_WINDOW_OPTIONS.map((h) => (
 						<Button

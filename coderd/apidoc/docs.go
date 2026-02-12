@@ -499,6 +499,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/connectionlog/diagnostics/{username}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user diagnostic report",
+                "operationId": "get-user-diagnostic-report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hours to look back (default 72, max 168)",
+                        "name": "hours",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserDiagnosticResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -11675,6 +11715,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Get workspace sessions",
+                "operationId": "get-workspace-sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceSessionsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/timings": {
             "get": {
                 "security": [
@@ -13463,6 +13550,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ConnectionDiagnosticSeverity": {
+            "type": "string",
+            "enum": [
+                "info",
+                "warning",
+                "error",
+                "critical"
+            ],
+            "x-enum-varnames": [
+                "ConnectionDiagnosticSeverityInfo",
+                "ConnectionDiagnosticSeverityWarning",
+                "ConnectionDiagnosticSeverityError",
+                "ConnectionDiagnosticSeverityCritical"
+            ]
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -14756,11 +14858,319 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DiagnosticConnection": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "agent_name": {
+                    "type": "string"
+                },
+                "client_hostname": {
+                    "type": "string"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "home_derp": {
+                    "$ref": "#/definitions/codersdk.DiagnosticHomeDERP"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "latency_ms": {
+                    "type": "number"
+                },
+                "p2p": {
+                    "type": "boolean"
+                },
+                "short_description": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionStatus"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ConnectionType"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticDurationRange": {
+            "type": "object",
+            "properties": {
+                "max_seconds": {
+                    "type": "number"
+                },
+                "min_seconds": {
+                    "type": "number"
+                }
+            }
+        },
         "codersdk.DiagnosticExtra": {
             "type": "object",
             "properties": {
                 "code": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticHealth": {
+            "type": "string",
+            "enum": [
+                "healthy",
+                "degraded",
+                "unhealthy",
+                "inactive"
+            ],
+            "x-enum-varnames": [
+                "DiagnosticHealthHealthy",
+                "DiagnosticHealthDegraded",
+                "DiagnosticHealthUnhealthy",
+                "DiagnosticHealthInactive"
+            ]
+        },
+        "codersdk.DiagnosticHomeDERP": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticNetworkSummary": {
+            "type": "object",
+            "properties": {
+                "avg_latency_ms": {
+                    "type": "number"
+                },
+                "derp_connections": {
+                    "type": "integer"
+                },
+                "p2p_connections": {
+                    "type": "integer"
+                },
+                "p95_latency_ms": {
+                    "type": "number"
+                },
+                "primary_derp_region": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticPattern": {
+            "type": "object",
+            "properties": {
+                "affected_sessions": {
+                    "type": "integer"
+                },
+                "commonalities": {
+                    "$ref": "#/definitions/codersdk.DiagnosticPatternCommonality"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "recommendation": {
+                    "type": "string"
+                },
+                "severity": {
+                    "$ref": "#/definitions/codersdk.ConnectionDiagnosticSeverity"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "total_sessions": {
+                    "type": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.DiagnosticPatternType"
+                }
+            }
+        },
+        "codersdk.DiagnosticPatternCommonality": {
+            "type": "object",
+            "properties": {
+                "client_descriptions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "connection_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "disconnect_reasons": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "duration_range": {
+                    "$ref": "#/definitions/codersdk.DiagnosticDurationRange"
+                },
+                "time_of_day_range": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticPatternType": {
+            "type": "string",
+            "enum": [
+                "device_sleep",
+                "workspace_autostart",
+                "network_policy",
+                "agent_crash",
+                "latency_degradation",
+                "derp_fallback",
+                "clean_usage",
+                "unknown_drops"
+            ],
+            "x-enum-varnames": [
+                "DiagnosticPatternDeviceSleep",
+                "DiagnosticPatternWorkspaceAutostart",
+                "DiagnosticPatternNetworkPolicy",
+                "DiagnosticPatternAgentCrash",
+                "DiagnosticPatternLatencyDegradation",
+                "DiagnosticPatternDERPFallback",
+                "DiagnosticPatternCleanUsage",
+                "DiagnosticPatternUnknownDrops"
+            ]
+        },
+        "codersdk.DiagnosticSession": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "client_hostname": {
+                    "type": "string"
+                },
+                "connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DiagnosticSessionConn"
+                    }
+                },
+                "disconnect_reason": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "type": "number"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "network": {
+                    "$ref": "#/definitions/codersdk.DiagnosticSessionNetwork"
+                },
+                "short_description": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionStatus"
+                },
+                "timeline": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DiagnosticTimelineEvent"
+                    }
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticSessionConn": {
+            "type": "object",
+            "properties": {
+                "connected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "disconnected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionStatus"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ConnectionType"
+                }
+            }
+        },
+        "codersdk.DiagnosticSessionNetwork": {
+            "type": "object",
+            "properties": {
+                "avg_latency_ms": {
+                    "type": "number"
+                },
+                "home_derp": {
+                    "type": "string"
+                },
+                "p2p": {
+                    "type": "boolean"
                 }
             }
         },
@@ -14774,6 +15184,193 @@ const docTemplate = `{
                 "DiagnosticSeverityError",
                 "DiagnosticSeverityWarning"
             ]
+        },
+        "codersdk.DiagnosticStatusBreakdown": {
+            "type": "object",
+            "properties": {
+                "clean": {
+                    "type": "integer"
+                },
+                "lost": {
+                    "type": "integer"
+                },
+                "ongoing": {
+                    "type": "integer"
+                },
+                "workspace_deleted": {
+                    "type": "integer"
+                },
+                "workspace_stopped": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.DiagnosticSummary": {
+            "type": "object",
+            "properties": {
+                "active_connections": {
+                    "type": "integer"
+                },
+                "by_status": {
+                    "$ref": "#/definitions/codersdk.DiagnosticStatusBreakdown"
+                },
+                "by_type": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "headline": {
+                    "type": "string"
+                },
+                "network": {
+                    "$ref": "#/definitions/codersdk.DiagnosticNetworkSummary"
+                },
+                "total_connections": {
+                    "type": "integer"
+                },
+                "total_sessions": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.DiagnosticTimeWindow": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "hours": {
+                    "type": "integer"
+                },
+                "start": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.DiagnosticTimelineEvent": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.DiagnosticTimelineEventKind"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "severity": {
+                    "$ref": "#/definitions/codersdk.ConnectionDiagnosticSeverity"
+                },
+                "timestamp": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.DiagnosticTimelineEventKind": {
+            "type": "string",
+            "enum": [
+                "tunnel_created",
+                "tunnel_removed",
+                "node_update",
+                "peer_lost",
+                "peer_recovered",
+                "connection_opened",
+                "connection_closed",
+                "derp_fallback",
+                "p2p_established",
+                "latency_spike",
+                "workspace_state_change"
+            ],
+            "x-enum-varnames": [
+                "DiagnosticTimelineEventTunnelCreated",
+                "DiagnosticTimelineEventTunnelRemoved",
+                "DiagnosticTimelineEventNodeUpdate",
+                "DiagnosticTimelineEventPeerLost",
+                "DiagnosticTimelineEventPeerRecovered",
+                "DiagnosticTimelineEventConnectionOpened",
+                "DiagnosticTimelineEventConnectionClosed",
+                "DiagnosticTimelineEventDERPFallback",
+                "DiagnosticTimelineEventP2PEstablished",
+                "DiagnosticTimelineEventLatencySpike",
+                "DiagnosticTimelineEventWorkspaceStateChange"
+            ]
+        },
+        "codersdk.DiagnosticUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticWorkspace": {
+            "type": "object",
+            "properties": {
+                "health": {
+                    "$ref": "#/definitions/codersdk.DiagnosticHealth"
+                },
+                "health_reason": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_username": {
+                    "type": "string"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DiagnosticSession"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "template_display_name": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.DisplayApp": {
             "type": "string",
@@ -20201,6 +20798,42 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UserDiagnosticResponse": {
+            "type": "object",
+            "properties": {
+                "current_connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DiagnosticConnection"
+                    }
+                },
+                "generated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DiagnosticPattern"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/codersdk.DiagnosticSummary"
+                },
+                "time_window": {
+                    "$ref": "#/definitions/codersdk.DiagnosticTimeWindow"
+                },
+                "user": {
+                    "$ref": "#/definitions/codersdk.DiagnosticUser"
+                },
+                "workspaces": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DiagnosticWorkspace"
+                    }
+                }
+            }
+        },
         "codersdk.UserLatency": {
             "type": "object",
             "properties": {
@@ -20602,12 +21235,6 @@ const docTemplate = `{
                 "connection_timeout_seconds": {
                     "type": "integer"
                 },
-                "connections": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceConnection"
-                    }
-                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -20705,6 +21332,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentScript"
+                    }
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSession"
                     }
                 },
                 "started_at": {
@@ -21883,6 +22516,55 @@ const docTemplate = `{
                 "WorkspaceRoleUse",
                 "WorkspaceRoleDeleted"
             ]
+        },
+        "codersdk.WorkspaceSession": {
+            "type": "object",
+            "properties": {
+                "client_hostname": {
+                    "type": "string"
+                },
+                "connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceConnection"
+                    }
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "description": "nil for live sessions",
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "short_description": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionStatus"
+                }
+            }
+        },
+        "codersdk.WorkspaceSessionsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSession"
+                    }
+                }
+            }
         },
         "codersdk.WorkspaceSharingSettings": {
             "type": "object",

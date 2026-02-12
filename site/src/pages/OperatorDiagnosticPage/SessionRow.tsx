@@ -161,35 +161,51 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 						)}
 
 						{/* Network summary */}
-						<div className="flex items-center gap-4 text-xs mb-3">
-							<span className="text-content-secondary">Network:</span>
-							{session.network.p2p !== null && (
-								<Badge
-									size="xs"
-									variant={session.network.p2p ? "green" : "info"}
-								>
-									{session.network.p2p ? "P2P" : "DERP"}
-								</Badge>
-							)}
-							{session.network.avg_latency_ms !== null && (
-								<span className="text-content-secondary">
-									{session.network.avg_latency_ms.toFixed(0)}ms avg
+						{(session.network.p2p !== null ||
+							session.network.avg_latency_ms !== null ||
+							session.network.home_derp !== null) && (
+							<div className="flex items-center gap-4 text-xs mb-3">
+								<span className="text-content-secondary">Network:</span>
+								{session.network.p2p !== null && (
+									<Badge
+										size="xs"
+										variant={session.network.p2p ? "green" : "info"}
+									>
+										{session.network.p2p ? "P2P" : "DERP"}
+									</Badge>
+								)}
+								{session.network.avg_latency_ms !== null && (
+									<span className="text-content-secondary">
+										{session.network.avg_latency_ms.toFixed(0)}ms avg
+									</span>
+								)}
+								{session.network.home_derp && (
+									<span className="text-content-secondary">
+										{session.network.home_derp}
+									</span>
+								)}
+								<span className="ml-auto text-content-secondary font-mono text-2xs">
+									{formatTimeShort(session.started_at)}
+									{session.ended_at &&
+										` → ${formatTimeShort(session.ended_at)}`}
 								</span>
-							)}
-							{session.network.home_derp && (
-								<span className="text-content-secondary">
-									{session.network.home_derp}
-								</span>
-							)}
-							<span className="ml-auto text-content-secondary font-mono text-2xs">
-								{formatTimeShort(session.started_at)}
-								{session.ended_at && ` → ${formatTimeShort(session.ended_at)}`}
-							</span>
-						</div>
+							</div>
+						)}
 
 						{/* Connections list */}
 						{session.connections.length > 0 && (
-							<div className="mb-3">
+							<div
+								className={
+									session.network.p2p !== null ||
+									session.network.avg_latency_ms !== null ||
+									session.network.home_derp !== null
+										? "pt-3 border-t border-border mb-3"
+										: "mb-3"
+								}
+							>
+								<h4 className="text-xs font-medium text-content-secondary mb-2">
+									Connections
+								</h4>
 								{session.connections.map((conn) => (
 									<ConnectionSubRow key={conn.id} conn={conn} />
 								))}

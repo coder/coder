@@ -1896,14 +1896,13 @@ class ApiMethods {
 
 	getUserDiagnostic = async (
 		username: string,
-		_hours?: number,
+		hours?: number,
 	): Promise<UserDiagnosticResponse> => {
-		// Static mock data for now. In production:
-		// GET /api/v2/connectionlog/diagnostics/{username}?hours=72
-		const { getMockDiagnosticData } = await import(
-			"../pages/OperatorDiagnosticPage/mockDataService"
+		const response = await this.axios.get(
+			`/api/v2/connectionlog/diagnostics/${username}`,
+			{ params: hours ? { hours } : undefined },
 		);
-		return getMockDiagnosticData(username);
+		return response.data;
 	};
 
 	getTemplateDAUs = async (

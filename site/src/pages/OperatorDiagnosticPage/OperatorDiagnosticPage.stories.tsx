@@ -15,6 +15,7 @@ const meta: Meta<typeof OperatorDiagnosticPageView> = {
 		selectedHours: 72,
 		onUserSelect: () => {},
 		onTimeWindowChange: () => {},
+		isDemo: true,
 	},
 };
 

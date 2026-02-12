@@ -2419,25 +2419,6 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         ],
         "architecture": "string",
         "connection_timeout_seconds": 0,
-        "connections": [
-          {
-            "client_hostname": "string",
-            "connected_at": "2019-08-24T14:15:22Z",
-            "created_at": "2019-08-24T14:15:22Z",
-            "detail": "string",
-            "ended_at": "2019-08-24T14:15:22Z",
-            "home_derp": {
-              "id": 0,
-              "name": "string"
-            },
-            "ip": "string",
-            "latency_ms": 0,
-            "p2p": true,
-            "short_description": "string",
-            "status": "ongoing",
-            "type": "ssh"
-          }
-        ],
         "created_at": "2019-08-24T14:15:22Z",
         "directory": "string",
         "disconnected_at": "2019-08-24T14:15:22Z",
@@ -2499,6 +2480,36 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "script": "string",
             "start_blocks_login": true,
             "timeout": 0
+          }
+        ],
+        "sessions": [
+          {
+            "client_hostname": "string",
+            "connections": [
+              {
+                "client_hostname": "string",
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "detail": "string",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "home_derp": {
+                  "id": 0,
+                  "name": "string"
+                },
+                "ip": "string",
+                "latency_ms": 0,
+                "p2p": true,
+                "short_description": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
+            "ended_at": "2019-08-24T14:15:22Z",
+            "id": "string",
+            "ip": "string",
+            "short_description": "string",
+            "started_at": "2019-08-24T14:15:22Z",
+            "status": "ongoing"
           }
         ],
         "started_at": "2019-08-24T14:15:22Z",
@@ -2580,21 +2591,6 @@ Status Code **200**
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»» connections`                | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
-| `»»» client_hostname`           | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
-| `»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»» detail`                    | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
-| `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»» home_derp`                 | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
-| `»»»» id`                       | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» name`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» latency_ms`                | number                                                                                                 | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise.                                                                                                                                |
-| `»»» p2p`                       | boolean                                                                                                | false    |              | P2p indicates a direct peer-to-peer connection (true) or DERP relay (false). Nil if telemetry unavailable.                                                                                                                                     |
-| `»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
-| `»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
-| `»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -2640,6 +2636,29 @@ Status Code **200**
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» sessions`                   | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» client_hostname`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» connections`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» client_hostname`          | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
+| `»»»» connected_at`             | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» detail`                   | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
+| `»»»» ended_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» home_derp`                | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
+| `»»»»» id`                      | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» name`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» ip`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» latency_ms`               | number                                                                                                 | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise.                                                                                                                                |
+| `»»»» p2p`                      | boolean                                                                                                | false    |              | P2p indicates a direct peer-to-peer connection (true) or DERP relay (false). Nil if telemetry unavailable.                                                                                                                                     |
+| `»»»» short_description`        | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
+| `»»»» status`                   | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» type`                     | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» id`                        | string                                                                                                 | false    |              | nil for live sessions                                                                                                                                                                                                                          |
+| `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» short_description`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» started_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
 | `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                                                                |
@@ -2669,9 +2688,9 @@ Status Code **200**
 | `open_in`                 | `slim-window`, `tab`                                                                                                         |
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
 | `status`                  | `clean_disconnected`, `client_disconnected`, `connected`, `connecting`, `control_lost`, `disconnected`, `ongoing`, `timeout` |
 | `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `system`, `vscode`, `workspace_app`                               |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
@@ -3120,25 +3139,6 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         ],
         "architecture": "string",
         "connection_timeout_seconds": 0,
-        "connections": [
-          {
-            "client_hostname": "string",
-            "connected_at": "2019-08-24T14:15:22Z",
-            "created_at": "2019-08-24T14:15:22Z",
-            "detail": "string",
-            "ended_at": "2019-08-24T14:15:22Z",
-            "home_derp": {
-              "id": 0,
-              "name": "string"
-            },
-            "ip": "string",
-            "latency_ms": 0,
-            "p2p": true,
-            "short_description": "string",
-            "status": "ongoing",
-            "type": "ssh"
-          }
-        ],
         "created_at": "2019-08-24T14:15:22Z",
         "directory": "string",
         "disconnected_at": "2019-08-24T14:15:22Z",
@@ -3200,6 +3200,36 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "script": "string",
             "start_blocks_login": true,
             "timeout": 0
+          }
+        ],
+        "sessions": [
+          {
+            "client_hostname": "string",
+            "connections": [
+              {
+                "client_hostname": "string",
+                "connected_at": "2019-08-24T14:15:22Z",
+                "created_at": "2019-08-24T14:15:22Z",
+                "detail": "string",
+                "ended_at": "2019-08-24T14:15:22Z",
+                "home_derp": {
+                  "id": 0,
+                  "name": "string"
+                },
+                "ip": "string",
+                "latency_ms": 0,
+                "p2p": true,
+                "short_description": "string",
+                "status": "ongoing",
+                "type": "ssh"
+              }
+            ],
+            "ended_at": "2019-08-24T14:15:22Z",
+            "id": "string",
+            "ip": "string",
+            "short_description": "string",
+            "started_at": "2019-08-24T14:15:22Z",
+            "status": "ongoing"
           }
         ],
         "started_at": "2019-08-24T14:15:22Z",
@@ -3281,21 +3311,6 @@ Status Code **200**
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»» connections`                | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
-| `»»» client_hostname`           | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
-| `»»» connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»» created_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»» detail`                    | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
-| `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»» home_derp`                 | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
-| `»»»» id`                       | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» name`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» latency_ms`                | number                                                                                                 | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise.                                                                                                                                |
-| `»»» p2p`                       | boolean                                                                                                | false    |              | P2p indicates a direct peer-to-peer connection (true) or DERP relay (false). Nil if telemetry unavailable.                                                                                                                                     |
-| `»»» short_description`         | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
-| `»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
-| `»»» type`                      | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -3341,6 +3356,29 @@ Status Code **200**
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» sessions`                   | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» client_hostname`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» connections`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» client_hostname`          | string                                                                                                 | false    |              | Client hostname is the hostname of the client that connected to the agent. Self-reported by the client.                                                                                                                                        |
+| `»»»» connected_at`             | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» detail`                   | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
+| `»»»» ended_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» home_derp`                | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
+| `»»»»» id`                      | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» name`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» ip`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» latency_ms`               | number                                                                                                 | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise.                                                                                                                                |
+| `»»»» p2p`                      | boolean                                                                                                | false    |              | P2p indicates a direct peer-to-peer connection (true) or DERP relay (false). Nil if telemetry unavailable.                                                                                                                                     |
+| `»»»» short_description`        | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
+| `»»»» status`                   | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» type`                     | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» id`                        | string                                                                                                 | false    |              | nil for live sessions                                                                                                                                                                                                                          |
+| `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» short_description`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» started_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
 | `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                                                                |
@@ -3370,9 +3408,9 @@ Status Code **200**
 | `open_in`                 | `slim-window`, `tab`                                                                                                         |
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
+| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
 | `status`                  | `clean_disconnected`, `client_disconnected`, `connected`, `connecting`, `control_lost`, `disconnected`, `ongoing`, `timeout` |
 | `type`                    | `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `system`, `vscode`, `workspace_app`                               |
-| `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 

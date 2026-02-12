@@ -257,6 +257,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureConnectionLog),
 			)
 			r.Get("/", api.connectionLogs)
+			r.Get("/diagnostics/{username}", api.userDiagnostic)
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

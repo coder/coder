@@ -1544,6 +1544,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ConnectionDiagnosticSeverity
+
+```json
+"info"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                               |
+|----------------------------------------|
+| `critical`, `error`, `info`, `warning` |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -3724,6 +3738,69 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace_prebuilds`                | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
+## codersdk.DiagnosticConnection
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "agent_name": "string",
+  "client_hostname": "string",
+  "detail": "string",
+  "explanation": "string",
+  "home_derp": {
+    "id": 0,
+    "name": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "ip": "string",
+  "latency_ms": 0,
+  "p2p": true,
+  "short_description": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "ongoing",
+  "type": "ssh",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name                | Type                                                                     | Required | Restrictions | Description |
+|---------------------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_id`          | string                                                                   | false    |              |             |
+| `agent_name`        | string                                                                   | false    |              |             |
+| `client_hostname`   | string                                                                   | false    |              |             |
+| `detail`            | string                                                                   | false    |              |             |
+| `explanation`       | string                                                                   | false    |              |             |
+| `home_derp`         | [codersdk.DiagnosticHomeDERP](#codersdkdiagnostichomederp)               | false    |              |             |
+| `id`                | string                                                                   | false    |              |             |
+| `ip`                | string                                                                   | false    |              |             |
+| `latency_ms`        | number                                                                   | false    |              |             |
+| `p2p`               | boolean                                                                  | false    |              |             |
+| `short_description` | string                                                                   | false    |              |             |
+| `started_at`        | string                                                                   | false    |              |             |
+| `status`            | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |             |
+| `type`              | [codersdk.ConnectionType](#codersdkconnectiontype)                       | false    |              |             |
+| `workspace_id`      | string                                                                   | false    |              |             |
+| `workspace_name`    | string                                                                   | false    |              |             |
+
+## codersdk.DiagnosticDurationRange
+
+```json
+{
+  "max_seconds": 0,
+  "min_seconds": 0
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `max_seconds` | number | false    |              |             |
+| `min_seconds` | number | false    |              |             |
+
 ## codersdk.DiagnosticExtra
 
 ```json
@@ -3738,6 +3815,264 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |--------|--------|----------|--------------|-------------|
 | `code` | string | false    |              |             |
 
+## codersdk.DiagnosticHealth
+
+```json
+"healthy"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                       |
+|------------------------------------------------|
+| `degraded`, `healthy`, `inactive`, `unhealthy` |
+
+## codersdk.DiagnosticHomeDERP
+
+```json
+{
+  "id": 0,
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+|--------|---------|----------|--------------|-------------|
+| `id`   | integer | false    |              |             |
+| `name` | string  | false    |              |             |
+
+## codersdk.DiagnosticNetworkSummary
+
+```json
+{
+  "avg_latency_ms": 0,
+  "derp_connections": 0,
+  "p2p_connections": 0,
+  "p95_latency_ms": 0,
+  "primary_derp_region": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `avg_latency_ms`      | number  | false    |              |             |
+| `derp_connections`    | integer | false    |              |             |
+| `p2p_connections`     | integer | false    |              |             |
+| `p95_latency_ms`      | number  | false    |              |             |
+| `primary_derp_region` | string  | false    |              |             |
+
+## codersdk.DiagnosticPattern
+
+```json
+{
+  "affected_sessions": 0,
+  "commonalities": {
+    "client_descriptions": [
+      "string"
+    ],
+    "connection_types": [
+      "string"
+    ],
+    "disconnect_reasons": [
+      "string"
+    ],
+    "duration_range": {
+      "max_seconds": 0,
+      "min_seconds": 0
+    },
+    "time_of_day_range": "string"
+  },
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "recommendation": "string",
+  "severity": "info",
+  "title": "string",
+  "total_sessions": 0,
+  "type": "device_sleep"
+}
+```
+
+### Properties
+
+| Name                | Type                                                                           | Required | Restrictions | Description |
+|---------------------|--------------------------------------------------------------------------------|----------|--------------|-------------|
+| `affected_sessions` | integer                                                                        | false    |              |             |
+| `commonalities`     | [codersdk.DiagnosticPatternCommonality](#codersdkdiagnosticpatterncommonality) | false    |              |             |
+| `description`       | string                                                                         | false    |              |             |
+| `id`                | string                                                                         | false    |              |             |
+| `recommendation`    | string                                                                         | false    |              |             |
+| `severity`          | [codersdk.ConnectionDiagnosticSeverity](#codersdkconnectiondiagnosticseverity) | false    |              |             |
+| `title`             | string                                                                         | false    |              |             |
+| `total_sessions`    | integer                                                                        | false    |              |             |
+| `type`              | [codersdk.DiagnosticPatternType](#codersdkdiagnosticpatterntype)               | false    |              |             |
+
+## codersdk.DiagnosticPatternCommonality
+
+```json
+{
+  "client_descriptions": [
+    "string"
+  ],
+  "connection_types": [
+    "string"
+  ],
+  "disconnect_reasons": [
+    "string"
+  ],
+  "duration_range": {
+    "max_seconds": 0,
+    "min_seconds": 0
+  },
+  "time_of_day_range": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                 | Required | Restrictions | Description |
+|-----------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `client_descriptions` | array of string                                                      | false    |              |             |
+| `connection_types`    | array of string                                                      | false    |              |             |
+| `disconnect_reasons`  | array of string                                                      | false    |              |             |
+| `duration_range`      | [codersdk.DiagnosticDurationRange](#codersdkdiagnosticdurationrange) | false    |              |             |
+| `time_of_day_range`   | string                                                               | false    |              |             |
+
+## codersdk.DiagnosticPatternType
+
+```json
+"device_sleep"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                       |
+|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_crash`, `clean_usage`, `derp_fallback`, `device_sleep`, `latency_degradation`, `network_policy`, `unknown_drops`, `workspace_autostart` |
+
+## codersdk.DiagnosticSession
+
+```json
+{
+  "agent_name": "string",
+  "client_hostname": "string",
+  "connections": [
+    {
+      "connected_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "disconnected_at": "2019-08-24T14:15:22Z",
+      "exit_code": 0,
+      "explanation": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "status": "ongoing",
+      "type": "ssh"
+    }
+  ],
+  "disconnect_reason": "string",
+  "duration_seconds": 0,
+  "ended_at": "2019-08-24T14:15:22Z",
+  "explanation": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "ip": "string",
+  "network": {
+    "avg_latency_ms": 0,
+    "home_derp": "string",
+    "p2p": true
+  },
+  "short_description": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "ongoing",
+  "timeline": [
+    {
+      "description": "string",
+      "kind": "tunnel_created",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "severity": "info",
+      "timestamp": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name                | Type                                                                          | Required | Restrictions | Description |
+|---------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_name`        | string                                                                        | false    |              |             |
+| `client_hostname`   | string                                                                        | false    |              |             |
+| `connections`       | array of [codersdk.DiagnosticSessionConn](#codersdkdiagnosticsessionconn)     | false    |              |             |
+| `disconnect_reason` | string                                                                        | false    |              |             |
+| `duration_seconds`  | number                                                                        | false    |              |             |
+| `ended_at`          | string                                                                        | false    |              |             |
+| `explanation`       | string                                                                        | false    |              |             |
+| `id`                | string                                                                        | false    |              |             |
+| `ip`                | string                                                                        | false    |              |             |
+| `network`           | [codersdk.DiagnosticSessionNetwork](#codersdkdiagnosticsessionnetwork)        | false    |              |             |
+| `short_description` | string                                                                        | false    |              |             |
+| `started_at`        | string                                                                        | false    |              |             |
+| `status`            | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus)      | false    |              |             |
+| `timeline`          | array of [codersdk.DiagnosticTimelineEvent](#codersdkdiagnostictimelineevent) | false    |              |             |
+| `workspace_id`      | string                                                                        | false    |              |             |
+| `workspace_name`    | string                                                                        | false    |              |             |
+
+## codersdk.DiagnosticSessionConn
+
+```json
+{
+  "connected_at": "2019-08-24T14:15:22Z",
+  "detail": "string",
+  "disconnected_at": "2019-08-24T14:15:22Z",
+  "exit_code": 0,
+  "explanation": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "status": "ongoing",
+  "type": "ssh"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                     | Required | Restrictions | Description |
+|-------------------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `connected_at`    | string                                                                   | false    |              |             |
+| `detail`          | string                                                                   | false    |              |             |
+| `disconnected_at` | string                                                                   | false    |              |             |
+| `exit_code`       | integer                                                                  | false    |              |             |
+| `explanation`     | string                                                                   | false    |              |             |
+| `id`              | string                                                                   | false    |              |             |
+| `status`          | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |             |
+| `type`            | [codersdk.ConnectionType](#codersdkconnectiontype)                       | false    |              |             |
+
+## codersdk.DiagnosticSessionNetwork
+
+```json
+{
+  "avg_latency_ms": 0,
+  "home_derp": "string",
+  "p2p": true
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `avg_latency_ms` | number  | false    |              |             |
+| `home_derp`      | string  | false    |              |             |
+| `p2p`            | boolean | false    |              |             |
+
 ## codersdk.DiagnosticSeverityString
 
 ```json
@@ -3751,6 +4086,233 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value(s)           |
 |--------------------|
 | `error`, `warning` |
+
+## codersdk.DiagnosticStatusBreakdown
+
+```json
+{
+  "clean": 0,
+  "lost": 0,
+  "ongoing": 0,
+  "workspace_deleted": 0,
+  "workspace_stopped": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `clean`             | integer | false    |              |             |
+| `lost`              | integer | false    |              |             |
+| `ongoing`           | integer | false    |              |             |
+| `workspace_deleted` | integer | false    |              |             |
+| `workspace_stopped` | integer | false    |              |             |
+
+## codersdk.DiagnosticSummary
+
+```json
+{
+  "active_connections": 0,
+  "by_status": {
+    "clean": 0,
+    "lost": 0,
+    "ongoing": 0,
+    "workspace_deleted": 0,
+    "workspace_stopped": 0
+  },
+  "by_type": {
+    "property1": 0,
+    "property2": 0
+  },
+  "headline": "string",
+  "network": {
+    "avg_latency_ms": 0,
+    "derp_connections": 0,
+    "p2p_connections": 0,
+    "p95_latency_ms": 0,
+    "primary_derp_region": "string"
+  },
+  "total_connections": 0,
+  "total_sessions": 0
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                     | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `active_connections` | integer                                                                  | false    |              |             |
+| `by_status`          | [codersdk.DiagnosticStatusBreakdown](#codersdkdiagnosticstatusbreakdown) | false    |              |             |
+| `by_type`            | object                                                                   | false    |              |             |
+| » `[any property]`   | integer                                                                  | false    |              |             |
+| `headline`           | string                                                                   | false    |              |             |
+| `network`            | [codersdk.DiagnosticNetworkSummary](#codersdkdiagnosticnetworksummary)   | false    |              |             |
+| `total_connections`  | integer                                                                  | false    |              |             |
+| `total_sessions`     | integer                                                                  | false    |              |             |
+
+## codersdk.DiagnosticTimeWindow
+
+```json
+{
+  "end": "2019-08-24T14:15:22Z",
+  "hours": 0,
+  "start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description |
+|---------|---------|----------|--------------|-------------|
+| `end`   | string  | false    |              |             |
+| `hours` | integer | false    |              |             |
+| `start` | string  | false    |              |             |
+
+## codersdk.DiagnosticTimelineEvent
+
+```json
+{
+  "description": "string",
+  "kind": "tunnel_created",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "severity": "info",
+  "timestamp": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                           | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description`      | string                                                                         | false    |              |             |
+| `kind`             | [codersdk.DiagnosticTimelineEventKind](#codersdkdiagnostictimelineeventkind)   | false    |              |             |
+| `metadata`         | object                                                                         | false    |              |             |
+| » `[any property]` | any                                                                            | false    |              |             |
+| `severity`         | [codersdk.ConnectionDiagnosticSeverity](#codersdkconnectiondiagnosticseverity) | false    |              |             |
+| `timestamp`        | string                                                                         | false    |              |             |
+
+## codersdk.DiagnosticTimelineEventKind
+
+```json
+"tunnel_created"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                                  |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `connection_closed`, `connection_opened`, `derp_fallback`, `latency_spike`, `node_update`, `p2p_established`, `peer_lost`, `peer_recovered`, `tunnel_created`, `tunnel_removed`, `workspace_state_change` |
+
+## codersdk.DiagnosticUser
+
+```json
+{
+  "avatar_url": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "roles": [
+    "string"
+  ],
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name           | Type            | Required | Restrictions | Description |
+|----------------|-----------------|----------|--------------|-------------|
+| `avatar_url`   | string          | false    |              |             |
+| `created_at`   | string          | false    |              |             |
+| `email`        | string          | false    |              |             |
+| `id`           | string          | false    |              |             |
+| `last_seen_at` | string          | false    |              |             |
+| `name`         | string          | false    |              |             |
+| `roles`        | array of string | false    |              |             |
+| `username`     | string          | false    |              |             |
+
+## codersdk.DiagnosticWorkspace
+
+```json
+{
+  "health": "healthy",
+  "health_reason": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "owner_username": "string",
+  "sessions": [
+    {
+      "agent_name": "string",
+      "client_hostname": "string",
+      "connections": [
+        {
+          "connected_at": "2019-08-24T14:15:22Z",
+          "detail": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "exit_code": 0,
+          "explanation": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "status": "ongoing",
+          "type": "ssh"
+        }
+      ],
+      "disconnect_reason": "string",
+      "duration_seconds": 0,
+      "ended_at": "2019-08-24T14:15:22Z",
+      "explanation": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "ip": "string",
+      "network": {
+        "avg_latency_ms": 0,
+        "home_derp": "string",
+        "p2p": true
+      },
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing",
+      "timeline": [
+        {
+          "description": "string",
+          "kind": "tunnel_created",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "severity": "info",
+          "timestamp": "2019-08-24T14:15:22Z"
+        }
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    }
+  ],
+  "status": "string",
+  "template_display_name": "string",
+  "template_name": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                              | Required | Restrictions | Description |
+|-------------------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `health`                | [codersdk.DiagnosticHealth](#codersdkdiagnostichealth)            | false    |              |             |
+| `health_reason`         | string                                                            | false    |              |             |
+| `id`                    | string                                                            | false    |              |             |
+| `name`                  | string                                                            | false    |              |             |
+| `owner_username`        | string                                                            | false    |              |             |
+| `sessions`              | array of [codersdk.DiagnosticSession](#codersdkdiagnosticsession) | false    |              |             |
+| `status`                | string                                                            | false    |              |             |
+| `template_display_name` | string                                                            | false    |              |             |
+| `template_name`         | string                                                            | false    |              |             |
 
 ## codersdk.DisplayApp
 
@@ -9579,6 +10141,176 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
 | `theme_preference` | string                                                 | false    |              |             |
 
+## codersdk.UserDiagnosticResponse
+
+```json
+{
+  "current_connections": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "agent_name": "string",
+      "client_hostname": "string",
+      "detail": "string",
+      "explanation": "string",
+      "home_derp": {
+        "id": 0,
+        "name": "string"
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "ip": "string",
+      "latency_ms": 0,
+      "p2p": true,
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing",
+      "type": "ssh",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    }
+  ],
+  "generated_at": "2019-08-24T14:15:22Z",
+  "patterns": [
+    {
+      "affected_sessions": 0,
+      "commonalities": {
+        "client_descriptions": [
+          "string"
+        ],
+        "connection_types": [
+          "string"
+        ],
+        "disconnect_reasons": [
+          "string"
+        ],
+        "duration_range": {
+          "max_seconds": 0,
+          "min_seconds": 0
+        },
+        "time_of_day_range": "string"
+      },
+      "description": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "recommendation": "string",
+      "severity": "info",
+      "title": "string",
+      "total_sessions": 0,
+      "type": "device_sleep"
+    }
+  ],
+  "summary": {
+    "active_connections": 0,
+    "by_status": {
+      "clean": 0,
+      "lost": 0,
+      "ongoing": 0,
+      "workspace_deleted": 0,
+      "workspace_stopped": 0
+    },
+    "by_type": {
+      "property1": 0,
+      "property2": 0
+    },
+    "headline": "string",
+    "network": {
+      "avg_latency_ms": 0,
+      "derp_connections": 0,
+      "p2p_connections": 0,
+      "p95_latency_ms": 0,
+      "primary_derp_region": "string"
+    },
+    "total_connections": 0,
+    "total_sessions": 0
+  },
+  "time_window": {
+    "end": "2019-08-24T14:15:22Z",
+    "hours": 0,
+    "start": "2019-08-24T14:15:22Z"
+  },
+  "user": {
+    "avatar_url": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "name": "string",
+    "roles": [
+      "string"
+    ],
+    "username": "string"
+  },
+  "workspaces": [
+    {
+      "health": "healthy",
+      "health_reason": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "owner_username": "string",
+      "sessions": [
+        {
+          "agent_name": "string",
+          "client_hostname": "string",
+          "connections": [
+            {
+              "connected_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
+              "disconnected_at": "2019-08-24T14:15:22Z",
+              "exit_code": 0,
+              "explanation": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
+          "disconnect_reason": "string",
+          "duration_seconds": 0,
+          "ended_at": "2019-08-24T14:15:22Z",
+          "explanation": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "ip": "string",
+          "network": {
+            "avg_latency_ms": 0,
+            "home_derp": "string",
+            "p2p": true
+          },
+          "short_description": "string",
+          "started_at": "2019-08-24T14:15:22Z",
+          "status": "ongoing",
+          "timeline": [
+            {
+              "description": "string",
+              "kind": "tunnel_created",
+              "metadata": {
+                "property1": null,
+                "property2": null
+              },
+              "severity": "info",
+              "timestamp": "2019-08-24T14:15:22Z"
+            }
+          ],
+          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+          "workspace_name": "string"
+        }
+      ],
+      "status": "string",
+      "template_display_name": "string",
+      "template_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                    | Required | Restrictions | Description |
+|-----------------------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `current_connections` | array of [codersdk.DiagnosticConnection](#codersdkdiagnosticconnection) | false    |              |             |
+| `generated_at`        | string                                                                  | false    |              |             |
+| `patterns`            | array of [codersdk.DiagnosticPattern](#codersdkdiagnosticpattern)       | false    |              |             |
+| `summary`             | [codersdk.DiagnosticSummary](#codersdkdiagnosticsummary)                | false    |              |             |
+| `time_window`         | [codersdk.DiagnosticTimeWindow](#codersdkdiagnostictimewindow)          | false    |              |             |
+| `user`                | [codersdk.DiagnosticUser](#codersdkdiagnosticuser)                      | false    |              |             |
+| `workspaces`          | array of [codersdk.DiagnosticWorkspace](#codersdkdiagnosticworkspace)   | false    |              |             |
+
 ## codersdk.UserLatency
 
 ```json
@@ -10017,25 +10749,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "connections": [
-              {
-                "client_hostname": "string",
-                "connected_at": "2019-08-24T14:15:22Z",
-                "created_at": "2019-08-24T14:15:22Z",
-                "detail": "string",
-                "ended_at": "2019-08-24T14:15:22Z",
-                "home_derp": {
-                  "id": 0,
-                  "name": "string"
-                },
-                "ip": "string",
-                "latency_ms": 0,
-                "p2p": true,
-                "short_description": "string",
-                "status": "ongoing",
-                "type": "ssh"
-              }
-            ],
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
@@ -10097,6 +10810,33 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "script": "string",
                 "start_blocks_login": true,
                 "timeout": 0
+              }
+            ],
+            "sessions": [
+              {
+                "client_hostname": "string",
+                "connections": [
+                  {
+                    "client_hostname": "string",
+                    "connected_at": "2019-08-24T14:15:22Z",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "detail": "string",
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "home_derp": {},
+                    "ip": "string",
+                    "latency_ms": 0,
+                    "p2p": true,
+                    "short_description": "string",
+                    "status": "ongoing",
+                    "type": "ssh"
+                  }
+                ],
+                "ended_at": "2019-08-24T14:15:22Z",
+                "id": "string",
+                "ip": "string",
+                "short_description": "string",
+                "started_at": "2019-08-24T14:15:22Z",
+                "status": "ongoing"
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -10318,25 +11058,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "architecture": "string",
   "connection_timeout_seconds": 0,
-  "connections": [
-    {
-      "client_hostname": "string",
-      "connected_at": "2019-08-24T14:15:22Z",
-      "created_at": "2019-08-24T14:15:22Z",
-      "detail": "string",
-      "ended_at": "2019-08-24T14:15:22Z",
-      "home_derp": {
-        "id": 0,
-        "name": "string"
-      },
-      "ip": "string",
-      "latency_ms": 0,
-      "p2p": true,
-      "short_description": "string",
-      "status": "ongoing",
-      "type": "ssh"
-    }
-  ],
   "created_at": "2019-08-24T14:15:22Z",
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
@@ -10400,6 +11121,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "timeout": 0
     }
   ],
+  "sessions": [
+    {
+      "client_hostname": "string",
+      "connections": [
+        {
+          "client_hostname": "string",
+          "connected_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
+          "detail": "string",
+          "ended_at": "2019-08-24T14:15:22Z",
+          "home_derp": {
+            "id": 0,
+            "name": "string"
+          },
+          "ip": "string",
+          "latency_ms": 0,
+          "p2p": true,
+          "short_description": "string",
+          "status": "ongoing",
+          "type": "ssh"
+        }
+      ],
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "ip": "string",
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing"
+    }
+  ],
   "started_at": "2019-08-24T14:15:22Z",
   "startup_script_behavior": "blocking",
   "status": "connecting",
@@ -10420,7 +11171,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                              |
 | `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `connection_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                              |
-| `connections`                | array of [codersdk.WorkspaceConnection](#codersdkworkspaceconnection)                        | false    |              |                                                                                                                                                                              |
 | `created_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                              |
@@ -10445,6 +11195,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                              |
+| `sessions`                   | array of [codersdk.WorkspaceSession](#codersdkworkspacesession)                              | false    |              |                                                                                                                                                                              |
 | `started_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future! |
 | `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                              |
@@ -11213,25 +11964,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
-          "connections": [
-            {
-              "client_hostname": "string",
-              "connected_at": "2019-08-24T14:15:22Z",
-              "created_at": "2019-08-24T14:15:22Z",
-              "detail": "string",
-              "ended_at": "2019-08-24T14:15:22Z",
-              "home_derp": {
-                "id": 0,
-                "name": "string"
-              },
-              "ip": "string",
-              "latency_ms": 0,
-              "p2p": true,
-              "short_description": "string",
-              "status": "ongoing",
-              "type": "ssh"
-            }
-          ],
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
@@ -11293,6 +12025,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "script": "string",
               "start_blocks_login": true,
               "timeout": 0
+            }
+          ],
+          "sessions": [
+            {
+              "client_hostname": "string",
+              "connections": [
+                {
+                  "client_hostname": "string",
+                  "connected_at": "2019-08-24T14:15:22Z",
+                  "created_at": "2019-08-24T14:15:22Z",
+                  "detail": "string",
+                  "ended_at": "2019-08-24T14:15:22Z",
+                  "home_derp": {
+                    "id": 0,
+                    "name": "string"
+                  },
+                  "ip": "string",
+                  "latency_ms": 0,
+                  "p2p": true,
+                  "short_description": "string",
+                  "status": "ongoing",
+                  "type": "ssh"
+                }
+              ],
+              "ended_at": "2019-08-24T14:15:22Z",
+              "id": "string",
+              "ip": "string",
+              "short_description": "string",
+              "started_at": "2019-08-24T14:15:22Z",
+              "status": "ongoing"
             }
           ],
           "started_at": "2019-08-24T14:15:22Z",
@@ -11768,25 +12530,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "architecture": "string",
       "connection_timeout_seconds": 0,
-      "connections": [
-        {
-          "client_hostname": "string",
-          "connected_at": "2019-08-24T14:15:22Z",
-          "created_at": "2019-08-24T14:15:22Z",
-          "detail": "string",
-          "ended_at": "2019-08-24T14:15:22Z",
-          "home_derp": {
-            "id": 0,
-            "name": "string"
-          },
-          "ip": "string",
-          "latency_ms": 0,
-          "p2p": true,
-          "short_description": "string",
-          "status": "ongoing",
-          "type": "ssh"
-        }
-      ],
       "created_at": "2019-08-24T14:15:22Z",
       "directory": "string",
       "disconnected_at": "2019-08-24T14:15:22Z",
@@ -11848,6 +12591,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "script": "string",
           "start_blocks_login": true,
           "timeout": 0
+        }
+      ],
+      "sessions": [
+        {
+          "client_hostname": "string",
+          "connections": [
+            {
+              "client_hostname": "string",
+              "connected_at": "2019-08-24T14:15:22Z",
+              "created_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
+              "ended_at": "2019-08-24T14:15:22Z",
+              "home_derp": {
+                "id": 0,
+                "name": "string"
+              },
+              "ip": "string",
+              "latency_ms": 0,
+              "p2p": true,
+              "short_description": "string",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
+          "ended_at": "2019-08-24T14:15:22Z",
+          "id": "string",
+          "ip": "string",
+          "short_description": "string",
+          "started_at": "2019-08-24T14:15:22Z",
+          "status": "ongoing"
         }
       ],
       "started_at": "2019-08-24T14:15:22Z",
@@ -11933,6 +12706,97 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)           |
 |--------------------|
 | ``, `admin`, `use` |
+
+## codersdk.WorkspaceSession
+
+```json
+{
+  "client_hostname": "string",
+  "connections": [
+    {
+      "client_hostname": "string",
+      "connected_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "home_derp": {
+        "id": 0,
+        "name": "string"
+      },
+      "ip": "string",
+      "latency_ms": 0,
+      "p2p": true,
+      "short_description": "string",
+      "status": "ongoing",
+      "type": "ssh"
+    }
+  ],
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "ip": "string",
+  "short_description": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "ongoing"
+}
+```
+
+### Properties
+
+| Name                | Type                                                                     | Required | Restrictions | Description           |
+|---------------------|--------------------------------------------------------------------------|----------|--------------|-----------------------|
+| `client_hostname`   | string                                                                   | false    |              |                       |
+| `connections`       | array of [codersdk.WorkspaceConnection](#codersdkworkspaceconnection)    | false    |              |                       |
+| `ended_at`          | string                                                                   | false    |              |                       |
+| `id`                | string                                                                   | false    |              | nil for live sessions |
+| `ip`                | string                                                                   | false    |              |                       |
+| `short_description` | string                                                                   | false    |              |                       |
+| `started_at`        | string                                                                   | false    |              |                       |
+| `status`            | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |                       |
+
+## codersdk.WorkspaceSessionsResponse
+
+```json
+{
+  "count": 0,
+  "sessions": [
+    {
+      "client_hostname": "string",
+      "connections": [
+        {
+          "client_hostname": "string",
+          "connected_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
+          "detail": "string",
+          "ended_at": "2019-08-24T14:15:22Z",
+          "home_derp": {
+            "id": 0,
+            "name": "string"
+          },
+          "ip": "string",
+          "latency_ms": 0,
+          "p2p": true,
+          "short_description": "string",
+          "status": "ongoing",
+          "type": "ssh"
+        }
+      ],
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "ip": "string",
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                            | Required | Restrictions | Description |
+|------------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `count`    | integer                                                         | false    |              |             |
+| `sessions` | array of [codersdk.WorkspaceSession](#codersdkworkspacesession) | false    |              |             |
 
 ## codersdk.WorkspaceSharingSettings
 
@@ -12124,22 +12988,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
-                "connections": [
-                  {
-                    "client_hostname": "string",
-                    "connected_at": "2019-08-24T14:15:22Z",
-                    "created_at": "2019-08-24T14:15:22Z",
-                    "detail": "string",
-                    "ended_at": "2019-08-24T14:15:22Z",
-                    "home_derp": {},
-                    "ip": "string",
-                    "latency_ms": 0,
-                    "p2p": true,
-                    "short_description": "string",
-                    "status": "ongoing",
-                    "type": "ssh"
-                  }
-                ],
                 "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
@@ -12201,6 +13049,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "script": "string",
                     "start_blocks_login": true,
                     "timeout": 0
+                  }
+                ],
+                "sessions": [
+                  {
+                    "client_hostname": "string",
+                    "connections": [],
+                    "ended_at": "2019-08-24T14:15:22Z",
+                    "id": "string",
+                    "ip": "string",
+                    "short_description": "string",
+                    "started_at": "2019-08-24T14:15:22Z",
+                    "status": "ongoing"
                   }
                 ],
                 "started_at": "2019-08-24T14:15:22Z",

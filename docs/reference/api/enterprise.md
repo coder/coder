@@ -301,6 +301,194 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user diagnostic report
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/connectionlog/diagnostics/{username} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /connectionlog/diagnostics/{username}`
+
+### Parameters
+
+| Name       | In    | Type    | Required | Description                              |
+|------------|-------|---------|----------|------------------------------------------|
+| `username` | path  | string  | true     | Username                                 |
+| `hours`    | query | integer | false    | Hours to look back (default 72, max 168) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "current_connections": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "agent_name": "string",
+      "client_hostname": "string",
+      "detail": "string",
+      "explanation": "string",
+      "home_derp": {
+        "id": 0,
+        "name": "string"
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "ip": "string",
+      "latency_ms": 0,
+      "p2p": true,
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing",
+      "type": "ssh",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    }
+  ],
+  "generated_at": "2019-08-24T14:15:22Z",
+  "patterns": [
+    {
+      "affected_sessions": 0,
+      "commonalities": {
+        "client_descriptions": [
+          "string"
+        ],
+        "connection_types": [
+          "string"
+        ],
+        "disconnect_reasons": [
+          "string"
+        ],
+        "duration_range": {
+          "max_seconds": 0,
+          "min_seconds": 0
+        },
+        "time_of_day_range": "string"
+      },
+      "description": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "recommendation": "string",
+      "severity": "info",
+      "title": "string",
+      "total_sessions": 0,
+      "type": "device_sleep"
+    }
+  ],
+  "summary": {
+    "active_connections": 0,
+    "by_status": {
+      "clean": 0,
+      "lost": 0,
+      "ongoing": 0,
+      "workspace_deleted": 0,
+      "workspace_stopped": 0
+    },
+    "by_type": {
+      "property1": 0,
+      "property2": 0
+    },
+    "headline": "string",
+    "network": {
+      "avg_latency_ms": 0,
+      "derp_connections": 0,
+      "p2p_connections": 0,
+      "p95_latency_ms": 0,
+      "primary_derp_region": "string"
+    },
+    "total_connections": 0,
+    "total_sessions": 0
+  },
+  "time_window": {
+    "end": "2019-08-24T14:15:22Z",
+    "hours": 0,
+    "start": "2019-08-24T14:15:22Z"
+  },
+  "user": {
+    "avatar_url": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "name": "string",
+    "roles": [
+      "string"
+    ],
+    "username": "string"
+  },
+  "workspaces": [
+    {
+      "health": "healthy",
+      "health_reason": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "owner_username": "string",
+      "sessions": [
+        {
+          "agent_name": "string",
+          "client_hostname": "string",
+          "connections": [
+            {
+              "connected_at": "2019-08-24T14:15:22Z",
+              "detail": "string",
+              "disconnected_at": "2019-08-24T14:15:22Z",
+              "exit_code": 0,
+              "explanation": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "status": "ongoing",
+              "type": "ssh"
+            }
+          ],
+          "disconnect_reason": "string",
+          "duration_seconds": 0,
+          "ended_at": "2019-08-24T14:15:22Z",
+          "explanation": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "ip": "string",
+          "network": {
+            "avg_latency_ms": 0,
+            "home_derp": "string",
+            "p2p": true
+          },
+          "short_description": "string",
+          "started_at": "2019-08-24T14:15:22Z",
+          "status": "ongoing",
+          "timeline": [
+            {
+              "description": "string",
+              "kind": "tunnel_created",
+              "metadata": {
+                "property1": null,
+                "property2": null
+              },
+              "severity": "info",
+              "timestamp": "2019-08-24T14:15:22Z"
+            }
+          ],
+          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+          "workspace_name": "string"
+        }
+      ],
+      "status": "string",
+      "template_display_name": "string",
+      "template_name": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserDiagnosticResponse](schemas.md#codersdkuserdiagnosticresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get entitlements
 
 ### Code samples

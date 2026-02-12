@@ -1036,6 +1036,20 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
+// From codersdk/diagnostic.go
+export type ConnectionDiagnosticSeverity =
+	| "critical"
+	| "error"
+	| "info"
+	| "warning";
+
+export const ConnectionDiagnosticSeveritys: ConnectionDiagnosticSeverity[] = [
+	"critical",
+	"error",
+	"info",
+	"warning",
+];
+
 // From codersdk/insights.go
 /**
  * ConnectionLatency shows the latency for a connection.
@@ -1828,9 +1842,174 @@ export interface DeploymentValues {
 	readonly address?: string;
 }
 
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticConnection describes a single live or historical connection.
+ */
+export interface DiagnosticConnection {
+	readonly id: string;
+	readonly workspace_id: string;
+	readonly workspace_name: string;
+	readonly agent_id: string;
+	readonly agent_name: string;
+	readonly ip: string;
+	readonly client_hostname: string;
+	readonly short_description: string;
+	readonly type: ConnectionType;
+	readonly detail: string;
+	readonly status: WorkspaceConnectionStatus;
+	readonly started_at: string;
+	readonly p2p: boolean | null;
+	readonly latency_ms: number | null;
+	readonly home_derp: DiagnosticHomeDERP | null;
+	readonly explanation: string;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticDurationRange is a min/max pair of seconds.
+ */
+export interface DiagnosticDurationRange {
+	readonly min_seconds: number;
+	readonly max_seconds: number;
+}
+
 // From codersdk/parameters.go
 export interface DiagnosticExtra {
 	readonly code: string;
+}
+
+// From codersdk/diagnostic.go
+export type DiagnosticHealth =
+	| "degraded"
+	| "healthy"
+	| "inactive"
+	| "unhealthy";
+
+export const DiagnosticHealths: DiagnosticHealth[] = [
+	"degraded",
+	"healthy",
+	"inactive",
+	"unhealthy",
+];
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticHomeDERP identifies a DERP relay region.
+ */
+export interface DiagnosticHomeDERP {
+	readonly id: number;
+	readonly name: string;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticNetworkSummary contains aggregate network quality metrics.
+ */
+export interface DiagnosticNetworkSummary {
+	readonly p2p_connections: number;
+	readonly derp_connections: number;
+	readonly avg_latency_ms: number | null;
+	readonly p95_latency_ms: number | null;
+	readonly primary_derp_region: string | null;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticPattern describes a detected pattern across sessions.
+ */
+export interface DiagnosticPattern {
+	readonly id: string;
+	readonly type: DiagnosticPatternType;
+	readonly severity: ConnectionDiagnosticSeverity;
+	readonly affected_sessions: number;
+	readonly total_sessions: number;
+	readonly title: string;
+	readonly description: string;
+	readonly commonalities: DiagnosticPatternCommonality;
+	readonly recommendation: string;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticPatternCommonality captures shared attributes of affected sessions.
+ */
+export interface DiagnosticPatternCommonality {
+	readonly connection_types: readonly string[];
+	readonly client_descriptions: readonly string[];
+	readonly duration_range: DiagnosticDurationRange | null;
+	readonly disconnect_reasons: readonly string[];
+	readonly time_of_day_range: string | null;
+}
+
+// From codersdk/diagnostic.go
+export type DiagnosticPatternType =
+	| "agent_crash"
+	| "clean_usage"
+	| "derp_fallback"
+	| "device_sleep"
+	| "latency_degradation"
+	| "network_policy"
+	| "unknown_drops"
+	| "workspace_autostart";
+
+export const DiagnosticPatternTypes: DiagnosticPatternType[] = [
+	"agent_crash",
+	"clean_usage",
+	"derp_fallback",
+	"device_sleep",
+	"latency_degradation",
+	"network_policy",
+	"unknown_drops",
+	"workspace_autostart",
+];
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticSession represents a client session with one or more connections.
+ */
+export interface DiagnosticSession {
+	readonly id: string;
+	readonly workspace_id: string;
+	readonly workspace_name: string;
+	readonly agent_name: string;
+	readonly ip: string;
+	readonly client_hostname: string;
+	readonly short_description: string;
+	readonly started_at: string;
+	readonly ended_at: string | null;
+	readonly duration_seconds: number | null;
+	readonly status: WorkspaceConnectionStatus;
+	readonly disconnect_reason: string;
+	readonly explanation: string;
+	readonly network: DiagnosticSessionNetwork;
+	readonly connections: readonly DiagnosticSessionConn[];
+	readonly timeline: readonly DiagnosticTimelineEvent[];
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticSessionConn represents a single connection within a session.
+ */
+export interface DiagnosticSessionConn {
+	readonly id: string;
+	readonly type: ConnectionType;
+	readonly detail: string;
+	readonly connected_at: string;
+	readonly disconnected_at: string | null;
+	readonly status: WorkspaceConnectionStatus;
+	readonly exit_code: number | null;
+	readonly explanation: string;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticSessionNetwork holds per-session network quality info.
+ */
+export interface DiagnosticSessionNetwork {
+	readonly p2p: boolean | null;
+	readonly avg_latency_ms: number | null;
+	readonly home_derp: string | null;
 }
 
 // From codersdk/parameters.go
@@ -1840,6 +2019,114 @@ export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 	"error",
 	"warning",
 ];
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticStatusBreakdown counts sessions by their terminal status.
+ */
+export interface DiagnosticStatusBreakdown {
+	readonly ongoing: number;
+	readonly clean: number;
+	readonly lost: number;
+	readonly workspace_stopped: number;
+	readonly workspace_deleted: number;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticSummary aggregates connection statistics across the time window.
+ */
+export interface DiagnosticSummary {
+	readonly total_sessions: number;
+	readonly total_connections: number;
+	readonly active_connections: number;
+	readonly by_status: DiagnosticStatusBreakdown;
+	readonly by_type: Record<string, number>;
+	readonly network: DiagnosticNetworkSummary;
+	readonly headline: string;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticTimeWindow describes the time range covered by the diagnostic.
+ */
+export interface DiagnosticTimeWindow {
+	readonly start: string;
+	readonly end: string;
+	readonly hours: number;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticTimelineEvent records a point-in-time event within a session.
+ */
+export interface DiagnosticTimelineEvent {
+	readonly timestamp: string;
+	readonly kind: DiagnosticTimelineEventKind;
+	readonly description: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly severity: ConnectionDiagnosticSeverity;
+}
+
+// From codersdk/diagnostic.go
+export type DiagnosticTimelineEventKind =
+	| "connection_closed"
+	| "connection_opened"
+	| "derp_fallback"
+	| "latency_spike"
+	| "node_update"
+	| "p2p_established"
+	| "peer_lost"
+	| "peer_recovered"
+	| "tunnel_created"
+	| "tunnel_removed"
+	| "workspace_state_change";
+
+export const DiagnosticTimelineEventKinds: DiagnosticTimelineEventKind[] = [
+	"connection_closed",
+	"connection_opened",
+	"derp_fallback",
+	"latency_spike",
+	"node_update",
+	"p2p_established",
+	"peer_lost",
+	"peer_recovered",
+	"tunnel_created",
+	"tunnel_removed",
+	"workspace_state_change",
+];
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticUser identifies the user being diagnosed.
+ */
+export interface DiagnosticUser {
+	readonly id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
+	readonly email: string;
+	readonly roles: readonly string[];
+	readonly last_seen_at: string;
+	readonly created_at: string;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * DiagnosticWorkspace groups sessions for a single workspace.
+ */
+export interface DiagnosticWorkspace {
+	readonly id: string;
+	readonly name: string;
+	readonly owner_username: string;
+	readonly status: string;
+	readonly template_name: string;
+	readonly template_display_name: string;
+	readonly health: DiagnosticHealth;
+	readonly health_reason: string;
+	readonly sessions: readonly DiagnosticSession[];
+}
 
 // From codersdk/workspaceagents.go
 export type DisplayApp =
@@ -5925,6 +6212,21 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/diagnostic.go
+/**
+ * UserDiagnosticResponse is the top-level response from the operator
+ * diagnostic endpoint for a single user.
+ */
+export interface UserDiagnosticResponse {
+	readonly user: DiagnosticUser;
+	readonly generated_at: string;
+	readonly time_window: DiagnosticTimeWindow;
+	readonly summary: DiagnosticSummary;
+	readonly current_connections: readonly DiagnosticConnection[];
+	readonly workspaces: readonly DiagnosticWorkspace[];
+	readonly patterns: readonly DiagnosticPattern[];
 }
 
 // From codersdk/insights.go
