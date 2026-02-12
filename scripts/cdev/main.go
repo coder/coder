@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"slices"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 	"time"
 
@@ -15,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/scripts/cdev/api"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
 	"github.com/coder/coder/v2/scripts/cdev/cleanup"
 	"github.com/coder/serpent"
@@ -27,7 +33,8 @@ func main() {
 		Long:  "A smart, opinionated tool for running the Coder development stack.",
 		Children: []*serpent.Command{
 			upCmd(),
-			watchCmd(),
+			psCmd(),
+			resourcesCmd(),
 			downCmd(),
 			cleanCmd(),
 			pprofCmd(),
@@ -35,11 +42,26 @@ func main() {
 		},
 	}
 
-	err := cmd.Invoke().WithOS().Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	sigs := make(chan os.Signal, 1)
+	// We want to catch SIGINT (Ctrl+C) and SIGTERM (graceful shutdown).
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigs
+
+		// Notify the main function that cleanup is finished.
+		// TODO: Would be best to call a `Close()` function and try a graceful shutdown first, but this is good enough for now.
+		cancel()
+	}()
+
+	err := cmd.Invoke().WithContext(ctx).WithOS().Run()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+
+	<-ctx.Done()
 }
 
 func cleanCmd() *serpent.Command {
@@ -76,11 +98,158 @@ func downCmd() *serpent.Command {
 	}
 }
 
-func watchCmd() *serpent.Command {
+func psCmd() *serpent.Command {
+	var apiAddr string
 	var interval time.Duration
 	return &serpent.Command{
-		Use:   "watch",
-		Short: "Watch all cdev-managed containers and volumes.",
+		Use:   "ps",
+		Short: "Show status of cdev services.",
+		Options: serpent.OptionSet{
+			{
+				Flag:        "api-addr",
+				Description: "Address of the cdev control API server.",
+				Default:     "localhost:" + api.DefaultAPIPort,
+				Value:       serpent.StringOf(&apiAddr),
+			},
+			{
+				Flag:          "interval",
+				FlagShorthand: "n",
+				Description:   "Refresh interval (0 to disable auto-refresh).",
+				Default:       "2s",
+				Value:         serpent.DurationOf(&interval),
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			m := &psModel{
+				apiAddr:  apiAddr,
+				interval: interval,
+			}
+
+			p := tea.NewProgram(m,
+				tea.WithContext(inv.Context()),
+				tea.WithOutput(inv.Stdout),
+				tea.WithInput(inv.Stdin),
+			)
+			_, err := p.Run()
+			return err
+		},
+	}
+}
+
+// psModel is the bubbletea model for the ps command.
+type psModel struct {
+	apiAddr  string
+	interval time.Duration
+	services []api.ServiceInfo
+	err      error
+}
+
+type psTickMsg time.Time
+type psDataMsg struct {
+	services []api.ServiceInfo
+}
+
+func (m *psModel) Init() tea.Cmd {
+	cmds := []tea.Cmd{m.fetchData}
+	if m.interval > 0 {
+		cmds = append(cmds, m.tick())
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *psModel) tick() tea.Cmd {
+	return tea.Tick(m.interval, func(t time.Time) tea.Msg {
+		return psTickMsg(t)
+	})
+}
+
+func (m *psModel) fetchData() tea.Msg {
+	url := fmt.Sprintf("http://%s/api/services", m.apiAddr)
+	resp, err := http.Get(url) //nolint:gosec // User-provided API address.
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return xerrors.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var data api.ListServicesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return err
+	}
+
+	return psDataMsg{services: data.Services}
+}
+
+func (m *psModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		case "r":
+			// Manual refresh.
+			return m, m.fetchData
+		}
+	case psTickMsg:
+		return m, tea.Batch(m.fetchData, m.tick())
+	case psDataMsg:
+		m.services = msg.services
+		m.err = nil
+		return m, nil
+	case error:
+		m.err = msg
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m *psModel) View() string {
+	if m.err != nil {
+		return fmt.Sprintf("Error: %v\n\nIs cdev running? Try: cdev up\n\nPress q to quit, r to retry.\n", m.err)
+	}
+
+	if len(m.services) == 0 {
+		return "Loading...\n"
+	}
+
+	var s strings.Builder
+	_, _ = s.WriteString("SERVICES\n")
+	tw := tabwriter.NewWriter(&s, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "NAME\tEMOJI\tSTATUS\tDEPENDS ON")
+
+	// Sort services by name.
+	services := slices.Clone(m.services)
+	slices.SortFunc(services, func(a, b api.ServiceInfo) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	for _, svc := range services {
+		deps := "-"
+		if len(svc.DependsOn) > 0 {
+			deps = strings.Join(svc.DependsOn, ", ")
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", svc.Name, svc.Emoji, svc.Status, deps)
+	}
+	_ = tw.Flush()
+
+	if m.interval > 0 {
+		_, _ = s.WriteString(fmt.Sprintf("\nRefreshing every %s. Press q to quit, r to refresh.\n", m.interval))
+	} else {
+		_, _ = s.WriteString("\nPress q to quit, r to refresh.\n")
+	}
+
+	return s.String()
+}
+
+func resourcesCmd() *serpent.Command {
+	var interval time.Duration
+	return &serpent.Command{
+		Use:     "resources",
+		Aliases: []string{"res"},
+		Short:   "Watch all cdev-managed resources like containers, images, and volumes.",
 		Options: serpent.OptionSet{
 			{
 				Flag:          "interval",
@@ -470,7 +639,16 @@ func upCmd() *serpent.Command {
 		}
 	})
 
-	optionSet := serpent.OptionSet{}
+	var apiAddr string
+
+	optionSet := serpent.OptionSet{
+		{
+			Flag:        "api-addr",
+			Description: "Address for the cdev control API server.",
+			Default:     "localhost:" + api.DefaultAPIPort,
+			Value:       serpent.StringOf(&apiAddr),
+		},
+	}
 	_ = services.ForEach(func(srv catalog.ServiceBase) error {
 		if configurable, ok := srv.(catalog.ConfigurableService); ok {
 			optionSet = append(optionSet, configurable.Options()...)
@@ -509,6 +687,14 @@ func upCmd() *serpent.Command {
 				return xerrors.Errorf("failed to apply configurations: %w", err)
 			}
 
+			// Start the API server first so we can query status while services
+			// are starting.
+			apiServer := api.NewServer(services, services.Logger(), apiAddr)
+			if err := apiServer.Start(ctx); err != nil {
+				return xerrors.Errorf("failed to start API server: %w", err)
+			}
+			_, _ = fmt.Fprintf(inv.Stdout, "🔌 API server is ready at http://%s\n", apiAddr)
+
 			_, _ = fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
 
 			err = services.Start(ctx)
@@ -520,10 +706,12 @@ func upCmd() *serpent.Command {
 			if !ok {
 				return xerrors.New("unexpected type for coderd service")
 			}
+
 			_, _ = fmt.Fprintf(inv.Stdout, "✅ Coder is ready at %s\n", coderd.Result().URL)
 			if prometheus.Enabled() {
 				_, _ = fmt.Fprintf(inv.Stdout, "📊 Prometheus is ready at http://localhost:9090\n")
 			}
+			<-inv.Context().Done()
 			return nil
 		},
 	}
