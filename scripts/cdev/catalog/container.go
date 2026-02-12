@@ -3,7 +3,7 @@ package catalog
 import (
 	"context"
 	"io"
-	"strings"
+	"os/exec"
 	"time"
 
 	"github.com/ory/dockertest/v3"
@@ -84,18 +84,12 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 	// Pull the image if it's not already present locally.
 	image := opts.CreateOpts.Config.Image
 	if _, err := pool.Client.InspectImage(image); err != nil {
-		// Parse repository and tag from the image string.
-		repo, tag, _ := strings.Cut(image, ":")
-		if tag == "" {
-			tag = "latest"
-		}
 		logger.Info(ctx, "pulling image", slog.F("image", image))
-		if err := pool.Client.PullImage(docker.PullImageOptions{
-			Repository:   repo,
-			Tag:          tag,
-			Context:      ctx,
-			OutputStream: stdoutLog,
-		}, docker.AuthConfiguration{}); err != nil {
+		//nolint:gosec // image is not user-controlled in this context.
+		cmd := exec.CommandContext(ctx, "docker", "pull", image)
+		cmd.Stdout = stdoutLog
+		cmd.Stderr = stderrLog
+		if err := cmd.Run(); err != nil {
 			return nil, xerrors.Errorf("pull image %s: %w", image, err)
 		}
 	}
