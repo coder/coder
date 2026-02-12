@@ -95,7 +95,7 @@ func Containers(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, 
 		return nil
 	}
 
-	logger.Info(ctx, fmt.Sprintf("📋 Deleted %d containers and reclaimed %s bytes of space",
+	logger.Info(ctx, fmt.Sprintf("📋 Deleted %d containers and reclaimed %s of space",
 		len(res.ContainersDeleted), humanize.Bytes(uint64(max(0, res.SpaceReclaimed))), //nolint:gosec // G115 SpaceReclaimed is non-negative in practice
 	))
 	for _, id := range res.ContainersDeleted {
