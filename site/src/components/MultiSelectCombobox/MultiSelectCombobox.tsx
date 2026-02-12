@@ -486,7 +486,7 @@ export const MultiSelectCombobox = forwardRef<
 				<div
 					className={cn(
 						`min-h-10 rounded-md border border-solid border-border text-sm pr-3
-						focus-within:ring-2 focus-within:ring-content-link`,
+						focus-within:ring-2 focus-within:ring-content-link [&>svg]:p-0.5`,
 						{
 							"pl-3 py-1": selected.length !== 0,
 							"cursor-text": !disabled && selected.length !== 0,
@@ -598,7 +598,9 @@ export const MultiSelectCombobox = forwardRef<
 									}
 								}}
 								className={cn(
-									"bg-transparent mt-1 border-none rounded-sm cursor-pointer text-content-secondary hover:text-content-primary outline-none focus:ring-2 focus:ring-content-link",
+									"bg-transparent mt-1 border-none rounded-sm",
+									"cursor-pointer text-content-secondary hover:text-content-primary",
+									"outline-none focus:ring-2 focus:ring-content-link [&>svg]:p-0.5",
 									(hideClearAllButton ||
 										disabled ||
 										selected.length < 1 ||
@@ -608,7 +610,7 @@ export const MultiSelectCombobox = forwardRef<
 							>
 								<X className="h-5 w-5" />
 							</button>
-							<ChevronDown className="cursor-pointer text-content-secondary hover:text-content-primary" />
+							<ChevronDown className="cursor-pointer text-content-secondary hover:text-content-primary p-0.5" />
 						</div>
 					</div>
 				</div>
