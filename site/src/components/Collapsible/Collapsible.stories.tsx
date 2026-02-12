@@ -20,7 +20,7 @@ const meta: Meta<typeof Collapsible> = {
 					</h4>
 					<CollapsibleTrigger asChild>
 						<Button size="sm">
-							<ChevronsUpDown className="h-4 w-4" />
+							<ChevronsUpDown />
 							<span className="sr-only">Toggle</span>
 						</Button>
 					</CollapsibleTrigger>

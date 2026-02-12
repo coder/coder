@@ -608,7 +608,7 @@ export const MultiSelectCombobox = forwardRef<
 							>
 								<X className="h-5 w-5" />
 							</button>
-							<ChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
+							<ChevronDown className="cursor-pointer text-content-secondary hover:text-content-primary" />
 						</div>
 					</div>
 				</div>

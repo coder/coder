@@ -78,7 +78,7 @@ export const OrganizationSidebarView: FC<
 						) : (
 							<span className="truncate">No organization selected</span>
 						)}
-						<ChevronDown className="ml-auto !size-icon-sm" />
+						<ChevronDown className="ml-auto" />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
@@ -109,7 +109,7 @@ export const OrganizationSidebarView: FC<
 												{organization?.display_name || organization?.name}
 											</span>
 											{activeOrganization?.name === organization.name && (
-												<Check size={16} strokeWidth={2} className="ml-auto" />
+												<Check className="ml-auto" />
 											)}
 										</CommandItem>
 									))}
