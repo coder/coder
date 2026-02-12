@@ -71,6 +71,11 @@ type Catalog struct {
 
 	manager *unit.Manager
 
+	// startCancels tracks cancel functions for in-progress StartService calls.
+	// Used to cancel starts when StopService is called.
+	startCancels   map[ServiceName]context.CancelFunc
+	startCancelsMu sync.Mutex
+
 	subscribers   map[chan struct{}]struct{}
 	subscribersMu sync.Mutex
 
@@ -80,10 +85,11 @@ type Catalog struct {
 
 func New() *Catalog {
 	return &Catalog{
-		services:    make(map[ServiceName]ServiceBase),
-		loggers:     make(map[ServiceName]slog.Logger),
-		manager:     unit.NewManager(),
-		subscribers: make(map[chan struct{}]struct{}),
+		services:     make(map[ServiceName]ServiceBase),
+		loggers:      make(map[ServiceName]slog.Logger),
+		manager:      unit.NewManager(),
+		subscribers:  make(map[chan struct{}]struct{}),
+		startCancels: make(map[ServiceName]context.CancelFunc),
 	}
 }
 
@@ -235,10 +241,9 @@ func (c *Catalog) ApplyConfigurations() error {
 	return nil
 }
 
-// Start launches all registered services concurrently.
-// Services block until their dependencies (tracked by unit.Manager) are ready.
-func (c *Catalog) Start(ctx context.Context) error {
+func (c *Catalog) BuildGraph(ctx context.Context) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	// Log the service dependency graph on startup.
 	c.logger.Info(ctx, "service dependency graph")
@@ -251,13 +256,20 @@ func (c *Catalog) Start(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// Start launches all registered services concurrently.
+// Services block until their dependencies (tracked by unit.Manager) are ready.
+func (c *Catalog) Start(ctx context.Context) error {
+	c.mu.Lock()
+
 	type svcEntry struct {
-		srv    ServiceBase
-		logger slog.Logger
+		srv ServiceBase
 	}
 	entries := make([]svcEntry, 0, len(c.services))
 	for _, srv := range c.services {
-		entries = append(entries, svcEntry{srv: srv, logger: c.loggers[srv.Name()]})
+		entries = append(entries, svcEntry{srv: srv})
 	}
 	c.mu.Unlock()
 
@@ -265,36 +277,7 @@ func (c *Catalog) Start(ctx context.Context) error {
 	wg.SetLimit(-1) // No limit on concurrency, since unit.Manager tracks dependencies.
 	for _, e := range entries {
 		wg.Go(func() (failure error) {
-			defer func() {
-				if err := recover(); err != nil {
-					failure = xerrors.Errorf("panic: %v", err)
-				}
-			}()
-			name := e.srv.Name()
-			svcLogger := e.logger
-
-			if err := c.waitForReady(ctx, name); err != nil {
-				return xerrors.Errorf("wait for %s to be ready: %w", name, err)
-			}
-
-			if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusStarted); err != nil {
-				return xerrors.Errorf("update status for %s: %w", name, err)
-			}
-			c.notifySubscribers()
-
-			svcLogger.Info(ctx, "starting service")
-			if err := e.srv.Start(ctx, svcLogger, c); err != nil {
-				return xerrors.Errorf("start %s: %w", name, err)
-			}
-
-			// Mark as complete after starting, which allows dependent services to start.
-			if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusComplete); err != nil {
-				return xerrors.Errorf("update status for %s: %w", name, err)
-			}
-			c.notifySubscribers()
-
-			svcLogger.Info(ctx, "service started", slog.F("name", name))
-			return nil
+			return c.StartService(ctx, e.srv.Name())
 		})
 	}
 
@@ -489,7 +472,7 @@ func (c *Catalog) RestartService(ctx context.Context, name ServiceName, logger s
 
 // StartService starts a previously stopped service, transitioning its
 // unit.Manager status through pending → started → completed.
-func (c *Catalog) StartService(ctx context.Context, name ServiceName, logger slog.Logger) error {
+func (c *Catalog) StartService2(ctx context.Context, name ServiceName, logger slog.Logger) error {
 	svc, ok := c.services[name]
 	if !ok {
 		return xerrors.Errorf("service %q not found", name)
@@ -508,8 +491,84 @@ func (c *Catalog) StartService(ctx context.Context, name ServiceName, logger slo
 	return nil
 }
 
+// StartService starts a previously stopped service, transitioning its
+// unit.Manager status through pending → started → completed.
+// This method is idempotent: calling it multiple times while a start is in
+// progress or after the service is already running will return nil without
+// doing anything. StopService will cancel any in-progress start operation.
+func (c *Catalog) StartService(ctx context.Context, name ServiceName) (failure error) {
+	defer func() {
+		if err := recover(); err != nil {
+			failure = xerrors.Errorf("panic: %v", err)
+		}
+	}()
+
+	// Check if service is already started/starting (idempotent).
+	status, err := c.Status(name)
+	if err != nil {
+		return xerrors.Errorf("get status for %s: %w", name, err)
+	}
+	if status == unit.StatusStarted || status == unit.StatusComplete {
+		// Already starting or running, nothing to do.
+		return nil
+	}
+
+	// Check if a start is already in progress.
+	c.startCancelsMu.Lock()
+	if _, exists := c.startCancels[name]; exists {
+		c.startCancelsMu.Unlock()
+		return nil // Another start is in progress.
+	}
+	// Create a cancellable context for this start operation.
+	ctx, cancel := context.WithCancel(ctx)
+	c.startCancels[name] = cancel
+	c.startCancelsMu.Unlock()
+
+	// Clean up when done (success or failure).
+	defer func() {
+		c.startCancelsMu.Lock()
+		delete(c.startCancels, name)
+		c.startCancelsMu.Unlock()
+	}()
+
+	srv := c.services[name]
+	svcLogger := c.loggers[srv.Name()]
+
+	if err := c.waitForReady(ctx, name); err != nil {
+		return xerrors.Errorf("wait for %s to be ready: %w", name, err)
+	}
+
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusStarted); err != nil {
+		return xerrors.Errorf("update status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+
+	svcLogger.Info(ctx, "starting service")
+	if err := srv.Start(ctx, svcLogger, c); err != nil {
+		return xerrors.Errorf("start %s: %w", name, err)
+	}
+
+	// Mark as complete after starting, which allows dependent services to start.
+	if err := c.manager.UpdateStatus(unit.ID(name), unit.StatusComplete); err != nil {
+		return xerrors.Errorf("update status for %s: %w", name, err)
+	}
+	c.notifySubscribers()
+
+	svcLogger.Info(ctx, "service started", slog.F("name", name))
+	return nil
+}
+
 // StopService stops a service and resets its unit.Manager status to pending.
+// If a StartService call is in progress for this service, it will be cancelled.
 func (c *Catalog) StopService(ctx context.Context, name ServiceName) error {
+	// Cancel any in-progress start operation.
+	c.startCancelsMu.Lock()
+	if cancel, exists := c.startCancels[name]; exists {
+		cancel()
+		delete(c.startCancels, name)
+	}
+	c.startCancelsMu.Unlock()
+
 	svc, ok := c.services[name]
 	if !ok {
 		return xerrors.Errorf("service %q not found", name)

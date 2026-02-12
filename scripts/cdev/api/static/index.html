@@ -224,24 +224,32 @@
     async function fetchImages() {
       try {
         const res = await fetch(`${API_BASE}/api/images`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
         const data = await res.json();
         images = data.images || [];
         renderImages();
       } catch (err) {
-        console.error('Failed to fetch images:', err);
+        images = [];
+        renderImages(err.message);
       }
     }
 
     async function fetchVolumes() {
       try {
         const res = await fetch(`${API_BASE}/api/volumes`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
         const data = await res.json();
         volumes = data.volumes || [];
         renderVolumes();
       } catch (err) {
-        console.error('Failed to fetch volumes:', err);
+        volumes = [];
+        renderVolumes(err.message);
       }
     }
 
@@ -379,8 +387,15 @@
       return new Date(timestamp * 1000).toLocaleDateString();
     }
 
-    function renderImages() {
+    function renderImages(error) {
       const container = document.getElementById('images');
+      if (error) {
+        const hint = error.includes('docker not connected') 
+          ? ' Start the <strong>docker</strong> service first.' 
+          : '';
+        container.innerHTML = `<div class="loading" style="color: var(--error)">⚠️ ${error}.${hint}</div>`;
+        return;
+      }
       if (images.length === 0) {
         container.innerHTML = '<div class="loading">No images found</div>';
         return;
@@ -404,8 +419,15 @@
       }).join('');
     }
 
-    function renderVolumes() {
+    function renderVolumes(error) {
       const container = document.getElementById('volumes');
+      if (error) {
+        const hint = error.includes('docker not connected') 
+          ? ' Start the <strong>docker</strong> service first.' 
+          : '';
+        container.innerHTML = `<div class="loading" style="color: var(--error)">⚠️ ${error}.${hint}</div>`;
+        return;
+      }
       if (volumes.length === 0) {
         container.innerHTML = '<div class="loading">No volumes found</div>';
         return;

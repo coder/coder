@@ -114,7 +114,8 @@ func (s *Server) handleStartService(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusNotFound, "service not found")
 		return
 	}
-	if err := s.catalog.StartService(r.Context(), catalog.ServiceName(name), s.logger); err != nil {
+
+	if err := s.catalog.StartService(r.Context(), catalog.ServiceName(name)); err != nil {
 		s.writeError(w, http.StatusInternalServerError, "failed to start service: "+err.Error())
 		return
 	}

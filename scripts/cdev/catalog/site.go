@@ -143,7 +143,9 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 			},
 			HostConfig: &docker.HostConfig{
 				Binds: []string{
-					fmt.Sprintf("%s/site:/app/site", cwd),
+					// Mount the entire repo root for hot reload support.
+					// This allows changes to shared code outside site/ to be picked up.
+					fmt.Sprintf("%s:/app", cwd),
 					fmt.Sprintf("%s:/app/site/node_modules", nodeModulesVol.Name),
 				},
 				NetworkMode:   "host",
