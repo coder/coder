@@ -1279,9 +1279,8 @@ func TestRunLoop(t *testing.T) {
 		ReconciliationBackoffInterval: serpent.Duration(backoffInterval),
 		ReconciliationInterval:        serpent.Duration(time.Second),
 	}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	// Do not ignore errors as we want a graceful stop
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
