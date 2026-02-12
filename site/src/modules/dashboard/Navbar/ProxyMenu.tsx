@@ -18,6 +18,7 @@ import { useAuthenticated } from "hooks";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
+import { cn } from "utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
@@ -72,7 +73,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="lg">
+				<Button variant="outline" size="lg" className="group">
 					<span className="sr-only">
 						Latency for {selectedProxy?.display_name ?? "your region"}
 					</span>
@@ -95,7 +96,12 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						"Select Proxy"
 					)}
 
-					<ChevronDownIcon className="text-content-primary !size-icon-sm" />
+					<ChevronDownIcon
+						className={cn(
+							"text-content-primary !size-icon-sm",
+							"group-data-[state=open]:rotate-180 transition-transform",
+						)}
+					/>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-80">

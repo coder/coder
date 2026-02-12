@@ -9,6 +9,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
 import { Link } from "react-router";
+import { cn } from "utils/cn";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
@@ -41,9 +42,14 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="lg">
+				<Button variant="outline" size="lg" className="group">
 					Admin settings
-					<ChevronDownIcon className="text-content-primary !size-icon-sm" />
+					<ChevronDownIcon
+						className={cn(
+							"text-content-primary !size-icon-sm",
+							"group-data-[state=open]:rotate-180 transition-transform",
+						)}
+					/>
 				</Button>
 			</DropdownMenuTrigger>
 

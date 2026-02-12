@@ -6,6 +6,7 @@ import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
+import { cn } from "utils/cn";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
@@ -67,7 +68,12 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					}}
 					size="icon-lg"
 				>
-					<ChevronDownIcon />
+					<ChevronDownIcon
+						className={cn(
+							"transition-transform",
+							isVariantMenuOpen && "rotate-180",
+						)}
+					/>
 				</AgentButton>
 			</div>
 

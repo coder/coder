@@ -65,9 +65,9 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				<TopbarButton
 					data-testid="build-parameters-button"
 					disabled={disabled}
-					className="min-w-fit"
+					className="min-w-fit group"
 				>
-					<ChevronDownIcon />
+					<ChevronDownIcon className="transition-transform group-data-[state=open]:rotate-180" />
 					<span className="sr-only">{label}</span>
 				</TopbarButton>
 			</PopoverTrigger>

@@ -8,12 +8,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	ChevronDownIcon,
-	ChevronRightIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { formatDate, humanDuration } from "utils/time";
@@ -143,11 +138,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							isOpen && "text-content-primary",
 						])}
 					>
-						{isOpen ? (
-							<ChevronDownIcon className="size-icon-xs" />
-						) : (
-							<ChevronRightIcon className="size-icon-xs" />
-						)}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{formatDate(new Date(interception.started_at))}
 					</div>

@@ -9,6 +9,7 @@ import {
 import dayjs from "dayjs";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import type { DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";
 
@@ -30,9 +31,14 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline">
+				<Button variant="outline" className="group">
 					Last {numberOfWeeks} weeks
-					<ChevronDownIcon className="!size-icon-xs" />
+					<ChevronDownIcon
+						className={cn(
+							"!size-icon-xs",
+							"group-data-[state=open]:rotate-180 transition-transform",
+						)}
+					/>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">

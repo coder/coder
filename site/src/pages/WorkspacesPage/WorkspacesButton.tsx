@@ -55,9 +55,9 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button size="lg">
+				<Button size="lg" className="group">
 					{children}
-					<ChevronDownIcon />
+					<ChevronDownIcon className="transition-transform group-data-[state=open]:rotate-180" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
