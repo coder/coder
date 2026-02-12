@@ -20,6 +20,7 @@ func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error 
 		catalog.CDevPostgres,
 		catalog.CDevCoderd,
 		catalog.CDevOIDC,
+		catalog.CDevSite,
 	}
 
 	for _, service := range servicesToDown {
