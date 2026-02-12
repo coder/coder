@@ -22,6 +22,7 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
+import type { UserDiagnosticResponse } from "../pages/OperatorDiagnosticPage/types";
 import { delay } from "../utils/delay";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { type FieldError, isApiError } from "./errors";
@@ -1891,6 +1892,18 @@ class ApiMethods {
 		const url = getURLWithSearchParams("/api/v2/connectionlog", options);
 		const response = await this.axios.get(url);
 		return response.data;
+	};
+
+	getUserDiagnostic = async (
+		username: string,
+		_hours?: number,
+	): Promise<UserDiagnosticResponse> => {
+		// Static mock data for now. In production:
+		// GET /api/v2/connectionlog/diagnostics/{username}?hours=72
+		const { getMockDiagnosticData } = await import(
+			"../pages/OperatorDiagnosticPage/mockDataService"
+		);
+		return getMockDiagnosticData(username);
 	};
 
 	getTemplateDAUs = async (

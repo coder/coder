@@ -61,7 +61,19 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			return (
 				<span>
 					{user ? user.username : "Unauthenticated user"} {actionText} in{" "}
-					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
+					{isOwnWorkspace ? (
+						"their"
+					) : (
+						<>
+							<Link
+								component={RouterLink}
+								to={`/connectionlog/diagnostics/${workspace_owner_username}`}
+							>
+								{workspace_owner_username}
+							</Link>
+							's
+						</>
+					)}{" "}
 					<Link
 						component={RouterLink}
 						to={`/@${workspace_owner_username}/${workspace_name}`}
@@ -80,7 +92,14 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			const friendlyType = connectionTypeToFriendlyName(type);
 			return (
 				<span>
-					{friendlyType} session to {workspace_owner_username}'s{" "}
+					{friendlyType} session to{" "}
+					<Link
+						component={RouterLink}
+						to={`/connectionlog/diagnostics/${workspace_owner_username}`}
+					>
+						{workspace_owner_username}
+					</Link>
+					's{" "}
 					<Link
 						component={RouterLink}
 						to={`/@${workspace_owner_username}/${workspace_name}`}

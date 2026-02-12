@@ -14,6 +14,11 @@ import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
+
+const OperatorDiagnosticPage = lazy(
+	() => import("./pages/OperatorDiagnosticPage/OperatorDiagnosticPage"),
+);
+
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDevicePage";
 import LoginPage from "./pages/LoginPage/LoginPage";
@@ -457,6 +462,10 @@ export const router = createBrowserRouter(
 					<Route path="/audit" element={<AuditPage />} />
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+					<Route
+						path="/connectionlog/diagnostics/:username"
+						element={<OperatorDiagnosticPage />}
+					/>
 
 					<Route path="/tasks" element={<TasksPage />} />
 
