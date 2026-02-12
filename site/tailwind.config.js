@@ -9,7 +9,7 @@ module.exports = {
 	theme: {
 		extend: {
 			fontFamily: {
-				sans: `"Inter Variable", system-ui, sans-serif`,
+				sans: `"Geist Variable", system-ui, sans-serif`,
 			},
 			size: {
 				"icon-lg": "1.5rem",
@@ -18,8 +18,9 @@ module.exports = {
 			},
 			fontSize: {
 				"2xs": ["0.625rem", "0.875rem"],
-				xs: ["0.75rem", "1rem"],
-				sm: ["0.875rem", "1.5rem"],
+				xs: ["0.75rem", { lineHeight: "1rem", fontWeight: "500" }],
+				sm: ["0.875rem", { lineHeight: "1.5rem", fontWeight: "500" }],
+				base: ["1rem", { lineHeight: "1.5rem", fontWeight: "400" }],
 				"3xl": ["2rem", "2.5rem"],
 			},
 			borderRadius: {

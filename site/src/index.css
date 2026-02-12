@@ -131,3 +131,9 @@
 		padding-right: 0px;
 	}
 }
+
+@layer utilities {
+	.text-xs-mono {
+		@apply text-xs font-mono font-medium;
+	}
+}
