@@ -206,7 +206,7 @@ const RefreshSessionButton: FC = () => {
 				window.location.reload();
 			}}
 		>
-			<RefreshCwIcon className={cn(isRefreshing && "animate-spin")}  />
+			<RefreshCwIcon className={cn(isRefreshing && "animate-spin")} />
 			{isRefreshing ? "Refreshing session..." : "Refresh session"}
 		</Button>
 	);
