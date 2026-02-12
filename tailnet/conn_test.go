@@ -25,6 +25,17 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
+type fakeTelemetrySink struct {
+	events chan *proto.TelemetryEvent
+}
+
+func (f *fakeTelemetrySink) SendTelemetryEvent(e *proto.TelemetryEvent) {
+	select {
+	case f.events <- e:
+	default:
+	}
+}
+
 func TestTailnet(t *testing.T) {
 	t.Parallel()
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
@@ -403,6 +414,126 @@ func TestTailnet(t *testing.T) {
 			return true
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+	t.Run("TelemetryHeartbeat", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:         logger.Named("w1"),
+			DERPMap:        derpMap,
+			BlockEndpoints: true,
+		})
+		require.NoError(t, err)
+
+		sink := &fakeTelemetrySink{events: make(chan *proto.TelemetryEvent, 128)}
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:                  []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+			Logger:                     logger.Named("w2"),
+			DERPMap:                    derpMap,
+			BlockEndpoints:             true,
+			TelemetrySink:              sink,
+			TelemetryHeartbeatInterval: 100 * time.Millisecond,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(ctx, w1IP))
+
+		w2.SendConnectedTelemetry(w1IP, "test")
+
+		connectedEvents := 0
+		require.Eventually(t, func() bool {
+			for {
+				select {
+				case event := <-sink.events:
+					if event.Status == proto.TelemetryEvent_CONNECTED {
+						connectedEvents++
+					}
+				default:
+					return connectedEvents >= 3
+				}
+			}
+		}, testutil.WaitShort, 25*time.Millisecond)
+	})
+
+	t.Run("TelemetryHeartbeatStopsOnClose", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:         logger.Named("w1"),
+			DERPMap:        derpMap,
+			BlockEndpoints: true,
+		})
+		require.NoError(t, err)
+
+		sink := &fakeTelemetrySink{events: make(chan *proto.TelemetryEvent, 128)}
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:                  []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+			Logger:                     logger.Named("w2"),
+			DERPMap:                    derpMap,
+			BlockEndpoints:             true,
+			TelemetrySink:              sink,
+			TelemetryHeartbeatInterval: 100 * time.Millisecond,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(ctx, w1IP))
+
+		w2.SendConnectedTelemetry(w1IP, "test")
+
+		connectedEvents := 0
+		require.Eventually(t, func() bool {
+			for {
+				select {
+				case event := <-sink.events:
+					if event.Status == proto.TelemetryEvent_CONNECTED {
+						connectedEvents++
+					}
+				default:
+					return connectedEvents >= 3
+				}
+			}
+		}, testutil.WaitShort, 25*time.Millisecond)
+
+		drainEvents := func() {
+			for {
+				select {
+				case <-sink.events:
+				default:
+					return
+				}
+			}
+		}
+
+		drainEvents()
+		require.NoError(t, w2.Close())
+		drainEvents()
+
+		select {
+		case event := <-sink.events:
+			t.Fatalf("unexpected telemetry event after close: %+v", event)
+		case <-time.After(350 * time.Millisecond):
+		}
+	})
+
 }
 
 // TestConn_PreferredDERP tests that we only trigger the NodeCallback when we have a preferred DERP server.

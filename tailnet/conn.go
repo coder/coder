@@ -65,6 +65,8 @@ const (
 // with the debug level enabled.
 const EnvMagicsockDebugLogging = "CODER_MAGICSOCK_DEBUG_LOGGING"
 
+const defaultTelemetryHeartbeatInterval = 30 * time.Second
+
 func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace unless the connection is configured to use a TUN.
@@ -115,6 +117,10 @@ type Options struct {
 	ClientType proto.TelemetryEvent_ClientType
 	// TelemetrySink is optional.
 	TelemetrySink TelemetrySink
+	// TelemetryHeartbeatInterval controls how often periodic ping telemetry
+	// refreshes are sent. Defaults to 30s when TelemetrySink is configured.
+	// Set to a value <= 0 to disable.
+	TelemetryHeartbeatInterval time.Duration
 	// DNSConfigurator is optional, and is passed to the underlying wireguard
 	// engine.
 	DNSConfigurator dns.OSConfigurator
@@ -359,6 +365,10 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 	if server.telemetryStore != nil {
+		server.telemetryHeartbeatInterval = options.TelemetryHeartbeatInterval
+		if server.telemetryHeartbeatInterval == 0 {
+			server.telemetryHeartbeatInterval = defaultTelemetryHeartbeatInterval
+		}
 		server.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 			server.mutex.Lock()
 			server.lastNetInfo = ni.Clone()
@@ -472,8 +482,9 @@ type Conn struct {
 
 	telemetrySink TelemetrySink
 	// telemetryStore will be nil if telemetrySink is nil.
-	telemetryStore *TelemetryStore
-	telemetryWg    sync.WaitGroup
+	telemetryStore             *TelemetryStore
+	telemetryWg                sync.WaitGroup
+	telemetryHeartbeatInterval time.Duration
 
 	watchCtx    context.Context
 	watchCancel func()
@@ -997,25 +1008,40 @@ func (c *Conn) sendTelemetryBackground(e *proto.TelemetryEvent) {
 
 // Watch for changes in the connection type (P2P<->DERP) and send telemetry events.
 func (c *Conn) watchConnChange() {
-	ticker := time.NewTicker(time.Millisecond * 50)
-	defer ticker.Stop()
+	changeTicker := time.NewTicker(50 * time.Millisecond)
+	defer changeTicker.Stop()
+
+	var (
+		heartbeatTicker *time.Ticker
+		heartbeatC      <-chan time.Time
+	)
+	if c.telemetryHeartbeatInterval > 0 {
+		heartbeatTicker = time.NewTicker(c.telemetryHeartbeatInterval)
+		heartbeatC = heartbeatTicker.C
+		defer heartbeatTicker.Stop()
+	}
+
 	for {
 		select {
 		case <-c.watchCtx.Done():
 			return
-		case <-ticker.C:
-		}
-		status := c.Status()
-		peers := status.Peers()
-		if len(peers) > 1 {
-			// Not a CLI<->agent connection, stop watching
-			return
-		} else if len(peers) == 0 {
-			continue
-		}
-		peer := status.Peer[peers[0]]
-		// If the connection type has changed, send a telemetry event with the latest ping stats
-		if c.telemetryStore.changedConntype(peer.CurAddr) {
+		case <-changeTicker.C:
+			status := c.Status()
+			peers := status.Peers()
+			if len(peers) > 1 {
+				// Not a CLI<->agent connection, stop watching
+				return
+			} else if len(peers) == 0 {
+				continue
+			}
+
+			peer := status.Peer[peers[0]]
+			// If the connection type has changed, send a telemetry event with the latest ping stats
+			if c.telemetryStore.changedConntype(peer.CurAddr) {
+				c.telemetryStore.pingPeer(c)
+			}
+		case <-heartbeatC:
+			// Periodic refresh keeps server-side peer telemetry from aging out.
 			c.telemetryStore.pingPeer(c)
 		}
 	}

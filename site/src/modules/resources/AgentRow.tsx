@@ -12,12 +12,12 @@ import type {
 	WorkspaceConnectionStatus,
 	WorkspaceSession,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "components/Collapsible/Collapsible";
-import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
 	Tooltip,
@@ -29,8 +29,6 @@ import { useProxy } from "contexts/ProxyContext";
 import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
-import { formatDate, relativeTime } from "utils/time";
-
 import {
 	type FC,
 	useCallback,
@@ -42,7 +40,9 @@ import {
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
+import { formatDate, relativeTime } from "utils/time";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentExternal } from "./AgentExternal";
@@ -441,17 +441,60 @@ function connectionTypeLabel(type_: ConnectionType, detail?: string): string {
 }
 
 // Build a single display label for a connection. Uses short_description
-// (client identity like "Coder Desktop", "CLI ssh") as primary, with
-// the protocol/app type as secondary detail after a separator.
-function connectionLabel(conn: WorkspaceConnection): string {
+// (client identity like "Coder Desktop", "CLI") as primary, with the
+// protocol/app type as secondary detail after a separator.
+export function connectionLabel(conn: WorkspaceConnection): string {
 	const typeLabel = conn.type
 		? connectionTypeLabel(conn.type, conn.detail)
 		: "";
-	const desc = conn.short_description || "";
+	let desc = conn.short_description?.trim() ?? "";
+
+	// The CLI currently reports "CLI ssh" for SSH connections. Trim the
+	// protocol suffix so the rendered label does not duplicate SSH twice.
+	if (conn.type === "ssh") {
+		desc = desc.replace(/\s+ssh$/i, "");
+	}
+
 	if (desc && typeLabel) {
+		const normalizedDesc = desc.toLowerCase();
+		const normalizedType = typeLabel.toLowerCase();
+		if (
+			normalizedDesc === normalizedType ||
+			normalizedDesc.endsWith(` ${normalizedType}`)
+		) {
+			return desc;
+		}
 		return `${desc} · ${typeLabel}`;
 	}
 	return desc || typeLabel || "Unknown";
+}
+
+// Produce a compact telemetry summary for a single connection,
+// e.g. "0ms (Direct)", "Relay via Frankfurt 45ms", or null when
+// telemetry is unavailable.
+export function connectionTelemetrySummary(
+	conn: WorkspaceConnection,
+): string | null {
+	if (
+		conn.p2p === undefined &&
+		conn.latency_ms === undefined &&
+		!conn.home_derp
+	) {
+		return null;
+	}
+
+	if (conn.p2p === true) {
+		if (conn.latency_ms !== undefined) {
+			return `${Math.round(conn.latency_ms)}ms (Direct)`;
+		}
+		return "Direct";
+	}
+
+	const transport = conn.p2p === false ? "Relay" : "";
+	const derp = conn.home_derp ? ` via ${conn.home_derp.name}` : "";
+	const latency =
+		conn.latency_ms !== undefined ? ` ${Math.round(conn.latency_ms)}ms` : "";
+	return `${transport}${derp}${latency}`.trim() || null;
 }
 
 interface AgentSessionsTableProps {
@@ -477,6 +520,24 @@ const AgentSessionsTable: FC<AgentSessionsTableProps> = ({ sessions }) => {
 	);
 };
 
+function TelemetryBadge({ conn }: { conn: WorkspaceConnection }) {
+	const summary = connectionTelemetrySummary(conn);
+	if (!summary) {
+		return <span className="text-xs text-content-secondary">—</span>;
+	}
+
+	return (
+		<span
+			className={cn(
+				"text-xs rounded px-1.5 py-0.5",
+				getLatencyColor(conn.latency_ms),
+			)}
+		>
+			{summary}
+		</span>
+	);
+}
+
 const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 	const [expanded, setExpanded] = useState(false);
 	const hasMultiple = session.connections.length > 1;
@@ -499,6 +560,9 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 							? connectionLabel(session.connections[0])
 							: `${activeCount} active connections`}
 					</span>
+					{activeCount === 1 && (
+						<TelemetryBadge conn={session.connections[0]} />
+					)}
 					<span className="inline-flex items-center gap-1.5 text-xs">
 						<span
 							className={`inline-block h-2 w-2 rounded-full ${connectionStatusDot(session.status)}`}
@@ -518,6 +582,7 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 								className="flex items-center gap-3 py-1.5 text-xs"
 							>
 								<span>{connectionLabel(conn)}</span>
+								<TelemetryBadge conn={conn} />
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<span className="text-content-secondary cursor-default">

@@ -355,3 +355,54 @@ export const WithConnections: Story = {
 		},
 	},
 };
+
+export const SingleP2PConnection: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			sessions: [
+				{
+					ip: "10.0.0.5",
+					client_hostname: "my-laptop",
+					status: "ongoing",
+					started_at: "2026-02-11T05:49:29.969985Z",
+					connections: [M.MockWorkspaceConnectionP2P],
+				},
+			],
+		},
+	},
+};
+
+export const SingleRelayConnection: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			sessions: [
+				{
+					ip: "10.0.0.6",
+					client_hostname: "work-pc",
+					status: "ongoing",
+					started_at: "2026-02-11T05:30:00.000000Z",
+					connections: [M.MockWorkspaceConnectionDERP],
+				},
+			],
+		},
+	},
+};
+
+export const NoTelemetryConnection: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			sessions: [
+				{
+					ip: "10.0.0.7",
+					client_hostname: "old-client",
+					status: "ongoing",
+					started_at: "2026-02-11T04:00:00.000000Z",
+					connections: [M.MockWorkspaceConnectionNoTelemetry],
+				},
+			],
+		},
+	},
+};
