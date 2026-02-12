@@ -218,6 +218,10 @@ func (s *DRPCService) RefreshResumeToken(ctx context.Context, _ *proto.RefreshRe
 	if err != nil {
 		return nil, xerrors.Errorf("generate resume token: %w", err)
 	}
+
+	// Include the server-assigned PeerID so clients can derive their
+	// tailnet IP addresses before creating their tailnet.Conn.
+	res.PeerId = streamID.ID[:]
 	return res, nil
 }
 

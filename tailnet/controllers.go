@@ -740,7 +740,7 @@ func IsDRPCUnimplementedError(err error) bool {
 			strings.Contains(err.Error(), "unknown rpc: ")
 }
 
-type basicResumeTokenController struct {
+type BasicResumeTokenController struct {
 	logger slog.Logger
 
 	sync.Mutex
@@ -751,7 +751,7 @@ type basicResumeTokenController struct {
 	clock quartz.Clock
 }
 
-func (b *basicResumeTokenController) New(client ResumeTokenClient) CloserWaiter {
+func (b *BasicResumeTokenController) New(client ResumeTokenClient) CloserWaiter {
 	b.Lock()
 	defer b.Unlock()
 	if b.refresher != nil {
@@ -764,7 +764,7 @@ func (b *basicResumeTokenController) New(client ResumeTokenClient) CloserWaiter 
 	return b.refresher
 }
 
-func (b *basicResumeTokenController) Token() (string, bool) {
+func (b *BasicResumeTokenController) Token() (string, bool) {
 	b.Lock()
 	defer b.Unlock()
 	if b.token == nil {
@@ -776,18 +776,27 @@ func (b *basicResumeTokenController) Token() (string, bool) {
 	return b.token.Token, true
 }
 
-func NewBasicResumeTokenController(logger slog.Logger, clock quartz.Clock) ResumeTokenController {
-	return &basicResumeTokenController{
+func NewBasicResumeTokenController(logger slog.Logger, clock quartz.Clock) *BasicResumeTokenController {
+	return &BasicResumeTokenController{
 		logger: logger,
 		clock:  clock,
 	}
+}
+
+// SetInitialToken seeds the controller with a token obtained out-of-band
+// (e.g. from a pre-dial RefreshResumeToken call). This allows the
+// controller's first reconnect to reuse the same PeerID.
+func (b *BasicResumeTokenController) SetInitialToken(resp *proto.RefreshResumeTokenResponse) {
+	b.Lock()
+	defer b.Unlock()
+	b.token = resp
 }
 
 type basicResumeTokenRefresher struct {
 	logger slog.Logger
 	ctx    context.Context
 	cancel context.CancelFunc
-	ctrl   *basicResumeTokenController
+	ctrl   *BasicResumeTokenController
 	client ResumeTokenClient
 	errCh  chan error
 
@@ -820,7 +829,7 @@ const never time.Duration = math.MaxInt64
 
 func newBasicResumeTokenRefresher(
 	logger slog.Logger, clock quartz.Clock,
-	ctrl *basicResumeTokenController, client ResumeTokenClient,
+	ctrl *BasicResumeTokenController, client ResumeTokenClient,
 ) *basicResumeTokenRefresher {
 	r := &basicResumeTokenRefresher{
 		logger: logger,

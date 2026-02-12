@@ -480,6 +480,7 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 		context.Background(),
 		logger,
 		derpServer,
+		uuid.UUID{5},
 		dialer,
 		false,
 		!derpMap.HasSTUN(),

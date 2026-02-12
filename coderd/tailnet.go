@@ -49,11 +49,14 @@ func init() {
 
 var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
 
-// NewServerTailnet creates a new tailnet intended for use by coderd.
+// NewServerTailnet creates a new tailnet intended for use by coderd. The
+// clientID is used to derive deterministic tailnet IP addresses for the
+// server, matching how agents derive IPs from their agent ID.
 func NewServerTailnet(
 	ctx context.Context,
 	logger slog.Logger,
 	derpServer *derp.Server,
+	clientID uuid.UUID,
 	dialer tailnet.ControlProtocolDialer,
 	derpForceWebSockets bool,
 	blockEndpoints bool,
@@ -62,7 +65,10 @@ func NewServerTailnet(
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+		Addresses: []netip.Prefix{
+			tailnet.TailscaleServicePrefix.PrefixFromUUID(clientID),
+			tailnet.CoderServicePrefix.PrefixFromUUID(clientID),
+		},
 		DERPForceWebSockets: derpForceWebSockets,
 		Logger:              logger,
 		BlockEndpoints:      blockEndpoints,

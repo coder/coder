@@ -67,6 +67,10 @@ message RefreshResumeTokenResponse {
 	string token = 1;
 	google.protobuf.Duration refresh_in = 2;
 	google.protobuf.Timestamp expires_at = 3;
+	// peer_id is the unique identifier for this peer, assigned by the server.
+	// Clients should use this to derive their tailnet IP addresses via
+	// ServicePrefix.PrefixFromUUID(peerID) before creating their tailnet.Conn.
+	bytes peer_id = 4; // UUID (16 bytes)
 }
 
 message CoordinateRequest {
