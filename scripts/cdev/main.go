@@ -386,6 +386,7 @@ func upCmd() *serpent.Command {
 	// Create provisioner to collect its options, but don't register
 	// it yet — we only register when count > 0 (after option parsing).
 	provisioner := catalog.NewProvisioner(services)
+	prometheus := catalog.NewPrometheus()
 
 	// Fail fast if HA is enabled without a license.
 	catalog.Configure[*catalog.Coderd](services, catalog.OnCoderd(), func(c *catalog.Coderd) {
@@ -404,6 +405,7 @@ func upCmd() *serpent.Command {
 	// Add provisioner options even though it's not registered yet,
 	// so --provisioner-count always appears in help text.
 	optionSet = append(optionSet, provisioner.Options()...)
+	optionSet = append(optionSet, prometheus.Options()...)
 
 	return &serpent.Command{
 		Use:     "up",
@@ -416,6 +418,13 @@ func upCmd() *serpent.Command {
 			if provisioner.Count() > 0 {
 				if err := services.Register(provisioner); err != nil {
 					return xerrors.Errorf("failed to register provisioner: %w", err)
+				}
+			}
+
+			// Register prometheus only if enabled.
+			if prometheus.Enabled() {
+				if err := services.Register(prometheus); err != nil {
+					return xerrors.Errorf("failed to register prometheus: %w", err)
 				}
 			}
 
@@ -437,6 +446,9 @@ func upCmd() *serpent.Command {
 				return xerrors.New("unexpected type for coderd service")
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "✅ Coder is ready at %s\n", coderd.Result().URL)
+			if prometheus.Enabled() {
+				_, _ = fmt.Fprintf(inv.Stdout, "📊 Prometheus is ready at http://localhost:9090\n")
+			}
 			return nil
 		},
 	}
