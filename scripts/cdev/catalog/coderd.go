@@ -142,6 +142,7 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 
 	// Kill any existing coderd containers
 	containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+		All:     true,
 		Filters: filter,
 	})
 	if err != nil {

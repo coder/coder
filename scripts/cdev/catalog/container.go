@@ -57,6 +57,7 @@ func RunContainer(ctx context.Context, pool *dockertest.Pool, service ServiceNam
 	existsFilter := labels.Filter()
 	existsFilter["name"] = []string{containerName}
 	cnts, err := pool.Client.ListContainers(docker.ListContainersOptions{
+		All:     true,
 		Filters: existsFilter,
 	})
 	if err != nil {

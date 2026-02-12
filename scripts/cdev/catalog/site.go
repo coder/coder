@@ -104,7 +104,6 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	}
 
 	portStr := fmt.Sprintf("%d", sitePort)
-	httpAddress := fmt.Sprintf("0.0.0.0:%d", sitePort)
 
 	s.setStep("Starting frontend dev server")
 	logger.Info(ctx, "starting site dev server container", slog.F("port", sitePort))
@@ -150,7 +149,7 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 				NetworkMode:   "host",
 				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
 				PortBindings: map[docker.Port][]docker.PortBinding{
-					docker.Port(portStr + "/tcp"): {{HostIP: httpAddress, HostPort: portStr}},
+					docker.Port(portStr + "/tcp"): {{HostIP: "0.0.0.0", HostPort: portStr}},
 				},
 			},
 		},
