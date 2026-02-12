@@ -1,4 +1,6 @@
 coder:
+  podAnnotations:
+    deploy-sha: "${GITHUB_SHA}"
   image:
     repo: "${REPO}"
     tag: "${DEPLOY_NAME}"
