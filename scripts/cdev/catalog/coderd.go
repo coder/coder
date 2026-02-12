@@ -16,7 +16,8 @@ import (
 
 const (
 	coderdBasePort = 3000
-	pprofBasePort  = 6060
+	pprofBasePort      = 6060
+	prometheusBasePort = 2112
 )
 
 // PprofPortNum returns the pprof port number for a given coderd
@@ -24,6 +25,13 @@ const (
 // etc.
 func PprofPortNum(index int) int {
 	return pprofBasePort + index
+}
+
+// PrometheusPortNum returns the Prometheus metrics port number for a
+// given coderd instance index. Instance 0 uses port 2112, instance 1
+// uses 2113, etc.
+func PrometheusPortNum(index int) int {
+	return prometheusBasePort + index
 }
 
 // coderdPortNum returns the port number for a given coderd instance index.
@@ -212,6 +220,8 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 	portStr := fmt.Sprintf("%d", port)
 	pprofPort := PprofPortNum(index)
 	pprofPortStr := fmt.Sprintf("%d", pprofPort)
+	prometheusPort := PrometheusPortNum(index)
+	prometheusPortStr := fmt.Sprintf("%d", prometheusPort)
 	httpAddress := fmt.Sprintf("0.0.0.0:%d", port)
 	accessURL := fmt.Sprintf("http://localhost:%d", port)
 
@@ -235,6 +245,8 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
 		"CODER_PPROF_ENABLE=true",
 		fmt.Sprintf("CODER_PPROF_ADDRESS=0.0.0.0:%d", PprofPortNum(index)),
+		"CODER_PROMETHEUS_ENABLE=true",
+		fmt.Sprintf("CODER_PROMETHEUS_ADDRESS=0.0.0.0:%d", PrometheusPortNum(index)),
 	}
 	env = append(env, c.ExtraEnv...)
 
@@ -247,6 +259,8 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		"--enable-terraform-debug-mode",
 		"--pprof-enable",
 		"--pprof-address", fmt.Sprintf("127.0.0.1:%d", PprofPortNum(index)),
+		"--prometheus-enable",
+		"--prometheus-address", fmt.Sprintf("0.0.0.0:%d", PrometheusPortNum(index)),
 		// OIDC configuration from the OIDC service.
 		"--oidc-issuer-url", oidc.Result().IssuerURL,
 		"--oidc-client-id", oidc.Result().ClientID,
@@ -266,7 +280,8 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 				Labels:     labels,
 				ExposedPorts: map[docker.Port]struct{}{
 					docker.Port(portStr + "/tcp"):      {},
-					docker.Port(pprofPortStr + "/tcp"): {},
+					docker.Port(pprofPortStr + "/tcp"):      {},
+					docker.Port(prometheusPortStr + "/tcp"): {},
 				},
 			},
 			HostConfig: &docker.HostConfig{
@@ -281,8 +296,9 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 				NetworkMode:   "host",
 				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
 				PortBindings: map[docker.Port][]docker.PortBinding{
-					docker.Port(portStr + "/tcp"):      {{HostIP: "127.0.0.1", HostPort: portStr}},
-					docker.Port(pprofPortStr + "/tcp"): {{HostIP: "127.0.0.1", HostPort: pprofPortStr}},
+					docker.Port(portStr + "/tcp"):           {{HostIP: "127.0.0.1", HostPort: portStr}},
+					docker.Port(pprofPortStr + "/tcp"):      {{HostIP: "127.0.0.1", HostPort: pprofPortStr}},
+					docker.Port(prometheusPortStr + "/tcp"): {{HostIP: "127.0.0.1", HostPort: prometheusPortStr}},
 				},
 			},
 		},
