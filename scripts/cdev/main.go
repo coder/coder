@@ -378,6 +378,7 @@ func upCmd() *serpent.Command {
 		catalog.NewPostgres(),
 		catalog.NewCoderd(),
 		catalog.NewOIDC(),
+		catalog.NewSetup(),
 		catalog.NewSite(),
 	)
 	if err != nil {

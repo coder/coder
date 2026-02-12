@@ -52,7 +52,7 @@ func (*Site) Emoji() string {
 func (*Site) DependsOn() []string {
 	return []string{
 		OnDocker(),
-		OnCoderd(),
+		OnSetup(),
 	}
 }
 

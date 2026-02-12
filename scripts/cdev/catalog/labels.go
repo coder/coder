@@ -16,6 +16,7 @@ const (
 	CDevOIDC        ServiceName = "oidc"
 	CDevProvisioner ServiceName = "provisioner"
 	CDevPrometheus  ServiceName = "prometheus"
+	CDevSetup       ServiceName = "setup"
 	CDevSite        ServiceName = "site"
 )
 
