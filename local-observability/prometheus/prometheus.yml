@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'local-observability'
+    environment: 'development'
+
+# Alertmanager configuration (optional, can be added later)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: []
+
+# Load rules once and periodically evaluate them (optional)
+# rule_files:
+#   - "alert_rules.yml"
+
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Coder server from develop.sh
+  # This scrapes metrics from a running ./scripts/develop.sh server
+  # Requires: Start develop.sh with --prometheus-enable flag or set CODER_PROMETHEUS_ENABLE=true
+  - job_name: 'coderd-develop'
+    static_configs:
+      - targets: ['host.docker.internal:2118']
+        labels:
+          service: 'coderd'
+          environment: 'development'
+          instance: 'develop-sh'
+    scrape_interval: 8s
+    scrape_timeout: 5s
+    metrics_path: '/api/v2/metrics'
+
+  - job_name: 'tempo-metrics-generator'
+    static_configs:
+      - targets: ['tempo:3200']
