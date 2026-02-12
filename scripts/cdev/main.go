@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/scripts/cdev/catalog"
@@ -35,7 +36,7 @@ func main() {
 
 	err := cmd.Invoke().WithOS().Run()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -47,7 +48,7 @@ func cleanCmd() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			pool, err := dockertest.NewPool("")
 			if err != nil {
-				return fmt.Errorf("failed to connect to docker: %w", err)
+				return xerrors.Errorf("failed to connect to docker: %w", err)
 			}
 
 			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
@@ -64,7 +65,7 @@ func downCmd() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			pool, err := dockertest.NewPool("")
 			if err != nil {
-				return fmt.Errorf("failed to connect to docker: %w", err)
+				return xerrors.Errorf("failed to connect to docker: %w", err)
 			}
 
 			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
@@ -91,7 +92,7 @@ func watchCmd() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			pool, err := dockertest.NewPool("")
 			if err != nil {
-				return fmt.Errorf("failed to connect to docker: %w", err)
+				return xerrors.Errorf("failed to connect to docker: %w", err)
 			}
 
 			m := &watchModel{
@@ -185,9 +186,9 @@ func (m *watchModel) View() string {
 	var s strings.Builder
 
 	// Containers table.
-	s.WriteString("CONTAINERS\n")
+	_, _ = s.WriteString("CONTAINERS\n")
 	tw := tabwriter.NewWriter(&s, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tIMAGE\tSTATUS\tPORTS")
+	_, _ = fmt.Fprintln(tw, "NAME\tIMAGE\tSTATUS\tPORTS")
 
 	// Sort containers by name.
 	containers := slices.Clone(m.containers)
@@ -197,17 +198,17 @@ func (m *watchModel) View() string {
 	for _, c := range containers {
 		name := strings.TrimPrefix(c.Names[0], "/")
 		ports := formatPorts(c.Ports)
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", name, c.Image, c.Status, ports)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", name, c.Image, c.Status, ports)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 	if len(containers) == 0 {
-		s.WriteString("  (none)\n")
+		_, _ = s.WriteString("  (none)\n")
 	}
 
 	// Volumes table.
-	s.WriteString("\nVOLUMES\n")
+	_, _ = s.WriteString("\nVOLUMES\n")
 	tw = tabwriter.NewWriter(&s, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tDRIVER\tLABELS")
+	_, _ = fmt.Fprintln(tw, "NAME\tDRIVER\tLABELS")
 
 	// Sort volumes by name.
 	volumes := slices.Clone(m.volumes)
@@ -216,14 +217,14 @@ func (m *watchModel) View() string {
 	})
 	for _, v := range volumes {
 		labels := formatLabels(v.Labels)
-		fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Name, v.Driver, labels)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Name, v.Driver, labels)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 	if len(volumes) == 0 {
-		s.WriteString("  (none)\n")
+		_, _ = s.WriteString("  (none)\n")
 	}
 
-	s.WriteString(fmt.Sprintf("\nRefreshing every %s. Press q to quit.\n", m.interval))
+	_, _ = s.WriteString(fmt.Sprintf("\nRefreshing every %s. Press q to quit.\n", m.interval))
 
 	return s.String()
 }
@@ -280,7 +281,7 @@ Examples:
 		Handler: func(inv *serpent.Invocation) error {
 			if len(inv.Args) != 1 {
 				_ = serpent.DefaultHelpFn()(inv)
-				return fmt.Errorf("expected exactly one argument: the profile name")
+				return xerrors.New("expected exactly one argument: the profile name")
 			}
 			profile := inv.Args[0]
 
@@ -289,7 +290,7 @@ Examples:
 				url += "?seconds=30"
 			}
 
-			fmt.Fprintf(inv.Stdout, "Opening pprof web UI for %q at %s\n", profile, url)
+			_, _ = fmt.Fprintf(inv.Stdout, "Opening pprof web UI for %q at %s\n", profile, url)
 
 			//nolint:gosec // User-provided profile name is passed as a URL path.
 			cmd := exec.CommandContext(inv.Context(), "go", "tool", "pprof", "-http=:", url)
@@ -345,25 +346,28 @@ func upCmd() *serpent.Command {
 			// Register provisioner only if count > 0.
 			if provisioner.Count() > 0 {
 				if err := services.Register(provisioner); err != nil {
-					return fmt.Errorf("failed to register provisioner: %w", err)
+					return xerrors.Errorf("failed to register provisioner: %w", err)
 				}
 			}
 
 			services.Init(inv.Stderr)
 
 			if err := services.ApplyConfigurations(); err != nil {
-				return fmt.Errorf("failed to apply configurations: %w", err)
+				return xerrors.Errorf("failed to apply configurations: %w", err)
 			}
 
-			fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
+			_, _ = fmt.Fprintln(inv.Stdout, "🚀 Starting cdev...")
 
 			err = services.Start(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to start services: %w", err)
+				return xerrors.Errorf("failed to start services: %w", err)
 			}
 
-			coderd := services.MustGet(catalog.OnCoderd()).(*catalog.Coderd)
-			fmt.Fprintf(inv.Stdout, "✅ Coder is ready at %s\n", coderd.Result().URL)
+			coderd, ok := services.MustGet(catalog.OnCoderd()).(*catalog.Coderd)
+			if !ok {
+				return xerrors.New("unexpected type for coderd service")
+			}
+			_, _ = fmt.Fprintf(inv.Stdout, "✅ Coder is ready at %s\n", coderd.Result().URL)
 			return nil
 		},
 	}
