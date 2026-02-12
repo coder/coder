@@ -2,9 +2,8 @@
 
 AI Bridge Proxy provides a way to route AI traffic through Bridge for tools that
 **do not support base URL overrides**. While most AI tools allow customizing the
-API base URL (the [recommended approach](./clients/index.md)), some tools
-hard-code their provider endpoints. AI Bridge Proxy intercepts this traffic
-transparently.
+API base URL, some tools
+hard-code their provider endpoints. AI Bridge Proxy extends [AI Bridge](../index.md) to intercept this traffic as well.
 
 ## When to use AI Bridge Proxy
 
@@ -15,7 +14,7 @@ Use AI Bridge Proxy when:
 - You need a transparent proxy layer that doesn't require client-side changes.
 
 For tools that support base URL overrides, use the standard
-[client configuration](./clients/index.md) instead — it's simpler and more
+[client configuration](../clients/index.md) instead — it's simpler and more
 reliable.
 
 ## How it works
@@ -60,7 +59,7 @@ CODER_AI_BRIDGE_PROXY_UPSTREAM_CA=/path/to/corporate-ca.pem
 
 ## Next steps
 
-- [Client Configuration](./clients/index.md) — Configure tools that support
+- [Client Configuration](../clients/index.md) — Configure tools that support
   base URL overrides.
 - [Setup](./setup.md) — Enable AI Bridge and configure providers.
 - [Monitoring](./monitoring.md) — Monitor proxied traffic.

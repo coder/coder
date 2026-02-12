@@ -110,6 +110,8 @@ of pointing directly at the provider. This lets Bridge handle authentication
 and audit logging while your existing gateway handles routing, load balancing,
 and failover.
 
+Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
+
 Set the base URL for the upstream provider:
 
 ```bash

@@ -63,8 +63,10 @@ plane). It does not require a separate deployment or infrastructure.
 
 ## When to use AI Bridge
 
-AI Bridge is designed for organizations that need centralized management and
-observability over AI tool usage. Common scenarios include:
+As LLM adoption grows, administrators need centralized auditing, monitoring, and token management. AI Bridge is designed for organizations that need centralized management and
+observability over AI tool usage. 
+
+Common scenarios include:
 
 - **Measuring AI adoption** across teams, projects, or the entire organization
 - **Establishing an audit trail** of prompts, tool invocations, and model usage
