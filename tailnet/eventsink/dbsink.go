@@ -144,30 +144,31 @@ func (s *Sink) logTunnelConnection(src, dst uuid.UUID, srcNode *proto.Node, stat
 	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
 	defer cancel()
 
-	// Use a context with connection_log permissions. The default
-	// eventSinkSubject only has tailnet_coordinator permissions.
-	connLogCtx := dbauthz.AsConnectionLogger(ctx)
+	// Use system-restricted context for read-only lookups.
+	// AsConnectionLogger only has connection_log permissions,
+	// not workspace/agent read permissions.
+	readCtx := dbauthz.AsSystemRestricted(ctx)
 
 	// dst is the workspace agent ID. Look up agent and workspace info.
-	agent, err := s.db.GetWorkspaceAgentByID(connLogCtx, dst)
+	agent, err := s.db.GetWorkspaceAgentByID(readCtx, dst)
 	if err != nil {
 		// Not all tunnel peers are workspace agents. Skip silently.
 		return
 	}
 
-	resource, err := s.db.GetWorkspaceResourceByID(connLogCtx, agent.ResourceID)
+	resource, err := s.db.GetWorkspaceResourceByID(readCtx, agent.ResourceID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get resource for tunnel connection log", slog.Error(err))
 		return
 	}
 
-	build, err := s.db.GetWorkspaceBuildByJobID(connLogCtx, resource.JobID)
+	build, err := s.db.GetWorkspaceBuildByJobID(readCtx, resource.JobID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get build for tunnel connection log", slog.Error(err))
 		return
 	}
 
-	workspace, err := s.db.GetWorkspaceByID(connLogCtx, build.WorkspaceID)
+	workspace, err := s.db.GetWorkspaceByID(readCtx, build.WorkspaceID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get workspace for tunnel connection log", slog.Error(err))
 		return
@@ -194,6 +195,9 @@ func (s *Sink) logTunnelConnection(src, dst uuid.UUID, srcNode *proto.Node, stat
 			shortDesc = sql.NullString{String: srcNode.ShortDescription, Valid: true}
 		}
 	}
+
+	// Use connection logger context for the actual write.
+	connLogCtx := dbauthz.AsConnectionLogger(ctx)
 
 	now := dbtime.Now()
 	_, err = s.db.UpsertConnectionLog(connLogCtx, database.UpsertConnectionLogParams{

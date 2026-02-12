@@ -539,6 +539,19 @@ func (c *core) removePeerLocked(id uuid.UUID, kind proto.CoordinateResponse_Peer
 		return
 	}
 	c.updateTunnelPeersLocked(id, nil, kind, reason)
+
+	// Fire RemovedTunnel events before clearing tunnels so the
+	// EventSink can log disconnect entries for session history.
+	// Tunnels are src=client, dst=agent. Check both directions:
+	// bySrc covers when a client disconnects, byDst covers when
+	// an agent disconnects.
+	for dst := range c.tunnels.bySrc[id] {
+		c.eventSink.RemovedTunnel(id, dst)
+	}
+	for src := range c.tunnels.byDst[id] {
+		c.eventSink.RemovedTunnel(src, id)
+	}
+
 	c.tunnels.removeAll(id)
 	if closeErr != "" {
 		select {
