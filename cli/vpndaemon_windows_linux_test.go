@@ -1,10 +1,11 @@
-//go:build linux
+//go:build windows || linux
 
 package cli_test
 
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,29 +26,29 @@ func TestVPNDaemonRun(t *testing.T) {
 			ErrorContains string
 		}{
 			{
-				Name:          "NoReadFD",
-				Args:          []string{"--rpc-write-fd", "10"},
-				ErrorContains: "rpc-read-fd",
+				Name:          "NoReadHandle",
+				Args:          []string{"--rpc-write-handle", "10"},
+				ErrorContains: "rpc-read-handle",
 			},
 			{
-				Name:          "NoWriteFD",
-				Args:          []string{"--rpc-read-fd", "10"},
-				ErrorContains: "rpc-write-fd",
+				Name:          "NoWriteHandle",
+				Args:          []string{"--rpc-read-handle", "10"},
+				ErrorContains: "rpc-write-handle",
 			},
 			{
-				Name:          "NegativeReadFD",
-				Args:          []string{"--rpc-read-fd", "-1", "--rpc-write-fd", "10"},
-				ErrorContains: "rpc-read-fd",
+				Name:          "NegativeReadHandle",
+				Args:          []string{"--rpc-read-handle", "-1", "--rpc-write-handle", "10"},
+				ErrorContains: "rpc-read-handle",
 			},
 			{
-				Name:          "NegativeWriteFD",
-				Args:          []string{"--rpc-read-fd", "10", "--rpc-write-fd", "-1"},
-				ErrorContains: "rpc-write-fd",
+				Name:          "NegativeWriteHandle",
+				Args:          []string{"--rpc-read-handle", "10", "--rpc-write-handle", "-1"},
+				ErrorContains: "rpc-write-handle",
 			},
 			{
-				Name:          "SameFDs",
-				Args:          []string{"--rpc-read-fd", "10", "--rpc-write-fd", "10"},
-				ErrorContains: "rpc-read-fd",
+				Name:          "SameHandles",
+				Args:          []string{"--rpc-read-handle", "10", "--rpc-write-handle", "10"},
+				ErrorContains: "rpc-read-handle",
 			},
 		}
 
@@ -67,15 +68,16 @@ func TestVPNDaemonRun(t *testing.T) {
 
 		r1, w1, err := os.Pipe()
 		require.NoError(t, err)
-		defer r1.Close()
 		defer w1.Close()
 		r2, w2, err := os.Pipe()
 		require.NoError(t, err)
 		defer r2.Close()
-		defer w2.Close()
+
+		// The daemon takes ownership of r1/w2 via NewBidirectionalPipe and closes
+		// them internally. Closing them again here can close reused FDs under race.
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, _ := clitest.New(t, "vpn-daemon", "run", "--rpc-read-fd", fmt.Sprint(r1.Fd()), "--rpc-write-fd", fmt.Sprint(w2.Fd()))
+		inv, _ := clitest.New(t, "vpn-daemon", "run", "--rpc-read-handle", fmt.Sprint(r1.Fd()), "--rpc-write-handle", fmt.Sprint(w2.Fd()))
 		waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
 		// Send an invalid header, including a newline delimiter, so the handshake
@@ -83,6 +85,8 @@ func TestVPNDaemonRun(t *testing.T) {
 		_, err = w1.Write([]byte("garbage\n"))
 		require.NoError(t, err)
 		err = waiter.Wait()
+		runtime.KeepAlive(r1)
+		runtime.KeepAlive(w2)
 		require.ErrorContains(t, err, "handshake failed")
 	})
 
