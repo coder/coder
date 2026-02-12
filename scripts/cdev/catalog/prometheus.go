@@ -133,7 +133,7 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 				Cmd: []string{
 					"sh", "-c",
 					fmt.Sprintf(
-						"mkdir -p /vol/config /vol/data && printf '%%s' '%s' > /vol/config/prometheus.yml",
+						"mkdir -p /vol/config /vol/data && chown 65534:65534 /vol/data && printf '%%s' '%s' > /vol/config/prometheus.yml",
 						strings.ReplaceAll(configYAML, "'", "'\"'\"'"),
 					),
 				},
