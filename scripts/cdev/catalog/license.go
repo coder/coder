@@ -2,9 +2,7 @@ package catalog
 
 import (
 	"context"
-	"database/sql"
 	"os"
-	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -26,61 +24,34 @@ func RequireLicense(feature string) {
 	}
 }
 
-// waitForMigrations polls the schema_migrations table until
-// migrations are complete (version != 0 and dirty = false).
-// This is necessary because EnsureLicense may run concurrently
-// with coderd's startup, which performs migrations.
-func waitForMigrations(ctx context.Context, logger slog.Logger, db *sql.DB) error {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-	timeout := time.After(5 * time.Minute)
-
-	for {
-		var version int64
-		var dirty bool
-		err := db.QueryRowContext(ctx,
-			"SELECT version, dirty FROM schema_migrations LIMIT 1",
-		).Scan(&version, &dirty)
-		if err == nil && version != 0 && !dirty {
-			logger.Info(ctx, "migrations complete",
-				slog.F("version", version),
-			)
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return xerrors.New("timed out waiting for migrations")
-		case <-ticker.C:
-		}
-	}
-}
-
 // EnsureLicense checks if the license JWT from CODER_LICENSE is
 // already in the database, and inserts it if not. The JWT is parsed
 // without verification to extract the exp and uuid claims — this is
 // acceptable since cdev is a development tool.
-func EnsureLicense(ctx context.Context, logger slog.Logger, pgURL string) error {
+func EnsureLicense(ctx context.Context, logger slog.Logger, cat *Catalog) error {
 	licenseJWT := os.Getenv("CODER_LICENSE")
 	if licenseJWT == "" {
 		return nil
 	}
 
-	sqlDB, err := sql.Open("postgres", pgURL)
-	if err != nil {
-		return xerrors.Errorf("open database: %w", err)
+	pg, ok := cat.MustGet(OnPostgres()).(*Postgres)
+	if !ok {
+		return xerrors.New("unexpected type for Postgres service")
 	}
-	defer sqlDB.Close()
 
 	// Wait for coderd to finish running migrations before
 	// attempting to read or write the licenses table.
-	if err := waitForMigrations(ctx, logger, sqlDB); err != nil {
-		return xerrors.Errorf("wait for migrations: %w", err)
+	err := pg.waitForMigrations(ctx, logger)
+	if err != nil {
+		return xerrors.Errorf("wait for postgres migrations: %w", err)
 	}
 
-	store := database.New(sqlDB)
+	db, err := pg.sqlDB()
+	if err != nil {
+		return xerrors.Errorf("connect to database: %w", err)
+	}
+	defer db.Close()
+	store := database.New(db)
 
 	// Check if this exact JWT is already in the database.
 	licenses, err := store.GetLicenses(ctx)

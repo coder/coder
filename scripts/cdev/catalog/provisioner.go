@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 
@@ -90,12 +89,12 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 	}
 
 	// Ensure license is in the database before provisioner setup.
-	if err := EnsureLicense(ctx, logger, pg.Result().URL); err != nil {
+	if err := EnsureLicense(ctx, logger, cat); err != nil {
 		return xerrors.Errorf("ensure license: %w", err)
 	}
 
 	// Open direct DB connection to create the provisioner key.
-	sqlDB, err := sql.Open("postgres", pg.Result().URL)
+	sqlDB, err := pg.sqlDB()
 	if err != nil {
 		return xerrors.Errorf("open database: %w", err)
 	}

@@ -296,6 +296,7 @@ func (c *Catalog) waitForReady(ctx context.Context, name string) error {
 					depNames = append(depNames, string(d.DependsOn))
 				}
 				c.loggers[name].Info(ctx, "waiting for dependencies",
+					slog.F("name", name),
 					slog.F("unmet", strings.Join(depNames, ", ")))
 			}
 		default:

@@ -173,6 +173,52 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 	return p.waitForReady(ctx, logger)
 }
 
+func (p *Postgres) sqlDB() (*sql.DB, error) {
+	db, err := sql.Open("postgres", p.result.URL)
+	if err != nil {
+		return nil, xerrors.Errorf("open database: %w", err)
+	}
+	return db, nil
+}
+
+// waitForMigrations polls the schema_migrations table until
+// migrations are complete (version != 0 and dirty = false).
+// This is necessary because EnsureLicense may run concurrently
+// with coderd's startup, which performs migrations.
+func (p *Postgres) waitForMigrations(ctx context.Context, logger slog.Logger) error {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	timeout := time.After(5 * time.Minute)
+
+	db, err := sql.Open("postgres", p.result.URL)
+	if err != nil {
+		return xerrors.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	for {
+		var version int64
+		var dirty bool
+		err := db.QueryRowContext(ctx,
+			"SELECT version, dirty FROM schema_migrations LIMIT 1",
+		).Scan(&version, &dirty)
+		if err == nil && version != 0 && !dirty {
+			logger.Info(ctx, "migrations complete",
+				slog.F("version", version),
+			)
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return xerrors.New("timed out waiting for migrations")
+		case <-ticker.C:
+		}
+	}
+}
+
 func (p *Postgres) waitForReady(ctx context.Context, logger slog.Logger) error {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()

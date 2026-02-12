@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	coderdBasePort = 3000
+	coderdBasePort     = 3000
 	pprofBasePort      = 6060
 	prometheusBasePort = 2112
 )
@@ -141,11 +141,7 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 
 	// Ensure license is present for HA deployments.
 	if c.haCount > 1 {
-		pg, ok := cat.MustGet(OnPostgres()).(*Postgres)
-		if !ok {
-			return xerrors.New("unexpected type for Postgres service")
-		}
-		if err := EnsureLicense(ctx, logger, pg.Result().URL); err != nil {
+		if err := EnsureLicense(ctx, logger, cat); err != nil {
 			return xerrors.Errorf("ensure license: %w", err)
 		}
 	}
@@ -279,7 +275,7 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 				Cmd:        cmd,
 				Labels:     labels,
 				ExposedPorts: map[docker.Port]struct{}{
-					docker.Port(portStr + "/tcp"):      {},
+					docker.Port(portStr + "/tcp"):           {},
 					docker.Port(pprofPortStr + "/tcp"):      {},
 					docker.Port(prometheusPortStr + "/tcp"): {},
 				},

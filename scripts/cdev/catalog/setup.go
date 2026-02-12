@@ -83,6 +83,16 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 	}
 	client := codersdk.New(coderdURL)
 
+	pg, ok := c.MustGet(OnPostgres()).(*Postgres)
+	if !ok {
+		return xerrors.New("unexpected type for Postgres service")
+	}
+
+	err = pg.waitForMigrations(ctx, logger)
+	if err != nil {
+		return xerrors.Errorf("wait for postgres migrations: %w", err)
+	}
+
 	// Check if first user already exists by trying to get build info.
 	// If users exist, we can still try to login.
 	hasFirstUser, err := client.HasFirstUser(ctx)
