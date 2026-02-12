@@ -2087,31 +2087,50 @@ WITH connections_to_close AS (
       AND connection_logs.workspace_id = $3
       AND type = ANY($4::connection_type[])
 ),
+ordered AS (
+    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description,
+        ROW_NUMBER() OVER (PARTITION BY ip ORDER BY connect_time) AS rn,
+        MAX(COALESCE(disconnect_time, $1::timestamptz))
+            OVER (PARTITION BY ip ORDER BY connect_time
+                  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS running_max_end
+    FROM connections_to_close
+),
+with_boundaries AS (
+    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description, rn, running_max_end,
+        SUM(CASE
+            WHEN rn = 1 THEN 1
+            WHEN connect_time > running_max_end + INTERVAL '30 minutes' THEN 1
+            ELSE 0
+        END) OVER (PARTITION BY ip ORDER BY connect_time) AS group_id
+    FROM ordered
+),
 session_groups AS (
-    SELECT 
+    SELECT
         ip,
+        group_id,
         MIN(connect_time) AS started_at,
         MAX(COALESCE(disconnect_time, $1::timestamptz)) AS ended_at,
         (array_agg(agent_id ORDER BY connect_time))[1] AS agent_id,
         (array_agg(client_hostname ORDER BY connect_time) FILTER (WHERE client_hostname IS NOT NULL))[1] AS client_hostname,
         (array_agg(short_description ORDER BY connect_time) FILTER (WHERE short_description IS NOT NULL))[1] AS short_description
-    FROM connections_to_close
-    GROUP BY ip
+    FROM with_boundaries
+    GROUP BY ip, group_id
 ),
 new_sessions AS (
     INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
     SELECT $3, agent_id, ip, client_hostname, short_description, started_at, ended_at
     FROM session_groups
-    RETURNING id, ip
+    RETURNING id, ip, started_at
 )
 UPDATE connection_logs cl
-SET 
+SET
     disconnect_time = COALESCE(cl.disconnect_time, $1),
     disconnect_reason = COALESCE(cl.disconnect_reason, $2),
     session_id = ns.id
-FROM connections_to_close ctc
-JOIN new_sessions ns ON ctc.ip IS NOT DISTINCT FROM ns.ip
-WHERE cl.id = ctc.id
+FROM with_boundaries wb
+JOIN session_groups sg ON wb.ip IS NOT DISTINCT FROM sg.ip AND wb.group_id = sg.group_id
+JOIN new_sessions ns ON sg.ip IS NOT DISTINCT FROM ns.ip AND sg.started_at = ns.started_at
+WHERE cl.id = wb.id
 `
 
 type CloseConnectionLogsAndCreateSessionsParams struct {
@@ -2121,12 +2140,17 @@ type CloseConnectionLogsAndCreateSessionsParams struct {
 	Types       []ConnectionType `db:"types" json:"types"`
 }
 
-// Atomically closes open connections and creates sessions grouping by IP.
-// TODO: Update grouping to use COALESCE(client_hostname, ip::text) to match
-// the Go-side grouping in mergeWorkspaceConnectionsIntoSessions, which groups
-// by ClientHostname (with IP fallback) so connections from the same machine
-// collapse into one session.
-// Used when a workspace is stopped/deleted.
+// Atomically closes open connections and creates sessions grouped by IP
+// and time overlap. Connections from the same IP are grouped into the
+// same session if their time ranges overlap within a 30-minute tolerance
+// (matching FindOrCreateSessionForDisconnect). Used when a workspace is
+// stopped/deleted.
+// Step 1: Order by IP then time, compute running max of end times
+// to detect gaps between connection groups.
+// Step 2: Mark group boundaries. A new group starts when the gap
+// between this connection's start and the running max end exceeds
+// 30 minutes (matching FindOrCreateSessionForDisconnect's window).
+// Step 3: Aggregate per (ip, group_id) into session-level rows.
 func (q *sqlQuerier) CloseConnectionLogsAndCreateSessions(ctx context.Context, arg CloseConnectionLogsAndCreateSessionsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, closeConnectionLogsAndCreateSessions,
 		arg.ClosedAt,
@@ -2746,6 +2770,21 @@ func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg 
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateConnectionLogSessionID = `-- name: UpdateConnectionLogSessionID :exec
+UPDATE connection_logs SET session_id = $1 WHERE id = $2
+`
+
+type UpdateConnectionLogSessionIDParams struct {
+	SessionID uuid.NullUUID `db:"session_id" json:"session_id"`
+	ID        uuid.UUID     `db:"id" json:"id"`
+}
+
+// Links a connection log row to its workspace session.
+func (q *sqlQuerier) UpdateConnectionLogSessionID(ctx context.Context, arg UpdateConnectionLogSessionIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateConnectionLogSessionID, arg.SessionID, arg.ID)
+	return err
 }
 
 const upsertConnectionLog = `-- name: UpsertConnectionLog :one

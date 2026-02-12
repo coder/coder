@@ -212,7 +212,7 @@ func (a *ConnLogAPI) assignSessionForDisconnect(
 		return
 	}
 
-	_, err = a.Database.FindOrCreateSessionForDisconnect(ctx, database.FindOrCreateSessionForDisconnectParams{
+	sessionIDRaw, err := a.Database.FindOrCreateSessionForDisconnect(ctx, database.FindOrCreateSessionForDisconnectParams{
 		WorkspaceID:      ws.ID.String(),
 		Ip:               logIPRaw,
 		ClientHostname:   existingLog.ClientHostname,
@@ -223,6 +223,28 @@ func (a *ConnLogAPI) assignSessionForDisconnect(
 	})
 	if err != nil {
 		a.Log.Warn(ctx, "failed to find or create session for disconnect",
+			slog.Error(err),
+			slog.F("connection_id", connectionID),
+		)
+		return
+	}
+
+	sessionID, ok := sessionIDRaw.(uuid.UUID)
+	if !ok {
+		a.Log.Warn(ctx, "unexpected session ID type from FindOrCreateSessionForDisconnect",
+			slog.F("connection_id", connectionID),
+			slog.F("session_id_raw", sessionIDRaw),
+		)
+		return
+	}
+
+	// Link the connection log to its session so that
+	// CloseConnectionLogsAndCreateSessions skips it.
+	if err := a.Database.UpdateConnectionLogSessionID(ctx, database.UpdateConnectionLogSessionIDParams{
+		ID:        existingLog.ID,
+		SessionID: uuid.NullUUID{UUID: sessionID, Valid: true},
+	}); err != nil {
+		a.Log.Warn(ctx, "failed to update connection log session ID",
 			slog.Error(err),
 			slog.F("connection_id", connectionID),
 		)

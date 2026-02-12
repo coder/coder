@@ -3486,6 +3486,14 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	return r0
 }
 
+func (m queryMetricsStore) UpdateConnectionLogSessionID(ctx context.Context, arg database.UpdateConnectionLogSessionIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateConnectionLogSessionID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateConnectionLogSessionID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateConnectionLogSessionID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateCryptoKeyDeletesAt(ctx, arg)

@@ -5034,6 +5034,10 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
 }
 
+func (q *querier) UpdateConnectionLogSessionID(ctx context.Context, arg database.UpdateConnectionLogSessionIDParams) error {
+	panic("not implemented")
+}
+
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err

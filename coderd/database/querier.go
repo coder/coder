@@ -68,12 +68,17 @@ type sqlcQuerier interface {
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
-	// Atomically closes open connections and creates sessions grouping by IP.
-	// TODO: Update grouping to use COALESCE(client_hostname, ip::text) to match
-	// the Go-side grouping in mergeWorkspaceConnectionsIntoSessions, which groups
-	// by ClientHostname (with IP fallback) so connections from the same machine
-	// collapse into one session.
-	// Used when a workspace is stopped/deleted.
+	// Atomically closes open connections and creates sessions grouped by IP
+	// and time overlap. Connections from the same IP are grouped into the
+	// same session if their time ranges overlap within a 30-minute tolerance
+	// (matching FindOrCreateSessionForDisconnect). Used when a workspace is
+	// stopped/deleted.
+	// Step 1: Order by IP then time, compute running max of end times
+	// to detect gaps between connection groups.
+	// Step 2: Mark group boundaries. A new group starts when the gap
+	// between this connection's start and the running max end exceeds
+	// 30 minutes (matching FindOrCreateSessionForDisconnect's window).
+	// Step 3: Aggregate per (ip, group_id) into session-level rows.
 	CloseConnectionLogsAndCreateSessions(ctx context.Context, arg CloseConnectionLogsAndCreateSessionsParams) (int64, error)
 	CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error)
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
@@ -697,6 +702,8 @@ type sqlcQuerier interface {
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	// Links a connection log row to its workspace session.
+	UpdateConnectionLogSessionID(ctx context.Context, arg UpdateConnectionLogSessionIDParams) error
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
