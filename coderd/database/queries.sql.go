@@ -2083,7 +2083,7 @@ const closeConnectionLogsAndCreateSessions = `-- name: CloseConnectionLogsAndCre
 WITH connections_to_close AS (
     SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description
     FROM connection_logs
-    WHERE (disconnect_time IS NULL OR session_id IS NULL)
+    WHERE disconnect_time IS NULL
       AND connection_logs.workspace_id = $3
       AND type = ANY($4::connection_type[])
 ),
@@ -2147,6 +2147,12 @@ type CloseConnectionLogsAndCreateSessionsParams struct {
 // same session if their time ranges overlap within a 30-minute tolerance
 // (matching FindOrCreateSessionForDisconnect). Used when a workspace is
 // stopped/deleted.
+// Only processes connections that are still open (disconnect_time IS
+// NULL). Connections already disconnected by the agent are handled by
+// FindOrCreateSessionForDisconnect in the normal disconnect flow.
+// Including "session_id IS NULL" here would race with
+// assignSessionForDisconnect (which sets disconnect_time and
+// session_id in separate transactions) and create duplicate sessions.
 // Step 1: Order by IP then time, compute running max of end times
 // to detect gaps between connection groups.
 // Step 2: Mark group boundaries. A new group starts when the gap

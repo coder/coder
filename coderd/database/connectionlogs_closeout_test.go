@@ -251,3 +251,112 @@ func TestCloseConnectionLogsAndCreateSessions_NullIP(t *testing.T) {
 		}
 	}
 }
+
+// Regression test: CloseConnectionLogsAndCreateSessions must not
+// create sessions for connections that already have disconnect_time
+// set (i.e., already disconnected by the agent). Those connections
+// are handled by FindOrCreateSessionForDisconnect in the normal
+// disconnect flow. Processing them here would create duplicate
+// sessions due to a race between the two code paths.
+func TestCloseConnectionLogsAndCreateSessions_SkipsAlreadyDisconnected(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	ip := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   net.IPv4(127, 0, 0, 1),
+			Mask: net.IPv4Mask(255, 255, 255, 255),
+		},
+		Valid: true,
+	}
+	now := dbtime.Now()
+
+	// Simulate an SSH connection that was already disconnected by the
+	// agent (disconnect_time is set) but session_id is still NULL
+	// because assignSessionForDisconnect hasn't finished yet.
+	connID := uuid.New()
+
+	// First, create the connect event.
+	_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-10 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	// Then upsert the disconnect (sets disconnect_time but NOT
+	// session_id — simulating the gap before
+	// assignSessionForDisconnect runs).
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-5 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+	})
+	require.NoError(t, err)
+
+	// Also create a still-open system connection (no disconnect_time).
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-10 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	// Run CloseConnectionLogsAndCreateSessions (workspace stop).
+	closedAt := now
+	rowsClosed, err := db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSsh,
+			database.ConnectionTypeSystem,
+		},
+	})
+	require.NoError(t, err)
+
+	// Only the system connection (still open) should have been
+	// processed. The already-disconnected SSH connection should be
+	// skipped to avoid creating a duplicate session.
+	require.EqualValues(t, 1, rowsClosed,
+		"only the still-open system connection should be closed")
+}
