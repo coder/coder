@@ -453,6 +453,7 @@ var (
 					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceWebauthnCredential.Type:     {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -1949,6 +1950,17 @@ func (q *querier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return q.db.DeleteUserSecret(ctx, id)
+}
+
+func (q *querier) DeleteWebAuthnCredential(ctx context.Context, id uuid.UUID) error {
+	cred, err := q.db.GetWebAuthnCredentialByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, cred); err != nil {
+		return err
+	}
+	return q.db.DeleteWebAuthnCredential(ctx, id)
 }
 
 func (q *querier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
@@ -3606,6 +3618,24 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
+func (q *querier) GetWebAuthnCredentialByID(ctx context.Context, id uuid.UUID) (database.WebauthnCredential, error) {
+	cred, err := q.db.GetWebAuthnCredentialByID(ctx, id)
+	if err != nil {
+		return database.WebauthnCredential{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, cred); err != nil {
+		return database.WebauthnCredential{}, err
+	}
+	return cred, nil
+}
+
+func (q *querier) GetWebAuthnCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebauthnCredential, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWebauthnCredential.WithOwner(userID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetWebAuthnCredentialsByUserID(ctx, userID)
+}
+
 func (q *querier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWebpushSubscription.WithOwner(userID.String())); err != nil {
 		return nil, err
@@ -4534,6 +4564,13 @@ func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.
 	}
 
 	return q.db.InsertVolumeResourceMonitor(ctx, arg)
+}
+
+func (q *querier) InsertWebAuthnCredential(ctx context.Context, arg database.InsertWebAuthnCredentialParams) (database.WebauthnCredential, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWebauthnCredential.WithOwner(arg.UserID.String())); err != nil {
+		return database.WebauthnCredential{}, err
+	}
+	return q.db.InsertWebAuthnCredential(ctx, arg)
 }
 
 func (q *querier) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
@@ -5688,6 +5725,20 @@ func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.
 	}
 
 	return q.db.UpdateVolumeResourceMonitor(ctx, arg)
+}
+
+func (q *querier) UpdateWebAuthnCredentialSignCount(ctx context.Context, arg database.UpdateWebAuthnCredentialSignCountParams) error {
+	// Sign count updates are performed by the server after verifying
+	// a WebAuthn assertion. The caller must have read access to the
+	// credential (which proves ownership).
+	cred, err := q.db.GetWebAuthnCredentialByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, cred); err != nil {
+		return err
+	}
+	return q.db.UpdateWebAuthnCredentialSignCount(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

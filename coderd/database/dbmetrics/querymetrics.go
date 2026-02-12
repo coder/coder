@@ -583,6 +583,14 @@ func (m queryMetricsStore) DeleteUserSecret(ctx context.Context, id uuid.UUID) e
 	return r0
 }
 
+func (m queryMetricsStore) DeleteWebAuthnCredential(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWebAuthnCredential(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteWebAuthnCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWebAuthnCredential").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, arg)
@@ -2150,6 +2158,22 @@ func (m queryMetricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWebAuthnCredentialByID(ctx context.Context, id uuid.UUID) (database.WebauthnCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWebAuthnCredentialByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWebAuthnCredentialByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWebAuthnCredentialByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWebAuthnCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebauthnCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWebAuthnCredentialsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetWebAuthnCredentialsByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWebAuthnCredentialsByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWebpushSubscriptionsByUserID(ctx, userID)
@@ -3038,6 +3062,14 @@ func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg 
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertWebAuthnCredential(ctx context.Context, arg database.InsertWebAuthnCredentialParams) (database.WebauthnCredential, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWebAuthnCredential(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWebAuthnCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWebAuthnCredential").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertWebpushSubscription(ctx, arg)
@@ -3874,6 +3906,14 @@ func (m queryMetricsStore) UpdateVolumeResourceMonitor(ctx context.Context, arg 
 	r0 := m.s.UpdateVolumeResourceMonitor(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateVolumeResourceMonitor").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateVolumeResourceMonitor").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWebAuthnCredentialSignCount(ctx context.Context, arg database.UpdateWebAuthnCredentialSignCountParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWebAuthnCredentialSignCount(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWebAuthnCredentialSignCount").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWebAuthnCredentialSignCount").Inc()
 	return r0
 }
 

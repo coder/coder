@@ -121,6 +121,9 @@ const (
 	ScopeUserSecretDelete                    ScopeName = "user_secret:delete"
 	ScopeUserSecretRead                      ScopeName = "user_secret:read"
 	ScopeUserSecretUpdate                    ScopeName = "user_secret:update"
+	ScopeWebauthnCredentialCreate            ScopeName = "webauthn_credential:create"
+	ScopeWebauthnCredentialDelete            ScopeName = "webauthn_credential:delete"
+	ScopeWebauthnCredentialRead              ScopeName = "webauthn_credential:read"
 	ScopeWebpushSubscriptionCreate           ScopeName = "webpush_subscription:create"
 	ScopeWebpushSubscriptionDelete           ScopeName = "webpush_subscription:delete"
 	ScopeWebpushSubscriptionRead             ScopeName = "webpush_subscription:read"
@@ -281,6 +284,9 @@ func (e ScopeName) Valid() bool {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeWebauthnCredentialCreate,
+		ScopeWebauthnCredentialDelete,
+		ScopeWebauthnCredentialRead,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,
@@ -442,6 +448,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeWebauthnCredentialCreate,
+		ScopeWebauthnCredentialDelete,
+		ScopeWebauthnCredentialRead,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,

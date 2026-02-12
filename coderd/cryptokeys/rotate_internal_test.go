@@ -407,7 +407,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 5)
+		require.Len(t, keys, 6)
 
 		kbf, err := keysByFeature(keys, database.AllCryptoKeyFeatureValues())
 		require.NoError(t, err)
@@ -420,6 +420,9 @@ func Test_rotateKeys(t *testing.T) {
 		// caused a key to be inserted.
 		require.Len(t, kbf[database.CryptoKeyFeatureTailnetResume], 1)
 		require.Len(t, kbf[database.CryptoKeyFeatureWorkspaceAppsToken], 1)
+		// No existing key for webauthn connect should've
+		// caused a key to be inserted.
+		require.Len(t, kbf[database.CryptoKeyFeatureWebauthnConnect], 1)
 
 		oidcKey := kbf[database.CryptoKeyFeatureOIDCConvert][0]
 		tailnetKey := kbf[database.CryptoKeyFeatureTailnetResume][0]
