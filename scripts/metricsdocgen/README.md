@@ -1,6 +1,6 @@
 # Metrics Documentation Generator
 
-This tool generates the Prometheus metrics documentation at `docs/admin/integrations/prometheus.md`.
+This tool generates the Prometheus metrics documentation at [`docs/admin/integrations/prometheus.md`](https://coder.com/docs/admin/integrations/prometheus#available-metrics).
 
 ## How It Works
 
@@ -25,7 +25,7 @@ Contains metrics that are **not** directly defined in the coder source code:
 > Static metrics take priority over generated metrics when both files contain the same metric name.
 
 **Edit this file** to add metrics that should appear in the documentation but are not scanned from the coder codebase,
-or to manually define edge cases that the scanner cannot handle.
+or to manually override metrics where the scanner generates incorrect metadata (e.g., missing runtime-determined labels like in `agent_scripts_executed_total`).
 
 ### `generated_metrics` (auto-generated)
 
