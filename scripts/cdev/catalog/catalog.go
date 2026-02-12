@@ -414,9 +414,6 @@ func (c *Catalog) unitsWaiting(ctx context.Context, startTime time.Time) {
 
 // waitForReady polls until the service's dependencies are satisfied.
 func (c *Catalog) waitForReady(ctx context.Context, name ServiceName) error {
-	logTicker := time.NewTicker(5 * time.Second)
-	defer logTicker.Stop()
-
 	for {
 		ready, err := c.manager.IsReady(unit.ID(name))
 		if err != nil {
@@ -428,18 +425,7 @@ func (c *Catalog) waitForReady(ctx context.Context, name ServiceName) error {
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case <-logTicker.C:
-			//unmet, _ := c.manager.GetUnmetDependencies(unit.ID(name))
-			//if len(unmet) > 0 {
-			//	depNames := make([]string, 0, len(unmet))
-			//	for _, d := range unmet {
-			//		depNames = append(depNames, string(d.DependsOn))
-			//	}
-			//	c.loggers[name].Info(ctx, "waiting for dependencies",
-			//		slog.F("name", name),
-			//		slog.F("unmet", strings.Join(depNames, ", ")))
-			//}
+			return xerrors.Errorf("wait for service %s: %w", name, ctx.Err())
 		default:
 			time.Sleep(time.Millisecond * 15)
 			continue
