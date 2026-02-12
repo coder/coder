@@ -295,7 +295,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							}}
 						>
 							<Spinner loading={form.isSubmitting}>
-								<Plus size={14} />
+								<Plus />
 							</Spinner>
 							Add IdP group
 						</Button>

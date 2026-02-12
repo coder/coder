@@ -116,7 +116,7 @@ export const Alert: FC<AlertProps> = ({
 							data-testid="dismiss-banner-btn"
 							aria-label="Dismiss"
 						>
-							<XIcon className="!size-icon-sm !p-0" />
+							<XIcon className="!p-0" />
 						</Button>
 					)}
 				</div>

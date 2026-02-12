@@ -1079,6 +1079,7 @@ func New(options *Options) *API {
 					r.Post("/send", api.taskSend)
 					r.Get("/logs", api.taskLogs)
 					r.Post("/pause", api.pauseTask)
+					r.Post("/resume", api.resumeTask)
 				})
 			})
 		})

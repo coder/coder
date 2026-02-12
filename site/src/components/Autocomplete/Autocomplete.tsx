@@ -189,7 +189,7 @@ export function Autocomplete<TOption>({
 						<span className="flex items-center justify-center size-5">
 							<ChevronDown
 								className={cn(
-									"size-4 text-content-secondary transition-transform",
+									"size-icon-lg text-content-secondary transition-transform p-0.5",
 									isOpen && "rotate-180",
 								)}
 							/>

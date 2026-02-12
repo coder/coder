@@ -24,7 +24,8 @@ Before enabling AI Bridge:
 Enable AI Bridge explicitly:
 
 ```sh
-CODER_AIBRIDGE_ENABLED=true coder server
+export CODER_AIBRIDGE_ENABLED=true
+coder server
 # or
 coder server --aibridge-enabled=true
 ```

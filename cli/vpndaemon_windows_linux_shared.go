@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || linux
 
 package cli
 
@@ -11,7 +11,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) vpnDaemonRun() *serpent.Command {
+func (*RootCmd) vpnDaemonRun() *serpent.Command {
 	var (
 		rpcReadHandleInt  int64
 		rpcWriteHandleInt int64
@@ -19,7 +19,7 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "run",
-		Short: "Run the VPN daemon on Windows.",
+		Short: "Run the VPN daemon on Windows and Linux.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 		),
@@ -53,8 +53,8 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 				return xerrors.Errorf("rpc-read-handle (%v) and rpc-write-handle (%v) must be different", rpcReadHandleInt, rpcWriteHandleInt)
 			}
 
-			// We don't need to worry about duplicating the handles on Windows,
-			// which is different from Unix.
+			// The manager passes the read and write descriptors directly to the
+			// daemon, so we can open the RPC pipe from the raw values.
 			logger.Info(ctx, "opening bidirectional RPC pipe", slog.F("rpc_read_handle", rpcReadHandleInt), slog.F("rpc_write_handle", rpcWriteHandleInt))
 			pipe, err := vpn.NewBidirectionalPipe(uintptr(rpcReadHandleInt), uintptr(rpcWriteHandleInt))
 			if err != nil {
@@ -62,7 +62,7 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 			}
 			defer pipe.Close()
 
-			logger.Info(ctx, "starting tunnel")
+			logger.Info(ctx, "starting VPN tunnel")
 			tunnel, err := vpn.NewTunnel(ctx, logger, pipe, vpn.NewClient(), vpn.UseOSNetworkingStack())
 			if err != nil {
 				return xerrors.Errorf("create new tunnel for client: %w", err)

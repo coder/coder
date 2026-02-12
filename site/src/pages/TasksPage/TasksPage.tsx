@@ -239,7 +239,7 @@ const TasksPage: FC = () => {
 														>
 															Bulk actions
 															<Spinner loading={batchActions.isProcessing}>
-																<ChevronDownIcon className="size-4" />
+																<ChevronDownIcon />
 															</Spinner>
 														</Button>
 													</DropdownMenuTrigger>
