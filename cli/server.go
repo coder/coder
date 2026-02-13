@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/changelog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -957,6 +958,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
 			}
 			options.NotificationsEnqueuer = enqueuer
+
+			// Broadcast changelog notifications to all users for new versions.
+			changelogStore := changelog.NewStore()
+			go func() {
+				if err := changelog.BroadcastChangelog(ctx, logger.Named("changelog.broadcast"), sqlDB, options.Database, enqueuer, changelogStore); err != nil {
+					logger.Error(ctx, "failed to broadcast changelog", slog.Error(err))
+				}
+			}()
 
 			// The notification manager is responsible for:
 			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
