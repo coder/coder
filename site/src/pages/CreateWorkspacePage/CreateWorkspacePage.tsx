@@ -3,6 +3,7 @@ import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
+	templateVersion,
 	templateVersionExternalAuth,
 	templateVersionPresets,
 } from "api/queries/templates";
@@ -30,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
+import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
 	type CreateWorkspacePermissions,
@@ -58,6 +60,7 @@ const CreateWorkspacePage: FC = () => {
 	const defaultName = searchParams.get("name");
 	const disabledParams = searchParams.get("disable_params")?.split(",");
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
+	const [autoCreateConsented, setAutoCreateConsented] = useState(false);
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
 	const defaultOwner = me;
@@ -87,6 +90,11 @@ const CreateWorkspacePage: FC = () => {
 	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
+
+	const templateVersionQuery = useQuery({
+		...templateVersion(realizedVersionId ?? ""),
+		enabled: realizedVersionId !== undefined,
+	});
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
@@ -234,7 +242,11 @@ const CreateWorkspacePage: FC = () => {
 			externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
-	let autoCreateReady = mode === "auto" && hasAllRequiredExternalAuth;
+	let autoCreateReady =
+		mode === "auto" && hasAllRequiredExternalAuth && autoCreateConsented;
+
+	const showAutoCreateConsent =
+		mode === "auto" && !autoCreateConsented && !autoCreateError;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
@@ -285,6 +297,13 @@ const CreateWorkspacePage: FC = () => {
 		<>
 			<title>{pageTitle(title)}</title>
 
+			<AutoCreateConsentDialog
+				open={showAutoCreateConsent}
+				autofillParameters={autofillParameters}
+				onConfirm={() => setAutoCreateConsented(true)}
+				onDeny={() => setMode("form")}
+			/>
+
 			{shouldShowLoader ? (
 				<Loader />
 			) : (
@@ -308,6 +327,7 @@ const CreateWorkspacePage: FC = () => {
 					resetMutation={createWorkspaceMutation.reset}
 					template={templateQuery.data}
 					versionId={realizedVersionId}
+					versionName={templateVersionQuery.data?.name}
 					externalAuth={externalAuth ?? []}
 					externalAuthPollingState={externalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}

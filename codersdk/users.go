@@ -26,6 +26,7 @@ const (
 
 type UsersRequest struct {
 	Search string `json:"search,omitempty" typescript:"-"`
+	Name   string `json:"name,omitempty" typescript:"-"`
 	// Filter users by status.
 	Status UserStatus `json:"status,omitempty" typescript:"-"`
 	// Filter users that have the given role.
@@ -643,6 +644,19 @@ func OrganizationMembersQueryOptionGithubUserID(githubUserID int64) Organization
 	}
 }
 
+func (c *Client) OrganizationMember(ctx context.Context, organizationIdent, userIdent string) (OrganizationMemberWithUserData, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationIdent, userIdent), nil)
+	if err != nil {
+		return OrganizationMemberWithUserData{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMemberWithUserData{}, ReadBodyAsError(res)
+	}
+	var member OrganizationMemberWithUserData
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
 // OrganizationMembers lists all members in an organization
 func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID, opts ...OrganizationMembersQueryOption) ([]OrganizationMemberWithUserData, error) {
 	var query OrganizationMembersQuery
@@ -846,6 +860,9 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 			var params []string
 			if req.Search != "" {
 				params = append(params, req.Search)
+			}
+			if req.Name != "" {
+				params = append(params, "name:"+req.Name)
 			}
 			if req.Status != "" {
 				params = append(params, "status:"+string(req.Status))

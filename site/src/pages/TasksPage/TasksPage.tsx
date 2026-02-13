@@ -30,7 +30,6 @@ import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ChevronDownIcon, TrashIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	isTaskNotification,
 	notificationIsDisabled,
@@ -101,9 +100,6 @@ const TasksPage: FC = () => {
 	const handleConfirmDelete = async () => {
 		await batchActions.delete(checkedTasks);
 	};
-
-	const { entitlements } = useDashboard();
-	const canCheckTasks = entitlements.features.task_batch_actions.enabled;
 
 	// Count workspaces that will be deleted with the selected tasks.
 	const workspaceCount = checkedTasks.filter(
@@ -180,7 +176,7 @@ const TasksPage: FC = () => {
 										className="mt-6 flex justify-between"
 										aria-label="Controls"
 									>
-										<div className="flex items-center bg-surface-secondary rounded p-1">
+										<div className="flex items-center bg-surface-secondary rounded-lg p-1">
 											<PillButton
 												active={tab.value === "all"}
 												onClick={() => {
@@ -239,7 +235,7 @@ const TasksPage: FC = () => {
 														>
 															Bulk actions
 															<Spinner loading={batchActions.isProcessing}>
-																<ChevronDownIcon className="size-4" />
+																<ChevronDownIcon />
 															</Spinner>
 														</Button>
 													</DropdownMenuTrigger>
@@ -277,7 +273,6 @@ const TasksPage: FC = () => {
 									onRetry={tasksQuery.refetch}
 									checkedTaskIds={checkedTaskIds}
 									onCheckChange={handleCheckChange}
-									canCheckTasks={canCheckTasks}
 								/>
 							</section>
 						)}

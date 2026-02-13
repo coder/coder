@@ -168,7 +168,6 @@ const meta: Meta<typeof WorkspacesPageView> = {
 		limit: DEFAULT_RECORDS_PER_PAGE,
 		filterState: defaultFilterProps,
 		checkedWorkspaces: [],
-		canCheckWorkspaces: true,
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
 		count: 13,
@@ -395,5 +394,13 @@ export const ShowWorkspaceTasks: Story = {
 				name: "task-workspace",
 			},
 		],
+	},
+};
+
+export const WithCheckedWorkspaces: Story = {
+	args: {
+		workspaces: allWorkspaces.slice(0, 5),
+		checkedWorkspaces: allWorkspaces.slice(0, 2),
+		count: 5,
 	},
 };

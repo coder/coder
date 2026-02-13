@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -12,10 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	aiagentapi "github.com/coder/agentapi-sdk-go"
+	"cdr.dev/slog/v3"
+	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -740,7 +743,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
+		agentAPIClient, err := agentapisdk.NewClient(appURL.String(), agentapisdk.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Failed to create agentapi client.",
@@ -756,16 +759,16 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		if statusResp.Status != aiagentapi.StatusStable {
+		if statusResp.Status != agentapisdk.StatusStable {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
 				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
 		}
 
-		_, err = agentAPIClient.PostMessage(ctx, aiagentapi.PostMessageParams{
+		_, err = agentAPIClient.PostMessage(ctx, agentapisdk.PostMessageParams{
 			Content: req.Input,
-			Type:    aiagentapi.MessageTypeUser,
+			Type:    agentapisdk.MessageTypeUser,
 		})
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -783,6 +786,30 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// convertAgentAPIMessagesToLogEntries converts AgentAPI messages to
+// TaskLogEntry format.
+func convertAgentAPIMessagesToLogEntries(messages []agentapisdk.Message) ([]codersdk.TaskLogEntry, error) {
+	logs := make([]codersdk.TaskLogEntry, 0, len(messages))
+	for _, m := range messages {
+		var typ codersdk.TaskLogType
+		switch m.Role {
+		case agentapisdk.RoleUser:
+			typ = codersdk.TaskLogTypeInput
+		case agentapisdk.RoleAgent:
+			typ = codersdk.TaskLogTypeOutput
+		default:
+			return nil, xerrors.Errorf("invalid agentapi message role %q", m.Role)
+		}
+		logs = append(logs, codersdk.TaskLogEntry{
+			ID:      int(m.Id),
+			Content: m.Content,
+			Type:    typ,
+			Time:    m.Time,
+		})
+	}
+	return logs, nil
+}
+
 // @Summary Get AI task logs
 // @ID get-ai-task-logs
 // @Security CoderSessionToken
@@ -796,9 +823,43 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
 
+	switch task.Status {
+	case database.TaskStatusActive:
+		// Active tasks: fetch live logs from AgentAPI.
+		out, err := api.fetchLiveTaskLogs(r, task)
+		if err != nil {
+			httperror.WriteResponseError(ctx, rw, err)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusOK, out)
+
+	case database.TaskStatusPaused, database.TaskStatusPending, database.TaskStatusInitializing:
+		// In pause, pending and initializing states, we attempt to fetch
+		// the snapshot from database to provide continuity.
+		out, err := api.fetchSnapshotTaskLogs(ctx, task.ID)
+		if err != nil {
+			httperror.WriteResponseError(ctx, rw, err)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusOK, out)
+
+	default:
+		// Cases: database.TaskStatusError, database.TaskStatusUnknown.
+		// - Error: snapshot would be stale from previous pause.
+		// - Unknown: cannot determine reliable state.
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot fetch logs for task in current state.",
+			Detail:  fmt.Sprintf("Task status is %q.", task.Status),
+		})
+	}
+}
+
+func (api *API) fetchLiveTaskLogs(r *http.Request, task database.Task) (codersdk.TaskLogsResponse, error) {
 	var out codersdk.TaskLogsResponse
-	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
+	err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
+		agentAPIClient, err := agentapisdk.NewClient(appURL.String(), agentapisdk.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Failed to create agentapi client.",
@@ -814,35 +875,89 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		logs := make([]codersdk.TaskLogEntry, 0, len(messagesResp.Messages))
-		for _, m := range messagesResp.Messages {
-			var typ codersdk.TaskLogType
-			switch m.Role {
-			case aiagentapi.RoleUser:
-				typ = codersdk.TaskLogTypeInput
-			case aiagentapi.RoleAgent:
-				typ = codersdk.TaskLogTypeOutput
-			default:
-				return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-					Message: "Invalid task app response message role.",
-					Detail:  fmt.Sprintf(`Expected "user" or "agent", got %q.`, m.Role),
-				})
-			}
-			logs = append(logs, codersdk.TaskLogEntry{
-				ID:      int(m.Id),
-				Content: m.Content,
-				Type:    typ,
-				Time:    m.Time,
+		logs, err := convertAgentAPIMessagesToLogEntries(messagesResp.Messages)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Invalid task app response.",
+				Detail:  err.Error(),
 			})
 		}
-		out = codersdk.TaskLogsResponse{Logs: logs}
+
+		out = codersdk.TaskLogsResponse{
+			Logs: logs,
+		}
 		return nil
-	}); err != nil {
-		httperror.WriteResponseError(ctx, rw, err)
-		return
+	})
+	return out, err
+}
+
+func (api *API) fetchSnapshotTaskLogs(ctx context.Context, taskID uuid.UUID) (codersdk.TaskLogsResponse, error) {
+	snapshot, err := api.Database.GetTaskSnapshot(ctx, taskID)
+	if err != nil {
+		if httpapi.IsUnauthorizedError(err) {
+			return codersdk.TaskLogsResponse{}, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{
+				Message: "Resource not found.",
+			})
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			// No snapshot exists yet, return empty logs. Snapshot is true
+			// because this field indicates whether the data is from the
+			// live task app (false) or not (true). Since the task is
+			// paused/initializing/pending, we cannot fetch live logs, so
+			// snapshot must be true even with no snapshot data.
+			return codersdk.TaskLogsResponse{
+				Logs:     []codersdk.TaskLogEntry{},
+				Snapshot: true,
+			}, nil
+		}
+		return codersdk.TaskLogsResponse{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task snapshot.",
+			Detail:  err.Error(),
+		})
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, out)
+	// Unmarshal envelope with pre-populated data field to decode once.
+	envelope := TaskLogSnapshotEnvelope{
+		Data: &agentapisdk.GetMessagesResponse{},
+	}
+	if err := json.Unmarshal(snapshot.LogSnapshot, &envelope); err != nil {
+		return codersdk.TaskLogsResponse{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error decoding task snapshot.",
+			Detail:  err.Error(),
+		})
+	}
+
+	// Validate snapshot format.
+	if envelope.Format != "agentapi" {
+		return codersdk.TaskLogsResponse{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Unsupported task snapshot format.",
+			Detail:  fmt.Sprintf("Expected format %q, got %q.", "agentapi", envelope.Format),
+		})
+	}
+
+	// Extract agentapi data from envelope (already decoded into the correct type).
+	messagesResp, ok := envelope.Data.(*agentapisdk.GetMessagesResponse)
+	if !ok {
+		return codersdk.TaskLogsResponse{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error decoding snapshot data.",
+			Detail:  "Unexpected data type in envelope.",
+		})
+	}
+
+	// Convert agentapi messages to log entries.
+	logs, err := convertAgentAPIMessagesToLogEntries(messagesResp.Messages)
+	if err != nil {
+		return codersdk.TaskLogsResponse{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Invalid snapshot data.",
+			Detail:  err.Error(),
+		})
+	}
+
+	return codersdk.TaskLogsResponse{
+		Logs:       logs,
+		Snapshot:   true,
+		SnapshotAt: ptr.Ref(snapshot.LogSnapshotCreatedAt),
+	}, nil
 }
 
 // authAndDoWithTaskAppClient centralizes the shared logic to:
@@ -862,10 +977,27 @@ func (api *API) authAndDoWithTaskAppClient(
 	ctx := r.Context()
 
 	if task.Status != database.TaskStatusActive {
-		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task status must be active.",
-			Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
-		})
+		// Return 409 Conflict for valid requests blocked by current state
+		// (pending/initializing are transitional, paused requires resume).
+		// Return 400 Bad Request for error/unknown states.
+		switch task.Status {
+		case database.TaskStatusPending, database.TaskStatusInitializing:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Task is %s.", task.Status),
+				Detail:  "The task is resuming. Wait for the task to become active before sending messages.",
+			})
+		case database.TaskStatusPaused:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: "Task is paused.",
+				Detail:  "Resume the task to send messages.",
+			})
+		default:
+			// Default handler for error and unknown status.
+			return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Task must be active.",
+				Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
+			})
+		}
 	}
 	if !task.WorkspaceID.Valid {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
@@ -949,4 +1081,313 @@ func (api *API) authAndDoWithTaskAppClient(
 		},
 	}
 	return do(ctx, client, parsedURL)
+}
+
+const (
+	// taskSnapshotMaxSize is the maximum size for task log snapshots (64KB).
+	// Protects against excessive memory usage and database payload sizes.
+	taskSnapshotMaxSize = 64 * 1024
+)
+
+// TaskLogSnapshotEnvelope wraps a task log snapshot with format metadata.
+type TaskLogSnapshotEnvelope struct {
+	Format string `json:"format"`
+	Data   any    `json:"data"`
+}
+
+// @Summary Upload task log snapshot
+// @ID upload-task-log-snapshot
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Tasks
+// @Param task path string true "Task ID" format(uuid)
+// @Param format query string true "Snapshot format" enums(agentapi)
+// @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
+// @Success 204
+// @Router /workspaceagents/me/tasks/{task}/log-snapshot [post]
+func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx         = r.Context()
+		latestBuild = httpmw.LatestBuild(r)
+	)
+
+	// Parse task ID from path.
+	taskIDStr := chi.URLParam(r, "task")
+	taskID, err := uuid.Parse(taskIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid task ID format.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Validate format parameter (required).
+	p := httpapi.NewQueryParamParser().RequiredNotEmpty("format")
+	format := p.String(r.URL.Query(), "", "format")
+	p.ErrorExcessParams(r.URL.Query())
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+	if format != "agentapi" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid format parameter.",
+			Detail:  fmt.Sprintf(`Only "agentapi" format is currently supported, got %q.`, format),
+		})
+		return
+	}
+
+	// Verify task exists before reading the potentially large payload.
+	// This prevents DoS attacks where attackers spam large payloads for
+	// non-existent or deleted tasks, forcing us to read 64KB into memory
+	// and do expensive JSON operations before the database rejects it.
+	// The UpsertTaskSnapshot will re-fetch for RBAC validation, but this
+	// early check protects against malicious load.
+	task, err := api.Database.GetTaskByID(ctx, taskID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Reject deleted tasks early.
+	if task.DeletedAt.Valid {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Verify task belongs to this agent's workspace.
+	if !task.WorkspaceID.Valid || task.WorkspaceID.UUID != latestBuild.WorkspaceID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Limit payload size to avoid excessive memory or data usage.
+	r.Body = http.MaxBytesReader(rw, r.Body, taskSnapshotMaxSize)
+
+	// Create envelope to store validated payload.
+	envelope := TaskLogSnapshotEnvelope{
+		Format: format,
+	}
+
+	switch format {
+	case "agentapi":
+		var payload agentapisdk.GetMessagesResponse
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to decode request payload.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// Verify messages field exists (can be empty array).
+		if payload.Messages == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid agentapi payload structure.",
+				Detail:  `Missing required "messages" field.`,
+			})
+			return
+		}
+		envelope.Data = payload
+	default:
+		// Defensive branch, we already validated "agentapi" format but may add
+		// more formats in the future.
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid format parameter.",
+			Detail:  fmt.Sprintf(`Only "agentapi" format is currently supported, got %q.`, format),
+		})
+		return
+	}
+
+	// Marshal envelope with validated payload in a single pass.
+	snapshotJSON, err := json.Marshal(envelope)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create snapshot envelope.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Upsert to database using agent's RBAC context.
+	err = api.Database.UpsertTaskSnapshot(ctx, database.UpsertTaskSnapshotParams{
+		TaskID:               task.ID,
+		LogSnapshot:          json.RawMessage(snapshotJSON),
+		LogSnapshotCreatedAt: dbtime.Time(api.Clock.Now()),
+	})
+	if err != nil {
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error storing snapshot.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.Logger.Debug(ctx, "stored task log snapshot",
+		slog.F("task_id", task.ID),
+		slog.F("workspace_id", latestBuild.WorkspaceID),
+		slog.F("snapshot_size_bytes", len(snapshotJSON)))
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Pause task
+// @ID pause-task
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Tasks
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 202 {object} codersdk.PauseTaskResponse
+// @Router /tasks/{user}/{task}/pause [post]
+func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+		task   = httpmw.TaskParam(r)
+	)
+
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Task does not have a workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+		Reason:     codersdk.CreateWorkspaceBuildReasonTaskManualPause,
+	}
+	build, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.PauseTaskResponse{
+		WorkspaceBuild: &build,
+	})
+}
+
+// @Summary Resume task
+// @ID resume-task
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Tasks
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 202 {object} codersdk.ResumeTaskResponse
+// @Router /tasks/{user}/{task}/resume [post]
+func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+		task   = httpmw.TaskParam(r)
+	)
+
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Task does not have a workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspaceStatus := codersdk.ConvertWorkspaceStatus(
+		codersdk.ProvisionerJobStatus(job.JobStatus),
+		codersdk.WorkspaceTransition(latestBuild.Transition),
+	)
+	if workspaceStatus == codersdk.WorkspaceStatusRunning {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Task workspace is already running.",
+			Detail:  fmt.Sprintf("Workspace status is %q.", workspaceStatus),
+		})
+		return
+	}
+
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		Reason:     codersdk.CreateWorkspaceBuildReasonTaskResume,
+	}
+	build, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ResumeTaskResponse{
+		WorkspaceBuild: &build,
+	})
 }

@@ -63,6 +63,15 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceBoundaryUsage
+	// Valid Actions
+	//  - "ActionDelete" :: delete boundary usage statistics
+	//  - "ActionRead" :: read boundary usage statistics
+	//  - "ActionUpdate" :: upsert boundary usage statistics
+	ResourceBoundaryUsage = Object{
+		Type: "boundary_usage",
+	}
+
 	// ResourceConnectionLog
 	// Valid Actions
 	//  - "ActionRead" :: read connection logs
@@ -361,6 +370,7 @@ var (
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
+	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspace = Object{
 		Type: "workspace",
 	}
@@ -394,6 +404,7 @@ var (
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
+	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspaceDormant = Object{
 		Type: "workspace_dormant",
 	}
@@ -417,6 +428,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceBoundaryUsage,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
@@ -470,6 +482,7 @@ func AllActions() []policy.Action {
 		policy.ActionShare,
 		policy.ActionUnassign,
 		policy.ActionUpdate,
+		policy.ActionUpdateAgent,
 		policy.ActionUpdatePersonal,
 		policy.ActionUse,
 		policy.ActionViewInsights,

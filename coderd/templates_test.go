@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -1615,6 +1616,39 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.False(t, updated.UseClassicParameterFlow, "expected false")
 	})
 
+	t.Run("DisableModuleCache", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.False(t, template.DisableModuleCache, "default is false")
+
+		req := codersdk.UpdateTemplateMeta{
+			DisableModuleCache: ptr.Ref(true),
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// set to true
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.DisableModuleCache, "expected true")
+
+		// noop - should stay true when not specified
+		req.DisableModuleCache = nil
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.DisableModuleCache, "expected true")
+
+		// back to false
+		req.DisableModuleCache = ptr.Ref(false)
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.False(t, updated.DisableModuleCache, "expected false")
+	})
+
 	t.Run("SupportEmptyOrDefaultFields", func(t *testing.T) {
 		t.Parallel()
 
@@ -1752,6 +1786,20 @@ func TestDeleteTemplate(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("NoPermission", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		tpl := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{CreatedBy: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := memberClient.DeleteTemplate(ctx, tpl.Template.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
 }
 

@@ -2,13 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	AlphaBadge,
 	Badges,
+	DeprecatedBadge,
 	DisabledBadge,
 	EnabledBadge,
+	EnterpriseBadge,
 	EntitledBadge,
-	HealthyBadge,
-	NotHealthyBadge,
-	NotReachableBadge,
-	NotRegisteredBadge,
 	PremiumBadge,
 	PreviewBadge,
 } from "./Badges";
@@ -32,19 +30,6 @@ export const Entitled: Story = {
 		children: <EntitledBadge />,
 	},
 };
-export const ProxyStatus: Story = {
-	args: {
-		children: (
-			<>
-				<HealthyBadge />
-				<HealthyBadge derpOnly />
-				<NotHealthyBadge />
-				<NotRegisteredBadge />
-				<NotReachableBadge />
-			</>
-		),
-	},
-};
 export const Disabled: Story = {
 	args: {
 		children: <DisabledBadge />,
@@ -63,5 +48,15 @@ export const Preview: Story = {
 export const Alpha: Story = {
 	args: {
 		children: <AlphaBadge />,
+	},
+};
+export const Enterprise: Story = {
+	args: {
+		children: <EnterpriseBadge />,
+	},
+};
+export const Deprecated: Story = {
+	args: {
+		children: <DeprecatedBadge />,
 	},
 };

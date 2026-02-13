@@ -1,27 +1,33 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
 import { requestOneTimePassword } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
 import type { FC } from "react";
 import { useMutation } from "react-query";
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";
+import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import { pageTitle } from "utils/page";
+import * as Yup from "yup";
 
 const RequestOTPPage: FC = () => {
 	const applicationName = getApplicationName();
 	const requestOTPMutation = useMutation(requestOneTimePassword());
+	const [searchParams] = useSearchParams();
+	const initialEmail = searchParams.get("email") ?? "";
 
 	return (
 		<>
 			<title>{pageTitle("Reset Password", applicationName)}</title>
 
-			<main css={styles.root}>
-				<CustomLogo css={styles.logo} />
+			<main className="p-6 flex items-center justify-center flex-col min-h-full text-center">
+				<div>
+					<CustomLogo />
+				</div>
 				{requestOTPMutation.isSuccess ? (
 					<RequestOTPSuccess
 						email={requestOTPMutation.variables?.email ?? ""}
@@ -30,6 +36,7 @@ const RequestOTPPage: FC = () => {
 					<RequestOTP
 						error={requestOTPMutation.error}
 						isRequesting={requestOTPMutation.isPending}
+						initialEmail={initialEmail}
 						onRequest={(email) => {
 							requestOTPMutation.mutate({ email });
 						}}
@@ -44,62 +51,83 @@ type RequestOTPProps = {
 	error: unknown;
 	onRequest: (email: string) => void;
 	isRequesting: boolean;
+	initialEmail: string;
 };
+
+const validationSchema = Yup.object({
+	email: Yup.string()
+		.trim()
+		.email("Please enter a valid email address.")
+		.required("Please enter an email address."),
+});
 
 const RequestOTP: FC<RequestOTPProps> = ({
 	error,
 	onRequest,
 	isRequesting,
+	initialEmail,
 }) => {
+	const form = useFormik({
+		initialValues: { email: initialEmail },
+		validationSchema,
+		validateOnBlur: false,
+		onSubmit: (values) => {
+			onRequest(values.email);
+		},
+	});
+	const getFieldHelpers = getFormHelpers(form);
+	const emailField = getFieldHelpers("email");
+
 	return (
-		<div css={styles.container}>
+		<div className="w-full max-w-xs flex flex-col items-center">
 			<div>
-				<h1
-					css={{
-						margin: 0,
-						marginBottom: 24,
-						fontSize: 20,
-						fontWeight: 600,
-						lineHeight: "28px",
-					}}
-				>
+				<h1 className="m-0 mb-6 text-xl font-semibold leading-7">
 					Enter your email to reset the password
 				</h1>
-				{error ? <ErrorAlert error={error} css={{ marginBottom: 24 }} /> : null}
+				{error ? <ErrorAlert error={error} className="mb-6" /> : null}
 				<form
-					css={{ width: "100%" }}
-					onSubmit={(e) => {
-						e.preventDefault();
-						const email = e.currentTarget.email.value;
-						onRequest(email);
-					}}
+					className="flex flex-col gap-5 w-full"
+					onSubmit={form.handleSubmit}
 				>
-					<fieldset disabled={isRequesting}>
-						<Stack spacing={2.5}>
-							<TextField
-								name="email"
-								label="Email"
+					<fieldset disabled={isRequesting} className="flex flex-col gap-5">
+						<div className="flex flex-col items-start gap-2">
+							<Label htmlFor={emailField.id}>
+								Email{" "}
+								<span className="text-xs text-content-destructive font-bold">
+									*
+								</span>
+							</Label>
+							<Input
+								id={emailField.id}
+								name={emailField.name}
+								value={emailField.value}
+								onChange={onChangeTrimmed(form)}
+								onBlur={emailField.onBlur}
 								type="email"
 								autoFocus
-								required
-								fullWidth
+								aria-invalid={Boolean(emailField.error)}
 							/>
+							{emailField.error && (
+								<span className="text-xs text-content-destructive text-left">
+									{emailField.helperText}
+								</span>
+							)}
+						</div>
 
-							<Stack spacing={1}>
-								<Button
-									disabled={isRequesting}
-									type="submit"
-									size="lg"
-									className="w-full"
-								>
-									<Spinner loading={isRequesting} />
-									Reset password
-								</Button>
-								<Button asChild size="lg" variant="outline" className="w-full">
-									<RouterLink to="/login">Cancel</RouterLink>
-								</Button>
-							</Stack>
-						</Stack>
+						<div className="flex flex-col gap-2">
+							<Button
+								disabled={isRequesting}
+								type="submit"
+								size="lg"
+								className="w-full"
+							>
+								<Spinner loading={isRequesting} />
+								Reset password
+							</Button>
+							<Button asChild size="lg" variant="outline" className="w-full">
+								<RouterLink to="/login">Cancel</RouterLink>
+							</Button>
+						</div>
 					</fieldset>
 				</form>
 			</div>
@@ -108,37 +136,17 @@ const RequestOTP: FC<RequestOTPProps> = ({
 };
 
 const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
-	const theme = useTheme();
-
 	return (
-		<div
-			css={{
-				...styles.container,
-				maxWidth: 380,
-				fontWeight: 500,
-				fontSize: 14,
-				lineHeight: "24px",
-			}}
-		>
+		<div className="w-full max-w-[380px] flex flex-col items-center font-medium text-sm leading-6">
 			<div>
-				<p css={{ margin: 0, marginBottom: 56 }}>
+				<p className="m-0 mb-14">
 					If the account{" "}
-					<span css={{ fontWeight: 600, color: theme.palette.text.secondary }}>
-						{email}
-					</span>{" "}
+					<span className="font-semibold text-content-secondary">{email}</span>{" "}
 					exists, you will get an email with instructions on resetting your
 					password.
 				</p>
 
-				<p
-					css={{
-						margin: 0,
-						fontSize: 12,
-						lineHeight: "16px",
-						color: theme.palette.text.secondary,
-						marginBottom: 48,
-					}}
-				>
+				<p className="m-0 text-xs leading-4 text-content-secondary mb-12">
 					Contact your deployment administrator if you encounter issues.
 				</p>
 
@@ -149,35 +157,5 @@ const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
 		</div>
 	);
 };
-
-const styles = {
-	logo: {
-		marginBottom: 40,
-	},
-	root: {
-		padding: 24,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		flexDirection: "column",
-		minHeight: "100%",
-		textAlign: "center",
-	},
-	container: {
-		width: "100%",
-		maxWidth: 320,
-		display: "flex",
-		flexDirection: "column",
-		alignItems: "center",
-	},
-	icon: {
-		fontSize: 64,
-	},
-	footer: (theme) => ({
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		marginTop: 24,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default RequestOTPPage;

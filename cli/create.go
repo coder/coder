@@ -323,6 +323,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				Action:            WorkspaceCreate,
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
+				Owner:             workspaceOwner,
 
 				PresetParameters:      presetParameters,
 				RichParameterFile:     parameterFlags.richParameterFile,
@@ -456,6 +457,8 @@ type prepWorkspaceBuildArgs struct {
 	Action            WorkspaceCLIAction
 	TemplateVersionID uuid.UUID
 	NewWorkspaceName  string
+	// The owner is required when evaluating dynamic parameters
+	Owner string
 
 	LastBuildParameters       []codersdk.WorkspaceBuildParameter
 	SourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
@@ -550,9 +553,14 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
-	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+	dynamicParameters := true
+	if templateVersion.TemplateID != nil {
+		// TODO: This fetch is often redundant, as the caller often has the template already.
+		template, err := client.Template(ctx, *templateVersion.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template: %w", err)
+		}
+		dynamicParameters = !template.UseClassicParameterFlow
 	}
 
 	parameterFile := map[string]string{}
@@ -574,6 +582,45 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithRichParametersFile(parameterFile).
 		WithRichParametersDefaults(args.RichParameterDefaults).
 		WithUseParameterDefaults(args.UseParameterDefaults)
+
+	var templateVersionParameters []codersdk.TemplateVersionParameter
+	if !dynamicParameters {
+		templateVersionParameters, err = client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+		}
+	} else {
+		var ownerID uuid.UUID
+		{ // Putting in its own block to limit scope of owningMember, as it might be nil
+			owningMember, err := client.OrganizationMember(ctx, templateVersion.OrganizationID.String(), args.Owner)
+			if err != nil {
+				// This is unfortunate, but if we are an org owner, then we can create workspaces
+				// for users that are not part of the organization.
+				owningUser, uerr := client.User(ctx, args.Owner)
+				if uerr != nil {
+					return nil, xerrors.Errorf("get owning member: %w", err)
+				}
+				ownerID = owningUser.ID
+			} else {
+				ownerID = owningMember.UserID
+			}
+		}
+
+		initial := make(map[string]string)
+		for _, v := range resolver.InitialValues() {
+			initial[v.Name] = v.Value
+		}
+
+		eval, err := client.EvaluateTemplateVersion(ctx, templateVersion.ID, ownerID, initial)
+		if err != nil {
+			return nil, xerrors.Errorf("evaluate template version dynamic parameters: %w", err)
+		}
+
+		for _, param := range eval.Parameters {
+			templateVersionParameters = append(templateVersionParameters, param.TemplateVersionParameter())
+		}
+	}
+
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err

@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -30,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
-	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -42,16 +40,8 @@ import (
 
 // genCtx is to give all generator functions permission if the db is a dbauthz db.
 var genCtx = dbauthz.As(context.Background(), rbac.Subject{
-	ID: "owner",
-	Roles: rbac.Roles(append(
-		must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()),
-		rbac.Role{
-			Identifier: rbac.RoleIdentifier{Name: "dbgen-workspace-sharer"},
-			Site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionShare},
-			}),
-		},
-	)),
+	ID:     "owner",
+	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
 	Groups: []string{},
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
@@ -402,6 +392,7 @@ func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.W
 		Name:             []string{takeFirst(orig.Name, testutil.GetRandomName(t))},
 		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
 		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
+		SubagentID:       []uuid.UUID{orig.SubagentID.UUID},
 	})
 	require.NoError(t, err, "insert workspace agent devcontainer")
 	return devcontainers[0]
@@ -1671,13 +1662,12 @@ func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Tas
 		parameters = json.RawMessage([]byte("{}"))
 	}
 
-	taskName := taskname.Generate(genCtx, slog.Make(), orig.Prompt)
 	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
 		ID:                 takeFirst(orig.ID, uuid.New()),
 		OrganizationID:     orig.OrganizationID,
 		OwnerID:            orig.OwnerID,
-		Name:               takeFirst(orig.Name, taskName.Name),
-		DisplayName:        takeFirst(orig.DisplayName, taskName.DisplayName),
+		Name:               takeFirst(orig.Name, testutil.GetRandomNameHyphenated(t)),
+		DisplayName:        takeFirst(orig.DisplayName, testutil.GetRandomNameHyphenated(t)),
 		WorkspaceID:        orig.WorkspaceID,
 		TemplateVersionID:  orig.TemplateVersionID,
 		TemplateParameters: parameters,

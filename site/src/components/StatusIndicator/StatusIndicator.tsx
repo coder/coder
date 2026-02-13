@@ -1,5 +1,10 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { createContext, type FC, forwardRef, useContext } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { createContext, type FC, useContext } from "react";
 import { cn } from "utils/cn";
 
 const statusIndicatorVariants = cva(
@@ -29,23 +34,24 @@ type StatusIndicatorContextValue = VariantProps<typeof statusIndicatorVariants>;
 
 const StatusIndicatorContext = createContext<StatusIndicatorContextValue>({});
 
-export interface StatusIndicatorProps
-	extends React.HTMLAttributes<HTMLDivElement>,
-		StatusIndicatorContextValue {}
+export type StatusIndicatorProps = React.ComponentPropsWithRef<"div"> &
+	StatusIndicatorContextValue;
 
-export const StatusIndicator = forwardRef<HTMLDivElement, StatusIndicatorProps>(
-	({ size, variant, className, ...props }, ref) => {
-		return (
-			<StatusIndicatorContext.Provider value={{ size, variant }}>
-				<div
-					ref={ref}
-					className={cn(statusIndicatorVariants({ variant, size }), className)}
-					{...props}
-				/>
-			</StatusIndicatorContext.Provider>
-		);
-	},
-);
+export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
+	size,
+	variant,
+	className,
+	...props
+}) => {
+	return (
+		<StatusIndicatorContext.Provider value={{ size, variant }}>
+			<div
+				className={cn(statusIndicatorVariants({ variant, size }), className)}
+				{...props}
+			/>
+		</StatusIndicatorContext.Provider>
+	);
+};
 
 const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 	variants: {
@@ -91,5 +97,61 @@ export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 			)}
 			{...props}
 		/>
+	);
+};
+
+interface StatusHealthyIndicatorProps {
+	derpOnly?: boolean;
+}
+
+export const StatusHealthyIndicator: FC<StatusHealthyIndicatorProps> = ({
+	derpOnly,
+}: StatusHealthyIndicatorProps) => {
+	return (
+		<StatusIndicator variant="success">
+			<StatusIndicatorDot />
+			{derpOnly ? "Healthy (DERP only)" : "Healthy"}
+		</StatusIndicator>
+	);
+};
+
+export const StatusNotHealthyIndicator: FC = () => {
+	return (
+		<StatusIndicator variant="failed">
+			<StatusIndicatorDot />
+			Unhealthy
+		</StatusIndicator>
+	);
+};
+
+export const StatusNotRegisteredIndicator: FC = () => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<StatusIndicator variant="warning">
+					<StatusIndicatorDot />
+					Never seen
+				</StatusIndicator>
+			</TooltipTrigger>
+			<TooltipContent>
+				Workspace Proxy has never come online and needs to be started.
+			</TooltipContent>
+		</Tooltip>
+	);
+};
+
+export const StatusNotReachableIndicator: FC = () => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<StatusIndicator variant="warning">
+					<StatusIndicatorDot />
+					Not reachable
+				</StatusIndicator>
+			</TooltipTrigger>
+			<TooltipContent>
+				Workspace Proxy not responding to http(s) requests.
+			</TooltipContent>
+		</Tooltip>
 	);
 };

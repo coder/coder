@@ -14,6 +14,7 @@ import {
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 import { pageTitle } from "utils/page";
 import {
@@ -115,9 +116,10 @@ const DERPRegionPage: FC = () => {
 				{reports.map((report) => {
 					report = report as DERPNodeReport; // Can technically be null
 					const { node, client_logs: logs } = report;
-					const latencyColor = getLatencyColor(
-						theme,
+					const latencyColor = getLatencyColor(report.round_trip_ping_ms);
+					const latencyBackground = getLatencyColor(
 						report.round_trip_ping_ms,
+						"background",
 					);
 					return (
 						<section
@@ -141,8 +143,8 @@ const DERPRegionPage: FC = () => {
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<Pill
-												css={{ color: latencyColor }}
-												icon={<StatusCircle color={latencyColor} />}
+												className={latencyColor}
+												icon={<StatusCircle background={latencyBackground} />}
 											>
 												{report.round_trip_ping_ms}ms
 											</Pill>
@@ -174,25 +176,12 @@ const DERPRegionPage: FC = () => {
 	);
 };
 
-type StatusCircleProps = { color: string };
+type StatusCircleProps = { background: string };
 
-const StatusCircle: FC<StatusCircleProps> = ({ color }) => {
+const StatusCircle: FC<StatusCircleProps> = ({ background }) => {
 	return (
-		<div
-			css={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		>
-			<div
-				css={{
-					width: 8,
-					height: 8,
-					backgroundColor: color,
-					borderRadius: 9999,
-				}}
-			/>
+		<div className="flex items-center justify-center">
+			<div className={cn("size-2 rounded-full", background)} />
 		</div>
 	);
 };

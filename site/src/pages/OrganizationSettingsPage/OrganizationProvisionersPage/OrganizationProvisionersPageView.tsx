@@ -5,7 +5,7 @@ import { Checkbox } from "components/Checkbox/Checkbox";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
-import { Paywall } from "components/Paywall/Paywall";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -95,7 +95,7 @@ export const OrganizationProvisionersPageView: FC<
 			)}
 
 			{showPaywall ? (
-				<Paywall
+				<PaywallPremium
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
 					documentationLink={docs("/")}

@@ -505,6 +505,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	return &proto.IsAuthorizedResponse{
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
+		Username: user.Username,
 	}, nil
 }
 

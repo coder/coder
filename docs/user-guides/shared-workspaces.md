@@ -40,13 +40,16 @@ To remove sharing from a workspace:
 - `coder sharing remove <workspace> --group contractor`
   - Workspace is no longer shared with the group `contractor`.
 
+> [!Important]
+> The workspace must be restarted for the user or group removal to take effect.
+
 To show who a workspace is shared with:
 
-- `coder sharing show <workspace>`
+- `coder sharing status <workspace>`
 
 To list shared workspaces:
 
-- `coder list --shared`
+- `coder list --search shared:true`
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
 
@@ -61,3 +64,4 @@ To list shared workspaces:
 - `use` allows for connection via SSH and apps, the ability to start and stop the workspace, view logs and stats, and update on start when required.
 - `admin` allows for all of the above, as well as the ability to rename the workspace, update at any time, and invite others with the `use` role.
 - Neither role allows for the user to delete the workspace.
+- After removing a user/group, a workspace restart is required for the removal to take effect.

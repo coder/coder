@@ -98,7 +98,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 						<span css={styles.portCount}>{listeningPorts?.length}</span>
 					</Spinner>
 					Open ports
-					<ChevronDownIcon className="size-4" />
+					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -525,7 +525,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											</Select>
 										</FormControl>
 										<Button
-											size="sm"
+											size="icon"
 											variant="subtle"
 											onClick={async () => {
 												await deleteSharedPortMutation.mutateAsync({
@@ -534,13 +534,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												});
 											}}
 										>
-											<XIcon
-												css={{
-													width: 14,
-													height: 14,
-													color: theme.palette.text.primary,
-												}}
-											/>
+											<XIcon />
 										</Button>
 									</Stack>
 								</Stack>

@@ -72,7 +72,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 
    ```shell
    git clone https://github.com/coder/registry
-   cd registry/coder/modules
+   cd registry/registry/coder/modules
    jf tfc
    jf tf p --namespace="coder" --provider="coder" --tag="1.0.0"
    ```

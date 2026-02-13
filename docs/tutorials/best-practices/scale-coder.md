@@ -221,13 +221,19 @@ give specific sizing recommendations for various user scales.
 ### Connection pool tuning
 
 Coder Server maintains a pool of connections to PostgreSQL. You can tune the
-pool size with these settings:
+pool size with the following settings:
+
+> [!NOTE]
+> When adjusting these settings, please ensure that your PostgreSQL Server has `max_connections`
+> set appropriately to accommodate all Coder Server replicas multiplied by the
+> maximum number of open connections. We recommend configuring an additional 20%
+> of connections to account for churn and other clients.
+>
+> Also note that increasing `max_connections` will result in potentially higher
+> CPU and RAM usage, so you'll need to monitor accordingly.
 
 - `--postgres-conn-max-open` (env: `CODER_PG_CONN_MAX_OPEN`): Maximum number of open
-  connections. Default: 10. Ensure that your PostgreSQL Server has `max_connections`
-  set appropriately to accommodate all Coder Server replicas multiplied by the
-  maximum number of open connections. We recommend configuring an additional 20%
-  of connections to account for churn and other clients.
+  connections. Default: 10.
 - `--postgres-conn-max-idle` (env: `CODER_PG_CONN_MAX_IDLE`): Maximum number of idle
   connections kept in the pool. Default: "auto", which uses max open / 3.
 

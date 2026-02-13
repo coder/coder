@@ -24,7 +24,6 @@ import {
 } from "components/Dialog/Dialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -170,12 +169,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
 
 	return (
-		<Stack
+		<div
 			key={devcontainer.id}
-			direction="column"
-			spacing={0}
 			className={cn(
-				"relative py-4 border border-dashed border-border rounded",
+				"flex flex-col max-w-full relative py-4 border border-dashed border-border rounded",
 				devcontainer.error && "border-content-destructive border-solid",
 			)}
 		>
@@ -186,7 +183,19 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				text-xs text-content-secondary"
 			>
 				<Container size={12} className="mr-1.5" />
-				<span>dev container</span>
+				{devcontainer.subagent_id ? (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span>dev container (terraform agent)</span>
+						</TooltipTrigger>
+						<TooltipContent>
+							This dev container agent is defined in Terraform and has limited
+							configurability via the devcontainer.json file.
+						</TooltipContent>
+					</Tooltip>
+				) : (
+					<span>dev container</span>
+				)}
 			</div>
 			<header
 				className="flex items-center justify-between flex-wrap
@@ -242,7 +251,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={isTransitioning}
 					>
 						<Spinner loading={isTransitioning} />
-
 						{rebuildButtonLabel(devcontainer)}
 					</Button>
 
@@ -380,7 +388,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					)}
 				</div>
 			)}
-		</Stack>
+		</div>
 	);
 };
 

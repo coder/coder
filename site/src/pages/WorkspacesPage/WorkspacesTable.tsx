@@ -1,4 +1,3 @@
-import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
 import { apiKey } from "api/queries/users";
@@ -19,6 +18,7 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
@@ -92,7 +92,6 @@ interface WorkspacesTableProps {
 	error?: unknown;
 	isUsingFilter: boolean;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
-	canCheckWorkspaces: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	onActionSuccess: () => Promise<void>;
@@ -104,7 +103,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	checkedWorkspaces,
 	isUsingFilter,
 	onCheckChange,
-	canCheckWorkspaces,
 	templates,
 	canCreateTemplate,
 	onActionSuccess,
@@ -117,26 +115,27 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/3">
-						<div className="flex items-center gap-2">
-							{canCheckWorkspaces && (
-								<Checkbox
-									className="-my-[9px]"
-									disabled={!workspaces || workspaces.length === 0}
-									checked={checkedWorkspaces.length === workspaces?.length}
-									size="xsmall"
-									onChange={(_, checked) => {
-										if (!workspaces) {
-											return;
-										}
+						<div className="flex items-center gap-5">
+							<Checkbox
+								disabled={!workspaces || workspaces.length === 0}
+								checked={
+									workspaces &&
+									workspaces.length > 0 &&
+									checkedWorkspaces.length === workspaces.length
+								}
+								onCheckedChange={(checked) => {
+									if (!workspaces) {
+										return;
+									}
 
-										if (!checked) {
-											onCheckChange([]);
-										} else {
-											onCheckChange(workspaces);
-										}
-									}}
-								/>
-							)}
+									if (!checked) {
+										onCheckChange([]);
+									} else {
+										onCheckChange(workspaces);
+									}
+								}}
+								aria-label="Select all workspaces"
+							/>
 							Name
 						</div>
 					</TableHead>
@@ -148,7 +147,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 				</TableRow>
 			</TableHeader>
 			<TableBody className="[&_td]:h-[72px]">
-				{!workspaces && <TableLoader canCheckWorkspaces={canCheckWorkspaces} />}
+				{!workspaces && <TableLoader />}
 				{workspaces && workspaces.length === 0 && (
 					<TableRow>
 						<TableCell colSpan={999}>
@@ -173,29 +172,27 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							checked={checked}
 						>
 							<TableCell>
-								<div className="flex items-center gap-2">
-									{canCheckWorkspaces && (
-										<Checkbox
-											data-testid={`checkbox-${workspace.id}`}
-											size="xsmall"
-											disabled={cantBeChecked(workspace)}
-											checked={checked}
-											onClick={(e) => {
-												e.stopPropagation();
-											}}
-											onChange={(e) => {
-												if (e.currentTarget.checked) {
-													onCheckChange([...checkedWorkspaces, workspace]);
-												} else {
-													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
-											}}
-										/>
-									)}
+								<div className="flex items-center gap-5">
+									<Checkbox
+										data-testid={`checkbox-${workspace.id}`}
+										disabled={cantBeChecked(workspace)}
+										checked={checked}
+										onClick={(e) => {
+											e.stopPropagation();
+										}}
+										onCheckedChange={(checked) => {
+											if (checked) {
+												onCheckChange([...checkedWorkspaces, workspace]);
+											} else {
+												onCheckChange(
+													checkedWorkspaces.filter(
+														(w) => w.id !== workspace.id,
+													),
+												);
+											}
+										}}
+										aria-label={`Select workspace ${workspace.name}`}
+									/>
 									<AvatarData
 										title={
 											<Stack direction="row" spacing={0.5} alignItems="center">
@@ -330,17 +327,13 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	);
 };
 
-interface TableLoaderProps {
-	canCheckWorkspaces?: boolean;
-}
-
-const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
+const TableLoader: FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell className="w-2/6">
-					<div className="flex items-center gap-2">
-						{canCheckWorkspaces && <Checkbox size="small" disabled />}
+					<div className="flex items-center gap-5">
+						<Checkbox disabled />
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

@@ -562,12 +562,9 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 				api.broadcastUpdatesLocked()
 
 				if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
-					api.asyncWg.Add(1)
-					go func() {
-						defer api.asyncWg.Done()
-
+					api.asyncWg.Go(func() {
 						_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
-					}()
+					})
 				}
 			}
 			api.mu.Unlock()
@@ -779,10 +776,13 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 	// close frames.
 	_ = conn.CloseRead(context.Background())
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.Heartbeat(ctx, conn)
+	go httpapi.HeartbeatClose(ctx, api.logger, cancel, conn)
 
 	updateCh := make(chan struct{}, 1)
 
@@ -1624,16 +1624,25 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
-	injected := make(map[uuid.UUID]bool, len(api.injectedSubAgentProcs))
+	// Collect all subagent IDs that should be kept:
+	// 1. Subagents currently tracked by injectedSubAgentProcs
+	// 2. Subagents referenced by known devcontainers from the manifest
+	var keep []uuid.UUID
 	for _, proc := range api.injectedSubAgentProcs {
-		injected[proc.agent.ID] = true
+		keep = append(keep, proc.agent.ID)
+	}
+	for _, dc := range api.knownDevcontainers {
+		if dc.SubagentID.Valid {
+			keep = append(keep, dc.SubagentID.UUID)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, defaultOperationTimeout)
 	defer cancel()
 
+	var errs []error
 	for _, agent := range agents {
-		if injected[agent.ID] {
+		if slices.Contains(keep, agent.ID) {
 			continue
 		}
 		client := *api.subAgentClient.Load()
@@ -1644,10 +1653,11 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 				slog.F("agent_id", agent.ID),
 				slog.F("agent_name", agent.Name),
 			)
+			errs = append(errs, xerrors.Errorf("delete agent %s (%s): %w", agent.Name, agent.ID, err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // maybeInjectSubAgentIntoContainerLocked injects a subagent into a dev
@@ -1998,7 +2008,20 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	// 	logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
 	// }
 
-	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
+	// Only delete and recreate subagents that were dynamically created
+	// (ID == uuid.Nil). Terraform-defined subagents (subAgentConfig.ID !=
+	// uuid.Nil) must not be deleted because they have attached resources
+	// managed by terraform.
+	isTerraformManaged := subAgentConfig.ID != uuid.Nil
+	configHasChanged := !proc.agent.EqualConfig(subAgentConfig)
+
+	logger.Debug(ctx, "checking if sub agent should be deleted",
+		slog.F("is_terraform_managed", isTerraformManaged),
+		slog.F("maybe_recreate_sub_agent", maybeRecreateSubAgent),
+		slog.F("config_has_changed", configHasChanged),
+	)
+
+	deleteSubAgent := !isTerraformManaged && maybeRecreateSubAgent && configHasChanged
 	if deleteSubAgent {
 		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
 		client := *api.subAgentClient.Load()
@@ -2009,11 +2032,23 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		proc.agent = SubAgent{} // Clear agent to signal that we need to create a new one.
 	}
 
-	if proc.agent.ID == uuid.Nil {
-		logger.Debug(ctx, "creating new subagent",
-			slog.F("directory", subAgentConfig.Directory),
-			slog.F("display_apps", subAgentConfig.DisplayApps),
-		)
+	// Re-create (upsert) terraform-managed subagents when the config
+	// changes so that display apps and other settings are updated
+	// without deleting the agent.
+	recreateTerraformSubAgent := isTerraformManaged && maybeRecreateSubAgent && configHasChanged
+
+	if proc.agent.ID == uuid.Nil || recreateTerraformSubAgent {
+		if recreateTerraformSubAgent {
+			logger.Debug(ctx, "updating existing subagent",
+				slog.F("directory", subAgentConfig.Directory),
+				slog.F("display_apps", subAgentConfig.DisplayApps),
+			)
+		} else {
+			logger.Debug(ctx, "creating new subagent",
+				slog.F("directory", subAgentConfig.Directory),
+				slog.F("display_apps", subAgentConfig.DisplayApps),
+			)
+		}
 
 		// Create new subagent record in the database to receive the auth token.
 		// If we get a unique constraint violation, try with expanded names that

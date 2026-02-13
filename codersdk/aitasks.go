@@ -329,6 +329,54 @@ func (c *Client) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID,
 	return nil
 }
 
+// PauseTaskResponse represents the response from pausing a task.
+type PauseTaskResponse struct {
+	WorkspaceBuild *WorkspaceBuild `json:"workspace_build"`
+}
+
+// PauseTask pauses a task by stopping its workspace.
+// Experimental: uses the /api/experimental endpoint.
+func (c *Client) PauseTask(ctx context.Context, user string, id uuid.UUID) (PauseTaskResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/pause", user, id.String()), nil)
+	if err != nil {
+		return PauseTaskResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return PauseTaskResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp PauseTaskResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return PauseTaskResponse{}, err
+	}
+
+	return resp, nil
+}
+
+// ResumeTaskResponse represents the response from resuming a task.
+type ResumeTaskResponse struct {
+	WorkspaceBuild *WorkspaceBuild `json:"workspace_build"`
+}
+
+func (c *Client) ResumeTask(ctx context.Context, user string, id uuid.UUID) (ResumeTaskResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/resume", user, id.String()), nil)
+	if err != nil {
+		return ResumeTaskResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return ResumeTaskResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp ResumeTaskResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return ResumeTaskResponse{}, err
+	}
+
+	return resp, nil
+}
+
 // TaskLogType indicates the source of a task log entry.
 type TaskLogType string
 
@@ -346,9 +394,13 @@ type TaskLogEntry struct {
 	Time    time.Time   `json:"time" format:"date-time" table:"time,default_sort"`
 }
 
-// TaskLogsResponse contains the logs for a task.
+// TaskLogsResponse contains task logs and metadata. When snapshot is false,
+// logs are fetched live from the task app. When snapshot is true, logs are
+// fetched from a stored snapshot captured during pause.
 type TaskLogsResponse struct {
-	Logs []TaskLogEntry `json:"logs"`
+	Logs       []TaskLogEntry `json:"logs"`
+	Snapshot   bool           `json:"snapshot,omitempty"`
+	SnapshotAt *time.Time     `json:"snapshot_at,omitempty"`
 }
 
 // TaskLogs retrieves logs from the task app.

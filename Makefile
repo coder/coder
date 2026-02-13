@@ -562,9 +562,11 @@ else
 endif
 .PHONY: fmt/markdown
 
-# Note: we don't run zizmor in the lint target because it takes a while. CI
-#       runs it explicitly.
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/actions/actionlint lint/check-scopes lint/migrations
+# Note: we don't run zizmor in the lint target because it takes a while.
+# GitHub Actions linters are run in a separate CI job (lint-actions) that only
+# triggers when workflow files change, so we skip them here when CI=true.
+LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 lint/site-icons:
@@ -907,7 +909,10 @@ site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen
 	(cd site/ && pnpm exec biome format --write src/api/countriesGenerated.ts)
 	touch "$@"
 
-docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
+scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
+	go run ./scripts/metricsdocgen/scanner > $@
+
+docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics
 	go run scripts/metricsdocgen/main.go
 	pnpm exec markdownlint-cli2 --fix ./docs/admin/integrations/prometheus.md
 	pnpm exec markdown-table-formatter ./docs/admin/integrations/prometheus.md
@@ -936,6 +941,7 @@ coderd/apidoc/.gen: \
 	coderd/rbac/object_gen.go \
 	.swaggo \
 	scripts/apidocgen/generate.sh \
+	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
 	$(wildcard scripts/apidocgen/markdown-template/*)
 	./scripts/apidocgen/generate.sh

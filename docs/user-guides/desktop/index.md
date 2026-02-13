@@ -112,6 +112,42 @@ Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with t
 
 </div>
 
+## Administrator Configuration
+
+Organizations that manage Coder Desktop deployments can configure the application using MDM (Mobile Device Management) or group policy.
+
+### Disable Automatic Updates
+
+Administrators can disable the built-in auto-updater to manage updates through their own software distribution system.
+
+<div class="tabs">
+
+### macOS
+
+Set the `disableUpdater` preference to `true` using the `defaults` command:
+
+```shell
+defaults write com.coder.Coder-Desktop disableUpdater -bool true
+```
+
+Organization administrators can also enforce this setting across managed devices using MDM (Mobile Device Management) software by deploying a configuration profile that sets this preference.
+
+### Windows
+
+Set the `Updater:Enable` registry value to `0` under `HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\App`:
+
+```powershell
+New-Item -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Force
+New-ItemProperty -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Name "Updater:Enable" -Value 0 -PropertyType DWord -Force
+```
+
+You can also configure a `Updater:ForcedChannel` string value to lock users to a specific update channel (e.g. `stable`).
+
+> [!NOTE]
+> For security, updater settings can only be configured at the machine level (`HKLM`), not per-user (`HKCU`).
+
+</div>
+
 ## Troubleshooting
 
 ### Connection Issues

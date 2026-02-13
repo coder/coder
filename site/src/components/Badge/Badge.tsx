@@ -4,7 +4,6 @@
  */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
 const badgeVariants = cva(
@@ -24,6 +23,10 @@ const badgeVariants = cva(
 					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow",
 				green:
 					"border border-solid border-border-green bg-surface-green text-highlight-green shadow",
+				purple:
+					"border border-solid border-border-purple bg-surface-purple text-highlight-purple shadow",
+				magenta:
+					"border border-solid border-border-magenta bg-surface-magenta text-highlight-magenta shadow",
 				info: "border border-solid border-border-pending bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {
@@ -56,28 +59,26 @@ const badgeVariants = cva(
 	},
 );
 
-interface BadgeProps
-	extends React.HTMLAttributes<HTMLDivElement>,
-		VariantProps<typeof badgeVariants> {
-	asChild?: boolean;
-}
+type BadgeProps = React.ComponentPropsWithRef<"div"> &
+	VariantProps<typeof badgeVariants> & {
+		asChild?: boolean;
+	};
 
-export const Badge = forwardRef<HTMLDivElement, BadgeProps>(
-	(
-		{ className, variant, size, border, hover, asChild = false, ...props },
-		ref,
-	) => {
-		const Comp = asChild ? Slot : "div";
+export const Badge: React.FC<BadgeProps> = ({
+	className,
+	variant,
+	size,
+	border,
+	hover,
+	asChild = false,
+	...props
+}) => {
+	const Comp = asChild ? Slot : "div";
 
-		return (
-			<Comp
-				{...props}
-				ref={ref}
-				className={cn(
-					badgeVariants({ variant, size, border, hover }),
-					className,
-				)}
-			/>
-		);
-	},
-);
+	return (
+		<Comp
+			{...props}
+			className={cn(badgeVariants({ variant, size, border, hover }), className)}
+		/>
+	);
+};

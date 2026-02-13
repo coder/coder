@@ -17,6 +17,7 @@ import (
 
 	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/pty"
@@ -27,7 +28,7 @@ import (
 func New(t *testing.T, opts ...pty.Option) *PTY {
 	t.Helper()
 
-	ptty, err := pty.New(opts...)
+	ptty, err := newTestPTY(opts...)
 	require.NoError(t, err)
 
 	e := newExpecter(t, ptty.Output(), "cmd")
@@ -78,7 +79,7 @@ func newExpecter(t *testing.T, r io.Reader, name string) outExpecter {
 	ex := outExpecter{
 		t:    t,
 		out:  out,
-		name: name,
+		name: atomic.NewString(name),
 
 		runeReader: bufio.NewReaderSize(out, utf8.UTFMax),
 	}
@@ -140,7 +141,7 @@ type outExpecter struct {
 	t     *testing.T
 	close func(reason string) error
 	out   *stdbuf
-	name  string
+	name  *atomic.String
 
 	runeReader *bufio.Reader
 }
@@ -361,7 +362,7 @@ func (e *outExpecter) logf(format string, args ...interface{}) {
 
 	// Match regular logger timestamp format, we seem to be logging in
 	// UTC in other places as well, so match here.
-	e.t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), e.name, fmt.Sprintf(format, args...))
+	e.t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), e.name.Load(), fmt.Sprintf(format, args...))
 }
 
 func (e *outExpecter) fatalf(reason string, format string, args ...interface{}) {
@@ -428,6 +429,15 @@ func (p *PTY) WriteLine(str string) {
 	p.logf("stdin: %q", str+string(newline))
 	_, err := p.Input().Write(append([]byte(str), newline...))
 	require.NoError(p.t, err, "write line failed")
+}
+
+// Named sets the PTY name in the logs. Defaults to "cmd". Make sure you set this before anything starts writing to the
+// pty, or it may not be named consistently. E.g.
+//
+// p := New(t).Named("myCmd")
+func (p *PTY) Named(name string) *PTY {
+	p.name.Store(name)
+	return p
 }
 
 type PTYCmd struct {

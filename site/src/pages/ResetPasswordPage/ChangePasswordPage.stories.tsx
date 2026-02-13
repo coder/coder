@@ -17,6 +17,14 @@ type Story = StoryObj<typeof ChangePasswordPage>;
 
 export const Default: Story = {};
 
+export const EmptySubmission: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("button", { name: /reset password/i }));
+	},
+};
+
 export const Success: Story = {
 	play: async ({ canvasElement }) => {
 		spyOn(API, "changePasswordWithOTP").mockResolvedValueOnce();

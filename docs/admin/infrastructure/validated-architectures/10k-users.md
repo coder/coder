@@ -53,7 +53,7 @@ If you choose to deploy workspaces in multiple geographic regions, provision
 
 | vCPU | Memory | Replicas |
 |------|--------|----------|
-| 1    | 1 GB   | 180      |
+| 1    | 1 GB   | 600      |
 
 **Notes**:
 

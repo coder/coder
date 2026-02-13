@@ -54,6 +54,7 @@ const WorkspaceSharingPage: FC = () => {
 				onUpdateGroup={sharing.updateGroup}
 				updatingGroupId={sharing.updatingGroupId}
 				onRemoveGroup={sharing.removeGroup}
+				hasRemovedMember={sharing.hasRemovedMember}
 			/>
 		</div>
 	);

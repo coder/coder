@@ -7,7 +7,7 @@ Coder Tasks is an interface for running & managing coding agents such as Claude 
 Coder Tasks is best for cases where the IDE is secondary, such as prototyping or running long-running background jobs. However, tasks run inside full workspaces so developers can [connect via an IDE](../user-guides/workspace-access) to take a task to completion.
 
 > [!NOTE]
-> Premium Coder deployments are limited to running 1,000 tasks. [Contact us](https://coder.com/contact) for pricing options or learn more about our [AI Governance Add-On](./ai-governance.md) to evaluate all of Coder's AI features.
+> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Bridge](./ai-bridge/index.md) or [Agent Boundaries](./agent-boundaries/index.md). To scale beyond the 1,000 build limit or enable AI governance features, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
 
 ## Supported Agents (and Models)
 

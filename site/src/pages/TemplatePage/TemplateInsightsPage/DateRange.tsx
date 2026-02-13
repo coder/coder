@@ -52,7 +52,7 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 					<span>{dayjs(value.endDate).format("MMM D, YYYY")}</span>
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent>
+			<PopoverContent className="w-auto p-0 overflow-x-hidden">
 				<DateRangePicker
 					css={styles.wrapper}
 					onChange={(item) => {

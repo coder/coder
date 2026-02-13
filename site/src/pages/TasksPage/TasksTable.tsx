@@ -1,17 +1,18 @@
-import Checkbox from "@mui/material/Checkbox";
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import { pauseTask, resumeTask } from "api/queries/tasks";
 import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Table,
@@ -26,17 +27,18 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
-import {
-	EllipsisVertical,
-	RotateCcwIcon,
-	Share2Icon,
-	TrashIcon,
-} from "lucide-react";
+import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
+import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
+import {
+	canPauseTask,
+	canResumeTask,
+	isPauseDisabled,
+} from "modules/tasks/taskActions";
 import { type FC, type ReactNode, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-
 import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
@@ -45,7 +47,6 @@ type TasksTableProps = {
 	onRetry: () => void;
 	checkedTaskIds?: Set<string>;
 	onCheckChange?: (checkedTaskIds: Set<string>) => void;
-	canCheckTasks?: boolean;
 };
 
 export const TasksTable: FC<TasksTableProps> = ({
@@ -54,14 +55,13 @@ export const TasksTable: FC<TasksTableProps> = ({
 	onRetry,
 	checkedTaskIds = new Set(),
 	onCheckChange,
-	canCheckTasks = false,
 }) => {
 	let body: ReactNode = null;
 
 	if (error) {
 		body = <TasksErrorBody error={error} onRetry={onRetry} />;
 	} else if (!tasks) {
-		body = <TasksSkeleton canCheckTasks={canCheckTasks} />;
+		body = <TasksSkeleton />;
 	} else if (tasks.length === 0) {
 		body = <TasksEmpty />;
 	} else {
@@ -82,7 +82,6 @@ export const TasksTable: FC<TasksTableProps> = ({
 						}
 						onCheckChange(newIds);
 					}}
-					canCheck={canCheckTasks}
 				/>
 			);
 		});
@@ -93,31 +92,27 @@ export const TasksTable: FC<TasksTableProps> = ({
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/3">
-						<div className="flex items-center gap-2">
-							{canCheckTasks && (
-								<Checkbox
-									className="-my-[9px]"
-									disabled={!tasks || tasks.length === 0}
-									checked={
-										tasks &&
-										tasks.length > 0 &&
-										checkedTaskIds.size === tasks.length
+						<div className="flex items-center gap-5">
+							<Checkbox
+								disabled={!tasks || tasks.length === 0}
+								checked={
+									tasks &&
+									tasks.length > 0 &&
+									checkedTaskIds.size === tasks.length
+								}
+								onCheckedChange={(checked) => {
+									if (!tasks || !onCheckChange) {
+										return;
 									}
-									size="xsmall"
-									onChange={(_, checked) => {
-										if (!tasks || !onCheckChange) {
-											return;
-										}
 
-										if (!checked) {
-											onCheckChange(new Set());
-										} else {
-											onCheckChange(new Set(tasks.map((t) => t.id)));
-										}
-									}}
-									aria-label="Select all tasks"
-								/>
-							)}
+									if (!checked) {
+										onCheckChange(new Set());
+									} else {
+										onCheckChange(new Set(tasks.map((t) => t.id)));
+									}
+								}}
+								aria-label="Select all tasks"
+							/>
 							Task
 						</div>
 					</TableHead>
@@ -182,18 +177,30 @@ type TaskRowProps = {
 	task: Task;
 	checked: boolean;
 	onCheckChange: (taskId: string, checked: boolean) => void;
-	canCheck: boolean;
 };
 
-const TaskRow: FC<TaskRowProps> = ({
-	task,
-	checked,
-	onCheckChange,
-	canCheck,
-}) => {
+const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
+
+	const showPause = canPauseTask(task.status) && task.workspace_id;
+	const pauseDisabled = isPauseDisabled(task.status);
+	const showResume = canResumeTask(task.status) && task.workspace_id;
+
+	const queryClient = useQueryClient();
+	const pauseMutation = useMutation({
+		...pauseTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to pause task."));
+		},
+	});
+	const resumeMutation = useMutation({
+		...resumeTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to resume task."));
+		},
+	});
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
 	// Discard role, breaks Chromatic.
@@ -209,21 +216,18 @@ const TaskRow: FC<TaskRowProps> = ({
 				{...clickableRowProps}
 			>
 				<TableCell>
-					<div className="flex items-center gap-2">
-						{canCheck && (
-							<Checkbox
-								data-testid={`checkbox-${task.id}`}
-								size="xsmall"
-								checked={checked}
-								onClick={(e) => {
-									e.stopPropagation();
-								}}
-								onChange={(e) => {
-									onCheckChange(task.id, e.currentTarget.checked);
-								}}
-								aria-label={`Select task ${task.initial_prompt}`}
-							/>
-						)}
+					<div className="flex items-center gap-5">
+						<Checkbox
+							data-testid={`checkbox-${task.id}`}
+							checked={checked}
+							onClick={(e) => {
+								e.stopPropagation();
+							}}
+							onCheckedChange={(checked) => {
+								onCheckChange(task.id, Boolean(checked));
+							}}
+							aria-label={`Select task ${task.initial_prompt}`}
+						/>
 						<AvatarData
 							title={
 								<span className="block max-w-[520px] truncate">
@@ -261,42 +265,47 @@ const TaskRow: FC<TaskRowProps> = ({
 					/>
 				</TableCell>
 				<TableCell className="text-right">
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon-lg"
-								variant="subtle"
-								onClick={(e) => e.stopPropagation()}
-							>
-								<EllipsisVertical aria-hidden="true" />
-								<span className="sr-only">Open task actions</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onClick={(e) => {
-									e.stopPropagation();
-									navigate(
-										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
-									);
-								}}
-							>
-								<Share2Icon />
-								Share workspace
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={(e) => {
-									e.stopPropagation();
-									setIsDeleteDialogOpen(true);
-								}}
-							>
-								<TrashIcon />
-								Delete&hellip;
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					<div className="flex items-center justify-end gap-1">
+						{showPause && (
+							<TaskActionButton
+								action="pause"
+								disabled={pauseDisabled}
+								loading={pauseMutation.isPending}
+								onClick={pauseMutation.mutate}
+							/>
+						)}
+						{showResume && (
+							<TaskActionButton
+								action="resume"
+								loading={resumeMutation.isPending}
+								onClick={resumeMutation.mutate}
+							/>
+						)}
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									size="icon-lg"
+									variant="subtle"
+									onClick={(e) => e.stopPropagation()}
+								>
+									<EllipsisVertical aria-hidden="true" />
+									<span className="sr-only">Show task actions</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={(e) => {
+										e.stopPropagation();
+										setIsDeleteDialogOpen(true);
+									}}
+								>
+									<TrashIcon />
+									Delete&hellip;
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
 				</TableCell>
 			</TableRow>
 
@@ -311,17 +320,13 @@ const TaskRow: FC<TaskRowProps> = ({
 	);
 };
 
-type TasksSkeletonProps = {
-	canCheckTasks: boolean;
-};
-
-const TasksSkeleton: FC<TasksSkeletonProps> = ({ canCheckTasks }) => {
+const TasksSkeleton: FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div className="flex items-center gap-2">
-						{canCheckTasks && <Checkbox size="small" disabled />}
+					<div className="flex items-center gap-5">
+						<Checkbox disabled />
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

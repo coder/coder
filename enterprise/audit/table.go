@@ -119,6 +119,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"activity_bump":                     ActionTrack,
 		"use_classic_parameter_flow":        ActionTrack,
 		"cors_behavior":                     ActionTrack,
+		"disable_module_cache":              ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,

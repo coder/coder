@@ -5,7 +5,13 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxItem,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
@@ -64,6 +70,7 @@ interface CreateWorkspacePageViewProps {
 	presets: TypesGen.Preset[];
 	template: TypesGen.Template;
 	versionId?: string;
+	versionName?: string;
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
@@ -94,6 +101,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	presets = [],
 	template,
 	versionId,
+	versionName,
 	onSubmit,
 	onCancel,
 	resetMutation,
@@ -170,15 +178,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ displayName: "None", value: "undefined", icon: "", description: "" },
+		{ label: "None", value: "undefined", icon: "", description: "" },
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ displayName: "None", value: "undefined", icon: "", description: "" },
+			{ label: "None", value: "undefined", icon: "", description: "" },
 			...presets.map((preset) => ({
-				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 				icon: preset.Icon,
 				description: preset.Description,
@@ -380,10 +388,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								</Badge>
 							)}
 						</span>
-						{canUpdateTemplate && (
+						{canUpdateTemplate && versionName && (
 							<Button asChild size="sm" variant="outline">
 								<RouterLink
-									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionName}/edit`}
 								>
 									<ExternalLinkIcon />
 									View source
@@ -570,12 +578,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
 											<Combobox
-												value={
-													presetOptions[selectedPresetIndex]?.displayName || ""
-												}
-												options={presetOptions}
-												placeholder="Select a preset"
-												onSelect={(value) => {
+												value={presetOptions[selectedPresetIndex]?.value}
+												onValueChange={(value) => {
 													const index = presetOptions.findIndex(
 														(preset) => preset.value === value,
 													);
@@ -585,14 +589,44 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														// "undefined" string is equivalent to using None option
-														// Combobox requires a value in order to correctly highlight the None option
+														// "undefined" string is equivalent to using None option.
+														// Combobox requires a value in order to correctly
+														// highlight the None option.
 														presetOptions[index].value === "undefined"
 															? undefined
 															: presetOptions[index].value,
 													);
 												}}
-											/>
+											>
+												<ComboboxTrigger asChild>
+													<ComboboxButton
+														selectedOption={{
+															label:
+																presetOptions[selectedPresetIndex]?.label || "",
+															value:
+																presetOptions[selectedPresetIndex]?.value || "",
+														}}
+														placeholder="Select a preset"
+													/>
+												</ComboboxTrigger>
+												<ComboboxContent align="start">
+													{presetOptions.map((preset) => (
+														<ComboboxItem
+															key={preset.value}
+															value={preset.value}
+														>
+															{preset.icon && (
+																<img
+																	src={preset.icon}
+																	alt={preset.label}
+																	className="w-4 h-4"
+																/>
+															)}
+															{preset.label}
+														</ComboboxItem>
+													))}
+												</ComboboxContent>
+											</Combobox>
 										</div>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
 										{presetParameterNames.length > 0 && (

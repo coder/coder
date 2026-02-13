@@ -5,7 +5,6 @@ import {
 	type ComponentProps,
 	createContext,
 	type FC,
-	forwardRef,
 	type HTMLProps,
 	type ReactNode,
 	useContext,
@@ -76,51 +75,50 @@ interface FormSectionProps {
 	};
 	alpha?: boolean;
 	deprecated?: boolean;
+	ref?: React.Ref<HTMLElement>;
 }
 
-export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
-	(
-		{
-			children,
-			title,
-			description,
-			classes = {},
-			alpha = false,
-			deprecated = false,
-		},
-		ref,
-	) => {
-		const { direction } = useContext(FormContext);
+export const FormSection: FC<FormSectionProps> = ({
+	children,
+	title,
+	description,
+	classes = {},
+	alpha = false,
+	deprecated = false,
+	ref,
+}) => {
+	const { direction } = useContext(FormContext);
 
-		return (
-			<section
-				ref={ref}
+	return (
+		<section
+			ref={ref}
+			css={[
+				styles.formSection,
+				direction === "horizontal" && styles.formSectionHorizontal,
+			]}
+			className={classes.root}
+		>
+			<div
 				css={[
-					styles.formSection,
-					direction === "horizontal" && styles.formSectionHorizontal,
+					styles.formSectionInfo,
+					direction === "horizontal" && styles.formSectionInfoHorizontal,
 				]}
-				className={classes.root}
+				className={classes.sectionInfo}
 			>
-				<div
-					css={[
-						styles.formSectionInfo,
-						direction === "horizontal" && styles.formSectionInfoHorizontal,
-					]}
-					className={classes.sectionInfo}
-				>
+				<header className="flex items-center gap-4">
 					<h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
 						{title}
-						{alpha && <AlphaBadge />}
-						{deprecated && <DeprecatedBadge />}
 					</h2>
-					<div css={styles.formSectionInfoDescription}>{description}</div>
-				</div>
+					{alpha && <AlphaBadge />}
+					{deprecated && <DeprecatedBadge />}
+				</header>
+				<div css={styles.formSectionInfoDescription}>{description}</div>
+			</div>
 
-				{children}
-			</section>
-		);
-	},
-);
+			{children}
+		</section>
+	);
+};
 
 export const FormFields: FC<ComponentProps<typeof Stack>> = (props) => {
 	return (

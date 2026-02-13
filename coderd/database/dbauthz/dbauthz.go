@@ -174,6 +174,19 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 	return xerrors.Errorf("authorize context: %w", workspaceErr)
 }
 
+func workspaceTransitionAction(transition database.WorkspaceTransition) (policy.Action, error) {
+	switch transition {
+	case database.WorkspaceTransitionStart:
+		return policy.ActionWorkspaceStart, nil
+	case database.WorkspaceTransitionStop:
+		return policy.ActionWorkspaceStop, nil
+	case database.WorkspaceTransitionDelete:
+		return policy.ActionDelete, nil
+	default:
+		return "", xerrors.Errorf("unsupported workspace transition %q", transition)
+	}
+}
+
 // authorizeAIBridgeInterceptionAction validates that the context's actor matches the initiator of the AIBridgeInterception.
 // This is used by all of the sub-resources which fall under the [ResourceAibridgeInterception] umbrella.
 func (q *querier) authorizeAIBridgeInterceptionAction(ctx context.Context, action policy.Action, interceptionID uuid.UUID) error {
@@ -399,7 +412,7 @@ var (
 					ByOrgID: map[string]rbac.OrgPermissions{
 						orgID.String(): {
 							Member: rbac.Permissions(map[string][]policy.Action{
-								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 							}),
 						},
 					},
@@ -429,7 +442,7 @@ var (
 					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 					rbac.ResourceWorkspaceProxy.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationMessage.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
@@ -636,6 +649,25 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	// Used by the boundary usage tracker to record telemetry statistics.
+	subjectBoundaryUsageTracker = rbac.Subject{
+		Type:         rbac.SubjectTypeBoundaryUsageTracker,
+		FriendlyName: "Boundary Usage Tracker",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "boundary-usage-tracker"},
+				DisplayName: "Boundary Usage Tracker",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceBoundaryUsage.Type: rbac.ResourceBoundaryUsage.AvailableActions(),
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -734,6 +766,12 @@ func AsAIBridged(ctx context.Context) context.Context {
 // for dbpurge to delete old database records.
 func AsDBPurge(ctx context.Context) context.Context {
 	return As(ctx, subjectDBPurge)
+}
+
+// AsBoundaryUsageTracker returns a context with an actor that has permissions
+// required for the boundary usage tracker to record telemetry statistics.
+func AsBoundaryUsageTracker(ctx context.Context) context.Context {
+	return As(ctx, subjectBoundaryUsageTracker)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1458,6 +1496,15 @@ func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg databas
 	return q.db.ArchiveUnusedTemplateVersions(ctx, arg)
 }
 
+func (q *querier) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
+	// Could be any workspace agent and checking auth to each workspace agent is overkill for
+	// the purpose of this function.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace.All()); err != nil {
+		return err
+	}
+	return q.db.BatchUpdateWorkspaceAgentMetadata(ctx, arg)
+}
+
 func (q *querier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
 	// Could be any workspace and checking auth to each workspace is overkill for
 	// the purpose of this function.
@@ -1632,13 +1679,6 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.DeleteAllTailnetClientSubscriptions(ctx, arg)
-}
-
 func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -1661,13 +1701,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
-}
-
-func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.DeleteCoordinator(ctx, id)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -1878,27 +1911,6 @@ func (q *querier) DeleteRuntimeConfig(ctx context.Context, key string) error {
 	return q.db.DeleteRuntimeConfig(ctx, key)
 }
 
-func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.DeleteTailnetAgentRow{}, err
-	}
-	return q.db.DeleteTailnetAgent(ctx, arg)
-}
-
-func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.DeleteTailnetClientRow{}, err
-	}
-	return q.db.DeleteTailnetClient(ctx, arg)
-}
-
-func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.DeleteTailnetClientSubscription(ctx, arg)
-}
-
 func (q *querier) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.DeleteTailnetPeerRow{}, err
@@ -1913,14 +1925,14 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
-func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (database.TaskTable, error) {
+func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (uuid.UUID, error) {
 	task, err := q.db.GetTaskByID(ctx, arg.ID)
 	if err != nil {
-		return database.TaskTable{}, err
+		return uuid.UUID{}, err
 	}
 
 	if err := q.authorizeContext(ctx, policy.ActionDelete, task.RBACObject()); err != nil {
-		return database.TaskTable{}, err
+		return uuid.UUID{}, err
 	}
 
 	return q.db.DeleteTask(ctx, arg)
@@ -2183,13 +2195,6 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 }
 
-func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return []database.TailnetAgent{}, err
-	}
-	return q.db.GetAllTailnetAgents(ctx)
-}
-
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
@@ -2209,6 +2214,13 @@ func (q *querier) GetAllTailnetTunnels(ctx context.Context) ([]database.TailnetT
 		return nil, err
 	}
 	return q.db.GetAllTailnetTunnels(ctx)
+}
+
+func (q *querier) GetAndResetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetAndResetBoundaryUsageSummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceBoundaryUsage); err != nil {
+		return database.GetAndResetBoundaryUsageSummaryRow{}, err
+	}
+	return q.db.GetAndResetBoundaryUsageSummary(ctx, maxStalenessMs)
 }
 
 func (q *querier) GetAnnouncementBanners(ctx context.Context) (string, error) {
@@ -3055,20 +3067,6 @@ func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, err
 	return q.db.GetRuntimeConfig(ctx, key)
 }
 
-func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return nil, err
-	}
-	return q.db.GetTailnetAgents(ctx, id)
-}
-
-func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]database.TailnetClient, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return nil, err
-	}
-	return q.db.GetTailnetClientsForAgent(ctx, agentID)
-}
-
 func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err
@@ -3100,6 +3098,25 @@ func (q *querier) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetT
 
 func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
 	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
+}
+
+func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (database.TaskSnapshot, error) {
+	// Fetch task to build RBAC object for authorization.
+	task, err := q.GetTaskByID(ctx, taskID)
+	if err != nil {
+		return database.TaskSnapshot{}, err
+	}
+
+	obj := rbac.ResourceTask.
+		WithID(task.ID).
+		WithOwner(task.OwnerID.String()).
+		InOrg(task.OrganizationID)
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.TaskSnapshot{}, err
+	}
+
+	return q.db.GetTaskSnapshot(ctx, taskID)
 }
 
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
@@ -3869,6 +3886,14 @@ func (q *querier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Conte
 	return q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceBuildMetricsByResourceIDRow, error) {
+	// Verify access to the resource first.
+	if _, err := q.GetWorkspaceResourceByID(ctx, id); err != nil {
+		return database.GetWorkspaceBuildMetricsByResourceIDRow{}, err
+	}
+	return q.db.GetWorkspaceBuildMetricsByResourceID(ctx, id)
+}
+
 func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	// Authorized call to get the workspace build. If we can read the build,
 	// we can read the params.
@@ -4622,11 +4647,9 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		return xerrors.Errorf("get workspace by id: %w", err)
 	}
 
-	var action policy.Action = policy.ActionWorkspaceStart
-	if arg.Transition == database.WorkspaceTransitionDelete {
-		action = policy.ActionDelete
-	} else if arg.Transition == database.WorkspaceTransitionStop {
-		action = policy.ActionWorkspaceStop
+	action, err := workspaceTransitionAction(arg.Transition)
+	if err != nil {
+		return err
 	}
 
 	// Special handling for prebuilt workspace deletion
@@ -4670,8 +4693,13 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 		return err
 	}
 
+	action, err := workspaceTransitionAction(build.Transition)
+	if err != nil {
+		return err
+	}
+
 	// Special handling for prebuilt workspace deletion
-	if err := q.authorizePrebuiltWorkspace(ctx, policy.ActionUpdate, workspace); err != nil {
+	if err := q.authorizePrebuiltWorkspace(ctx, action, workspace); err != nil {
 		return err
 	}
 
@@ -5692,6 +5720,19 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg database.UpdateWorkspaceAgentDisplayAppsByIDParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdateAgent, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentDisplayAppsByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
@@ -5955,6 +5996,13 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 	return q.db.UpsertApplicationName(ctx, value)
 }
 
+func (q *querier) UpsertBoundaryUsageStats(ctx context.Context, arg database.UpsertBoundaryUsageStatsParams) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceBoundaryUsage); err != nil {
+		return false, err
+	}
+	return q.db.UpsertBoundaryUsageStats(ctx, arg)
+}
+
 func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
 		return database.ConnectionLog{}, err
@@ -6050,27 +6098,6 @@ func (q *querier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRu
 	return q.db.UpsertRuntimeConfig(ctx, arg)
 }
 
-func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.TailnetAgent{}, err
-	}
-	return q.db.UpsertTailnetAgent(ctx, arg)
-}
-
-func (q *querier) UpsertTailnetClient(ctx context.Context, arg database.UpsertTailnetClientParams) (database.TailnetClient, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.TailnetClient{}, err
-	}
-	return q.db.UpsertTailnetClient(ctx, arg)
-}
-
-func (q *querier) UpsertTailnetClientSubscription(ctx context.Context, arg database.UpsertTailnetClientSubscriptionParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
-		return err
-	}
-	return q.db.UpsertTailnetClientSubscription(ctx, arg)
-}
-
 func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.TailnetCoordinator{}, err
@@ -6090,6 +6117,25 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTaskSnapshot(ctx context.Context, arg database.UpsertTaskSnapshotParams) error {
+	// Fetch task to build RBAC object for authorization.
+	task, err := q.GetTaskByID(ctx, arg.TaskID)
+	if err != nil {
+		return err
+	}
+
+	obj := rbac.ResourceTask.
+		WithID(task.ID).
+		WithOwner(task.OwnerID.String()).
+		InOrg(task.OrganizationID)
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+
+	return q.db.UpsertTaskSnapshot(ctx, arg)
 }
 
 func (q *querier) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {

@@ -1,0 +1,168 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.14.1",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "api_key_scope": "all",
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
+            "env": null,
+            "id": "c9ada5fd-2d18-4942-b903-8c95ac337529",
+            "init_script": "",
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "token": "723b283e-7b61-4f42-b0af-eb86560343f5",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
+            "resources_monitoring": [],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_app.devcontainer-app",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "devcontainer-app",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
+            "command": null,
+            "display_name": null,
+            "external": false,
+            "group": null,
+            "healthcheck": [],
+            "hidden": false,
+            "icon": null,
+            "id": "4f22216c-dade-4a8e-ba08-7424588f96b0",
+            "open_in": "slim-window",
+            "order": null,
+            "share": "owner",
+            "slug": "devcontainer-app",
+            "subdomain": null,
+            "tooltip": null,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          },
+          "depends_on": [
+            "coder_agent.main",
+            "coder_devcontainer.dev"
+          ]
+        },
+        {
+          "address": "coder_devcontainer.dev",
+          "mode": "managed",
+          "type": "coder_devcontainer",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "c9ada5fd-2d18-4942-b903-8c95ac337529",
+            "config_path": null,
+            "id": "829a2bfb-3af9-4451-bfd9-04f1c5940bd2",
+            "subagent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
+            "workspace_folder": "/workspace"
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_env.devcontainer-env",
+          "mode": "managed",
+          "type": "coder_env",
+          "name": "devcontainer-env",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
+            "id": "0982d946-8a12-423a-a316-d4263f94a124",
+            "name": "DEVCONTAINER_ENV",
+            "value": "devcontainer-value"
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main",
+            "coder_devcontainer.dev"
+          ]
+        },
+        {
+          "address": "coder_script.devcontainer-script",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "devcontainer-script",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
+            "cron": null,
+            "display_name": "Devcontainer Script",
+            "icon": null,
+            "id": "494653e8-d3e8-4264-86ac-81305d43376d",
+            "log_path": null,
+            "run_on_start": true,
+            "run_on_stop": false,
+            "script": "echo devcontainer",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main",
+            "coder_devcontainer.dev"
+          ]
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "8871590603040683241",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        }
+      ]
+    }
+  }
+}

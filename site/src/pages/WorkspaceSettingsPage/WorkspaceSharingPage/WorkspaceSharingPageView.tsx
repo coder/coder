@@ -30,6 +30,7 @@ interface WorkspaceSharingPageViewProps {
 	onUpdateGroup: (group: WorkspaceGroup, role: WorkspaceRole) => void;
 	updatingGroupId?: WorkspaceGroup["id"] | undefined;
 	onRemoveGroup: (group: Group) => void;
+	hasRemovedMember?: boolean;
 }
 
 export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
@@ -47,11 +48,13 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 	updatingGroupId,
 	onUpdateGroup,
 	onRemoveGroup,
+	hasRemovedMember,
 }) => {
 	return (
 		<WorkspaceSharingForm
 			workspaceACL={workspaceACL}
 			canUpdatePermissions={canUpdatePermissions}
+			isTaskWorkspace={Boolean(workspace.task_id)}
 			error={error}
 			updatingUserId={updatingUserId}
 			onUpdateUser={onUpdateUser}
@@ -59,6 +62,7 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 			updatingGroupId={updatingGroupId}
 			onUpdateGroup={onUpdateGroup}
 			onRemoveGroup={onRemoveGroup}
+			showRestartWarning={hasRemovedMember}
 			addMemberForm={
 				<AddWorkspaceUserOrGroup
 					organizationID={workspace.organization_id}

@@ -462,7 +462,36 @@ func (r *RootCmd) login() *serpent.Command {
 			Value:       serpent.BoolOf(&useTokenForSession),
 		},
 	}
+	cmd.Children = []*serpent.Command{
+		r.loginToken(),
+	}
 	return cmd
+}
+
+func (r *RootCmd) loginToken() *serpent.Command {
+	return &serpent.Command{
+		Use:        "token",
+		Short:      "Print the current session token",
+		Long:       "Print the session token for use in scripts and automation.",
+		Middleware: serpent.RequireNArgs(0),
+		Handler: func(inv *serpent.Invocation) error {
+			tok, err := r.ensureTokenBackend().Read(r.clientURL)
+			if err != nil {
+				if xerrors.Is(err, os.ErrNotExist) {
+					return xerrors.New("no session token found - run 'coder login' first")
+				}
+				if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+					return errKeyringNotSupported
+				}
+				return xerrors.Errorf("read session token: %w", err)
+			}
+			if tok == "" {
+				return xerrors.New("no session token found - run 'coder login' first")
+			}
+			_, err = fmt.Fprintln(inv.Stdout, tok)
+			return err
+		},
+	}
 }
 
 // isWSL determines if coder-cli is running within Windows Subsystem for Linux

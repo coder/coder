@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -31,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -85,13 +85,17 @@ type Builder struct {
 	templateVersionPresetParameterValues *[]database.TemplateVersionPresetParameter
 	parameterRender                      dynamicparameters.Renderer
 	workspaceTags                        *map[string]string
+	task                                 *database.Task
+	hasTask                              *bool // A workspace without a task will have a nil `task` and false `hasTask`.
 
 	prebuiltWorkspaceBuildStage  sdkproto.PrebuiltWorkspaceBuildStage
 	verifyNoLegacyParametersOnce bool
+
+	buildMetrics *Metrics
 }
 
 type UsageChecker interface {
-	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, transition database.WorkspaceTransition) (UsageCheckResponse, error)
+	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (UsageCheckResponse, error)
 }
 
 type UsageCheckResponse struct {
@@ -103,7 +107,7 @@ type NoopUsageChecker struct{}
 
 var _ UsageChecker = NoopUsageChecker{}
 
-func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ database.WorkspaceTransition) (UsageCheckResponse, error) {
+func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (UsageCheckResponse, error) {
 	return UsageCheckResponse{
 		Permitted: true,
 	}, nil
@@ -251,6 +255,12 @@ func (b Builder) TemplateVersionPresetID(id uuid.UUID) Builder {
 	return b
 }
 
+func (b Builder) BuildMetrics(m *Metrics) Builder {
+	// nolint: revive
+	b.buildMetrics = m
+	return b
+}
+
 type BuildError struct {
 	// Status is a suitable HTTP status code
 	Status  int
@@ -311,9 +321,32 @@ func (b *Builder) Build(
 		return err
 	})
 	if err != nil {
+		b.recordBuildMetrics(provisionerJob, err)
 		return nil, nil, nil, xerrors.Errorf("build tx: %w", err)
 	}
+	b.recordBuildMetrics(provisionerJob, nil)
 	return workspaceBuild, provisionerJob, provisionerDaemons, nil
+}
+
+// recordBuildMetrics records the workspace build enqueue metric if metrics are
+// configured. It determines the appropriate build reason label, using "prebuild"
+// for prebuild operations instead of the database reason.
+func (b *Builder) recordBuildMetrics(job *database.ProvisionerJob, err error) {
+	if b.buildMetrics == nil {
+		return
+	}
+	if job == nil || !job.Provisioner.Valid() {
+		return
+	}
+
+	// Determine the build reason for metrics. Prebuilds use BuildReasonInitiator
+	// in the database but we want to track them separately in metrics.
+	buildReason := string(b.reason)
+	if b.prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CREATE {
+		buildReason = provisionerdserver.BuildReasonPrebuild
+	}
+
+	b.buildMetrics.RecordBuildEnqueued(string(job.Provisioner), buildReason, string(b.trans), err)
 }
 
 // buildTx contains the business logic of computing a new build.  Attributes of the new database objects are computed
@@ -487,8 +520,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
+		task, err := b.getWorkspaceTask()
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
+		}
 		// If this is a task workspace, link it to the latest workspace build.
-		if task, err := store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID); err == nil {
+		if task != nil {
 			_, err = store.UpsertTaskWorkspaceApp(b.ctx, database.UpsertTaskWorkspaceAppParams{
 				TaskID:               task.ID,
 				WorkspaceBuildNumber: buildNum,
@@ -498,8 +535,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			if err != nil {
 				return BuildError{http.StatusInternalServerError, "upsert task workspace app", err}
 			}
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
@@ -630,6 +665,27 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 		return uuid.Nil, xerrors.Errorf("get last build so we can get version: %w", err)
 	}
 	return bld.TemplateVersionID, nil
+}
+
+// getWorkspaceTask returns the task associated with the workspace, if any.
+// If no task exists, it returns (nil, nil).
+func (b *Builder) getWorkspaceTask() (*database.Task, error) {
+	if b.hasTask != nil {
+		return b.task, nil
+	}
+	t, err := b.store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			b.hasTask = ptr.Ref(false)
+			//nolint:nilnil // No task exists.
+			return nil, nil
+		}
+		return nil, xerrors.Errorf("get task: %w", err)
+	}
+
+	b.task = &t
+	b.hasTask = ptr.Ref(true)
+	return b.task, nil
 }
 
 func (b *Builder) getTemplateTerraformValues() (*database.TemplateVersionTerraformValue, error) {
@@ -923,7 +979,7 @@ func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, erro
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
 	}
-	b.templateVersionParameters = ptr.Ref(db2sdk.List(tvp, dynamicparameters.TemplateVersionParameter))
+	b.templateVersionParameters = ptr.Ref(slice.List(tvp, dynamicparameters.TemplateVersionParameter))
 	return *b.templateVersionParameters, nil
 }
 
@@ -1175,8 +1231,16 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 	switch b.trans {
 	case database.WorkspaceTransitionDelete:
 		action = policy.ActionDelete
-	case database.WorkspaceTransitionStart, database.WorkspaceTransitionStop:
-		action = policy.ActionUpdate
+	case database.WorkspaceTransitionStart:
+		action = policy.ActionWorkspaceStart
+		if b.workspace.DormantAt.Valid {
+			// Dormant workspaces can't be started directly; they are
+			// first "woken" by unsetting dormancy, which makes the
+			// workspace.start permission apply.
+			action = policy.ActionUpdate
+		}
+	case database.WorkspaceTransitionStop:
+		action = policy.ActionWorkspaceStop
 	default:
 		msg := fmt.Sprintf("Transition %q not supported.", b.trans)
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
@@ -1305,7 +1369,12 @@ func (b *Builder) checkUsage() error {
 		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
-	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, b.trans)
+	task, err := b.getWorkspaceTask()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "Failed to fetch workspace task", err}
+	}
+
+	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion, task, b.trans)
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "Failed to check build usage", err}
 	}

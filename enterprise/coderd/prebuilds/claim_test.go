@@ -174,8 +174,9 @@ func TestClaimPrebuild(t *testing.T) {
 					newNoopUsageCheckerPtr(),
 					noop.NewTracerProvider(),
 					10,
+					nil,
 				)
-				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
+				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 				version := coderdtest.CreateTemplateVersion(t, client, orgID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))

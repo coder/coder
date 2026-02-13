@@ -3,14 +3,15 @@ import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import {
-	HealthyBadge,
-	NotHealthyBadge,
-	NotReachableBadge,
-	NotRegisteredBadge,
-} from "components/Badges/Badges";
+	StatusHealthyIndicator,
+	StatusNotHealthyIndicator,
+	StatusNotReachableIndicator,
+	StatusNotRegisteredIndicator,
+} from "components/StatusIndicator/StatusIndicator";
 import { TableCell, TableRow } from "components/Table/Table";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC, ReactNode } from "react";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 
 interface ProxyRowProps {
@@ -19,8 +20,6 @@ interface ProxyRowProps {
 }
 
 export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
-	const theme = useTheme();
-
 	// If we have a more specific proxy status, use that.
 	// All users can see healthy/unhealthy, some can see more.
 	let statusBadge = <ProxyStatus proxy={proxy} />;
@@ -75,23 +74,19 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 					<div className="flex items-center justify-end">{statusBadge}</div>
 				</TableCell>
 				<TableCell
-					css={{
-						fontSize: 14,
-						textAlign: "right",
-						color: latency
-							? getLatencyColor(theme, latency.latencyMS)
-							: theme.palette.text.secondary,
-					}}
+					className={cn(
+						"text-sm text-right",
+						latency
+							? getLatencyColor(latency.latencyMS)
+							: "text-content-secondary",
+					)}
 				>
 					{latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
 				</TableCell>
 			</TableRow>
 			{shouldShowMessages && (
 				<TableRow>
-					<TableCell
-						colSpan={4}
-						css={{ padding: "0 !important", borderBottom: 0 }}
-					>
+					<TableCell colSpan={4} className="!p-0 border-b-0">
 						<ProxyMessagesRow
 							proxy={proxy as WorkspaceProxy}
 							extraWarnings={extraWarnings}
@@ -194,15 +189,15 @@ const DetailedProxyStatus: FC<DetailedProxyStatusProps> = ({ proxy }) => {
 
 	switch (proxy.status.status) {
 		case "ok":
-			return <HealthyBadge derpOnly={derpOnly} />;
+			return <StatusHealthyIndicator derpOnly={derpOnly} />;
 		case "unhealthy":
-			return <NotHealthyBadge />;
+			return <StatusNotHealthyIndicator />;
 		case "unreachable":
-			return <NotReachableBadge />;
+			return <StatusNotReachableIndicator />;
 		case "unregistered":
-			return <NotRegisteredBadge />;
+			return <StatusNotRegisteredIndicator />;
 		default:
-			return <NotHealthyBadge />;
+			return <StatusNotHealthyIndicator />;
 	}
 };
 
@@ -212,10 +207,9 @@ interface ProxyStatusProps {
 
 // ProxyStatus will only show "healthy" or "not healthy" status.
 const ProxyStatus: FC<ProxyStatusProps> = ({ proxy }) => {
-	let icon = <NotHealthyBadge />;
-	if (proxy.healthy) {
-		icon = <HealthyBadge derpOnly={false} />;
-	}
-
-	return icon;
+	return proxy.healthy ? (
+		<StatusHealthyIndicator />
+	) : (
+		<StatusNotHealthyIndicator />
+	);
 };

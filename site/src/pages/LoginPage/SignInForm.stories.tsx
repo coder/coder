@@ -1,5 +1,6 @@
 import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { SignInForm } from "./SignInForm";
 
 const meta: Meta<typeof SignInForm> = {
@@ -37,6 +38,24 @@ export const WithError: Story = {
 				},
 			],
 		}),
+	},
+};
+
+export const WithFieldValidation: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("button", { name: /sign in/i }));
+	},
+};
+
+export const WithInvalidEmail: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const emailInput = await canvas.findByLabelText(/email/i);
+		await user.type(emailInput, "not-an-email");
+		await user.click(canvas.getByRole("button", { name: /sign in/i }));
 	},
 };
 
