@@ -15,6 +15,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { cn } from "utils/cn";
 import { ForensicTimeline } from "./ForensicTimeline";
 import type { DiagnosticSession, DiagnosticSessionConnection } from "./types";
 
@@ -102,11 +103,19 @@ function connLabel(conn: DiagnosticSessionConnection): string {
 function typeDisplayLabel(session: DiagnosticSession): string {
 	if (session.connections.length === 0) return "";
 
-	// Group by display label, preserving insertion order.
+	// Group by display label, skipping system connections so they
+	// don't dominate the title (system wraps the real user connection).
 	const groups = new Map<string, number>();
 	for (const conn of session.connections) {
+		if (conn.type === "system") continue;
 		const lbl = connLabel(conn);
 		groups.set(lbl, (groups.get(lbl) ?? 0) + 1);
+	}
+
+	// Fall back to "System" when every connection is system.
+	if (groups.size === 0) {
+		const count = session.connections.length;
+		return count > 1 ? `System (${count})` : "System";
 	}
 
 	const parts: string[] = [];
@@ -143,22 +152,28 @@ function tooltipIP(session: DiagnosticSession): string | null {
 
 const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({
 	conn,
-}) => (
-	<div className="flex items-center gap-3 py-1.5 px-3 text-xs border-t border-border">
-		<StatusIndicatorDot variant={baseStatusVariant[conn.status]} size="sm" />
-		<Badge size="xs">{conn.type}</Badge>
-		<span className="text-content-secondary truncate">{conn.detail}</span>
-		<span className="ml-auto text-content-secondary font-mono text-2xs">
-			{formatTimeShort(conn.connected_at)}
-			{conn.disconnected_at && ` → ${formatTimeShort(conn.disconnected_at)}`}
-		</span>
-		{conn.exit_code !== null && (
-			<span className="text-2xs text-content-secondary">
-				exit {conn.exit_code}
+}) => {
+	const isSystem = conn.type === "system";
+	return (
+		<div className={cn(
+			"flex items-center gap-3 py-1.5 px-3 text-xs border-t border-border",
+			isSystem && "border-dashed opacity-50",
+		)}>
+			<StatusIndicatorDot variant={baseStatusVariant[conn.status]} size="sm" />
+			<Badge size="xs">{conn.type}</Badge>
+			<span className="text-content-secondary truncate">{conn.detail}</span>
+			<span className="ml-auto text-content-secondary font-mono text-2xs">
+				{formatTimeShort(conn.connected_at)}
+				{conn.disconnected_at && ` → ${formatTimeShort(conn.disconnected_at)}`}
 			</span>
-		)}
-	</div>
-);
+			{conn.exit_code !== null && (
+				<span className="text-2xs text-content-secondary">
+					exit {conn.exit_code}
+				</span>
+			)}
+		</div>
+	);
+};
 
 export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 	const [open, setOpen] = useState(false);

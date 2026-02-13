@@ -68,7 +68,14 @@ const SingleEventItem: FC<{
 			<span className="font-mono text-2xs text-content-secondary shrink-0">
 				{formatTime(event.timestamp)}
 			</span>
-			<span className="text-xs text-content-primary">{event.description}</span>
+			<span className={cn(
+				"text-xs",
+				event.description.toLowerCase().startsWith("system")
+					? "text-content-secondary italic"
+					: "text-content-primary",
+			)}>
+				{event.description}
+			</span>
 		</div>
 	</li>
 );
