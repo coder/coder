@@ -18,6 +18,7 @@
     "labels": {
       "agent": "main",
       "kill_signal": "killed",
+      "reason": "signal",
       "restart_count": "3",
       "workspace": "bobby-workspace"
     },

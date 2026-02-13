@@ -49,6 +49,7 @@ func (a *RestartAPI) ReportRestart(ctx context.Context, req *agentproto.ReportRe
 	a.Log.Info(ctx, "agent reported restart",
 		slog.F("agent_id", workspaceAgent.ID),
 		slog.F("restart_count", req.RestartCount),
+		slog.F("reason", req.Reason),
 		slog.F("kill_signal", req.KillSignal),
 	)
 
@@ -73,6 +74,7 @@ func (a *RestartAPI) ReportRestart(ctx context.Context, req *agentproto.ReportRe
 					"workspace":     workspace.Name,
 					"agent":         workspaceAgent.Name,
 					"restart_count": fmt.Sprintf("%d", req.RestartCount),
+					"reason":        req.Reason,
 					"kill_signal":   req.KillSignal,
 				},
 				map[string]any{

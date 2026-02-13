@@ -1050,20 +1050,24 @@ func (a *agent) run() (retErr error) {
 	if startCount > 1 {
 		// #nosec G115 - restart count is always small (< max restarts).
 		restartCount := int32(startCount - 1)
-		killSignal := reaper.ReadKillSignal()
+		killSignalRaw := reaper.ReadKillSignal()
+		reason, killSignal := reaper.ParseKillSignal(killSignalRaw)
 		_, err := aAPI.ReportRestart(a.hardCtx, &proto.ReportRestartRequest{
 			RestartCount: restartCount,
 			KillSignal:   killSignal,
+			Reason:       reason,
 		})
 		if err != nil {
 			a.logger.Error(a.hardCtx, "failed to report restart to coderd",
 				slog.F("start_count", startCount),
+				slog.F("reason", reason),
 				slog.F("kill_signal", killSignal),
 				slog.Error(err),
 			)
 		} else {
 			a.logger.Info(a.hardCtx, "reported restart to coderd",
 				slog.F("start_count", startCount),
+				slog.F("reason", reason),
 				slog.F("kill_signal", killSignal),
 			)
 		}

@@ -497,6 +497,11 @@ message ReportBoundaryLogsResponse {}
 message ReportRestartRequest {
 	int32 restart_count = 1;
 	string kill_signal = 2;
+	// reason describes how the previous agent process exited.
+	// In the reaper (PID 1) path this is always "signal". In
+	// the systemd path it mirrors $SERVICE_RESULT and can be
+	// "signal", "exit-code", or another systemd result string.
+	string reason = 3;
 }
 
 message ReportRestartResponse {}

@@ -161,9 +161,10 @@ func ForkReap(opt ...Option) (int, error) {
 		}
 
 		// Record the signal that killed the child so the next
-		// instance can report it to coderd.
+		// instance can report it to coderd. Format matches
+		// the systemd path: "signal:<name>".
 		if wstatus.Signaled() {
-			if err := WriteKillSignal(wstatus.Signal().String()); err != nil {
+			if err := WriteKillSignal(fmt.Sprintf("signal:%s", wstatus.Signal().String())); err != nil {
 				opts.Logger.Error(context.Background(), "failed to write kill signal file", slog.Error(err))
 			}
 		}
@@ -262,8 +263,10 @@ func WriteStartCount(count int) error {
 	return nil
 }
 
-// WriteKillSignal writes the signal name (e.g. "killed") to the
-// well-known file so the agent can report it to coderd.
+// WriteKillSignal writes the kill signal info to the well-known file
+// so the agent can report it to coderd. The format is
+// "<service_result>:<exit_status>", e.g. "signal:killed" (reaper
+// path) or "signal:SIGKILL" / "exit-code:2" (systemd path).
 func WriteKillSignal(sig string) error {
 	if err := os.WriteFile(KillSignalFile, []byte(sig), 0o644); err != nil {
 		return xerrors.Errorf("write kill signal file: %w", err)
@@ -279,6 +282,23 @@ func ReadKillSignal() string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+// ParseKillSignal parses the kill signal file content into its
+// components. The format is "<reason>:<value>", e.g.
+// "signal:killed" or "exit-code:2". Returns the reason
+// (e.g. "signal", "exit-code") and the value (e.g. "killed",
+// "SIGKILL", "2"). For legacy format (no colon), returns empty
+// reason and the raw value.
+func ParseKillSignal(raw string) (reason, value string) {
+	if raw == "" {
+		return "", ""
+	}
+	if idx := strings.IndexByte(raw, ':'); idx >= 0 {
+		return raw[:idx], raw[idx+1:]
+	}
+	// Legacy format: just the signal name.
+	return "", raw
 }
 
 // ClearRestartState deletes the start count and kill signal files.

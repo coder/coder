@@ -1196,6 +1196,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"workspace":     "bobby-workspace",
 					"agent":         "main",
 					"restart_count": "3",
+					"reason":        "signal",
 					"kill_signal":   "killed",
 				},
 			},

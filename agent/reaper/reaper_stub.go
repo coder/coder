@@ -35,5 +35,11 @@ func ReadKillSignal() string {
 	return ""
 }
 
+// ParseKillSignal parses the kill signal file content on
+// non-Linux platforms. Always returns empty strings.
+func ParseKillSignal(_ string) (reason, value string) {
+	return "", ""
+}
+
 // ClearRestartState is a no-op on non-Linux platforms.
 func ClearRestartState() {}

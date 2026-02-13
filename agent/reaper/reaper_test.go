@@ -96,6 +96,38 @@ func TestForkReapExitCodes(t *testing.T) {
 	}
 }
 
+func TestParseKillSignal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		raw            string
+		expectedReason string
+		expectedValue  string
+	}{
+		// Reaper path: "signal:killed"
+		{"signal:killed", "signal", "killed"},
+		// Systemd path: signal death
+		{"signal:SIGKILL", "signal", "SIGKILL"},
+		{"signal:SIGABRT", "signal", "SIGABRT"},
+		// Systemd path: exit code
+		{"exit-code:2", "exit-code", "2"},
+		{"exit-code:134", "exit-code", "134"},
+		// Empty
+		{"", "", ""},
+		// Legacy format (no colon)
+		{"killed", "", "killed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			t.Parallel()
+			reason, value := reaper.ParseKillSignal(tt.raw)
+			require.Equal(t, tt.expectedReason, reason)
+			require.Equal(t, tt.expectedValue, value)
+		})
+	}
+}
+
 //nolint:paralleltest // Signal handling.
 func TestReapInterrupt(t *testing.T) {
 	// Don't run the reaper test in CI. It does weird
