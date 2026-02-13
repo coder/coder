@@ -16,9 +16,15 @@ import (
 // prefixed with the namespace "coderd_".
 const BuildDurationMetricName = "template_workspace_build_duration_seconds"
 
+// AgentRestartMetricName is the short name for the agent restart
+// counter. The full metric name is prefixed with the namespace
+// "coderd_".
+const AgentRestartMetricName = "agents_restarts_total"
+
 // LifecycleMetrics contains Prometheus metrics for the lifecycle API.
 type LifecycleMetrics struct {
 	BuildDuration *prometheus.HistogramVec
+	AgentRestarts *prometheus.CounterVec
 }
 
 // NewLifecycleMetrics creates and registers all lifecycle-related
@@ -53,8 +59,14 @@ func NewLifecycleMetrics(reg prometheus.Registerer) *LifecycleMetrics {
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: time.Hour,
 		}, []string{"template_name", "organization_name", "transition", "status", "is_prebuild"}),
+		AgentRestarts: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Name:      AgentRestartMetricName,
+			Help:      "Total number of agent restarts after unexpected exits, by template and cause.",
+		}, []string{"template_name", "template_version", "reason", "signal"}),
 	}
 	reg.MustRegister(m.BuildDuration)
+	reg.MustRegister(m.AgentRestarts)
 	return m
 }
 

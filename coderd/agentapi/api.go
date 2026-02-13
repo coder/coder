@@ -74,6 +74,9 @@ type Options struct {
 	OrganizationID    uuid.UUID
 	TemplateVersionID uuid.UUID
 
+	TemplateName        string
+	TemplateVersionName string
+
 	AuthenticatedCtx                  context.Context
 	Log                               slog.Logger
 	Clock                             quartz.Clock
@@ -244,6 +247,9 @@ func New(opts Options, workspace database.Workspace) *API {
 		Log:                      opts.Log,
 		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Metrics:                  opts.LifecycleMetrics,
+		TemplateName:             workspace.TemplateName,
+		TemplateVersionName:      opts.TemplateVersionName,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

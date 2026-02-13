@@ -126,12 +126,27 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	monitor := api.startAgentYamuxMonitor(closeCtx, workspace, workspaceAgent, build, mux)
 	defer monitor.close()
 
+	// Look up the template version name for metrics labels.
+	var templateVersionName string
+	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, build.TemplateVersionID)
+	if err != nil {
+		logger.Warn(ctx, "failed to get template version for metrics",
+			slog.F("template_version_id", build.TemplateVersionID),
+			slog.Error(err))
+		templateVersionName = "unknown"
+	} else {
+		templateVersionName = templateVersion.Name
+	}
+
 	agentAPI := agentapi.New(agentapi.Options{
 		AgentID:           workspaceAgent.ID,
 		OwnerID:           workspace.OwnerID,
 		WorkspaceID:       workspace.ID,
 		OrganizationID:    workspace.OrganizationID,
 		TemplateVersionID: build.TemplateVersionID,
+
+		TemplateName:        workspace.TemplateName,
+		TemplateVersionName: templateVersionName,
 
 		AuthenticatedCtx:                  ctx,
 		Log:                               logger,

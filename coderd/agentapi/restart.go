@@ -28,6 +28,9 @@ type RestartAPI struct {
 	Log                      slog.Logger
 	NotificationsEnqueuer    notifications.Enqueuer
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
+	Metrics                  *LifecycleMetrics
+	TemplateName             string
+	TemplateVersionName      string
 }
 
 func (a *RestartAPI) ReportRestart(ctx context.Context, req *agentproto.ReportRestartRequest) (*agentproto.ReportRestartResponse, error) {
@@ -52,6 +55,15 @@ func (a *RestartAPI) ReportRestart(ctx context.Context, req *agentproto.ReportRe
 		slog.F("reason", req.Reason),
 		slog.F("kill_signal", req.KillSignal),
 	)
+
+	if a.Metrics != nil {
+		a.Metrics.AgentRestarts.WithLabelValues(
+			a.TemplateName,
+			a.TemplateVersionName,
+			req.Reason,
+			req.KillSignal,
+		).Inc()
+	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
 		if err := a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLifecycleUpdate); err != nil {
