@@ -8,6 +8,12 @@ import {
 } from "components/StatusIndicator/StatusIndicator";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { ForensicTimeline } from "./ForensicTimeline";
 import type { DiagnosticSession, DiagnosticSessionConnection } from "./types";
@@ -83,32 +89,35 @@ function connectionInfo(session: DiagnosticSession): string {
 	return `${session.connections.length} connections`;
 }
 
+// clientDisplayLabel returns the visible label for a session row.
+// Prefers short_description, then hostname, then IP as fallback.
 function clientDisplayLabel(session: DiagnosticSession): string {
-	const parts: string[] = [];
-
-	// Primary identity: short description or hostname.
 	if (session.short_description) {
-		parts.push(session.short_description);
-	} else if (session.client_hostname) {
-		parts.push(session.client_hostname);
-	}
-
-	// Secondary: always include the IP for context.
-	if (session.ip) {
-		if (parts.length === 0) {
-			// No description or hostname, IP is the only label.
-			if (session.ip === "127.0.0.1") {
-				parts.push("127.0.0.1 (local)");
-			} else {
-				parts.push(session.ip);
-			}
-		} else {
-			// Show IP alongside the description.
-			parts.push(session.ip);
+		if (session.client_hostname) {
+			return `${session.short_description} (${session.client_hostname})`;
 		}
+		return session.short_description;
 	}
+	if (session.client_hostname) {
+		return session.client_hostname;
+	}
+	if (session.ip === "127.0.0.1") {
+		return "127.0.0.1 (local)";
+	}
+	return session.ip || "Unknown";
+}
 
-	return parts.join(" · ") || "Unknown";
+// tooltipIP returns the IP to show in an (i) tooltip, or null if the
+// IP is already the primary label or not a tailnet address.
+function tooltipIP(session: DiagnosticSession): string | null {
+	// Only show tooltip when there's a hostname/description AND a tailnet IP.
+	const hasLabel = session.short_description || session.client_hostname;
+	if (!hasLabel) return null;
+	if (!session.ip) return null;
+	// Always show tailnet IPs in tooltip (they're internal, noisy inline).
+	if (session.ip.startsWith("fd7a:")) return session.ip;
+	// Non-tailnet IPs (127.0.0.1, external) are meaningful, show in tooltip too.
+	return session.ip;
 }
 
 const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({
@@ -135,6 +144,7 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 	const variant = getStatusVariant(session);
 	const label = getDisplayLabel(session);
 	const clientLabel = clientDisplayLabel(session);
+	const ipForTooltip = tooltipIP(session);
 	const typeLabel = connectionInfo(session);
 
 	const toggle = () => setOpen((v) => !v);
@@ -157,8 +167,16 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 				>
 					<StatusIndicatorDot variant={variant} size="sm" />
 
-					<span className="text-sm text-content-primary truncate min-w-0">
+					<span className="text-sm text-content-primary truncate min-w-0 inline-flex items-center gap-1.5">
 						{clientLabel}
+						{ipForTooltip && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<InfoIcon className="size-3.5 text-content-secondary shrink-0" />
+								</TooltipTrigger>
+								<TooltipContent>{ipForTooltip}</TooltipContent>
+							</Tooltip>
+						)}
 					</span>
 
 					<span className="text-xs text-content-secondary truncate">
