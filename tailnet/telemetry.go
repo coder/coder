@@ -20,9 +20,11 @@ import (
 )
 
 const (
-	TelemetryApplicationSSH       string = "ssh"
-	TelemetryApplicationSpeedtest string = "speedtest"
-	TelemetryApplicationVSCode    string = "vscode"
+	TelemetryApplicationSSH             string = "ssh"
+	TelemetryApplicationSpeedtest       string = "speedtest"
+	TelemetryApplicationVSCode          string = "vscode"
+	TelemetryApplicationReconnectingPTY string = "reconnecting_pty"
+	TelemetryApplicationPortForward     string = "port_forward"
 )
 
 // Responsible for storing and anonymizing networking telemetry state.

@@ -175,6 +175,7 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationReconnectingPTY)
 	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
@@ -289,6 +290,8 @@ func (c *agentConn) DialContext(ctx context.Context, network string, addr string
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.ParseUint(rawPort, 10, 16)
 	ipp := netip.AddrPortFrom(c.agentAddress(), uint16(port))
+
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationPortForward)
 
 	switch network {
 	case "tcp":
