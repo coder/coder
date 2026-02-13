@@ -47,8 +47,9 @@ func IsInitProcess() bool {
 // catchSignalsWithStop catches the given signals and forwards them to
 // the child process. On the first signal received, it closes the
 // stopping channel to indicate that the reaper should not restart the
-// child. Subsequent signals are still forwarded.
-func catchSignalsWithStop(logger slog.Logger, pid int, sigs []os.Signal, stopping chan struct{}, once *sync.Once) {
+// child. Subsequent signals are still forwarded. The goroutine exits
+// when the done channel is closed (typically after Wait4 returns).
+func catchSignalsWithStop(logger slog.Logger, pid int, sigs []os.Signal, stopping chan struct{}, once *sync.Once, done <-chan struct{}) {
 	if len(sigs) == 0 {
 		return
 	}
@@ -62,19 +63,24 @@ func catchSignalsWithStop(logger slog.Logger, pid int, sigs []os.Signal, stoppin
 		slog.F("child_pid", pid),
 	)
 
-	for s := range sc {
-		sig, ok := s.(syscall.Signal)
-		if !ok {
-			continue
+	for {
+		select {
+		case <-done:
+			return
+		case s := <-sc:
+			sig, ok := s.(syscall.Signal)
+			if !ok {
+				continue
+			}
+			// Signal that we're intentionally stopping — suppress
+			// restart after the child exits.
+			once.Do(func() { close(stopping) })
+			logger.Info(context.Background(), "reaper caught signal, forwarding to child",
+				slog.F("signal", sig.String()),
+				slog.F("child_pid", pid),
+			)
+			_ = syscall.Kill(pid, sig)
 		}
-		// Signal that we're intentionally stopping — suppress
-		// restart after the child exits.
-		once.Do(func() { close(stopping) })
-		logger.Info(context.Background(), "reaper caught signal, forwarding to child",
-			slog.F("signal", sig.String()),
-			slog.F("child_pid", pid),
-		)
-		_ = syscall.Kill(pid, sig)
 	}
 }
 
@@ -146,13 +152,18 @@ func ForkReap(opt ...Option) (int, error) {
 			return 1, xerrors.Errorf("fork exec: %w", err)
 		}
 
-		go catchSignalsWithStop(opts.Logger, pid, opts.CatchSignals, stopping, &stoppingOnce)
+		childDone := make(chan struct{})
+		go catchSignalsWithStop(opts.Logger, pid, opts.CatchSignals, stopping, &stoppingOnce, childDone)
 
 		var wstatus syscall.WaitStatus
 		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 		for xerrors.Is(err, syscall.EINTR) {
 			_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 		}
+
+		// Stop the signal-forwarding goroutine now that the child
+		// has exited, before we potentially loop and spawn a new one.
+		close(childDone)
 
 		exitCode := convertExitCode(wstatus)
 

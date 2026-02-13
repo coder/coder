@@ -62,7 +62,7 @@ func (a *RestartAPI) ReportRestart(ctx context.Context, req *agentproto.ReportRe
 			a.TemplateVersionName,
 			req.Reason,
 			req.KillSignal,
-		).Inc()
+		).Add(float64(req.RestartCount))
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
