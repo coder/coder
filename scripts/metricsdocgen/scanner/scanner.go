@@ -549,6 +549,91 @@ func extractOptsMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
 	}, true
 }
 
+// isPromautoCall checks if an expression is a promauto factory call.
+// Matches:
+//   - promauto.With(reg): direct chained call
+//   - factory: variable that was assigned from promauto.With()
+func isPromautoCall(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.CallExpr:
+		// Check for promauto.With(reg).New*()
+		sel, ok := e.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+		ident, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return false
+		}
+		// Match calls that are exactly "promauto.With(...)". This checks the local
+		// package identifier, not the resolved import path. If the promauto package
+		// is imported with an alias, this will not match.
+		return ident.Name == "promauto" && sel.Sel.Name == "With"
+	case *ast.Ident:
+		// Heuristic: assume any identifier that isn't "prometheus" used as a
+		// receiver for New*() methods is a promauto factory variable.
+		// This works for the codebase patterns (e.g., factory.NewGaugeVec(...))
+		// but could false-positive on other receivers. Downstream extractOpts
+		// validation prevents incorrect metrics from being emitted.
+		return e.Name != "prometheus"
+	}
+	return false
+}
+
+// extractPromautoMetric extracts a metric from promauto.With().New*() or factory.New*() calls.
+// Supported patterns:
+//   - promauto.With(reg).NewCounterVec(prometheus.CounterOpts{...}, labels)
+//   - factory.NewGaugeVec(prometheus.GaugeOpts{...}, labels) where factory := promauto.With(reg)
+func extractPromautoMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return Metric{}, false
+	}
+
+	funcName := sel.Sel.Name
+	metricType, isVec := parseMetricFuncName(funcName)
+	if metricType == "" {
+		return Metric{}, false
+	}
+
+	// Check if this is a promauto call by examining the receiver.
+	if !isPromautoCall(sel.X) {
+		return Metric{}, false
+	}
+
+	// Need at least one argument (the Opts struct).
+	if len(call.Args) < 1 {
+		return Metric{}, false
+	}
+
+	// Extract metric info from the Opts struct.
+	opts, ok := extractOpts(call.Args[0], decls)
+	if !ok {
+		log.Printf("extractPromautoMetric: skipping promauto.%s() call: could not extract opts", funcName)
+		return Metric{}, false
+	}
+
+	// Extract labels for Vec types.
+	var labels []string
+	if isVec && len(call.Args) >= 2 {
+		labels = extractLabels(call.Args[1], decls)
+	}
+
+	// Build the full metric name.
+	name := buildMetricName(opts.Namespace, opts.Subsystem, opts.Name)
+	if name == "" {
+		log.Printf("extractPromautoMetric: skipping promauto.%s() call: could not build metric name", funcName)
+		return Metric{}, false
+	}
+
+	return Metric{
+		Name:   name,
+		Type:   metricType,
+		Help:   opts.Help,
+		Labels: labels,
+	}, true
+}
+
 // extractMetricFromCall attempts to extract a Metric from a function call expression.
 // It returns the metric and true if successful, or an empty metric and false if
 // the call is not a metric registration.
@@ -568,8 +653,10 @@ func extractMetricFromCall(call *ast.CallExpr, decls declarations) (Metric, bool
 		return metric, true
 	}
 
-	// TODO(ssncferreira): Implement upstack.
-	// 	Handle promauto.With(reg).New*() pattern
+	// Check for promauto.With(reg).New*() pattern.
+	if metric, ok := extractPromautoMetric(call, decls); ok {
+		return metric, true
+	}
 
 	return Metric{}, false
 }
