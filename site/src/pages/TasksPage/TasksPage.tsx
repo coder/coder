@@ -101,8 +101,6 @@ const TasksPage: FC = () => {
 		await batchActions.delete(checkedTasks);
 	};
 
-	const canCheckTasks = true;
-
 	// Count workspaces that will be deleted with the selected tasks.
 	const workspaceCount = checkedTasks.filter(
 		(t) => t.workspace_id !== null,
@@ -275,7 +273,6 @@ const TasksPage: FC = () => {
 									onRetry={tasksQuery.refetch}
 									checkedTaskIds={checkedTaskIds}
 									onCheckChange={handleCheckChange}
-									canCheckTasks={canCheckTasks}
 								/>
 							</section>
 						)}

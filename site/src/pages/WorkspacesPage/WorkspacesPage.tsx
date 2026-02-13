@@ -128,7 +128,6 @@ const WorkspacesPage: FC = () => {
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
-	const canCheckWorkspaces = true;
 	const batchActions = useBatchActions({
 		onSuccess: async () => {
 			await refetch();
@@ -159,7 +158,6 @@ const WorkspacesPage: FC = () => {
 						return new Set(newIds);
 					});
 				}}
-				canCheckWorkspaces={canCheckWorkspaces}
 				templates={filteredTemplates}
 				templatesFetchStatus={templatesQuery.status}
 				workspaces={data?.workspaces}
