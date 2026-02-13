@@ -254,8 +254,25 @@ func composeFilePath() string {
 // WriteCompose writes the current compose state to
 // .cdev/docker-compose.yml.
 func (d *Docker) WriteCompose(_ context.Context) error {
+	// Strip depends_on entries referencing services not yet
+	// registered — the catalog DAG handles ordering, and
+	// partial compose files may not contain all services.
+	services := make(map[string]ComposeService, len(d.compose))
+	for name, svc := range d.compose {
+		if len(svc.DependsOn) > 0 {
+			filtered := make(map[string]ComposeDependsOn, len(svc.DependsOn))
+			for dep, cond := range svc.DependsOn {
+				if _, ok := d.compose[dep]; ok {
+					filtered[dep] = cond
+				}
+			}
+			svc.DependsOn = filtered
+		}
+		services[name] = svc
+	}
+
 	cf := &ComposeFile{
-		Services: d.compose,
+		Services: services,
 		Volumes:  d.composeVolumes,
 		Networks: map[string]ComposeNetwork{
 			composeNetworkName: {Driver: "bridge"},

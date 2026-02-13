@@ -170,10 +170,7 @@ func (cf *ComposeFile) AddLoadBalancer(haCount int) *ComposeFile {
 		Volumes:  []string{nginxConf + ":/etc/nginx/nginx.conf:ro"},
 		Ports:    ports,
 		Networks: []string{composeNetworkName},
-		Labels:   composeServiceLabels("load-balancer"),
-		DependsOn: map[string]ComposeDependsOn{
-			"coderd-0": {Condition: "service_started"},
-		},
+		Labels: composeServiceLabels("load-balancer"),
 	}
 	return cf
 }

@@ -145,10 +145,7 @@ func (lb *LoadBalancer) Start(ctx context.Context, logger slog.Logger, cat *Cata
 		Volumes:  []string{filepath.Join(tmpDir, "nginx.conf") + ":/etc/nginx/nginx.conf:ro"},
 		Ports:    ports,
 		Networks: []string{composeNetworkName},
-		Labels:   composeServiceLabels("load-balancer"),
-		DependsOn: map[string]ComposeDependsOn{
-			"coderd-0": {Condition: "service_started"},
-		},
+		Labels: composeServiceLabels("load-balancer"),
 	})
 
 	if err := dkr.DockerComposeUp(ctx, "load-balancer"); err != nil {
