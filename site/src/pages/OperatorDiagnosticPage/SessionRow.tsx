@@ -84,11 +84,31 @@ function connectionInfo(session: DiagnosticSession): string {
 }
 
 function clientDisplayLabel(session: DiagnosticSession): string {
-	if (session.short_description) return session.short_description;
-	if (session.client_hostname) return session.client_hostname;
-	if (session.ip === "127.0.0.1") return "Local (browser)";
-	if (session.ip.startsWith("fd7a:")) return "Tailnet peer";
-	return session.ip;
+	const parts: string[] = [];
+
+	// Primary identity: short description or hostname.
+	if (session.short_description) {
+		parts.push(session.short_description);
+	} else if (session.client_hostname) {
+		parts.push(session.client_hostname);
+	}
+
+	// Secondary: always include the IP for context.
+	if (session.ip) {
+		if (parts.length === 0) {
+			// No description or hostname, IP is the only label.
+			if (session.ip === "127.0.0.1") {
+				parts.push("127.0.0.1 (local)");
+			} else {
+				parts.push(session.ip);
+			}
+		} else {
+			// Show IP alongside the description.
+			parts.push(session.ip);
+		}
+	}
+
+	return parts.join(" · ") || "Unknown";
 }
 
 const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({

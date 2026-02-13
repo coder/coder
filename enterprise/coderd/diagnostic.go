@@ -783,17 +783,27 @@ func rebuildSummaryFromSessions(base codersdk.DiagnosticSummary, workspaces []co
 // buildLiveSessionsForWorkspace creates one DiagnosticSession per ongoing
 // connection log for a workspace. Each ongoing connection becomes its own
 // session with no grouping.
+// liveGroupKey groups ongoing connections by workspace, agent, client
+// identity, connection type, and detail (app slug or port). This avoids
+// showing 3 identical rows for 3 curl requests over the same port-forward,
+// while keeping SSH and workspace_app/code-server as separate sessions.
+type liveGroupKey struct {
+	agentName string
+	ip        string
+	connType  string
+	detail    string
+}
+
 func buildLiveSessionsForWorkspace(
 	workspaceID uuid.UUID,
 	workspaceName string,
 	ongoingLogs []database.GetConnectionLogsOffsetRow,
 ) []codersdk.DiagnosticSession {
-	var sessions []codersdk.DiagnosticSession
+	groups := make(map[liveGroupKey][]database.GetConnectionLogsOffsetRow)
 	for _, cl := range ongoingLogs {
 		if cl.ConnectionLog.WorkspaceID != workspaceID {
 			continue
 		}
-
 		log := cl.ConnectionLog
 		var ipStr string
 		if log.Ip.Valid {
@@ -801,41 +811,79 @@ func buildLiveSessionsForWorkspace(
 				ipStr = addr.Unmap().String()
 			}
 		}
+		detail := ""
+		if log.SlugOrPort.Valid {
+			detail = log.SlugOrPort.String
+		}
+		key := liveGroupKey{
+			agentName: log.AgentName,
+			ip:        ipStr,
+			connType:  string(log.Type),
+			detail:    detail,
+		}
+		groups[key] = append(groups[key], cl)
+	}
+
+	var sessions []codersdk.DiagnosticSession
+	for _, logs := range groups {
+		if len(logs) == 0 {
+			continue
+		}
+		first := logs[0].ConnectionLog
+
+		var ipStr string
+		if first.Ip.Valid {
+			if addr, ok := netip.AddrFromSlice(first.Ip.IPNet.IP); ok {
+				ipStr = addr.Unmap().String()
+			}
+		}
 		var clientHostname, shortDesc string
-		if log.ClientHostname.Valid {
-			clientHostname = log.ClientHostname.String
+		if first.ClientHostname.Valid {
+			clientHostname = first.ClientHostname.String
 		}
-		if log.ShortDescription.Valid {
-			shortDesc = log.ShortDescription.String
+		if first.ShortDescription.Valid {
+			shortDesc = first.ShortDescription.String
 		}
 
-		conn := convertSessionConnection(log)
-
-		openDesc := fmt.Sprintf("%s connection opened", log.Type)
-		if log.SlugOrPort.Valid && log.SlugOrPort.String != "" {
-			openDesc = fmt.Sprintf("%s (%s) connection opened", log.Type, log.SlugOrPort.String)
+		// Find the earliest start time for this group.
+		earliest := first.ConnectTime
+		for _, cl := range logs[1:] {
+			if cl.ConnectionLog.ConnectTime.Before(earliest) {
+				earliest = cl.ConnectionLog.ConnectTime
+			}
 		}
-		timeline := []codersdk.DiagnosticTimelineEvent{{
-			Timestamp:   log.ConnectTime,
-			Kind:        codersdk.DiagnosticTimelineEventConnectionOpened,
-			Description: openDesc,
-			Metadata: map[string]any{
-				"connection_id": log.ID.String(),
-				"type":          string(log.Type),
-			},
-			Severity: codersdk.ConnectionDiagnosticSeverityInfo,
-		}}
+
+		conns := make([]codersdk.DiagnosticSessionConn, 0, len(logs))
+		var timeline []codersdk.DiagnosticTimelineEvent
+		for _, cl := range logs {
+			conns = append(conns, convertSessionConnection(cl.ConnectionLog))
+
+			openDesc := fmt.Sprintf("%s connection opened", cl.ConnectionLog.Type)
+			if cl.ConnectionLog.SlugOrPort.Valid && cl.ConnectionLog.SlugOrPort.String != "" {
+				openDesc = fmt.Sprintf("%s (%s) connection opened", cl.ConnectionLog.Type, cl.ConnectionLog.SlugOrPort.String)
+			}
+			timeline = append(timeline, codersdk.DiagnosticTimelineEvent{
+				Timestamp:   cl.ConnectionLog.ConnectTime,
+				Kind:        codersdk.DiagnosticTimelineEventConnectionOpened,
+				Description: openDesc,
+				Metadata: map[string]any{
+					"connection_id": cl.ConnectionLog.ID.String(),
+					"type":          string(cl.ConnectionLog.Type),
+				},
+				Severity: codersdk.ConnectionDiagnosticSeverityInfo,
+			})
+		}
 
 		sessions = append(sessions, codersdk.DiagnosticSession{
 			WorkspaceID:      workspaceID,
 			WorkspaceName:    workspaceName,
-			AgentName:        log.AgentName,
+			AgentName:        first.AgentName,
 			IP:               ipStr,
 			ClientHostname:   clientHostname,
 			ShortDescription: shortDesc,
-			StartedAt:        log.ConnectTime,
+			StartedAt:        earliest,
 			Status:           codersdk.ConnectionStatusOngoing,
-			Connections:      []codersdk.DiagnosticSessionConn{conn},
+			Connections:      conns,
 			Timeline:         timeline,
 		})
 	}
