@@ -472,6 +472,7 @@ func buildSessionsFromOrphanedLogs(
 		dur := math.Round(endedAtCopy.Sub(startedAt).Seconds())
 
 		sessions = append(sessions, codersdk.DiagnosticSession{
+			ID:               uuid.New(),
 			WorkspaceID:      workspaceID,
 			WorkspaceName:    workspaceName,
 			AgentName:        first.AgentName,
@@ -913,6 +914,7 @@ func buildLiveSessionsForWorkspace(
 		}
 
 		sessions = append(sessions, codersdk.DiagnosticSession{
+			ID:               uuid.New(),
 			WorkspaceID:      workspaceID,
 			WorkspaceName:    workspaceName,
 			AgentName:        first.AgentName,
