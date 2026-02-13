@@ -13,11 +13,12 @@ import (
 )
 
 func main() {
+Reset:
 	switch os.Args[1] {
 	case "reset":
 		os.Args[1] = "down"
 		os.Args = append(os.Args, "database", "--volumes")
-		fallthrough
+		goto Reset // Change the command and re-evaluate the switch statement.
 	case "bridge", "attach", "build", "commit", "config", "cp", "create", "down", "events", "exec", "export", "images", "kill", "logs", "ls", "pause", "port", "ps", "publish", "pull", "push", "restart", "rm", "run", "scale", "start", "stats", "stop", "top", "unpause", "up", "version", "volumes", "wait", "watch":
 		ctx, err := workingdir.WorkingContext(context.Background())
 		if err != nil {
