@@ -35,10 +35,15 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { CircleCheck as CircleCheckIcon, CircleXIcon } from "lucide-react";
+import {
+	CircleCheck as CircleCheckIcon,
+	CircleXIcon,
+	SquareArrowOutUpRightIcon,
+} from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
+	Fragment,
 	type HTMLAttributes,
 	type PropsWithChildren,
 	type ReactNode,
@@ -505,29 +510,35 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 									{parameter.description}
 								</p>
 							</div>
-							<div className="flex-1 text-[14px]" style={{ flexGrow: 2 }}>
-								<ParameterUsageRow className="font-medium text-[13px] cursor-default text-content-secondary">
-									<div>Value</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div>Count</div>
-										</TooltipTrigger>
-										<TooltipContent>
-											The number of workspaces using this value
-										</TooltipContent>
-									</Tooltip>
-								</ParameterUsageRow>
+							<div className="flex-1 grow-2 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
+								<div className="font-medium text-[13px] text-content-secondary py-1">
+									Value
+								</div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="font-medium text-[13px] text-content-secondary text-right py-1 cursor-default">
+											Count
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										The number of workspaces using this value
+									</TooltipContent>
+								</Tooltip>
 								{[...parameter.values]
 									.sort((a, b) => b.count - a.count)
 									.filter((usage) => filterOrphanValues(usage, parameter))
 									.map((usage, usageIndex) => (
-										<ParameterUsageRow key={`${parameterIndex}-${usageIndex}`}>
-											<ParameterUsageLabel
-												usage={usage}
-												parameter={parameter}
-											/>
-											<div className="text-right">{usage.count}</div>
-										</ParameterUsageRow>
+										<Fragment key={`${parameterIndex}-${usageIndex}`}>
+											<div className="min-w-0 py-1">
+												<ParameterUsageLabel
+													usage={usage}
+													parameter={parameter}
+												/>
+											</div>
+											<div className="text-right py-1">
+												{usage.count.toLocaleString()}
+											</div>
+										</Fragment>
 									))}
 							</div>
 						</div>
@@ -546,21 +557,6 @@ const filterOrphanValues = (
 		return parameter.options.some((o) => o.value === usage.value);
 	}
 	return true;
-};
-
-const ParameterUsageRow: FC<HTMLAttributes<HTMLDivElement>> = ({
-	children,
-	className,
-	...attrs
-}) => {
-	return (
-		<div
-			{...attrs}
-			className={cn("flex items-baseline justify-between py-1", className)}
-		>
-			{children}
-		</div>
-	);
 };
 
 interface ParameterUsageLabelProps {
@@ -598,9 +594,23 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 	if (usage.value.startsWith("http")) {
 		return (
-			<Link href={usage.value} target="_blank" rel="noreferrer">
-				<TextValue>{usage.value}</TextValue>
-			</Link>
+			<span className="break-all">
+				<span className="mr-0.5 text-content-secondary">&quot;</span>
+				<Link
+					href={usage.value}
+					target="_blank"
+					rel="noreferrer"
+					showExternalIcon={false}
+					// We're using a manual underline because `inline`
+					// removes it from the first line of the text when it wraps.
+					className="inline hover:underline after:hover:content-none"
+				>
+					{usage.value}
+				</Link>
+				{/* Manual icon because we want to support multi-line. */}
+				<SquareArrowOutUpRightIcon className="inline-flex align-text-bottom size-icon-sm p-0.5 text-content-link" />
+				<span className="ml-0.5 text-content-secondary">&quot;</span>
+			</span>
 		);
 	}
 
@@ -720,7 +730,7 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 
 const TextValue: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<span>
+		<span className="break-all">
 			<span className="mr-0.5 text-content-secondary">&quot;</span>
 			{children}
 			<span className="ml-0.5 text-content-secondary">&quot;</span>

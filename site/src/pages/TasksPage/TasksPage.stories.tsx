@@ -415,7 +415,6 @@ export const ResumeTask: Story = {
 
 export const BatchActionsEnabled: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],
@@ -431,7 +430,6 @@ export const BatchActionsEnabled: Story = {
 
 export const BatchActionsSomeSelected: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],
@@ -458,7 +456,6 @@ export const BatchActionsSomeSelected: Story = {
 
 export const BatchActionsAllSelected: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],
@@ -484,7 +481,6 @@ export const BatchActionsAllSelected: Story = {
 
 export const BatchActionsDropdownOpen: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],

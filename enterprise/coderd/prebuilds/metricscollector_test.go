@@ -204,6 +204,7 @@ func TestMetricsCollector(t *testing.T) {
 										newNoopUsageCheckerPtr(),
 										noop.NewTracerProvider(),
 										10,
+										nil,
 									)
 									ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -344,6 +345,7 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -500,6 +502,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -537,6 +540,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -574,6 +578,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
