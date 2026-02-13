@@ -10,7 +10,6 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
@@ -33,10 +32,6 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 		return null;
 	}
 
-	const title = "Dev Container Outdated";
-	const opener = "This Dev Container is outdated.";
-	const text = `${opener} This can happen if you modify your devcontainer.json file after the Dev Container has been created. To fix this, you can rebuild the Dev Container.`;
-
 	return (
 		<HelpTooltip>
 			<TooltipTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
@@ -45,10 +40,14 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 				</span>
 			</TooltipTrigger>
 			<HelpTooltipContent>
-				<Stack spacing={1}>
+				<div className="flex flex-col gap-2">
 					<div>
-						<HelpTooltipTitle>{title}</HelpTooltipTitle>
-						<HelpTooltipText>{text}</HelpTooltipText>
+						<HelpTooltipTitle>Dev Container Outdated</HelpTooltipTitle>
+						<HelpTooltipText>
+							This Dev Container is outdated. This can happen if you modify your
+							devcontainer.json file after the Dev Container has been created.
+							To fix this, you can rebuild the Dev Container.
+						</HelpTooltipText>
 					</div>
 
 					<HelpTooltipLinksGroup>
@@ -60,7 +59,7 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 							Rebuild Dev Container
 						</HelpTooltipAction>
 					</HelpTooltipLinksGroup>
-				</Stack>
+				</div>
 			</HelpTooltipContent>
 		</HelpTooltip>
 	);

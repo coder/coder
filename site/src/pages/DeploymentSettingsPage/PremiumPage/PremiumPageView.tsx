@@ -1,4 +1,5 @@
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { Activity, Coins, Expand, SquareArrowOutUpRight } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -23,24 +24,18 @@ const EnterpriseVersion: FC = () => {
 				</div>
 				<Button asChild>
 					<a href="https://coder.com/contact/sales" className="no-underline">
-						<SquareArrowOutUpRight size={14} />
+						<SquareArrowOutUpRight />
 						Contact sales
 					</a>
 				</Button>
 			</header>
 
 			<section className="pb-1">
-				<a
-					className="no-underline text-sm text-content-link"
-					href={docs("/admin/users/organizations")}
-				>
-					<span className="flex items-center">
-						<h2 className="text-sm font-semibold m-0">
-							Multi-Organization access controls&nbsp;
-						</h2>
-						<SquareArrowOutUpRight size={14} />
-					</span>
-				</a>
+				<h2 className="text-sm font-semibold m-0">
+					<Link className="px-0" href={docs("/admin/users/organizations")}>
+						Multi-Organization access controls
+					</Link>
+				</h2>
 				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
 					Manage multiple teams and projects within a single deployment, each
 					with isolated access.
@@ -48,15 +43,11 @@ const EnterpriseVersion: FC = () => {
 			</section>
 
 			<section className="pb-1">
-				<a
-					className="no-underline text-sm text-content-link"
-					href={docs("/admin/users/groups-roles")}
-				>
-					<span className="flex items-center">
-						<h2 className="text-sm font-semibold m-0">Custom role&nbsp;</h2>
-						<SquareArrowOutUpRight size={14} />
-					</span>
-				</a>
+				<h2 className="text-sm font-semibold m-0">
+					<Link className="px-0" href={docs("/admin/users/groups-roles")}>
+						Custom role
+					</Link>
+				</h2>
 				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
 					Configure specific permissions for teams or contractors with tailored
 					roles.
@@ -64,17 +55,11 @@ const EnterpriseVersion: FC = () => {
 			</section>
 
 			<section>
-				<a
-					className="no-underline text-sm text-content-link"
-					href={docs("/admin/users/quotas")}
-				>
-					<span className="flex items-center text-sm">
-						<h2 className="text-sm font-semibold m-0">
-							Org-Level quotas for chargeback&nbsp;
-						</h2>
-						<SquareArrowOutUpRight size={14} />
-					</span>
-				</a>
+				<h2 className="text-sm font-semibold m-0">
+					<Link className="px-0" href={docs("/admin/users/quotas")}>
+						Org-Level quotas for chargeback
+					</Link>
+				</h2>
 				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
 					Set and monitor resource quotas at the organization level to support
 					internal cost tracking.
@@ -108,7 +93,7 @@ const OSSVersion: FC = () => {
 				</div>
 				<Button asChild>
 					<a href="https://coder.com/contact/sales" className="no-underline">
-						<SquareArrowOutUpRight size={14} />
+						<SquareArrowOutUpRight />
 						Contact sales
 					</a>
 				</Button>
@@ -117,7 +102,7 @@ const OSSVersion: FC = () => {
 			<section className="pb-10 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
-						<Expand size={18} className="text-content-secondary" />
+						<Expand className="size-icon-sm text-content-secondary" />
 						&nbsp; Deploy coder at scale
 					</span>
 				</h2>
@@ -162,7 +147,7 @@ const OSSVersion: FC = () => {
 			<section className="pb-10 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
-						<Coins size={18} className="text-content-secondary" />
+						<Coins className="size-icon-sm text-content-secondary" />
 						&nbsp; Control infrastructure costs
 					</span>
 				</h2>
@@ -207,7 +192,7 @@ const OSSVersion: FC = () => {
 			<section className="pb-5 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
-						<Activity size={18} className="text-content-secondary" />
+						<Activity className="size-icon-sm text-content-secondary" />
 						&nbsp; Govern workspace activity
 					</span>
 				</h2>

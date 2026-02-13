@@ -9,6 +9,7 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -130,6 +131,7 @@ func workspaceAgent() *serpent.Command {
 
 				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+				logger = logger.Named("reaper")
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -139,30 +141,18 @@ func workspaceAgent() *serpent.Command {
 				exitCode, err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
 					reaper.WithCatchSignals(StopSignals...),
+					reaper.WithLogger(logger),
 				)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
-				logger.Info(ctx, "reaper child process exited", slog.F("exit_code", exitCode))
+				logger.Info(ctx, "child process exited, propagating exit code",
+					slog.F("exit_code", exitCode),
+				)
 				return ExitError(exitCode, nil)
 			}
-
-			// Handle interrupt signals to allow for graceful shutdown,
-			// note that calling stopNotify disables the signal handler
-			// and the next interrupt will terminate the program (you
-			// probably want cancel instead).
-			//
-			// Note that we don't want to handle these signals in the
-			// process that runs as PID 1, that's why we do this after
-			// the reaper forked.
-			ctx, stopNotify := inv.SignalNotifyContext(ctx, StopSignals...)
-			defer stopNotify()
-
-			// DumpHandler does signal handling, so we call it after the
-			// reaper.
-			go DumpHandler(ctx, "agent")
 
 			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
@@ -175,6 +165,21 @@ func workspaceAgent() *serpent.Command {
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
 			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+
+			// Handle interrupt signals to allow for graceful shutdown,
+			// note that calling stopNotify disables the signal handler
+			// and the next interrupt will terminate the program (you
+			// probably want cancel instead).
+			//
+			// Note that we also handle these signals in the
+			// process that runs as PID 1, mainly to forward it to the agent child
+			// so that it can shutdown gracefully.
+			ctx, stopNotify := logSignalNotifyContext(ctx, logger, StopSignals...)
+			defer stopNotify()
+
+			// DumpHandler does signal handling, so we call it after the
+			// reaper.
+			go DumpHandler(ctx, "agent")
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
@@ -564,4 +569,27 @@ func urlPort(u string) (int, error) {
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
+}
+
+// logSignalNotifyContext is like signal.NotifyContext but logs the received
+// signal before canceling the context.
+func logSignalNotifyContext(parent context.Context, logger slog.Logger, signals ...os.Signal) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancelCause(parent)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, signals...)
+
+	go func() {
+		select {
+		case sig := <-c:
+			logger.Info(ctx, "agent received signal", slog.F("signal", sig.String()))
+			cancel(xerrors.Errorf("signal: %s", sig.String()))
+		case <-ctx.Done():
+			logger.Info(ctx, "ctx canceled, stopping signal handler")
+		}
+	}()
+
+	return ctx, func() {
+		cancel(context.Canceled)
+		signal.Stop(c)
+	}
 }

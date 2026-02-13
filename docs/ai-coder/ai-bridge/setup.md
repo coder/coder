@@ -4,7 +4,7 @@ AI Bridge runs inside the Coder control plane (`coderd`), requiring no separate 
 
 **Required**:
 
-1. A **premium** licensed Coder deployment
+1. A **Premium** license with the [AI Governance Add-On](../ai-governance.md).
 1. Feature must be [enabled](#activation) using the server flag
 1. One or more [providers](#configure-providers) API key(s) must be configured
 
@@ -13,7 +13,8 @@ AI Bridge runs inside the Coder control plane (`coderd`), requiring no separate 
 You will need to enable AI Bridge explicitly:
 
 ```sh
-CODER_AIBRIDGE_ENABLED=true coder server
+export CODER_AIBRIDGE_ENABLED=true
+coder server
 # or
 coder server --aibridge-enabled=true
 ```

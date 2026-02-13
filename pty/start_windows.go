@@ -46,7 +46,7 @@ func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) 
 		return nil, nil, err
 	}
 
-	winPty, err := newPty(opts.ptyOpts...)
+	winPty, err := newConPty(opts.ptyOpts...)
 	if err != nil {
 		return nil, nil, err
 	}

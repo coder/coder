@@ -775,6 +775,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.UseClassicParameterFlow != nil {
 		classicTemplateFlow = *req.UseClassicParameterFlow
 	}
+	disableModuleCache := template.DisableModuleCache
+	if req.DisableModuleCache != nil {
+		disableModuleCache = *req.DisableModuleCache
+	}
 
 	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
 	description := ptr.NilToDefault(req.Description, template.Description)
@@ -800,6 +804,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
 			(classicTemplateFlow == template.UseClassicParameterFlow) &&
+			(disableModuleCache == template.DisableModuleCache) &&
 			maxPortShareLevel == template.MaxPortSharingLevel &&
 			corsBehavior == template.CorsBehavior {
 			return nil
@@ -844,6 +849,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      classicTemplateFlow,
 			CorsBehavior:                 corsBehavior,
+			DisableModuleCache:           disableModuleCache,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1128,6 +1134,7 @@ func (api *API) convertTemplate(
 		MaxPortShareLevel:       maxPortShareLevel,
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
 		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
+		DisableModuleCache:      template.DisableModuleCache,
 	}
 }
 

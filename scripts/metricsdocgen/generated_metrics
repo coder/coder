@@ -1,0 +1,330 @@
+# HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
+# TYPE coder_pubsub_connected gauge
+coder_pubsub_connected 0
+# HELP coder_pubsub_current_events The current number of pubsub event channels listened for
+# TYPE coder_pubsub_current_events gauge
+coder_pubsub_current_events 0
+# HELP coder_pubsub_current_subscribers The current number of active pubsub subscribers
+# TYPE coder_pubsub_current_subscribers gauge
+coder_pubsub_current_subscribers 0
+# HELP coder_pubsub_disconnections_total Total number of times we disconnected unexpectedly from postgres
+# TYPE coder_pubsub_disconnections_total counter
+coder_pubsub_disconnections_total 0
+# HELP coder_pubsub_latency_measure_errs_total The number of pubsub latency measurement failures
+# TYPE coder_pubsub_latency_measure_errs_total counter
+coder_pubsub_latency_measure_errs_total 0
+# HELP coder_pubsub_latency_measures_total The number of pubsub latency measurements
+# TYPE coder_pubsub_latency_measures_total counter
+coder_pubsub_latency_measures_total 0
+# HELP coder_pubsub_messages_total Total number of messages received from postgres
+# TYPE coder_pubsub_messages_total counter
+coder_pubsub_messages_total{size=""} 0
+# HELP coder_pubsub_published_bytes_total Total number of bytes successfully published across all publishes
+# TYPE coder_pubsub_published_bytes_total counter
+coder_pubsub_published_bytes_total 0
+# HELP coder_pubsub_publishes_total Total number of calls to Publish
+# TYPE coder_pubsub_publishes_total counter
+coder_pubsub_publishes_total{success=""} 0
+# HELP coder_pubsub_receive_latency_seconds The time taken to receive a message from a pubsub event channel
+# TYPE coder_pubsub_receive_latency_seconds gauge
+coder_pubsub_receive_latency_seconds 0
+# HELP coder_pubsub_received_bytes_total Total number of bytes received across all messages
+# TYPE coder_pubsub_received_bytes_total counter
+coder_pubsub_received_bytes_total 0
+# HELP coder_pubsub_send_latency_seconds The time taken to send a message into a pubsub event channel
+# TYPE coder_pubsub_send_latency_seconds gauge
+coder_pubsub_send_latency_seconds 0
+# HELP coder_pubsub_subscribes_total Total number of calls to Subscribe/SubscribeWithErr
+# TYPE coder_pubsub_subscribes_total counter
+coder_pubsub_subscribes_total{success=""} 0
+# HELP coder_servertailnet_connections_total Total number of TCP connections made to workspace agents.
+# TYPE coder_servertailnet_connections_total counter
+coder_servertailnet_connections_total{network=""} 0
+# HELP coder_servertailnet_open_connections Total number of TCP connections currently open to workspace agents.
+# TYPE coder_servertailnet_open_connections gauge
+coder_servertailnet_open_connections{network=""} 0
+# HELP coderd_agentapi_metadata_batch_size Total number of metadata entries in each batch, updated before flushes.
+# TYPE coderd_agentapi_metadata_batch_size histogram
+coderd_agentapi_metadata_batch_size 0
+# HELP coderd_agentapi_metadata_batch_utilization Number of metadata keys per agent in each batch, updated before flushes.
+# TYPE coderd_agentapi_metadata_batch_utilization histogram
+coderd_agentapi_metadata_batch_utilization 0
+# HELP coderd_agentapi_metadata_batches_total Total number of metadata batches flushed.
+# TYPE coderd_agentapi_metadata_batches_total counter
+coderd_agentapi_metadata_batches_total{reason=""} 0
+# HELP coderd_agentapi_metadata_dropped_keys_total Total number of metadata keys dropped due to capacity limits.
+# TYPE coderd_agentapi_metadata_dropped_keys_total counter
+coderd_agentapi_metadata_dropped_keys_total 0
+# HELP coderd_agentapi_metadata_flush_duration_seconds Time taken to flush metadata batch to database and pubsub.
+# TYPE coderd_agentapi_metadata_flush_duration_seconds histogram
+coderd_agentapi_metadata_flush_duration_seconds{reason=""} 0
+# HELP coderd_agentapi_metadata_flushed_total Total number of unique metadatas flushed.
+# TYPE coderd_agentapi_metadata_flushed_total counter
+coderd_agentapi_metadata_flushed_total 0
+# HELP coderd_agentapi_metadata_publish_errors_total Total number of metadata batch pubsub publish calls that have resulted in an error.
+# TYPE coderd_agentapi_metadata_publish_errors_total counter
+coderd_agentapi_metadata_publish_errors_total 0
+# HELP coderd_agents_apps Agent applications with statuses.
+# TYPE coderd_agents_apps gauge
+coderd_agents_apps{agent_name="",username="",workspace_name="",app_name="",health=""} 0
+# HELP coderd_agents_connection_latencies_seconds Agent connection latencies in seconds.
+# TYPE coderd_agents_connection_latencies_seconds gauge
+coderd_agents_connection_latencies_seconds{agent_name="",username="",workspace_name="",derp_region="",preferred=""} 0
+# HELP coderd_agents_connections Agent connections with statuses.
+# TYPE coderd_agents_connections gauge
+coderd_agents_connections{agent_name="",username="",workspace_name="",status="",lifecycle_state="",tailnet_node=""} 0
+# HELP coderd_agents_up The number of active agents per workspace.
+# TYPE coderd_agents_up gauge
+coderd_agents_up{username="",workspace_name="",template_name="",template_version=""} 0
+# HELP coderd_agentstats_connection_count The number of established connections by agent
+# TYPE coderd_agentstats_connection_count gauge
+coderd_agentstats_connection_count 0
+# HELP coderd_agentstats_connection_median_latency_seconds The median agent connection latency in seconds
+# TYPE coderd_agentstats_connection_median_latency_seconds gauge
+coderd_agentstats_connection_median_latency_seconds 0
+# HELP coderd_agentstats_currently_reachable_peers The number of peers (e.g. clients) that are currently reachable over the encrypted network.
+# TYPE coderd_agentstats_currently_reachable_peers gauge
+coderd_agentstats_currently_reachable_peers{connection_type=""} 0
+# HELP coderd_agentstats_rx_bytes Agent Rx bytes
+# TYPE coderd_agentstats_rx_bytes gauge
+coderd_agentstats_rx_bytes 0
+# HELP coderd_agentstats_session_count_jetbrains The number of session established by JetBrains
+# TYPE coderd_agentstats_session_count_jetbrains gauge
+coderd_agentstats_session_count_jetbrains 0
+# HELP coderd_agentstats_session_count_reconnecting_pty The number of session established by reconnecting PTY
+# TYPE coderd_agentstats_session_count_reconnecting_pty gauge
+coderd_agentstats_session_count_reconnecting_pty 0
+# HELP coderd_agentstats_session_count_ssh The number of session established by SSH
+# TYPE coderd_agentstats_session_count_ssh gauge
+coderd_agentstats_session_count_ssh 0
+# HELP coderd_agentstats_session_count_vscode The number of session established by VSCode
+# TYPE coderd_agentstats_session_count_vscode gauge
+coderd_agentstats_session_count_vscode 0
+# HELP coderd_agentstats_startup_script_seconds Amount of time taken to run the startup script in seconds.
+# TYPE coderd_agentstats_startup_script_seconds gauge
+coderd_agentstats_startup_script_seconds{success=""} 0
+# HELP coderd_agentstats_tx_bytes Agent Tx bytes
+# TYPE coderd_agentstats_tx_bytes gauge
+coderd_agentstats_tx_bytes 0
+# HELP coderd_api_active_users_duration_hour The number of users that have been active within the last hour.
+# TYPE coderd_api_active_users_duration_hour gauge
+coderd_api_active_users_duration_hour 0
+# HELP coderd_api_concurrent_requests The number of concurrent API requests.
+# TYPE coderd_api_concurrent_requests gauge
+coderd_api_concurrent_requests{method="",path=""} 0
+# HELP coderd_api_concurrent_websockets The total number of concurrent API websockets.
+# TYPE coderd_api_concurrent_websockets gauge
+coderd_api_concurrent_websockets{path=""} 0
+# HELP coderd_api_request_latencies_seconds Latency distribution of requests in seconds.
+# TYPE coderd_api_request_latencies_seconds histogram
+coderd_api_request_latencies_seconds{method="",path=""} 0
+# HELP coderd_api_requests_processed_total The total number of processed API requests
+# TYPE coderd_api_requests_processed_total counter
+coderd_api_requests_processed_total{code="",method="",path=""} 0
+# HELP coderd_api_total_user_count The total number of registered users, partitioned by status.
+# TYPE coderd_api_total_user_count gauge
+coderd_api_total_user_count{status=""} 0
+# HELP coderd_api_websocket_durations_seconds Websocket duration distribution of requests in seconds.
+# TYPE coderd_api_websocket_durations_seconds histogram
+coderd_api_websocket_durations_seconds{path=""} 0
+# HELP coderd_api_workspace_latest_build The current number of workspace builds by status for all non-deleted workspaces.
+# TYPE coderd_api_workspace_latest_build gauge
+coderd_api_workspace_latest_build{status=""} 0
+# HELP coderd_authz_authorize_duration_seconds Duration of the 'Authorize' call in seconds. Only counts calls that succeed.
+# TYPE coderd_authz_authorize_duration_seconds histogram
+coderd_authz_authorize_duration_seconds{allowed=""} 0
+# HELP coderd_authz_prepare_authorize_duration_seconds Duration of the 'PrepareAuthorize' call in seconds.
+# TYPE coderd_authz_prepare_authorize_duration_seconds histogram
+coderd_authz_prepare_authorize_duration_seconds 0
+# HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
+# TYPE coderd_db_query_counts_total counter
+coderd_db_query_counts_total{route="",method="",query=""} 0
+# HELP coderd_db_query_latencies_seconds Latency distribution of queries in seconds.
+# TYPE coderd_db_query_latencies_seconds histogram
+coderd_db_query_latencies_seconds{query=""} 0
+# HELP coderd_db_tx_duration_seconds Duration of transactions in seconds.
+# TYPE coderd_db_tx_duration_seconds histogram
+coderd_db_tx_duration_seconds{success="",tx_id=""} 0
+# HELP coderd_db_tx_executions_count Total count of transactions executed. 'retries' is expected to be 0 for a successful transaction.
+# TYPE coderd_db_tx_executions_count counter
+coderd_db_tx_executions_count{success="",retries="",tx_id=""} 0
+# HELP coderd_dbpurge_iteration_duration_seconds Duration of each dbpurge iteration in seconds.
+# TYPE coderd_dbpurge_iteration_duration_seconds histogram
+coderd_dbpurge_iteration_duration_seconds{success=""} 0
+# HELP coderd_dbpurge_records_purged_total Total number of records purged by type.
+# TYPE coderd_dbpurge_records_purged_total counter
+coderd_dbpurge_records_purged_total{record_type=""} 0
+# HELP coderd_experiments Indicates whether each experiment is enabled (1) or not (0)
+# TYPE coderd_experiments gauge
+coderd_experiments{experiment=""} 0
+# HELP coderd_insights_applications_usage_seconds The application usage per template.
+# TYPE coderd_insights_applications_usage_seconds gauge
+coderd_insights_applications_usage_seconds{template_name="",application_name="",slug=""} 0
+# HELP coderd_insights_parameters The parameter usage per template.
+# TYPE coderd_insights_parameters gauge
+coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value=""} 0
+# HELP coderd_insights_templates_active_users The number of active users of the template.
+# TYPE coderd_insights_templates_active_users gauge
+coderd_insights_templates_active_users{template_name=""} 0
+# HELP coderd_license_active_users The number of active users.
+# TYPE coderd_license_active_users gauge
+coderd_license_active_users 0
+# HELP coderd_license_errors The number of active license errors.
+# TYPE coderd_license_errors gauge
+coderd_license_errors 0
+# HELP coderd_license_limit_users The user seats limit based on the active Coder license.
+# TYPE coderd_license_limit_users gauge
+coderd_license_limit_users 0
+# HELP coderd_license_user_limit_enabled Returns 1 if the current license enforces the user limit.
+# TYPE coderd_license_user_limit_enabled gauge
+coderd_license_user_limit_enabled 0
+# HELP coderd_license_warnings The number of active license warnings.
+# TYPE coderd_license_warnings gauge
+coderd_license_warnings 0
+# HELP coderd_lifecycle_autobuild_execution_duration_seconds Duration of each autobuild execution.
+# TYPE coderd_lifecycle_autobuild_execution_duration_seconds histogram
+coderd_lifecycle_autobuild_execution_duration_seconds 0
+# HELP coderd_notifications_dispatcher_send_seconds The time taken to dispatch notifications.
+# TYPE coderd_notifications_dispatcher_send_seconds histogram
+coderd_notifications_dispatcher_send_seconds{method=""} 0
+# HELP coderd_notifications_inflight_dispatches The number of dispatch attempts which are currently in progress.
+# TYPE coderd_notifications_inflight_dispatches gauge
+coderd_notifications_inflight_dispatches{method="",notification_template_id=""} 0
+# HELP coderd_notifications_pending_updates The number of dispatch attempt results waiting to be flushed to the store.
+# TYPE coderd_notifications_pending_updates gauge
+coderd_notifications_pending_updates 0
+# HELP coderd_notifications_queued_seconds The time elapsed between a notification being enqueued in the store and retrieved for dispatching (measures the latency of the notifications system). This should generally be within CODER_NOTIFICATIONS_FETCH_INTERVAL seconds; higher values for a sustained period indicates delayed processing and CODER_NOTIFICATIONS_LEASE_COUNT can be increased to accommodate this.
+# TYPE coderd_notifications_queued_seconds histogram
+coderd_notifications_queued_seconds{method=""} 0
+# HELP coderd_notifications_retry_count The count of notification dispatch retry attempts.
+# TYPE coderd_notifications_retry_count counter
+coderd_notifications_retry_count{method="",notification_template_id=""} 0
+# HELP coderd_notifications_synced_updates_total The number of dispatch attempt results flushed to the store.
+# TYPE coderd_notifications_synced_updates_total counter
+coderd_notifications_synced_updates_total 0
+# HELP coderd_oauth2_external_requests_rate_limit The total number of allowed requests per interval.
+# TYPE coderd_oauth2_external_requests_rate_limit gauge
+coderd_oauth2_external_requests_rate_limit{name="",resource=""} 0
+# HELP coderd_oauth2_external_requests_rate_limit_next_reset_unix Unix timestamp for when the next interval starts
+# TYPE coderd_oauth2_external_requests_rate_limit_next_reset_unix gauge
+coderd_oauth2_external_requests_rate_limit_next_reset_unix{name="",resource=""} 0
+# HELP coderd_oauth2_external_requests_rate_limit_remaining The remaining number of allowed requests in this interval.
+# TYPE coderd_oauth2_external_requests_rate_limit_remaining gauge
+coderd_oauth2_external_requests_rate_limit_remaining{name="",resource=""} 0
+# HELP coderd_oauth2_external_requests_rate_limit_reset_in_seconds Seconds until the next interval
+# TYPE coderd_oauth2_external_requests_rate_limit_reset_in_seconds gauge
+coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="",resource=""} 0
+# HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
+# TYPE coderd_oauth2_external_requests_rate_limit_used gauge
+coderd_oauth2_external_requests_rate_limit_used{name="",resource=""} 0
+# HELP coderd_oauth2_external_requests_total The total number of api calls made to external oauth2 providers. 'status_code' will be 0 if the request failed with no response.
+# TYPE coderd_oauth2_external_requests_total counter
+coderd_oauth2_external_requests_total{name="",source="",status_code=""} 0
+# HELP coderd_open_file_refs_current The count of file references currently open in the file cache. Multiple references can be held for the same file.
+# TYPE coderd_open_file_refs_current gauge
+coderd_open_file_refs_current 0
+# HELP coderd_open_file_refs_total The total number of file references ever opened in the file cache. The 'hit' label indicates if the file was loaded from the cache.
+# TYPE coderd_open_file_refs_total counter
+coderd_open_file_refs_total{hit=""} 0
+# HELP coderd_open_files_current The count of unique files currently open in the file cache.
+# TYPE coderd_open_files_current gauge
+coderd_open_files_current 0
+# HELP coderd_open_files_size_bytes_current The current amount of memory of all files currently open in the file cache.
+# TYPE coderd_open_files_size_bytes_current gauge
+coderd_open_files_size_bytes_current 0
+# HELP coderd_open_files_size_bytes_total The total amount of memory ever opened in the file cache. This number never decrements.
+# TYPE coderd_open_files_size_bytes_total counter
+coderd_open_files_size_bytes_total 0
+# HELP coderd_open_files_total The total count of unique files ever opened in the file cache.
+# TYPE coderd_open_files_total counter
+coderd_open_files_total 0
+# HELP coderd_prebuilds_reconciliation_duration_seconds Duration of each prebuilds reconciliation cycle.
+# TYPE coderd_prebuilds_reconciliation_duration_seconds histogram
+coderd_prebuilds_reconciliation_duration_seconds 0
+# HELP coderd_prebuilt_workspace_claim_duration_seconds Time to claim a prebuilt workspace by organization, template, and preset.
+# TYPE coderd_prebuilt_workspace_claim_duration_seconds histogram
+coderd_prebuilt_workspace_claim_duration_seconds{organization_name="",template_name="",preset_name=""} 0
+# HELP coderd_prebuilt_workspaces_claimed_total Total number of prebuilt workspaces which were claimed by users. Claiming refers to creating a workspace with a preset selected for which eligible prebuilt workspaces are available and one is reassigned to a user.
+# TYPE coderd_prebuilt_workspaces_claimed_total counter
+coderd_prebuilt_workspaces_claimed_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_created_total Total number of prebuilt workspaces that have been created to meet the desired instance count of each template preset.
+# TYPE coderd_prebuilt_workspaces_created_total counter
+coderd_prebuilt_workspaces_created_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_desired Target number of prebuilt workspaces that should be available for each template preset.
+# TYPE coderd_prebuilt_workspaces_desired gauge
+coderd_prebuilt_workspaces_desired{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_eligible Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that have completed their build process with their agent reporting 'ready' status.
+# TYPE coderd_prebuilt_workspaces_eligible gauge
+coderd_prebuilt_workspaces_eligible{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_failed_total Total number of prebuilt workspaces that failed to build.
+# TYPE coderd_prebuilt_workspaces_failed_total counter
+coderd_prebuilt_workspaces_failed_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_metrics_last_updated The unix timestamp when the metrics related to prebuilt workspaces were last updated; these metrics are cached.
+# TYPE coderd_prebuilt_workspaces_metrics_last_updated gauge
+coderd_prebuilt_workspaces_metrics_last_updated 0
+# HELP coderd_prebuilt_workspaces_preset_hard_limited Indicates whether a given preset has reached the hard failure limit (1 = hard-limited). Metric is omitted otherwise.
+# TYPE coderd_prebuilt_workspaces_preset_hard_limited gauge
+coderd_prebuilt_workspaces_preset_hard_limited{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_reconciliation_paused Indicates whether prebuilds reconciliation is currently paused (1 = paused, 0 = not paused).
+# TYPE coderd_prebuilt_workspaces_reconciliation_paused gauge
+coderd_prebuilt_workspaces_reconciliation_paused 0
+# HELP coderd_prebuilt_workspaces_resource_replacements_total Total number of prebuilt workspaces whose resource(s) got replaced upon being claimed. In Terraform, drift on immutable attributes results in resource replacement. This represents a worst-case scenario for prebuilt workspaces because the pre-provisioned resource would have been recreated when claiming, thus obviating the point of pre-provisioning. See https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#preventing-resource-replacement
+# TYPE coderd_prebuilt_workspaces_resource_replacements_total counter
+coderd_prebuilt_workspaces_resource_replacements_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_running Current number of prebuilt workspaces that are in a running state. These workspaces have started successfully but may not yet be claimable by users (see coderd_prebuilt_workspaces_eligible).
+# TYPE coderd_prebuilt_workspaces_running gauge
+coderd_prebuilt_workspaces_running{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prometheusmetrics_agents_execution_seconds Histogram for duration of agents metrics collection in seconds.
+# TYPE coderd_prometheusmetrics_agents_execution_seconds histogram
+coderd_prometheusmetrics_agents_execution_seconds 0
+# HELP coderd_prometheusmetrics_agentstats_execution_seconds Histogram for duration of agent stats metrics collection in seconds.
+# TYPE coderd_prometheusmetrics_agentstats_execution_seconds histogram
+coderd_prometheusmetrics_agentstats_execution_seconds 0
+# HELP coderd_prometheusmetrics_metrics_aggregator_execution_cleanup_seconds Histogram for duration of metrics aggregator cleanup in seconds.
+# TYPE coderd_prometheusmetrics_metrics_aggregator_execution_cleanup_seconds histogram
+coderd_prometheusmetrics_metrics_aggregator_execution_cleanup_seconds 0
+# HELP coderd_prometheusmetrics_metrics_aggregator_execution_update_seconds Histogram for duration of metrics aggregator update in seconds.
+# TYPE coderd_prometheusmetrics_metrics_aggregator_execution_update_seconds histogram
+coderd_prometheusmetrics_metrics_aggregator_execution_update_seconds 0
+# HELP coderd_prometheusmetrics_metrics_aggregator_store_size The number of metrics stored in the aggregator
+# TYPE coderd_prometheusmetrics_metrics_aggregator_store_size gauge
+coderd_prometheusmetrics_metrics_aggregator_store_size 0
+# HELP coderd_provisioner_job_queue_wait_seconds Time from job creation to acquisition by a provisioner daemon.
+# TYPE coderd_provisioner_job_queue_wait_seconds histogram
+coderd_provisioner_job_queue_wait_seconds{provisioner_type="",job_type="",transition="",build_reason=""} 0
+# HELP coderd_provisionerd_job_timings_seconds The provisioner job time duration in seconds.
+# TYPE coderd_provisionerd_job_timings_seconds histogram
+coderd_provisionerd_job_timings_seconds{provisioner="",status=""} 0
+# HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
+# TYPE coderd_provisionerd_jobs_current gauge
+coderd_provisionerd_jobs_current{provisioner=""} 0
+# HELP coderd_provisionerd_num_daemons The number of provisioner daemons.
+# TYPE coderd_provisionerd_num_daemons gauge
+coderd_provisionerd_num_daemons 0
+# HELP coderd_provisionerd_workspace_build_timings_seconds The time taken for a workspace to build.
+# TYPE coderd_provisionerd_workspace_build_timings_seconds histogram
+coderd_provisionerd_workspace_build_timings_seconds{template_name="",template_version="",workspace_transition="",status=""} 0
+# HELP coderd_proxyhealth_health_check_duration_seconds Histogram for duration of proxy health collection in seconds.
+# TYPE coderd_proxyhealth_health_check_duration_seconds histogram
+coderd_proxyhealth_health_check_duration_seconds 0
+# HELP coderd_proxyhealth_health_check_results This endpoint returns a number to indicate the health status. -3 (unknown), -2 (Unreachable), -1 (Unhealthy), 0 (Unregistered), 1 (Healthy)
+# TYPE coderd_proxyhealth_health_check_results gauge
+coderd_proxyhealth_health_check_results{proxy_id=""} 0
+# HELP coderd_template_workspace_build_duration_seconds Duration from workspace build creation to agent ready, by template.
+# TYPE coderd_template_workspace_build_duration_seconds histogram
+coderd_template_workspace_build_duration_seconds{template_name="",organization_name="",transition="",status="",is_prebuild=""} 0
+# HELP coderd_workspace_builds_enqueued_total Total number of workspace build enqueue attempts.
+# TYPE coderd_workspace_builds_enqueued_total counter
+coderd_workspace_builds_enqueued_total{provisioner_type="",build_reason="",transition="",status=""} 0
+# HELP coderd_workspace_builds_total The number of workspaces started, updated, or deleted.
+# TYPE coderd_workspace_builds_total counter
+coderd_workspace_builds_total{workspace_owner="",workspace_name="",template_name="",template_version="",workspace_transition="",status=""} 0
+# HELP coderd_workspace_creation_duration_seconds Time to create a workspace by organization, template, preset, and type (regular or prebuild).
+# TYPE coderd_workspace_creation_duration_seconds histogram
+coderd_workspace_creation_duration_seconds{organization_name="",template_name="",preset_name="",type=""} 0
+# HELP coderd_workspace_creation_total Total regular (non-prebuilt) workspace creations by organization, template, and preset.
+# TYPE coderd_workspace_creation_total counter
+coderd_workspace_creation_total{organization_name="",template_name="",preset_name=""} 0
+# HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner for all non-deleted workspaces.
+# TYPE coderd_workspace_latest_build_status gauge
+coderd_workspace_latest_build_status{status="",template_name="",template_version="",workspace_owner="",workspace_transition=""} 0

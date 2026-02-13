@@ -95,15 +95,26 @@ func (t *Tracker) FlushToDB(ctx context.Context, db database.Store, replicaID uu
 	t.mu.Unlock()
 
 	//nolint:gocritic // This is the actual package doing boundary usage tracking.
-	_, err := db.UpsertBoundaryUsageStats(dbauthz.AsBoundaryUsageTracker(ctx), database.UpsertBoundaryUsageStatsParams{
-		ReplicaID:             replicaID,
-		UniqueWorkspacesCount: workspaceCount, // cumulative, for UPDATE
-		UniqueUsersCount:      userCount,      // cumulative, for UPDATE
-		UniqueWorkspacesDelta: workspaceDelta, // delta, for INSERT
-		UniqueUsersDelta:      userDelta,      // delta, for INSERT
-		AllowedRequests:       allowed,
-		DeniedRequests:        denied,
-	})
+	authCtx := dbauthz.AsBoundaryUsageTracker(ctx)
+	err := db.InTx(func(tx database.Store) error {
+		// The advisory lock ensures a clean period cutover by preventing
+		// this upsert from racing with the aggregate+delete in
+		// GetAndResetBoundaryUsageSummary. Without it, upserted data
+		// could be lost or miscounted across periods.
+		if err := tx.AcquireLock(authCtx, database.LockIDBoundaryUsageStats); err != nil {
+			return err
+		}
+		_, err := tx.UpsertBoundaryUsageStats(authCtx, database.UpsertBoundaryUsageStatsParams{
+			ReplicaID:             replicaID,
+			UniqueWorkspacesCount: workspaceCount, // cumulative, for UPDATE
+			UniqueUsersCount:      userCount,      // cumulative, for UPDATE
+			UniqueWorkspacesDelta: workspaceDelta, // delta, for INSERT
+			UniqueUsersDelta:      userDelta,      // delta, for INSERT
+			AllowedRequests:       allowed,
+			DeniedRequests:        denied,
+		})
+		return err
+	}, nil)
 
 	// Always reset cumulative counts to prevent unbounded memory growth (e.g.
 	// if the DB is unreachable). Copy delta maps to preserve any Track() calls

@@ -16,6 +16,7 @@ import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { ExternalLinkIcon } from "lucide-react";
 import { BuildAvatar } from "modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
@@ -150,28 +151,52 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 				</Sidebar>
 
 				<ScrollArea>
-					<Tabs active={tabState.value}>
-						<TabsList className="gap-0">
-							<TabLink
-								to={`?${LOGS_TAB_KEY}=build`}
-								value="build"
-								className="px-6 pb-2"
-							>
-								Build
-							</TabLink>
-
-							{agents.map((a) => (
+					<div className="flex items-center justify-between border-b border-solid border-border">
+						<Tabs active={tabState.value}>
+							<TabsList className="gap-0">
 								<TabLink
+									to={`?${LOGS_TAB_KEY}=build`}
+									value="build"
 									className="px-6 pb-2"
-									to={`?${LOGS_TAB_KEY}=${a.id}`}
-									value={a.id}
-									key={a.id}
 								>
-									coder_agent.{a.name}
+									Build
 								</TabLink>
-							))}
-						</TabsList>
-					</Tabs>
+
+								{agents.map((a) => (
+									<TabLink
+										className="px-6 pb-2"
+										to={`?${LOGS_TAB_KEY}=${a.id}`}
+										value={a.id}
+										key={a.id}
+									>
+										coder_agent.{a.name}
+									</TabLink>
+								))}
+							</TabsList>
+						</Tabs>
+						{tabState.value === "build" && (
+							<a
+								href={`/api/v2/workspacebuilds/${build.id}/logs?format=text`}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center gap-1 px-4 pb-2 text-xs text-content-secondary hover:text-content-primary"
+							>
+								View raw logs
+								<ExternalLinkIcon className="size-3" />
+							</a>
+						)}
+						{tabState.value !== "build" && selectedAgent && (
+							<a
+								href={`/api/v2/workspaceagents/${selectedAgent.id}/logs?format=text`}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center gap-1 px-4 pb-2 text-xs text-content-secondary hover:text-content-primary"
+							>
+								View raw logs
+								<ExternalLinkIcon className="size-3" />
+							</a>
+						)}
+					</div>
 					{build.transition === "delete" && build.job.status === "failed" && (
 						<Alert
 							severity="error"

@@ -400,7 +400,7 @@ func TestAPIKey_Deleted(t *testing.T) {
 	require.Error(t, err)
 	var apiErr *codersdk.Error
 	require.ErrorAs(t, err, &apiErr)
-	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 }
 
 func TestAPIKey_SetDefault(t *testing.T) {

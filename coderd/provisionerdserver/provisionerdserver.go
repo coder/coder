@@ -478,6 +478,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		TraceMetadata: jobTraceMetadata,
 	}
 
+	// jobTransition and jobBuildReason are used for metrics; only set for workspace builds.
+	var jobTransition string
+	var jobBuildReason string
+
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		var input WorkspaceProvisionJob
@@ -512,13 +516,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		// Fetch the file id of the cached module files if it exists.
 		versionModulesFile := ""
-		tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			// Older templates (before dynamic parameters) will not have cached module files.
-			return nil, failJob(fmt.Sprintf("get template version terraform values: %s", err))
-		}
-		if err == nil && tfvals.CachedModuleFiles.Valid {
-			versionModulesFile = tfvals.CachedModuleFiles.UUID.String()
+		if !template.DisableModuleCache {
+			tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				// Older templates (before dynamic parameters) will not have cached module files.
+				return nil, failJob(fmt.Sprintf("get template version terraform values: %s", err))
+			}
+			if err == nil && tfvals.CachedModuleFiles.Valid {
+				versionModulesFile = tfvals.CachedModuleFiles.UUID.String()
+			}
 		}
 
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
@@ -581,6 +587,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
+		}
+		jobTransition = string(workspaceBuild.Transition)
+		// Prebuilds use BuildReasonInitiator in the database but we want to
+		// track them separately in metrics. Check the initiator ID to detect
+		// prebuild jobs.
+		if job.InitiatorID == database.PrebuildsSystemUserID {
+			jobBuildReason = BuildReasonPrebuild
+		} else {
+			jobBuildReason = string(workspaceBuild.Reason)
 		}
 
 		// A previous workspace build exists
@@ -821,6 +836,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	}
 	if protobuf.Size(protoJob) > drpcsdk.MaxMessageSize {
 		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpcsdk.MaxMessageSize))
+	}
+
+	// Record the time the job spent waiting in the queue.
+	if s.metrics != nil && job.StartedAt.Valid && job.Provisioner.Valid() {
+		queueWaitSeconds := job.StartedAt.Time.Sub(job.CreatedAt).Seconds()
+		s.metrics.ObserveJobQueueWait(string(job.Provisioner), string(job.Type), jobTransition, jobBuildReason, queueWaitSeconds)
 	}
 
 	return protoJob, err

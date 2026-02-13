@@ -89,6 +89,7 @@ type Options struct {
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
 	BoundaryUsageTracker              *boundaryusage.Tracker
+	LifecycleMetrics                  *LifecycleMetrics
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -170,6 +171,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Metrics:                  opts.LifecycleMetrics,
 	}
 
 	api.AppsAPI = &AppsAPI{

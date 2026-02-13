@@ -60,9 +60,12 @@ import (
 // API v2.7:
 //   - Added support for ReportBoundaryLogs RPC on the Agent API for forwarding
 //     boundary audit logs to coderd.
+//
+// API v2.8:
+//   - Added support for pre-created sub agents on the Agent API.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 7
+	CurrentMinor = 8
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

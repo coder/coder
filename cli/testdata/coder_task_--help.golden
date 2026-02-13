@@ -12,6 +12,7 @@ SUBCOMMANDS:
     delete    Delete tasks
     list      List tasks
     logs      Show a task's logs
+    pause     Pause a task
     send      Send input to a task
     status    Show the status of a task.
 

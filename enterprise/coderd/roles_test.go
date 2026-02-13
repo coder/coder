@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -63,7 +64,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// 	Changing this might mess up the UI in how it renders the roles on the
 		//	users page. When the users endpoint is updated, this should be uncommented.
 		// roleNamesF := func(role codersdk.SlimRole) string { return role.Name }
-		// require.Contains(t, db2sdk.List(user.Roles, roleNamesF), role.Name)
+		// require.Contains(t, slice.List(user.Roles, roleNamesF), role.Name)
 
 		// Try to create a template version
 		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)
@@ -594,8 +595,8 @@ func TestListRoles(t *testing.T) {
 						BuiltIn:    true,
 					}
 				}
-				expected := db2sdk.List(c.ExpectedRoles, ignorePerms)
-				found := db2sdk.List(roles, ignorePerms)
+				expected := slice.List(c.ExpectedRoles, ignorePerms)
+				found := slice.List(roles, ignorePerms)
 				require.ElementsMatch(t, expected, found)
 			}
 		})

@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import {
 	Alert,
@@ -6,6 +5,8 @@ import {
 	type AlertProps,
 } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
+import { RefreshCwIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
@@ -205,6 +206,7 @@ const RefreshSessionButton: FC = () => {
 				window.location.reload();
 			}}
 		>
+			<RefreshCwIcon className={cn(isRefreshing && "animate-spin")} />
 			{isRefreshing ? "Refreshing session..." : "Refresh session"}
 		</Button>
 	);

@@ -644,6 +644,19 @@ func OrganizationMembersQueryOptionGithubUserID(githubUserID int64) Organization
 	}
 }
 
+func (c *Client) OrganizationMember(ctx context.Context, organizationIdent, userIdent string) (OrganizationMemberWithUserData, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationIdent, userIdent), nil)
+	if err != nil {
+		return OrganizationMemberWithUserData{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMemberWithUserData{}, ReadBodyAsError(res)
+	}
+	var member OrganizationMemberWithUserData
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
 // OrganizationMembers lists all members in an organization
 func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID, opts ...OrganizationMembersQueryOption) ([]OrganizationMemberWithUserData, error) {
 	var query OrganizationMembersQuery

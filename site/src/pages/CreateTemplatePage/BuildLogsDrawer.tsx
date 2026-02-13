@@ -1,7 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -46,7 +45,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					<h3 css={styles.title}>Creating template...</h3>
 					<IconButton size="small" onClick={drawerProps.onClose}>
 						<XIcon className="size-icon-sm" />
-						<span style={visuallyHidden}>Close build logs</span>
+						<span className="sr-only">Close build logs</span>
 					</IconButton>
 				</header>
 

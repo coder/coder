@@ -62,7 +62,6 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -86,6 +85,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -191,6 +191,7 @@ type Options struct {
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
+	WorkspaceBuilderMetrics   *wsbuilder.Metrics
 	UsageInserter             usage.Inserter
 }
 
@@ -399,6 +400,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
 		experiments,
+		options.WorkspaceBuilderMetrics,
 	).WithStatsChannel(options.AutobuildStats)
 
 	lifecycleExecutor.Run()
@@ -620,6 +622,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
+			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
 		}
 }
 
@@ -934,7 +937,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			return role.Name
 		}
 
-		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: db2sdk.List(siteRoles, onlyName)})
+		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: slice.List(siteRoles, onlyName)})
 		require.NoError(t, err, "update site roles")
 
 		// isMember keeps track of which orgs the user was added to as a member
@@ -953,7 +956,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			}
 
 			_, err = client.UpdateOrganizationMemberRoles(context.Background(), orgID, user.ID.String(),
-				codersdk.UpdateRoles{Roles: db2sdk.List(roles, onlyName)})
+				codersdk.UpdateRoles{Roles: slice.List(roles, onlyName)})
 			require.NoError(t, err, "update org membership roles")
 			isMember[orgID] = true
 		}

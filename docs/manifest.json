@@ -169,7 +169,14 @@
 					"title": "Upgrading",
 					"description": "Learn how to upgrade Coder",
 					"path": "./install/upgrade.md",
-					"icon_path": "./images/icons/upgrade.svg"
+					"icon_path": "./images/icons/upgrade.svg",
+					"children": [
+						{
+							"title": "Upgrading Best Practices",
+							"description": "Best practices and troubleshooting for Coder upgrades",
+							"path": "./install/upgrade-best-practices.md"
+						}
+					]
 				},
 				{
 					"title": "Uninstall",
@@ -996,7 +1003,7 @@
 							"title": "Agent Boundaries",
 							"description": "Understanding Agent Boundaries in Coder Tasks",
 							"path": "./ai-coder/agent-boundaries/index.md",
-							"state": ["premium", "beta"],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "NS Jail",
@@ -1048,6 +1055,11 @@
 											"path": "./ai-coder/ai-bridge/clients/codex.md"
 										},
 										{
+											"title": "Mux",
+											"description": "Configure Mux to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/mux.md"
+										},
+										{
 											"title": "OpenCode",
 											"description": "Configure OpenCode to use AI Bridge",
 											"path": "./ai-coder/ai-bridge/clients/opencode.md"
@@ -1086,6 +1098,11 @@
 											"title": "Zed",
 											"description": "Configure Zed to use AI Bridge",
 											"path": "./ai-coder/ai-bridge/clients/zed.md"
+										},
+										{
+											"title": "GitHub Copilot",
+											"description": "Configure GitHub Copilot to use AI Bridge via AI Bridge Proxy",
+											"path": "./ai-coder/ai-bridge/clients/copilot.md"
 										}
 									]
 								},
@@ -1094,6 +1111,19 @@
 									"description": "How to configure MCP servers for tools injection through AI Bridge",
 									"path": "./ai-coder/ai-bridge/mcp.md",
 									"state": ["early access"]
+								},
+								{
+									"title": "AI Bridge Proxy",
+									"description": "Proxy for AI coding tools without base URL override support",
+									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
+									"state": ["premium"],
+									"children": [
+										{
+											"title": "Setup",
+											"description": "How to set up and configure AI Bridge Proxy",
+											"path": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md"
+										}
+									]
 								},
 								{
 									"title": "Monitoring",
@@ -1610,6 +1640,16 @@
 							"path": "reference/cli/organizations_create.md"
 						},
 						{
+							"title": "organizations delete",
+							"description": "Delete an organization",
+							"path": "reference/cli/organizations_delete.md"
+						},
+						{
+							"title": "organizations list",
+							"description": "List all organizations",
+							"path": "reference/cli/organizations_list.md"
+						},
+						{
 							"title": "organizations members",
 							"description": "Manage organization members",
 							"path": "reference/cli/organizations_members.md"
@@ -1968,6 +2008,11 @@
 							"title": "task logs",
 							"description": "Show a task's logs",
 							"path": "reference/cli/task_logs.md"
+						},
+						{
+							"title": "task pause",
+							"description": "Pause a task",
+							"path": "reference/cli/task_pause.md"
 						},
 						{
 							"title": "task send",

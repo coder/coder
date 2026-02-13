@@ -1,14 +1,38 @@
 package codersdk
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"tailscale.com/types/ptr"
 
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
+
+func (c *Client) EvaluateTemplateVersion(ctx context.Context, templateVersionID uuid.UUID, ownerID uuid.UUID, inputs map[string]string) (DynamicParametersResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters/evaluate", templateVersionID),
+		DynamicParametersRequest{
+			ID:      0,
+			Inputs:  inputs,
+			OwnerID: ownerID,
+		})
+	if err != nil {
+		return DynamicParametersResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return DynamicParametersResponse{}, ReadBodyAsError(res)
+	}
+
+	var dynResp DynamicParametersResponse
+	return dynResp, json.NewDecoder(res.Body).Decode(&dynResp)
+}
 
 func ValidateNewWorkspaceParameters(richParameters []TemplateVersionParameter, buildParameters []WorkspaceBuildParameter) error {
 	return ValidateWorkspaceBuildParameters(richParameters, buildParameters, nil)

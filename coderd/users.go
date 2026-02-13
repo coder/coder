@@ -1445,7 +1445,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(organizations, db2sdk.Organization))
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(organizations, db2sdk.Organization))
 }
 
 // @Summary Get organization by user and organization name
@@ -1669,6 +1669,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
-		AllowList:       db2sdk.List(k.AllowList, db2sdk.APIAllowListTarget),
+		AllowList:       slice.List(k.AllowList, db2sdk.APIAllowListTarget),
 	}
 }

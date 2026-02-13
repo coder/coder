@@ -25,7 +25,7 @@ const custom = [
 
 type EmojiPickerProps = Omit<
 	ComponentProps<typeof EmojiMart>,
-	"custom" | "data" | "set" | "theme"
+	"custom" | "data" | "set" | "theme" | "getSpritesheetURL"
 >;
 
 const EmojiPicker: FC<EmojiPickerProps> = (props) => {
@@ -53,6 +53,7 @@ const EmojiPicker: FC<EmojiPickerProps> = (props) => {
 			emojiVersion="15"
 			data={data}
 			custom={custom}
+			getSpritesheetURL={() => "/emojis/spritesheet.png"}
 			{...props}
 		/>
 	);

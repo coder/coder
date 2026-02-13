@@ -1,13 +1,10 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
+import { pauseTask, resumeTask } from "api/queries/tasks";
 import { template as templateQueryOptions } from "api/queries/templates";
-import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
-import {
-	startWorkspace,
-	workspaceByOwnerAndName,
-	workspacePermissions,
-} from "api/queries/workspaces";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type {
+	Task,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceStatus,
@@ -20,11 +17,17 @@ import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	PauseIcon,
+	RotateCcwIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/useAgentLogs";
 import { getAllAppsWithAgent } from "modules/tasks/apps";
 import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
+import { isPauseDisabled } from "modules/tasks/taskActions";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
@@ -79,7 +82,6 @@ const TaskPage = () => {
 			return state.error ? false : 5_000;
 		},
 	});
-	const { data: permissions } = useQuery(workspacePermissions(workspace));
 	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
 	const error = taskQuery.error ?? workspaceQuery.error;
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
@@ -136,33 +138,48 @@ const TaskPage = () => {
 		);
 	} else if (workspace.latest_build.status === "failed") {
 		content = (
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Task build failed
-					</h3>
-					<span className="text-content-secondary text-sm">
-						Please check the logs for more details.
-					</span>
-					<Button size="sm" variant="outline" asChild className="mt-4">
-						<RouterLink
-							to={`/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`}
-						>
-							View logs
-						</RouterLink>
-					</Button>
-				</div>
-			</div>
+			<TaskBuildFailed
+				workspaceOwner={workspace.owner_name}
+				workspaceName={workspace.name}
+				buildNumber={workspace.latest_build.build_number}
+			/>
 		);
-	} else if (workspace.latest_build.status !== "running") {
+	} else if (workspace.latest_build.status === "stopping") {
 		content = (
-			<WorkspaceNotRunning
+			<TaskTransitioning
+				title="Pausing task"
+				subtitle="Your task is being paused..."
+			/>
+		);
+	} else if (
+		workspace.latest_build.status === "stopped" ||
+		workspace.latest_build.status === "canceled"
+	) {
+		content = (
+			<TaskPaused
+				task={task}
 				workspace={workspace}
 				onEditPrompt={() => setIsModifyDialogOpen(true)}
 			/>
 		);
+	} else if (workspace.latest_build.status === "canceling") {
+		content = (
+			<TaskTransitioning
+				title="Canceling task"
+				subtitle="Your task is being canceled..."
+			/>
+		);
+	} else if (workspace.latest_build.status === "deleting") {
+		content = (
+			<TaskTransitioning
+				title="Deleting task"
+				subtitle="Your task workspace is being deleted..."
+			/>
+		);
+	} else if (workspace.latest_build.status === "deleted") {
+		content = <TaskDeleted />;
 	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
-		content = <TaskStartingAgent agent={agent} />;
+		content = <TaskStartingAgent task={task} agent={agent} />;
 	} else {
 		const chatApp = getAllAppsWithAgent(workspace).find(
 			(app) => app.id === task.workspace_app_id,
@@ -200,11 +217,7 @@ const TaskPage = () => {
 		<TaskPageLayout>
 			<title>{pageTitle(task.display_name)}</title>
 
-			<TaskTopbar
-				task={task}
-				workspace={workspace}
-				canUpdatePermissions={permissions?.updateWorkspace ?? false}
-			/>
+			<TaskTopbar task={task} workspace={workspace} />
 			{content}
 
 			<ModifyPromptDialog
@@ -219,111 +232,187 @@ const TaskPage = () => {
 
 export default TaskPage;
 
-type WorkspaceNotRunningProps = {
+/**
+ * Common component for task state messages (paused, deleted, transitioning, etc.)
+ * Similar to EmptyState but styled for task states.
+ */
+type TaskStateMessageProps = {
+	title: string;
+	description?: string;
+	icon?: ReactNode;
+	actions?: ReactNode;
+	detail?: ReactNode;
+};
+
+const TaskStateMessage: FC<TaskStateMessageProps> = ({
+	title,
+	description,
+	icon,
+	actions,
+	detail,
+}) => {
+	return (
+		<Margins>
+			<div className="w-full min-h-80 flex items-center justify-center">
+				<div className="flex flex-col items-center text-center">
+					<h3 className="m-0 font-medium text-content-primary text-base flex items-center gap-2">
+						{icon}
+						{title}
+					</h3>
+					{description && (
+						<span className="text-content-secondary text-sm">
+							{description}
+						</span>
+					)}
+					{detail}
+					{actions && <div className="mt-4">{actions}</div>}
+				</div>
+			</div>
+		</Margins>
+	);
+};
+
+type TaskTransitioningProps = {
+	title: string;
+	subtitle: string;
+};
+
+const TaskTransitioning: FC<TaskTransitioningProps> = ({ title, subtitle }) => {
+	return (
+		<TaskStateMessage
+			title={title}
+			description={subtitle}
+			icon={<Spinner loading />}
+		/>
+	);
+};
+
+const TaskDeleted: FC = () => {
+	return (
+		<TaskStateMessage
+			title="Task was deleted"
+			description="This task cannot be resumed. Create a new task to continue."
+			actions={
+				<Button size="sm" variant="outline" asChild>
+					<RouterLink to="/tasks" data-testid="task-create-new">
+						Create a new task
+					</RouterLink>
+				</Button>
+			}
+		/>
+	);
+};
+
+type TaskBuildFailedProps = {
+	workspaceOwner: string;
+	workspaceName: string;
+	buildNumber: number;
+};
+
+const TaskBuildFailed: FC<TaskBuildFailedProps> = ({
+	workspaceOwner,
+	workspaceName,
+	buildNumber,
+}) => {
+	return (
+		<TaskStateMessage
+			title="Task build failed"
+			description="Please check the logs for more details."
+			icon={<TriangleAlertIcon className="size-4 text-content-destructive" />}
+			actions={
+				<Button size="sm" variant="outline" asChild>
+					<RouterLink
+						to={`/@${workspaceOwner}/${workspaceName}/builds/${buildNumber}`}
+					>
+						View full logs
+					</RouterLink>
+				</Button>
+			}
+		/>
+	);
+};
+
+type TaskPausedProps = {
+	task: Task;
 	workspace: Workspace;
 	onEditPrompt: () => void;
 };
 
-const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({
-	workspace,
-	onEditPrompt,
-}) => {
+const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 	const queryClient = useQueryClient();
 
-	const { data: buildParameters } = useQuery(
-		workspaceBuildParameters(workspace.latest_build.id),
-	);
-
-	const mutateStartWorkspace = useMutation({
-		...startWorkspace(workspace, queryClient),
+	// Use mutation config directly to customize error handling:
+	// API errors are shown in a dialog, other errors show a toast.
+	const resumeMutation = useMutation({
+		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
 			if (!isApiError(error)) {
-				displayError(getErrorMessage(error, "Failed to build workspace."));
+				displayError(getErrorMessage(error, "Failed to resume task."));
 			}
 		},
 	});
 
-	// After requesting a workspace start, it may take a while to become ready.
-	// Show a loading state in the meantime.
+	// After requesting a task resume, it may take a while to become ready.
 	const isWaitingForStart =
-		mutateStartWorkspace.isPending || mutateStartWorkspace.isSuccess;
+		resumeMutation.isPending || resumeMutation.isSuccess;
 
-	const apiError = isApiError(mutateStartWorkspace.error)
-		? mutateStartWorkspace.error
+	// Determine if this was a timeout (autostop) or manual pause.
+	const isTimeout = workspace.latest_build.reason === "autostop";
+
+	const apiError = isApiError(resumeMutation.error)
+		? resumeMutation.error
 		: undefined;
 
-	const deleted = workspace.latest_build?.transition === ("delete" as const);
-
-	return deleted ? (
-		<Margins>
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Task workspace was deleted.
-					</h3>
-					<span className="text-content-secondary text-sm">
-						This task cannot be resumed. Delete this task and create a new one.
-					</span>
-					<Button size="sm" variant="outline" asChild className="mt-4">
-						<RouterLink to="/tasks" data-testid="task-create-new">
-							Create a new task
-						</RouterLink>
-					</Button>
-				</div>
-			</div>
-		</Margins>
-	) : (
-		<Margins>
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Workspace is not running
-					</h3>
-					<span className="text-content-secondary text-sm">
-						Apps and previous statuses are not available
-					</span>
-					{workspace.outdated && (
+	return (
+		<>
+			<TaskStateMessage
+				title="Task paused"
+				description={
+					isTimeout
+						? "Your task timed out. Resume it to continue."
+						: "Resume the task to continue."
+				}
+				icon={<PauseIcon className="size-4" />}
+				detail={
+					workspace.outdated && (
 						<div
 							data-testid="workspace-outdated-tooltip"
 							className="flex items-center gap-1.5 mt-1 text-content-secondary text-sm"
 						>
 							<WorkspaceOutdatedTooltip workspace={workspace}>
-								You can update your task workspace to a newer version
+								A newer template version is available
 							</WorkspaceOutdatedTooltip>
 						</div>
-					)}
-					<div className="flex flex-row mt-4 gap-4">
+					)
+				}
+				actions={
+					<div className="flex flex-row gap-4">
 						<Button
 							size="sm"
-							data-testid="task-start-workspace"
 							disabled={isWaitingForStart}
-							onClick={() => {
-								mutateStartWorkspace.mutate({
-									buildParameters,
-								});
-							}}
+							onClick={() => resumeMutation.mutate()}
 						>
 							<Spinner loading={isWaitingForStart} />
-							Start workspace
+							Resume
 						</Button>
 						<Button size="sm" onClick={onEditPrompt} variant="outline">
-							Edit Prompt
+							Edit prompt
 						</Button>
 					</div>
-				</div>
-			</div>
+				}
+			/>
 
 			<WorkspaceErrorDialog
 				open={apiError !== undefined}
 				error={apiError}
-				onClose={mutateStartWorkspace.reset}
+				onClose={resumeMutation.reset}
 				showDetail={true}
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}
 				isDeleting={false}
 			/>
-		</Margins>
+		</>
 	);
 };
 
@@ -411,12 +500,21 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 };
 
 type TaskStartingAgentProps = {
+	task: Task;
 	agent: WorkspaceAgent;
 };
 
-const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
+const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 	const listRef = useRef<FixedSizeList>(null);
+	const queryClient = useQueryClient();
+	const pauseMutation = useMutation({
+		...pauseTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to pause task."));
+		},
+	});
+	const pauseDisabled = isPauseDisabled(task.status);
 
 	useLayoutEffect(() => {
 		if (listRef.current) {
@@ -428,13 +526,26 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 		<section className="p-16 overflow-y-auto">
 			<div className="flex justify-center items-center w-full">
 				<div className="flex flex-col gap-8 items-center w-full">
-					<header className="flex flex-col items-center text-center">
-						<h3 className="m-0 font-medium text-content-primary text-xl">
-							Running startup scripts
-						</h3>
-						<p className="text-content-secondary m-0">
-							Your task will be running in a few moments
-						</p>
+					<header className="flex flex-col items-center text-center gap-3">
+						<div>
+							<h3 className="m-0 font-medium text-content-primary text-xl">
+								Running startup scripts
+							</h3>
+							<p className="text-content-secondary m-0">
+								Your task will be running in a few moments
+							</p>
+						</div>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={pauseDisabled || pauseMutation.isPending}
+							onClick={() => pauseMutation.mutate()}
+						>
+							<Spinner loading={pauseMutation.isPending}>
+								<PauseIcon className="size-4" />
+							</Spinner>
+							Pause
+						</Button>
 					</header>
 
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
