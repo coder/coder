@@ -26,7 +26,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { useClickableTableRow } from "hooks";
+import { useClickableTableRow, useRowRangeSelection } from "hooks";
 import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
@@ -58,6 +58,8 @@ export const TasksTable: FC<TasksTableProps> = ({
 	onCheckChange,
 	canCheckTasks = false,
 }) => {
+	const { handleClick: handleShiftClick } = useRowRangeSelection();
+
 	let body: ReactNode = null;
 
 	if (error) {
@@ -67,13 +69,31 @@ export const TasksTable: FC<TasksTableProps> = ({
 	} else if (tasks.length === 0) {
 		body = <TasksEmpty />;
 	} else {
-		body = tasks.map((task) => {
+		body = tasks.map((task, index) => {
 			const checked = checkedTaskIds.has(task.id);
 			return (
 				<TaskRow
 					key={task.id}
 					task={task}
 					checked={checked}
+					index={index}
+					onShiftClick={(e, idx, isSelected) => {
+						if (!onCheckChange) return null;
+						const result = handleShiftClick(e, idx, isSelected, tasks.length);
+						if (result) {
+							const newIds = new Set(checkedTaskIds);
+							for (const i of result.indicesToToggle) {
+								const taskId = tasks[i].id;
+								if (result.shouldSelect) {
+									newIds.add(taskId);
+								} else {
+									newIds.delete(taskId);
+								}
+							}
+							onCheckChange(newIds);
+						}
+						return result;
+					}}
 					onCheckChange={(taskId, checked) => {
 						if (!onCheckChange) return;
 						const newIds = new Set(checkedTaskIds);
@@ -181,6 +201,12 @@ const TasksEmpty: FC = () => {
 type TaskRowProps = {
 	task: Task;
 	checked: boolean;
+	index: number;
+	onShiftClick: (
+		e: React.MouseEvent<HTMLButtonElement>,
+		index: number,
+		isSelected: boolean,
+	) => { indicesToToggle: number[]; shouldSelect: boolean } | null;
 	onCheckChange: (taskId: string, checked: boolean) => void;
 	canCheck: boolean;
 };
@@ -188,6 +214,8 @@ type TaskRowProps = {
 const TaskRow: FC<TaskRowProps> = ({
 	task,
 	checked,
+	index,
+	onShiftClick,
 	onCheckChange,
 	canCheck,
 }) => {
@@ -234,6 +262,11 @@ const TaskRow: FC<TaskRowProps> = ({
 								checked={checked}
 								onClick={(e) => {
 									e.stopPropagation();
+									const result = onShiftClick(e, index, checked);
+									if (result) {
+										// Shift+click handled the selection, prevent onCheckedChange
+										e.preventDefault();
+									}
 								}}
 								onCheckedChange={(checked) => {
 									onCheckChange(task.id, Boolean(checked));
