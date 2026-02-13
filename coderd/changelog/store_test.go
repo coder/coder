@@ -1,14 +1,18 @@
-package changelog
+package changelog_test
 
 import (
 	"strings"
 	"testing"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/coder/coder/v2/coderd/changelog"
 )
 
 func TestStoreList(t *testing.T) {
-	s := NewStore()
+	t.Parallel()
+
+	s := changelog.NewStore()
 	entries, err := s.List()
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
@@ -32,7 +36,9 @@ func TestStoreList(t *testing.T) {
 }
 
 func TestStoreGet(t *testing.T) {
-	s := NewStore()
+	t.Parallel()
+
+	s := changelog.NewStore()
 	entry, err := s.Get("2.30")
 	if err != nil {
 		t.Fatalf("Get(\"2.30\") error: %v", err)
@@ -58,7 +64,11 @@ func TestStoreGet(t *testing.T) {
 		t.Fatalf("Content unexpectedly contains frontmatter")
 	}
 	if !strings.HasPrefix(entry.Content, "## Dynamic Parameters") {
-		t.Fatalf("Content does not start with expected heading; got %q", entry.Content[:min(50, len(entry.Content))])
+		got := entry.Content
+		if len(got) > 50 {
+			got = got[:50]
+		}
+		t.Fatalf("Content does not start with expected heading; got %q", got)
 	}
 	for _, want := range []string{
 		"## Dynamic Parameters",
@@ -74,7 +84,9 @@ func TestStoreGet(t *testing.T) {
 }
 
 func TestStoreGet_NotFound(t *testing.T) {
-	s := NewStore()
+	t.Parallel()
+
+	s := changelog.NewStore()
 	entry, err := s.Get("99.99")
 	if err == nil {
 		t.Fatalf("Get(\"99.99\") expected error")
@@ -88,7 +100,9 @@ func TestStoreGet_NotFound(t *testing.T) {
 }
 
 func TestStoreHas(t *testing.T) {
-	s := NewStore()
+	t.Parallel()
+
+	s := changelog.NewStore()
 	if !s.Has("2.30") {
 		t.Fatalf("Has(\"2.30\") = false, want true")
 	}
@@ -98,7 +112,11 @@ func TestStoreHas(t *testing.T) {
 }
 
 func TestParseEntry(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+
 		data := []byte(`---
 version: "1.0"
 title: "Title"
@@ -109,7 +127,7 @@ image: "assets/1.0.webp"
 
 Hello world.
 `)
-		entry, err := parseEntry(data)
+		entry, err := changelog.ParseEntry(data)
 		if err != nil {
 			t.Fatalf("parseEntry error: %v", err)
 		}
@@ -122,24 +140,30 @@ Hello world.
 	})
 
 	t.Run("missing_opening_delimiter", func(t *testing.T) {
+		t.Parallel()
+
 		data := []byte("version: \"1.0\"\n---\nHello")
-		_, err := parseEntry(data)
+		_, err := changelog.ParseEntry(data)
 		if err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("missing_closing_delimiter", func(t *testing.T) {
+		t.Parallel()
+
 		data := []byte("---\nversion: \"1.0\"\nHello")
-		_, err := parseEntry(data)
+		_, err := changelog.ParseEntry(data)
 		if err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("missing_version", func(t *testing.T) {
+		t.Parallel()
+
 		data := []byte("---\ntitle: \"Title\"\n---\nHello")
-		_, err := parseEntry(data)
+		_, err := changelog.ParseEntry(data)
 		if err == nil {
 			t.Fatalf("expected error")
 		}
@@ -147,11 +171,4 @@ Hello world.
 			t.Fatalf("error %q does not mention version", err.Error())
 		}
 	})
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

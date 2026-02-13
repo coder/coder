@@ -1029,6 +1029,16 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 	readonly one_time_passcode: string;
 }
 
+// From codersdk/changelog.go
+export interface ChangelogEntry {
+	readonly version: string;
+	readonly title: string;
+	readonly date: string;
+	readonly summary: string;
+	readonly image_url: string;
+	readonly content?: string;
+}
+
 // From codersdk/client.go
 /**
  * CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
@@ -2515,6 +2525,9 @@ export interface InboxNotificationAction {
 export const InboxNotificationFallbackIconAccount = "DEFAULT_ICON_ACCOUNT";
 
 // From codersdk/inboxnotification.go
+export const InboxNotificationFallbackIconChangelog = "DEFAULT_ICON_CHANGELOG";
+
+// From codersdk/inboxnotification.go
 export const InboxNotificationFallbackIconOther = "DEFAULT_ICON_OTHER";
 
 // From codersdk/inboxnotification.go
@@ -2590,6 +2603,11 @@ export interface LinkConfig {
 	readonly target: string;
 	readonly icon: string;
 	readonly location?: string;
+}
+
+// From codersdk/changelog.go
+export interface ListChangelogEntriesResponse {
+	readonly entries: readonly ChangelogEntry[];
 }
 
 // From codersdk/inboxnotification.go
@@ -5560,6 +5578,11 @@ export interface TraceConfig {
 export interface TransitionStats {
 	readonly P50: number | null;
 	readonly P95: number | null;
+}
+
+// From codersdk/changelog.go
+export interface UnreadChangelogNotificationResponse {
+	readonly notification: InboxNotification | null;
 }
 
 // From codersdk/templates.go

@@ -57,7 +57,7 @@ func (api *API) listChangelogEntries(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// getChangelogEntry returns a single changelog entry by version.
+// changelogEntryByVersion returns a single changelog entry by version.
 //
 // @Summary Get changelog entry
 // @ID get-changelog-entry
@@ -67,7 +67,7 @@ func (api *API) listChangelogEntries(rw http.ResponseWriter, r *http.Request) {
 // @Param version path string true "Version"
 // @Success 200 {object} codersdk.ChangelogEntry
 // @Router /changelog/{version} [get]
-func (api *API) getChangelogEntry(rw http.ResponseWriter, r *http.Request) {
+func (api *API) changelogEntryByVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	version := chi.URLParam(r, "version")
 
@@ -109,7 +109,7 @@ func (api *API) getChangelogEntry(rw http.ResponseWriter, r *http.Request) {
 // @Param path path string true "Asset path"
 // @Success 200
 // @Router /changelog/assets/{path} [get]
-func (api *API) changelogAsset(rw http.ResponseWriter, r *http.Request) {
+func (*API) changelogAsset(rw http.ResponseWriter, r *http.Request) {
 	assetPath := chi.URLParam(r, "*")
 	if !fs.ValidPath(assetPath) {
 		http.NotFound(rw, r)

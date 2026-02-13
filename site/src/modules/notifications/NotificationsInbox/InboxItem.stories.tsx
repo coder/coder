@@ -1,8 +1,8 @@
 import { MockNotification } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { ChangelogProvider } from "modules/changelog";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { daysAgo } from "utils/time";
-import { ChangelogProvider } from "modules/changelog";
 import { InboxItem } from "./InboxItem";
 
 const meta: Meta<typeof InboxItem> = {

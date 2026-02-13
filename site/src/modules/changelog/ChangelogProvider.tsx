@@ -1,11 +1,11 @@
 import {
 	createContext,
+	type FC,
+	type PropsWithChildren,
 	useCallback,
 	useContext,
 	useMemo,
 	useState,
-	type FC,
-	type PropsWithChildren,
 } from "react";
 import { ChangelogDialog } from "./ChangelogDialog";
 

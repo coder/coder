@@ -2,7 +2,6 @@ package changelog
 
 import (
 	"bytes"
-	"fmt"
 	"io/fs"
 	"path"
 	"sort"
@@ -10,6 +9,7 @@ import (
 	"sync"
 
 	"golang.org/x/mod/semver"
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -47,7 +47,7 @@ func (s *Store) init() {
 
 		files, err := fs.ReadDir(FS, "entries")
 		if err != nil {
-			s.err = fmt.Errorf("read entries dir: %w", err)
+			s.err = xerrors.Errorf("read entries dir: %w", err)
 			return
 		}
 
@@ -58,13 +58,13 @@ func (s *Store) init() {
 
 			data, err := fs.ReadFile(FS, path.Join("entries", f.Name()))
 			if err != nil {
-				s.err = fmt.Errorf("read %s: %w", f.Name(), err)
+				s.err = xerrors.Errorf("read %s: %w", f.Name(), err)
 				return
 			}
 
-			entry, err := parseEntry(data)
+			entry, err := ParseEntry(data)
 			if err != nil {
-				s.err = fmt.Errorf("parse %s: %w", f.Name(), err)
+				s.err = xerrors.Errorf("parse %s: %w", f.Name(), err)
 				return
 			}
 
@@ -106,7 +106,7 @@ func (s *Store) Get(version string) (*Entry, error) {
 	}
 	e, ok := s.byVer[version]
 	if !ok {
-		return nil, fmt.Errorf("changelog entry not found for version %s", version)
+		return nil, xerrors.Errorf("changelog entry not found for version %s", version)
 	}
 	return e, nil
 }
@@ -118,18 +118,19 @@ func (s *Store) Has(version string) bool {
 	return e != nil
 }
 
-func parseEntry(data []byte) (*Entry, error) {
+// ParseEntry parses a changelog entry markdown file (YAML frontmatter + body).
+func ParseEntry(data []byte) (*Entry, error) {
 	// Split frontmatter from body. Format: ---\nyaml\n---\nmarkdown
 	const delimiter = "---"
 	trimmed := bytes.TrimSpace(data)
 	if !bytes.HasPrefix(trimmed, []byte(delimiter)) {
-		return nil, fmt.Errorf("missing frontmatter delimiter")
+		return nil, xerrors.New("missing frontmatter delimiter")
 	}
 
 	rest := trimmed[len(delimiter):]
 	idx := bytes.Index(rest, []byte("\n"+delimiter))
 	if idx < 0 {
-		return nil, fmt.Errorf("missing closing frontmatter delimiter")
+		return nil, xerrors.New("missing closing frontmatter delimiter")
 	}
 
 	fmData := rest[:idx]
@@ -137,10 +138,10 @@ func parseEntry(data []byte) (*Entry, error) {
 
 	var meta EntryMeta
 	if err := yaml.Unmarshal(fmData, &meta); err != nil {
-		return nil, fmt.Errorf("unmarshal frontmatter: %w", err)
+		return nil, xerrors.Errorf("unmarshal frontmatter: %w", err)
 	}
 	if meta.Version == "" {
-		return nil, fmt.Errorf("frontmatter missing required 'version' field")
+		return nil, xerrors.New("frontmatter missing required 'version' field")
 	}
 
 	return &Entry{

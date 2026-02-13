@@ -427,23 +427,6 @@ export type GetProvisionerDaemonsParams = {
 	offline?: boolean;
 };
 
-export type ChangelogEntry = Readonly<{
-	readonly version: string;
-	readonly title: string;
-	readonly date: string;
-	readonly summary: string;
-	readonly image_url: string;
-	readonly content?: string;
-}>;
-
-export type ListChangelogEntriesResponse = Readonly<{
-	readonly entries: readonly ChangelogEntry[];
-}>;
-
-export type UnreadChangelogNotificationResponse = Readonly<{
-	readonly notification: TypesGen.InboxNotification | null;
-}>;
-
 /**
  * This is the container for all API methods. It's split off to make it more
  * clear where API methods should go, but it is eventually merged into the Api
@@ -2747,23 +2730,22 @@ class ApiMethods {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 
-	getChangelogEntries = async (): Promise<ListChangelogEntriesResponse> => {
-		const res = await this.axios.get<ListChangelogEntriesResponse>(
-			"/api/v2/changelog",
-		);
+	getChangelogEntries = async (): Promise<TypesGen.ListChangelogEntriesResponse> => {
+		const res =
+			await this.axios.get<TypesGen.ListChangelogEntriesResponse>("/api/v2/changelog");
 		return res.data;
 	};
 
-	getChangelogEntry = async (version: string): Promise<ChangelogEntry> => {
-		const res = await this.axios.get<ChangelogEntry>(
+	getChangelogEntry = async (version: string): Promise<TypesGen.ChangelogEntry> => {
+		const res = await this.axios.get<TypesGen.ChangelogEntry>(
 			`/api/v2/changelog/${encodeURIComponent(version)}`,
 		);
 		return res.data;
 	};
 
 	getUnreadChangelogNotification =
-		async (): Promise<UnreadChangelogNotificationResponse> => {
-			const res = await this.axios.get<UnreadChangelogNotificationResponse>(
+		async (): Promise<TypesGen.UnreadChangelogNotificationResponse> => {
+			const res = await this.axios.get<TypesGen.UnreadChangelogNotificationResponse>(
 				"/api/v2/changelog/unread",
 			);
 			return res.data;

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/google/uuid"
 )
 
 const changelogLastNotifiedSiteConfigKey = "changelog_last_notified_version"
@@ -87,6 +87,7 @@ func BroadcastChangelog(
 	usersNotified := 0
 
 	for {
+		//nolint:gocritic // This needs system access to list all active users.
 		users, err := store.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{
 			AfterID:       afterID,
 			Status:        []database.UserStatus{database.UserStatusActive},
@@ -102,6 +103,7 @@ func BroadcastChangelog(
 
 		for _, user := range users {
 			msgIDs, err := enqueuer.Enqueue(
+				//nolint:gocritic // Enqueueing notifications requires notifier permissions.
 				dbauthz.AsNotifier(ctx),
 				user.ID,
 				notifications.TemplateChangelog,

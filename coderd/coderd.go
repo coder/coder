@@ -1719,7 +1719,7 @@ func New(options *Options) *API {
 			r.Route("/assets", func(r chi.Router) {
 				r.Get("/*", api.changelogAsset)
 			})
-			r.Get("/{version}", api.getChangelogEntry)
+			r.Get("/{version}", api.changelogEntryByVersion)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
