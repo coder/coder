@@ -1247,6 +1247,14 @@ func mergePeeringEventsIntoTimeline(
 			continue
 		}
 
+		// Identify the non-agent peer for context in descriptions.
+		var otherPeer string
+		if srcMatch && pe.DstPeerID.Valid && !agentIDs[pe.DstPeerID.UUID] {
+			otherPeer = pe.DstPeerID.UUID.String()[:8]
+		} else if dstMatch && pe.SrcPeerID.Valid && !agentIDs[pe.SrcPeerID.UUID] {
+			otherPeer = pe.SrcPeerID.UUID.String()[:8]
+		}
+
 		var kind codersdk.DiagnosticTimelineEventKind
 		var description string
 		var severity codersdk.ConnectionDiagnosticSeverity
@@ -1254,23 +1262,38 @@ func mergePeeringEventsIntoTimeline(
 		switch pe.EventType {
 		case "added_tunnel":
 			kind = codersdk.DiagnosticTimelineEventTunnelCreated
-			description = "Tunnel created between peers"
+			description = "Tunnel created"
+			if otherPeer != "" {
+				description = fmt.Sprintf("Tunnel created with peer %s", otherPeer)
+			}
 			severity = codersdk.ConnectionDiagnosticSeverityInfo
 		case "removed_tunnel":
 			kind = codersdk.DiagnosticTimelineEventTunnelRemoved
 			description = "Tunnel removed"
+			if otherPeer != "" {
+				description = fmt.Sprintf("Tunnel removed for peer %s", otherPeer)
+			}
 			severity = codersdk.ConnectionDiagnosticSeverityWarning
 		case "peer_update_node":
 			kind = codersdk.DiagnosticTimelineEventNodeUpdate
 			description = "Node update received"
+			if otherPeer != "" {
+				description = fmt.Sprintf("Node update from peer %s", otherPeer)
+			}
 			severity = codersdk.ConnectionDiagnosticSeverityInfo
 		case "peer_update_disconnected":
 			kind = codersdk.DiagnosticTimelineEventPeerLost
 			description = "Peer lost contact"
+			if otherPeer != "" {
+				description = fmt.Sprintf("Peer %s lost contact", otherPeer)
+			}
 			severity = codersdk.ConnectionDiagnosticSeverityError
 		case "peer_update_ready_for_handshake":
 			kind = codersdk.DiagnosticTimelineEventPeerRecovered
 			description = "Peer recovered"
+			if otherPeer != "" {
+				description = fmt.Sprintf("Peer %s recovered", otherPeer)
+			}
 			severity = codersdk.ConnectionDiagnosticSeverityInfo
 		default:
 			continue
