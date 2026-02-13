@@ -101,9 +101,11 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 			{notification.detail && (
 				<p css={styles.notificationDetail}>{notification.detail}</p>
 			)}
-			<div className="mt-3 flex justify-end items-center gap-1">
-				{notification.actions}
-			</div>
+			{notification.actions && (
+				<div className="mt-3 flex justify-end items-center gap-1">
+					{notification.actions}
+				</div>
+			)}
 		</article>
 	);
 };
