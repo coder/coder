@@ -68,7 +68,7 @@ jobs:
       BRANCH_HOSTNAME: "${{ github.ref_name }}.${{ startsWith(secrets.PR_DEPLOYMENTS_DOMAIN, 'test.') && secrets.PR_DEPLOYMENTS_DOMAIN || format('test.{0}', secrets.PR_DEPLOYMENTS_DOMAIN) }}"
       CODER_IMAGE_TAG: "ghcr.io/coder/coder-preview:${{ github.ref_name }}"
       REPO: ghcr.io/coder/coder-preview
-      EXPERIMENTS: "*"
+      EXPERIMENTS: "*,oauth2,mcp-server-http"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
