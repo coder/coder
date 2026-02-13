@@ -153,10 +153,3 @@ DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key;
 SELECT
     COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_public_key'), '') :: text AS vapid_public_key,
     COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_private_key'), '') :: text AS vapid_private_key;
-
--- name: GetChangelogLastNotifiedVersion :one
-SELECT value FROM site_configs WHERE key = 'changelog_last_notified_version';
-
--- name: UpsertChangelogLastNotifiedVersion :exec
-INSERT INTO site_configs (key, value) VALUES ('changelog_last_notified_version', @version)
-ON CONFLICT (key) DO UPDATE SET value = @version WHERE site_configs.key = 'changelog_last_notified_version';
