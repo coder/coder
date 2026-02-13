@@ -13,15 +13,35 @@ import (
 )
 
 func main() {
+	switch os.Args[1] {
+	case "reset":
+		os.Args[1] = "down"
+		os.Args = append(os.Args, "database", "--volumes")
+		fallthrough
+	case "bridge", "attach", "build", "commit", "config", "cp", "create", "down", "events", "exec", "export", "images", "kill", "logs", "ls", "pause", "port", "ps", "publish", "pull", "push", "restart", "rm", "run", "scale", "start", "stats", "stop", "top", "unpause", "up", "version", "volumes", "wait", "watch":
+		ctx, err := workingdir.WorkingContext(context.Background())
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		err = passthrough.DockerComposePassthroughCmd(ctx)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	default:
+
+	}
+
 	cmd := &serpent.Command{
 		Use:        "cdev",
 		Short:      "Development environment manager for Coder",
 		Long:       "A smart, opinionated tool for running the Coder development stack.",
-		Middleware: workingdir.WorkingContext,
+		Middleware: workingdir.WorkingContextMW,
 		Children:   []*serpent.Command{
 			//pprofCmd(),
 		},
-		Handler: passthrough.DockerComposePassthroughCmd,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

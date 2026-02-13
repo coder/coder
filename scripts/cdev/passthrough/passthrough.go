@@ -1,7 +1,9 @@
 package passthrough
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -9,12 +11,10 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/scripts/cdev/workingdir"
-	"github.com/coder/serpent"
 )
 
-func DockerComposePassthroughCmd(inv *serpent.Invocation) error {
-	logger := slog.Make(sloghuman.Sink(inv.Stderr))
-	ctx := inv.Context()
+func DockerComposePassthroughCmd(ctx context.Context) error {
+	logger := slog.Make(sloghuman.Sink(os.Stderr))
 	working := workingdir.From(ctx)
 
 	logger.Info(ctx, "docker-compose passthrough", slog.F("dir", working.Root()))
@@ -25,11 +25,19 @@ func DockerComposePassthroughCmd(inv *serpent.Invocation) error {
 		groupID = gid
 	}
 
-	cmd := exec.CommandContext(inv.Context(), "docker-compose", inv.Args...)
+	args := append([]string{"compose", "-f", "docker-compose.dev.yml"}, os.Args[1:]...)
+	primaryCmd := os.Args[1]
+	switch primaryCmd {
+	case "up":
+		args = append(args, "--force-recreate", "cdevsetup", "--build", "cdevsetup")
+	}
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	logger.Info(ctx, "running docker-compose command", slog.F("cmd", cmd.String()))
 	cmd.Env = append(cmd.Env, "DOCKER_GROUP="+strconv.Itoa(groupID))
-	cmd.Stdout = inv.Stdout
-	cmd.Stderr = inv.Stderr
-	cmd.Stdin = inv.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 	cmd.Dir = working.Root()
 	return cmd.Run()
 

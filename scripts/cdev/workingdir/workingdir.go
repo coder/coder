@@ -20,34 +20,42 @@ func (p Paths) Root() string {
 	return p.repo
 }
 
-func WorkingContext(next serpent.HandlerFunc) serpent.HandlerFunc {
+func WorkingContextMW(next serpent.HandlerFunc) serpent.HandlerFunc {
 	return func(inv *serpent.Invocation) error {
-		current, err := os.Getwd()
+		ctx, err := WorkingContext(inv.Context())
 		if err != nil {
-			return xerrors.Errorf("get working directory: %w", err)
+			return xerrors.Errorf("get working context: %w", err)
 		}
 
-		repoRoot, err := GitRepoRoot(current)
-		if err != nil {
-			return xerrors.Errorf("get git repo root: %w", err)
-		}
-
-		moduleName, err := GoModuleName(repoRoot)
-		if err != nil {
-			return xerrors.Errorf("get go module name: %w", err)
-		}
-
-		if strings.TrimSpace(moduleName) != "github.com/coder/coder/v2" {
-			return xerrors.New("this executable must be called within a directory of the coderd repo")
-		}
-
-		inv = inv.WithContext(WithPaths(inv.Context(), Paths{
-			current: current,
-			repo:    repoRoot,
-		}))
-
+		inv = inv.WithContext(ctx)
 		return next(inv)
 	}
+}
+
+func WorkingContext(ctx context.Context) (context.Context, error) {
+	current, err := os.Getwd()
+	if err != nil {
+		return ctx, xerrors.Errorf("get working directory: %w", err)
+	}
+
+	repoRoot, err := GitRepoRoot(current)
+	if err != nil {
+		return ctx, xerrors.Errorf("get git repo root: %w", err)
+	}
+
+	moduleName, err := GoModuleName(repoRoot)
+	if err != nil {
+		return ctx, xerrors.Errorf("get go module name: %w", err)
+	}
+
+	if strings.TrimSpace(moduleName) != "github.com/coder/coder/v2" {
+		return ctx, xerrors.New("this executable must be called within a directory of the coderd repo")
+	}
+
+	return WithPaths(ctx, Paths{
+		current: current,
+		repo:    repoRoot,
+	}), nil
 }
 
 type workingDirKey struct{}
