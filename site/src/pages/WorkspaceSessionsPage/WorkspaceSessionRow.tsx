@@ -102,7 +102,7 @@ export const WorkspaceSessionRow: FC<WorkspaceSessionRowProps> = ({
 										// The combination of index and created_at
 										// provides a stable-enough key for this list.
 										key={`${conn.created_at}-${idx}`}
-										className="flex items-center gap-3 py-2 px-3 rounded cursor-pointer hover:bg-surface-secondary text-left border-0 bg-transparent w-full"
+										className="flex items-center gap-3 py-2 px-3 rounded cursor-pointer text-left border-0 bg-transparent w-full hover:bg-surface-secondary hover:outline focus:bg-surface-secondary focus:outline outline-1 -outline-offset-1 outline-border-hover transition-colors"
 										onClick={(e) => {
 											e.stopPropagation();
 											setSelectedConnection(conn);

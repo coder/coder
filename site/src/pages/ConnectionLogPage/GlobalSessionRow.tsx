@@ -114,7 +114,7 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 									// Connections don't have guaranteed unique IDs, so we
 									// use the index combined with created_at as a key.
 									key={`${conn.created_at}-${idx}`}
-									className="flex items-center gap-3 py-2 px-3 rounded cursor-pointer hover:bg-surface-secondary w-full text-left border-0 bg-transparent"
+									className="flex items-center gap-3 py-2 px-3 rounded cursor-pointer w-full text-left border-0 bg-transparent hover:bg-surface-secondary hover:outline focus:bg-surface-secondary focus:outline outline-1 -outline-offset-1 outline-border-hover transition-colors"
 									onClick={(e) => {
 										e.stopPropagation();
 										setSelectedConnection(conn);
