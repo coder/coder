@@ -206,22 +206,33 @@ func detectAgentCrash(workspaces []codersdk.DiagnosticWorkspace, summary codersd
 	}, true
 }
 
-// detectCleanUsage fires when all sessions ended cleanly.
+// detectCleanUsage fires when there are no unexpected connection losses.
+// Workspace stops and clean disconnects are normal; only control_lost
+// sessions indicate real problems.
 func detectCleanUsage(summary codersdk.DiagnosticSummary) (codersdk.DiagnosticPattern, bool) {
-	if summary.ByStatus.Lost != 0 || summary.ByStatus.WorkspaceStopped != 0 || summary.ByStatus.WorkspaceDeleted != 0 {
-		return codersdk.DiagnosticPattern{}, false
-	}
 	if summary.TotalSessions == 0 {
 		return codersdk.DiagnosticPattern{}, false
 	}
+	if summary.ByStatus.Lost != 0 {
+		return codersdk.DiagnosticPattern{}, false
+	}
+
+	desc := "No unexpected connection losses in the selected time window."
+	if summary.ByStatus.WorkspaceStopped > 0 {
+		desc = fmt.Sprintf(
+			"No unexpected connection losses. %d session(s) ended due to workspace auto-stop, which is expected.",
+			summary.ByStatus.WorkspaceStopped,
+		)
+	}
+
 	return codersdk.DiagnosticPattern{
 		ID:               uuid.New(),
 		Type:             codersdk.DiagnosticPatternCleanUsage,
 		Severity:         codersdk.ConnectionDiagnosticSeverityInfo,
 		AffectedSessions: summary.TotalSessions,
 		TotalSessions:    summary.TotalSessions,
-		Title:            "All sessions are clean",
-		Description:      "No connection issues detected in the selected time window.",
+		Title:            "No connection issues detected",
+		Description:      desc,
 		Commonalities: codersdk.DiagnosticPatternCommonality{
 			ConnectionTypes:    []string{},
 			ClientDescriptions: []string{},

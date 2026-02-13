@@ -104,7 +104,10 @@ export const SessionList: FC<SessionListProps> = ({
 							items={sessions}
 							getDate={(s) => new Date(s.started_at)}
 							row={(session) => (
-								<SessionRow key={session.id} session={session} />
+								<SessionRow
+									key={`${session.id}-${session.started_at}`}
+									session={session}
+								/>
 							)}
 						/>
 					)}
