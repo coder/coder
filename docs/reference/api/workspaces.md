@@ -255,14 +255,17 @@ of the template will be used.
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
+                    "disconnect_reason": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "exit_code": 0,
                     "home_derp": {},
                     "ip": "string",
                     "latency_ms": 0,
                     "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
-                    "type": "ssh"
+                    "type": "ssh",
+                    "user_agent": "string"
                   }
                 ],
                 "ended_at": "2019-08-24T14:15:22Z",
@@ -587,14 +590,17 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
+                    "disconnect_reason": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "exit_code": 0,
                     "home_derp": {},
                     "ip": "string",
                     "latency_ms": 0,
                     "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
-                    "type": "ssh"
+                    "type": "ssh",
+                    "user_agent": "string"
                   }
                 ],
                 "ended_at": "2019-08-24T14:15:22Z",
@@ -944,14 +950,17 @@ of the template will be used.
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
+                    "disconnect_reason": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "exit_code": 0,
                     "home_derp": {},
                     "ip": "string",
                     "latency_ms": 0,
                     "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
-                    "type": "ssh"
+                    "type": "ssh",
+                    "user_agent": "string"
                   }
                 ],
                 "ended_at": "2019-08-24T14:15:22Z",
@@ -1580,14 +1589,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
+                    "disconnect_reason": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "exit_code": 0,
                     "home_derp": {},
                     "ip": "string",
                     "latency_ms": 0,
                     "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
-                    "type": "ssh"
+                    "type": "ssh",
+                    "user_agent": "string"
                   }
                 ],
                 "ended_at": "2019-08-24T14:15:22Z",
@@ -2172,14 +2184,17 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
+                    "disconnect_reason": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "exit_code": 0,
                     "home_derp": {},
                     "ip": "string",
                     "latency_ms": 0,
                     "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
-                    "type": "ssh"
+                    "type": "ssh",
+                    "user_agent": "string"
                   }
                 ],
                 "ended_at": "2019-08-24T14:15:22Z",
@@ -2455,7 +2470,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/sessions \
           "connected_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "detail": "string",
+          "disconnect_reason": "string",
           "ended_at": "2019-08-24T14:15:22Z",
+          "exit_code": 0,
           "home_derp": {
             "id": 0,
             "name": "string"
@@ -2465,7 +2482,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/sessions \
           "p2p": true,
           "short_description": "string",
           "status": "ongoing",
-          "type": "ssh"
+          "type": "ssh",
+          "user_agent": "string"
         }
       ],
       "ended_at": "2019-08-24T14:15:22Z",

@@ -144,7 +144,7 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 
 // WorkspaceSessions parses a search query string into database filter
 // parameters for the global workspace sessions endpoint.
-func WorkspaceSessions(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetGlobalWorkspaceSessionsOffsetParams, database.CountGlobalWorkspaceSessionsParams, []codersdk.ValidationError) {
+func WorkspaceSessions(_ context.Context, _ database.Store, query string, _ database.APIKey) (database.GetGlobalWorkspaceSessionsOffsetParams, database.CountGlobalWorkspaceSessionsParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {

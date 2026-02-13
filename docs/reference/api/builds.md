@@ -200,7 +200,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                   "connected_at": "2019-08-24T14:15:22Z",
                   "created_at": "2019-08-24T14:15:22Z",
                   "detail": "string",
+                  "disconnect_reason": "string",
                   "ended_at": "2019-08-24T14:15:22Z",
+                  "exit_code": 0,
                   "home_derp": {
                     "id": 0,
                     "name": "string"
@@ -210,7 +212,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                   "p2p": true,
                   "short_description": "string",
                   "status": "ongoing",
-                  "type": "ssh"
+                  "type": "ssh",
+                  "user_agent": "string"
                 }
               ],
               "ended_at": "2019-08-24T14:15:22Z",
@@ -470,7 +473,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
                   "connected_at": "2019-08-24T14:15:22Z",
                   "created_at": "2019-08-24T14:15:22Z",
                   "detail": "string",
+                  "disconnect_reason": "string",
                   "ended_at": "2019-08-24T14:15:22Z",
+                  "exit_code": 0,
                   "home_derp": {
                     "id": 0,
                     "name": "string"
@@ -480,7 +485,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
                   "p2p": true,
                   "short_description": "string",
                   "status": "ongoing",
-                  "type": "ssh"
+                  "type": "ssh",
+                  "user_agent": "string"
                 }
               ],
               "ended_at": "2019-08-24T14:15:22Z",
@@ -859,7 +865,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
                 "connected_at": "2019-08-24T14:15:22Z",
                 "created_at": "2019-08-24T14:15:22Z",
                 "detail": "string",
+                "disconnect_reason": "string",
                 "ended_at": "2019-08-24T14:15:22Z",
+                "exit_code": 0,
                 "home_derp": {
                   "id": 0,
                   "name": "string"
@@ -869,7 +877,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
                 "p2p": true,
                 "short_description": "string",
                 "status": "ongoing",
-                "type": "ssh"
+                "type": "ssh",
+                "user_agent": "string"
               }
             ],
             "ended_at": "2019-08-24T14:15:22Z",
@@ -1011,7 +1020,9 @@ Status Code **200**
 | `»»»» connected_at`             | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» detail`                   | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
+| `»»»» disconnect_reason`        | string                                                                                                 | false    |              | Disconnect reason is the reason the connection was closed.                                                                                                                                                                                     |
 | `»»»» ended_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» exit_code`                | integer                                                                                                | false    |              | Exit code is the exit code of the SSH session.                                                                                                                                                                                                 |
 | `»»»» home_derp`                | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
 | `»»»»» id`                      | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» name`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1021,6 +1032,7 @@ Status Code **200**
 | `»»»» short_description`        | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
 | `»»»» status`                   | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» type`                     | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» user_agent`               | string                                                                                                 | false    |              | User agent is the HTTP user agent string from web connections.                                                                                                                                                                                 |
 | `»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                        | string                                                                                                 | false    |              | nil for live sessions                                                                                                                                                                                                                          |
 | `»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1262,7 +1274,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
                   "connected_at": "2019-08-24T14:15:22Z",
                   "created_at": "2019-08-24T14:15:22Z",
                   "detail": "string",
+                  "disconnect_reason": "string",
                   "ended_at": "2019-08-24T14:15:22Z",
+                  "exit_code": 0,
                   "home_derp": {
                     "id": 0,
                     "name": "string"
@@ -1272,7 +1286,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
                   "p2p": true,
                   "short_description": "string",
                   "status": "ongoing",
-                  "type": "ssh"
+                  "type": "ssh",
+                  "user_agent": "string"
                 }
               ],
               "ended_at": "2019-08-24T14:15:22Z",
@@ -1643,14 +1658,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
+                    "disconnect_reason": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "exit_code": 0,
                     "home_derp": {},
                     "ip": "string",
                     "latency_ms": 0,
                     "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
-                    "type": "ssh"
+                    "type": "ssh",
+                    "user_agent": "string"
                   }
                 ],
                 "ended_at": "2019-08-24T14:15:22Z",
@@ -1854,7 +1872,9 @@ Status Code **200**
 | `»»»»» connected_at`             | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» created_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» detail`                   | string                                                                                                 | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                                                                                                                                                       |
+| `»»»»» disconnect_reason`        | string                                                                                                 | false    |              | Disconnect reason is the reason the connection was closed.                                                                                                                                                                                     |
 | `»»»»» ended_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» exit_code`                | integer                                                                                                | false    |              | Exit code is the exit code of the SSH session.                                                                                                                                                                                                 |
 | `»»»»» home_derp`                | [codersdk.WorkspaceConnectionHomeDERP](schemas.md#codersdkworkspaceconnectionhomederp)                 | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                                                                                                                                                              |
 | `»»»»»» id`                      | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»»» name`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1864,6 +1884,7 @@ Status Code **200**
 | `»»»»» short_description`        | string                                                                                                 | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.                                                                                                                                      |
 | `»»»»» status`                   | [codersdk.WorkspaceConnectionStatus](schemas.md#codersdkworkspaceconnectionstatus)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» type`                     | [codersdk.ConnectionType](schemas.md#codersdkconnectiontype)                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»»» user_agent`               | string                                                                                                 | false    |              | User agent is the HTTP user agent string from web connections.                                                                                                                                                                                 |
 | `»»»» ended_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» id`                        | string                                                                                                 | false    |              | nil for live sessions                                                                                                                                                                                                                          |
 | `»»»» ip`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -2144,7 +2165,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                   "connected_at": "2019-08-24T14:15:22Z",
                   "created_at": "2019-08-24T14:15:22Z",
                   "detail": "string",
+                  "disconnect_reason": "string",
                   "ended_at": "2019-08-24T14:15:22Z",
+                  "exit_code": 0,
                   "home_derp": {
                     "id": 0,
                     "name": "string"
@@ -2154,7 +2177,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                   "p2p": true,
                   "short_description": "string",
                   "status": "ongoing",
-                  "type": "ssh"
+                  "type": "ssh",
+                  "user_agent": "string"
                 }
               ],
               "ended_at": "2019-08-24T14:15:22Z",

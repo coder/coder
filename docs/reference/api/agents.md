@@ -640,7 +640,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
           "connected_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "detail": "string",
+          "disconnect_reason": "string",
           "ended_at": "2019-08-24T14:15:22Z",
+          "exit_code": 0,
           "home_derp": {
             "id": 0,
             "name": "string"
@@ -650,7 +652,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
           "p2p": true,
           "short_description": "string",
           "status": "ongoing",
-          "type": "ssh"
+          "type": "ssh",
+          "user_agent": "string"
         }
       ],
       "ended_at": "2019-08-24T14:15:22Z",

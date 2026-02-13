@@ -539,6 +539,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/connectionlog/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get global workspace sessions",
+                "operationId": "get-global-workspace-sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GlobalWorkspaceSessionsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -15868,6 +15914,65 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GlobalWorkspaceSession": {
+            "type": "object",
+            "properties": {
+                "client_hostname": {
+                    "type": "string"
+                },
+                "connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceConnection"
+                    }
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "description": "nil for live sessions",
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "short_description": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionStatus"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_owner_username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GlobalWorkspaceSessionsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GlobalWorkspaceSession"
+                    }
+                }
+            }
+        },
         "codersdk.Group": {
             "type": "object",
             "properties": {
@@ -22169,9 +22274,17 @@ const docTemplate = `{
                     "description": "Detail is the app slug or port number for workspace_app and port_forwarding connections.",
                     "type": "string"
                 },
+                "disconnect_reason": {
+                    "description": "DisconnectReason is the reason the connection was closed.",
+                    "type": "string"
+                },
                 "ended_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "exit_code": {
+                    "description": "ExitCode is the exit code of the SSH session.",
+                    "type": "integer"
                 },
                 "home_derp": {
                     "description": "HomeDERP is the DERP region metadata for the agent's home relay.",
@@ -22201,6 +22314,10 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.ConnectionType"
+                },
+                "user_agent": {
+                    "description": "UserAgent is the HTTP user agent string from web connections.",
+                    "type": "string"
                 }
             }
         },

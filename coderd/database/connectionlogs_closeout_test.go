@@ -511,7 +511,6 @@ func TestCloseConnectionLogsAndCreateSessions_GroupsByHostname(t *testing.T) {
 
 	// Create 3 SSH connections with different IPs but same hostname,
 	// overlapping in time.
-	var logIDs []uuid.UUID
 	for i := 0; i < 3; i++ {
 		ip := pqtype.Inet{
 			IPNet: net.IPNet{
@@ -520,7 +519,7 @@ func TestCloseConnectionLogsAndCreateSessions_GroupsByHostname(t *testing.T) {
 			},
 			Valid: true,
 		}
-		log, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
 			ID:               uuid.New(),
 			Time:             now.Add(time.Duration(-30+i*5) * time.Minute),
 			OrganizationID:   ws.OrganizationID,
@@ -535,7 +534,6 @@ func TestCloseConnectionLogsAndCreateSessions_GroupsByHostname(t *testing.T) {
 			ConnectionStatus: database.ConnectionStatusConnected,
 		})
 		require.NoError(t, err)
-		logIDs = append(logIDs, log.ID)
 	}
 
 	closedAt := now

@@ -134,9 +134,12 @@ describe("WorkspaceSchedulePage", () => {
 					schedule: "20 16 * * 1,3,5",
 				},
 			],
-		] as const)("formValuesToAutostartRequest(%p) return %p", (values, request) => {
-			expect(formValuesToAutostartRequest(values)).toEqual(request);
-		});
+		] as const)(
+			"formValuesToAutostartRequest(%p) return %p",
+			(values, request) => {
+				expect(formValuesToAutostartRequest(values)).toEqual(request);
+			},
+		);
 	});
 
 	describe("formValuesToTTLRequest", () => {

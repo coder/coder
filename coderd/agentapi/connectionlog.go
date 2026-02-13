@@ -173,7 +173,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	// At disconnect time, find or create a session for this connection.
 	// This groups related connection logs into workspace sessions.
 	if action == database.ConnectionStatusDisconnected {
-		a.assignSessionForDisconnect(ctx, connectionID, ws, workspaceAgent, logIPRaw, req)
+		a.assignSessionForDisconnect(ctx, connectionID, ws, workspaceAgent, req)
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
@@ -192,7 +192,6 @@ func (a *ConnLogAPI) assignSessionForDisconnect(
 	connectionID uuid.UUID,
 	ws database.WorkspaceIdentity,
 	workspaceAgent database.WorkspaceAgent,
-	logIPRaw string,
 	req *agentproto.ReportConnectionRequest,
 ) {
 	//nolint:gocritic // The agent context doesn't have connection_log

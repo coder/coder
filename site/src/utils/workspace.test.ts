@@ -35,20 +35,23 @@ describe("util > workspace", () => {
 			["start", "pending", false],
 			["start", "running", false],
 			["start", "succeeded", true],
-		])("transition=%p, status=%p, isWorkspaceOn=%p", (transition, status, isOn) => {
-			const workspace: TypesGen.Workspace = {
-				...Mocks.MockWorkspace,
-				latest_build: {
-					...Mocks.MockWorkspaceBuild,
-					job: {
-						...Mocks.MockProvisionerJob,
-						status,
+		])(
+			"transition=%p, status=%p, isWorkspaceOn=%p",
+			(transition, status, isOn) => {
+				const workspace: TypesGen.Workspace = {
+					...Mocks.MockWorkspace,
+					latest_build: {
+						...Mocks.MockWorkspaceBuild,
+						job: {
+							...Mocks.MockProvisionerJob,
+							status,
+						},
+						transition,
 					},
-					transition,
-				},
-			};
-			expect(isWorkspaceOn(workspace)).toBe(isOn);
-		});
+				};
+				expect(isWorkspaceOn(workspace)).toBe(isOn);
+			},
+		);
 	});
 
 	describe("defaultWorkspaceExtension", () => {
@@ -90,9 +93,12 @@ describe("util > workspace", () => {
 				},
 				"Coder",
 			],
-		])("getDisplayWorkspaceBuildInitiatedBy(%p) returns %p", (build, initiatedBy) => {
-			expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy);
-		});
+		])(
+			"getDisplayWorkspaceBuildInitiatedBy(%p) returns %p",
+			(build, initiatedBy) => {
+				expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy);
+			},
+		);
 	});
 
 	describe("getDisplayVersionStatus", () => {
@@ -112,16 +118,26 @@ describe("util > workspace", () => {
 				"v1.2.3",
 				agentVersionStatus.Deprecated,
 			],
-		])("getDisplayVersionStatus(theme, %p, %p, %p, %p) returns (%p, %p)", (agentVersion, serverVersion, agentAPIVersion, serverAPIVersion, expectedVersion, expectedStatus) => {
-			const { displayVersion, status } = getDisplayVersionStatus(
+		])(
+			"getDisplayVersionStatus(theme, %p, %p, %p, %p) returns (%p, %p)",
+			(
 				agentVersion,
 				serverVersion,
 				agentAPIVersion,
 				serverAPIVersion,
-			);
-			expect(displayVersion).toEqual(expectedVersion);
-			expect(status).toEqual(expectedStatus);
-		});
+				expectedVersion,
+				expectedStatus,
+			) => {
+				const { displayVersion, status } = getDisplayVersionStatus(
+					agentVersion,
+					serverVersion,
+					agentAPIVersion,
+					serverAPIVersion,
+				);
+				expect(displayVersion).toEqual(expectedVersion);
+				expect(status).toEqual(expectedStatus);
+			},
+		);
 	});
 
 	describe("getDisplayWorkspaceTemplateName", () => {

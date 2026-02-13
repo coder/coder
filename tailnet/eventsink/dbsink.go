@@ -147,6 +147,7 @@ func (s *Sink) logTunnelConnection(src, dst uuid.UUID, srcNode *proto.Node, stat
 	// Use system-restricted context for read-only lookups.
 	// AsConnectionLogger only has connection_log permissions,
 	// not workspace/agent read permissions.
+	//nolint:gocritic // Read-only workspace metadata lookups need system scope.
 	readCtx := dbauthz.AsSystemRestricted(ctx)
 
 	// dst is the workspace agent ID. Look up agent and workspace info.
@@ -197,6 +198,7 @@ func (s *Sink) logTunnelConnection(src, dst uuid.UUID, srcNode *proto.Node, stat
 	}
 
 	// Use connection logger context for the actual write.
+	//nolint:gocritic // Connection-log writes require connection logger scope.
 	connLogCtx := dbauthz.AsConnectionLogger(ctx)
 
 	now := dbtime.Now()
@@ -225,6 +227,6 @@ func (s *Sink) logTunnelConnection(src, dst uuid.UUID, srcNode *proto.Node, stat
 	})
 	if err != nil {
 		s.logger.Warn(ctx, "failed to log tunnel connection",
-			slog.Error(err), slog.F("src", src), slog.F("dst", dst))
+			slog.Error(err), slog.F("src_id", src), slog.F("dst_id", dst))
 	}
 }

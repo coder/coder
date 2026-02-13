@@ -4951,6 +4951,112 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `default_provider_configured` | boolean | false    |              |             |
 | `enabled`                     | boolean | false    |              |             |
 
+## codersdk.GlobalWorkspaceSession
+
+```json
+{
+  "client_hostname": "string",
+  "connections": [
+    {
+      "client_hostname": "string",
+      "connected_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "disconnect_reason": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "exit_code": 0,
+      "home_derp": {
+        "id": 0,
+        "name": "string"
+      },
+      "ip": "string",
+      "latency_ms": 0,
+      "p2p": true,
+      "short_description": "string",
+      "status": "ongoing",
+      "type": "ssh",
+      "user_agent": "string"
+    }
+  ],
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "ip": "string",
+  "short_description": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "ongoing",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_username": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                                     | Required | Restrictions | Description           |
+|----------------------------|--------------------------------------------------------------------------|----------|--------------|-----------------------|
+| `client_hostname`          | string                                                                   | false    |              |                       |
+| `connections`              | array of [codersdk.WorkspaceConnection](#codersdkworkspaceconnection)    | false    |              |                       |
+| `ended_at`                 | string                                                                   | false    |              |                       |
+| `id`                       | string                                                                   | false    |              | nil for live sessions |
+| `ip`                       | string                                                                   | false    |              |                       |
+| `short_description`        | string                                                                   | false    |              |                       |
+| `started_at`               | string                                                                   | false    |              |                       |
+| `status`                   | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus) | false    |              |                       |
+| `workspace_id`             | string                                                                   | false    |              |                       |
+| `workspace_name`           | string                                                                   | false    |              |                       |
+| `workspace_owner_username` | string                                                                   | false    |              |                       |
+
+## codersdk.GlobalWorkspaceSessionsResponse
+
+```json
+{
+  "count": 0,
+  "sessions": [
+    {
+      "client_hostname": "string",
+      "connections": [
+        {
+          "client_hostname": "string",
+          "connected_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
+          "detail": "string",
+          "disconnect_reason": "string",
+          "ended_at": "2019-08-24T14:15:22Z",
+          "exit_code": 0,
+          "home_derp": {
+            "id": 0,
+            "name": "string"
+          },
+          "ip": "string",
+          "latency_ms": 0,
+          "p2p": true,
+          "short_description": "string",
+          "status": "ongoing",
+          "type": "ssh",
+          "user_agent": "string"
+        }
+      ],
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "ip": "string",
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string",
+      "workspace_owner_username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                                        | Required | Restrictions | Description |
+|------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
+| `count`    | integer                                                                     | false    |              |             |
+| `sessions` | array of [codersdk.GlobalWorkspaceSession](#codersdkglobalworkspacesession) | false    |              |             |
+
 ## codersdk.Group
 
 ```json
@@ -10821,14 +10927,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "connected_at": "2019-08-24T14:15:22Z",
                     "created_at": "2019-08-24T14:15:22Z",
                     "detail": "string",
+                    "disconnect_reason": "string",
                     "ended_at": "2019-08-24T14:15:22Z",
+                    "exit_code": 0,
                     "home_derp": {},
                     "ip": "string",
                     "latency_ms": 0,
                     "p2p": true,
                     "short_description": "string",
                     "status": "ongoing",
-                    "type": "ssh"
+                    "type": "ssh",
+                    "user_agent": "string"
                   }
                 ],
                 "ended_at": "2019-08-24T14:15:22Z",
@@ -11130,7 +11239,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "connected_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "detail": "string",
+          "disconnect_reason": "string",
           "ended_at": "2019-08-24T14:15:22Z",
+          "exit_code": 0,
           "home_derp": {
             "id": 0,
             "name": "string"
@@ -11140,7 +11251,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "p2p": true,
           "short_description": "string",
           "status": "ongoing",
-          "type": "ssh"
+          "type": "ssh",
+          "user_agent": "string"
         }
       ],
       "ended_at": "2019-08-24T14:15:22Z",
@@ -12036,7 +12148,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   "connected_at": "2019-08-24T14:15:22Z",
                   "created_at": "2019-08-24T14:15:22Z",
                   "detail": "string",
+                  "disconnect_reason": "string",
                   "ended_at": "2019-08-24T14:15:22Z",
+                  "exit_code": 0,
                   "home_derp": {
                     "id": 0,
                     "name": "string"
@@ -12046,7 +12160,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   "p2p": true,
                   "short_description": "string",
                   "status": "ongoing",
-                  "type": "ssh"
+                  "type": "ssh",
+                  "user_agent": "string"
                 }
               ],
               "ended_at": "2019-08-24T14:15:22Z",
@@ -12209,7 +12324,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "connected_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "detail": "string",
+  "disconnect_reason": "string",
   "ended_at": "2019-08-24T14:15:22Z",
+  "exit_code": 0,
   "home_derp": {
     "id": 0,
     "name": "string"
@@ -12219,7 +12336,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "p2p": true,
   "short_description": "string",
   "status": "ongoing",
-  "type": "ssh"
+  "type": "ssh",
+  "user_agent": "string"
 }
 ```
 
@@ -12231,7 +12349,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `connected_at`      | string                                                                       | false    |              |                                                                                                                 |
 | `created_at`        | string                                                                       | false    |              |                                                                                                                 |
 | `detail`            | string                                                                       | false    |              | Detail is the app slug or port number for workspace_app and port_forwarding connections.                        |
+| `disconnect_reason` | string                                                                       | false    |              | Disconnect reason is the reason the connection was closed.                                                      |
 | `ended_at`          | string                                                                       | false    |              |                                                                                                                 |
+| `exit_code`         | integer                                                                      | false    |              | Exit code is the exit code of the SSH session.                                                                  |
 | `home_derp`         | [codersdk.WorkspaceConnectionHomeDERP](#codersdkworkspaceconnectionhomederp) | false    |              | Home derp is the DERP region metadata for the agent's home relay.                                               |
 | `ip`                | string                                                                       | false    |              |                                                                                                                 |
 | `latency_ms`        | number                                                                       | false    |              | Latency ms is the most recent round-trip latency in milliseconds. Uses P2P latency when direct, DERP otherwise. |
@@ -12239,6 +12359,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `short_description` | string                                                                       | false    |              | Short description is the human-readable short description of the connection. Self-reported by the client.       |
 | `status`            | [codersdk.WorkspaceConnectionStatus](#codersdkworkspaceconnectionstatus)     | false    |              |                                                                                                                 |
 | `type`              | [codersdk.ConnectionType](#codersdkconnectiontype)                           | false    |              |                                                                                                                 |
+| `user_agent`        | string                                                                       | false    |              | User agent is the HTTP user agent string from web connections.                                                  |
 
 ## codersdk.WorkspaceConnectionHomeDERP
 
@@ -12602,7 +12723,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "connected_at": "2019-08-24T14:15:22Z",
               "created_at": "2019-08-24T14:15:22Z",
               "detail": "string",
+              "disconnect_reason": "string",
               "ended_at": "2019-08-24T14:15:22Z",
+              "exit_code": 0,
               "home_derp": {
                 "id": 0,
                 "name": "string"
@@ -12612,7 +12735,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "p2p": true,
               "short_description": "string",
               "status": "ongoing",
-              "type": "ssh"
+              "type": "ssh",
+              "user_agent": "string"
             }
           ],
           "ended_at": "2019-08-24T14:15:22Z",
@@ -12718,7 +12842,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "connected_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "detail": "string",
+      "disconnect_reason": "string",
       "ended_at": "2019-08-24T14:15:22Z",
+      "exit_code": 0,
       "home_derp": {
         "id": 0,
         "name": "string"
@@ -12728,7 +12854,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "p2p": true,
       "short_description": "string",
       "status": "ongoing",
-      "type": "ssh"
+      "type": "ssh",
+      "user_agent": "string"
     }
   ],
   "ended_at": "2019-08-24T14:15:22Z",
@@ -12767,7 +12894,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "connected_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "detail": "string",
+          "disconnect_reason": "string",
           "ended_at": "2019-08-24T14:15:22Z",
+          "exit_code": 0,
           "home_derp": {
             "id": 0,
             "name": "string"
@@ -12777,7 +12906,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "p2p": true,
           "short_description": "string",
           "status": "ongoing",
-          "type": "ssh"
+          "type": "ssh",
+          "user_agent": "string"
         }
       ],
       "ended_at": "2019-08-24T14:15:22Z",

@@ -489,6 +489,81 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog/diagnostics/{username}
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get global workspace sessions
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/connectionlog/sessions?limit=0 \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /connectionlog/sessions`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description  |
+|----------|-------|---------|----------|--------------|
+| `q`      | query | string  | false    | Search query |
+| `limit`  | query | integer | true     | Page limit   |
+| `offset` | query | integer | false    | Page offset  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "sessions": [
+    {
+      "client_hostname": "string",
+      "connections": [
+        {
+          "client_hostname": "string",
+          "connected_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
+          "detail": "string",
+          "disconnect_reason": "string",
+          "ended_at": "2019-08-24T14:15:22Z",
+          "exit_code": 0,
+          "home_derp": {
+            "id": 0,
+            "name": "string"
+          },
+          "ip": "string",
+          "latency_ms": 0,
+          "p2p": true,
+          "short_description": "string",
+          "status": "ongoing",
+          "type": "ssh",
+          "user_agent": "string"
+        }
+      ],
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "ip": "string",
+      "short_description": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "ongoing",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string",
+      "workspace_owner_username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GlobalWorkspaceSessionsResponse](schemas.md#codersdkglobalworkspacesessionsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get entitlements
 
 ### Code samples

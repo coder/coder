@@ -62,36 +62,37 @@ describe("SchedulePage", () => {
 	});
 
 	describe("cron tests", () => {
-		it.each(
-			cronTests,
-		)("case %# has the correct expected time", async (test) => {
-			server.use(
-				http.put(
-					`/api/v2/users/${MockUserOwner.id}/quiet-hours`,
-					async ({ request }) => {
-						const data =
-							(await request.json()) as UpdateUserQuietHoursScheduleRequest;
-						return HttpResponse.json({
-							raw_schedule: data.schedule,
-							user_set: true,
-							time: `${test.hour.toString().padStart(2, "0")}:${test.minute
-								.toString()
-								.padStart(2, "0")}`,
-							timezone: test.timezone,
-							next: "", // This value isn't used in the UI, the UI generates it.
-						});
-					},
-				),
-			);
+		it.each(cronTests)(
+			"case %# has the correct expected time",
+			async (test) => {
+				server.use(
+					http.put(
+						`/api/v2/users/${MockUserOwner.id}/quiet-hours`,
+						async ({ request }) => {
+							const data =
+								(await request.json()) as UpdateUserQuietHoursScheduleRequest;
+							return HttpResponse.json({
+								raw_schedule: data.schedule,
+								user_set: true,
+								time: `${test.hour.toString().padStart(2, "0")}:${test.minute
+									.toString()
+									.padStart(2, "0")}`,
+								timezone: test.timezone,
+								next: "", // This value isn't used in the UI, the UI generates it.
+							});
+						},
+					),
+				);
 
-			renderWithAuth(<SchedulePage />);
-			await fillForm(test);
-			await submitForm();
-			const successMessage = await screen.findByText(
-				"Schedule updated successfully",
-			);
-			expect(successMessage).toBeDefined();
-		});
+				renderWithAuth(<SchedulePage />);
+				await fillForm(test);
+				await submitForm();
+				const successMessage = await screen.findByText(
+					"Schedule updated successfully",
+				);
+				expect(successMessage).toBeDefined();
+			},
+		);
 	});
 
 	describe("when it is an unknown error", () => {
