@@ -750,20 +750,14 @@ func classifySessionStatus(disconnectReason string, hasDisconnect bool, isContro
 }
 
 // classifyStatusFromTimeline upgrades a session's status based on
-// peering events in its timeline. A session classified as
-// clean_disconnected by disconnect_reason alone may actually be
-// control_lost if coordinator events show peer loss, or
-// client_disconnected if the connection ended without any
-// coordinator-level disconnect event.
+// peering events in its timeline. Tracks per-peer lost/recovered
+// state so that one peer recovering doesn't mask another being lost.
+// Works for both ongoing and disconnected sessions.
 func classifyStatusFromTimeline(
 	current codersdk.WorkspaceConnectionStatus,
 	disconnectReason string,
 	timeline []codersdk.DiagnosticTimelineEvent,
 ) codersdk.WorkspaceConnectionStatus {
-	if current == codersdk.ConnectionStatusOngoing {
-		return current
-	}
-
 	// Workspace stopped/deleted sessions keep their status regardless
 	// of peering events.
 	reason := strings.ToLower(disconnectReason)
@@ -771,36 +765,66 @@ func classifyStatusFromTimeline(
 		return current
 	}
 
-	hasLost := false
-	hasCleanCoordDisconnect := false
-	hasAnyPeeringEvent := false
+	// Track per-peer state: which peers have unresolved lost events.
+	// A peer is "lost" if it has a peer_lost event without a subsequent
+	// peer_recovered, peer_disconnected, or tunnel_created for the
+	// same peer.
+	lostPeers := make(map[string]bool) // peer short ID -> still lost
+
 	for _, ev := range timeline {
+		peer := timelineEventPeer(ev)
+		if peer == "" {
+			continue
+		}
+
 		switch ev.Kind {
 		case codersdk.DiagnosticTimelineEventPeerLost:
-			hasLost = true
-			hasAnyPeeringEvent = true
-		case codersdk.DiagnosticTimelineEventPeerDisconnected,
-			codersdk.DiagnosticTimelineEventTunnelRemoved:
-			hasCleanCoordDisconnect = true
-			hasAnyPeeringEvent = true
-		case codersdk.DiagnosticTimelineEventTunnelCreated,
-			codersdk.DiagnosticTimelineEventPeerRecovered,
-			codersdk.DiagnosticTimelineEventNodeUpdate:
-			hasAnyPeeringEvent = true
+			lostPeers[peer] = true
+		case codersdk.DiagnosticTimelineEventPeerRecovered,
+			codersdk.DiagnosticTimelineEventPeerDisconnected,
+			codersdk.DiagnosticTimelineEventTunnelCreated:
+			lostPeers[peer] = false
 		}
 	}
 
-	if hasLost && !hasCleanCoordDisconnect {
-		return codersdk.ConnectionStatusControlLost
-	}
-
-	// Connection ended but no peering events at all means the
-	// client vanished without coordinator involvement.
-	if !hasAnyPeeringEvent && current == codersdk.ConnectionStatusCleanDisconnected {
-		return codersdk.ConnectionStatusClientDisconnected
+	// If any peer is still lost (unresolved), session has lost contact.
+	for _, stillLost := range lostPeers {
+		if stillLost {
+			return codersdk.ConnectionStatusControlLost
+		}
 	}
 
 	return current
+}
+
+// timelineEventPeer extracts the non-agent peer's short ID from a
+// timeline event's metadata. Returns "" if the event has no peer info.
+// The "other" peer is identified by checking which peer ID prefix
+// appears in the event description (set by mergePeeringEventsIntoTimeline).
+func timelineEventPeer(ev codersdk.DiagnosticTimelineEvent) string {
+	if ev.Metadata == nil {
+		return ""
+	}
+	src, _ := ev.Metadata["src_peer_id"].(string)
+	dst, _ := ev.Metadata["dst_peer_id"].(string)
+
+	desc := ev.Description
+	if len(src) >= 8 && strings.Contains(desc, src[:8]) {
+		return src[:8]
+	}
+	if len(dst) >= 8 && strings.Contains(desc, dst[:8]) {
+		return dst[:8]
+	}
+
+	// Fallback: if the description doesn't contain either short ID
+	// (e.g., generic "Tunnel created"), use src as the key.
+	if len(src) >= 8 {
+		return src[:8]
+	}
+	if len(dst) >= 8 {
+		return dst[:8]
+	}
+	return ""
 }
 
 // diagnosticSessionStatus maps session status to the summary breakdown
@@ -815,8 +839,7 @@ func diagnosticStatusBucket(status codersdk.WorkspaceConnectionStatus, disconnec
 		return "workspace_deleted"
 	case status == codersdk.ConnectionStatusOngoing:
 		return "ongoing"
-	case status == codersdk.ConnectionStatusControlLost,
-		status == codersdk.ConnectionStatusClientDisconnected:
+	case status == codersdk.ConnectionStatusControlLost:
 		return "lost"
 	default:
 		return "clean"
