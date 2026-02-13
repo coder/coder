@@ -16,6 +16,7 @@ const meta: Meta<typeof OperatorDiagnosticPageView> = {
 		onUserSelect: () => {},
 		onTimeWindowChange: () => {},
 		isDemo: true,
+		isFetching: false,
 		statusFilter: "all",
 		onStatusFilterChange: () => {},
 		workspaceFilter: "all",
@@ -62,6 +63,15 @@ export const Loading: Story = {
 	args: {
 		data: undefined,
 		isLoading: true,
+		username: "sarah-chen",
+	},
+};
+
+export const Refetching: Story = {
+	args: {
+		data: SCENARIO_DEVICE_SLEEP,
+		isLoading: false,
+		isFetching: true,
 		username: "sarah-chen",
 	},
 };

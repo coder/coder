@@ -15,7 +15,9 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { Spinner } from "components/Spinner/Spinner";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { Link } from "react-router";
 import { DiagnosticSummaryBar } from "./DiagnosticSummaryBar";
 import { PatternBanner } from "./PatternBanner";
@@ -26,6 +28,7 @@ import { UserSelector } from "./UserSelector";
 interface OperatorDiagnosticPageViewProps {
 	data: UserDiagnosticResponse | undefined;
 	isLoading: boolean;
+	isFetching: boolean;
 	username: string;
 	onUserSelect: (username: string) => void;
 	onTimeWindowChange: (hours: number) => void;
@@ -44,6 +47,7 @@ export const OperatorDiagnosticPageView: FC<
 > = ({
 	data,
 	isLoading,
+	isFetching,
 	username,
 	onUserSelect,
 	onTimeWindowChange,
@@ -117,20 +121,35 @@ export const OperatorDiagnosticPageView: FC<
 				</div>
 			</div>
 
-			{/* Stats bar */}
-			{data && (
-				<DiagnosticSummaryBar
-					summary={data.summary}
-					timeWindow={data.time_window}
-				/>
-			)}
-
-			{/* Pattern banner */}
-			{data && data.patterns.length > 0 && (
-				<div className="mt-4">
-					<PatternBanner patterns={data.patterns} />
+			{/* Refetch indicator */}
+			{isFetching && !isLoading && (
+				<div className="flex items-center gap-2 text-content-secondary text-sm mb-2">
+					<Spinner size="sm" loading />
+					<span>Updating...</span>
 				</div>
 			)}
+
+			{/* Stats bar */}
+			<div
+				className={cn(
+					"transition-opacity",
+					isFetching && !isLoading && "opacity-60",
+				)}
+			>
+				{data && (
+					<DiagnosticSummaryBar
+						summary={data.summary}
+						timeWindow={data.time_window}
+					/>
+				)}
+
+				{/* Pattern banner */}
+				{data && data.patterns.length > 0 && (
+					<div className="mt-4">
+						<PatternBanner patterns={data.patterns} />
+					</div>
+				)}
+			</div>
 
 			{/* Loading */}
 			{isLoading && (
@@ -143,7 +162,12 @@ export const OperatorDiagnosticPageView: FC<
 
 			{/* Session list */}
 			{data && (
-				<div className="mt-4">
+				<div
+					className={cn(
+						"mt-4 transition-opacity",
+						isFetching && !isLoading && "opacity-60",
+					)}
+				>
 					<SessionList
 						workspaces={data.workspaces}
 						statusFilter={statusFilter}

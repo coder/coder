@@ -43,6 +43,7 @@ const OperatorDiagnosticPage: FC = () => {
 			<OperatorDiagnosticPageView
 				data={diagnosticQuery.data}
 				isLoading={diagnosticQuery.isLoading}
+				isFetching={diagnosticQuery.isFetching}
 				username={username}
 				onUserSelect={handleUserSelect}
 				onTimeWindowChange={setHours}
