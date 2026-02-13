@@ -1,0 +1,72 @@
+# HELP coder_pubsub_current_events The current number of pubsub event channels listened for
+# TYPE coder_pubsub_current_events gauge
+coder_pubsub_current_events 0
+# HELP coder_pubsub_current_subscribers The current number of active pubsub subscribers
+# TYPE coder_pubsub_current_subscribers gauge
+coder_pubsub_current_subscribers 0
+# HELP coder_pubsub_latency_measure_errs_total The number of pubsub latency measurement failures
+# TYPE coder_pubsub_latency_measure_errs_total counter
+coder_pubsub_latency_measure_errs_total 0
+# HELP coder_pubsub_latency_measures_total The number of pubsub latency measurements
+# TYPE coder_pubsub_latency_measures_total counter
+coder_pubsub_latency_measures_total 0
+# HELP coder_pubsub_receive_latency_seconds The time taken to receive a message from a pubsub event channel
+# TYPE coder_pubsub_receive_latency_seconds gauge
+coder_pubsub_receive_latency_seconds 0
+# HELP coder_pubsub_send_latency_seconds The time taken to send a message into a pubsub event channel
+# TYPE coder_pubsub_send_latency_seconds gauge
+coder_pubsub_send_latency_seconds 0
+# HELP coderd_insights_applications_usage_seconds The application usage per template.
+# TYPE coderd_insights_applications_usage_seconds gauge
+coderd_insights_applications_usage_seconds{template_name="",application_name="",slug=""} 0
+# HELP coderd_insights_parameters The parameter usage per template.
+# TYPE coderd_insights_parameters gauge
+coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value=""} 0
+# HELP coderd_insights_templates_active_users The number of active users of the template.
+# TYPE coderd_insights_templates_active_users gauge
+coderd_insights_templates_active_users{template_name=""} 0
+# HELP coderd_license_active_users The number of active users.
+# TYPE coderd_license_active_users gauge
+coderd_license_active_users 0
+# HELP coderd_license_errors The number of active license errors.
+# TYPE coderd_license_errors gauge
+coderd_license_errors 0
+# HELP coderd_license_limit_users The user seats limit based on the active Coder license.
+# TYPE coderd_license_limit_users gauge
+coderd_license_limit_users 0
+# HELP coderd_license_user_limit_enabled Returns 1 if the current license enforces the user limit.
+# TYPE coderd_license_user_limit_enabled gauge
+coderd_license_user_limit_enabled 0
+# HELP coderd_license_warnings The number of active license warnings.
+# TYPE coderd_license_warnings gauge
+coderd_license_warnings 0
+# HELP coderd_prebuilt_workspaces_claimed_total Total number of prebuilt workspaces which were claimed by users. Claiming refers to creating a workspace with a preset selected for which eligible prebuilt workspaces are available and one is reassigned to a user.
+# TYPE coderd_prebuilt_workspaces_claimed_total counter
+coderd_prebuilt_workspaces_claimed_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_created_total Total number of prebuilt workspaces that have been created to meet the desired instance count of each template preset.
+# TYPE coderd_prebuilt_workspaces_created_total counter
+coderd_prebuilt_workspaces_created_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_desired Target number of prebuilt workspaces that should be available for each template preset.
+# TYPE coderd_prebuilt_workspaces_desired gauge
+coderd_prebuilt_workspaces_desired{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_eligible Current number of prebuilt workspaces that are eligible to be claimed by users. These are workspaces that have completed their build process with their agent reporting 'ready' status.
+# TYPE coderd_prebuilt_workspaces_eligible gauge
+coderd_prebuilt_workspaces_eligible{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_failed_total Total number of prebuilt workspaces that failed to build.
+# TYPE coderd_prebuilt_workspaces_failed_total counter
+coderd_prebuilt_workspaces_failed_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_metrics_last_updated The unix timestamp when the metrics related to prebuilt workspaces were last updated; these metrics are cached.
+# TYPE coderd_prebuilt_workspaces_metrics_last_updated gauge
+coderd_prebuilt_workspaces_metrics_last_updated 0
+# HELP coderd_prebuilt_workspaces_preset_hard_limited Indicates whether a given preset has reached the hard failure limit (1 = hard-limited). Metric is omitted otherwise.
+# TYPE coderd_prebuilt_workspaces_preset_hard_limited gauge
+coderd_prebuilt_workspaces_preset_hard_limited{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_reconciliation_paused Indicates whether prebuilds reconciliation is currently paused (1 = paused, 0 = not paused).
+# TYPE coderd_prebuilt_workspaces_reconciliation_paused gauge
+coderd_prebuilt_workspaces_reconciliation_paused 0
+# HELP coderd_prebuilt_workspaces_resource_replacements_total Total number of prebuilt workspaces whose resource(s) got replaced upon being claimed. In Terraform, drift on immutable attributes results in resource replacement. This represents a worst-case scenario for prebuilt workspaces because the pre-provisioned resource would have been recreated when claiming, thus obviating the point of pre-provisioning. See https://coder.com/docs/admin/templates/extending-templates/prebuilt-workspaces#preventing-resource-replacement
+# TYPE coderd_prebuilt_workspaces_resource_replacements_total counter
+coderd_prebuilt_workspaces_resource_replacements_total{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_running Current number of prebuilt workspaces that are in a running state. These workspaces have started successfully but may not yet be claimable by users (see coderd_prebuilt_workspaces_eligible).
+# TYPE coderd_prebuilt_workspaces_running gauge
+coderd_prebuilt_workspaces_running{template_name="",preset_name="",organization_name=""} 0

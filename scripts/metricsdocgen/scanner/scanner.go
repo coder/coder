@@ -50,6 +50,12 @@ type Metric struct {
 	Labels []string   // Label names for this metric
 }
 
+// declarations holds const/var values collected from a file for resolving references.
+type declarations struct {
+	strings      map[string]string   // string constants/variables
+	stringSlices map[string][]string // []string variables
+}
+
 func main() {
 	metrics, err := scanAllDirs()
 	if err != nil {
@@ -136,6 +142,9 @@ func scanFile(path string) ([]Metric, error) {
 		return nil, xerrors.Errorf("parsing file: %w", err)
 	}
 
+	// First pass: collect const and var declarations for resolving references.
+	decls := collectDecls(file)
+
 	var metrics []Metric
 
 	// Walk the AST looking for metric registration calls.
@@ -145,7 +154,7 @@ func scanFile(path string) ([]Metric, error) {
 			return true
 		}
 
-		metric, ok := extractMetricFromCall(call)
+		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
 			metrics = append(metrics, metric)
 		}
@@ -156,6 +165,172 @@ func scanFile(path string) ([]Metric, error) {
 	return metrics, nil
 }
 
+// resolveStringExpr attempts to resolve an expression to a string value.
+// Examples:
+//   - "my_metric": "my_metric" (string literal)
+//   - metricName: resolved value of metricName constant (identifier)
+func resolveStringExpr(expr ast.Expr, decls declarations) string {
+	switch e := expr.(type) {
+	case *ast.BasicLit:
+		return strings.Trim(e.Value, `"`)
+	case *ast.Ident:
+		return decls.strings[e.Name]
+	case *ast.BinaryExpr:
+		return resolveBinaryExpr(e, decls)
+	}
+	return ""
+}
+
+// resolveBinaryExpr resolves a binary expression (string concatenation) to a string.
+// It recursively resolves the left and right operands.
+// Example:
+//   - "coderd_" + "api_" + "requests": "coderd_api_requests"
+//   - namespace + "_" + metricName: resolved concatenation
+func resolveBinaryExpr(expr *ast.BinaryExpr, decls declarations) string {
+	left := resolveStringExpr(expr.X, decls)
+	right := resolveStringExpr(expr.Y, decls)
+	if left != "" && right != "" {
+		return left + right
+	}
+	return ""
+}
+
+// extractStringSlice extracts a []string from a composite literal.
+// Example:
+//   - []string{"a", "b", myConst}: ["a", "b", <resolved value of myConst>]
+func extractStringSlice(lit *ast.CompositeLit, decls declarations) []string {
+	var labels []string
+	for _, elt := range lit.Elts {
+		if label := resolveStringExpr(elt, decls); label != "" {
+			labels = append(labels, label)
+		}
+	}
+	return labels
+}
+
+// collectDecls collects const and var declarations from a file.
+// This is used to resolve constant and variable references in metric definitions.
+func collectDecls(file *ast.File) declarations {
+	decls := declarations{
+		strings:      make(map[string]string),
+		stringSlices: make(map[string][]string),
+	}
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+
+			for i, name := range valueSpec.Names {
+				if i >= len(valueSpec.Values) {
+					continue
+				}
+
+				switch v := valueSpec.Values[i].(type) {
+				case *ast.BasicLit:
+					// String literal: const name = "value"
+					decls.strings[name.Name] = strings.Trim(v.Value, `"`)
+				case *ast.BinaryExpr:
+					// Concatenation: const name = prefix + "suffix"
+					if resolved := resolveBinaryExpr(v, decls); resolved != "" {
+						decls.strings[name.Name] = resolved
+					}
+				case *ast.CompositeLit:
+					// Slice literal: var labels = []string{"a", "b"}
+					if resolved := extractStringSlice(v, decls); resolved != nil {
+						decls.stringSlices[name.Name] = resolved
+					}
+				}
+			}
+		}
+	}
+
+	return decls
+}
+
+// extractLabels extracts label names from an expression passed as an argument
+// to a metric constructor. Handles both inline []string literals and
+// variable references from decls.
+// Examples:
+//   - []string{"label1", "label2"}: ["label1", "label2"] (inline literal)
+//   - myLabels: resolved value of myLabels variable (variable reference)
+func extractLabels(expr ast.Expr, decls declarations) []string {
+	switch e := expr.(type) {
+	case *ast.CompositeLit:
+		// []string{"label1", "label2"}
+		return extractStringSlice(e, decls)
+	case *ast.Ident:
+		// Variable reference like 'labels'.
+		if labels, ok := decls.stringSlices[e.Name]; ok {
+			return labels
+		}
+		return nil
+	}
+	return nil
+}
+
+// extractNewDescMetric extracts a metric from a prometheus.NewDesc() call.
+// Pattern: prometheus.NewDesc(name, help, variableLabels, constLabels)
+// Currently, coder only uses MustNewConstMetric with NewDesc.
+// TODO(ssncferreira): Add support for other MustNewConst* functions if needed.
+func extractNewDescMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
+	// Check if this is a prometheus.NewDesc call.
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return Metric{}, false
+	}
+
+	// Match calls that are exactly "prometheus.NewDesc()". This checks the local
+	// package identifier, not the resolved import path. If the prometheus package
+	// is imported with an alias, this will not match.
+	ident, ok := sel.X.(*ast.Ident)
+	if !ok || ident.Name != "prometheus" || sel.Sel.Name != "NewDesc" {
+		return Metric{}, false
+	}
+
+	// NewDesc requires at least 4 arguments: name, help, variableLabels, constLabels
+	if len(call.Args) < 4 {
+		return Metric{}, false
+	}
+
+	// Extract name (first argument).
+	name := resolveStringExpr(call.Args[0], decls)
+	if name == "" {
+		log.Printf("extractNewDescMetric: skipping prometheus.NewDesc() call: could not resolve metric name")
+		return Metric{}, false
+	}
+
+	// Extract help (second argument).
+	help := resolveStringExpr(call.Args[1], decls)
+
+	// Extract labels (third argument).
+	labels := extractLabels(call.Args[2], decls)
+
+	// Infer metric type from name suffix.
+	// TODO(ssncferreira): The actual type is determined by the MustNewConst* function
+	// 	that uses this descriptor (e.g., MustNewConstMetric with prometheus.CounterValue or
+	// 	prometheus.GaugeValue). Currently, coder only uses MustNewConstMetric, so we
+	// 	infer the type from naming conventions.
+	metricType := MetricTypeGauge
+	if strings.HasSuffix(name, "_total") || strings.HasSuffix(name, "_count") {
+		metricType = MetricTypeCounter
+	}
+
+	return Metric{
+		Name:   name,
+		Type:   metricType,
+		Help:   help,
+		Labels: labels,
+	}, true
+}
+
 // extractMetricFromCall attempts to extract a Metric from a function call expression.
 // It returns the metric and true if successful, or an empty metric and false if
 // the call is not a metric registration.
@@ -164,9 +339,13 @@ func scanFile(path string) ([]Metric, error) {
 //   - prometheus.NewDesc() calls
 //   - prometheus.New*() and prometheus.New*Vec() with *Opts{}
 //   - promauto.With(reg).New*() and factory.New*() patterns
-func extractMetricFromCall(_ *ast.CallExpr) (Metric, bool) {
+func extractMetricFromCall(call *ast.CallExpr, decls declarations) (Metric, bool) {
+	// Check for prometheus.NewDesc() pattern.
+	if metric, ok := extractNewDescMetric(call, decls); ok {
+		return metric, true
+	}
+
 	// TODO(ssncferreira): Implement upstack.
-	// 	Handle prometheus.NewDesc()
 	// 	Handle prometheus.New*Vec() and prometheus.New*() with *Opts{}
 	// 	Handle promauto.With(reg).New*() pattern
 
