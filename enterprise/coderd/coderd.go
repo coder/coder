@@ -868,9 +868,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 			var coordinator agpltailnet.Coordinator
+			eventSink := eventsink.NewEventSink(api.ctx, api.Database, api.Logger)
 			if enabled {
-				haEventSink := eventsink.NewEventSink(api.ctx, api.Database, api.Logger)
-				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database, haEventSink)
+				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database, eventSink)
 				if err != nil {
 					api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 					// If we try to setup the HA coordinator and it fails, nothing
@@ -895,7 +895,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					_ = api.updateEntitlements(api.ctx)
 				})
 			} else {
-				eventSink := eventsink.NewEventSink(api.ctx, api.Database, api.Logger)
 				coordinator = agpltailnet.NewCoordinator(api.Logger, eventSink)
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)

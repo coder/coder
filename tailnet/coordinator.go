@@ -228,7 +228,7 @@ func newCore(logger slog.Logger, eventSinks []EventSink) *core {
 	if len(eventSinks) > 0 {
 		eventSink = eventSinks[0]
 	} else {
-		eventSink = noopEventSink{}
+		eventSink = NoopEventSink{}
 	}
 	return &core{
 		logger:    logger,

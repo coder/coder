@@ -33,6 +33,7 @@ type connIO struct {
 	tunnels      chan<- tunnel
 	rfhs         chan<- readyForHandshake
 	auth         agpl.CoordinateeAuth
+	eventSink    agpl.EventSink
 	mu           sync.Mutex
 	closed       bool
 	disconnected bool
@@ -56,6 +57,7 @@ func newConnIO(coordContext context.Context,
 	id uuid.UUID,
 	name string,
 	auth agpl.CoordinateeAuth,
+	eventSink agpl.EventSink,
 ) *connIO {
 	peerCtx, cancel := context.WithCancel(peerCtx)
 	now := time.Now().Unix()
@@ -74,6 +76,7 @@ func newConnIO(coordContext context.Context,
 		name:      name,
 		start:     now,
 		lastWrite: now,
+		eventSink: eventSink,
 	}
 	go c.recvLoop()
 	c.logger.Info(coordContext, "serving connection")
@@ -265,6 +268,9 @@ func (c *connIO) Enqueue(resp *proto.CoordinateResponse) error {
 		return c.peerCtx.Err()
 	case c.responses <- resp:
 		c.logger.Debug(c.peerCtx, "wrote response")
+		for _, update := range resp.GetPeerUpdates() {
+			c.eventSink.SentPeerUpdate(c.id, update)
+		}
 		return nil
 	default:
 		return agpl.ErrWouldBlock

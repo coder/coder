@@ -47,9 +47,9 @@ func PeeringIDFromAddrs(a, b netip.Addr) []byte {
 	return h.Sum(nil)
 }
 
-type noopEventSink struct{}
+type NoopEventSink struct{}
 
-func (noopEventSink) AddedTunnel(_, _ uuid.UUID, _ *proto.Node) {}
-func (noopEventSink) RemovedTunnel(_, _ uuid.UUID)              {}
-func (noopEventSink) SentPeerUpdate(_ uuid.UUID, _ *proto.CoordinateResponse_PeerUpdate) {
+func (NoopEventSink) AddedTunnel(_, _ uuid.UUID, _ *proto.Node) {}
+func (NoopEventSink) RemovedTunnel(_, _ uuid.UUID)              {}
+func (NoopEventSink) SentPeerUpdate(_ uuid.UUID, _ *proto.CoordinateResponse_PeerUpdate) {
 }

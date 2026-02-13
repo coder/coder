@@ -95,6 +95,7 @@ type pgCoord struct {
 	tunneler   *tunneler
 	handshaker *handshaker
 	querier    *querier
+	eventSink  agpl.EventSink
 }
 
 var pgCoordSubject = rbac.Subject{
@@ -130,7 +131,7 @@ func firstEventSink(eventSinks []agpl.EventSink) agpl.EventSink {
 	if len(eventSinks) > 0 && eventSinks[0] != nil {
 		return eventSinks[0]
 	}
-	return nil
+	return agpl.NoopEventSink{}
 }
 
 func newPGCoordInternal(
@@ -170,6 +171,7 @@ func newPGCoordInternal(
 		id:               id,
 		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
 		closed:           make(chan struct{}),
+		eventSink:        eventSink,
 	}
 	logger.Info(ctx, "starting coordinator")
 	return c, nil
@@ -307,7 +309,7 @@ func (c *pgCoord) Coordinate(
 		close(resps)
 		return reqs, resps
 	}
-	cIO := newConnIO(c.ctx, ctx, logger, c.bindings, c.tunnelerCh, c.handshakerCh, reqs, resps, id, name, a)
+	cIO := newConnIO(c.ctx, ctx, logger, c.bindings, c.tunnelerCh, c.handshakerCh, reqs, resps, id, name, a, c.eventSink)
 	err := agpl.SendCtx(c.ctx, c.newConnections, cIO)
 	if err != nil {
 		// this can only happen if the context is canceled, no need to log
@@ -431,14 +433,13 @@ func (t *tunneler) cache(update tunnel) {
 			// Capture active destinations before clearing, so
 			// writeOne can fire RemovedTunnel events after the
 			// DB deletion succeeds.
-			if t.eventSink != nil {
-				if dsts := t.latest[update.src]; len(dsts) > 0 {
-					removed := make([]uuid.UUID, 0, len(dsts))
-					for dst := range dsts {
-						removed = append(removed, dst)
-					}
-					t.pendingRemovals[update.src] = removed
+
+			if dsts := t.latest[update.src]; len(dsts) > 0 {
+				removed := make([]uuid.UUID, 0, len(dsts))
+				for dst := range dsts {
+					removed = append(removed, dst)
 				}
+				t.pendingRemovals[update.src] = removed
 			}
 			delete(t.latest, update.src)
 		} else {
@@ -486,7 +487,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("src_id", tun.src),
 			slog.Error(err),
 		)
-		if err == nil && t.eventSink != nil {
+		if err == nil {
 			// Fire RemovedTunnel for every destination that was cached
 			// before cache() cleared them. The list was captured in
 			// pendingRemovals during cache().
@@ -509,7 +510,7 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("dst_id", tun.dst),
 			slog.Error(err),
 		)
-		if err == nil && t.eventSink != nil {
+		if err == nil {
 			// Look up the source peer's node from the database
 			// so that the EventSink can record IP, hostname, and
 			// description on the connection_log. The binder writes
