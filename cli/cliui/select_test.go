@@ -27,6 +27,21 @@ func TestSelect(t *testing.T) {
 		}()
 		require.Equal(t, "First", <-msgChan)
 	})
+
+	t.Run("DefaultIsSelected", func(t *testing.T) {
+		t.Parallel()
+		ptty := ptytest.New(t)
+		msgChan := make(chan string)
+		go func() {
+			resp, err := newSelect(ptty, cliui.SelectOptions{
+				Options: []string{"First", "Second", "Third"},
+				Default: "Second",
+			})
+			assert.NoError(t, err)
+			msgChan <- resp
+		}()
+		require.Equal(t, "Second", <-msgChan)
+	})
 }
 
 func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
@@ -60,6 +75,25 @@ func TestRichSelect(t *testing.T) {
 			msgChan <- resp
 		}()
 		require.Equal(t, "A-Value", <-msgChan)
+	})
+
+	t.Run("DefaultIsSelected", func(t *testing.T) {
+		t.Parallel()
+		ptty := ptytest.New(t)
+		msgChan := make(chan string)
+		go func() {
+			resp, err := newRichSelect(ptty, cliui.RichSelectOptions{
+				Options: []codersdk.TemplateVersionParameterOption{
+					{Name: "A-Name", Value: "A-Value", Description: "A-Description."},
+					{Name: "B-Name", Value: "B-Value", Description: "B-Description."},
+					{Name: "C-Name", Value: "C-Value", Description: "C-Description."},
+				},
+				Default: "B-Value",
+			})
+			assert.NoError(t, err)
+			msgChan <- resp
+		}()
+		require.Equal(t, "B-Value", <-msgChan)
 	})
 }
 
