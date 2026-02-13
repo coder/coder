@@ -369,53 +369,50 @@ describe("WorkspaceApps filtering", () => {
 		["disabled", true],
 		["unhealthy", false],
 		["initializing", false],
-	])(
-		"apps with '%s' health status should be shown: %s",
-		async (health, shouldBeVisible) => {
-			const app: WorkspaceApp = {
-				...MockWorkspaceApp,
-				id: `${health}-app`,
-				display_name: `${health} App`,
-				health,
-				hidden: false,
-			};
-			const workspace: Workspace = {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					status: "running",
-					resources: [
-						{
-							...MockWorkspace.latest_build.resources[0],
-							agents: [
-								{
-									...MockWorkspaceAgent,
-									apps: [app],
-								},
-							],
-						},
-					],
-				},
-			};
-			vi.spyOn(API, "getWorkspaces").mockResolvedValue({
-				workspaces: [workspace],
-				count: 1,
-			});
+	])("apps with '%s' health status should be shown: %s", async (health, shouldBeVisible) => {
+		const app: WorkspaceApp = {
+			...MockWorkspaceApp,
+			id: `${health}-app`,
+			display_name: `${health} App`,
+			health,
+			hidden: false,
+		};
+		const workspace: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				status: "running",
+				resources: [
+					{
+						...MockWorkspace.latest_build.resources[0],
+						agents: [
+							{
+								...MockWorkspaceAgent,
+								apps: [app],
+							},
+						],
+					},
+				],
+			},
+		};
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [workspace],
+			count: 1,
+		});
 
-			renderWithAuth(<WorkspacesPage />);
-			await waitForLoaderToBeRemoved();
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
 
-			const appLink = screen.queryByRole("link", {
-				name: (name) =>
-					name.toLowerCase().includes(app.display_name!.toLowerCase()),
-			});
-			if (shouldBeVisible) {
-				expect(appLink).toBeInTheDocument();
-			} else {
-				expect(appLink).not.toBeInTheDocument();
-			}
-		},
-	);
+		const appLink = screen.queryByRole("link", {
+			name: (name) =>
+				name.toLowerCase().includes(app.display_name!.toLowerCase()),
+		});
+		if (shouldBeVisible) {
+			expect(appLink).toBeInTheDocument();
+		} else {
+			expect(appLink).not.toBeInTheDocument();
+		}
+	});
 
 	it("does not show hidden apps regardless of health status", async () => {
 		const hiddenApp: WorkspaceApp = {

@@ -2,10 +2,7 @@ import type { Workspace, WorkspaceSession } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
-import {
-	PageHeader,
-	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -79,15 +76,10 @@ export const WorkspaceSessionsPageView: FC<WorkspaceSessionsPageViewProps> = ({
 										{sessions && (
 											<Timeline
 												items={sessions}
-												getDate={(session) =>
-													new Date(session.started_at)
-												}
+												getDate={(session) => new Date(session.started_at)}
 												row={(session) => (
 													<WorkspaceSessionRow
-														key={
-															session.id ??
-															session.started_at
-														}
+														key={session.id ?? session.started_at}
 														session={session}
 													/>
 												)}

@@ -33,12 +33,12 @@ describe("unit/CreateTokenForm", () => {
 				maxTokenLifetime: 100 * 24 * NANO_HOUR,
 				expected: lifetimeDayPresets,
 			},
-		])(
-			"filterByMaxTokenLifetime($maxTokenLifetime)",
-			({ maxTokenLifetime, expected }) => {
-				expect(filterByMaxTokenLifetime(maxTokenLifetime)).toEqual(expected);
-			},
-		);
+		])("filterByMaxTokenLifetime($maxTokenLifetime)", ({
+			maxTokenLifetime,
+			expected,
+		}) => {
+			expect(filterByMaxTokenLifetime(maxTokenLifetime)).toEqual(expected);
+		});
 	});
 	describe("determineDefaultLtValue", () => {
 		it.each<{
@@ -61,11 +61,11 @@ describe("unit/CreateTokenForm", () => {
 				maxTokenLifetime: 2 * 24 * NANO_HOUR,
 				expected: "custom",
 			},
-		])(
-			"determineDefaultLtValue($maxTokenLifetime)",
-			({ maxTokenLifetime, expected }) => {
-				expect(determineDefaultLtValue(maxTokenLifetime)).toEqual(expected);
-			},
-		);
+		])("determineDefaultLtValue($maxTokenLifetime)", ({
+			maxTokenLifetime,
+			expected,
+		}) => {
+			expect(determineDefaultLtValue(maxTokenLifetime)).toEqual(expected);
+		});
 	});
 });

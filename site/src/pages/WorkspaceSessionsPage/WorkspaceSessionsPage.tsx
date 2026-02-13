@@ -1,5 +1,5 @@
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { paginatedWorkspaceSessions } from "api/queries/workspaceSessions";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import type { FC } from "react";

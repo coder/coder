@@ -36,9 +36,7 @@ export function connectionStatusColor(
 	}
 }
 
-export function connectionStatusDot(
-	status: WorkspaceConnectionStatus,
-): string {
+export function connectionStatusDot(status: WorkspaceConnectionStatus): string {
 	switch (status) {
 		case "ongoing":
 			return "bg-content-success";

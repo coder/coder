@@ -54,7 +54,9 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 						{/* Expand/collapse arrow — fixed width so content
 						    aligns consistently whether arrow is shown or not. */}
 						<span className="flex items-center justify-center w-6 shrink-0">
-							{hasConnections && <DropdownArrow close={isOpen} margin={false} />}
+							{hasConnections && (
+								<DropdownArrow close={isOpen} margin={false} />
+							)}
 						</span>
 
 						{/* Workspace owner / name */}
@@ -72,11 +74,12 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 							<span className="text-sm text-content-primary truncate">
 								{sessionLabel}
 							</span>
-							{session.short_description && clientLocation !== session.short_description && (
-								<span className="text-xs text-content-secondary font-mono truncate">
-									{clientLocation}
-								</span>
-							)}
+							{session.short_description &&
+								clientLocation !== session.short_description && (
+									<span className="text-xs text-content-secondary font-mono truncate">
+										{clientLocation}
+									</span>
+								)}
 						</div>
 
 						{/* Status */}
@@ -94,9 +97,7 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 						{/* Connection count */}
 						<span className="text-xs text-content-secondary shrink-0 w-24 text-right">
 							{session.connections.length}{" "}
-							{session.connections.length === 1
-								? "connection"
-								: "connections"}
+							{session.connections.length === 1 ? "connection" : "connections"}
 						</span>
 
 						{/* Time range */}

@@ -94,10 +94,7 @@ export const ConnectionDetailDialog: FC<ConnectionDetailDialogProps> = ({
 					{connection.ip && (
 						<DetailRow label="IP Address" value={connection.ip} />
 					)}
-					<DetailRow
-						label="Connected at"
-						value={formatDateTime(connectedAt)}
-					/>
+					<DetailRow label="Connected at" value={formatDateTime(connectedAt)} />
 					{connection.ended_at && (
 						<DetailRow
 							label="Disconnected at"
@@ -132,10 +129,7 @@ export const ConnectionDetailDialog: FC<ConnectionDetailDialogProps> = ({
 						/>
 					)}
 					{connection.exit_code !== undefined && (
-						<DetailRow
-							label="Exit code"
-							value={connection.exit_code}
-						/>
+						<DetailRow label="Exit code" value={connection.exit_code} />
 					)}
 					{connection.user_agent && (
 						<DetailRow label="User agent" value={connection.user_agent} />
@@ -150,10 +144,7 @@ export const ConnectionDetailDialog: FC<ConnectionDetailDialogProps> = ({
 						/>
 					)}
 					{connection.home_derp && (
-						<DetailRow
-							label="Home DERP"
-							value={connection.home_derp.name}
-						/>
+						<DetailRow label="Home DERP" value={connection.home_derp.name} />
 					)}
 				</div>
 			</DialogContent>

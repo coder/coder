@@ -1,7 +1,7 @@
-import type { GlobalWorkspaceSession } from "api/typesGenerated";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockUserOwner } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { GlobalWorkspaceSession } from "api/typesGenerated";
 import {
 	getDefaultFilterProps,
 	MockMenu,

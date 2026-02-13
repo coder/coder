@@ -12,12 +12,6 @@ import type {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
-	connectionStatusColor,
-	connectionStatusDot,
-	connectionStatusLabel,
-	connectionTypeLabel,
-} from "./ConnectionStatus";
-import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
@@ -28,7 +22,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-
 import { useProxy } from "contexts/ProxyContext";
 import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -56,6 +49,12 @@ import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
+import {
+	connectionStatusColor,
+	connectionStatusDot,
+	connectionStatusLabel,
+	connectionTypeLabel,
+} from "./ConnectionStatus";
 import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
@@ -379,8 +378,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 		</div>
 	);
 };
-
-
 
 // Build a single display label for a connection. Uses short_description
 // (client identity like "Coder Desktop", "CLI") as primary, with the

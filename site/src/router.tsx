@@ -579,12 +579,8 @@ export const router = createBrowserRouter(
 							path="builds/:buildNumber"
 							element={<WorkspaceBuildPage />}
 						/>
-						<Route
-							path="sessions"
-							element={<WorkspaceSessionsPage />}
-						/>
+						<Route path="sessions" element={<WorkspaceSessionsPage />} />
 						<Route path="settings" element={<WorkspaceSettingsLayout />}>
-
 							<Route index element={<WorkspaceSettingsPage />} />
 							<Route
 								path="parameters"

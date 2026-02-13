@@ -16,10 +16,10 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { displayError } from "components/GlobalSnackbar/utils";
 import {
+	ClockIcon,
 	CopyIcon,
 	DownloadIcon,
 	EllipsisVertical,
-	ClockIcon,
 	HistoryIcon,
 	SettingsIcon,
 	SquareIcon,

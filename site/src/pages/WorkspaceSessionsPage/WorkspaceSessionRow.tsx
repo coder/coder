@@ -1,8 +1,5 @@
 import Collapse from "@mui/material/Collapse";
-import type {
-	WorkspaceConnection,
-	WorkspaceSession,
-} from "api/typesGenerated";
+import type { WorkspaceConnection, WorkspaceSession } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
@@ -58,11 +55,12 @@ export const WorkspaceSessionRow: FC<WorkspaceSessionRowProps> = ({
 								<span className="font-medium text-sm truncate">
 									{sessionLabel}
 								</span>
-								{session.short_description && clientLocation !== session.short_description && (
-									<span className="text-xs text-content-secondary font-mono truncate">
-										{clientLocation}
-									</span>
-								)}
+								{session.short_description &&
+									clientLocation !== session.short_description && (
+										<span className="text-xs text-content-secondary font-mono truncate">
+											{clientLocation}
+										</span>
+									)}
 								<span className="flex items-center gap-1.5">
 									<span
 										className={`inline-block h-2 w-2 rounded-full ${connectionStatusDot(session.status)}`}
@@ -91,10 +89,7 @@ export const WorkspaceSessionRow: FC<WorkspaceSessionRowProps> = ({
 					<Collapse in={isOpen}>
 						<div className="mt-2 ml-9 mb-2 flex flex-col gap-0.5">
 							{session.connections.map((conn, idx) => {
-								const connLabel = connectionTypeLabel(
-									conn.type,
-									conn.detail,
-								);
+								const connLabel = connectionTypeLabel(conn.type, conn.detail);
 								const connTime = conn.connected_at ?? conn.created_at;
 								return (
 									<button
@@ -111,9 +106,7 @@ export const WorkspaceSessionRow: FC<WorkspaceSessionRowProps> = ({
 										<span
 											className={`inline-block h-2 w-2 rounded-full shrink-0 ${connectionStatusDot(conn.status)}`}
 										/>
-										<span className="text-sm font-medium">
-											{connLabel}
-										</span>
+										<span className="text-sm font-medium">{connLabel}</span>
 										<span className="text-content-secondary text-xs">
 											{formatDateTime(connTime)}
 										</span>

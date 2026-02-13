@@ -45,8 +45,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	sessionsQuery: paginationResult,
 }) => {
 	const isLoading =
-		(sessions === undefined ||
-			paginationResult.totalRecords === undefined) &&
+		(sessions === undefined || paginationResult.totalRecords === undefined) &&
 		!error;
 
 	const isEmpty = !isLoading && sessions?.length === 0;

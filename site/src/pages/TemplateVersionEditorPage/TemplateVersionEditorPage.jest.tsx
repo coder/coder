@@ -323,52 +323,49 @@ describe.each([
 		],
 		askForVariables: true,
 	},
-])(
-	"Missing template variables",
-	({
-		testName,
-		initialVariables,
-		loadedVariables,
-		templateVersion,
-		askForVariables,
-	}) => {
-		it(testName, async () => {
-			jest.resetAllMocks();
-			const queryClient = new QueryClient();
-			queryClient.setQueryData(
-				templateVersionVariablesKey(MockTemplateVersion.id),
-				initialVariables,
-			);
+])("Missing template variables", ({
+	testName,
+	initialVariables,
+	loadedVariables,
+	templateVersion,
+	askForVariables,
+}) => {
+	it(testName, async () => {
+		jest.resetAllMocks();
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(
+			templateVersionVariablesKey(MockTemplateVersion.id),
+			initialVariables,
+		);
 
+		server.use(
+			http.get(
+				"/api/v2/organizations/:org/templates/:template/versions/:version",
+				() => {
+					return HttpResponse.json(templateVersion);
+				},
+			),
+		);
+
+		if (loadedVariables) {
 			server.use(
-				http.get(
-					"/api/v2/organizations/:org/templates/:template/versions/:version",
-					() => {
-						return HttpResponse.json(templateVersion);
-					},
-				),
+				http.get("/api/v2/templateversions/:version/variables", () => {
+					return HttpResponse.json(loadedVariables);
+				}),
 			);
+		}
 
-			if (loadedVariables) {
-				server.use(
-					http.get("/api/v2/templateversions/:version/variables", () => {
-						return HttpResponse.json(loadedVariables);
-					}),
-				);
-			}
+		renderEditorPage(queryClient);
+		await waitForLoaderToBeRemoved();
 
-			renderEditorPage(queryClient);
-			await waitForLoaderToBeRemoved();
-
-			const dialogSelector = /template variables/i;
-			if (askForVariables) {
-				await screen.findByText(dialogSelector);
-			} else {
-				expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
-			}
-		});
-	},
-);
+		const dialogSelector = /template variables/i;
+		if (askForVariables) {
+			await screen.findByText(dialogSelector);
+		} else {
+			expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
+		}
+	});
+});
 
 test("display pending badge and update it to running when status changes", async () => {
 	const MockPendingTemplateVersion = {
