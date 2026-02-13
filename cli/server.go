@@ -774,7 +774,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
 			}
 
-			options.Database = database.New(sqlDB)
+			options.Database = database.New(sqlDB, database.WithLogger(logger.Named("database")))
 			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 			if err != nil {
 				return xerrors.Errorf("create pubsub: %w", err)
