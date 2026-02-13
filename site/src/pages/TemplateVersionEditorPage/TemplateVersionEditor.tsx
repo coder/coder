@@ -435,11 +435,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							)}
 						</div>
 
-						<div className="border-t border-solid border-border overflow-hidden flex flex-col">
+						<div className="border-0 border-t border-solid border-border overflow-hidden flex flex-col">
 							<div
 								className={cn(
 									"flex items-center",
-									selectedTab && "border-b border-solid border-border",
+									selectedTab && "border-0 border-b border-solid border-border",
 								)}
 							>
 								<div className="flex">
