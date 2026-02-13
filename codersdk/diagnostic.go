@@ -166,6 +166,7 @@ const (
 	DiagnosticTimelineEventTunnelCreated        DiagnosticTimelineEventKind = "tunnel_created"
 	DiagnosticTimelineEventTunnelRemoved        DiagnosticTimelineEventKind = "tunnel_removed"
 	DiagnosticTimelineEventNodeUpdate           DiagnosticTimelineEventKind = "node_update"
+	DiagnosticTimelineEventPeerDisconnected     DiagnosticTimelineEventKind = "peer_disconnected"
 	DiagnosticTimelineEventPeerLost             DiagnosticTimelineEventKind = "peer_lost"
 	DiagnosticTimelineEventPeerRecovered        DiagnosticTimelineEventKind = "peer_recovered"
 	DiagnosticTimelineEventConnectionOpened     DiagnosticTimelineEventKind = "connection_opened"

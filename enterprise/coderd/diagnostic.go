@@ -159,15 +159,20 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 		// to the agents that belong to this session.
 		for i := range sessions {
 			sessAgents := sessionAgentMap[sessions[i].ID]
-			if len(sessAgents) == 0 {
-				continue
+			if len(sessAgents) > 0 {
+				sessions[i].Timeline = mergePeeringEventsIntoTimeline(
+					sessions[i].Timeline,
+					allPeeringEvents,
+					sessions[i].StartedAt,
+					sessions[i].EndedAt,
+					sessAgents,
+				)
 			}
-			sessions[i].Timeline = mergePeeringEventsIntoTimeline(
+			// Upgrade status based on peering events in the timeline.
+			sessions[i].Status = classifyStatusFromTimeline(
+				sessions[i].Status,
+				sessions[i].DisconnectReason,
 				sessions[i].Timeline,
-				allPeeringEvents,
-				sessions[i].StartedAt,
-				sessions[i].EndedAt,
-				sessAgents,
 			)
 		}
 
@@ -744,6 +749,60 @@ func classifySessionStatus(disconnectReason string, hasDisconnect bool, isContro
 	}
 }
 
+// classifyStatusFromTimeline upgrades a session's status based on
+// peering events in its timeline. A session classified as
+// clean_disconnected by disconnect_reason alone may actually be
+// control_lost if coordinator events show peer loss, or
+// client_disconnected if the connection ended without any
+// coordinator-level disconnect event.
+func classifyStatusFromTimeline(
+	current codersdk.WorkspaceConnectionStatus,
+	disconnectReason string,
+	timeline []codersdk.DiagnosticTimelineEvent,
+) codersdk.WorkspaceConnectionStatus {
+	if current == codersdk.ConnectionStatusOngoing {
+		return current
+	}
+
+	// Workspace stopped/deleted sessions keep their status regardless
+	// of peering events.
+	reason := strings.ToLower(disconnectReason)
+	if strings.Contains(reason, "workspace stopped") || strings.Contains(reason, "workspace deleted") {
+		return current
+	}
+
+	hasLost := false
+	hasCleanCoordDisconnect := false
+	hasAnyPeeringEvent := false
+	for _, ev := range timeline {
+		switch ev.Kind {
+		case codersdk.DiagnosticTimelineEventPeerLost:
+			hasLost = true
+			hasAnyPeeringEvent = true
+		case codersdk.DiagnosticTimelineEventPeerDisconnected,
+			codersdk.DiagnosticTimelineEventTunnelRemoved:
+			hasCleanCoordDisconnect = true
+			hasAnyPeeringEvent = true
+		case codersdk.DiagnosticTimelineEventTunnelCreated,
+			codersdk.DiagnosticTimelineEventPeerRecovered,
+			codersdk.DiagnosticTimelineEventNodeUpdate:
+			hasAnyPeeringEvent = true
+		}
+	}
+
+	if hasLost && !hasCleanCoordDisconnect {
+		return codersdk.ConnectionStatusControlLost
+	}
+
+	// Connection ended but no peering events at all means the
+	// client vanished without coordinator involvement.
+	if !hasAnyPeeringEvent && current == codersdk.ConnectionStatusCleanDisconnected {
+		return codersdk.ConnectionStatusClientDisconnected
+	}
+
+	return current
+}
+
 // diagnosticSessionStatus maps session status to the summary breakdown
 // bucket name. This is separate from WorkspaceConnectionStatus since the
 // summary uses a different vocabulary.
@@ -756,7 +815,8 @@ func diagnosticStatusBucket(status codersdk.WorkspaceConnectionStatus, disconnec
 		return "workspace_deleted"
 	case status == codersdk.ConnectionStatusOngoing:
 		return "ongoing"
-	case status == codersdk.ConnectionStatusControlLost:
+	case status == codersdk.ConnectionStatusControlLost,
+		status == codersdk.ConnectionStatusClientDisconnected:
 		return "lost"
 	default:
 		return "clean"
@@ -1282,6 +1342,13 @@ func mergePeeringEventsIntoTimeline(
 			}
 			severity = codersdk.ConnectionDiagnosticSeverityInfo
 		case "peer_update_disconnected":
+			kind = codersdk.DiagnosticTimelineEventPeerDisconnected
+			description = "Peer disconnected"
+			if otherPeer != "" {
+				description = fmt.Sprintf("Peer %s disconnected", otherPeer)
+			}
+			severity = codersdk.ConnectionDiagnosticSeverityInfo
+		case "peer_update_lost":
 			kind = codersdk.DiagnosticTimelineEventPeerLost
 			description = "Peer lost contact"
 			if otherPeer != "" {
