@@ -43,6 +43,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			className="license-card rounded-lg border border-solid border-border bg-surface-secondary p-4 text-sm shadow-sm"
 		>
 			<DeleteDialog
+				key={licenseIDMarkedForRemoval}
 				isOpen={licenseIDMarkedForRemoval !== undefined}
 				onConfirm={() => {
 					if (!licenseIDMarkedForRemoval) return;
