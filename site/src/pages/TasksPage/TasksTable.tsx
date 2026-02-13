@@ -1,4 +1,5 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import { pauseTask, resumeTask } from "api/queries/tasks";
 import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -11,6 +12,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Table,
@@ -26,11 +28,17 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
 import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
+import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
+import {
+	canPauseTask,
+	canResumeTask,
+	isPauseDisabled,
+} from "modules/tasks/taskActions";
 import { type FC, type ReactNode, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-
 import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
@@ -187,6 +195,24 @@ const TaskRow: FC<TaskRowProps> = ({
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
 
+	const showPause = canPauseTask(task.status) && task.workspace_id;
+	const pauseDisabled = isPauseDisabled(task.status);
+	const showResume = canResumeTask(task.status) && task.workspace_id;
+
+	const queryClient = useQueryClient();
+	const pauseMutation = useMutation({
+		...pauseTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to pause task."));
+		},
+	});
+	const resumeMutation = useMutation({
+		...resumeTask(task, queryClient),
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to resume task."));
+		},
+	});
+
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
 	// Discard role, breaks Chromatic.
 	const { role, ...clickableRowProps } = useClickableTableRow({
@@ -252,30 +278,47 @@ const TaskRow: FC<TaskRowProps> = ({
 					/>
 				</TableCell>
 				<TableCell className="text-right">
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon-lg"
-								variant="subtle"
-								onClick={(e) => e.stopPropagation()}
-							>
-								<EllipsisVertical aria-hidden="true" />
-								<span className="sr-only">Show task actions</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={(e) => {
-									e.stopPropagation();
-									setIsDeleteDialogOpen(true);
-								}}
-							>
-								<TrashIcon />
-								Delete&hellip;
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					<div className="flex items-center justify-end gap-1">
+						{showPause && (
+							<TaskActionButton
+								action="pause"
+								disabled={pauseDisabled}
+								loading={pauseMutation.isPending}
+								onClick={pauseMutation.mutate}
+							/>
+						)}
+						{showResume && (
+							<TaskActionButton
+								action="resume"
+								loading={resumeMutation.isPending}
+								onClick={resumeMutation.mutate}
+							/>
+						)}
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									size="icon-lg"
+									variant="subtle"
+									onClick={(e) => e.stopPropagation()}
+								>
+									<EllipsisVertical aria-hidden="true" />
+									<span className="sr-only">Show task actions</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={(e) => {
+										e.stopPropagation();
+										setIsDeleteDialogOpen(true);
+									}}
+								>
+									<TrashIcon />
+									Delete&hellip;
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
 				</TableCell>
 			</TableRow>
 

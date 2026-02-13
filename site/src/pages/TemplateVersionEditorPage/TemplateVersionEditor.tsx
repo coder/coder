@@ -213,13 +213,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	return (
 		<>
 			<div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-				<Topbar
-					css={{
-						display: "grid",
-						gridTemplateColumns: "1fr 2fr 1fr",
-					}}
-					data-testid="topbar"
-				>
+				<Topbar className="grid grid-cols-[1fr_2fr_1fr]" data-testid="topbar">
 					<div>
 						<Tooltip>
 							<TooltipTrigger asChild>

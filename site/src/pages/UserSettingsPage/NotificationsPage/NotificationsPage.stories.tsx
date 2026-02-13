@@ -60,13 +60,13 @@ export const Default: Story = {
 
 		await Promise.all([
 			// System notification templates
-			canvas.findByRole("checkbox", { name: "Task Events" }),
-			canvas.findByRole("checkbox", { name: "Template Events" }),
-			canvas.findByRole("checkbox", { name: "User Events" }),
-			canvas.findByRole("checkbox", { name: "Workspace Events" }),
+			canvas.findByRole("switch", { name: "Task Events" }),
+			canvas.findByRole("switch", { name: "Template Events" }),
+			canvas.findByRole("switch", { name: "User Events" }),
+			canvas.findByRole("switch", { name: "Workspace Events" }),
 
 			// Custom notification template
-			canvas.findByRole("checkbox", { name: "Custom Events" }),
+			canvas.findByRole("switch", { name: "Custom Events" }),
 		]);
 	},
 };

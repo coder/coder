@@ -1,8 +1,6 @@
-import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import type { ConnectionLog } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { Stack } from "components/Stack/Stack";
+import { Link } from "components/Link/Link";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
@@ -38,18 +36,9 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 			data-testid={`connection-log-row-${connectionLog.id}`}
 			clickable={false}
 		>
-			<TableCell css={styles.connectionLogCell}>
-				<Stack
-					direction="row"
-					alignItems="center"
-					css={styles.connectionLogHeader}
-					tabIndex={0}
-				>
-					<Stack
-						direction="row"
-						alignItems="center"
-						css={styles.connectionLogHeaderInfo}
-					>
+			<TableCell className="!p-0 border-0">
+				<div className="flex flex-row items-center gap-4 py-4 px-8">
+					<div className="flex flex-row items-center gap-4 flex-1">
 						{/* Non-web logs don't have an associated user, so we
 						 * display a default network icon instead */}
 						{connectionLog.web_info?.user ? (
@@ -63,27 +52,17 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 							</Avatar>
 						)}
 
-						<Stack
-							alignItems="center"
-							css={styles.fullWidth}
-							justifyContent="space-between"
-							direction="row"
-						>
-							<Stack
-								css={styles.connectionLogSummary}
-								direction="row"
-								alignItems="baseline"
-								spacing={1}
-							>
+						<div className="flex flex-row items-center justify-between w-full">
+							<div className="flex flex-row items-baseline gap-2 text-base">
 								<ConnectionLogDescription connectionLog={connectionLog} />
-								<span css={styles.connectionLogTime}>
+								<span className="text-content-secondary text-xs">
 									{new Date(connectionLog.connect_time).toLocaleTimeString()}
 									{connectionLog.ssh_info?.disconnect_time &&
 										` → ${new Date(connectionLog.ssh_info.disconnect_time).toLocaleTimeString()}`}
 								</span>
-							</Stack>
+							</div>
 
-							<Stack direction="row" alignItems="center">
+							<div className="flex flex-row items-center gap-4">
 								{code !== undefined && (
 									<StatusPill
 										code={code}
@@ -93,29 +72,31 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 								)}
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<InfoIcon
-											css={(theme) => ({
-												color: theme.palette.info.light,
-											})}
-										/>
+										<InfoIcon className="text-content-link" />
 									</TooltipTrigger>
 									<TooltipContent side="bottom">
-										<div css={styles.connectionLogInfoTooltip}>
+										<div className="flex flex-col gap-2">
 											{connectionLog.ip && (
 												<div>
-													<h4 css={styles.connectionLogInfoheader}>IP:</h4>
+													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
+														IP:
+													</h4>
 													<div>{connectionLog.ip}</div>
 												</div>
 											)}
 											{userAgent?.os.name && (
 												<div>
-													<h4 css={styles.connectionLogInfoheader}>OS:</h4>
+													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
+														OS:
+													</h4>
 													<div>{userAgent.os.name}</div>
 												</div>
 											)}
 											{userAgent?.browser.name && (
 												<div>
-													<h4 css={styles.connectionLogInfoheader}>Browser:</h4>
+													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
+														Browser:
+													</h4>
 													<div>
 														{userAgent.browser.name} {userAgent.browser.version}
 													</div>
@@ -123,21 +104,26 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 											)}
 											{connectionLog.organization && (
 												<div>
-													<h4 css={styles.connectionLogInfoheader}>
+													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
 														Organization:
 													</h4>
 													<Link
-														component={RouterLink}
-														to={`/organizations/${connectionLog.organization.name}`}
+														asChild
+														showExternalIcon={false}
+														className="px-0 text-xs"
 													>
-														{connectionLog.organization.display_name ||
-															connectionLog.organization.name}
+														<RouterLink
+															to={`/organizations/${connectionLog.organization.name}`}
+														>
+															{connectionLog.organization.display_name ||
+																connectionLog.organization.name}
+														</RouterLink>
 													</Link>
 												</div>
 											)}
 											{connectionLog.ssh_info?.disconnect_reason && (
 												<div>
-													<h4 css={styles.connectionLogInfoheader}>
+													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
 														Close Reason:
 													</h4>
 													<div>{connectionLog.ssh_info?.disconnect_reason}</div>
@@ -146,54 +132,11 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 										</div>
 									</TooltipContent>
 								</Tooltip>
-							</Stack>
-						</Stack>
-					</Stack>
-				</Stack>
+							</div>
+						</div>
+					</div>
+				</div>
 			</TableCell>
 		</TimelineEntry>
 	);
 };
-
-const styles = {
-	connectionLogCell: {
-		padding: "0 !important",
-		border: 0,
-	},
-
-	connectionLogHeader: {
-		padding: "16px 32px",
-	},
-
-	connectionLogHeaderInfo: {
-		flex: 1,
-	},
-
-	connectionLogSummary: (theme) => ({
-		...(theme.typography.body1 as CSSObject),
-		fontFamily: "inherit",
-	}),
-
-	connectionLogTime: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-	}),
-
-	connectionLogInfoheader: (theme) => ({
-		margin: 0,
-		color: theme.palette.text.primary,
-		fontSize: 14,
-		lineHeight: "150%",
-		fontWeight: 600,
-	}),
-
-	connectionLogInfoTooltip: {
-		display: "flex",
-		flexDirection: "column",
-		gap: 8,
-	},
-
-	fullWidth: {
-		width: "100%",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

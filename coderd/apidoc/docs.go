@@ -5824,6 +5824,90 @@ const docTemplate = `{
                 }
             }
         },
+        "/tasks/{user}/{task}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Pause task",
+                "operationId": "pause-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PauseTaskResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{user}/{task}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Resume task",
+                "operationId": "resume-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ResumeTaskResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/tasks/{user}/{task}/send": {
             "post": {
                 "security": [
@@ -10927,7 +11011,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy.",
                         "name": "q",
                         "in": "query"
                     },
@@ -12698,6 +12782,7 @@ const docTemplate = `{
                 "workspace:start",
                 "workspace:stop",
                 "workspace:update",
+                "workspace:update_agent",
                 "workspace_agent_devcontainers:*",
                 "workspace_agent_devcontainers:create",
                 "workspace_agent_resource_monitor:*",
@@ -12716,6 +12801,7 @@ const docTemplate = `{
                 "workspace_dormant:start",
                 "workspace_dormant:stop",
                 "workspace_dormant:update",
+                "workspace_dormant:update_agent",
                 "workspace_proxy:*",
                 "workspace_proxy:create",
                 "workspace_proxy:delete",
@@ -12900,6 +12986,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceStart",
                 "APIKeyScopeWorkspaceStop",
                 "APIKeyScopeWorkspaceUpdate",
+                "APIKeyScopeWorkspaceUpdateAgent",
                 "APIKeyScopeWorkspaceAgentDevcontainersAll",
                 "APIKeyScopeWorkspaceAgentDevcontainersCreate",
                 "APIKeyScopeWorkspaceAgentResourceMonitorAll",
@@ -12918,6 +13005,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDormantStart",
                 "APIKeyScopeWorkspaceDormantStop",
                 "APIKeyScopeWorkspaceDormantUpdate",
+                "APIKeyScopeWorkspaceDormantUpdateAgent",
                 "APIKeyScopeWorkspaceProxyAll",
                 "APIKeyScopeWorkspaceProxyCreate",
                 "APIKeyScopeWorkspaceProxyDelete",
@@ -14098,14 +14186,18 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection"
+                "jetbrains_connection",
+                "task_manual_pause",
+                "task_resume"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
                 "CreateWorkspaceBuildReasonCLI",
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
-                "CreateWorkspaceBuildReasonJetbrainsConnection"
+                "CreateWorkspaceBuildReasonJetbrainsConnection",
+                "CreateWorkspaceBuildReasonTaskManualPause",
+                "CreateWorkspaceBuildReasonTaskResume"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -14139,7 +14231,8 @@ const docTemplate = `{
                         "cli",
                         "ssh_connection",
                         "vscode_connection",
-                        "jetbrains_connection"
+                        "jetbrains_connection",
+                        "task_manual_pause"
                     ],
                     "allOf": [
                         {
@@ -14897,6 +14990,16 @@ const docTemplate = `{
                 "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
+            "x-enum-descriptions": [
+                "This isn't used for anything.",
+                "This should not be taken out of experiments until we have redesigned the feature.",
+                "Sends notifications via SMTP and webhooks following certain events.",
+                "Enables the new workspace usage tracking.",
+                "Enables web push notifications through the browser.",
+                "Enables OAuth2 provider functionality.",
+                "Enables the MCP HTTP server functionality.",
+                "Enables updating workspace ACLs for sharing with users and groups."
+            ],
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
@@ -17000,6 +17103,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PauseTaskResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_build": {
+                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                }
+            }
+        },
         "codersdk.Permission": {
             "type": "object",
             "properties": {
@@ -17792,6 +17903,7 @@ const docTemplate = `{
                 "share",
                 "unassign",
                 "update",
+                "update_agent",
                 "update_personal",
                 "use",
                 "view_insights",
@@ -17811,6 +17923,7 @@ const docTemplate = `{
                 "ActionShare",
                 "ActionUnassign",
                 "ActionUpdate",
+                "ActionUpdateAgent",
                 "ActionUpdatePersonal",
                 "ActionUse",
                 "ActionViewInsights",
@@ -18163,6 +18276,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ValidationError"
                     }
+                }
+            }
+        },
+        "codersdk.ResumeTaskResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_build": {
+                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
                 }
             }
         },
@@ -18806,6 +18927,10 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning.",
+                    "type": "boolean"
                 },
                 "display_name": {
                     "type": "string"
@@ -19761,6 +19886,10 @@ const docTemplate = `{
                 },
                 "disable_everyone_group_access": {
                     "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+                    "type": "boolean"
+                },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is recommended not to disable this.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -20813,6 +20942,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "subagent_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
                 "workspace_folder": {
                     "type": "string"
                 }
@@ -21481,10 +21618,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "p50": {
-                    "type": "number"
+                    "type": "number",
+                    "format": "float64"
                 },
                 "p95": {
-                    "type": "number"
+                    "type": "number",
+                    "format": "float64"
                 }
             }
         },
@@ -21870,10 +22009,12 @@ const docTemplate = `{
                     ]
                 },
                 "recv": {
-                    "type": "integer"
+                    "type": "integer",
+                    "format": "int64"
                 },
                 "sent": {
-                    "type": "integer"
+                    "type": "integer",
+                    "format": "int64"
                 }
             }
         },
@@ -22500,21 +22641,24 @@ const docTemplate = `{
                     "description": "keyed by DERP Region ID",
                     "type": "object",
                     "additionalProperties": {
-                        "type": "integer"
+                        "type": "integer",
+                        "format": "int64"
                     }
                 },
                 "regionV4Latency": {
                     "description": "keyed by DERP Region ID",
                     "type": "object",
                     "additionalProperties": {
-                        "type": "integer"
+                        "type": "integer",
+                        "format": "int64"
                     }
                 },
                 "regionV6Latency": {
                     "description": "keyed by DERP Region ID",
                     "type": "object",
                     "additionalProperties": {
-                        "type": "integer"
+                        "type": "integer",
+                        "format": "int64"
                     }
                 },
                 "udp": {
@@ -22757,7 +22901,8 @@ const docTemplate = `{
                     "description": "RegionScore scales latencies of DERP regions by a given scaling\nfactor when determining which region to use as the home\n(\"preferred\") DERP. Scores in the range (0, 1) will cause this\nregion to be proportionally more preferred, and scores in the range\n(1, ∞) will penalize a region.\n\nIf a region is not present in this map, it is treated as having a\nscore of 1.0.\n\nScores should not be 0 or negative; such scores will be ignored.\n\nA nil map means no change from the previous value (if any); an empty\nnon-nil map can be sent to reset all scores back to 1.0.",
                     "type": "object",
                     "additionalProperties": {
-                        "type": "number"
+                        "type": "number",
+                        "format": "float64"
                     }
                 }
             }

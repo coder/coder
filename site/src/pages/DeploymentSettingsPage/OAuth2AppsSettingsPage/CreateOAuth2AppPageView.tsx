@@ -21,6 +21,7 @@ type CreateOAuth2AppProps = {
 		callback_url: string;
 		icon: string;
 	};
+	canCreateApp: boolean;
 };
 
 export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
@@ -28,6 +29,7 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 	createApp,
 	error,
 	defaultValues,
+	canCreateApp,
 }) => {
 	return (
 		<>
@@ -58,6 +60,7 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 					isUpdating={isUpdating}
 					error={error}
 					defaultValues={defaultValues}
+					disabled={!canCreateApp}
 				/>
 			</Stack>
 		</>

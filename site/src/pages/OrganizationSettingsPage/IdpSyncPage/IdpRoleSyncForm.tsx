@@ -272,7 +272,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 							}}
 						>
 							<Spinner loading={form.isSubmitting}>
-								<Plus size={14} />
+								<Plus />
 							</Spinner>
 							Add IdP role
 						</Button>

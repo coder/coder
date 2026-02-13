@@ -28,12 +28,14 @@ type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
 	isLoading: boolean;
 	error: unknown;
+	canCreateApp: boolean;
 };
 
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	apps,
 	isLoading,
 	error,
+	canCreateApp,
 }) => {
 	return (
 		<>
@@ -51,12 +53,14 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					</SettingsHeader>
 				</div>
 
-				<Button variant="outline" asChild>
-					<Link to="/deployment/oauth2-provider/apps/add">
-						<PlusIcon />
-						Add application
-					</Link>
-				</Button>
+				{canCreateApp && (
+					<Button variant="outline" asChild>
+						<Link to="/deployment/oauth2-provider/apps/add">
+							<PlusIcon />
+							Add application
+						</Link>
+					</Button>
+				)}
 			</Stack>
 
 			{error && <ErrorAlert error={error} />}

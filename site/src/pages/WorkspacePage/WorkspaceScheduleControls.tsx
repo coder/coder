@@ -1,13 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
-import { visuallyHidden } from "@mui/utils";
 import { getErrorMessage } from "api/errors";
 import {
 	updateDeadline,
 	workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
 import type { Template, Workspace } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
@@ -19,7 +18,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
-import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
+import { type FC, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import {
@@ -209,17 +208,17 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 		<div css={styles.scheduleControls}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<IconButton
+					<Button
 						disabled={!deadlineMinusEnabled}
-						size="small"
-						css={styles.scheduleButton}
+						variant="outline"
+						size="icon"
 						onClick={() => {
 							handleDeadlineChange(deadline.subtract(1, "h"));
 						}}
 					>
-						<MinusIcon className="size-icon-xs" />
-						<span style={visuallyHidden}>Subtract 1 hour from deadline</span>
-					</IconButton>
+						<MinusIcon />
+						<span className="sr-only">Subtract 1 hour from deadline</span>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">
 					Subtract 1 hour from deadline
@@ -227,17 +226,17 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 			</Tooltip>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<IconButton
+					<Button
 						disabled={!deadlinePlusEnabled}
-						size="small"
-						css={styles.scheduleButton}
+						variant="outline"
+						size="icon"
 						onClick={() => {
 							handleDeadlineChange(deadline.add(1, "h"));
 						}}
 					>
-						<PlusIcon className="size-icon-xs" />
-						<span style={visuallyHidden}>Add 1 hour to deadline</span>
-					</IconButton>
+						<PlusIcon />
+						<span className="sr-only">Add 1 hour to deadline</span>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Add 1 hour to deadline</TooltipContent>
 			</Tooltip>
@@ -266,24 +265,21 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	);
 };
 
-const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
-	(props, ref) => {
-		return (
-			<Link
-				ref={ref}
-				component={RouterLink}
-				to="settings/schedule"
-				css={{
-					color: "inherit",
-					"&:first-letter": {
-						textTransform: "uppercase",
-					},
-				}}
-				{...props}
-			/>
-		);
-	},
-);
+const ScheduleSettingsLink: React.FC<LinkProps> = ({ ...props }) => {
+	return (
+		<Link
+			component={RouterLink}
+			to="settings/schedule"
+			css={{
+				color: "inherit",
+				"&:first-letter": {
+					textTransform: "uppercase",
+				},
+			}}
+			{...props}
+		/>
+	);
+};
 
 const hasDeadline = (workspace: Workspace): boolean => {
 	return Boolean(workspace.latest_build.deadline);
@@ -327,16 +323,4 @@ const styles = {
 		alignItems: "center",
 		gap: 4,
 	},
-
-	scheduleButton: (theme) => ({
-		border: `1px solid ${theme.palette.divider}`,
-		borderRadius: 4,
-		width: 20,
-		height: 20,
-
-		"& svg.MuiSvgIcon-root": {
-			width: 12,
-			height: 12,
-		},
-	}),
 } satisfies Record<string, Interpolation<Theme>>;

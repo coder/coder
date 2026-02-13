@@ -476,6 +476,12 @@ describe("CreateWorkspacePage", () => {
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
 
+			// Consent dialog appears for mode=auto — confirm to proceed.
+			const confirmButton = await screen.findByRole("button", {
+				name: /confirm and create/i,
+			});
+			await userEvent.click(confirmButton);
+
 			await waitForLoaderToBeRemoved();
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();

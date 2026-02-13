@@ -6765,6 +6765,65 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 	}
 }
 
+func TestWorkspaceACLObjectConstraint(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Deleted:    false,
+	})
+
+	t.Run("GroupACLNull", func(t *testing.T) {
+		t.Parallel()
+
+		var nilACL database.WorkspaceACL
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: nilACL,
+			UserACL:  database.WorkspaceACL{},
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckGroupAclIsObject))
+	})
+
+	t.Run("UserACLNull", func(t *testing.T) {
+		t.Parallel()
+
+		var nilACL database.WorkspaceACL
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: database.WorkspaceACL{},
+			UserACL:  nilACL,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUserAclIsObject))
+	})
+
+	t.Run("ValidEmptyObjects", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: database.WorkspaceACL{},
+			UserACL:  database.WorkspaceACL{},
+		})
+		require.NoError(t, err)
+	})
+}
+
 // TestGetLatestWorkspaceBuildsByWorkspaceIDs populates the database with
 // workspaces and builds. It then tests that
 // GetLatestWorkspaceBuildsByWorkspaceIDs returns the latest build for some
@@ -7093,8 +7152,8 @@ func TestTasksWithStatusView(t *testing.T) {
 			name:                      "PendingStart",
 			buildStatus:               database.ProvisionerJobStatusPending,
 			buildTransition:           database.WorkspaceTransitionStart,
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Workspace build is starting (pending)",
+			expectedStatus:            database.TaskStatusPending,
+			description:               "Workspace build pending (not yet picked up by provisioner)",
 			expectBuildNumberValid:    true,
 			expectBuildNumber:         1,
 			expectWorkspaceAgentValid: false,

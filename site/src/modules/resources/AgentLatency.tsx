@@ -1,4 +1,3 @@
-import { type Theme, useTheme } from "@emotion/react";
 import type { DERPRegion, WorkspaceAgent } from "api/typesGenerated";
 import {
 	HelpTooltip,
@@ -7,11 +6,11 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 
-const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
+const getDisplayLatency = (agent: WorkspaceAgent) => {
 	// Find the right latency to display
 	const latencyValues = Object.values(agent.latency ?? {});
 	const latency =
@@ -26,7 +25,7 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
 
 	return {
 		...latency,
-		color: getLatencyColor(theme, latency.latency_ms),
+		color: getLatencyColor(latency.latency_ms),
 	};
 };
 
@@ -35,8 +34,7 @@ interface AgentLatencyProps {
 }
 
 export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
-	const theme = useTheme();
-	const latency = getDisplayLatency(theme, agent);
+	const latency = getDisplayLatency(agent);
 
 	if (!latency || !agent.latency) {
 		return null;
@@ -48,7 +46,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 				<span
 					role="presentation"
 					aria-label="latency"
-					css={{ cursor: "pointer", color: latency.color }}
+					className={cn("cursor-pointer", latency.color)}
 				>
 					{Math.round(latency.latency_ms)}ms
 				</span>
@@ -59,26 +57,22 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 					This is the latency overhead on non peer to peer connections. The
 					first row is the preferred relay.
 				</HelpTooltipText>
-				<Stack direction="column" spacing={1} css={{ marginTop: 16 }}>
+				<div className="flex-col gap-1 mt-4">
 					{Object.entries(agent.latency)
 						.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
 						.map(([regionName, region]) => (
-							<Stack
-								direction="row"
+							<div
+								className={cn(
+									"flex items-center justify-between gap-1",
+									region.preferred && "text-content-primary",
+								)}
 								key={regionName}
-								spacing={0.5}
-								justifyContent="space-between"
-								css={
-									region.preferred && {
-										color: theme.palette.text.primary,
-									}
-								}
 							>
 								<strong>{regionName}</strong>
 								{Math.round(region.latency_ms)}ms
-							</Stack>
+							</div>
 						))}
-				</Stack>
+				</div>
 			</HelpTooltipContent>
 		</HelpTooltip>
 	);

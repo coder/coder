@@ -977,10 +977,27 @@ func (api *API) authAndDoWithTaskAppClient(
 	ctx := r.Context()
 
 	if task.Status != database.TaskStatusActive {
-		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task status must be active.",
-			Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
-		})
+		// Return 409 Conflict for valid requests blocked by current state
+		// (pending/initializing are transitional, paused requires resume).
+		// Return 400 Bad Request for error/unknown states.
+		switch task.Status {
+		case database.TaskStatusPending, database.TaskStatusInitializing:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Task is %s.", task.Status),
+				Detail:  "The task is resuming. Wait for the task to become active before sending messages.",
+			})
+		case database.TaskStatusPaused:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: "Task is paused.",
+				Detail:  "Resume the task to send messages.",
+			})
+		default:
+			// Default handler for error and unknown status.
+			return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Task must be active.",
+				Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
+			})
+		}
 	}
 	if !task.WorkspaceID.Valid {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
@@ -1226,4 +1243,151 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		slog.F("snapshot_size_bytes", len(snapshotJSON)))
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Pause task
+// @ID pause-task
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Tasks
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 202 {object} codersdk.PauseTaskResponse
+// @Router /tasks/{user}/{task}/pause [post]
+func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+		task   = httpmw.TaskParam(r)
+	)
+
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Task does not have a workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+		Reason:     codersdk.CreateWorkspaceBuildReasonTaskManualPause,
+	}
+	build, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.PauseTaskResponse{
+		WorkspaceBuild: &build,
+	})
+}
+
+// @Summary Resume task
+// @ID resume-task
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Tasks
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 202 {object} codersdk.ResumeTaskResponse
+// @Router /tasks/{user}/{task}/resume [post]
+func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+		task   = httpmw.TaskParam(r)
+	)
+
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Task does not have a workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspaceStatus := codersdk.ConvertWorkspaceStatus(
+		codersdk.ProvisionerJobStatus(job.JobStatus),
+		codersdk.WorkspaceTransition(latestBuild.Transition),
+	)
+	if workspaceStatus == codersdk.WorkspaceStatusRunning {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Task workspace is already running.",
+			Detail:  fmt.Sprintf("Workspace status is %q.", workspaceStatus),
+		})
+		return
+	}
+
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		Reason:     codersdk.CreateWorkspaceBuildReasonTaskResume,
+	}
+	build, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ResumeTaskResponse{
+		WorkspaceBuild: &build,
+	})
 }

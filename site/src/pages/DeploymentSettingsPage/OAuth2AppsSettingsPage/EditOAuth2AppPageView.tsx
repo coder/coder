@@ -49,6 +49,9 @@ type EditOAuth2AppProps = {
 	deleteApp: (name: string) => void;
 	generateAppSecret: () => void;
 	deleteAppSecret: (id: string) => void;
+	canEditApp: boolean;
+	canDeleteApp: boolean;
+	canViewAppSecrets: boolean;
 	secrets?: readonly TypesGen.OAuth2ProviderAppSecret[];
 	fullNewSecret?: TypesGen.OAuth2ProviderAppSecretFull;
 	ackFullNewSecret: () => void;
@@ -64,6 +67,9 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 	deleteApp,
 	generateAppSecret,
 	deleteAppSecret,
+	canEditApp,
+	canDeleteApp,
+	canViewAppSecrets,
 	secrets,
 	fullNewSecret,
 	ackFullNewSecret,
@@ -180,21 +186,27 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 								<Button
 									variant="destructive"
 									onClick={() => setShowDelete(true)}
+									disabled={!canDeleteApp}
 								>
 									Delete&hellip;
 								</Button>
 							}
+							disabled={!canEditApp}
 						/>
 
-						<Divider css={{ borderColor: theme.palette.divider }} />
+						{canViewAppSecrets && (
+							<>
+								<Divider css={{ borderColor: theme.palette.divider }} />
 
-						<OAuth2AppSecretsTable
-							secrets={secrets}
-							generateAppSecret={generateAppSecret}
-							deleteAppSecret={deleteAppSecret}
-							isLoadingSecrets={isLoadingSecrets}
-							mutatingResource={mutatingResource}
-						/>
+								<OAuth2AppSecretsTable
+									secrets={secrets}
+									generateAppSecret={generateAppSecret}
+									deleteAppSecret={deleteAppSecret}
+									isLoadingSecrets={isLoadingSecrets}
+									mutatingResource={mutatingResource}
+								/>
+							</>
+						)}
 					</>
 				)}
 			</Stack>

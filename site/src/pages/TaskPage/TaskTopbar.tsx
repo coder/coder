@@ -1,6 +1,11 @@
 import type { Task, Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
@@ -53,22 +58,28 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 					lifecycleState={task.workspace_agent_lifecycle}
 				/>
 
-				<TooltipProvider delayDuration={250}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button variant="outline" size="sm">
-								<SquareTerminalIcon />
-								View Prompt
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent className="max-w-xs bg-surface-secondary p-4">
-							<p className="m-0 mb-2 select-all text-sm font-normal text-content-primary leading-snug">
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button variant="outline" size="sm">
+							<SquareTerminalIcon />
+							View Prompt
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent
+						className="w-[402px] p-4 bg-surface-secondary text-content-secondary text-sm flex flex-col gap-3"
+						align="end"
+					>
+						<div className="text-sm font-semibold text-content-primary">
+							Prompt
+						</div>
+						<div className="m-0 mb-2 select-all leading-snug p-4 border border-solid rounded-lg font-mono">
+							<pre className="m-0 whitespace-pre-wrap break-words">
 								{task.initial_prompt}
-							</p>
-							<CopyPromptButton prompt={task.initial_prompt} />
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+							</pre>
+						</div>
+						<CopyPromptButton prompt={task.initial_prompt} />
+					</PopoverContent>
+				</Popover>
 
 				<Button asChild variant="outline" size="sm">
 					<RouterLink to={`/@${workspace.owner_name}/${workspace.name}`}>
@@ -90,8 +101,8 @@ const CopyPromptButton: FC<CopyPromptButtonProps> = ({ prompt }) => {
 			disabled={showCopiedSuccess}
 			onClick={() => copyToClipboard(prompt)}
 			size="sm"
-			variant="subtle"
-			className="p-0 min-w-0"
+			variant="outline"
+			className="p-0 min-w-0 w-full"
 		>
 			{showCopiedSuccess ? (
 				<>

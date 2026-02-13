@@ -48,10 +48,10 @@ export const TemplateVersionSelect: FC<TemplateVersionSelectProps> = ({
 				{versions.map((version) => {
 					return (
 						<SelectItem value={version.id} key={version.id}>
-							<span className="flex items-center gap-2">
-								{version.name}
+							<span className="flex items-center gap-2 min-w-0">
+								<span className="truncate">{version.name}</span>
 								{activeVersionId === version.id && (
-									<Badge size="xs" variant="green">
+									<Badge size="xs" variant="green" className="shrink-0">
 										Active
 									</Badge>
 								)}

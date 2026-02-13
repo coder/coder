@@ -740,6 +740,19 @@ coderd_workspace_creation_duration_seconds_bucket{organization_name="{organizati
 coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="+Inf"} 1
 coderd_workspace_creation_duration_seconds_sum{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild"} 4.406214
 coderd_workspace_creation_duration_seconds_count{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild"} 1
+# HELP coderd_template_workspace_build_duration_seconds Duration from workspace build creation to agent ready, by template.
+# TYPE coderd_template_workspace_build_duration_seconds histogram
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="1"} 0
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="10"} 1
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="30"} 1
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="60"} 1
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="300"} 1
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="600"} 1
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="1800"} 1
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="3600"} 1
+coderd_template_workspace_build_duration_seconds_bucket{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start",le="+Inf"} 1
+coderd_template_workspace_build_duration_seconds_sum{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start"} 7.241532
+coderd_template_workspace_build_duration_seconds_count{is_prebuild="false",organization_name="{organization}",status="success",template_name="docker",transition="start"} 1
 # HELP coderd_prebuilt_workspace_claim_duration_seconds Time to claim a prebuilt workspace by organization, template, and preset.
 # TYPE coderd_prebuilt_workspace_claim_duration_seconds histogram
 coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="1"} 0
@@ -977,3 +990,13 @@ coderd_license_warnings 0
 # HELP coderd_license_errors The number of active license errors.
 # TYPE coderd_license_errors gauge
 coderd_license_errors 0
+# HELP coderd_provisioner_job_queue_wait_seconds Time from job creation to acquisition by a provisioner daemon.
+# TYPE coderd_provisioner_job_queue_wait_seconds histogram
+coderd_provisioner_job_queue_wait_seconds_bucket{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop",le="300"} 1
+coderd_provisioner_job_queue_wait_seconds_bucket{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop",le="+Inf"} 1
+coderd_provisioner_job_queue_wait_seconds_sum{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop"} 0.01191
+coderd_provisioner_job_queue_wait_seconds_count{build_reason="initiator",job_type="workspace_build",provisioner_type="terraform",transition="stop"} 1
+# HELP coderd_workspace_builds_enqueued_total Total number of workspace build enqueue attempts.
+# TYPE coderd_workspace_builds_enqueued_total counter
+coderd_workspace_builds_enqueued_total{build_reason="dashboard",provisioner_type="terraform",status="success",transition="start"} 1
+coderd_workspace_builds_enqueued_total{build_reason="initiator",provisioner_type="terraform",status="success",transition="stop"} 1

@@ -131,9 +131,10 @@ may also consume agent workspace builds.
 ### Agent Workspace Build Limits
 
 Without proper controls and sandboxing, it is not recommended to open up Coder
-Tasks to a large audience in the enterprise. Coder Premium deployments include
-1,000 Agent Workspace Builds, primarily for proof-of-concept use and basic
-workflows.
+Tasks to a large audience in the enterprise. Both Community and Premium
+deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
+use and basic workflows. Community deployments do not have access to
+[AI Bridge](./ai-bridge/index.md) or [Agent Boundaries](./agent-boundaries/index.md).
 
 Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of
 Agent Workspace Builds for automated workflows, along with limits that scale

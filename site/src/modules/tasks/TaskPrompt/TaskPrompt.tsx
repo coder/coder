@@ -8,9 +8,11 @@ import type {
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Kbd, KbdGroup } from "components/Kbd/Kbd";
 import { Link } from "components/Link/Link";
 import {
 	Select,
@@ -34,6 +36,7 @@ import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
 import { docs } from "utils/docs";
+import { getOSKey } from "utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
@@ -233,7 +236,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			{externalAuthError && <ErrorAlert error={externalAuthError} />}
 
 			<fieldset
-				className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary"
+				className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary min-w-0"
 				disabled={createTaskMutation.isPending}
 			>
 				<label htmlFor="prompt" className="sr-only">
@@ -246,9 +249,9 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					isSubmitting={createTaskMutation.isPending}
 					onKeyDown={handleKeyDown}
 				/>
-				<div className="flex items-center justify-between pt-2">
-					<div className="flex items-center gap-1">
-						<div>
+				<div className="flex items-center justify-between pt-2 gap-2">
+					<div className="flex items-center gap-1 flex-1 min-w-0">
+						<div className="min-w-0 max-w-[33.3%]">
 							<label htmlFor="templateID" className="sr-only">
 								Select template
 							</label>
@@ -270,9 +273,18 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									{templates.map((template) => {
 										return (
 											<SelectItem value={template.id} key={template.id}>
-												<span className="overflow-hidden text-ellipsis block">
-													{template.display_name || template.name}
-												</span>
+												<div className="flex items-center gap-2">
+													{template.icon && (
+														<img
+															src={template.icon}
+															alt={template.name}
+															className="size-icon-sm flex-shrink-0"
+														/>
+													)}
+													<span className="overflow-hidden text-ellipsis block">
+														{template.display_name || template.name}
+													</span>
+												</div>
 											</SelectItem>
 										);
 									})}
@@ -281,7 +293,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						</div>
 
 						{permissions.updateTemplates && (
-							<div>
+							<div className="min-w-0 max-w-[33.3%]">
 								<label htmlFor="versionId" className="sr-only">
 									Template version
 								</label>
@@ -294,7 +306,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</div>
 						)}
 
-						<div className="flex-1 overflow-hidden min-w-0">
+						<div className="flex-1 min-w-0">
 							<label htmlFor="presetID" className="sr-only">
 								Preset
 							</label>
@@ -313,40 +325,47 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										<PromptSelectTrigger
 											id="presetID"
 											tooltip="Preset"
-											className="w-full max-w-full [&_span]:flex [&_span]:items-center [&_span]:gap-2 [&_span]:min-w-0 [&_span]:overflow-hidden [&_span>span]:truncate [&_svg[data-slot='preset-description']]:hidden"
+											className="max-w-full [&_[data-slot=preset-name]]:truncate [&_[data-slot=preset-name]]:min-w-0 [&_[data-slot=preset-description]]:hidden"
 										>
 											<SelectValue placeholder="Select a preset" />
 										</PromptSelectTrigger>
 										<SelectContent>
 											{presets?.toSorted(sortByDefault).map((preset) => (
-												<SelectItem
-													value={preset.ID}
-													key={preset.ID}
-													className="[&_span]:flex [&_span]:items-center [&_span]:gap-2"
-												>
-													{preset.Icon && (
-														<img
-															src={preset.Icon}
-															alt={preset.Name}
-															className="size-icon-sm flex-shrink-0"
-														/>
-													)}
-													<span>
-														{preset.Name} {preset.Default && "(Default)"}
-													</span>
-													{preset.Description && (
-														<Tooltip>
-															<TooltipTrigger asChild>
-																<InfoIcon
-																	className="size-4"
-																	data-slot="preset-description"
-																/>
-															</TooltipTrigger>
-															<TooltipContent>
-																{preset.Description}
-															</TooltipContent>
-														</Tooltip>
-													)}
+												<SelectItem value={preset.ID} key={preset.ID}>
+													<div className="flex items-center gap-2">
+														{preset.Icon && (
+															<img
+																data-slot="preset-icon"
+																src={preset.Icon}
+																alt={preset.Name}
+																className="size-icon-sm shrink-0"
+															/>
+														)}
+														<span
+															data-slot="preset-name"
+															className="truncate min-w-0"
+														>
+															{preset.Name}
+														</span>
+														{preset.Default && (
+															<Badge size="xs" className="shrink-0">
+																Default
+															</Badge>
+														)}
+														{preset.Description && (
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<InfoIcon
+																		className="size-4"
+																		data-slot="preset-description"
+																	/>
+																</TooltipTrigger>
+																<TooltipContent>
+																	{preset.Description}
+																</TooltipContent>
+															</Tooltip>
+														)}
+													</div>
 												</SelectItem>
 											))}
 										</SelectContent>
@@ -364,23 +383,34 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							/>
 						)}
 
-						<Button
-							size="icon"
-							type="submit"
-							disabled={prompt.trim().length === 0 || isMissingExternalAuth}
-							className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
-						>
-							<Spinner
-								loading={
-									isLoadingExternalAuth ||
-									isPollingExternalAuth ||
-									createTaskMutation.isPending
-								}
-							>
-								<ArrowUpIcon />
-							</Spinner>
-							<span className="sr-only">Run task</span>
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									type="submit"
+									disabled={prompt.trim().length === 0 || isMissingExternalAuth}
+									className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
+								>
+									<Spinner
+										loading={
+											isLoadingExternalAuth ||
+											isPollingExternalAuth ||
+											createTaskMutation.isPending
+										}
+									>
+										<ArrowUpIcon />
+									</Spinner>
+									<span className="sr-only">Run task</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent align="end">
+								<KbdGroup>
+									<Kbd>{getOSKey()}</Kbd>
+									<span>+</span>
+									<Kbd>Enter</Kbd>
+								</KbdGroup>
+							</TooltipContent>
+						</Tooltip>
 					</div>
 				</div>
 			</fieldset>
@@ -408,7 +438,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 		return (
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
-					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-white"
+					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-content-primary"
 					size="sm"
 					disabled={isPollingExternalAuth || auth.authenticated}
 					onClick={() => {

@@ -327,7 +327,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}}
 								>
 									<Spinner loading={form.isSubmitting}>
-										<Plus size={14} />
+										<Plus />
 									</Spinner>
 									Add IdP organization
 								</Button>

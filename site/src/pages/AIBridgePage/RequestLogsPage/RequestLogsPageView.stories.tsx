@@ -1,4 +1,8 @@
-import { MockInterception } from "testHelpers/entities";
+import {
+	MockInterception,
+	MockInterceptionAnthropic,
+	MockInterceptionCopilot,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	getDefaultFilterProps,
@@ -25,7 +29,11 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	},
 });
 
-const interceptions = [MockInterception, MockInterception, MockInterception];
+const interceptions = [
+	MockInterception,
+	MockInterceptionAnthropic,
+	MockInterceptionCopilot,
+];
 
 const meta: Meta<typeof RequestLogsPageView> = {
 	title: "pages/AIBridgePage/RequestLogsPageView",

@@ -97,7 +97,7 @@ describe("ConnectionLogPage", () => {
 					count: 1,
 				});
 
-			const query = "type:ssh status:connected";
+			const query = "type:ssh status:ongoing";
 			await renderPage({ filter: query });
 
 			expect(getConnectionLogsSpy).toHaveBeenCalledWith({
@@ -114,7 +114,7 @@ describe("ConnectionLogPage", () => {
 			getConnectionLogsSpy.mockClear();
 
 			const filterField = screen.getByLabelText("Filter");
-			const query = "type:ssh status:connected";
+			const query = "type:ssh status:ongoing";
 			await userEvent.type(filterField, query);
 
 			await waitFor(() =>

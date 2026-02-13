@@ -1,13 +1,12 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import { changePasswordWithOTP } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useMutation } from "react-query";
@@ -62,67 +61,96 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, changePasswordMutation.error);
+	const passwordField = getFieldHelpers("password");
+	const confirmPasswordField = getFieldHelpers("confirmPassword");
 
 	return (
 		<>
 			<title>{pageTitle("Reset Password", applicationName)}</title>
 
-			<div css={styles.root}>
-				<main css={styles.container}>
-					<CustomLogo css={styles.logo} />
-					<h1
-						css={{
-							margin: 0,
-							marginBottom: 24,
-							fontSize: 20,
-							fontWeight: 600,
-							lineHeight: "28px",
-						}}
-					>
+			<div className="p-6 flex items-center justify-center flex-col min-h-full text-center">
+				<main className="w-full max-w-xs flex flex-col items-center">
+					<div className="mb-10">
+						<CustomLogo />
+					</div>
+					<h1 className="m-0 mb-6 text-xl font-semibold leading-7">
 						Choose a new password
 					</h1>
 					{changePasswordMutation.error &&
 					!isApiValidationError(changePasswordMutation.error) ? (
-						<ErrorAlert
-							error={changePasswordMutation.error}
-							css={{ marginBottom: 24 }}
-						/>
+						<ErrorAlert error={changePasswordMutation.error} className="mb-6" />
 					) : null}
-					<form css={{ width: "100%" }} onSubmit={form.handleSubmit}>
-						<fieldset disabled={form.isSubmitting}>
-							<Stack spacing={2.5}>
-								<TextField
-									label="Password"
+					<form
+						className="flex flex-col gap-5 w-full"
+						onSubmit={form.handleSubmit}
+					>
+						<fieldset
+							disabled={form.isSubmitting}
+							className="flex flex-col gap-5"
+						>
+							<div className="flex flex-col items-start gap-2">
+								<Label htmlFor={passwordField.id}>
+									Password{" "}
+									<span className="text-xs text-content-destructive font-bold">
+										*
+									</span>
+								</Label>
+								<Input
+									id={passwordField.id}
+									name={passwordField.name}
+									value={passwordField.value}
+									onChange={passwordField.onChange}
+									onBlur={passwordField.onBlur}
 									autoFocus
-									fullWidth
 									required
 									type="password"
-									{...getFieldHelpers("password")}
+									aria-invalid={passwordField.error}
 								/>
+								{passwordField.error && (
+									<span className="text-xs text-content-destructive">
+										{passwordField.helperText}
+									</span>
+								)}
+							</div>
 
-								<TextField
-									label="Confirm password"
-									fullWidth
+							<div className="flex flex-col items-start gap-2">
+								<Label htmlFor={confirmPasswordField.id}>
+									Confirm password{" "}
+									<span className="text-xs text-content-destructive font-bold">
+										*
+									</span>
+								</Label>
+								<Input
+									id={confirmPasswordField.id}
+									name={confirmPasswordField.name}
+									value={confirmPasswordField.value}
+									onChange={confirmPasswordField.onChange}
+									onBlur={confirmPasswordField.onBlur}
 									required
 									type="password"
-									{...getFieldHelpers("confirmPassword")}
+									aria-invalid={confirmPasswordField.error}
 								/>
+								{confirmPasswordField.error && (
+									<span className="text-xs text-content-destructive text-left">
+										{confirmPasswordField.helperText}
+									</span>
+								)}
+							</div>
 
-								<Stack spacing={1}>
-									<Button
-										disabled={form.isSubmitting}
-										type="submit"
-										size="lg"
-										className="w-full"
-									>
-										<Spinner loading={form.isSubmitting} />
-										Reset password
-									</Button>
-									<Button size="lg" className="w-full" variant="subtle" asChild>
-										<RouterLink to="/login">Back to login</RouterLink>
-									</Button>
-								</Stack>
-							</Stack>
+							<div className="flex flex-col gap-2">
+								<Button
+									disabled={form.isSubmitting}
+									type="submit"
+									size="lg"
+									className="w-full"
+								>
+									<Spinner loading={form.isSubmitting} />
+									Reset password
+								</Button>
+								<Button size="lg" className="w-full" variant="subtle" asChild>
+									<RouterLink to="/login">Back to login</RouterLink>
+								</Button>
+							</div>
 						</fieldset>
 					</form>
 				</main>
@@ -130,35 +158,5 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 		</>
 	);
 };
-
-const styles = {
-	logo: {
-		marginBottom: 40,
-	},
-	root: {
-		padding: 24,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		flexDirection: "column",
-		minHeight: "100%",
-		textAlign: "center",
-	},
-	container: {
-		width: "100%",
-		maxWidth: 320,
-		display: "flex",
-		flexDirection: "column",
-		alignItems: "center",
-	},
-	icon: {
-		fontSize: 64,
-	},
-	footer: (theme) => ({
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		marginTop: 24,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default ChangePasswordPage;
