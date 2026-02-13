@@ -3,12 +3,11 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"sync/atomic"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -32,12 +31,10 @@ func OnSite() ServiceName {
 	return (&Site{}).Name()
 }
 
-// Site runs the Coder frontend dev server inside a Docker container.
+// Site runs the Coder frontend dev server via docker compose.
 type Site struct {
 	currentStep atomic.Pointer[string]
-	containerID string
 	result      SiteResult
-	pool        *dockertest.Pool
 }
 
 func (s *Site) CurrentStep() string {
@@ -81,19 +78,11 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
 	}
-	pool := dkr.Result()
-	s.pool = pool
 
-	labels := NewServiceLabels(CDevSite)
-
-	// Ensure node_modules volume exists.
-	nodeModulesVol, err := dkr.EnsureVolume(ctx, VolumeOptions{
-		Name:   "cdev_site_node_modules",
-		Labels: labels,
-		UID:    1000, GID: 1000,
-	})
-	if err != nil {
-		return xerrors.Errorf("ensure site node_modules volume: %w", err)
+	// Get coderd result for the backend URL.
+	coderd, ok := c.MustGet(OnCoderd()).(*Coderd)
+	if !ok {
+		return xerrors.New("unexpected type for Coderd service")
 	}
 
 	// Get current working directory for mounting.
@@ -104,91 +93,80 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 
 	portStr := fmt.Sprintf("%d", sitePort)
 
-	s.setStep("Starting frontend dev server")
-	logger.Info(ctx, "starting site dev server container", slog.F("port", sitePort))
+	s.setStep("Registering site compose service")
+	logger.Info(ctx, "registering site compose service", slog.F("port", sitePort))
 
-	cntSink := NewLoggerSink(c.w, s)
-	cntLogger := slog.Make(cntSink)
-	defer cntSink.Close()
-
-	networkID, err := dkr.EnsureNetwork(ctx, labels)
-	if err != nil {
-		return xerrors.Errorf("ensure network: %w", err)
-	}
-
-	// The backend URL needs to be accessible from inside the container
-	// via the Docker bridge network.
-	coderHost := "http://load-balancer:3000"
-
-	env := []string{
-		fmt.Sprintf("CODER_HOST=%s", coderHost),
-	}
-
-	// Command to install dependencies and start the dev server.
-	s.setStep("Installing pnpm dependencies")
-	cmd := []string{
-		"sh", "-c",
-		"pnpm install --frozen-lockfile && pnpm dev --host",
-	}
-
-	// Start new container.
-	result, err := RunContainer(ctx, pool, CDevSite, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: "cdev_site",
-			Config: &docker.Config{
-				Image:      dogfoodImage + ":" + dogfoodTag,
-				WorkingDir: "/app/site",
-				Env:        env,
-				Cmd:        cmd,
-				Labels:     labels,
-				Healthcheck: &docker.HealthConfig{
-					Test:     []string{"CMD-SHELL", fmt.Sprintf("wget -q --spider http://localhost:%d || exit 1", sitePort)},
-					Interval: 2 * time.Second,
-					Timeout:  2 * time.Second,
-					Retries:  3,
-				},
-				ExposedPorts: map[docker.Port]struct{}{
-					docker.Port(portStr + "/tcp"): {},
-				},
-			},
-			HostConfig: &docker.HostConfig{
-				Binds: []string{
-					// Mount the entire repo root for hot reload support.
-					// This allows changes to shared code outside site/ to be picked up.
-					fmt.Sprintf("%s:/app", cwd),
-					fmt.Sprintf("%s:/app/site/node_modules", nodeModulesVol.Name),
-				},
-				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
-			},
-			NetworkingConfig: &docker.NetworkingConfig{
-				EndpointsConfig: map[string]*docker.EndpointConfig{
-					CDevNetworkName: {
-						NetworkID: networkID,
-						Aliases:   []string{"site"},
-					},
-				},
-			},
+	dkr.SetComposeVolume("site_node_modules", ComposeVolume{})
+	dkr.SetCompose("site", ComposeService{
+		Image:      dogfoodImage + ":" + dogfoodTag,
+		Networks:   []string{composeNetworkName},
+		WorkingDir: "/app/site",
+		Environment: map[string]string{
+			"CODER_HOST": fmt.Sprintf("http://coderd-0:3000"),
 		},
-		Logger:          cntLogger,
-		Detached:        true,
-		DestroyExisting: true,
+		Ports: []string{fmt.Sprintf("%s:%s", portStr, portStr)},
+		Volumes: []string{
+			fmt.Sprintf("%s:/app", cwd),
+			"site_node_modules:/app/site/node_modules",
+		},
+		Command: `sh -c "pnpm install --frozen-lockfile && pnpm dev --host"`,
+		DependsOn: map[string]ComposeDependsOn{
+			"coderd-0": {Condition: "service_healthy"},
+		},
+		Restart: "unless-stopped",
+		Labels:  composeServiceLabels("site"),
 	})
-	if err != nil {
-		return xerrors.Errorf("run container: %w", err)
+
+	s.setStep("Starting site via compose")
+	if err := dkr.DockerComposeUp(ctx, "site"); err != nil {
+		return xerrors.Errorf("docker compose up site: %w", err)
 	}
 
-	s.containerID = result.Container.ID
 	s.result = SiteResult{
 		URL:  fmt.Sprintf("http://localhost:%d", sitePort),
 		Port: portStr,
 	}
+
+	// Use coderd URL for reference (ensures dep is used).
+	_ = coderd.Result()
 
 	s.setStep("Waiting for dev server")
 	return s.waitForReady(ctx, logger)
 }
 
 func (s *Site) waitForReady(ctx context.Context, logger slog.Logger) error {
-	return waitForHealthy(ctx, logger, s.pool, "cdev_site", 5*time.Minute)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	// Site dev server can take a while to start, especially on first run
+	// with pnpm install.
+	timeout := time.After(5 * time.Minute)
+	healthURL := s.result.URL
+
+	logger.Info(ctx, "waiting for site dev server to be ready", slog.F("health_url", healthURL))
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return xerrors.New("timeout waiting for site dev server to be ready")
+		case <-ticker.C:
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+			if err != nil {
+				continue
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				continue
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				logger.Info(ctx, "site dev server is ready and accepting connections", slog.F("url", s.result.URL))
+				return nil
+			}
+		}
+	}
 }
 
 func (*Site) Stop(_ context.Context) error {

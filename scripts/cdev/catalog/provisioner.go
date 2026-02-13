@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync/atomic"
 
-	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -32,7 +31,7 @@ func OnProvisioner() ServiceName {
 	return (&Provisioner{}).Name()
 }
 
-// Provisioner runs external provisioner daemons in Docker containers.
+// Provisioner runs external provisioner daemons via docker compose.
 type Provisioner struct {
 	currentStep atomic.Pointer[string]
 	count       int64
@@ -144,31 +143,14 @@ func (p *Provisioner) Start(ctx context.Context, logger slog.Logger, cat *Catalo
 	p.result = ProvisionerResult{Key: secret}
 	logger.Info(ctx, "provisioner key created", slog.F("name", "cdev-external"))
 
-	// Start provisioner containers.
-	p.setStep("Starting provisioner daemon")
-	for i := range p.count {
-		if err := p.startProvisioner(ctx, logger, cat, int(i), secret); err != nil {
-			return xerrors.Errorf("start provisioner %d: %w", i, err)
-		}
-	}
-
-	return nil
-}
-
-func (p *Provisioner) startProvisioner(ctx context.Context, logger slog.Logger, cat *Catalog, index int, key string) error {
+	// Register and start provisioner containers via compose.
 	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
 	}
-	pool := dkr.Result()
-	_ = cat.MustGet(OnCoderd()).(*Coderd)
-	build := Get[*BuildSlim](cat)
-
-	labels := NewServiceLabels(CDevProvisioner)
-
-	networkID, err := dkr.EnsureNetwork(ctx, labels)
-	if err != nil {
-		return xerrors.Errorf("ensure network: %w", err)
+	coderd, ok := cat.MustGet(OnCoderd()).(*Coderd)
+	if !ok {
+		return xerrors.New("unexpected type for Coderd service")
 	}
 
 	cwd, err := os.Getwd()
@@ -185,57 +167,51 @@ func (p *Provisioner) startProvisioner(ctx context.Context, logger slog.Logger, 
 		dockerSocket = "/var/run/docker.sock"
 	}
 
-	logger.Info(ctx, "starting provisioner container", slog.F("index", index))
+	_ = coderd.Result() // ensure dep is used
 
-	cntSink := NewLoggerSink(cat.w, p)
-	cntLogger := slog.Make(cntSink)
-	defer cntSink.Close()
+	p.setStep("Starting provisioner daemons")
+	var serviceNames []string
+	for i := range p.count {
+		index := int(i)
+		name := fmt.Sprintf("provisioner-%d", index)
+		serviceNames = append(serviceNames, name)
 
-	_, err = RunContainer(ctx, pool, CDevProvisioner, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: fmt.Sprintf("cdev_provisioner_%d", index),
-			Config: &docker.Config{
-				Image:      dogfoodImage + ":" + dogfoodTag,
-				WorkingDir: "/app",
-				Env: []string{
-					"CODER_URL=http://load-balancer:3000",
-					fmt.Sprintf("CODER_PROVISIONER_DAEMON_KEY=%s", key),
-					fmt.Sprintf("CODER_PROVISIONER_DAEMON_NAME=cdev-provisioner-%d", index),
-					"GOMODCACHE=/go-cache/mod",
-					"GOCACHE=/go-cache/build",
-					"CODER_CACHE_DIRECTORY=/cache",
-					fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
-				},
-				Cmd: []string{
-					"go", "run", "./enterprise/cmd/coder",
-					"provisioner", "start",
-					"--verbose",
-				},
-				Labels: labels,
+		logger.Info(ctx, "registering provisioner compose service", slog.F("index", index))
+
+		dkr.SetCompose(name, ComposeService{
+			Image:      dogfoodImage + ":" + dogfoodTag,
+			Networks:   []string{composeNetworkName},
+			WorkingDir: "/app",
+			Environment: map[string]string{
+				"CODER_URL":                    "http://coderd-0:3000",
+				"CODER_PROVISIONER_DAEMON_KEY":  secret,
+				"CODER_PROVISIONER_DAEMON_NAME": fmt.Sprintf("cdev-provisioner-%d", index),
+				"GOMODCACHE":                   "/go-cache/mod",
+				"GOCACHE":                      "/go-cache/build",
+				"CODER_CACHE_DIRECTORY":        "/cache",
+				"DOCKER_HOST":                  fmt.Sprintf("unix://%s", dockerSocket),
 			},
-			HostConfig: &docker.HostConfig{
-				Binds: []string{
-					fmt.Sprintf("%s:/app", cwd),
-					fmt.Sprintf("%s:/go-cache", build.GoCache.Name),
-					fmt.Sprintf("%s:/cache", build.CoderCache.Name),
-					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
-				},
-				GroupAdd: []string{dockerGroup},
+			Command: []string{
+				"go", "run", "./enterprise/cmd/coder",
+				"provisioner", "start",
+				"--verbose",
 			},
-			NetworkingConfig: &docker.NetworkingConfig{
-				EndpointsConfig: map[string]*docker.EndpointConfig{
-					CDevNetworkName: {
-						NetworkID: networkID,
-						Aliases:   []string{fmt.Sprintf("provisioner-%d", index)},
-					},
-				},
+			Volumes: []string{
+				fmt.Sprintf("%s:/app", cwd),
+				"go_cache:/go-cache",
+				"coder_cache:/cache",
+				fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
 			},
-		},
-		Logger:   cntLogger,
-		Detached: true,
-	})
-	if err != nil {
-		return xerrors.Errorf("run provisioner container: %w", err)
+			GroupAdd: []string{dockerGroup},
+			DependsOn: map[string]ComposeDependsOn{
+				"coderd-0": {Condition: "service_healthy"},
+			},
+			Labels: composeServiceLabels("provisioner"),
+		})
+	}
+
+	if err := dkr.DockerComposeUp(ctx, serviceNames...); err != nil {
+		return xerrors.Errorf("docker compose up provisioners: %w", err)
 	}
 
 	return nil

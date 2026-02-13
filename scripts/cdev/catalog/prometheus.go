@@ -3,12 +3,11 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -36,7 +35,8 @@ func OnPrometheus() ServiceName {
 	return (&Prometheus{}).Name()
 }
 
-// Prometheus runs a Prometheus container that scrapes coderd metrics.
+// Prometheus runs a Prometheus container that scrapes coderd metrics
+// via docker compose.
 type Prometheus struct {
 	currentStep atomic.Pointer[string]
 	enabled     bool
@@ -114,30 +114,10 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
 	}
-	pool := dkr.Result()
 
 	coderd, ok := cat.MustGet(OnCoderd()).(*Coderd)
 	if !ok {
 		return xerrors.New("unexpected type for Coderd service")
-	}
-
-	labels := NewServiceLabels(CDevPrometheus)
-
-	networkID, err := dkr.EnsureNetwork(ctx, labels)
-	if err != nil {
-		return xerrors.Errorf("ensure network: %w", err)
-	}
-
-	// Create a volume for Prometheus config and data.
-	vol, err := dkr.EnsureVolume(ctx, VolumeOptions{
-		Name:   "cdev_prometheus",
-		Labels: labels,
-		// Prometheus runs as nobody (65534) inside the container.
-		UID: 65534,
-		GID: 65534,
-	})
-	if err != nil {
-		return xerrors.Errorf("ensure prometheus volume: %w", err)
 	}
 
 	// Generate the scrape config based on HA count.
@@ -147,93 +127,91 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 	}
 	configYAML := generateConfig(haCount)
 
-	// Write config to volume using a short-lived busybox container.
-	logger.Info(ctx, "writing prometheus config", slog.F("ha_count", haCount))
-	_, err = RunContainer(ctx, pool, CDevPrometheus, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: "cdev_prometheus_init",
-			Config: &docker.Config{
-				Image:      prometheusImage + ":" + prometheusTag,
-				Entrypoint: []string{"sh", "-c"},
-				Cmd: []string{
-					fmt.Sprintf(
-						"mkdir -p /vol/config /vol/data && printf '%%s' '%s' > /vol/config/prometheus.yml",
-						strings.ReplaceAll(configYAML, "'", "'\"'\"'"),
-					),
-				},
-				Labels: labels,
-			},
-			HostConfig: &docker.HostConfig{
-				Binds: []string{
-					fmt.Sprintf("%s:/vol", vol.Name),
-				},
-			},
-		},
-		Logger:          logger,
-		DestroyExisting: true,
+	dkr.SetComposeVolume("prometheus", ComposeVolume{})
+
+	// Register prometheus-init (one-shot config writer).
+	configScript := fmt.Sprintf(
+		"mkdir -p /prom-vol/config /prom-vol/data && printf '%%s' '%s' > /prom-vol/config/prometheus.yml",
+		strings.ReplaceAll(configYAML, "'", "'\"'\"'"),
+	)
+
+	dkr.SetCompose("prometheus-init", ComposeService{
+		Image:      prometheusImage + ":" + prometheusTag,
+		Entrypoint: []string{"sh", "-c"},
+		Command:    configScript,
+		Volumes:    []string{"prometheus:/prom-vol"},
+		Labels:     composeServiceLabels("prometheus-init"),
 	})
-	if err != nil {
-		return xerrors.Errorf("write prometheus config: %w", err)
-	}
 
-	// Start Prometheus container.
-	p.setStep("Starting Prometheus container")
-	logger.Info(ctx, "starting prometheus container")
-
-	cntSink := NewLoggerSink(cat.w, p)
-	cntLogger := slog.Make(cntSink)
-	defer cntSink.Close()
-
-	_, err = RunContainer(ctx, pool, CDevPrometheus, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: "cdev_prometheus",
-			Config: &docker.Config{
-				Image: prometheusImage + ":" + prometheusTag,
-				Cmd: []string{
-					"--config.file=/prom-vol/config/prometheus.yml",
-					"--storage.tsdb.path=/prom-vol/data",
-					fmt.Sprintf("--web.listen-address=0.0.0.0:%d", prometheusUIPort),
-				},
-				Healthcheck: &docker.HealthConfig{
-					Test:     []string{"CMD-SHELL", fmt.Sprintf("wget -q --spider http://localhost:%d/-/ready || exit 1", prometheusUIPort)},
-					Interval: 2 * time.Second,
-					Timeout:  2 * time.Second,
-					Retries:  3,
-				},
-				Labels:       labels,
-				ExposedPorts: map[docker.Port]struct{}{docker.Port(fmt.Sprintf("%d/tcp", prometheusUIPort)): {}},
-			},
-			HostConfig: &docker.HostConfig{
-				Binds: []string{
-					fmt.Sprintf("%s:/prom-vol", vol.Name),
-				},
-			},
-			NetworkingConfig: &docker.NetworkingConfig{
-				EndpointsConfig: map[string]*docker.EndpointConfig{
-					CDevNetworkName: {
-						NetworkID: networkID,
-						Aliases:   []string{"prometheus"},
-					},
-				},
-			},
+	dkr.SetCompose("prometheus", ComposeService{
+		Image: prometheusImage + ":" + prometheusTag,
+		Command: []string{
+			"--config.file=/prom-vol/config/prometheus.yml",
+			"--storage.tsdb.path=/prom-vol/data",
+			fmt.Sprintf("--web.listen-address=0.0.0.0:%d", prometheusUIPort),
 		},
-		Logger:          cntLogger,
-		Detached:        true,
-		DestroyExisting: true,
+		Ports:    []string{fmt.Sprintf("%d:%d", prometheusUIPort, prometheusUIPort)},
+		Networks: []string{composeNetworkName},
+		Volumes:  []string{"prometheus:/prom-vol"},
+		DependsOn: map[string]ComposeDependsOn{
+			"prometheus-init": {Condition: "service_completed_successfully"},
+			"coderd-0":        {Condition: "service_healthy"},
+		},
+		Labels: composeServiceLabels("prometheus"),
+		Healthcheck: &ComposeHealthcheck{
+			Test:     []string{"CMD-SHELL", fmt.Sprintf("curl -sf http://localhost:%d/-/ready || exit 1", prometheusUIPort)},
+			Interval: "2s",
+			Timeout:  "5s",
+			Retries:  15,
+		},
 	})
-	if err != nil {
-		return xerrors.Errorf("run prometheus container: %w", err)
+
+	p.setStep("Starting Prometheus via compose")
+	logger.Info(ctx, "starting prometheus via compose")
+
+	if err := dkr.DockerComposeUp(ctx, "prometheus-init", "prometheus"); err != nil {
+		return xerrors.Errorf("docker compose up prometheus: %w", err)
 	}
 
 	p.result = PrometheusResult{
-		URL: fmt.Sprintf("http://prometheus:%d", prometheusUIPort),
+		URL: fmt.Sprintf("http://localhost:%d", prometheusUIPort),
 	}
 
-	return p.waitForReady(ctx, logger, pool)
+	return p.waitForReady(ctx, logger)
 }
 
-func (p *Prometheus) waitForReady(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
-	return waitForHealthy(ctx, logger, pool, "cdev_prometheus", 60*time.Second)
+func (p *Prometheus) waitForReady(ctx context.Context, logger slog.Logger) error {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.After(60 * time.Second)
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return xerrors.New("timeout waiting for prometheus to be ready")
+		case <-ticker.C:
+			readyURL := fmt.Sprintf("http://localhost:%d/-/ready", prometheusUIPort)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
+			if err != nil {
+				continue
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				logger.Info(ctx, "prometheus is ready",
+					slog.F("url", p.result.URL),
+				)
+				return nil
+			}
+		}
+	}
 }
 
 func (*Prometheus) Stop(_ context.Context) error {

@@ -7,8 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	_ "github.com/lib/pq" // Imported for postgres driver side effects.
@@ -27,12 +25,8 @@ const (
 
 // PostgresResult contains the connection info for the running Postgres instance.
 type PostgresResult struct {
-	// URL is the connection string for the database, accessible from the
-	// host machine (uses localhost and the mapped host port).
+	// URL is the connection string for the database.
 	URL string
-	// InternalURL is the connection string accessible from other containers
-	// on the cdev Docker network (uses the "postgres" DNS alias).
-	InternalURL string
 	// Port is the host port mapped to the container's 5432.
 	Port string
 }
@@ -43,12 +37,10 @@ func OnPostgres() ServiceName {
 	return (&Postgres{}).Name()
 }
 
-// Postgres runs a PostgreSQL database in a Docker container.
+// Postgres runs a PostgreSQL database via docker compose.
 type Postgres struct {
 	currentStep atomic.Pointer[string]
-	containerID string
 	result      PostgresResult
-	pool        *dockertest.Pool
 }
 
 func (p *Postgres) CurrentStep() string {
@@ -86,132 +78,39 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
 	}
-	pool := d.Result()
-	p.pool = pool
 
-	// Ensure the cdev bridge network exists so containers can communicate
-	// via Docker DNS.
-	_, err := d.EnsureNetwork(ctx, NewLabels())
-	if err != nil {
-		return xerrors.Errorf("ensure cdev network: %w", err)
-	}
+	p.setStep("Registering database compose service")
+	logger.Info(ctx, "registering postgres compose service")
 
-	name := "cdev_postgres"
-	labels := NewServiceLabels(CDevPostgres)
-	filter := labels.Filter()
-	filter["name"] = []string{name}
-
-	// Check if container already exists and is running.
-	containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
-		Filters: filter,
-	})
-	if err != nil {
-		return xerrors.Errorf("list containers: %w", err)
-	}
-
-	if len(containers) > 0 {
-		// Reuse existing container.
-		container := containers[0]
-		p.containerID = container.ID
-		for _, port := range container.Ports {
-			if port.PrivatePort == 5432 {
-				p.result = PostgresResult{
-					URL:         fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?sslmode=disable", postgresUser, postgresPassword, port.PublicPort, postgresDB),
-					InternalURL: fmt.Sprintf("postgres://%s:%s@postgres:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresDB),
-					Port:        fmt.Sprintf("%d", port.PublicPort),
-				}
-				break
-			}
-		}
-		logger.Info(ctx, "reusing existing postgres container", slog.F("container_id", p.containerID[:12]))
-		p.setStep("Waiting for PostgreSQL to be ready")
-		return p.waitForReady(ctx, logger)
-	}
-
-	// Ensure data volume exists.
-	vol, err := d.EnsureVolume(ctx, VolumeOptions{
-		Name:   "cdev_postgres_data",
-		Labels: labels.With(CDevLabelCache, "true"),
-	})
-	if err != nil {
-		return xerrors.Errorf("ensure postgres volume: %w", err)
-	}
-
-	p.setStep("Starting PostgreSQL container")
-	logger.Info(ctx, "starting postgres container")
-
-	cntSink := NewLoggerSink(c.w, p)
-	cntLogger := slog.Make(cntSink)
-	// This stops all postgres logs from dumping to the console. We only want the
-	// logs until the database is ready, after that we can let it log as normal since
-	// it's running in detached mode.
-	defer cntSink.Close()
-
-	// Start new container.
-	result, err := RunContainer(ctx, pool, CDevPostgres, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: name,
-			Config: &docker.Config{
-				Image: postgresImage + ":" + postgresTag,
-				Env: []string{
-					"POSTGRES_USER=" + postgresUser,
-					"POSTGRES_PASSWORD=" + postgresPassword,
-					"POSTGRES_DB=" + postgresDB,
-				},
-				Healthcheck: &docker.HealthConfig{
-					Test:     []string{"CMD-SHELL", "pg_isready -U coder -d coder || exit 1"},
-					Interval: 2 * time.Second,
-					Timeout:  2 * time.Second,
-					Retries:  3,
-				},
-				Labels: labels,
-			},
-			HostConfig: &docker.HostConfig{
-				Binds: []string{
-					fmt.Sprintf("%s:/var/lib/postgresql/data", vol.Name),
-				},
-				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
-				PortBindings: map[docker.Port][]docker.PortBinding{
-					postgresPort: {{HostIP: "127.0.0.1", HostPort: ""}},
-				},
-			},
-			NetworkingConfig: &docker.NetworkingConfig{
-				EndpointsConfig: map[string]*docker.EndpointConfig{
-					CDevNetworkName: {
-						Aliases: []string{"postgres"},
-					},
-				},
-			},
+	d.SetComposeVolume("coder_dev_data", ComposeVolume{})
+	d.SetCompose("database", ComposeService{
+		Image: postgresImage + ":" + postgresTag,
+		Environment: map[string]string{
+			"POSTGRES_USER":     postgresUser,
+			"POSTGRES_PASSWORD": postgresPassword,
+			"POSTGRES_DB":       postgresDB,
 		},
-		Logger:   cntLogger,
-		Detached: true,
-		Stdout:   nil,
-		Stderr:   nil,
+		Volumes:  []string{"coder_dev_data:/var/lib/postgresql/data"},
+		Ports:    []string{"5432:5432"},
+		Networks: []string{composeNetworkName},
+		Labels:   composeServiceLabels("database"),
+		Healthcheck: &ComposeHealthcheck{
+			Test:     []string{"CMD-SHELL", "pg_isready -U coder"},
+			Interval: "2s",
+			Timeout:  "5s",
+			Retries:  10,
+		},
 	})
-	if err != nil {
-		return xerrors.Errorf("run container: %w", err)
+
+	p.setStep("Starting PostgreSQL via compose")
+	if err := d.DockerComposeUp(ctx, "database"); err != nil {
+		return xerrors.Errorf("docker compose up database: %w", err)
 	}
 
-	// The networking port takes some time to be available.
-	// Ideally there is more reusable "Wait" style code.
-	timeout, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
-	for {
-		if timeout.Err() != nil {
-			return xerrors.Errorf("timeout waiting for postgres container to start: %w", timeout.Err())
-		}
-		if len(result.Container.NetworkSettings.Ports["5432/tcp"]) > 0 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	p.containerID = result.Container.ID
-	hostPort := result.Container.NetworkSettings.Ports["5432/tcp"][0].HostPort
+	// Fixed port mapping via compose.
 	p.result = PostgresResult{
-		URL:         fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", postgresUser, postgresPassword, hostPort, postgresDB),
-		InternalURL: fmt.Sprintf("postgres://%s:%s@postgres:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresDB),
-		Port:        hostPort,
+		URL:  fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresDB),
+		Port: "5432",
 	}
 
 	p.setStep("Waiting for PostgreSQL to be ready")
@@ -265,7 +164,29 @@ func (p *Postgres) waitForMigrations(ctx context.Context, logger slog.Logger) er
 }
 
 func (p *Postgres) waitForReady(ctx context.Context, logger slog.Logger) error {
-	return waitForHealthy(ctx, logger, p.pool, "cdev_postgres", 60*time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.After(60 * time.Second)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return xerrors.New("timeout waiting for postgres to be ready")
+		case <-ticker.C:
+			db, err := sql.Open("postgres", p.result.URL)
+			if err != nil {
+				continue
+			}
+			err = db.PingContext(ctx)
+			_ = db.Close()
+			if err == nil {
+				logger.Info(ctx, "postgres is ready", slog.F("url", p.result.URL))
+				return nil
+			}
+		}
+	}
 }
 
 func (*Postgres) Stop(_ context.Context) error {

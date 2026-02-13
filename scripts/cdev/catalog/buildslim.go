@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -92,13 +91,6 @@ func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) e
 	if err != nil {
 		return xerrors.Errorf("failed to ensure coder cache volume: %w", err)
 	}
-	pool := dkr.Result()
-
-	labels := NewServiceLabels(CDevBuildSlim)
-	networkID, err := dkr.EnsureNetwork(ctx, labels)
-	if err != nil {
-		return xerrors.Errorf("ensure network: %w", err)
-	}
 
 	// Get current working directory for mounting.
 	cwd, err := os.Getwd()
@@ -118,58 +110,48 @@ func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) e
 		dockerSocket = "/var/run/docker.sock"
 	}
 
-	// Build command matching docker-compose.dev.yml.
-	buildCmd := `
-		make -j build-slim &&
-		mkdir -p /cache/site/orig/bin &&
-		cp site/out/bin/coder-* /cache/site/orig/bin/ 2>/dev/null || true &&
-		echo "Slim binaries built and cached."
-	`
+	// Register init-volumes and build-slim compose services.
+	dkr.SetComposeVolume("go_cache", ComposeVolume{})
+	dkr.SetComposeVolume("coder_cache", ComposeVolume{})
+
+	dkr.SetCompose("init-volumes", ComposeService{
+		Image: dogfoodImage + ":" + dogfoodTag,
+		User:  "0:0",
+		Volumes: []string{
+			"go_cache:/go-cache",
+			"coder_cache:/cache",
+		},
+		Command: "chown -R 1000:1000 /go-cache /cache",
+		Labels:  composeServiceLabels("init-volumes"),
+	})
+
+	dkr.SetCompose("build-slim", ComposeService{
+		Image:       dogfoodImage + ":" + dogfoodTag,
+		NetworkMode: "host",
+		WorkingDir:  "/app",
+		GroupAdd:    []string{dockerGroup},
+		Environment: map[string]string{
+			"GOMODCACHE":  "/go-cache/mod",
+			"GOCACHE":     "/go-cache/build",
+			"DOCKER_HOST": fmt.Sprintf("unix://%s", dockerSocket),
+		},
+		Volumes: []string{
+			fmt.Sprintf("%s:/app", cwd),
+			"go_cache:/go-cache",
+			"coder_cache:/cache",
+			fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
+		},
+		Command: `sh -c 'make -j build-slim && mkdir -p /cache/site/orig/bin && cp site/out/bin/coder-* /cache/site/orig/bin/ 2>/dev/null || true && echo "Slim binaries built and cached."'`,
+		DependsOn: map[string]ComposeDependsOn{
+			"init-volumes": {Condition: "service_completed_successfully"},
+		},
+		Labels: composeServiceLabels("build-slim"),
+	})
 
 	b.setStep("Running make build-slim")
-	logger.Info(ctx, "building slim binaries")
+	logger.Info(ctx, "building slim binaries via compose")
 
-	var stdout, stderr bytes.Buffer
-	_, err = RunContainer(ctx, pool, CDevBuildSlim, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: "cdev-build-slim",
-			Config: &docker.Config{
-				Image:      dogfoodImage + ":" + dogfoodTag,
-				WorkingDir: "/app",
-				Env: []string{
-					"GOMODCACHE=/go-cache/mod",
-					"GOCACHE=/go-cache/build",
-					fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
-				},
-				Cmd:          []string{"sh", "-c", buildCmd},
-				Labels:       NewServiceLabels(CDevBuildSlim),
-				AttachStdout: true,
-				AttachStderr: true,
-			},
-			HostConfig: &docker.HostConfig{
-				AutoRemove: true,
-				Binds: []string{
-					fmt.Sprintf("%s:/app", cwd),
-					fmt.Sprintf("%s:/go-cache", goCache.Name),
-					fmt.Sprintf("%s:/cache", coderCache.Name),
-					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
-				},
-				GroupAdd: []string{dockerGroup},
-			},
-			NetworkingConfig: &docker.NetworkingConfig{
-				EndpointsConfig: map[string]*docker.EndpointConfig{
-					CDevNetworkName: {
-						NetworkID: networkID,
-						Aliases:   []string{"build-slim"},
-					},
-				},
-			},
-		},
-		Logger: logger,
-		Stdout: &stdout,
-		Stderr: &stderr,
-	})
-	if err != nil {
+	if err := dkr.DockerComposeRun(ctx, "build-slim"); err != nil {
 		return err
 	}
 

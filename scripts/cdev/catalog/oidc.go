@@ -2,13 +2,12 @@ package catalog
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"os/exec"
 	"sync/atomic"
 	"time"
 
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -26,11 +25,8 @@ const (
 
 // OIDCResult contains the connection info for the running OIDC IDP.
 type OIDCResult struct {
-	// IssuerURL is the OIDC issuer URL accessible from the host machine.
+	// IssuerURL is the OIDC issuer URL.
 	IssuerURL string
-	// InternalIssuerURL is the OIDC issuer URL accessible from other
-	// containers on the cdev Docker network (uses the "oidc" DNS alias).
-	InternalIssuerURL string
 	// ClientID is the OIDC client ID.
 	ClientID string
 	// ClientSecret is the OIDC client secret.
@@ -45,12 +41,11 @@ func OnOIDC() ServiceName {
 	return (&OIDC{}).Name()
 }
 
-// OIDC runs a fake OIDC identity provider in a Docker container using testidp.
+// OIDC runs a fake OIDC identity provider via docker compose.
 type OIDC struct {
 	currentStep atomic.Pointer[string]
-	containerID string
 	result      OIDCResult
-	pool        *dockertest.Pool
+	dkr         *Docker
 }
 
 func (o *OIDC) CurrentStep() string {
@@ -93,16 +88,7 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
 	}
-	o.pool = d.Result()
-
-	// Ensure the cdev bridge network exists so containers can communicate
-	// via Docker DNS.
-	_, err := d.EnsureNetwork(ctx, NewLabels())
-	if err != nil {
-		return xerrors.Errorf("ensure cdev network: %w", err)
-	}
-
-	labels := NewServiceLabels(CDevOIDC).With(CDevLabelEphemeral, "true")
+	o.dkr = d
 
 	o.setStep("building testidp docker image (this can take awhile)")
 	// Build the testidp image from the Dockerfile.
@@ -110,60 +96,37 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 		return xerrors.Errorf("build testidp image: %w", err)
 	}
 
-	o.setStep("Starting OIDC mock server")
-	logger.Info(ctx, "starting oidc container")
+	o.setStep("Registering OIDC compose service")
+	logger.Info(ctx, "registering oidc compose service")
 
-	cntSink := NewLoggerSink(c.w, o)
-	cntLogger := slog.Make(cntSink)
-	defer cntSink.Close()
-
-	// Start new container (ephemeral, will be removed on stop).
-	result, err := RunContainer(ctx, o.pool, CDevOIDC, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: "cdev_oidc",
-			Config: &docker.Config{
-				Image: testidpImage + ":" + testidpTag,
-				Cmd: []string{
-					"-client-id", testidpClientID,
-					"-client-sec", testidpClientSec,
-					"-issuer", testidpIssuerURL,
-					"-backchannel-base-url", "http://load-balancer:4500",
-				},
-				Labels: labels,
-				Healthcheck: &docker.HealthConfig{
-					Test:     []string{"CMD", "wget", "-q", "http://localhost:4500/.well-known/openid-configuration"},
-					Interval: 2 * time.Second,
-					Timeout:  2 * time.Second,
-					Retries:  3,
-				},
-				ExposedPorts: map[docker.Port]struct{}{testidpPort: {}},
-			},
-			HostConfig: &docker.HostConfig{
-				AutoRemove: true,
-			},
-			NetworkingConfig: &docker.NetworkingConfig{
-				EndpointsConfig: map[string]*docker.EndpointConfig{
-					CDevNetworkName: {
-						Aliases: []string{"oidc"},
-					},
-				},
-			},
+	d.SetCompose("oidc", ComposeService{
+		Image: testidpImage + ":" + testidpTag,
+		Command: []string{
+			"-client-id", testidpClientID,
+			"-client-sec", testidpClientSec,
+			"-issuer", testidpIssuerURL,
 		},
-		Logger:          cntLogger,
-		Detached:        true,
-		DestroyExisting: true,
+		Ports:    []string{"4500:4500"},
+		Networks: []string{composeNetworkName},
+		Labels:   composeServiceLabels("oidc"),
+		Healthcheck: &ComposeHealthcheck{
+			Test:     []string{"CMD-SHELL", "curl -sf http://localhost:4500/.well-known/openid-configuration || exit 1"},
+			Interval: "2s",
+			Timeout:  "5s",
+			Retries:  15,
+		},
 	})
-	if err != nil {
-		return xerrors.Errorf("run container: %w", err)
+
+	o.setStep("Starting OIDC via compose")
+	if err := d.DockerComposeUp(ctx, "oidc"); err != nil {
+		return xerrors.Errorf("docker compose up oidc: %w", err)
 	}
 
-	o.containerID = result.Container.ID
 	o.result = OIDCResult{
-		IssuerURL:         testidpIssuerURL,
-		InternalIssuerURL: "http://oidc:4500",
-		ClientID:          testidpClientID,
-		ClientSecret:      testidpClientSec,
-		Port:              testidpHostPort,
+		IssuerURL:    testidpIssuerURL,
+		ClientID:     testidpClientID,
+		ClientSecret: testidpClientSec,
+		Port:         testidpHostPort,
 	}
 
 	return o.waitForReady(ctx, logger)
@@ -212,16 +175,46 @@ func (*OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
 }
 
 func (o *OIDC) waitForReady(ctx context.Context, logger slog.Logger) error {
-	return waitForHealthy(ctx, logger, o.pool, "cdev_oidc", 60*time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.After(60 * time.Second)
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return xerrors.New("timeout waiting for oidc to be ready")
+		case <-ticker.C:
+			// Check the well-known endpoint.
+			wellKnownURL := o.result.IssuerURL + "/.well-known/openid-configuration"
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
+			if err != nil {
+				continue
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				logger.Info(ctx, "oidc provider is ready and accepting connections",
+					slog.F("issuer_url", o.result.IssuerURL),
+					slog.F("client_id", o.result.ClientID),
+				)
+				return nil
+			}
+		}
+	}
 }
 
-func (o *OIDC) Stop(_ context.Context) error {
-	if o.containerID == "" || o.pool == nil {
+func (o *OIDC) Stop(ctx context.Context) error {
+	if o.dkr == nil {
 		return nil
 	}
-
-	// Container has AutoRemove set, so just stop it.
-	return o.pool.Client.StopContainer(o.containerID, 5)
+	return o.dkr.DockerComposeStop(ctx, "oidc")
 }
 
 func (o *OIDC) Result() OIDCResult {
