@@ -15,6 +15,11 @@ import (
 func main() {
 Reset:
 	switch os.Args[1] {
+	case "setup":
+		os.Args[1] = "up"
+		os.Args = append(os.Args, "cdevsetup")
+		os.Args = append(os.Args, "--build")
+		goto Reset
 	case "reset":
 		os.Args[1] = "down"
 		os.Args = append(os.Args, "database", "--volumes")
