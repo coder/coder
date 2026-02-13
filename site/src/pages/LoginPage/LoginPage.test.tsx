@@ -90,7 +90,7 @@ describe("LoginPage", () => {
 			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
 
 		// Spy on window.location.href assignment
-		const locationHrefSpy = jest.fn();
+		const locationHrefSpy = vi.fn();
 		const originalLocation = window.location;
 		Object.defineProperty(window, "location", {
 			configurable: true,
@@ -139,12 +139,22 @@ describe("LoginPage", () => {
 
 	it("redirects to /oauth2/authorize after successful login when not already signed in", async () => {
 		// Given - user is NOT signed in
+		let loggedIn = false;
 		server.use(
 			http.get("/api/v2/users/me", () => {
-				return new HttpResponse(null, { status: 401 });
+				if (!loggedIn) {
+					return HttpResponse.json(
+						{ message: "no user here" },
+						{ status: 401 },
+					);
+				}
+				return HttpResponse.json(MockUserOwner);
 			}),
 			http.post("/api/v2/users/login", () => {
-				return HttpResponse.json({ success: true });
+				loggedIn = true;
+				return HttpResponse.json({
+					session_token: "test-session-token",
+				});
 			}),
 		);
 
@@ -153,12 +163,13 @@ describe("LoginPage", () => {
 
 		// Spy on window.location.href
 		const originalLocation = window.location;
-		const locationHrefSpy = jest.fn(); // use vi.fn() if you're on Vitest
+		const locationHrefSpy = vi.fn();
 
 		Object.defineProperty(window, "location", {
 			configurable: true,
 			value: {
 				...originalLocation,
+				origin: originalLocation.origin,
 				set href(url: string) {
 					locationHrefSpy(url);
 				},
