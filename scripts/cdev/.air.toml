@@ -4,9 +4,9 @@ tmp_dir = "tmp"
 [build]
   cmd = "go build -o ./tmp/coder ./enterprise/cmd/coder"
   entrypoint = ["./tmp/coder"]
-  exclude_dir = ["site", "node_modules", ".git", "tmp", "vendor", ".coderv2"]
+  exclude_dir = ["site", "node_modules", ".git", "tmp", "vendor", ".coderv2", "bin", "build", "dist", "out", "test-output", "scaletest"]
   exclude_regex = ["_test\\.go$"]
-  include_ext = ["go", "sql"]
+  include_ext = ["go"]
   delay = 10000
   kill_delay = 5000
   send_interrupt = true
