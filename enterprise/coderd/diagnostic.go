@@ -203,7 +203,7 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 	// full data; filters only affect which sessions are returned.
 	if statusFilter != "" && statusFilter != "all" || (workspaceFilter != "" && workspaceFilter != "all") {
 		for wi := range workspaces {
-			var filtered []codersdk.DiagnosticSession
+			filtered := make([]codersdk.DiagnosticSession, 0)
 			for _, sess := range workspaces[wi].Sessions {
 				if workspaceFilter != "" && workspaceFilter != "all" && sess.WorkspaceName != workspaceFilter {
 					continue
