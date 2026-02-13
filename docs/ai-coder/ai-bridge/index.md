@@ -2,12 +2,7 @@
 
 ![AI bridge diagram](../../images/aibridge/aibridge_diagram.png)
 
-AI Bridge is a smart gateway for AI that runs in-memory within the Coder control
-plane (`coderd`). It intercepts all LLM API traffic between your users' coding
-agents/IDEs and upstream model providers (OpenAI, Anthropic, AWS Bedrock, and
-custom endpoints), providing centralized authentication, audit logging,
-token/cost tracking, and MCP tool injection — without changing developer
-workflows.
+AI Bridge is a smart AI gateway. It sits as an intermediary between your users' coding agents / IDEs and providers like OpenAI and Anthropic. It intercepts all LLM API traffic between your users' coding agents/IDEs and upstream model providers (OpenAI, Anthropic, AWS Bedrock, and other compatible providers), providing centralized authentication, audit logging, token/cost tracking, and MCP tool injection — without changing the developer workflows.
 
 AI Bridge solves four key problems:
 
