@@ -159,7 +159,7 @@ func (d *Docker) EnsureNetwork(_ context.Context, labels map[string]string) (str
 }
 
 func (d *Docker) createNetworkIfNeeded(labels map[string]string) (string, error) {
-	networks, err := d.pool.Client.FilteredListNetworks(docker.NetworkFilterOpts{
+	networks, err := d.client.FilteredListNetworks(docker.NetworkFilterOpts{
 		"name": map[string]bool{CDevNetworkName: true},
 	})
 	if err != nil {
@@ -172,7 +172,7 @@ func (d *Docker) createNetworkIfNeeded(labels map[string]string) (string, error)
 			return n.ID, nil
 		}
 	}
-	net, err := d.pool.Client.CreateNetwork(docker.CreateNetworkOptions{
+	net, err := d.client.CreateNetwork(docker.CreateNetworkOptions{
 		Name:   CDevNetworkName,
 		Driver: "bridge",
 		Labels: labels,

@@ -14,6 +14,21 @@ type ComposeFile struct {
 	Services map[string]ComposeService `yaml:"services"`
 	Volumes  map[string]ComposeVolume  `yaml:"volumes,omitempty"`
 	Networks map[string]ComposeNetwork `yaml:"networks,omitempty"`
+
+	cfg ComposeConfig `yaml:"-"`
+}
+
+// NewComposeFile creates a new ComposeFile with initialized maps and
+// the given config stored for use by builder methods.
+func NewComposeFile(cfg ComposeConfig) *ComposeFile {
+	return &ComposeFile{
+		Services: make(map[string]ComposeService),
+		Volumes:  make(map[string]ComposeVolume),
+		Networks: map[string]ComposeNetwork{
+			composeNetworkName: {Driver: "bridge"},
+		},
+		cfg: cfg,
+	}
 }
 
 // ComposeService represents a single service in a compose file.
@@ -94,29 +109,20 @@ func Generate(cfg ComposeConfig) *ComposeFile {
 		cfg.CoderdCount = 1
 	}
 
-	cf := &ComposeFile{
-		Services: make(map[string]ComposeService),
-		Volumes:  make(map[string]ComposeVolume),
-		Networks: map[string]ComposeNetwork{
-			composeNetworkName: {Driver: "bridge"},
-		},
-	}
-
-	composeAddDatabase(cf)
-	composeAddInitVolumes(cf)
-	composeAddBuildSlim(cf, cfg)
+	cf := NewComposeFile(cfg)
+	cf.AddDatabase().AddInitVolumes().AddBuildSlim()
 	for i := range cfg.CoderdCount {
-		composeAddCoderd(cf, cfg, i)
+		cf.AddCoderd(i)
 	}
 	if cfg.OIDC {
-		composeAddOIDC(cf)
+		cf.AddOIDC()
 	}
-	composeAddSite(cf, cfg)
+	cf.AddSite()
 	for i := range cfg.ProvisionerCount {
-		composeAddProvisioner(cf, cfg, i)
+		cf.AddProvisioner(i)
 	}
 	if cfg.Prometheus {
-		composeAddPrometheus(cf, cfg)
+		cf.AddPrometheus()
 	}
 
 	return cf
@@ -128,7 +134,8 @@ func GenerateYAML(cfg ComposeConfig) ([]byte, error) {
 	return yaml.Marshal(cf)
 }
 
-func composeAddDatabase(cf *ComposeFile) {
+// AddDatabase adds the PostgreSQL database service.
+func (cf *ComposeFile) AddDatabase() *ComposeFile {
 	cf.Volumes["coder_dev_data"] = ComposeVolume{}
 	cf.Services["database"] = ComposeService{
 		Image: "postgres:17",
@@ -148,9 +155,11 @@ func composeAddDatabase(cf *ComposeFile) {
 			Retries:  10,
 		},
 	}
+	return cf
 }
 
-func composeAddInitVolumes(cf *ComposeFile) {
+// AddInitVolumes adds the volume initialization service.
+func (cf *ComposeFile) AddInitVolumes() *ComposeFile {
 	cf.Volumes["go_cache"] = ComposeVolume{}
 	cf.Volumes["coder_cache"] = ComposeVolume{}
 	cf.Volumes["site_node_modules"] = ComposeVolume{}
@@ -166,9 +175,12 @@ func composeAddInitVolumes(cf *ComposeFile) {
 		Command: "chown -R 1000:1000 /go-cache /cache /app/site/node_modules",
 		Labels:  composeServiceLabels("init-volumes"),
 	}
+	return cf
 }
 
-func composeAddBuildSlim(cf *ComposeFile, cfg ComposeConfig) {
+// AddBuildSlim adds the slim binary build service.
+func (cf *ComposeFile) AddBuildSlim() *ComposeFile {
+	cfg := cf.cfg
 	cf.Services["build-slim"] = ComposeService{
 		Image:       composeDogfood,
 		NetworkMode: "host",
@@ -192,9 +204,12 @@ func composeAddBuildSlim(cf *ComposeFile, cfg ComposeConfig) {
 		},
 		Labels: composeServiceLabels("build-slim"),
 	}
+	return cf
 }
 
-func composeAddCoderd(cf *ComposeFile, cfg ComposeConfig, index int) {
+// AddCoderd adds a coderd service instance at the given index.
+func (cf *ComposeFile) AddCoderd(index int) *ComposeFile {
+	cfg := cf.cfg
 	name := fmt.Sprintf("coderd-%d", index)
 	hostPort := 3000 + index
 	pprofPort := 6060 + index
@@ -286,9 +301,11 @@ func composeAddCoderd(cf *ComposeFile, cfg ComposeConfig, index int) {
 			StartPeriod: "120s",
 		},
 	}
+	return cf
 }
 
-func composeAddOIDC(cf *ComposeFile) {
+// AddOIDC adds the OIDC test identity provider service.
+func (cf *ComposeFile) AddOIDC() *ComposeFile {
 	cf.Services["oidc"] = ComposeService{
 		Build: &ComposeBuild{
 			Context:    ".",
@@ -305,9 +322,12 @@ func composeAddOIDC(cf *ComposeFile) {
 			Retries:  15,
 		},
 	}
+	return cf
 }
 
-func composeAddSite(cf *ComposeFile, cfg ComposeConfig) {
+// AddSite adds the frontend dev server service.
+func (cf *ComposeFile) AddSite() *ComposeFile {
+	cfg := cf.cfg
 	cf.Services["site"] = ComposeService{
 		Image:      composeDogfood,
 		Networks:   []string{composeNetworkName},
@@ -326,9 +346,12 @@ func composeAddSite(cf *ComposeFile, cfg ComposeConfig) {
 		},
 		Labels: composeServiceLabels("site"),
 	}
+	return cf
 }
 
-func composeAddProvisioner(cf *ComposeFile, cfg ComposeConfig, index int) {
+// AddProvisioner adds an external provisioner service at the given index.
+func (cf *ComposeFile) AddProvisioner(index int) *ComposeFile {
+	cfg := cf.cfg
 	name := fmt.Sprintf("provisioner-%d", index)
 
 	env := map[string]string{
@@ -358,9 +381,12 @@ func composeAddProvisioner(cf *ComposeFile, cfg ComposeConfig, index int) {
 		},
 		Labels: composeServiceLabels("provisioner"),
 	}
+	return cf
 }
 
-func composeAddPrometheus(cf *ComposeFile, cfg ComposeConfig) {
+// AddPrometheus adds Prometheus monitoring services.
+func (cf *ComposeFile) AddPrometheus() *ComposeFile {
+	cfg := cf.cfg
 	cf.Volumes["prometheus"] = ComposeVolume{}
 
 	// Build scrape targets for all coderd instances.
@@ -410,4 +436,5 @@ scrape_configs:
 			Retries:  15,
 		},
 	}
+	return cf
 }
