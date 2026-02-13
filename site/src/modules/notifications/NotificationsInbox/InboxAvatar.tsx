@@ -9,15 +9,19 @@ import {
 	InfoIcon,
 	LaptopIcon,
 	LayoutTemplateIcon,
+	RocketIcon,
 	UserIcon,
 } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
 
+const CHANGELOG_ICON = "DEFAULT_ICON_CHANGELOG";
+
 const InboxNotificationFallbackIcons = [
 	InboxNotificationFallbackIconAccount,
 	InboxNotificationFallbackIconWorkspace,
 	InboxNotificationFallbackIconTemplate,
+	CHANGELOG_ICON,
 	InboxNotificationFallbackIconOther,
 ] as const;
 
@@ -28,6 +32,7 @@ const fallbackIcons: Record<InboxNotificationFallbackIcon, React.ReactNode> = {
 	DEFAULT_ICON_WORKSPACE: <LaptopIcon />,
 	DEFAULT_ICON_ACCOUNT: <UserIcon />,
 	DEFAULT_ICON_TEMPLATE: <LayoutTemplateIcon />,
+	DEFAULT_ICON_CHANGELOG: <RocketIcon />,
 	DEFAULT_ICON_OTHER: <InfoIcon />,
 };
 
