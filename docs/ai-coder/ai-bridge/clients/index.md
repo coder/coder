@@ -73,17 +73,10 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 
 ### Why some clients are not supported
 
-AI Bridge requires clients to support two capabilities:
+AI Bridge requires clients to support either of the two capabilities:
 
-1. **Base URL override** — the client must allow redirecting API requests from
-   the default provider endpoint to the Bridge endpoint.
-2. **Token-based authentication** — the client must allow replacing the
-   provider API key with a Coder session token.
-
-Clients marked as unsupported either do not expose these configuration options
-or have known issues that prevent reliable operation. For unsupported clients,
-consider using [AI Bridge Proxy](../ai-bridge-proxy/index.md) where applicable, or
-use a supported alternative client.
+1. **Base URL override (Preferred)** — the client must allow redirecting API requests from the default provider endpoint to the Bridge endpoint.
+2. **Standard API Spec** — the client must follow a standard OpenAI/Anthropic API to allow [AI Bridge Proxy](../ai-bridge-proxy/index.md) to intercept the requests.
 
 ## Configuring In-Workspace Tools
 
