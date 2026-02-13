@@ -359,6 +359,17 @@ func (s *sessionCloseTracker) Close() error {
 	return s.Session.Close()
 }
 
+func fallbackDisconnectReason(code int, reason string) string {
+	if reason != "" || code == 0 {
+		return reason
+	}
+
+	return fmt.Sprintf(
+		"connection ended unexpectedly: session closed without explicit reason (exit code: %d)",
+		code,
+	)
+}
+
 func extractContainerInfo(env []string) (container, containerUser string, filteredEnv []string) {
 	for _, kv := range env {
 		if strings.HasPrefix(kv, ContainerEnvironmentVariable+"=") {
@@ -439,7 +450,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
 		defer func() {
-			disconnected(scr.exitCode(), reason)
+			code := scr.exitCode()
+			disconnected(code, fallbackDisconnectReason(code, reason))
 		}()
 	}
 

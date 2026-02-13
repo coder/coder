@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"strings"
 	"testing"
 
 	gliderssh "github.com/gliderlabs/ssh"
@@ -100,6 +101,32 @@ func waitForChan(ctx context.Context, t *testing.T, c <-chan struct{}, msg strin
 	case <-ctx.Done():
 		t.Fatal(msg)
 	}
+}
+
+func TestFallbackDisconnectReason(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KeepProvidedReason", func(t *testing.T) {
+		t.Parallel()
+
+		reason := fallbackDisconnectReason(255, "network path changed")
+		assert.Equal(t, "network path changed", reason)
+	})
+
+	t.Run("KeepEmptyReasonForCleanExit", func(t *testing.T) {
+		t.Parallel()
+
+		reason := fallbackDisconnectReason(0, "")
+		assert.Equal(t, "", reason)
+	})
+
+	t.Run("FallbackReasonForUnexpectedExit", func(t *testing.T) {
+		t.Parallel()
+
+		reason := fallbackDisconnectReason(1, "")
+		assert.True(t, strings.Contains(reason, "ended unexpectedly"))
+		assert.True(t, strings.Contains(reason, "exit code: 1"))
+	})
 }
 
 type testSession struct {

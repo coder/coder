@@ -65,7 +65,7 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Optional filters applied after session assembly.
-	statusFilter := r.URL.Query().Get("status")    // "all", "ongoing", "disconnected", "workspace_stopped"
+	statusFilter := r.URL.Query().Get("status")       // "all", "ongoing", "disconnected", "workspace_stopped"
 	workspaceFilter := r.URL.Query().Get("workspace") // workspace name or empty/"all"
 
 	// Look up the target user.
@@ -473,7 +473,7 @@ func buildSessionsFromOrphanedLogs(
 
 			if cl.ConnectionLog.DisconnectReason.Valid && cl.ConnectionLog.DisconnectReason.String != "" {
 				disconnectReason = cl.ConnectionLog.DisconnectReason.String
-				if strings.Contains(strings.ToLower(disconnectReason), "control") {
+				if strings.Contains(strings.ToLower(disconnectReason), "control") || isUnexpectedDisconnectReason(disconnectReason) {
 					isControlLost = true
 				}
 			}
@@ -574,7 +574,7 @@ func convertDBSession(
 		if cl.DisconnectReason.Valid && cl.DisconnectReason.String != "" {
 			disconnectReason = cl.DisconnectReason.String
 			reason := strings.ToLower(disconnectReason)
-			if strings.Contains(reason, "control") {
+			if strings.Contains(reason, "control") || isUnexpectedDisconnectReason(reason) {
 				isControlLost = true
 			}
 		}
@@ -636,8 +636,9 @@ func convertSessionConnection(cl database.ConnectionLog) codersdk.DiagnosticSess
 	status := codersdk.ConnectionStatusOngoing
 	if disconnectedAt != nil {
 		reason := strings.ToLower(cl.DisconnectReason.String)
+		isControlLost := strings.Contains(reason, "control") || isUnexpectedDisconnectReason(reason)
 		switch {
-		case strings.Contains(reason, "control"):
+		case isControlLost:
 			status = codersdk.ConnectionStatusControlLost
 		default:
 			status = codersdk.ConnectionStatusCleanDisconnected
@@ -649,7 +650,9 @@ func convertSessionConnection(cl database.ConnectionLog) codersdk.DiagnosticSess
 		detail = cl.SlugOrPort.String
 	}
 
-	explanation := generateExplanation(cl.DisconnectReason.String, strings.Contains(strings.ToLower(cl.DisconnectReason.String), "control"))
+	explanation := generateExplanation(cl.DisconnectReason.String,
+		strings.Contains(strings.ToLower(cl.DisconnectReason.String), "control") ||
+			isUnexpectedDisconnectReason(cl.DisconnectReason.String))
 
 	return codersdk.DiagnosticSessionConn{
 		ID:             cl.ID,
@@ -690,7 +693,9 @@ func buildTimeline(connLogs []database.ConnectionLog) []codersdk.DiagnosticTimel
 			severity := codersdk.ConnectionDiagnosticSeverityInfo
 			reason := strings.ToLower(cl.DisconnectReason.String)
 			switch {
-			case strings.Contains(reason, "agent timeout"), strings.Contains(reason, "control"):
+			case strings.Contains(reason, "agent timeout"),
+				strings.Contains(reason, "control"),
+				isUnexpectedDisconnectReason(reason):
 				severity = codersdk.ConnectionDiagnosticSeverityError
 			case strings.Contains(reason, "workspace stopped"), strings.Contains(reason, "workspace deleted"):
 				severity = codersdk.ConnectionDiagnosticSeverityWarning
@@ -715,20 +720,31 @@ func buildTimeline(connLogs []database.ConnectionLog) []codersdk.DiagnosticTimel
 			if cl.SlugOrPort.Valid && cl.SlugOrPort.String != "" {
 				closeDesc = fmt.Sprintf("%s (%s) connection closed", cl.Type, cl.SlugOrPort.String)
 			}
+			metadata := map[string]any{
+				"connection_id":     cl.ID.String(),
+				"type":              string(cl.Type),
+				"disconnect_reason": cl.DisconnectReason.String,
+			}
+			if cl.Code.Valid {
+				metadata["disconnect_code"] = cl.Code.Int32
+			}
 			events = append(events, codersdk.DiagnosticTimelineEvent{
 				Timestamp:   cl.DisconnectTime.Time,
 				Kind:        codersdk.DiagnosticTimelineEventConnectionClosed,
 				Description: closeDesc,
-				Metadata: map[string]any{
-					"connection_id":     cl.ID.String(),
-					"type":              string(cl.Type),
-					"disconnect_reason": cl.DisconnectReason.String,
-				},
-				Severity: severity,
+				Metadata:    metadata,
+				Severity:    severity,
 			})
 		}
 	}
 	return events
+}
+
+func isUnexpectedDisconnectReason(disconnectReason string) bool {
+	reason := strings.ToLower(disconnectReason)
+	return strings.Contains(reason, "ended unexpectedly") ||
+		strings.Contains(reason, "without explicit reason") ||
+		strings.Contains(reason, "process exited with error status: -1")
 }
 
 // classifySessionStatus determines a session's high-level status from
@@ -742,7 +758,7 @@ func classifySessionStatus(disconnectReason string, hasDisconnect bool, isContro
 		return codersdk.ConnectionStatusCleanDisconnected
 	case !hasDisconnect:
 		return codersdk.ConnectionStatusOngoing
-	case isControlLost, strings.Contains(reason, "agent timeout"):
+	case isControlLost, strings.Contains(reason, "agent timeout"), isUnexpectedDisconnectReason(reason):
 		return codersdk.ConnectionStatusControlLost
 	default:
 		return codersdk.ConnectionStatusCleanDisconnected
@@ -857,6 +873,8 @@ func generateExplanation(disconnectReason string, isControlLost bool) string {
 		return "Workspace was deleted."
 	case strings.Contains(reason, "agent timeout"):
 		return "Agent stopped responding."
+	case isUnexpectedDisconnectReason(reason):
+		return "Connection lost unexpectedly."
 	case isControlLost:
 		return "Connection lost unexpectedly."
 	default:
