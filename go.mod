@@ -220,7 +220,7 @@ require (
 require (
 	cloud.google.com/go/auth v0.18.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	dario.cat/mergo v1.0.1 // indirect
+	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/DataDog/appsec-internal-go v1.11.2 // indirect
@@ -504,6 +504,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/air-verse/air v1.64.5 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/iamgo v0.0.10 // indirect
@@ -541,6 +542,7 @@ require (
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
@@ -549,6 +551,7 @@ require (
 	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/openai/openai-go/v3 v3.15.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
+	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rhysd/actionlint v1.7.10 // indirect
@@ -581,6 +584,7 @@ require (
 )
 
 tool (
+	github.com/air-verse/air
 	github.com/coder/paralleltestctx/cmd/paralleltestctx
 	github.com/daixiang0/gci
 	github.com/rhysd/actionlint/cmd/actionlint
