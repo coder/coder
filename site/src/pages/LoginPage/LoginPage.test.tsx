@@ -1,10 +1,11 @@
+import { MockUserOwner } from "testHelpers/entities";
 import {
 	render,
 	renderWithRouter,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router";
@@ -75,5 +76,137 @@ describe("LoginPage", () => {
 
 		// Then
 		await screen.findByText("Setup");
+	});
+
+	it("redirects to /oauth2/authorize via server-side redirect when signed in", async () => {
+		// Given - user is signed in
+		server.use(
+			http.get("/api/v2/users/me", () => {
+				return HttpResponse.json(MockUserOwner);
+			}),
+		);
+
+		const redirectPath =
+			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
+
+		// Spy on window.location.href assignment
+		const locationHrefSpy = jest.fn();
+		const originalLocation = window.location;
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: {
+				...originalLocation,
+				origin: originalLocation.origin,
+				set href(url: string) {
+					locationHrefSpy(url);
+				},
+				get href() {
+					return originalLocation.href;
+				},
+			},
+		});
+
+		// When
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/login",
+						element: <LoginPage />,
+					},
+				],
+				{
+					initialEntries: [
+						`/login?redirect=${encodeURIComponent(redirectPath)}`,
+					],
+				},
+			),
+		);
+
+		// Then - it should perform a server-side redirect, not a React navigate
+		await waitFor(() => {
+			expect(locationHrefSpy).toHaveBeenCalledWith(
+				expect.stringContaining("/oauth2/authorize"),
+			);
+		});
+
+		// Cleanup
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: originalLocation,
+		});
+	});
+
+	it("redirects to /oauth2/authorize after successful login when not already signed in", async () => {
+		// Given - user is NOT signed in
+		server.use(
+			http.get("/api/v2/users/me", () => {
+				return new HttpResponse(null, { status: 401 });
+			}),
+			http.post("/api/v2/users/login", () => {
+				return HttpResponse.json({ success: true });
+			}),
+		);
+
+		const redirectPath =
+			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
+
+		// Spy on window.location.href
+		const originalLocation = window.location;
+		const locationHrefSpy = jest.fn(); // use vi.fn() if you're on Vitest
+
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: {
+				...originalLocation,
+				set href(url: string) {
+					locationHrefSpy(url);
+				},
+				get href() {
+					return originalLocation.href;
+				},
+			},
+		});
+
+		// When
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/login",
+						element: <LoginPage />,
+					},
+				],
+				{
+					initialEntries: [
+						`/login?redirect=${encodeURIComponent(redirectPath)}`,
+					],
+				},
+			),
+		);
+
+		await waitForLoaderToBeRemoved();
+
+		const email = screen.getByLabelText(new RegExp(Language.emailLabel));
+		const password = screen.getByLabelText(new RegExp(Language.passwordLabel));
+
+		await userEvent.type(email, "test@coder.com");
+		await userEvent.type(password, "password");
+
+		const signInButton = await screen.findByText(Language.passwordSignIn);
+		fireEvent.click(signInButton);
+
+		// Then - it should hard redirect to OAuth endpoint
+		await waitFor(() => {
+			expect(locationHrefSpy).toHaveBeenCalledWith(
+				expect.stringContaining("/oauth2/authorize"),
+			);
+		});
+
+		// Cleanup
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: originalLocation,
+		});
 	});
 });
