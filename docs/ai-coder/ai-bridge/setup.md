@@ -16,7 +16,6 @@ Before enabling AI Bridge:
 - If your environment uses a corporate HTTP proxy, confirm the proxy path to
   your model provider endpoints (e.g., `api.openai.com`,
   `api.anthropic.com`) is open and pre-approved by your network security team.
-  See [AI Bridge Proxy](./ai-bridge-proxy/index.md) for proxy configuration details.
 - Have API keys ready for the LLM providers you want to use.
 
 ## Activation
@@ -127,41 +126,6 @@ attribution and audit logging on top of your existing routing infrastructure.
 > for precise endpoint coverage and interception behavior.
 
 ## Configure templates
-
-Once AI Bridge is enabled at the server level, configure your workspace
-templates to inject the Bridge base URLs and session tokens. This ensures agents
-inside workspaces route through Bridge automatically — developers see zero
-additional setup.
-
-```hcl
-data "coder_workspace_owner" "me" {}
-data "coder_workspace" "me" {}
-
-resource "coder_agent" "dev" {
-  arch = "amd64"
-  os   = "linux"
-  dir  = local.repo_dir
-
-  env = {
-    # Route Anthropic traffic through AI Bridge
-    ANTHROPIC_BASE_URL = "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic"
-    ANTHROPIC_API_KEY  = data.coder_workspace_owner.me.session_token
-
-    # Route OpenAI traffic through AI Bridge
-    OPENAI_BASE_URL    = "${data.coder_workspace.me.access_url}/api/v2/aibridge/openai/v1"
-    OPENAI_API_KEY     = data.coder_workspace_owner.me.session_token
-  }
-}
-```
-
-With this template configuration:
-
-- Developers launch their workspace and AI tools just work.
-- No API key management or provisioning tickets.
-- The Coder session token replaces the provider API key — developers never hold
-  provider credentials.
-- All AI traffic is automatically routed through Bridge for audit and
-  attribution.
 
 For per-client configuration details, see
 [Client Configuration](./clients/index.md).
