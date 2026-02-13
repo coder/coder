@@ -306,6 +306,8 @@ type agent struct {
 	reportConnectionsMu     sync.Mutex
 	reportConnections       []*proto.ReportConnectionRequest
 
+	restartReported atomic.Bool
+
 	logSender *agentsdk.LogSender
 
 	// boundaryLogProxy is a socket server that forwards boundary audit logs to coderd.
@@ -1046,8 +1048,11 @@ func (a *agent) run() (retErr error) {
 	// In the reaper path, the reaper writes the start count before
 	// forking. In the systemd path, the agent increments it itself
 	// on startup. A start count > 1 means we've been restarted.
+	// We use an atomic flag to ensure we only report once per
+	// process lifetime, even if run() is called multiple times
+	// due to reconnects.
 	startCount := readStartCount()
-	if startCount > 1 {
+	if startCount > 1 && !a.restartReported.Load() {
 		// #nosec G115 - restart count is always small (< max restarts).
 		restartCount := int32(startCount - 1)
 		killSignalRaw := reaper.ReadKillSignal()
@@ -1065,6 +1070,7 @@ func (a *agent) run() (retErr error) {
 				slog.Error(err),
 			)
 		} else {
+			a.restartReported.Store(true)
 			a.logger.Info(a.hardCtx, "reported restart to coderd",
 				slog.F("start_count", startCount),
 				slog.F("reason", reason),
