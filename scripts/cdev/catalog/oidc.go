@@ -1,0 +1,229 @@
+package catalog
+
+import (
+	"context"
+	"os"
+	"os/exec"
+	"sync/atomic"
+	"time"
+
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+)
+
+const (
+	testidpImage     = "cdev-testidp"
+	testidpTag       = "latest"
+	testidpPort      = "4500/tcp"
+	testidpHostPort  = "4500"
+	testidpClientID  = "static-client-id"
+	testidpClientSec = "static-client-secret"
+	testidpIssuerURL = "http://localhost:4500"
+)
+
+// OIDCResult contains the connection info for the running OIDC IDP.
+type OIDCResult struct {
+	// IssuerURL is the OIDC issuer URL accessible from the host machine.
+	IssuerURL string
+	// InternalIssuerURL is the OIDC issuer URL accessible from other
+	// containers on the cdev Docker network (uses the "oidc" DNS alias).
+	InternalIssuerURL string
+	// ClientID is the OIDC client ID.
+	ClientID string
+	// ClientSecret is the OIDC client secret.
+	ClientSecret string
+	// Port is the host port mapped to the container's 4500.
+	Port string
+}
+
+var _ Service[OIDCResult] = (*OIDC)(nil)
+
+func OnOIDC() ServiceName {
+	return (&OIDC{}).Name()
+}
+
+// OIDC runs a fake OIDC identity provider in a Docker container using testidp.
+type OIDC struct {
+	currentStep atomic.Pointer[string]
+	containerID string
+	result      OIDCResult
+	pool        *dockertest.Pool
+}
+
+func (o *OIDC) CurrentStep() string {
+	if s := o.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (o *OIDC) URL() string {
+	return o.result.IssuerURL
+}
+
+func (o *OIDC) setStep(step string) {
+	o.currentStep.Store(&step)
+}
+
+func NewOIDC() *OIDC {
+	return &OIDC{}
+}
+
+func (*OIDC) Name() ServiceName {
+	return CDevOIDC
+}
+
+func (*OIDC) Emoji() string {
+	return "🔒"
+}
+
+func (*OIDC) DependsOn() []ServiceName {
+	return []ServiceName{
+		OnDocker(),
+	}
+}
+
+func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error {
+	defer o.setStep("")
+
+	d, ok := c.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return xerrors.New("unexpected type for Docker service")
+	}
+	o.pool = d.Result()
+
+	// Ensure the cdev bridge network exists so containers can communicate
+	// via Docker DNS.
+	_, err := d.EnsureNetwork(ctx, NewLabels())
+	if err != nil {
+		return xerrors.Errorf("ensure cdev network: %w", err)
+	}
+
+	labels := NewServiceLabels(CDevOIDC).With(CDevLabelEphemeral, "true")
+
+	o.setStep("building testidp docker image (this can take awhile)")
+	// Build the testidp image from the Dockerfile.
+	if err := o.buildImage(ctx, logger); err != nil {
+		return xerrors.Errorf("build testidp image: %w", err)
+	}
+
+	o.setStep("Starting OIDC mock server")
+	logger.Info(ctx, "starting oidc container")
+
+	cntSink := NewLoggerSink(c.w, o)
+	cntLogger := slog.Make(cntSink)
+	defer cntSink.Close()
+
+	// Start new container (ephemeral, will be removed on stop).
+	result, err := RunContainer(ctx, o.pool, CDevOIDC, ContainerRunOptions{
+		CreateOpts: docker.CreateContainerOptions{
+			Name: "cdev_oidc",
+			Config: &docker.Config{
+				Image: testidpImage + ":" + testidpTag,
+				Cmd: []string{
+					"-client-id", testidpClientID,
+					"-client-sec", testidpClientSec,
+					"-issuer", testidpIssuerURL,
+					"-backchannel-base-url", "http://load-balancer:4500",
+				},
+				Labels: labels,
+				Healthcheck: &docker.HealthConfig{
+					Test:     []string{"CMD", "wget", "-q", "http://localhost:4500/.well-known/openid-configuration"},
+					Interval: 2 * time.Second,
+					Timeout:  2 * time.Second,
+					Retries:  3,
+				},
+				ExposedPorts: map[docker.Port]struct{}{testidpPort: {}},
+			},
+			HostConfig: &docker.HostConfig{
+				AutoRemove: true,
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						Aliases: []string{"oidc"},
+					},
+				},
+			},
+		},
+		Logger:          cntLogger,
+		Detached:        true,
+		DestroyExisting: true,
+	})
+	if err != nil {
+		return xerrors.Errorf("run container: %w", err)
+	}
+
+	o.containerID = result.Container.ID
+	o.result = OIDCResult{
+		IssuerURL:         testidpIssuerURL,
+		InternalIssuerURL: "http://oidc:4500",
+		ClientID:          testidpClientID,
+		ClientSecret:      testidpClientSec,
+		Port:              testidpHostPort,
+	}
+
+	return o.waitForReady(ctx, logger)
+}
+
+func (*OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
+	// Check if image already exists.
+	//nolint:gosec // Arguments are controlled.
+	checkCmd := exec.CommandContext(ctx, "docker", "image", "inspect", testidpImage+":"+testidpTag)
+	if err := checkCmd.Run(); err == nil {
+		logger.Info(ctx, "testidp image already exists, skipping build")
+		return nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return xerrors.Errorf("get working directory: %w", err)
+	}
+
+	logger.Info(ctx, "building testidp image")
+
+	labels := NewServiceLabels(CDevOIDC)
+
+	// Use docker CLI directly because go-dockerclient doesn't handle BuildKit
+	// output properly (Docker 23+ uses BuildKit by default).
+	args := []string{
+		"build",
+		"-f", "scripts/testidp/Dockerfile.testidp",
+		"-t", testidpImage + ":" + testidpTag,
+	}
+	for k, v := range labels {
+		args = append(args, "--label", k+"="+v)
+	}
+	args = append(args, cwd)
+
+	//nolint:gosec // Arguments are controlled, not arbitrary user input.
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	stdoutLog := LogWriter(logger, slog.LevelInfo, "testidp-build")
+	stderrLog := LogWriter(logger, slog.LevelWarn, "testidp-build")
+	defer stdoutLog.Close()
+	defer stderrLog.Close()
+	cmd.Stdout = stdoutLog
+	cmd.Stderr = stderrLog
+
+	return cmd.Run()
+}
+
+func (o *OIDC) waitForReady(ctx context.Context, logger slog.Logger) error {
+	return waitForHealthy(ctx, logger, o.pool, "cdev_oidc", 60*time.Second)
+}
+
+func (o *OIDC) Stop(_ context.Context) error {
+	if o.containerID == "" || o.pool == nil {
+		return nil
+	}
+
+	// Container has AutoRemove set, so just stop it.
+	return o.pool.Client.StopContainer(o.containerID, 5)
+}
+
+func (o *OIDC) Result() OIDCResult {
+	return o.result
+}

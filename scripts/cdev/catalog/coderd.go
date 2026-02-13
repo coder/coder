@@ -1,0 +1,409 @@
+package catalog
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/serpent"
+)
+
+const (
+	coderdBasePort     = 3000
+	pprofBasePort      = 6060
+	prometheusBasePort = 2112
+)
+
+// PprofPortNum returns the pprof port number for a given coderd
+// instance index. Instance 0 uses port 6060, instance 1 uses 6061,
+// etc.
+func PprofPortNum(index int) int {
+	return pprofBasePort + index
+}
+
+// PrometheusPortNum returns the Prometheus metrics port number for a
+// given coderd instance index. Instance 0 uses port 2112, instance 1
+// uses 2113, etc.
+func PrometheusPortNum(index int) int {
+	return prometheusBasePort + index
+}
+
+// coderdPortNum returns the port number for a given coderd instance index.
+// Instance 0 uses port 3000, instance 1 uses 3001, etc.
+func coderdPortNum(index int) int {
+	return coderdBasePort + index
+}
+
+// CoderdResult contains the connection info for the running Coderd instance.
+type CoderdResult struct {
+	// URL is the access URL for the Coder instance.
+	URL string
+	// Port is the host port mapped to the container's 3000.
+	Port string
+}
+
+var _ Service[CoderdResult] = (*Coderd)(nil)
+
+func OnCoderd() ServiceName {
+	return (&Coderd{}).Name()
+}
+
+// Coderd runs the Coder server inside a Docker container.
+type Coderd struct {
+	currentStep atomic.Pointer[string]
+	haCount     int64
+
+	// ExtraEnv contains additional "KEY=VALUE" environment variables
+	// for the coderd container, set by Configure callbacks.
+	ExtraEnv []string
+	// ExtraArgs contains additional CLI arguments for the coderd
+	// server command, set by Configure callbacks.
+	ExtraArgs []string
+
+	watch bool
+
+	containerID string
+	result      CoderdResult
+	logger      slog.Logger
+	pool        *dockertest.Pool
+}
+
+func (c *Coderd) CurrentStep() string {
+	if s := c.currentStep.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (c *Coderd) URL() string {
+	return c.result.URL
+}
+
+func (c *Coderd) setStep(step string) {
+	c.currentStep.Store(&step)
+}
+
+func NewCoderd() *Coderd {
+	return &Coderd{}
+}
+
+func (*Coderd) Name() ServiceName {
+	return CDevCoderd
+}
+func (*Coderd) Emoji() string {
+	return "🖥️"
+}
+
+// HACount returns the number of coderd instances configured for HA.
+func (c *Coderd) HACount() int64 { return c.haCount }
+
+func (*Coderd) DependsOn() []ServiceName {
+	return []ServiceName{
+		OnDocker(),
+		OnPostgres(),
+		OnBuildSlim(),
+		OnOIDC(),
+	}
+}
+
+func (c *Coderd) Options() serpent.OptionSet {
+	return serpent.OptionSet{
+		{
+			Name:        "Coderd HA Count",
+			Description: "Number of coderd instances to run in HA mode.",
+			Required:    false,
+			Flag:        "coderd-count",
+			Env:         "CDEV_CODERD_COUNT",
+			Default:     "1",
+			Value:       serpent.Int64Of(&c.haCount),
+		},
+		{
+			Name:        "Watch",
+			Description: "Automatically rebuild and restart coderd when Go files change.",
+			Flag:        "watch",
+			Env:         "CDEV_WATCH",
+			Default:     "false",
+			Value:       serpent.BoolOf(&c.watch),
+		},
+	}
+}
+
+func OnBuildSlim() ServiceName {
+	return (&BuildSlim{}).Name()
+}
+
+func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) error {
+	defer c.setStep("")
+
+	c.logger = logger
+	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return xerrors.New("unexpected type for Docker service")
+	}
+	pool := dkr.Result()
+	c.pool = pool
+
+	labels := NewServiceLabels(CDevCoderd)
+	filter := labels.Filter()
+
+	// Kill any existing coderd containers
+	containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+		All:     true,
+		Filters: filter,
+	})
+	if err != nil {
+		return xerrors.Errorf("list containers: %w", err)
+	}
+
+	for _, cnt := range containers {
+		logger.Info(ctx, "removing existing coderd container", slog.F("id", cnt.ID), slog.F("names", cnt.Names))
+		if err := pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            cnt.ID,
+			Force:         true,
+			RemoveVolumes: true,
+		}); err != nil {
+			return xerrors.Errorf("remove container %s: %w", cnt.ID, err)
+		}
+	}
+
+	for i := range c.haCount {
+		c.setStep(fmt.Sprintf("Starting coderd container %d", i))
+		logger.Info(ctx, "starting coderd instance", slog.F("index", i))
+		container, err := c.startCoderd(ctx, logger, cat, int(i))
+		if err != nil {
+			return xerrors.Errorf("start coderd instance %d: %w", i, err)
+		}
+		if i == 0 {
+			c.containerID = container.Container.ID
+			c.result = CoderdResult{
+				URL:  "http://localhost:3000",
+				Port: "3000",
+			}
+		}
+	}
+
+	c.setStep("Inserting license if set")
+	logger.Info(ctx, "inserting license for coderd", slog.F("ha_count", c.haCount))
+	if err := EnsureLicense(ctx, logger, cat); err != nil {
+		if c.haCount > 1 {
+			// Ensure license is present for HA deployments.
+			return xerrors.Errorf("ensure license: %w", err)
+		}
+	}
+
+	c.setStep("Waiting for coderd to be ready")
+	return c.waitForReady(ctx, logger)
+}
+
+func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catalog, index int) (*ContainerRunResult, error) {
+	dkr, ok := cat.MustGet(OnDocker()).(*Docker)
+	if !ok {
+		return nil, xerrors.New("unexpected type for Docker service")
+	}
+	pool := dkr.Result()
+	pg, ok := cat.MustGet(OnPostgres()).(*Postgres)
+	if !ok {
+		return nil, xerrors.New("unexpected type for Postgres service")
+	}
+	oidc, ok := cat.MustGet(OnOIDC()).(*OIDC)
+	if !ok {
+		return nil, xerrors.New("unexpected type for OIDC service")
+	}
+	build := Get[*BuildSlim](cat)
+
+	labels := NewServiceLabels(CDevCoderd)
+
+	// Ensure config volume exists (not created by build step).
+	coderConfig, err := dkr.EnsureVolume(ctx, VolumeOptions{
+		Name:   fmt.Sprintf("cdev_coderv2_config_%d", index),
+		Labels: labels,
+		UID:    1000, GID: 1000,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("ensure coderv2 config volume: %w", err)
+	}
+
+	// Get current working directory for mounting.
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, xerrors.Errorf("get working directory: %w", err)
+	}
+
+	// Get docker socket path.
+	dockerSocket := os.Getenv("DOCKER_SOCKET")
+	if dockerSocket == "" {
+		dockerSocket = "/var/run/docker.sock"
+	}
+
+	// Get docker group ID for socket access. Auto-detect via
+	// getent if not set.
+	dockerGroup := os.Getenv("DOCKER_GROUP")
+	if dockerGroup == "" {
+		dockerGroup = getDockerGroupID()
+	}
+
+	// All coderd instances use the same fixed internal ports. The
+	// bridge network isolates each container, so there are no
+	// conflicts. The nginx load balancer handles host port exposure.
+	const (
+		httpPort       = "3000"
+		pprofPort      = "6060"
+		prometheusPort = "2112"
+	)
+	httpAddress := "0.0.0.0:" + httpPort
+	accessURL := "http://localhost:3000"
+	wildcardAccessURL := "*.localhost:3000"
+
+	logger.Info(ctx, "starting coderd container", slog.F("index", index), slog.F("port", httpPort))
+
+	cntSink := NewLoggerSink(cat.w, c)
+	cntLogger := slog.Make(cntSink)
+	defer cntSink.Close()
+
+	env := []string{
+		fmt.Sprintf("CODER_PG_CONNECTION_URL=%s", pg.Result().InternalURL),
+		fmt.Sprintf("CODER_HTTP_ADDRESS=%s", httpAddress),
+		fmt.Sprintf("CODER_ACCESS_URL=%s", accessURL),
+		fmt.Sprintf("CODER_WILDCARD_ACCESS_URL=%s", wildcardAccessURL),
+		"CODER_SWAGGER_ENABLE=true",
+		"CODER_DANGEROUS_ALLOW_CORS_REQUESTS=true",
+		"CODER_TELEMETRY_ENABLE=false",
+		"GOMODCACHE=/go-cache/mod",
+		"GOCACHE=/go-cache/build",
+		"CODER_CACHE_DIRECTORY=/cache",
+		fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
+		"CODER_PPROF_ENABLE=true",
+		"CODER_PPROF_ADDRESS=0.0.0.0:" + pprofPort,
+		"CODER_PROMETHEUS_ENABLE=true",
+		"CODER_PROMETHEUS_ADDRESS=0.0.0.0:" + prometheusPort,
+	}
+	env = append(env, c.ExtraEnv...)
+
+	serverArgs := []string{
+		"--http-address", httpAddress,
+		"--access-url", accessURL,
+		"--wildcard-access-url", wildcardAccessURL,
+		"--swagger-enable",
+		"--dangerous-allow-cors-requests=true",
+		"--enable-terraform-debug-mode",
+		"--pprof-enable",
+		"--pprof-address", "127.0.0.1:" + pprofPort,
+		"--prometheus-enable",
+		"--prometheus-address", "0.0.0.0:" + prometheusPort,
+		// OIDC configuration from the OIDC service.
+		"--oidc-issuer-url", "http://load-balancer:4500",
+		"--dangerous-oidc-skip-issuer-checks",
+		"--oidc-client-id", oidc.Result().ClientID,
+		"--oidc-client-secret", oidc.Result().ClientSecret,
+	}
+	serverArgs = append(serverArgs, c.ExtraArgs...)
+
+	var cmd []string
+	if c.watch {
+		// Use air for live reload via go tool.
+		cmd = []string{
+			"sh", "-c",
+			fmt.Sprintf("go tool air -c /app/scripts/cdev/.air.toml -- server %s",
+				strings.Join(serverArgs, " ")),
+		}
+	} else {
+		cmd = append([]string{"go", "run", "./enterprise/cmd/coder", "server"}, serverArgs...)
+	}
+
+	// Ensure the cdev bridge network exists.
+	if _, err := dkr.EnsureNetwork(ctx, NewLabels()); err != nil {
+		return nil, xerrors.Errorf("ensure network: %w", err)
+	}
+
+	// Start new container.
+	result, err := RunContainer(ctx, pool, CDevCoderd, ContainerRunOptions{
+		CreateOpts: docker.CreateContainerOptions{
+			Name: fmt.Sprintf("cdev_coderd_%d", index),
+			Config: &docker.Config{
+				Image:      dogfoodImage + ":" + dogfoodTag,
+				WorkingDir: "/app",
+				Env:        env,
+				Cmd:        cmd,
+				Labels:     labels,
+				Healthcheck: &docker.HealthConfig{
+					Test:     []string{"CMD-SHELL", "curl -sf http://localhost:3000/api/v2/buildinfo || exit 1"},
+					Interval: 2 * time.Second,
+					Timeout:  5 * time.Second,
+					Retries:  3,
+				},
+				ExposedPorts: map[docker.Port]struct{}{
+					docker.Port(httpPort + "/tcp"):       {},
+					docker.Port(pprofPort + "/tcp"):      {},
+					docker.Port(prometheusPort + "/tcp"): {},
+				},
+			},
+			HostConfig: &docker.HostConfig{
+				Binds: []string{
+					fmt.Sprintf("%s:/app", cwd),
+					fmt.Sprintf("%s:/go-cache", build.GoCache.Name),
+					fmt.Sprintf("%s:/cache", build.CoderCache.Name),
+					fmt.Sprintf("%s:/home/coder/.config/coderv2", coderConfig.Name),
+					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
+				},
+				GroupAdd:      []string{dockerGroup},
+				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						Aliases: []string{fmt.Sprintf("coderd-%d", index)},
+					},
+				},
+			},
+		},
+		Logger:          cntLogger,
+		Detached:        true,
+		DestroyExisting: true,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("run container: %w", err)
+	}
+
+	return result, nil
+}
+
+func (c *Coderd) waitForReady(ctx context.Context, logger slog.Logger) error {
+	for i := range c.haCount {
+		name := fmt.Sprintf("cdev_coderd_%d", i)
+		if err := waitForHealthy(ctx, logger, c.pool, name, 5*time.Minute); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Coderd) Stop(ctx context.Context) error {
+	return StopContainers(ctx, c.logger, c.pool, NewServiceLabels(CDevCoderd).Filter())
+}
+
+func (c *Coderd) Result() CoderdResult {
+	return c.result
+}
+
+// getDockerGroupID returns the GID of the docker group via getent,
+// falling back to "999" if the lookup fails.
+func getDockerGroupID() string {
+	out, err := exec.Command("getent", "group", "docker").Output()
+	if err == nil {
+		// Format is "docker:x:GID:users", we want the third field.
+		parts := strings.Split(strings.TrimSpace(string(out)), ":")
+		if len(parts) >= 3 {
+			return parts[2]
+		}
+	}
+	return "999"
+}

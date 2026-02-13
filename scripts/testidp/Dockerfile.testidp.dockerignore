@@ -1,0 +1,17 @@
+build
+site/*
+!site/*.go
+!site/static/*.html
+node_modules
+**/node_modules
+**/testdata
+docs/*
+helm/*
+.idea/*
+.github/*
+.git
+*.tsx
+*.ts
+*.md
+**.test
+**.bin
