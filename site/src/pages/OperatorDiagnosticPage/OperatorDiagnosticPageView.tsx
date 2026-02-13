@@ -15,7 +15,7 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { DiagnosticSummaryBar } from "./DiagnosticSummaryBar";
 import { PatternBanner } from "./PatternBanner";
@@ -46,6 +46,9 @@ export const OperatorDiagnosticPageView: FC<
 	selectedHours,
 	isDemo,
 }) => {
+	const [statusFilter, setStatusFilter] = useState("all");
+	const [workspaceFilter, setWorkspaceFilter] = useState("all");
+
 	return (
 		<Margins className="pb-12">
 			<Breadcrumb>
@@ -136,7 +139,13 @@ export const OperatorDiagnosticPageView: FC<
 			{/* Session list */}
 			{data && (
 				<div className="mt-4">
-					<SessionList workspaces={data.workspaces} />
+					<SessionList
+						workspaces={data.workspaces}
+						statusFilter={statusFilter}
+						workspaceFilter={workspaceFilter}
+						onStatusFilterChange={setStatusFilter}
+						onWorkspaceFilterChange={setWorkspaceFilter}
+					/>
 				</div>
 			)}
 		</Margins>

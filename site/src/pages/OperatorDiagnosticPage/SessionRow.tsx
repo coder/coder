@@ -74,9 +74,21 @@ function formatTimeShort(iso: string): string {
 	});
 }
 
-function connectionTypeLabel(session: DiagnosticSession): string {
+function connectionInfo(session: DiagnosticSession): string {
 	if (session.connections.length === 0) return "";
-	return session.connections[0].type;
+	if (session.connections.length === 1) {
+		const first = session.connections[0];
+		return first.detail || first.type;
+	}
+	return `${session.connections.length} connections`;
+}
+
+function clientDisplayLabel(session: DiagnosticSession): string {
+	if (session.short_description) return session.short_description;
+	if (session.client_hostname) return session.client_hostname;
+	if (session.ip === "127.0.0.1") return "Local (browser)";
+	if (session.ip.startsWith("fd7a:")) return "Tailnet peer";
+	return session.ip;
 }
 
 const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({
@@ -102,9 +114,8 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 	const [open, setOpen] = useState(false);
 	const variant = getStatusVariant(session);
 	const label = getDisplayLabel(session);
-	const clientLabel =
-		session.short_description || session.client_hostname || session.ip;
-	const typeLabel = connectionTypeLabel(session);
+	const clientLabel = clientDisplayLabel(session);
+	const typeLabel = connectionInfo(session);
 
 	const toggle = () => setOpen((v) => !v);
 
