@@ -39,14 +39,14 @@ interface ComboboxProps extends React.ComponentProps<typeof Popover> {
 	onValueChange?: (value: string | undefined) => void;
 }
 
-export function Combobox({
+export const Combobox = ({
 	children,
 	open: controlledOpen,
 	onOpenChange: controlledOnOpenChange,
 	value,
 	onValueChange,
 	...props
-}: ComboboxProps) {
+}: ComboboxProps) => {
 	const [internalOpen, setInternalOpen] = useState(false);
 
 	// Use controlled state if provided, otherwise use internal state
@@ -60,7 +60,7 @@ export function Combobox({
 			</Popover>
 		</ComboboxContext.Provider>
 	);
-}
+};
 
 export const ComboboxTrigger = PopoverTrigger;
 
@@ -70,7 +70,7 @@ interface ComboboxButtonProps extends React.ComponentPropsWithRef<"button"> {
 	placeholder?: string;
 }
 
-export function ComboboxButton({
+export const ComboboxButton = ({
 	children,
 	className,
 	width,
@@ -78,7 +78,7 @@ export function ComboboxButton({
 	placeholder,
 	ref,
 	...props
-}: ComboboxButtonProps) {
+}: ComboboxButtonProps) => {
 	return (
 		<Button
 			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
@@ -94,14 +94,14 @@ export function ComboboxButton({
 			<ChevronDownIcon className="size-icon-sm" />
 		</Button>
 	);
-}
+};
 
-export function ComboboxContent({
+export const ComboboxContent = ({
 	children,
 	className,
 	ref,
 	...props
-}: React.ComponentPropsWithRef<typeof PopoverContent>) {
+}: React.ComponentPropsWithRef<typeof PopoverContent>) => {
 	return (
 		<PopoverContent
 			ref={ref}
@@ -114,25 +114,23 @@ export function ComboboxContent({
 			<Command className="bg-surface-secondary">{children}</Command>
 		</PopoverContent>
 	);
-}
+};
 
 export const ComboboxInput = CommandInput;
 export const ComboboxList = CommandList;
 
-export function ComboboxItem({
+export const ComboboxItem = ({
 	children,
 	className,
 	onSelect,
 	value,
-	ref,
 	...props
-}: React.ComponentPropsWithRef<typeof CommandItem>) {
+}: React.ComponentPropsWithRef<typeof CommandItem>) => {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
 	const isSelected = value === selectedValue;
 
 	return (
 		<CommandItem
-			ref={ref}
 			value={value}
 			className={cn(className, "rounded-none")}
 			onSelect={(itemValue) => {
@@ -153,6 +151,6 @@ export function ComboboxItem({
 			/>
 		</CommandItem>
 	);
-}
+};
 
 export const ComboboxEmpty = CommandEmpty;
