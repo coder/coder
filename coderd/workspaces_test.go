@@ -3507,6 +3507,46 @@ func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "did not find expected audit log")
 }
 
+func TestWorkspaceAutomaticUpdates_RequireActiveVersion(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	admin := coderdtest.CreateFirstUser(t, client)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutomaticUpdates = codersdk.AutomaticUpdatesNever
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Verify the workspace initially reports "never".
+	ws, err := memberClient.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AutomaticUpdatesNever, ws.AutomaticUpdates)
+
+	// Enable require_active_version on the template directly in the
+	// database (setting it via the API requires an enterprise license).
+	err = db.UpdateTemplateAccessControlByID(dbauthz.AsSystemRestricted(ctx), database.UpdateTemplateAccessControlByIDParams{
+		ID:                   template.ID,
+		RequireActiveVersion: true,
+	})
+	require.NoError(t, err)
+
+	// The API should now report "always" even though the database
+	// value is still "never".
+	ws, err = memberClient.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AutomaticUpdatesAlways, ws.AutomaticUpdates)
+	require.True(t, ws.TemplateRequireActiveVersion)
+}
+
 func TestUpdateWorkspaceAutomaticUpdates_NotFound(t *testing.T) {
 	t.Parallel()
 	var (
