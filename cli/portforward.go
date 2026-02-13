@@ -84,7 +84,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 				return xerrors.New("no port-forwards requested")
 			}
 
-			workspace, workspaceAgent, _, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
+			workspace, workspaceAgent, _, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, false, inv.Args[0])
 			if err != nil {
 				return err
 			}
