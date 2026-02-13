@@ -97,7 +97,7 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 		reconnectID = uuid.New()
 	}
 
-	ws, agt, _, err := GetWorkspaceAndAgent(ctx, inv, client, true, args.NamedWorkspace)
+	ws, agt, _, err := GetWorkspaceAndAgent(ctx, inv, client, true, false, args.NamedWorkspace)
 	if err != nil {
 		return err
 	}
