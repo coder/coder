@@ -80,43 +80,61 @@ function formatTimeShort(iso: string): string {
 	});
 }
 
-function connectionInfo(session: DiagnosticSession): string {
+const friendlyType: Record<string, string> = {
+	vscode: "VS Code",
+	ssh: "SSH",
+	reconnecting_pty: "Terminal",
+	workspace_app: "App",
+	port_forwarding: "Port",
+	jetbrains: "JetBrains",
+	system: "System",
+};
+
+// typeDisplayLabel is the PROMINENT first column. Shows what kind of
+// activity this session represents: "VS Code", "SSH", "code-server",
+// "Port 6666 (3)", etc.
+function typeDisplayLabel(session: DiagnosticSession): string {
 	if (session.connections.length === 0) return "";
-	if (session.connections.length === 1) {
-		const first = session.connections[0];
-		return first.detail || first.type;
+	const first = session.connections[0];
+	const count = session.connections.length;
+
+	let label: string;
+	if (first.type === "workspace_app" && first.detail) {
+		label = first.detail;
+	} else if (first.type === "port_forwarding" && first.detail) {
+		label = `Port ${first.detail}`;
+	} else {
+		label = friendlyType[first.type] || first.type;
 	}
-	return `${session.connections.length} connections`;
+
+	if (count > 1) {
+		label += ` (${count})`;
+	}
+	return label;
 }
 
-// clientDisplayLabel returns the visible label for a session row.
-// Prefers short_description, then hostname, then IP as fallback.
+// clientDisplayLabel is the primary line in the client identity column.
 function clientDisplayLabel(session: DiagnosticSession): string {
-	if (session.short_description) {
-		if (session.client_hostname) {
-			return `${session.short_description} (${session.client_hostname})`;
-		}
-		return session.short_description;
-	}
-	if (session.client_hostname) {
-		return session.client_hostname;
-	}
-	if (session.ip === "127.0.0.1") {
-		return "127.0.0.1 (local)";
-	}
+	if (session.short_description) return session.short_description;
+	if (session.client_hostname) return session.client_hostname;
+	if (session.ip === "127.0.0.1") return "127.0.0.1 (local)";
 	return session.ip || "Unknown";
 }
 
-// tooltipIP returns the IP to show in an (i) tooltip, or null if the
-// IP is already the primary label or not a tailnet address.
+// clientSecondaryLabel is the second line (hostname) when the primary
+// line is a description. Returns null when there's nothing extra to show.
+function clientSecondaryLabel(session: DiagnosticSession): string | null {
+	if (session.short_description && session.client_hostname) {
+		return session.client_hostname;
+	}
+	return null;
+}
+
+// tooltipIP returns the IP for an (i) tooltip. Tailnet IPs are shown
+// via tooltip when a friendlier label exists.
 function tooltipIP(session: DiagnosticSession): string | null {
-	// Only show tooltip when there's a hostname/description AND a tailnet IP.
 	const hasLabel = session.short_description || session.client_hostname;
-	if (!hasLabel) return null;
-	if (!session.ip) return null;
-	// Always show tailnet IPs in tooltip (they're internal, noisy inline).
-	if (session.ip.startsWith("fd7a:")) return session.ip;
-	// Non-tailnet IPs (127.0.0.1, external) are meaningful, show in tooltip too.
+	if (!hasLabel || !session.ip) return null;
 	return session.ip;
 }
 
@@ -143,9 +161,10 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 	const [open, setOpen] = useState(false);
 	const variant = getStatusVariant(session);
 	const label = getDisplayLabel(session);
+	const typeLabel = typeDisplayLabel(session);
 	const clientLabel = clientDisplayLabel(session);
+	const clientSecondary = clientSecondaryLabel(session);
 	const ipForTooltip = tooltipIP(session);
-	const typeLabel = connectionInfo(session);
 
 	const toggle = () => setOpen((v) => !v);
 
@@ -157,7 +176,7 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 		>
 			<TableCell css={{ padding: "0 !important", border: 0 }}>
 				<div
-					className="flex items-center gap-3 px-8 py-4 cursor-pointer"
+					className="flex items-center gap-3 px-8 py-3 cursor-pointer"
 					onClick={toggle}
 					onKeyDown={(e) => {
 						if (e.key === "Enter") toggle();
@@ -167,7 +186,13 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 				>
 					<StatusIndicatorDot variant={variant} size="sm" />
 
-					<span className="text-sm text-content-primary truncate min-w-0 inline-flex items-center gap-1.5">
+					{/* Type + detail: PROMINENT first column */}
+					<span className="text-sm font-medium text-content-primary w-36 shrink-0 truncate">
+						{typeLabel}
+					</span>
+
+					{/* Source / client description */}
+					<span className="text-xs text-content-secondary truncate min-w-0 flex-1 inline-flex items-center gap-1.5">
 						{clientLabel}
 						{ipForTooltip && (
 							<Tooltip>
@@ -179,20 +204,32 @@ export const SessionRow: FC<SessionRowProps> = ({ session }) => {
 						)}
 					</span>
 
-					<span className="text-xs text-content-secondary truncate">
-						{session.workspace_name}
-						{typeLabel && ` · ${typeLabel}`}
+					{/* Hostname */}
+					<span className="text-xs font-mono text-content-secondary w-24 shrink-0 truncate">
+						{clientSecondary || ""}
 					</span>
 
-					<span className="text-xs text-content-secondary ml-auto shrink-0">
+					{/* Workspace */}
+					<span className="text-xs text-content-secondary w-36 shrink-0 truncate">
+						{session.workspace_name}
+					</span>
+
+					{/* Duration */}
+					<span className="text-xs text-content-secondary w-20 shrink-0 text-right">
 						{formatDuration(session.duration_seconds)}
 					</span>
 
-					<span className="text-2xs font-mono text-content-secondary shrink-0">
+					{/* Time */}
+					<span className="text-2xs font-mono text-content-secondary w-12 shrink-0 text-right">
 						{formatTimeShort(session.started_at)}
 					</span>
 
-					<StatusIndicator variant={variant} size="sm">
+					{/* Status */}
+					<StatusIndicator
+						variant={variant}
+						size="sm"
+						className="w-36 shrink-0 justify-end"
+					>
 						<StatusIndicatorDot />
 						{label}
 					</StatusIndicator>

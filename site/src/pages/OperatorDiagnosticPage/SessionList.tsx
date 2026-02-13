@@ -1,6 +1,13 @@
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { Timeline } from "components/Timeline/Timeline";
 import type { FC } from "react";
 import { SessionRow } from "./SessionRow";
@@ -87,6 +94,23 @@ export const SessionList: FC<SessionListProps> = ({
 				)}
 			</div>
 			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="p-0">
+							<div className="flex items-center gap-3 px-8 py-2 text-xs">
+								<span className="w-2 shrink-0" />
+								<span className="w-36 shrink-0">Type</span>
+								<span className="min-w-0 flex-1">Source</span>
+								<span className="w-24 shrink-0">Host</span>
+								<span className="w-36 shrink-0">Workspace</span>
+								<span className="w-20 shrink-0 text-right">Duration</span>
+								<span className="w-12 shrink-0 text-right">Time</span>
+								<span className="w-36 shrink-0 text-right">Status</span>
+								<span className="w-4 shrink-0" />
+							</div>
+						</TableHead>
+					</TableRow>
+				</TableHeader>
 				<TableBody>
 					{filtered.length === 0 ? (
 						<TableRow>
