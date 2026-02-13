@@ -24,7 +24,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { PlusIcon, RotateCwIcon, SparklesIcon } from "lucide-react";
+import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
@@ -196,11 +196,11 @@ const LicenseUpgradeSuccessDialog: FC<LicenseUpgradeSuccessDialogProps> = ({
 		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
 			<DialogContent className="max-w-md">
 				<div className="flex flex-col items-center text-center gap-4">
-					{/* Placeholder for Blink animation - replace with Rive/Lottie animation
-					   following the 6th brand ident from https://coder.com/brand#4-idents */}
-					<div className="flex items-center justify-center size-20 rounded-full bg-surface-secondary">
-						<SparklesIcon className="size-10 text-content-link" />
-					</div>
+					<img
+						src="/blink-ident.svg"
+						alt="Blink animation"
+						className="size-24"
+					/>
 				</div>
 
 				<DialogHeader className="items-center">
