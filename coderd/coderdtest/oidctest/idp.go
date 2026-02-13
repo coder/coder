@@ -173,6 +173,11 @@ type FakeIDP struct {
 	// externalProviderID is optional to match the provider in coderd for
 	// redirectURLs.
 	externalProviderID string
+	// backchannelBaseURL overrides server-to-server endpoint URLs
+	// (token, userinfo, jwks, revocation, device auth) in the OIDC
+	// discovery response. The authorization_endpoint stays on the
+	// issuer URL so browsers can still reach it.
+	backchannelBaseURL string
 	logger             slog.Logger
 	// externalAuthValidate will be called when the user tries to validate their
 	// external auth. The fake IDP will reject any invalid tokens, so this just
@@ -372,6 +377,12 @@ func WithServing() func(*FakeIDP) {
 	}
 }
 
+func WithBackchannelBaseURL(u string) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.backchannelBaseURL = u
+	}
+}
+
 func WithIssuer(issuer string) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.locked.SetIssuer(issuer)
@@ -521,7 +532,7 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	f.locked.SetIssuerURL(u)
 	// ProviderJSON is the JSON representation of the OpenID Connect provider
 	// These are all the urls that the IDP will respond to.
-	f.locked.SetProvider(ProviderJSON{
+	pj := ProviderJSON{
 		Issuer:        issuer,
 		AuthURL:       u.ResolveReference(&url.URL{Path: authorizePath}).String(),
 		TokenURL:      u.ResolveReference(&url.URL{Path: tokenPath}).String(),
@@ -533,7 +544,25 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 			"RS256",
 		},
 		ExternalAuthURL: u.ResolveReference(&url.URL{Path: "/external-auth-validate/user"}).String(),
-	})
+	}
+
+	// If a backchannel base URL is configured, override the
+	// server-to-server endpoints so that coderd (running in a
+	// container) can reach the IDP over the Docker network while
+	// browsers keep using the issuer URL for authorization.
+	if f.backchannelBaseURL != "" {
+		bu, err := url.Parse(f.backchannelBaseURL)
+		require.NoError(t, err, "invalid backchannel base URL")
+
+		pj.TokenURL = bu.ResolveReference(&url.URL{Path: tokenPath}).String()
+		pj.JWKSURL = bu.ResolveReference(&url.URL{Path: keysPath}).String()
+		pj.UserInfoURL = bu.ResolveReference(&url.URL{Path: userInfoPath}).String()
+		pj.RevokeURL = bu.ResolveReference(&url.URL{Path: revokeTokenPath}).String()
+		pj.DeviceCodeURL = bu.ResolveReference(&url.URL{Path: deviceAuth}).String()
+		pj.ExternalAuthURL = bu.ResolveReference(&url.URL{Path: "/external-auth-validate/user"}).String()
+	}
+
+	f.locked.SetProvider(pj)
 }
 
 // realServer turns the FakeIDP into a real http server.

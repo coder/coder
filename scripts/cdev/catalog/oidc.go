@@ -128,6 +128,7 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 					"-client-id", testidpClientID,
 					"-client-sec", testidpClientSec,
 					"-issuer", testidpIssuerURL,
+					"-backchannel-base-url", "http://load-balancer:4500",
 				},
 				Labels:       labels,
 				ExposedPorts: map[docker.Port]struct{}{testidpPort: {}},

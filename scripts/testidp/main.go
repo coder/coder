@@ -30,7 +30,8 @@ var (
 	issuerURL    = flag.String("issuer", "http://localhost:4500", "Issuer URL that clients will use to reach this IDP")
 	// By default, no regex means it will never match anything. So at least default to matching something.
 	extRegex        = flag.String("ext-regex", `^(https?://)?example\.com(/.*)?$`, "External auth regex")
-	tooManyRequests = flag.String("429", "", "Simulate too many requests for a given endpoint.")
+	backchannelBaseURL = flag.String("backchannel-base-url", "", "Base URL for server-to-server endpoints (token, userinfo, jwks). When set, these endpoints in discovery use this URL while authorization_endpoint keeps the -issuer URL.")
+	tooManyRequests    = flag.String("429", "", "Simulate too many requests for a given endpoint.")
 )
 
 func main() {
@@ -106,6 +107,7 @@ func RunIDP() func(t *testing.T) {
 			oidctest.WithDefaultExpire(*expiry),
 			oidctest.WithStaticCredentials(*clientID, *clientSecret),
 			oidctest.WithIssuer(*issuerURL),
+			oidctest.WithBackchannelBaseURL(*backchannelBaseURL),
 			oidctest.WithLogger(slog.Make(sloghuman.Sink(os.Stderr))),
 			oidctest.With429(tooManyRequestParams),
 		)
