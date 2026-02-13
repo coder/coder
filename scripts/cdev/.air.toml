@@ -7,6 +7,11 @@ tmp_dir = "tmp"
   exclude_dir = ["site", "node_modules", ".git", "tmp", "vendor", ".coderv2", "bin", "build", "dist", "out", "test-output", "scaletest"]
   exclude_regex = ["_test\\.go$"]
   include_ext = ["go"]
+  # Use polling instead of fsnotify. This is required for macOS +
+  # Colima (and similar VM-based Docker setups) where host filesystem
+  # events are not propagated into the container via inotify.
+  poll = true
+  poll_interval = 10000
   delay = 10000
   kill_delay = 5000
   send_interrupt = true
