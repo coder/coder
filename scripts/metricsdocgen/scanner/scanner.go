@@ -50,11 +50,25 @@ type Metric struct {
 	Labels []string   // Label names for this metric
 }
 
+// metricOpts holds the fields extracted from a prometheus.*Opts struct.
+type metricOpts struct {
+	Namespace string
+	Subsystem string
+	Name      string
+	Help      string
+}
+
 // declarations holds const/var values collected from a file for resolving references.
 type declarations struct {
 	strings      map[string]string   // string constants/variables
 	stringSlices map[string][]string // []string variables
 }
+
+// packageDeclarations holds exported string constants collected from all scanned files,
+// keyed by package name. This allows resolving cross-file references.
+// Note: resolution depends on directory scan order in scanDirs, i.e.,
+// constants from later directories won't be available when scanning earlier ones.
+var packageDeclarations = make(map[string]map[string]string)
 
 func main() {
 	metrics, err := scanAllDirs()
@@ -142,7 +156,10 @@ func scanFile(path string) ([]Metric, error) {
 		return nil, xerrors.Errorf("parsing file: %w", err)
 	}
 
-	// First pass: collect const and var declarations for resolving references.
+	// Collect exported constants into the global package declarations map.
+	collectPackageConsts(file)
+
+	// Collect file-local const and var declarations for resolving references.
 	decls := collectDecls(file)
 
 	var metrics []Metric
@@ -156,6 +173,11 @@ func scanFile(path string) ([]Metric, error) {
 
 		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
+			// TODO(ssncferreira): Consider filtering out metrics with empty Help descriptions.
+			//   These indicate missing documentation in the source code.
+			if metric.Help == "" {
+				log.Printf("WARNING: metric %q has no HELP description, consider updating the source code", metric.Name)
+			}
 			metrics = append(metrics, metric)
 		}
 
@@ -165,10 +187,51 @@ func scanFile(path string) ([]Metric, error) {
 	return metrics, nil
 }
 
+// collectPackageConsts collects exported string constants from a file into
+// the global packageDeclarations map, keyed by package name.
+func collectPackageConsts(file *ast.File) {
+	pkgName := file.Name.Name
+
+	if packageDeclarations[pkgName] == nil {
+		packageDeclarations[pkgName] = make(map[string]string)
+	}
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.CONST {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+
+			for i, name := range valueSpec.Names {
+				if !ast.IsExported(name.Name) {
+					continue
+				}
+
+				if i >= len(valueSpec.Values) {
+					continue
+				}
+
+				if lit, ok := valueSpec.Values[i].(*ast.BasicLit); ok {
+					if lit.Kind == token.STRING {
+						packageDeclarations[pkgName][name.Name] = strings.Trim(lit.Value, `"`)
+					}
+				}
+			}
+		}
+	}
+}
+
 // resolveStringExpr attempts to resolve an expression to a string value.
 // Examples:
 //   - "my_metric": "my_metric" (string literal)
 //   - metricName: resolved value of metricName constant (identifier)
+//   - agentmetrics.LabelUsername: resolved from package constants (selector)
 func resolveStringExpr(expr ast.Expr, decls declarations) string {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
@@ -177,7 +240,15 @@ func resolveStringExpr(expr ast.Expr, decls declarations) string {
 		return decls.strings[e.Name]
 	case *ast.BinaryExpr:
 		return resolveBinaryExpr(e, decls)
+	case *ast.SelectorExpr:
+		// Handle pkg.Const syntax.
+		if ident, ok := e.X.(*ast.Ident); ok {
+			if pkgConsts, ok := packageDeclarations[ident.Name]; ok {
+				return pkgConsts[e.Sel.Name]
+			}
+		}
 	}
+
 	return ""
 }
 
@@ -331,6 +402,153 @@ func extractNewDescMetric(call *ast.CallExpr, decls declarations) (Metric, bool)
 	}, true
 }
 
+// parseMetricFuncName parses a prometheus function name and returns the metric type
+// and whether it's a Vec type. Returns empty string if not a recognized metric function.
+func parseMetricFuncName(funcName string) (MetricType, bool) {
+	isVec := strings.HasSuffix(funcName, "Vec")
+	baseName := strings.TrimSuffix(funcName, "Vec")
+
+	switch baseName {
+	case "NewGauge":
+		return MetricTypeGauge, isVec
+	case "NewCounter":
+		return MetricTypeCounter, isVec
+	case "NewHistogram":
+		return MetricTypeHistogram, isVec
+	case "NewSummary":
+		return MetricTypeSummary, isVec
+	}
+	return "", false
+}
+
+// extractOpts extracts fields from a prometheus.*Opts composite literal.
+func extractOpts(expr ast.Expr, decls declarations) (metricOpts, bool) {
+	// Handle both direct composite literals and calls that return opts.
+	var lit *ast.CompositeLit
+
+	switch e := expr.(type) {
+	case *ast.CompositeLit:
+		lit = e
+	case *ast.UnaryExpr:
+		// Handle &prometheus.GaugeOpts{...}
+		if l, ok := e.X.(*ast.CompositeLit); ok {
+			lit = l
+		}
+	}
+
+	if lit == nil {
+		return metricOpts{}, false
+	}
+
+	var opts metricOpts
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+
+		value := resolveStringExpr(kv.Value, decls)
+
+		switch key.Name {
+		case "Namespace":
+			opts.Namespace = value
+		case "Subsystem":
+			opts.Subsystem = value
+		case "Name":
+			opts.Name = value
+		case "Help":
+			opts.Help = value
+		}
+	}
+
+	return opts, opts.Name != ""
+}
+
+// buildMetricName constructs the full metric name from namespace, subsystem, and name.
+func buildMetricName(namespace, subsystem, name string) string {
+	metricNameParts := make([]string, 0, 3)
+	if namespace != "" {
+		metricNameParts = append(metricNameParts, namespace)
+	}
+	if subsystem != "" {
+		metricNameParts = append(metricNameParts, subsystem)
+	}
+	if name != "" {
+		metricNameParts = append(metricNameParts, name)
+	}
+	// Join non-empty parts with "_" to handle optional namespace/subsystem.
+	// e.g., ("coderd", "", "agents_up"): "coderd_agents_up"
+	return strings.Join(metricNameParts, "_")
+}
+
+// extractOptsMetric extracts a metric from prometheus.New*() or prometheus.New*Vec() calls.
+// Supported patterns:
+//   - prometheus.NewGauge(prometheus.GaugeOpts{...})
+//   - prometheus.NewCounter(prometheus.CounterOpts{...})
+//   - prometheus.NewHistogram(prometheus.HistogramOpts{...})
+//   - prometheus.NewSummary(prometheus.SummaryOpts{...})
+//   - prometheus.NewGaugeVec(prometheus.GaugeOpts{...}, labels)
+//   - prometheus.NewCounterVec(prometheus.CounterOpts{...}, labels)
+//   - prometheus.NewHistogramVec(prometheus.HistogramOpts{...}, labels)
+//   - prometheus.NewSummaryVec(prometheus.SummaryOpts{...}, labels)
+func extractOptsMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return Metric{}, false
+	}
+
+	// Match calls that are exactly "prometheus.New*(...)". This checks the local
+	// package identifier, not the resolved import path. If the prometheus package
+	// is imported with an alias, this will not match.
+	ident, ok := sel.X.(*ast.Ident)
+	if !ok || ident.Name != "prometheus" {
+		return Metric{}, false
+	}
+
+	funcName := sel.Sel.Name
+	metricType, isVec := parseMetricFuncName(funcName)
+	if metricType == "" {
+		return Metric{}, false
+	}
+
+	// Need at least one argument (the Opts struct).
+	if len(call.Args) < 1 {
+		return Metric{}, false
+	}
+
+	// Extract metric info from the Opts struct.
+	opts, ok := extractOpts(call.Args[0], decls)
+	if !ok {
+		log.Printf("extractOptsMetric: skipping prometheus.%s() call: could not extract opts", funcName)
+		return Metric{}, false
+	}
+
+	// Extract labels for Vec types.
+	var labels []string
+	if isVec && len(call.Args) >= 2 {
+		labels = extractLabels(call.Args[1], decls)
+	}
+
+	// Build the full metric name.
+	name := buildMetricName(opts.Namespace, opts.Subsystem, opts.Name)
+	if name == "" {
+		log.Printf("extractOptsMetric: skipping prometheus.%s() call: could not build metric name", funcName)
+		return Metric{}, false
+	}
+
+	return Metric{
+		Name:   name,
+		Type:   metricType,
+		Help:   opts.Help,
+		Labels: labels,
+	}, true
+}
+
 // extractMetricFromCall attempts to extract a Metric from a function call expression.
 // It returns the metric and true if successful, or an empty metric and false if
 // the call is not a metric registration.
@@ -345,8 +563,12 @@ func extractMetricFromCall(call *ast.CallExpr, decls declarations) (Metric, bool
 		return metric, true
 	}
 
+	// Check for prometheus.New*() and prometheus.New*Vec() patterns.
+	if metric, ok := extractOptsMetric(call, decls); ok {
+		return metric, true
+	}
+
 	// TODO(ssncferreira): Implement upstack.
-	// 	Handle prometheus.New*Vec() and prometheus.New*() with *Opts{}
 	// 	Handle promauto.With(reg).New*() pattern
 
 	return Metric{}, false
