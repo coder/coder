@@ -9,12 +9,7 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
-// peerNetworkTelemetryMaxAge controls how long peer telemetry entries
-// are retained after their last update. A longer window means recent
-// connections still show P2P/latency data even if no new telemetry
-// events arrive (e.g., idle SSH sessions). The memory cost is negligible
-// (~50 bytes per peer entry).
-const peerNetworkTelemetryMaxAge = 72 * time.Hour
+const peerNetworkTelemetryMaxAge = 2 * time.Minute
 
 type PeerNetworkTelemetry struct {
 	P2P           *bool
