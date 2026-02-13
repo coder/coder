@@ -179,11 +179,7 @@ type TaskRowProps = {
 	onCheckChange: (taskId: string, checked: boolean) => void;
 };
 
-const TaskRow: FC<TaskRowProps> = ({
-	task,
-	checked,
-	onCheckChange,
-}) => {
+const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
