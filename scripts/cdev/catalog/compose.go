@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -124,7 +125,56 @@ func Generate(cfg ComposeConfig) *ComposeFile {
 	if cfg.Prometheus {
 		cf.AddPrometheus()
 	}
+	cf.AddLoadBalancer(cfg.CoderdCount)
 
+	return cf
+}
+// AddLoadBalancer adds the nginx load balancer service that fronts
+// all cdev services with separate listeners per service.
+func (cf *ComposeFile) AddLoadBalancer(haCount int) *ComposeFile {
+	cfg := cf.cfg
+	if haCount < 1 {
+		haCount = 1
+	}
+
+	nginxConf := filepath.Join(cfg.CWD, ".cdev-lb", "nginx.conf")
+
+	var ports []string
+	addPort := func(port int) {
+		ports = append(ports, fmt.Sprintf("%d:%d", port, port))
+	}
+
+	// Load-balanced coderd.
+	addPort(coderdBasePort)
+	// Individual coderd instances (3001..3000+N).
+	for i := range haCount {
+		addPort(coderdBasePort + 1 + i)
+	}
+	// pprof per instance.
+	for i := range haCount {
+		addPort(pprofBasePort + i)
+	}
+	// Metrics per instance.
+	for i := range haCount {
+		addPort(prometheusBasePort + i)
+	}
+	// OIDC.
+	addPort(oidcPort)
+	// Prometheus UI.
+	addPort(prometheusUIPort2)
+	// Site dev server.
+	addPort(sitePort)
+
+	cf.Services["load-balancer"] = ComposeService{
+		Image:    nginxImage + ":" + nginxTag,
+		Volumes:  []string{nginxConf + ":/etc/nginx/nginx.conf:ro"},
+		Ports:    ports,
+		Networks: []string{composeNetworkName},
+		Labels:   composeServiceLabels("load-balancer"),
+		DependsOn: map[string]ComposeDependsOn{
+			"coderd-0": {Condition: "service_started"},
+		},
+	}
 	return cf
 }
 

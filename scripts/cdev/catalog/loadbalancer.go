@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"text/template"
 
-	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -83,16 +82,8 @@ func (lb *LoadBalancer) Start(ctx context.Context, logger slog.Logger, cat *Cata
 	if !ok {
 		return xerrors.New("unexpected type for Docker service")
 	}
-	pool := dkr.Result()
 
 	coderd := cat.MustGet(OnCoderd()).(*Coderd)
-
-	labels := NewServiceLabels(CDevLoadBalancer)
-
-	networkID, err := dkr.EnsureNetwork(ctx, labels)
-	if err != nil {
-		return xerrors.Errorf("ensure network: %w", err)
-	}
 
 	haCount := int(coderd.HACount())
 	if haCount < 1 {
@@ -119,14 +110,10 @@ func (lb *LoadBalancer) Start(ctx context.Context, logger slog.Logger, cat *Cata
 		return xerrors.Errorf("write nginx.conf: %w", err)
 	}
 
-	// Build port bindings and exposed ports.
-	portBindings := map[docker.Port][]docker.PortBinding{}
-	exposedPorts := map[docker.Port]struct{}{}
-
+	// Build port mappings for the compose service.
+	var ports []string
 	addPort := func(port int) {
-		p := docker.Port(fmt.Sprintf("%d/tcp", port))
-		portBindings[p] = []docker.PortBinding{{HostIP: "127.0.0.1", HostPort: fmt.Sprintf("%d", port)}}
-		exposedPorts[p] = struct{}{}
+		ports = append(ports, fmt.Sprintf("%d:%d", port, port))
 	}
 
 	// Load-balanced coderd.
@@ -153,39 +140,19 @@ func (lb *LoadBalancer) Start(ctx context.Context, logger slog.Logger, cat *Cata
 	lb.setStep("starting nginx container")
 	logger.Info(ctx, "starting load balancer container", slog.F("ha_count", haCount))
 
-	cntSink := NewLoggerSink(cat.w, lb)
-	cntLogger := slog.Make(cntSink)
-	defer cntSink.Close()
-
-	_, err = RunContainer(ctx, pool, CDevLoadBalancer, ContainerRunOptions{
-		CreateOpts: docker.CreateContainerOptions{
-			Name: "cdev_load_balancer",
-			Config: &docker.Config{
-				Image:        nginxImage + ":" + nginxTag,
-				Labels:       labels,
-				ExposedPorts: exposedPorts,
-			},
-			HostConfig: &docker.HostConfig{
-				Binds: []string{
-					filepath.Join(tmpDir, "nginx.conf") + ":/etc/nginx/nginx.conf:ro",
-				},
-				PortBindings: portBindings,
-			},
-			NetworkingConfig: &docker.NetworkingConfig{
-				EndpointsConfig: map[string]*docker.EndpointConfig{
-					CDevNetworkName: {
-						NetworkID: networkID,
-						Aliases:   []string{"load-balancer"},
-					},
-				},
-			},
+	dkr.SetCompose("load-balancer", ComposeService{
+		Image:    nginxImage + ":" + nginxTag,
+		Volumes:  []string{filepath.Join(tmpDir, "nginx.conf") + ":/etc/nginx/nginx.conf:ro"},
+		Ports:    ports,
+		Networks: []string{composeNetworkName},
+		Labels:   composeServiceLabels("load-balancer"),
+		DependsOn: map[string]ComposeDependsOn{
+			"coderd-0": {Condition: "service_started"},
 		},
-		Logger:          cntLogger,
-		Detached:        true,
-		DestroyExisting: true,
 	})
-	if err != nil {
-		return xerrors.Errorf("run load balancer container: %w", err)
+
+	if err := dkr.DockerComposeUp(ctx, "load-balancer"); err != nil {
+		return xerrors.Errorf("start load balancer container: %w", err)
 	}
 
 	lb.result = LoadBalancerResult{
