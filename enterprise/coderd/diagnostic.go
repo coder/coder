@@ -1322,8 +1322,15 @@ func mergePeeringEventsIntoTimeline(
 		end = *endedAt
 	}
 
+	// Allow events slightly outside the session boundaries. Tunnel
+	// setup precedes the connection log, and teardown events
+	// (tunnel_removed, peer_lost) arrive after the disconnect is logged.
+	const peeringTimeTolerance = 1 * time.Minute
+	filterStart := startedAt.Add(-peeringTimeTolerance)
+	filterEnd := end.Add(peeringTimeTolerance)
+
 	for _, pe := range peeringEvents {
-		if pe.OccurredAt.Before(startedAt) || pe.OccurredAt.After(end) {
+		if pe.OccurredAt.Before(filterStart) || pe.OccurredAt.After(filterEnd) {
 			continue
 		}
 
