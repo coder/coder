@@ -3,7 +3,6 @@ package catalog
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -335,6 +334,12 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 				Env:        env,
 				Cmd:        cmd,
 				Labels:     labels,
+				Healthcheck: &docker.HealthConfig{
+					Test:     []string{"CMD-SHELL", "curl -sf http://localhost:3000/api/v2/buildinfo || exit 1"},
+					Interval: 2 * time.Second,
+					Timeout:  5 * time.Second,
+					Retries:  3,
+				},
 				ExposedPorts: map[docker.Port]struct{}{
 					docker.Port(httpPort + "/tcp"):       {},
 					docker.Port(pprofPort + "/tcp"):      {},
@@ -372,37 +377,13 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 }
 
 func (c *Coderd) waitForReady(ctx context.Context, logger slog.Logger) error {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	// Coderd can take a while to start, especially on first run with go run.
-	timeout := time.After(5 * time.Minute)
-	healthURL := c.result.URL + "/api/v2/buildinfo" // this actually returns when the server is ready, as opposed to healthz
-
-	logger.Info(ctx, "waiting for coderd to be ready", slog.F("health_url", healthURL))
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return xerrors.New("timeout waiting for coderd to be ready")
-		case <-ticker.C:
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				continue
-			}
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				logger.Info(ctx, "coderd server is ready and accepting connections", slog.F("url", c.result.URL))
-				return nil
-			}
+	for i := range c.haCount {
+		name := fmt.Sprintf("cdev_coderd_%d", i)
+		if err := waitForHealthy(ctx, logger, c.pool, name, 5*time.Minute); err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
 func (c *Coderd) Stop(ctx context.Context) error {

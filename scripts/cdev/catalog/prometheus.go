@@ -233,28 +233,7 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 }
 
 func (p *Prometheus) waitForReady(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	timeout := time.After(60 * time.Second)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return xerrors.New("timeout waiting for prometheus to be ready")
-		case <-ticker.C:
-			ctr, err := pool.Client.InspectContainer("cdev_prometheus")
-			if err != nil {
-				continue
-			}
-			if ctr.State.Health.Status == "healthy" {
-				logger.Info(ctx, "prometheus is ready")
-				return nil
-			}
-		}
-	}
+	return waitForHealthy(ctx, logger, pool, "cdev_prometheus", 60*time.Second)
 }
 
 func (*Prometheus) Stop(_ context.Context) error {

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
@@ -47,6 +48,7 @@ type Postgres struct {
 	currentStep atomic.Pointer[string]
 	containerID string
 	result      PostgresResult
+	pool        *dockertest.Pool
 }
 
 func (p *Postgres) CurrentStep() string {
@@ -85,6 +87,7 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 		return xerrors.New("unexpected type for Docker service")
 	}
 	pool := d.Result()
+	p.pool = pool
 
 	// Ensure the cdev bridge network exists so containers can communicate
 	// via Docker DNS.
@@ -154,6 +157,12 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 					"POSTGRES_USER=" + postgresUser,
 					"POSTGRES_PASSWORD=" + postgresPassword,
 					"POSTGRES_DB=" + postgresDB,
+				},
+				Healthcheck: &docker.HealthConfig{
+					Test:     []string{"CMD-SHELL", "pg_isready -U coder -d coder || exit 1"},
+					Interval: 2 * time.Second,
+					Timeout:  2 * time.Second,
+					Retries:  3,
 				},
 				Labels: labels,
 			},
@@ -256,29 +265,7 @@ func (p *Postgres) waitForMigrations(ctx context.Context, logger slog.Logger) er
 }
 
 func (p *Postgres) waitForReady(ctx context.Context, logger slog.Logger) error {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	timeout := time.After(60 * time.Second)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return xerrors.New("timeout waiting for postgres to be ready")
-		case <-ticker.C:
-			db, err := sql.Open("postgres", p.result.URL)
-			if err != nil {
-				continue
-			}
-			err = db.PingContext(ctx)
-			_ = db.Close()
-			if err == nil {
-				logger.Info(ctx, "postgres is ready", slog.F("url", p.result.URL))
-				return nil
-			}
-		}
-	}
+	return waitForHealthy(ctx, logger, p.pool, "cdev_postgres", 60*time.Second)
 }
 
 func (*Postgres) Stop(_ context.Context) error {

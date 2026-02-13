@@ -3,11 +3,11 @@ package catalog
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"sync/atomic"
 	"time"
 
+	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
@@ -37,6 +37,7 @@ type Site struct {
 	currentStep atomic.Pointer[string]
 	containerID string
 	result      SiteResult
+	pool        *dockertest.Pool
 }
 
 func (s *Site) CurrentStep() string {
@@ -81,6 +82,7 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 		return xerrors.New("unexpected type for Docker service")
 	}
 	pool := dkr.Result()
+	s.pool = pool
 
 	labels := NewServiceLabels(CDevSite)
 
@@ -138,7 +140,13 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 				WorkingDir: "/app/site",
 				Env:        env,
 				Cmd:        cmd,
-				Labels:     labels,
+				Labels: labels,
+				Healthcheck: &docker.HealthConfig{
+					Test:     []string{"CMD-SHELL", fmt.Sprintf("wget -q --spider http://localhost:%d || exit 1", sitePort)},
+					Interval: 2 * time.Second,
+					Timeout:  2 * time.Second,
+					Retries:  3,
+				},
 				ExposedPorts: map[docker.Port]struct{}{
 					docker.Port(portStr + "/tcp"): {},
 				},
@@ -180,38 +188,7 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 }
 
 func (s *Site) waitForReady(ctx context.Context, logger slog.Logger) error {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	// Site dev server can take a while to start, especially on first run
-	// with pnpm install.
-	timeout := time.After(5 * time.Minute)
-	healthURL := s.result.URL
-
-	logger.Info(ctx, "waiting for site dev server to be ready", slog.F("health_url", healthURL))
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return xerrors.New("timeout waiting for site dev server to be ready")
-		case <-ticker.C:
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				continue
-			}
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				logger.Info(ctx, "site dev server is ready and accepting connections", slog.F("url", s.result.URL))
-				return nil
-			}
-		}
-	}
+	return waitForHealthy(ctx, logger, s.pool, "cdev_site", 5*time.Minute)
 }
 
 func (*Site) Stop(_ context.Context) error {

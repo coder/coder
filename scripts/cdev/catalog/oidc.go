@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"os/exec"
 	"sync/atomic"
@@ -130,7 +129,13 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 					"-issuer", testidpIssuerURL,
 					"-backchannel-base-url", "http://load-balancer:4500",
 				},
-				Labels:       labels,
+				Labels: labels,
+				Healthcheck: &docker.HealthConfig{
+					Test:     []string{"CMD-SHELL", "wget -q --spider http://localhost:4500/.well-known/openid-configuration || exit 1"},
+					Interval: 2 * time.Second,
+					Timeout:  2 * time.Second,
+					Retries:  3,
+				},
 				ExposedPorts: map[docker.Port]struct{}{testidpPort: {}},
 			},
 			HostConfig: &docker.HostConfig{
@@ -207,39 +212,7 @@ func (*OIDC) buildImage(ctx context.Context, logger slog.Logger) error {
 }
 
 func (o *OIDC) waitForReady(ctx context.Context, logger slog.Logger) error {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	timeout := time.After(60 * time.Second)
-	client := &http.Client{Timeout: 2 * time.Second}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return xerrors.New("timeout waiting for oidc to be ready")
-		case <-ticker.C:
-			// Check the well-known endpoint.
-			wellKnownURL := o.result.IssuerURL + "/.well-known/openid-configuration"
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := client.Do(req)
-			if err != nil {
-				continue
-			}
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				logger.Info(ctx, "oidc provider is ready and accepting connections",
-					slog.F("issuer_url", o.result.IssuerURL),
-					slog.F("client_id", o.result.ClientID),
-				)
-				return nil
-			}
-		}
-	}
+	return waitForHealthy(ctx, logger, o.pool, "cdev_oidc", 60*time.Second)
 }
 
 func (o *OIDC) Stop(_ context.Context) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -12,6 +13,33 @@ import (
 
 	"cdr.dev/slog/v3"
 )
+
+// waitForHealthy polls Docker's container health status until it
+// reports "healthy" or the timeout expires. The container must
+// have a Healthcheck configured in its docker.Config.
+func waitForHealthy(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, containerName string, timeout time.Duration) error {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	deadline := time.After(timeout)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline:
+			return xerrors.Errorf("timeout waiting for %s to be healthy", containerName)
+		case <-ticker.C:
+			ctr, err := pool.Client.InspectContainer(containerName)
+			if err != nil {
+				continue
+			}
+			if ctr.State.Health.Status == "healthy" {
+				logger.Info(ctx, "container is healthy", slog.F("container", containerName))
+				return nil
+			}
+		}
+	}
+}
+
 
 var _ Service[*dockertest.Pool] = (*Docker)(nil)
 
