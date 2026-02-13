@@ -3,65 +3,72 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/dustin/go-humanize"
-	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 )
 
-// Down stops and deletes selective resources, while keeping things like caches
-func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
-	servicesToDown := []ServiceName{
-		CDevLoadBalancer,
-		CDevPostgres,
-		CDevCoderd,
-		CDevOIDC,
-		CDevSite,
-		CDevPrometheus,
-		CDevProvisioner,
+// Down stops containers via docker compose down.
+func Down(ctx context.Context, logger slog.Logger) error {
+	logger.Info(ctx, "running docker compose down")
+	//nolint:gosec // Arguments are controlled.
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composeFilePath(), "down")
+	cmd.Stdout = LogWriter(logger, slog.LevelInfo, "compose-down")
+	cmd.Stderr = LogWriter(logger, slog.LevelWarn, "compose-down")
+	if err := cmd.Run(); err != nil {
+		return xerrors.Errorf("docker compose down: %w", err)
 	}
-
-	for _, service := range servicesToDown {
-		err := Containers(ctx, logger.With(slog.F("service", service)), pool, NewServiceLabels(service).Filter())
-		if err != nil {
-			return xerrors.Errorf("stop %s containers: %w", service, err)
-		}
-	}
-
 	return nil
 }
 
-// TODO: Cleanup old build-slim images? Can we reliably identify stale coder images that have been replaced
-//
-//	by a new "latest" tag? If so, we can delete those, and reduce the random "my disk is out of space"
-//	"time to docker system prune"
-func Cleanup(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
-	filter := NewLabels().Filter() // Remove it all
+// Cleanup removes all compose resources including volumes and locally
+// built images.
+func Cleanup(ctx context.Context, logger slog.Logger) error {
+	logger.Info(ctx, "running docker compose down -v --rmi local")
+	//nolint:gosec // Arguments are controlled.
+	cmd := exec.CommandContext(ctx,
+		"docker", "compose", "-f", composeFilePath(),
+		"down", "-v", "--rmi", "local",
+	)
+	cmd.Stdout = LogWriter(logger, slog.LevelInfo, "compose-cleanup")
+	cmd.Stderr = LogWriter(logger, slog.LevelWarn, "compose-cleanup")
+	if err := cmd.Run(); err != nil {
+		// If the compose file doesn't exist, fall back to direct
+		// Docker cleanup via labels.
+		logger.Warn(ctx, "compose down failed, falling back to label-based cleanup", slog.Error(err))
+	}
 
-	err := Containers(ctx, logger, pool, filter)
+	// Also clean up any remaining cdev-labeled resources that may
+	// not be in the compose file.
+	client, err := docker.NewClientFromEnv()
 	if err != nil {
+		return xerrors.Errorf("connect to docker: %w", err)
+	}
+
+	filter := NewLabels().Filter()
+
+	if err := cleanContainers(ctx, logger, client, filter); err != nil {
 		logger.Error(ctx, "failed to clean up containers", slog.Error(err))
 	}
 
-	err = Volumes(ctx, logger, pool, filter)
-	if err != nil {
+	if err := cleanVolumes(ctx, logger, client, filter); err != nil {
 		logger.Error(ctx, "failed to clean up volumes", slog.Error(err))
 	}
 
-	err = Images(ctx, logger, pool, filter)
-	if err != nil {
+	if err := cleanImages(ctx, logger, client, filter); err != nil {
 		logger.Error(ctx, "failed to clean up images", slog.Error(err))
 	}
 
 	return nil
 }
 
-func StopContainers(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
-	containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+func StopContainers(ctx context.Context, logger slog.Logger, client *docker.Client, filter map[string][]string) error {
+	containers, err := client.ListContainers(docker.ListContainersOptions{
 		All:     true,
 		Filters: filter,
 		Context: ctx,
@@ -70,7 +77,7 @@ func StopContainers(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 		return xerrors.Errorf("list containers: %w", err)
 	}
 	for _, cnt := range containers {
-		err := pool.Client.StopContainer(cnt.ID, 10)
+		err := client.StopContainer(cnt.ID, 10)
 		if err != nil && !strings.Contains(err.Error(), "Container not running") {
 			logger.Error(ctx, fmt.Sprintf("Failed to stop container %s: %v", cnt.ID, err))
 			// Continue trying to stop other containers even if one fails.
@@ -80,13 +87,13 @@ func StopContainers(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 	return nil
 }
 
-func Containers(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
-	err := StopContainers(ctx, logger, pool, NewLabels().Filter())
+func Containers(ctx context.Context, logger slog.Logger, client *docker.Client, filter map[string][]string) error {
+	err := StopContainers(ctx, logger, client, NewLabels().Filter())
 	if err != nil {
 		return xerrors.Errorf("stop containers: %w", err)
 	}
 
-	res, err := pool.Client.PruneContainers(docker.PruneContainersOptions{
+	res, err := client.PruneContainers(docker.PruneContainersOptions{
 		Filters: filter,
 		Context: ctx,
 	})
@@ -109,8 +116,12 @@ func Containers(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, 
 	return nil
 }
 
-func Volumes(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
-	vols, err := pool.Client.ListVolumes(docker.ListVolumesOptions{
+func cleanContainers(ctx context.Context, logger slog.Logger, client *docker.Client, filter map[string][]string) error {
+	return Containers(ctx, logger, client, filter)
+}
+
+func Volumes(ctx context.Context, logger slog.Logger, client *docker.Client, filter map[string][]string) error {
+	vols, err := client.ListVolumes(docker.ListVolumesOptions{
 		Filters: filter,
 	})
 	if err != nil {
@@ -118,7 +129,7 @@ func Volumes(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, fil
 	}
 
 	for _, vol := range vols {
-		err = pool.Client.RemoveVolumeWithOptions(docker.RemoveVolumeOptions{
+		err = client.RemoveVolumeWithOptions(docker.RemoveVolumeOptions{
 			Context: nil,
 			Name:    vol.Name,
 			Force:   true,
@@ -135,8 +146,12 @@ func Volumes(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, fil
 	return nil
 }
 
-func Images(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filter map[string][]string) error {
-	imgs, err := pool.Client.ListImages(docker.ListImagesOptions{
+func cleanVolumes(ctx context.Context, logger slog.Logger, client *docker.Client, filter map[string][]string) error {
+	return Volumes(ctx, logger, client, filter)
+}
+
+func Images(ctx context.Context, logger slog.Logger, client *docker.Client, filter map[string][]string) error {
+	imgs, err := client.ListImages(docker.ListImagesOptions{
 		Filters: filter,
 	})
 	if err != nil {
@@ -144,7 +159,7 @@ func Images(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filt
 	}
 
 	for _, img := range imgs {
-		err = pool.Client.RemoveImage(img.ID)
+		err = client.RemoveImage(img.ID)
 		if err != nil {
 			logger.Error(ctx, fmt.Sprintf("Failed to remove image %s: %v", img.ID, err))
 		} else {
@@ -155,4 +170,8 @@ func Images(ctx context.Context, logger slog.Logger, pool *dockertest.Pool, filt
 		}
 	}
 	return nil
+}
+
+func cleanImages(ctx context.Context, logger slog.Logger, client *docker.Client, filter map[string][]string) error {
+	return Images(ctx, logger, client, filter)
 }
