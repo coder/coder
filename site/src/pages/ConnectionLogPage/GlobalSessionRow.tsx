@@ -14,6 +14,7 @@ import {
 } from "modules/resources/ConnectionStatus";
 import { ConnectionDetailDialog } from "pages/WorkspaceSessionsPage/ConnectionDetailDialog";
 import { type FC, useState } from "react";
+import { Link } from "react-router";
 
 interface GlobalSessionRowProps {
 	session: GlobalWorkspaceSession;
@@ -61,9 +62,13 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 
 						{/* Workspace owner / name */}
 						<div className="flex flex-col min-w-0 w-40 shrink-0">
-							<span className="text-sm font-medium text-content-primary truncate">
+							<Link
+								to={`/connectionlog/diagnostics/${session.workspace_owner_username}`}
+								className="text-sm font-medium text-content-primary truncate hover:underline"
+								onClick={(e) => e.stopPropagation()}
+							>
 								{session.workspace_owner_username}
-							</span>
+							</Link>
 							<span className="text-xs text-content-secondary truncate">
 								{session.workspace_name}
 							</span>
