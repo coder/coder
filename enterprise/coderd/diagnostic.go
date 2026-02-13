@@ -188,6 +188,12 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 	// and update summary network stats.
 	enrichSessionsFromConnections(workspaces, currentConns, &summary)
 
+	// Enrich closed sessions with historical latency from workspace_agent_stats.
+	agentStats, err := api.Database.GetWorkspaceAgentStats(ctx, windowStart)
+	if err == nil {
+		enrichHistoricSessionsWithStats(workspaces, agentStats, &summary)
+	}
+
 	// Pattern detection.
 	patterns := detectPatterns(workspaces, summary)
 	if patterns == nil {
@@ -1163,6 +1169,75 @@ func enrichSessionsFromConnections(
 		}
 		avg := math.Round(sum/float64(len(latencies))*100) / 100
 		summary.Network.AvgLatencyMS = &avg
+	}
+}
+
+// enrichHistoricSessionsWithStats populates closed sessions' Network
+// fields using aggregate latency data from workspace_agent_stats. This
+// gives historical sessions latency info even though live telemetry has
+// expired.
+func enrichHistoricSessionsWithStats(
+	workspaces []codersdk.DiagnosticWorkspace,
+	stats []database.GetWorkspaceAgentStatsRow,
+	summary *codersdk.DiagnosticSummary,
+) {
+	// Build lookup: workspaceID -> (p50, p95).
+	type latencyInfo struct {
+		p50 float64
+		p95 float64
+	}
+	byWorkspace := make(map[uuid.UUID]*latencyInfo)
+	for _, s := range stats {
+		// Skip agents with no real latency data.
+		if s.WorkspaceConnectionLatency50 <= 0 {
+			continue
+		}
+		existing, ok := byWorkspace[s.WorkspaceID]
+		if !ok || s.WorkspaceConnectionLatency50 > existing.p50 {
+			byWorkspace[s.WorkspaceID] = &latencyInfo{
+				p50: math.Round(s.WorkspaceConnectionLatency50*100) / 100,
+				p95: math.Round(s.WorkspaceConnectionLatency95*100) / 100,
+			}
+		}
+	}
+
+	if len(byWorkspace) == 0 {
+		return
+	}
+
+	// Enrich closed sessions that don't already have network info.
+	var allLatencies []float64
+	for wi := range workspaces {
+		info, ok := byWorkspace[workspaces[wi].ID]
+		if !ok {
+			continue
+		}
+		for si := range workspaces[wi].Sessions {
+			sess := &workspaces[wi].Sessions[si]
+			// Skip ongoing sessions (already enriched from live telemetry)
+			// and sessions that already have latency data.
+			if sess.Status == codersdk.ConnectionStatusOngoing {
+				continue
+			}
+			if sess.Network.AvgLatencyMS != nil {
+				continue
+			}
+			sess.Network.AvgLatencyMS = &info.p50
+			allLatencies = append(allLatencies, info.p50)
+		}
+	}
+
+	// Update summary P95 if we have data and it wasn't already set.
+	if summary.Network.P95LatencyMS == nil && len(byWorkspace) > 0 {
+		var maxP95 float64
+		for _, info := range byWorkspace {
+			if info.p95 > maxP95 {
+				maxP95 = info.p95
+			}
+		}
+		if maxP95 > 0 {
+			summary.Network.P95LatencyMS = &maxP95
+		}
 	}
 }
 
