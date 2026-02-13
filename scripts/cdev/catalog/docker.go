@@ -40,7 +40,6 @@ func waitForHealthy(ctx context.Context, logger slog.Logger, pool *dockertest.Po
 	}
 }
 
-
 var _ Service[*dockertest.Pool] = (*Docker)(nil)
 
 func OnDocker() ServiceName {
@@ -138,6 +137,7 @@ func (d *Docker) EnsureVolume(ctx context.Context, opts VolumeOptions) (*docker.
 	})
 	return vo.vol, vo.err
 }
+
 // EnsureNetwork lazily creates the cdev Docker bridge network,
 // returning its ID on all subsequent calls without repeating the
 // creation work.
@@ -172,7 +172,6 @@ func (d *Docker) createNetworkIfNeeded(labels map[string]string) (string, error)
 	}
 	return net.ID, nil
 }
-
 
 func (d *Docker) createVolumeIfNeeded(ctx context.Context, opts VolumeOptions) (*docker.Volume, error) {
 	vol, err := d.pool.Client.InspectVolume(opts.Name)

@@ -366,5 +366,3 @@ func generateNginxConfig(haCount int) string {
 	}
 	return buf.String()
 }
-
-

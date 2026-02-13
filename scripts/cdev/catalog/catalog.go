@@ -564,7 +564,7 @@ func (c *Catalog) StartService(ctx context.Context, name ServiceName) (failure e
 }
 
 // StopService stops a service and resets its unit.Manager status to pending.
-// If a StartService call is in progress for this service, it will be cancelled.
+// If a StartService call is in progress for this service, it will be canceled.
 func (c *Catalog) StopService(ctx context.Context, name ServiceName) error {
 	// Cancel any in-progress start operation.
 	c.startCancelsMu.Lock()

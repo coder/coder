@@ -131,7 +131,7 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 				},
 				Labels: labels,
 				Healthcheck: &docker.HealthConfig{
-					Test:     []string{"CMD-SHELL", "wget -q --spider http://localhost:4500/.well-known/openid-configuration || exit 1"},
+					Test:     []string{"CMD", "wget", "-q", "http://localhost:4500/.well-known/openid-configuration"},
 					Interval: 2 * time.Second,
 					Timeout:  2 * time.Second,
 					Retries:  3,

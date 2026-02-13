@@ -140,7 +140,7 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 				WorkingDir: "/app/site",
 				Env:        env,
 				Cmd:        cmd,
-				Labels: labels,
+				Labels:     labels,
 				Healthcheck: &docker.HealthConfig{
 					Test:     []string{"CMD-SHELL", fmt.Sprintf("wget -q --spider http://localhost:%d || exit 1", sitePort)},
 					Interval: 2 * time.Second,
