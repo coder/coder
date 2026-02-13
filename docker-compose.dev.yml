@@ -120,37 +120,34 @@ services:
         --dangerous-allow-cors-requests=true
         --enable-terraform-debug-mode
 
-  setup:
-    labels:
-      - "com.coder.dev"
-    networks:
-      - coder-dev
-    image: codercom/oss-dogfood:latest
-    depends_on:
-      coderd:
-        condition: service_healthy
-    working_dir: /app
-    environment:
-      CODER_URL: "http://coderd:3000"
-      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
-      GOMODCACHE: /go-cache/mod
-      GOCACHE: /go-cache/build
-    volumes:
-      - .:/app
-      - go_cache:/go-cache
-      - coderv2_config:/home/coder/.config/coderv2
-      - ./scripts/docker-dev:/scripts:ro
-    command: ["sh", "/scripts/setup.sh"]
-
+#  setup:
+#    labels:
+#      - "com.coder.dev"
+#    networks:
+#      - coder-dev
+#    image: codercom/oss-dogfood:latest
+#    depends_on:
+#      coderd:
+#        condition: service_healthy
+#    working_dir: /app
+#    environment:
+#      CODER_URL: "http://coderd:3000"
+#      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+#      GOMODCACHE: /go-cache/mod
+#      GOCACHE: /go-cache/build
+#    volumes:
+#      - .:/app
+#      - go_cache:/go-cache
+#      - coderv2_config:/home/coder/.config/coderv2
+#      - ./scripts/docker-dev:/scripts:ro
+#    command: ["sh", "/scripts/setup.sh"]
+#    restart: no
   site:
     labels:
       - "com.coder.dev"
     networks:
       - coder-dev
     image: codercom/oss-dogfood:latest
-    depends_on:
-      setup:
-        condition: service_completed_successfully
     working_dir: /app/site
     environment:
       CODER_HOST: "http://coderd:3000"
@@ -158,8 +155,27 @@ services:
       - "8080:8080"
     volumes:
       - ./site:/app/site
-      - site_node_modules:/app/site/node_modules
     command: sh -c "pnpm install --frozen-lockfile && pnpm dev --host"
+
+  cdevsetup:
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    build:
+      context: ./scripts/cdev/cdevsetup
+      dockerfile: Dockerfile
+    depends_on:
+      coderd:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - go_cache:/go-cache
+      - ./examples/templates:/app/examples/templates:ro
 
 volumes:
   coder_dev_data:
