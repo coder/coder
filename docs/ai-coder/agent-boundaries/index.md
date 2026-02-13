@@ -31,7 +31,7 @@ wrapped process can only reach the network through Boundary's proxy.
    `enable_boundary = true`).
 4. All outbound network requests from the wrapped process are intercepted.
 5. Each request is checked against the policy (URL pattern + HTTP method).
-6. Allowed requests pass through; blocked requests are denied and logged.
+6. Allowed requests pass through; blocked requests are denied.
 7. Audit logs (policy decisions) stream to the Coder control plane for
    centralized monitoring.
 8. Application logs (debugging info) are written locally to the workspace.
@@ -44,7 +44,7 @@ wrapped process can only reach the network through Boundary's proxy.
 - **Default-deny.** Requests are blocked unless permitted by the allowlist.
 - **Template-level governance.** Policies are defined in workspace templates
   (infrastructure as code), not per-user. Every workspace launched from a
-  template picks up the same policy.
+  template version picks up the same policy.
 - **Agent-agnostic.** Works with any terminal-based agent, including Claude Code,
   Codex, and custom agents.
 
@@ -138,8 +138,7 @@ module "claude-code" {
 
 Create a `config.yaml` file in your template directory:
 
-For the
-Claude Code module, use the following minimal configuration:
+For the Claude Code module, use the following minimal configuration:
 
 ```yaml
 allowlist:
@@ -318,10 +317,7 @@ that deliver maximum value when deployed together:
 - **Agent Boundaries** governs the *network layer* — restricting which domains
   agents can reach.
 
-A common pattern is to use Boundaries to **block direct access to LLM provider
-APIs** (e.g., `api.openai.com`, `api.anthropic.com`) and force all AI traffic
-through Bridge. This ensures every AI interaction is authenticated, logged, and
-attributed — with no way for agents to bypass the governance layer.
+Because Boundaries use a default-deny architecture, agent processes wrapped by Boundary cannot reach LLM provider APIs directly unless those domains are explicitly allowlisted. Organizations using AI Bridge can omit provider domains from the Boundary allowlist to ensure that all AI traffic routes through Bridge.
 
 ## Current scope and limitations
 

@@ -13,7 +13,7 @@ AI Bridge runs inside the Coder control plane (`coderd`), requiring no separate 
 Before enabling AI Bridge:
 
 - Ensure your Coder deployment is running **v2.30 or later**.
-- If your environment uses a **corporate HTTP proxy**, confirm the proxy path to
+- If your environment uses a corporate HTTP proxy, confirm the proxy path to
   your model provider endpoints (e.g., `api.openai.com`,
   `api.anthropic.com`) is open and pre-approved by your network security team.
   See [AI Bridge Proxy](./ai-bridge-proxy/index.md) for proxy configuration details.

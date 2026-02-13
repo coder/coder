@@ -1,9 +1,7 @@
 # AI Bridge Proxy
 
 AI Bridge Proxy provides a way to route AI traffic through Bridge for tools that
-**do not support base URL overrides**. While most AI tools allow customizing the
-API base URL, some tools
-hard-code their provider endpoints. AI Bridge Proxy extends [AI Bridge](../index.md) to intercept this traffic as well.
+**do not support base URL overrides**. While most AI tools allow customizing the API base URL, some tools hard-code their provider endpoints. AI Bridge Proxy extends [AI Bridge](../index.md) to intercept this traffic as well.
 
 ## When to use AI Bridge Proxy
 

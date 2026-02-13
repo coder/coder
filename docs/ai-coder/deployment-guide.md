@@ -9,8 +9,8 @@ use cases.
 
 ### Regulated enterprise (financial services, healthcare)
 
-**Goal:** Complete audit trails, data exfiltration prevention, and provable
-controls for compliance requirements (SOC 2, HIPAA, FedRAMP, etc.).
+**Goal:** Obtaining complete audit trails, data exfiltration prevention, and provable
+controls towards meeting compliance requirements.
 
 **Recommended deployment:**
 
@@ -19,7 +19,7 @@ controls for compliance requirements (SOC 2, HIPAA, FedRAMP, etc.).
   to your SIEM.
 - **Agent Boundaries**: Enable via template with a restrictive allowlist.
   Restrict to internal GitHub/GitLab, approved package registries, and internal
-  services. Set `log_level` to `INFO` for compliance-grade logging.
+  services. 
 - **Template configuration**: Pre-inject Bridge base URLs and session tokens.
   Mount Boundary `config.yaml`. Developers should see zero additional setup.
 

@@ -55,7 +55,7 @@ See `coder aibridge interceptions list --help` for all options.
 ### Structured logging
 
 AI Bridge can emit structured log entries for every interception record. This is
-the primary mechanism for streaming data into external **SIEM** or observability
+the primary mechanism for streaming data into external SIEM or observability
 systems (Splunk, Elastic, Grafana Loki, etc.).
 
 Enable structured logging with the server flag:

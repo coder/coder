@@ -63,8 +63,7 @@ plane). It does not require a separate deployment or infrastructure.
 
 ## When to use AI Bridge
 
-As LLM adoption grows, administrators need centralized auditing, monitoring, and token management. AI Bridge is designed for organizations that need centralized management and
-observability over AI tool usage. 
+As LLM adoption grows, administrators need centralized auditing, monitoring, and token management. AI Bridge is designed for organizations that need centralized management and observability over AI tool usage for thousands of engineers - all from a single control plane. 
 
 Common scenarios include:
 
