@@ -55,6 +55,7 @@ module.exports = {
 					sky: "hsl(var(--surface-sky))",
 					red: "hsl(var(--surface-red))",
 					purple: "hsl(var(--surface-purple))",
+					magenta: "hsl(var(--surface-magenta))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -65,6 +66,7 @@ module.exports = {
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",
 					purple: "hsl(var(--border-purple))",
+					magenta: "hsl(var(--border-magenta))",
 				},
 				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
@@ -75,6 +77,7 @@ module.exports = {
 					grey: "hsl(var(--highlight-grey))",
 					sky: "hsl(var(--highlight-sky))",
 					red: "hsl(var(--highlight-red))",
+					magenta: "hsl(var(--highlight-magenta))",
 				},
 			},
 			keyframes: {
