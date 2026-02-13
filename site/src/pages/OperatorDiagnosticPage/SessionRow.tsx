@@ -157,7 +157,7 @@ const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({
 	return (
 		<div className={cn(
 			"flex items-center gap-3 py-1.5 px-3 text-xs border-t border-border",
-			isSystem && "border-dashed opacity-50",
+			isSystem && "opacity-50",
 		)}>
 			<StatusIndicatorDot variant={baseStatusVariant[conn.status]} size="sm" />
 			<Badge size="xs">{conn.type}</Badge>
