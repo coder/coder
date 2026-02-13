@@ -77,7 +77,8 @@ type Workspace struct {
 	Template           codersdk.Template                  `json:"template"`
 	TemplateVersion    codersdk.TemplateVersion           `json:"template_version"`
 	TemplateFileBase64 string                             `json:"template_file_base64"`
-	BuildLogs          []codersdk.ProvisionerJobLog       `json:"build_logs"`
+	BuildLogs         []codersdk.ProvisionerJobLog        `json:"build_logs"`
+	WorkspaceSessions *codersdk.WorkspaceSessionsResponse `json:"workspace_sessions"`
 }
 
 type Agent struct {
@@ -499,6 +500,15 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 			return xerrors.Errorf("fetch workspace build parameters: %w", err)
 		}
 		w.Parameters = params
+		return nil
+	})
+
+	eg.Go(func() error {
+		sessions, err := client.WorkspaceSessions(ctx, ws.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch workspace sessions: %w", err)
+		}
+		w.WorkspaceSessions = &sessions
 		return nil
 	})
 

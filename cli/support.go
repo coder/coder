@@ -418,6 +418,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,
 		"workspace/workspace.json":        src.Workspace.Workspace,
+		"workspace/workspace_sessions.json": src.Workspace.WorkspaceSessions,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
