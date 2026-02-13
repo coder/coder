@@ -33,7 +33,7 @@ export const terminalFontLabels: Record<TerminalFontName, string> = {
 	"fira-code": "Fira Code",
 	"jetbrains-mono": "JetBrains Mono",
 	"source-code-pro": "Source Code Pro",
-	"ibm-plex-mono": "Web Terminal Font",
+	"ibm-plex-mono": "IBM Plex Mono",
 	"": "", // needed for enum completeness, otherwise fails the build
 };
 export const DEFAULT_TERMINAL_FONT = "geist-mono";
