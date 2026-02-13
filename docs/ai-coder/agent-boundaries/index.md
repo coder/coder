@@ -41,7 +41,7 @@ wrapped process can only reach the network through Boundary's proxy.
 - **Process-level isolation.** Boundary wraps individual processes, not entire
   workspaces. The agent cannot reach the network except through Boundary's
   proxy.
-- **Default-deny.** If a domain is not on the allowlist, the request is blocked.
+- **Default-deny.** Requests are blocked unless permitted by the allowlist.
 - **Template-level governance.** Policies are defined in workspace templates
   (infrastructure as code), not per-user. Every workspace launched from a
   template picks up the same policy.
