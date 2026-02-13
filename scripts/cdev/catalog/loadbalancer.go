@@ -240,6 +240,12 @@ http {
     # lets the load balancer start before its backends exist.
     resolver 127.0.0.11 valid=5s;
 
+    # Map upgrade header to connection type for conditional websocket support.
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
     # Distribute requests across coderd instances by request ID.
     split_clients $request_id $coderd_backend {
 {{- range $i, $idx := .Instances }}
@@ -252,13 +258,15 @@ http {
         listen 3000;
         location / {
             proxy_pass http://$coderd_backend;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
+            proxy_set_header Connection $connection_upgrade;
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
         }
     }
 {{ range .Instances }}
@@ -268,13 +276,15 @@ http {
         location / {
             set $coderd_{{ . }} http://coderd-{{ . }}:3000;
             proxy_pass $coderd_{{ . }};
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
+            proxy_set_header Connection $connection_upgrade;
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
         }
     }
 {{ end }}
@@ -322,13 +332,15 @@ http {
         location / {
             set $site http://site:8080;
             proxy_pass $site;
-            proxy_set_header Host $host;
+            proxy_set_header Host $http_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
+            proxy_set_header Connection $connection_upgrade;
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
         }
     }
 }
