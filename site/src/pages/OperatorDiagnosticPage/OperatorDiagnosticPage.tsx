@@ -1,7 +1,7 @@
 import { userDiagnostic } from "api/queries/diagnostics";
 import type { FC } from "react";
 import { useState } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { getMockDiagnosticData } from "./mockDataService";
@@ -16,8 +16,8 @@ const OperatorDiagnosticPage: FC = () => {
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [workspaceFilter, setWorkspaceFilter] = useState("all");
 
-	const diagnosticQuery = useQuery(
-		isDemo
+	const diagnosticQuery = useQuery({
+		...(isDemo
 			? {
 					queryKey: [
 						"userDiagnostic",
@@ -28,8 +28,9 @@ const OperatorDiagnosticPage: FC = () => {
 					] as const,
 					queryFn: () => Promise.resolve(getMockDiagnosticData(username)),
 				}
-			: userDiagnostic(username, hours, statusFilter, workspaceFilter),
-	);
+			: userDiagnostic(username, hours, statusFilter, workspaceFilter)),
+		placeholderData: keepPreviousData,
+	});
 
 	const handleUserSelect = (newUsername: string) => {
 		const params = isDemo ? "?demo=true" : "";
