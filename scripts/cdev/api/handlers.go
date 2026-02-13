@@ -170,15 +170,15 @@ func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pool := dockerService.Result()
-	if pool == nil {
+	client := dockerService.Result()
+	if client == nil {
 		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
 		return
 	}
 
 	// Find containers matching the service label.
 	filter := catalog.NewServiceLabels(catalog.ServiceName(name)).Filter()
-	containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+	containers, err := client.ListContainers(docker.ListContainersOptions{
 		All:     true,
 		Filters: filter,
 	})
@@ -209,7 +209,7 @@ func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Stream logs from container.
 	ctx := r.Context()
-	err = pool.Client.Logs(docker.LogsOptions{
+	err = client.Logs(docker.LogsOptions{
 		Context:      ctx,
 		Container:    containers[0].ID,
 		OutputStream: fw,
@@ -281,13 +281,13 @@ func (s *Server) handleListImages(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	pool := dockerService.Result()
-	if pool == nil {
+	client := dockerService.Result()
+	if client == nil {
 		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
 		return
 	}
 
-	images, err := pool.Client.ListImages(docker.ListImagesOptions{
+	images, err := client.ListImages(docker.ListImagesOptions{
 		Filters: catalog.NewLabels().Filter(),
 	})
 	if err != nil {
@@ -323,13 +323,13 @@ func (s *Server) handleDeleteImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pool := dockerService.Result()
-	if pool == nil {
+	client := dockerService.Result()
+	if client == nil {
 		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
 		return
 	}
 
-	if err := pool.Client.RemoveImage(imageID); err != nil {
+	if err := client.RemoveImage(imageID); err != nil {
 		s.writeError(w, http.StatusInternalServerError, "failed to delete image: "+err.Error())
 		return
 	}
@@ -361,13 +361,13 @@ func (s *Server) handleListVolumes(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	pool := dockerService.Result()
-	if pool == nil {
+	client := dockerService.Result()
+	if client == nil {
 		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
 		return
 	}
 
-	volumes, err := pool.Client.ListVolumes(docker.ListVolumesOptions{
+	volumes, err := client.ListVolumes(docker.ListVolumesOptions{
 		Filters: catalog.NewLabels().Filter(),
 	})
 	if err != nil {
@@ -401,13 +401,13 @@ func (s *Server) handleDeleteVolume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pool := dockerService.Result()
-	if pool == nil {
+	client := dockerService.Result()
+	if client == nil {
 		s.writeError(w, http.StatusServiceUnavailable, "docker not connected")
 		return
 	}
 
-	if err := pool.Client.RemoveVolume(volumeName); err != nil {
+	if err := client.RemoveVolume(volumeName); err != nil {
 		s.writeError(w, http.StatusInternalServerError, "failed to delete volume: "+err.Error())
 		return
 	}
