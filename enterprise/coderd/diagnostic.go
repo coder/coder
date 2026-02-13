@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 const (
@@ -166,6 +167,7 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 					sessions[i].StartedAt,
 					sessions[i].EndedAt,
 					sessAgents,
+					sessions[i].IP,
 				)
 			}
 			// Upgrade status based on peering events in the timeline.
@@ -1300,14 +1302,16 @@ func enrichSessionsFromConnections(
 
 // mergePeeringEventsIntoTimeline appends matching peering events to a
 // session's timeline and returns the combined, time-sorted result.
-// Events are included when they fall within the session's time window
-// and involve a peer ID that matches one of the known agent IDs.
+// Events are included when they fall within the session's time window,
+// involve a peer ID that matches one of the known agent IDs, and
+// (when clientIP is set) involve the session's own client peer.
 func mergePeeringEventsIntoTimeline(
 	timeline []codersdk.DiagnosticTimelineEvent,
 	peeringEvents []database.TailnetPeeringEvent,
 	startedAt time.Time,
 	endedAt *time.Time,
 	agentIDs map[uuid.UUID]bool,
+	clientIP string,
 ) []codersdk.DiagnosticTimelineEvent {
 	if len(peeringEvents) == 0 {
 		return timeline
@@ -1328,6 +1332,24 @@ func mergePeeringEventsIntoTimeline(
 		dstMatch := pe.DstPeerID.Valid && agentIDs[pe.DstPeerID.UUID]
 		if !srcMatch && !dstMatch {
 			continue
+		}
+
+		// Filter to only events involving the session's client peer.
+		// The client peer's UUID maps to the session's tailnet IP via
+		// CoderServicePrefix.AddrFromUUID or TailscaleServicePrefix.AddrFromUUID.
+		if clientIP != "" {
+			var otherUUID uuid.UUID
+			if srcMatch && pe.DstPeerID.Valid && !agentIDs[pe.DstPeerID.UUID] {
+				otherUUID = pe.DstPeerID.UUID
+			} else if dstMatch && pe.SrcPeerID.Valid && !agentIDs[pe.SrcPeerID.UUID] {
+				otherUUID = pe.SrcPeerID.UUID
+			}
+			if otherUUID != uuid.Nil {
+				if tailnet.CoderServicePrefix.AddrFromUUID(otherUUID).String() != clientIP &&
+					tailnet.TailscaleServicePrefix.AddrFromUUID(otherUUID).String() != clientIP {
+					continue
+				}
+			}
 		}
 
 		// Identify the non-agent peer for context in descriptions.
