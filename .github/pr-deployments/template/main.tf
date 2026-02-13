@@ -12,9 +12,23 @@ terraform {
 provider "coder" {
 }
 
+variable "use_kubeconfig" {
+  type        = bool
+  description = <<-EOF
+  Use host kubeconfig? (true/false)
+
+  Set this to false if the Coder host is itself running as a Pod on the same
+  Kubernetes cluster as you are deploying workspaces to.
+
+  Set this to true if the Coder host is running outside the Kubernetes cluster
+  for workspaces.  A valid "~/.kube/config" must be present on the Coder host.
+  EOF
+  default     = false
+}
+
 variable "namespace" {
   type        = string
-  description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
+  description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces). If the Coder host is itself running as a Pod on the same Kubernetes cluster as you are deploying workspaces to, set this to the same namespace."
 }
 
 data "coder_parameter" "cpu" {
@@ -82,7 +96,8 @@ data "coder_parameter" "home_disk_size" {
 }
 
 provider "kubernetes" {
-  config_path = null
+  # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
+  config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
 }
 
 data "coder_workspace" "me" {}
@@ -94,10 +109,12 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -e
 
-    # install and start code-server
+    # Install the latest code-server.
+    # Append "--version x.x.x" to install a specific version of code-server.
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
+    # Start code-server in the background.
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 
   # The following metadata blocks are optional. They are used to display
@@ -174,13 +191,13 @@ resource "coder_app" "code-server" {
   }
 }
 
-resource "kubernetes_persistent_volume_claim" "home" {
+resource "kubernetes_persistent_volume_claim_v1" "home" {
   metadata {
-    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}-home"
+    name      = "coder-${data.coder_workspace.me.id}-home"
     namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
-      "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-pvc-${data.coder_workspace.me.id}"
       "app.kubernetes.io/part-of"  = "coder"
       //Coder-specific labels.
       "com.coder.resource"       = "true"
@@ -204,18 +221,18 @@ resource "kubernetes_persistent_volume_claim" "home" {
   }
 }
 
-resource "kubernetes_deployment" "main" {
+resource "kubernetes_deployment_v1" "main" {
   count = data.coder_workspace.me.start_count
   depends_on = [
-    kubernetes_persistent_volume_claim.home
+    kubernetes_persistent_volume_claim_v1.home
   ]
   wait_for_rollout = false
   metadata {
-    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${data.coder_workspace.me.id}"
     namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
-      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-workspace-${data.coder_workspace.me.id}"
       "app.kubernetes.io/part-of"  = "coder"
       "com.coder.resource"         = "true"
       "com.coder.workspace.id"     = data.coder_workspace.me.id
@@ -232,7 +249,14 @@ resource "kubernetes_deployment" "main" {
     replicas = 1
     selector {
       match_labels = {
-        "app.kubernetes.io/name" = "coder-workspace"
+        "app.kubernetes.io/name"     = "coder-workspace"
+        "app.kubernetes.io/instance" = "coder-workspace-${data.coder_workspace.me.id}"
+        "app.kubernetes.io/part-of"  = "coder"
+        "com.coder.resource"         = "true"
+        "com.coder.workspace.id"     = data.coder_workspace.me.id
+        "com.coder.workspace.name"   = data.coder_workspace.me.name
+        "com.coder.user.id"          = data.coder_workspace_owner.me.id
+        "com.coder.user.username"    = data.coder_workspace_owner.me.name
       }
     }
     strategy {
@@ -242,20 +266,29 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name" = "coder-workspace"
+          "app.kubernetes.io/name"     = "coder-workspace"
+          "app.kubernetes.io/instance" = "coder-workspace-${data.coder_workspace.me.id}"
+          "app.kubernetes.io/part-of"  = "coder"
+          "com.coder.resource"         = "true"
+          "com.coder.workspace.id"     = data.coder_workspace.me.id
+          "com.coder.workspace.name"   = data.coder_workspace.me.name
+          "com.coder.user.id"          = data.coder_workspace_owner.me.id
+          "com.coder.user.username"    = data.coder_workspace_owner.me.name
         }
       }
       spec {
+        hostname = lower(data.coder_workspace.me.name)
+
         security_context {
-          run_as_user = 1000
-          fs_group    = 1000
+          run_as_user     = 1000
+          fs_group        = 1000
+          run_as_non_root = true
         }
 
-        service_account_name = "coder-workspace-${var.namespace}"
         container {
           name              = "dev"
-          image             = "bencdr/devops-tools"
-          image_pull_policy = "Always"
+          image             = "codercom/enterprise-base:ubuntu"
+          image_pull_policy = "IfNotPresent"
           command           = ["sh", "-c", coder_agent.main.init_script]
           security_context {
             run_as_user = "1000"
@@ -284,7 +317,7 @@ resource "kubernetes_deployment" "main" {
         volume {
           name = "home"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.home.metadata.0.name
+            claim_name = kubernetes_persistent_volume_claim_v1.home.metadata.0.name
             read_only  = false
           }
         }
