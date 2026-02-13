@@ -100,9 +100,30 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Collect unique agent IDs from connection logs for peering event lookups.
+	agentIDs := make(map[uuid.UUID]bool)
+	for _, cl := range dblogs {
+		if cl.ConnectionLog.AgentID.Valid {
+			agentIDs[cl.ConnectionLog.AgentID.UUID] = true
+		}
+	}
+
+	// Fetch peering events for all agents referenced in connection logs.
+	var allPeeringEvents []database.TailnetPeeringEvent
+	for agentID := range agentIDs {
+		events, err := api.Database.GetAllTailnetPeeringEventsByPeerID(ctx, uuid.NullUUID{UUID: agentID, Valid: true})
+		if err == nil {
+			allPeeringEvents = append(allPeeringEvents, events...)
+		}
+	}
+
 	// Partition connection logs into ongoing (no disconnect).
+	// Skip system connections (tunnel lifecycle events from coordinator).
 	var ongoingLogs []database.GetConnectionLogsOffsetRow
 	for _, cl := range dblogs {
+		if cl.ConnectionLog.Type == database.ConnectionTypeSystem {
+			continue
+		}
 		if !cl.ConnectionLog.DisconnectTime.Valid {
 			ongoingLogs = append(ongoingLogs, cl)
 		}
@@ -126,6 +147,17 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 		// Add live sessions synthesized from ongoing connection logs.
 		liveSessions := buildLiveSessionsForWorkspace(ws.ID, ws.Name, ongoingLogs)
 		sessions = append(liveSessions, sessions...)
+
+		// Enrich each session's timeline with peering events.
+		for i := range sessions {
+			sessions[i].Timeline = mergePeeringEventsIntoTimeline(
+				sessions[i].Timeline,
+				allPeeringEvents,
+				sessions[i].StartedAt,
+				sessions[i].EndedAt,
+				agentIDs,
+			)
+		}
 
 		health, healthReason := classifyWorkspaceHealth(sessions)
 		workspaces = append(workspaces, codersdk.DiagnosticWorkspace{
@@ -553,8 +585,13 @@ func convertSessionConnection(cl database.ConnectionLog) codersdk.DiagnosticSess
 }
 
 // buildTimeline synthesizes timeline events from connection logs.
+// When a disconnect reason indicates "workspace stopped" or "workspace deleted",
+// a workspace_state_change event is inserted once (1s before the first such
+// disconnect) to surface the workspace transition in the timeline.
 func buildTimeline(connLogs []database.ConnectionLog) []codersdk.DiagnosticTimelineEvent {
 	var events []codersdk.DiagnosticTimelineEvent
+	addedWSStateChange := false
+
 	for _, cl := range connLogs {
 		openDesc := fmt.Sprintf("%s connection opened", cl.Type)
 		if cl.SlugOrPort.Valid && cl.SlugOrPort.String != "" {
@@ -579,6 +616,22 @@ func buildTimeline(connLogs []database.ConnectionLog) []codersdk.DiagnosticTimel
 			case strings.Contains(reason, "workspace stopped"), strings.Contains(reason, "workspace deleted"):
 				severity = codersdk.ConnectionDiagnosticSeverityWarning
 			}
+
+			// Insert a workspace state change event once per session,
+			// slightly before the disconnect that triggered it.
+			if !addedWSStateChange && (strings.Contains(reason, "workspace stopped") || strings.Contains(reason, "workspace deleted")) {
+				events = append(events, codersdk.DiagnosticTimelineEvent{
+					Timestamp:   cl.DisconnectTime.Time.Add(-time.Second),
+					Kind:        codersdk.DiagnosticTimelineEventWorkspaceStateChange,
+					Description: "Workspace transitioned to stopped",
+					Metadata: map[string]any{
+						"trigger": "autostop",
+					},
+					Severity: codersdk.ConnectionDiagnosticSeverityWarning,
+				})
+				addedWSStateChange = true
+			}
+
 			closeDesc := fmt.Sprintf("%s connection closed", cl.Type)
 			if cl.SlugOrPort.Valid && cl.SlugOrPort.String != "" {
 				closeDesc = fmt.Sprintf("%s (%s) connection closed", cl.Type, cl.SlugOrPort.String)
@@ -655,11 +708,17 @@ func generateExplanation(disconnectReason string, isControlLost bool) string {
 }
 
 // buildSummary constructs initial summary metrics from raw connection logs.
+// System connections are excluded from the summary.
 func buildSummary(dblogs []database.GetConnectionLogsOffsetRow) codersdk.DiagnosticSummary {
 	byType := make(map[string]int)
 	active := 0
+	total := 0
 
 	for _, cl := range dblogs {
+		if cl.ConnectionLog.Type == database.ConnectionTypeSystem {
+			continue
+		}
+		total++
 		byType[string(cl.ConnectionLog.Type)]++
 		if !cl.ConnectionLog.DisconnectTime.Valid {
 			active++
@@ -667,7 +726,7 @@ func buildSummary(dblogs []database.GetConnectionLogsOffsetRow) codersdk.Diagnos
 	}
 
 	return codersdk.DiagnosticSummary{
-		TotalConnections:  len(dblogs),
+		TotalConnections:  total,
 		ActiveConnections: active,
 		ByType:            byType,
 		Network: codersdk.DiagnosticNetworkSummary{
@@ -1019,4 +1078,91 @@ func enrichSessionsFromConnections(
 		avg := math.Round(sum/float64(len(latencies))*100) / 100
 		summary.Network.AvgLatencyMS = &avg
 	}
+}
+
+// mergePeeringEventsIntoTimeline appends matching peering events to a
+// session's timeline and returns the combined, time-sorted result.
+// Events are included when they fall within the session's time window
+// and involve a peer ID that matches one of the known agent IDs.
+func mergePeeringEventsIntoTimeline(
+	timeline []codersdk.DiagnosticTimelineEvent,
+	peeringEvents []database.TailnetPeeringEvent,
+	startedAt time.Time,
+	endedAt *time.Time,
+	agentIDs map[uuid.UUID]bool,
+) []codersdk.DiagnosticTimelineEvent {
+	if len(peeringEvents) == 0 {
+		return timeline
+	}
+
+	end := time.Now()
+	if endedAt != nil {
+		end = *endedAt
+	}
+
+	for _, pe := range peeringEvents {
+		if pe.OccurredAt.Before(startedAt) || pe.OccurredAt.After(end) {
+			continue
+		}
+
+		// Check that at least one peer in the event is a known agent.
+		srcMatch := pe.SrcPeerID.Valid && agentIDs[pe.SrcPeerID.UUID]
+		dstMatch := pe.DstPeerID.Valid && agentIDs[pe.DstPeerID.UUID]
+		if !srcMatch && !dstMatch {
+			continue
+		}
+
+		var kind codersdk.DiagnosticTimelineEventKind
+		var description string
+		var severity codersdk.ConnectionDiagnosticSeverity
+
+		switch pe.EventType {
+		case "added_tunnel":
+			kind = codersdk.DiagnosticTimelineEventTunnelCreated
+			description = "Tunnel created between peers"
+			severity = codersdk.ConnectionDiagnosticSeverityInfo
+		case "removed_tunnel":
+			kind = codersdk.DiagnosticTimelineEventTunnelRemoved
+			description = "Tunnel removed"
+			severity = codersdk.ConnectionDiagnosticSeverityWarning
+		case "peer_update_node":
+			kind = codersdk.DiagnosticTimelineEventNodeUpdate
+			description = "Node update received"
+			severity = codersdk.ConnectionDiagnosticSeverityInfo
+		case "peer_update_disconnected":
+			kind = codersdk.DiagnosticTimelineEventPeerLost
+			description = "Peer lost contact"
+			severity = codersdk.ConnectionDiagnosticSeverityError
+		case "peer_update_ready_for_handshake":
+			kind = codersdk.DiagnosticTimelineEventPeerRecovered
+			description = "Peer recovered"
+			severity = codersdk.ConnectionDiagnosticSeverityInfo
+		default:
+			continue
+		}
+
+		metadata := map[string]any{
+			"event_type": pe.EventType,
+		}
+		if pe.SrcPeerID.Valid {
+			metadata["src_peer_id"] = pe.SrcPeerID.UUID.String()
+		}
+		if pe.DstPeerID.Valid {
+			metadata["dst_peer_id"] = pe.DstPeerID.UUID.String()
+		}
+
+		timeline = append(timeline, codersdk.DiagnosticTimelineEvent{
+			Timestamp:   pe.OccurredAt,
+			Kind:        kind,
+			Description: description,
+			Metadata:    metadata,
+			Severity:    severity,
+		})
+	}
+
+	sort.Slice(timeline, func(i, j int) bool {
+		return timeline[i].Timestamp.Before(timeline[j].Timestamp)
+	})
+
+	return timeline
 }
