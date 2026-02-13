@@ -146,20 +146,28 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 	workspaces := make([]codersdk.DiagnosticWorkspace, 0, len(wsRows))
 	for _, ws := range wsRows {
 		// Fetch historic sessions from DB.
-		sessions := api.buildWorkspaceSessions(ctx, ws.ID, ws.Name, windowStart, now, dblogs)
+		sessions, sessionAgentMap := api.buildWorkspaceSessions(ctx, ws.ID, ws.Name, windowStart, now, dblogs)
 
 		// Add live sessions synthesized from ongoing connection logs.
-		liveSessions := buildLiveSessionsForWorkspace(ws.ID, ws.Name, ongoingLogs)
+		liveSessions, liveAgentMap := buildLiveSessionsForWorkspace(ws.ID, ws.Name, ongoingLogs)
 		sessions = append(liveSessions, sessions...)
+		for sessID, agents := range liveAgentMap {
+			sessionAgentMap[sessID] = agents
+		}
 
-		// Enrich each session's timeline with peering events.
+		// Enrich each session's timeline with peering events scoped
+		// to the agents that belong to this session.
 		for i := range sessions {
+			sessAgents := sessionAgentMap[sessions[i].ID]
+			if len(sessAgents) == 0 {
+				continue
+			}
 			sessions[i].Timeline = mergePeeringEventsIntoTimeline(
 				sessions[i].Timeline,
 				allPeeringEvents,
 				sessions[i].StartedAt,
 				sessions[i].EndedAt,
-				agentIDs,
+				sessAgents,
 			)
 		}
 
@@ -268,7 +276,7 @@ func (api *API) buildWorkspaceSessions(
 	workspaceName string,
 	windowStart, windowEnd time.Time,
 	allLogs []database.GetConnectionLogsOffsetRow,
-) []codersdk.DiagnosticSession {
+) ([]codersdk.DiagnosticSession, map[uuid.UUID]map[uuid.UUID]bool) {
 	// Pre-filter allLogs to this workspace's closed connections.
 	var workspaceLogs []database.GetConnectionLogsOffsetRow
 	for _, cl := range allLogs {
@@ -332,6 +340,18 @@ func (api *API) buildWorkspaceSessions(
 		}
 	}
 
+	// Build per-session agent ID maps from matched connection logs.
+	sessionAgents := make(map[uuid.UUID]map[uuid.UUID]bool)
+	for sessID, cls := range connLogsBySession {
+		agents := make(map[uuid.UUID]bool)
+		for _, cl := range cls {
+			if cl.AgentID.Valid {
+				agents[cl.AgentID.UUID] = true
+			}
+		}
+		sessionAgents[sessID] = agents
+	}
+
 	sessions := make([]codersdk.DiagnosticSession, 0, len(dbSessions))
 	for _, dbSess := range dbSessions {
 		sess := convertDBSession(dbSess, workspaceName, connLogsBySession[dbSess.ID])
@@ -347,10 +367,13 @@ func (api *API) buildWorkspaceSessions(
 	}
 
 	// Build synthetic sessions from orphaned logs.
-	orphanedSessions := buildSessionsFromOrphanedLogs(orphanedLogs, workspaceID, workspaceName)
+	orphanedSessions, orphanedAgents := buildSessionsFromOrphanedLogs(orphanedLogs, workspaceID, workspaceName)
 	sessions = append(sessions, orphanedSessions...)
+	for sessID, agents := range orphanedAgents {
+		sessionAgents[sessID] = agents
+	}
 
-	return sessions
+	return sessions, sessionAgents
 }
 
 // buildSessionsFromOrphanedLogs groups orphaned closed connection logs by
@@ -360,9 +383,9 @@ func buildSessionsFromOrphanedLogs(
 	logs []database.GetConnectionLogsOffsetRow,
 	workspaceID uuid.UUID,
 	workspaceName string,
-) []codersdk.DiagnosticSession {
+) ([]codersdk.DiagnosticSession, map[uuid.UUID]map[uuid.UUID]bool) {
 	if len(logs) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Sort by connect_time ascending.
@@ -421,6 +444,7 @@ func buildSessionsFromOrphanedLogs(
 
 	// Convert each group into a DiagnosticSession.
 	sessions := make([]codersdk.DiagnosticSession, 0, len(finishedGroups))
+	sessionAgents := make(map[uuid.UUID]map[uuid.UUID]bool)
 	for _, g := range finishedGroups {
 		first := g.logs[0].ConnectionLog
 		startedAt := first.ConnectTime
@@ -471,8 +495,19 @@ func buildSessionsFromOrphanedLogs(
 		endedAtCopy := endedAt
 		dur := math.Round(endedAtCopy.Sub(startedAt).Seconds())
 
+		sessID := uuid.New()
+
+		// Collect agent IDs for this orphaned session.
+		agents := make(map[uuid.UUID]bool)
+		for _, cl := range g.logs {
+			if cl.ConnectionLog.AgentID.Valid {
+				agents[cl.ConnectionLog.AgentID.UUID] = true
+			}
+		}
+		sessionAgents[sessID] = agents
+
 		sessions = append(sessions, codersdk.DiagnosticSession{
-			ID:               uuid.New(),
+			ID:               sessID,
 			WorkspaceID:      workspaceID,
 			WorkspaceName:    workspaceName,
 			AgentName:        first.AgentName,
@@ -495,7 +530,7 @@ func buildSessionsFromOrphanedLogs(
 		})
 	}
 
-	return sessions
+	return sessions, sessionAgents
 }
 
 // convertDBSession converts a database session row and its connection logs
@@ -837,7 +872,7 @@ func buildLiveSessionsForWorkspace(
 	workspaceID uuid.UUID,
 	workspaceName string,
 	ongoingLogs []database.GetConnectionLogsOffsetRow,
-) []codersdk.DiagnosticSession {
+) ([]codersdk.DiagnosticSession, map[uuid.UUID]map[uuid.UUID]bool) {
 	groups := make(map[liveGroupKey][]database.GetConnectionLogsOffsetRow)
 	for _, cl := range ongoingLogs {
 		if cl.ConnectionLog.WorkspaceID != workspaceID {
@@ -864,6 +899,7 @@ func buildLiveSessionsForWorkspace(
 	}
 
 	var sessions []codersdk.DiagnosticSession
+	sessionAgents := make(map[uuid.UUID]map[uuid.UUID]bool)
 	for _, logs := range groups {
 		if len(logs) == 0 {
 			continue
@@ -913,8 +949,19 @@ func buildLiveSessionsForWorkspace(
 			})
 		}
 
+		sessID := uuid.New()
+
+		// Collect agent IDs for this live session.
+		agents := make(map[uuid.UUID]bool)
+		for _, cl := range logs {
+			if cl.ConnectionLog.AgentID.Valid {
+				agents[cl.ConnectionLog.AgentID.UUID] = true
+			}
+		}
+		sessionAgents[sessID] = agents
+
 		sessions = append(sessions, codersdk.DiagnosticSession{
-			ID:               uuid.New(),
+			ID:               sessID,
 			WorkspaceID:      workspaceID,
 			WorkspaceName:    workspaceName,
 			AgentName:        first.AgentName,
@@ -928,7 +975,7 @@ func buildLiveSessionsForWorkspace(
 		})
 	}
 
-	return sessions
+	return sessions, sessionAgents
 }
 
 // buildCurrentConnections converts ongoing connection logs into
