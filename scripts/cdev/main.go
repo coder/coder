@@ -15,7 +15,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
@@ -38,6 +37,7 @@ func main() {
 			cleanCmd(),
 			pprofCmd(),
 			logsCmd(),
+			generateCmd(),
 		},
 	}
 
@@ -67,14 +67,8 @@ func cleanCmd() *serpent.Command {
 		Use:   "clean",
 		Short: "Remove all cdev-managed resources (volumes, containers, etc.)",
 		Handler: func(inv *serpent.Invocation) error {
-			pool, err := dockertest.NewPool("")
-			if err != nil {
-				return xerrors.Errorf("failed to connect to docker: %w", err)
-			}
-
 			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
-
-			return catalog.Cleanup(inv.Context(), logger, pool)
+			return catalog.Cleanup(inv.Context(), logger)
 		},
 	}
 }
@@ -84,14 +78,8 @@ func downCmd() *serpent.Command {
 		Use:   "down",
 		Short: "Stop all running cdev-managed containers, but keep volumes and other resources.",
 		Handler: func(inv *serpent.Invocation) error {
-			pool, err := dockertest.NewPool("")
-			if err != nil {
-				return xerrors.Errorf("failed to connect to docker: %w", err)
-			}
-
 			logger := slog.Make(catalog.NewLoggerSink(inv.Stderr, nil))
-
-			return catalog.Down(inv.Context(), logger, pool)
+			return catalog.Down(inv.Context(), logger)
 		},
 	}
 }
@@ -262,13 +250,13 @@ func resourcesCmd() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			pool, err := dockertest.NewPool("")
+			client, err := docker.NewClientFromEnv()
 			if err != nil {
 				return xerrors.Errorf("failed to connect to docker: %w", err)
 			}
 
 			m := &watchModel{
-				pool:     pool,
+				client:   client,
 				interval: interval,
 				filter:   catalog.NewLabels().Filter(),
 			}
@@ -286,7 +274,7 @@ func resourcesCmd() *serpent.Command {
 
 // watchModel is the bubbletea model for the watch command.
 type watchModel struct {
-	pool       *dockertest.Pool
+	client     *docker.Client
 	interval   time.Duration
 	filter     map[string][]string
 	containers []docker.APIContainers
@@ -308,7 +296,7 @@ func (m *watchModel) tick() tea.Cmd {
 }
 
 func (m *watchModel) fetchData() tea.Msg {
-	containers, err := m.pool.Client.ListContainers(docker.ListContainersOptions{
+	containers, err := m.client.ListContainers(docker.ListContainersOptions{
 		All:     true,
 		Filters: m.filter,
 	})
@@ -316,14 +304,14 @@ func (m *watchModel) fetchData() tea.Msg {
 		return err
 	}
 
-	vols, err := m.pool.Client.ListVolumes(docker.ListVolumesOptions{
+	vols, err := m.client.ListVolumes(docker.ListVolumesOptions{
 		Filters: m.filter,
 	})
 	if err != nil {
 		return err
 	}
 
-	imgs, err := m.pool.Client.ListImages(docker.ListImagesOptions{
+	imgs, err := m.client.ListImages(docker.ListImagesOptions{
 		Filters: m.filter,
 		All:     true,
 	})
@@ -588,14 +576,14 @@ Examples:
 			}
 			service := inv.Args[0]
 
-			pool, err := dockertest.NewPool("")
+			client, err := docker.NewClientFromEnv()
 			if err != nil {
 				return xerrors.Errorf("failed to connect to docker: %w", err)
 			}
 
 			// Find containers matching the service label.
 			filter := catalog.NewServiceLabels(catalog.ServiceName(service)).Filter()
-			containers, err := pool.Client.ListContainers(docker.ListContainersOptions{
+			containers, err := client.ListContainers(docker.ListContainersOptions{
 				All:     true,
 				Filters: filter,
 			})
@@ -626,6 +614,91 @@ Examples:
 	}
 }
 
+func generateCmd() *serpent.Command {
+	var (
+		coderdCount      int64
+		provisionerCount int64
+		oidc             bool
+		prometheus       bool
+		outputFile       string
+	)
+
+	return &serpent.Command{
+		Use:   "generate",
+		Short: "Generate docker-compose.yml for the cdev stack",
+		Options: serpent.OptionSet{
+			{
+				Flag:    "coderd-count",
+				Default: "1",
+				Value:   serpent.Int64Of(&coderdCount),
+			},
+			{
+				Flag:    "provisioner-count",
+				Default: "0",
+				Value:   serpent.Int64Of(&provisionerCount),
+			},
+			{
+				Flag:    "oidc",
+				Default: "false",
+				Value:   serpent.BoolOf(&oidc),
+			},
+			{
+				Flag:    "prometheus",
+				Default: "false",
+				Value:   serpent.BoolOf(&prometheus),
+			},
+			{
+				Flag:          "output",
+				FlagShorthand: "o",
+				Description:   "Output file (default: stdout).",
+				Value:         serpent.StringOf(&outputFile),
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return xerrors.Errorf("get working directory: %w", err)
+			}
+
+			dockerGroup := os.Getenv("DOCKER_GROUP")
+			if dockerGroup == "" {
+				dockerGroup = "999"
+			}
+			dockerSocket := os.Getenv("DOCKER_SOCKET")
+			if dockerSocket == "" {
+				dockerSocket = "/var/run/docker.sock"
+			}
+
+			cfg := catalog.ComposeConfig{
+				CoderdCount:      int(coderdCount),
+				ProvisionerCount: int(provisionerCount),
+				OIDC:             oidc,
+				Prometheus:       prometheus,
+				DockerGroup:      dockerGroup,
+				DockerSocket:     dockerSocket,
+				CWD:              cwd,
+				License:          os.Getenv("CODER_LICENSE"),
+			}
+
+			data, err := catalog.GenerateYAML(cfg)
+			if err != nil {
+				return xerrors.Errorf("generate compose YAML: %w", err)
+			}
+
+			if outputFile != "" {
+				if err := os.WriteFile(outputFile, data, 0o644); err != nil {
+					return xerrors.Errorf("write output file: %w", err)
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "Wrote compose file to %s\n", outputFile)
+				return nil
+			}
+
+			_, err = inv.Stdout.Write(data)
+			return err
+		},
+	}
+}
+
 func upCmd() *serpent.Command {
 	services := catalog.New()
 	err := services.Register(
@@ -645,7 +718,7 @@ func upCmd() *serpent.Command {
 	// Create provisioner to collect its options, but don't register
 	// it yet — we only register when count > 0 (after option parsing).
 	provisioner := catalog.NewProvisioner(services)
-	prometheus := catalog.NewPrometheus()
+	prometheusSvc := catalog.NewPrometheus()
 
 	// Fail fast if HA is enabled without a license.
 	catalog.Configure[*catalog.Coderd](services, catalog.OnCoderd(), func(c *catalog.Coderd) {
@@ -680,7 +753,7 @@ func upCmd() *serpent.Command {
 	// Add provisioner options even though it's not registered yet,
 	// so --provisioner-count always appears in help text.
 	optionSet = append(optionSet, provisioner.Options()...)
-	optionSet = append(optionSet, prometheus.Options()...)
+	optionSet = append(optionSet, prometheusSvc.Options()...)
 
 	return &serpent.Command{
 		Use:     "up",
@@ -697,8 +770,8 @@ func upCmd() *serpent.Command {
 			}
 
 			// Register prometheus only if enabled.
-			if prometheus.Enabled() {
-				if err := services.Register(prometheus); err != nil {
+			if prometheusSvc.Enabled() {
+				if err := services.Register(prometheusSvc); err != nil {
 					return xerrors.Errorf("failed to register prometheus: %w", err)
 				}
 			}
@@ -738,7 +811,7 @@ func upCmd() *serpent.Command {
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "✅ Coder is ready at %s\n", coderd.Result().URL)
-			if prometheus.Enabled() {
+			if prometheusSvc.Enabled() {
 				_, _ = fmt.Fprintf(inv.Stdout, "📊 Prometheus is ready at http://localhost:9090\n")
 			}
 			<-inv.Context().Done()
