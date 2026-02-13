@@ -14,6 +14,7 @@ const (
 	InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE"
 	InboxNotificationFallbackIconAccount   = "DEFAULT_ICON_ACCOUNT"
 	InboxNotificationFallbackIconTemplate  = "DEFAULT_ICON_TEMPLATE"
+	InboxNotificationFallbackIconChangelog = "DEFAULT_ICON_CHANGELOG"
 	InboxNotificationFallbackIconOther     = "DEFAULT_ICON_OTHER"
 )
 
