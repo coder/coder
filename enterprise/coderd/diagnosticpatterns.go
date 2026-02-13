@@ -24,8 +24,11 @@ func detectPatterns(workspaces []codersdk.DiagnosticWorkspace, summary codersdk.
 	if p, ok := detectAgentCrash(workspaces, summary); ok {
 		patterns = append(patterns, p)
 	}
-	if p, ok := detectCleanUsage(summary); ok {
-		patterns = append(patterns, p)
+	// Only show "clean usage" when no other pattern was detected.
+	if len(patterns) == 0 {
+		if p, ok := detectCleanUsage(summary); ok {
+			patterns = append(patterns, p)
+		}
 	}
 
 	return patterns
