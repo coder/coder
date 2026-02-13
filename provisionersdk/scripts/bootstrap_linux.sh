@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eux
+
 # Sleep for a good long while before exiting.
 # This is to allow folks to exec into a failed workspace and poke around to
 # troubleshoot.
@@ -8,10 +9,12 @@ waitonexit() {
 	sleep 86400
 }
 trap waitonexit EXIT
+
 BINARY_DIR="${BINARY_DIR:-$(mktemp -d -t coder.XXXXXX)}"
 BINARY_NAME=coder
 BINARY_URL=${ACCESS_URL}bin/coder-linux-${ARCH}
 cd "$BINARY_DIR"
+
 # Attempt to download the coder agent.
 # This could fail for a number of reasons, many of which are likely transient.
 # So just keep trying!
@@ -26,14 +29,14 @@ while :; do
 		wget -q "${BINARY_URL}" -O "${BINARY_NAME}" && break
 		status=$?
 	elif command -v busybox >/dev/null 2>&1; then
-		busybox wget -q "${BINARY_URL}" -O "${BINARY_NAME}" && break
+		busybox wget -O "${BINARY_NAME}" "${BINARY_URL}" && break
 		status=$?
 	else
-		echo "error: no download tool found, please install curl, wget or busybox wget"
+		echo "error: no download tool found, please install curl, wget or busybox"
 		exit 127
 	fi
 	echo "error: failed to download coder agent"
-	echo "       command returned: ${status}"
+	echo "       command returned non-zero exit code: ${status}"
 	echo "Trying again in 30 seconds..."
 	sleep 30
 done
@@ -43,55 +46,95 @@ if ! chmod +x $BINARY_NAME; then
 	exit 1
 fi
 
-haslibcap2() {
-	command -v setcap /dev/null 2>&1
-	command -v capsh /dev/null 2>&1
-}
-printnetadminmissing() {
-	echo "The root user does not have CAP_NET_ADMIN permission. " + \
-		"If running in Docker, add the capability to the container for " + \
-		"improved network performance."
-	echo "This has security implications. See https://man7.org/linux/man-pages/man7/capabilities.7.html"
-}
-
-# Attempt to add CAP_NET_ADMIN to the agent binary. This allows us to increase
-# network buffers which improves network transfer speeds.
-if [ -n "${USE_CAP_NET_ADMIN:-}" ]; then
-	# If running as root, we do not need to do anything.
-	if [ "$(id -u)" -eq 0 ]; then
-		echo "Running as root, skipping setcap"
-		# Warn the user if root does not have CAP_NET_ADMIN.
-		if ! capsh --has-p=CAP_NET_ADMIN; then
-			printnetadminmissing
-		fi
-
-	# If not running as root, make sure we have sudo perms and the "setcap" +
-	# "capsh" binaries exist.
-	elif sudo -nl && haslibcap2; then
-		# Make sure the root user has CAP_NET_ADMIN.
-		if sudo -n capsh --has-p=CAP_NET_ADMIN; then
-			sudo -n setcap CAP_NET_ADMIN=+ep ./$BINARY_NAME || true
-		else
-			printnetadminmissing
-		fi
-
-	# If we are not running as root, cant sudo, and "setcap" does not exist, we
-	# cannot do anything.
-	else
-		echo "Unable to setcap agent binary. To enable improved network performance, " + \
-			"give the agent passwordless sudo permissions and the \"setcap\" + \"capsh\" binaries."
-		echo "This has security implications. See https://man7.org/linux/man-pages/man7/capabilities.7.html"
-	fi
-fi
-
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
 
-output=$(./${BINARY_NAME} --version | head -n1)
-if ! echo "${output}" | grep -q Coder; then
-	echo >&2 "ERROR: Downloaded agent binary returned unexpected version output"
-	echo >&2 "${BINARY_NAME} --version output: \"${output}\""
-	exit 2
+echo "Supervised? ${SUPERVISED}"
+
+# If SUPERVISED is set to "true", install and run the agent as a systemd user
+# unit instead of running it directly. This provides automatic restarts,
+# proper lifecycle management, and journal logging.
+if [ "${SUPERVISED}" = "true" ]; then
+	# Remove the waitonexit trap since systemd manages the process lifecycle.
+	trap - EXIT
+
+	BINARY_ABS_PATH="$(pwd)/${BINARY_NAME}"
+
+	# Ensure the systemd user unit directory exists.
+	mkdir -p "${HOME}/.config/systemd/user"
+
+	# Write the environment file so the unit picks up the agent token and URL.
+	# This avoids baking secrets into the unit file itself.
+	ENV_FILE="${HOME}/.config/coder-agent.env"
+	cat >"${ENV_FILE}" <<-ENVEOF
+		CODER_AGENT_AUTH=${CODER_AGENT_AUTH}
+		CODER_AGENT_URL=${CODER_AGENT_URL}
+	ENVEOF
+	chmod 600 "${ENV_FILE}"
+
+	# Write the ExecStopPost helper script. When the agent exits
+	# abnormally, systemd runs this to record the kill signal so
+	# the next agent instance can report it to coderd. On clean
+	# exit ($SERVICE_RESULT=success) nothing is written because
+	# the agent clears the file on graceful shutdown.
+	#
+	# This is a separate script file (rather than an inline
+	# command) because the bootstrap script itself may be
+	# embedded inside a single-quoted sh -c wrapper by
+	# cloud-init userdata templates, and nested single
+	# quotes break that wrapper.
+	KILL_SIGNAL_FILE="/tmp/coder-agent-kill-signal.txt"
+	STOP_POST_SCRIPT="${HOME}/.config/coder-agent-stop-post.sh"
+	cat >"${STOP_POST_SCRIPT}" <<-STOPEOF
+		#!/bin/sh
+		if [ "\$SERVICE_RESULT" != "success" ]; then
+		    echo "\$EXIT_STATUS" > ${KILL_SIGNAL_FILE}
+		fi
+	STOPEOF
+	chmod +x "${STOP_POST_SCRIPT}"
+
+	# Write the systemd user unit. All restart state (other than
+	# the kill signal file above) is managed by the agent binary
+	# itself.
+	cat >"${HOME}/.config/systemd/user/coder-agent.service" <<-UNITEOF
+		[Unit]
+		Description=Coder Agent
+		Documentation=https://coder.com/docs
+		StartLimitIntervalSec=10
+		StartLimitBurst=3
+
+		[Service]
+		Type=exec
+		EnvironmentFile=${ENV_FILE}
+		CacheDirectory=coder
+		KillSignal=SIGINT
+		KillMode=mixed
+		ExecStart=${BINARY_ABS_PATH} agent --no-reap
+		ExecStopPost=${STOP_POST_SCRIPT}
+		Restart=on-failure
+		RestartSec=5
+		TimeoutStopSec=90
+
+		[Install]
+		WantedBy=default.target
+	UNITEOF
+
+	# Set XDG_RUNTIME_DIR for systemctl --user to work outside of a
+	# login session (e.g. when run via cloud-init or sudo).
+	XDG_RUNTIME_DIR="/run/user/$(id -u)"
+	export XDG_RUNTIME_DIR
+
+	# Reload, enable, and start the unit.
+	systemctl --user daemon-reload
+	systemctl --user enable coder-agent.service
+	systemctl --user start coder-agent.service
+
+	echo "=== Coder agent started via systemd user unit ==="
+	echo "    Logs: journalctl --user -u coder-agent.service -f"
+
+	# Exit cleanly. The agent is now managed by systemd.
+	exit 0
 fi
 
-exec ./${BINARY_NAME} agent
+# Default: run the agent directly (original behavior).
+exec ./$BINARY_NAME agent
