@@ -2,6 +2,7 @@ import { MockNotification } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { daysAgo } from "utils/time";
+import { ChangelogProvider } from "modules/changelog";
 import { InboxItem } from "./InboxItem";
 
 const meta: Meta<typeof InboxItem> = {
@@ -9,9 +10,11 @@ const meta: Meta<typeof InboxItem> = {
 	component: InboxItem,
 	render: (args) => {
 		return (
-			<div className="max-w-[460px] border-solid border-border rounded">
-				<InboxItem {...args} />
-			</div>
+			<ChangelogProvider>
+				<div className="max-w-[460px] border-solid border-border rounded">
+					<InboxItem {...args} />
+				</div>
+			</ChangelogProvider>
 		);
 	},
 };

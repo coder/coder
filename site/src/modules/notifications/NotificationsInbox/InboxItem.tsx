@@ -1,6 +1,7 @@
 import type { InboxNotification } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Link } from "components/Link/Link";
+import { useChangelog } from "modules/changelog";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
 import Markdown from "react-markdown";
@@ -20,6 +21,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 	onMarkNotificationAsRead,
 }) => {
 	const isChangelog = notification.icon === CHANGELOG_ICON;
+	const { openChangelog } = useChangelog();
 
 	return (
 		<div
@@ -56,14 +58,26 @@ export const InboxItem: FC<InboxItemProps> = ({
 				</div>
 				<div className="flex items-center gap-1">
 					{notification.actions.map((action) => {
-						const actionUrl = isChangelog
-							? `/changelog/${notification.title}`
-							: action.url;
+						if (isChangelog) {
+							return (
+								<Button
+									variant="outline"
+									size="sm"
+									key={action.label}
+									onClick={() => {
+										openChangelog(notification.title);
+										onMarkNotificationAsRead(notification.id);
+									}}
+								>
+									{action.label}
+								</Button>
+							);
+						}
 
 						return (
 							<Button variant="outline" size="sm" key={action.label} asChild>
 								<RouterLink
-									to={actionUrl}
+									to={action.url}
 									onClick={() => {
 										onMarkNotificationAsRead(notification.id);
 									}}

@@ -6,6 +6,7 @@ import { useAuthenticated } from "hooks";
 import { InfoIcon } from "lucide-react";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
+import { ChangelogProvider, useChangelogToast } from "modules/changelog";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router";
 import { docs } from "utils/docs";
@@ -13,13 +14,19 @@ import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";
 
+const ChangelogToast: FC = () => {
+	useChangelogToast();
+	return null;
+};
+
 export const DashboardLayout: FC = () => {
 	const { permissions } = useAuthenticated();
 	const updateCheck = useUpdateCheck(permissions.viewDeploymentConfig);
 	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
 
 	return (
-		<>
+		<ChangelogProvider>
+			<ChangelogToast />
 			{canViewDeployment && <LicenseBanner />}
 			<AnnouncementBanners />
 
@@ -85,7 +92,7 @@ export const DashboardLayout: FC = () => {
 					}
 				/>
 			</div>
-		</>
+		</ChangelogProvider>
 	);
 };
 
