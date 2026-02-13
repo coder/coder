@@ -30,14 +30,14 @@ const baseStatusVariant: Record<
 	ongoing: "success",
 	control_lost: "warning",
 	clean_disconnected: "inactive",
-	client_disconnected: "inactive",
+	client_disconnected: "warning",
 };
 
 const baseStatusLabel: Record<WorkspaceConnectionStatus, string> = {
 	ongoing: "Connected",
 	control_lost: "Control Lost",
 	clean_disconnected: "Disconnected",
-	client_disconnected: "Client Disconnected",
+	client_disconnected: "Client Lost",
 };
 
 type StatusVariant = "success" | "warning" | "inactive" | "failed";
