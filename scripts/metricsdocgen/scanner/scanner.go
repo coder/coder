@@ -35,7 +35,8 @@ var scanDirs = []string{
 // skipPaths lists files that should be excluded from scanning. Their metrics
 // must be maintained in the static metrics file instead.
 // TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
-// 	eliminate the need for this skip list.
+//
+//	eliminate the need for this skip list.
 var skipPaths = []string{
 	"enterprise/aibridgeproxyd/metrics.go",
 }
