@@ -344,9 +344,6 @@ importers:
       '@types/react-color':
         specifier: 3.0.13
         version: 3.0.13(@types/react@19.2.7)
-      '@types/react-date-range':
-        specifier: 1.4.4
-        version: 1.4.4
       '@types/react-dom':
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.7)
@@ -2697,9 +2694,6 @@ packages:
     peerDependencies:
       '@types/react': '*'
 
-  '@types/react-date-range@1.4.4':
-    resolution: {integrity: sha512-9Y9NyNgaCsEVN/+O4HKuxzPbVjRVBGdOKRxMDcsTRWVG62lpYgnxefNckTXDWup8FvczoqPW0+ESZR6R1yymDg==, tarball: https://registry.npmjs.org/@types/react-date-range/-/react-date-range-1.4.4.tgz}
-
   '@types/react-dom@18.3.7':
     resolution: {integrity: sha512-MEe3UeoENYVFXzoXEWsvcpg6ZvlrFNlOQ7EOsvhI3CfAXwzPfO8Qwuxd40nepsYKqyyVQnTdEfv68q91yLcKrQ==, tarball: https://registry.npmjs.org/@types/react-dom/-/react-dom-18.3.7.tgz}
     peerDependencies:
@@ -3460,10 +3454,6 @@ packages:
 
   date-fns-jalali@4.1.0-0:
     resolution: {integrity: sha512-hTIP/z+t+qKwBDcmmsnmjWTduxCg+5KfdqWQvb2X/8C9+knYY6epN/pfxdDuyVlSVeFz0sM5eEfwIUQ70U4ckg==, tarball: https://registry.npmjs.org/date-fns-jalali/-/date-fns-jalali-4.1.0-0.tgz}
-
-  date-fns@2.30.0:
-    resolution: {integrity: sha512-fnULvOpxnC5/Vg3NCiWelDsLiUc9bRwAPs/+LfTLNvetFCtCTN+yQz15C/fs4AwX1R9K5GLtLfn8QW+dWisaAw==, tarball: https://registry.npmjs.org/date-fns/-/date-fns-2.30.0.tgz}
-    engines: {node: '>=0.11'}
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==, tarball: https://registry.npmjs.org/date-fns/-/date-fns-4.1.0.tgz}
@@ -8733,11 +8723,6 @@ snapshots:
       '@types/react': 19.2.7
       '@types/reactcss': 1.2.13(@types/react@19.2.7)
 
-  '@types/react-date-range@1.4.4':
-    dependencies:
-      '@types/react': 19.2.7
-      date-fns: 2.30.0
-
   '@types/react-dom@18.3.7(@types/react@19.2.7)':
     dependencies:
       '@types/react': 19.2.7
@@ -9510,10 +9495,6 @@ snapshots:
       whatwg-url: 15.1.0
 
   date-fns-jalali@4.1.0-0: {}
-
-  date-fns@2.30.0:
-    dependencies:
-      '@babel/runtime': 7.26.10
 
   date-fns@4.1.0: {}
 

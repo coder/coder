@@ -16,7 +16,7 @@ type CalendarProps = React.ComponentProps<typeof DayPicker> & {
 	buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 };
 
-function Calendar({
+export function Calendar({
 	className,
 	classNames,
 	showOutsideDays = true,
@@ -235,5 +235,3 @@ function CalendarDayButton({
 		/>
 	);
 }
-
-export { Calendar, CalendarDayButton };
