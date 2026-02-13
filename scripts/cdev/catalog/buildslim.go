@@ -94,6 +94,12 @@ func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) e
 	}
 	pool := dkr.Result()
 
+	labels := NewServiceLabels(CDevBuildSlim)
+	networkID, err := dkr.EnsureNetwork(ctx, labels)
+	if err != nil {
+		return xerrors.Errorf("ensure network: %w", err)
+	}
+
 	// Get current working directory for mounting.
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -148,8 +154,15 @@ func (b *BuildSlim) Start(ctx context.Context, logger slog.Logger, c *Catalog) e
 					fmt.Sprintf("%s:/cache", coderCache.Name),
 					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
 				},
-				GroupAdd:    []string{dockerGroup},
-				NetworkMode: "host",
+				GroupAdd: []string{dockerGroup},
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						NetworkID: networkID,
+						Aliases:   []string{"build-slim"},
+					},
+				},
 			},
 		},
 		Logger: logger,

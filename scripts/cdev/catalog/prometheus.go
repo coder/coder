@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
@@ -94,7 +95,7 @@ func (p *Prometheus) Options() serpent.OptionSet {
 func generateConfig(haCount int) string {
 	var targets []string
 	for i := range haCount {
-		targets = append(targets, fmt.Sprintf("\"localhost:%d\"", PrometheusPortNum(i)))
+		targets = append(targets, fmt.Sprintf("\"coderd-%d:2112\"", i))
 	}
 
 	return fmt.Sprintf(`global:
@@ -122,6 +123,11 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 	}
 
 	labels := NewServiceLabels(CDevPrometheus)
+
+	networkID, err := dkr.EnsureNetwork(ctx, labels)
+	if err != nil {
+		return xerrors.Errorf("ensure network: %w", err)
+	}
 
 	// Create a volume for Prometheus config and data.
 	vol, err := dkr.EnsureVolume(ctx, VolumeOptions{
@@ -193,13 +199,15 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 				ExposedPorts: map[docker.Port]struct{}{docker.Port(fmt.Sprintf("%d/tcp", prometheusUIPort)): {}},
 			},
 			HostConfig: &docker.HostConfig{
-				NetworkMode: "host",
 				Binds: []string{
 					fmt.Sprintf("%s:/prom-vol", vol.Name),
 				},
-				PortBindings: map[docker.Port][]docker.PortBinding{
-					docker.Port(fmt.Sprintf("%d/tcp", prometheusUIPort)): {
-						{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", prometheusUIPort)},
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						NetworkID: networkID,
+						Aliases:   []string{"prometheus"},
 					},
 				},
 			},
@@ -213,18 +221,17 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 	}
 
 	p.result = PrometheusResult{
-		URL: fmt.Sprintf("http://localhost:%d", prometheusUIPort),
+		URL: fmt.Sprintf("http://prometheus:%d", prometheusUIPort),
 	}
 
-	return p.waitForReady(ctx, logger)
+	return p.waitForReady(ctx, logger, pool)
 }
 
-func (p *Prometheus) waitForReady(ctx context.Context, logger slog.Logger) error {
+func (p *Prometheus) waitForReady(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	timeout := time.After(60 * time.Second)
-	client := &http.Client{Timeout: 2 * time.Second}
 
 	for {
 		select {
@@ -233,7 +240,18 @@ func (p *Prometheus) waitForReady(ctx context.Context, logger slog.Logger) error
 		case <-timeout:
 			return xerrors.New("timeout waiting for prometheus to be ready")
 		case <-ticker.C:
-			readyURL := fmt.Sprintf("http://localhost:%d/-/ready", prometheusUIPort)
+			// The container has no host port bindings, so we
+			// inspect its bridge IP to health-check from the host.
+			ctr, err := pool.Client.InspectContainer("cdev_prometheus")
+			if err != nil {
+				continue
+			}
+			ep, ok := ctr.NetworkSettings.Networks[CDevNetworkName]
+			if !ok || ep.IPAddress == "" {
+				continue
+			}
+			readyURL := fmt.Sprintf("http://%s:%d/-/ready", ep.IPAddress, prometheusUIPort)
+			client := &http.Client{Timeout: 2 * time.Second}
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
 			if err != nil {
 				continue

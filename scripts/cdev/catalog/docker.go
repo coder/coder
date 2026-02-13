@@ -27,6 +27,10 @@ type VolumeOptions struct {
 	GID    int
 }
 
+// CDevNetworkName is the Docker bridge network used by all cdev
+// containers.
+const CDevNetworkName = "cdev"
+
 type volumeOnce struct {
 	once sync.Once
 	vol  *docker.Volume
@@ -38,6 +42,9 @@ type Docker struct {
 	pool        *dockertest.Pool
 	volumes     map[string]*volumeOnce
 	volumesMu   sync.Mutex
+	networkID   string
+	networkOnce sync.Once
+	networkErr  error
 }
 
 func NewDocker() *Docker {
@@ -103,6 +110,41 @@ func (d *Docker) EnsureVolume(ctx context.Context, opts VolumeOptions) (*docker.
 	})
 	return vo.vol, vo.err
 }
+// EnsureNetwork lazily creates the cdev Docker bridge network,
+// returning its ID on all subsequent calls without repeating the
+// creation work.
+func (d *Docker) EnsureNetwork(_ context.Context, labels map[string]string) (string, error) {
+	d.networkOnce.Do(func() {
+		d.networkID, d.networkErr = d.createNetworkIfNeeded(labels)
+	})
+	return d.networkID, d.networkErr
+}
+
+func (d *Docker) createNetworkIfNeeded(labels map[string]string) (string, error) {
+	networks, err := d.pool.Client.FilteredListNetworks(docker.NetworkFilterOpts{
+		"name": map[string]bool{CDevNetworkName: true},
+	})
+	if err != nil {
+		return "", xerrors.Errorf("failed to list networks: %w", err)
+	}
+	// FilteredListNetworks does substring matching, so check for
+	// an exact name match before deciding to create.
+	for _, n := range networks {
+		if n.Name == CDevNetworkName {
+			return n.ID, nil
+		}
+	}
+	net, err := d.pool.Client.CreateNetwork(docker.CreateNetworkOptions{
+		Name:   CDevNetworkName,
+		Driver: "bridge",
+		Labels: labels,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("failed to create network %s: %w", CDevNetworkName, err)
+	}
+	return net.ID, nil
+}
+
 
 func (d *Docker) createVolumeIfNeeded(ctx context.Context, opts VolumeOptions) (*docker.Volume, error) {
 	vol, err := d.pool.Client.InspectVolume(opts.Name)

@@ -26,8 +26,12 @@ const (
 
 // PostgresResult contains the connection info for the running Postgres instance.
 type PostgresResult struct {
-	// URL is the connection string for the database.
+	// URL is the connection string for the database, accessible from the
+	// host machine (uses localhost and the mapped host port).
 	URL string
+	// InternalURL is the connection string accessible from other containers
+	// on the cdev Docker network (uses the "postgres" DNS alias).
+	InternalURL string
 	// Port is the host port mapped to the container's 5432.
 	Port string
 }
@@ -82,6 +86,13 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 	}
 	pool := d.Result()
 
+	// Ensure the cdev bridge network exists so containers can communicate
+	// via Docker DNS.
+	_, err := d.EnsureNetwork(ctx, NewLabels())
+	if err != nil {
+		return xerrors.Errorf("ensure cdev network: %w", err)
+	}
+
 	name := "cdev_postgres"
 	labels := NewServiceLabels(CDevPostgres)
 	filter := labels.Filter()
@@ -102,8 +113,9 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 		for _, port := range container.Ports {
 			if port.PrivatePort == 5432 {
 				p.result = PostgresResult{
-					URL:  fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?sslmode=disable", postgresUser, postgresPassword, port.PublicPort, postgresDB),
-					Port: fmt.Sprintf("%d", port.PublicPort),
+					URL:         fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?sslmode=disable", postgresUser, postgresPassword, port.PublicPort, postgresDB),
+					InternalURL: fmt.Sprintf("postgres://%s:%s@postgres:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresDB),
+					Port:        fmt.Sprintf("%d", port.PublicPort),
 				}
 				break
 			}
@@ -154,8 +166,13 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 					postgresPort: {{HostIP: "127.0.0.1", HostPort: ""}},
 				},
 			},
-			NetworkingConfig: nil,
-			Context:          nil,
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						Aliases: []string{"postgres"},
+					},
+				},
+			},
 		},
 		Logger:   cntLogger,
 		Detached: true,
@@ -183,8 +200,9 @@ func (p *Postgres) Start(ctx context.Context, logger slog.Logger, c *Catalog) er
 	p.containerID = result.Container.ID
 	hostPort := result.Container.NetworkSettings.Ports["5432/tcp"][0].HostPort
 	p.result = PostgresResult{
-		URL:  fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", postgresUser, postgresPassword, hostPort, postgresDB),
-		Port: hostPort,
+		URL:         fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", postgresUser, postgresPassword, hostPort, postgresDB),
+		InternalURL: fmt.Sprintf("postgres://%s:%s@postgres:5432/%s?sslmode=disable", postgresUser, postgresPassword, postgresDB),
+		Port:        hostPort,
 	}
 
 	p.setStep("Waiting for PostgreSQL to be ready")

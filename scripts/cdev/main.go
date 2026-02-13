@@ -500,6 +500,7 @@ func formatSize(bytes int64) string {
 }
 
 func pprofCmd() *serpent.Command {
+	var instance int64
 	return &serpent.Command{
 		Use:   "pprof <profile>",
 		Short: "Open pprof web UI for a running coderd instance",
@@ -518,7 +519,18 @@ Supported profiles:
 Examples:
   cdev pprof heap
   cdev pprof profile
-  cdev pprof goroutine`,
+  cdev pprof goroutine
+  cdev pprof -i 1 heap     # instance 1`,
+		Options: serpent.OptionSet{
+			{
+				Name:          "Instance",
+				Description:   "Coderd instance index (0-based).",
+				Flag:          "instance",
+				FlagShorthand: "i",
+				Default:       "0",
+				Value:         serpent.Int64Of(&instance),
+			},
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			if len(inv.Args) != 1 {
 				_ = serpent.DefaultHelpFn()(inv)
@@ -526,12 +538,12 @@ Examples:
 			}
 			profile := inv.Args[0]
 
-			url := fmt.Sprintf("http://localhost:%d/debug/pprof/%s", catalog.PprofPortNum(0), profile)
+			url := fmt.Sprintf("http://localhost:%d/debug/pprof/%s", catalog.PprofPortNum(int(instance)), profile)
 			if profile == "profile" || profile == "trace" {
 				url += "?seconds=30"
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Opening pprof web UI for %q at %s\n", profile, url)
+			_, _ = fmt.Fprintf(inv.Stdout, "Opening pprof web UI for instance %d, %q at %s\n", instance, profile, url)
 
 			//nolint:gosec // User-provided profile name is passed as a URL path.
 			cmd := exec.CommandContext(inv.Context(), "go", "tool", "pprof", "-http=:", url)
@@ -624,6 +636,7 @@ func upCmd() *serpent.Command {
 		catalog.NewOIDC(),
 		catalog.NewSetup(),
 		catalog.NewSite(),
+		catalog.NewLoadBalancer(),
 	)
 	if err != nil {
 		panic(fmt.Sprintf("failed to register services: %v", err))

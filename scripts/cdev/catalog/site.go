@@ -84,13 +84,6 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 
 	labels := NewServiceLabels(CDevSite)
 
-	// Get coderd result for the backend URL.
-	coderd, ok := c.MustGet(OnCoderd()).(*Coderd)
-	if !ok {
-		return xerrors.New("unexpected type for Coderd service")
-	}
-	coderdResult := coderd.Result()
-
 	// Ensure node_modules volume exists.
 	nodeModulesVol, err := dkr.EnsureVolume(ctx, VolumeOptions{
 		Name:   "cdev_site_node_modules",
@@ -116,9 +109,14 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	cntLogger := slog.Make(cntSink)
 	defer cntSink.Close()
 
-	// The backend URL needs to be accessible from inside the container.
-	// Since we're using host networking, localhost works.
-	coderHost := coderdResult.URL
+	networkID, err := dkr.EnsureNetwork(ctx, labels)
+	if err != nil {
+		return xerrors.Errorf("ensure network: %w", err)
+	}
+
+	// The backend URL needs to be accessible from inside the container
+	// via the Docker bridge network.
+	coderHost := "http://load-balancer:3000"
 
 	env := []string{
 		fmt.Sprintf("CODER_HOST=%s", coderHost),
@@ -152,10 +150,14 @@ func (s *Site) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 					fmt.Sprintf("%s:/app", cwd),
 					fmt.Sprintf("%s:/app/site/node_modules", nodeModulesVol.Name),
 				},
-				NetworkMode:   "host",
 				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
-				PortBindings: map[docker.Port][]docker.PortBinding{
-					docker.Port(portStr + "/tcp"): {{HostIP: "0.0.0.0", HostPort: portStr}},
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						NetworkID: networkID,
+						Aliases:   []string{"site"},
+					},
 				},
 			},
 		},

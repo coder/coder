@@ -16,6 +16,7 @@ import (
 // Down stops and deletes selective resources, while keeping things like caches
 func Down(ctx context.Context, logger slog.Logger, pool *dockertest.Pool) error {
 	servicesToDown := []ServiceName{
+		CDevLoadBalancer,
 		CDevPostgres,
 		CDevCoderd,
 		CDevOIDC,

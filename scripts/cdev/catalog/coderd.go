@@ -174,12 +174,10 @@ func (c *Coderd) Start(ctx context.Context, logger slog.Logger, cat *Catalog) er
 			return xerrors.Errorf("start coderd instance %d: %w", i, err)
 		}
 		if i == 0 {
-			// Primary instance uses base port, others use base + index.
-			port := coderdPortNum(0)
 			c.containerID = container.Container.ID
 			c.result = CoderdResult{
-				URL:  fmt.Sprintf("http://localhost:%d", port),
-				Port: fmt.Sprintf("%d", port),
+				URL:  "http://localhost:3000",
+				Port: "3000",
 			}
 		}
 	}
@@ -237,32 +235,33 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		dockerSocket = "/var/run/docker.sock"
 	}
 
-	// Get docker group ID for socket access. Auto-detect via getent if not set.
+	// Get docker group ID for socket access. Auto-detect via
+	// getent if not set.
 	dockerGroup := os.Getenv("DOCKER_GROUP")
 	if dockerGroup == "" {
 		dockerGroup = getDockerGroupID()
 	}
 
-	// Calculate port for this instance (base port + index).
-	port := coderdPortNum(index)
-	portStr := fmt.Sprintf("%d", port)
-	pprofPort := PprofPortNum(index)
-	pprofPortStr := fmt.Sprintf("%d", pprofPort)
-	prometheusPort := PrometheusPortNum(index)
-	prometheusPortStr := fmt.Sprintf("%d", prometheusPort)
-	httpAddress := fmt.Sprintf("0.0.0.0:%d", port)
-	accessURL := fmt.Sprintf("http://localhost:%d", port)
-	wildcardAccessURL := fmt.Sprintf("*.localhost:%d", port)
+	// All coderd instances use the same fixed internal ports. The
+	// bridge network isolates each container, so there are no
+	// conflicts. The nginx load balancer handles host port exposure.
+	const (
+		httpPort       = "3000"
+		pprofPort      = "6060"
+		prometheusPort = "2112"
+	)
+	httpAddress := "0.0.0.0:" + httpPort
+	accessURL := "http://localhost:3000"
+	wildcardAccessURL := "*.localhost:3000"
 
-	logger.Info(ctx, "starting coderd container", slog.F("index", index), slog.F("port", port))
+	logger.Info(ctx, "starting coderd container", slog.F("index", index), slog.F("port", httpPort))
 
 	cntSink := NewLoggerSink(cat.w, c)
 	cntLogger := slog.Make(cntSink)
 	defer cntSink.Close()
 
 	env := []string{
-		// Use host networking for postgres since it's on localhost.
-		fmt.Sprintf("CODER_PG_CONNECTION_URL=%s", pg.Result().URL),
+		fmt.Sprintf("CODER_PG_CONNECTION_URL=%s", pg.Result().InternalURL),
 		fmt.Sprintf("CODER_HTTP_ADDRESS=%s", httpAddress),
 		fmt.Sprintf("CODER_ACCESS_URL=%s", accessURL),
 		fmt.Sprintf("CODER_WILDCARD_ACCESS_URL=%s", wildcardAccessURL),
@@ -274,9 +273,9 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		"CODER_CACHE_DIRECTORY=/cache",
 		fmt.Sprintf("DOCKER_HOST=unix://%s", dockerSocket),
 		"CODER_PPROF_ENABLE=true",
-		fmt.Sprintf("CODER_PPROF_ADDRESS=0.0.0.0:%d", PprofPortNum(index)),
+		"CODER_PPROF_ADDRESS=0.0.0.0:" + pprofPort,
 		"CODER_PROMETHEUS_ENABLE=true",
-		fmt.Sprintf("CODER_PROMETHEUS_ADDRESS=0.0.0.0:%d", PrometheusPortNum(index)),
+		"CODER_PROMETHEUS_ADDRESS=0.0.0.0:" + prometheusPort,
 	}
 	env = append(env, c.ExtraEnv...)
 
@@ -289,15 +288,21 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
 		"--pprof-enable",
-		"--pprof-address", fmt.Sprintf("127.0.0.1:%d", PprofPortNum(index)),
+		"--pprof-address", "127.0.0.1:" + pprofPort,
 		"--prometheus-enable",
-		"--prometheus-address", fmt.Sprintf("0.0.0.0:%d", PrometheusPortNum(index)),
+		"--prometheus-address", "0.0.0.0:" + prometheusPort,
 		// OIDC configuration from the OIDC service.
-		"--oidc-issuer-url", oidc.Result().IssuerURL,
+		"--oidc-issuer-url", "http://load-balancer:4500",
+		"--dangerous-oidc-skip-issuer-checks",
 		"--oidc-client-id", oidc.Result().ClientID,
 		"--oidc-client-secret", oidc.Result().ClientSecret,
 	}
 	cmd = append(cmd, c.ExtraArgs...)
+
+	// Ensure the cdev bridge network exists.
+	if _, err := dkr.EnsureNetwork(ctx, NewLabels()); err != nil {
+		return nil, xerrors.Errorf("ensure network: %w", err)
+	}
 
 	// Start new container.
 	result, err := RunContainer(ctx, pool, CDevCoderd, ContainerRunOptions{
@@ -310,9 +315,9 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 				Cmd:        cmd,
 				Labels:     labels,
 				ExposedPorts: map[docker.Port]struct{}{
-					docker.Port(portStr + "/tcp"):           {},
-					docker.Port(pprofPortStr + "/tcp"):      {},
-					docker.Port(prometheusPortStr + "/tcp"): {},
+					docker.Port(httpPort + "/tcp"):       {},
+					docker.Port(pprofPort + "/tcp"):      {},
+					docker.Port(prometheusPort + "/tcp"): {},
 				},
 			},
 			HostConfig: &docker.HostConfig{
@@ -324,12 +329,13 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
 				},
 				GroupAdd:      []string{dockerGroup},
-				NetworkMode:   "host",
 				RestartPolicy: docker.RestartPolicy{Name: "unless-stopped"},
-				PortBindings: map[docker.Port][]docker.PortBinding{
-					docker.Port(portStr + "/tcp"):           {{HostIP: "127.0.0.1", HostPort: portStr}},
-					docker.Port(pprofPortStr + "/tcp"):      {{HostIP: "127.0.0.1", HostPort: pprofPortStr}},
-					docker.Port(prometheusPortStr + "/tcp"): {{HostIP: "127.0.0.1", HostPort: prometheusPortStr}},
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						Aliases: []string{fmt.Sprintf("coderd-%d", index)},
+					},
 				},
 			},
 		},

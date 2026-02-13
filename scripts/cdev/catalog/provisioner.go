@@ -161,13 +161,15 @@ func (p *Provisioner) startProvisioner(ctx context.Context, logger slog.Logger, 
 		return xerrors.New("unexpected type for Docker service")
 	}
 	pool := dkr.Result()
-	coderd, ok := cat.MustGet(OnCoderd()).(*Coderd)
-	if !ok {
-		return xerrors.New("unexpected type for Coderd service")
-	}
+	_ = cat.MustGet(OnCoderd()).(*Coderd)
 	build := Get[*BuildSlim](cat)
 
 	labels := NewServiceLabels(CDevProvisioner)
+
+	networkID, err := dkr.EnsureNetwork(ctx, labels)
+	if err != nil {
+		return xerrors.Errorf("ensure network: %w", err)
+	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -196,7 +198,7 @@ func (p *Provisioner) startProvisioner(ctx context.Context, logger slog.Logger, 
 				Image:      dogfoodImage + ":" + dogfoodTag,
 				WorkingDir: "/app",
 				Env: []string{
-					fmt.Sprintf("CODER_URL=%s", coderd.Result().URL),
+					"CODER_URL=http://load-balancer:3000",
 					fmt.Sprintf("CODER_PROVISIONER_DAEMON_KEY=%s", key),
 					fmt.Sprintf("CODER_PROVISIONER_DAEMON_NAME=cdev-provisioner-%d", index),
 					"GOMODCACHE=/go-cache/mod",
@@ -218,8 +220,15 @@ func (p *Provisioner) startProvisioner(ctx context.Context, logger slog.Logger, 
 					fmt.Sprintf("%s:/cache", build.CoderCache.Name),
 					fmt.Sprintf("%s:%s", dockerSocket, dockerSocket),
 				},
-				GroupAdd:    []string{dockerGroup},
-				NetworkMode: "host",
+				GroupAdd: []string{dockerGroup},
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						NetworkID: networkID,
+						Aliases:   []string{fmt.Sprintf("provisioner-%d", index)},
+					},
+				},
 			},
 		},
 		Logger:   cntLogger,

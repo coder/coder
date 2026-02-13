@@ -27,8 +27,11 @@ const (
 
 // OIDCResult contains the connection info for the running OIDC IDP.
 type OIDCResult struct {
-	// IssuerURL is the OIDC issuer URL.
+	// IssuerURL is the OIDC issuer URL accessible from the host machine.
 	IssuerURL string
+	// InternalIssuerURL is the OIDC issuer URL accessible from other
+	// containers on the cdev Docker network (uses the "oidc" DNS alias).
+	InternalIssuerURL string
 	// ClientID is the OIDC client ID.
 	ClientID string
 	// ClientSecret is the OIDC client secret.
@@ -93,6 +96,13 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 	}
 	o.pool = d.Result()
 
+	// Ensure the cdev bridge network exists so containers can communicate
+	// via Docker DNS.
+	_, err := d.EnsureNetwork(ctx, NewLabels())
+	if err != nil {
+		return xerrors.Errorf("ensure cdev network: %w", err)
+	}
+
 	labels := NewServiceLabels(CDevOIDC).With(CDevLabelEphemeral, "true")
 
 	o.setStep("building testidp docker image (this can take awhile)")
@@ -124,8 +134,12 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 			},
 			HostConfig: &docker.HostConfig{
 				AutoRemove: true,
-				PortBindings: map[docker.Port][]docker.PortBinding{
-					testidpPort: {{HostIP: "127.0.0.1", HostPort: testidpHostPort}},
+			},
+			NetworkingConfig: &docker.NetworkingConfig{
+				EndpointsConfig: map[string]*docker.EndpointConfig{
+					CDevNetworkName: {
+						Aliases: []string{"oidc"},
+					},
 				},
 			},
 		},
@@ -137,25 +151,13 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 		return xerrors.Errorf("run container: %w", err)
 	}
 
-	// The networking port takes some time to be available.
-	timeout, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
-	for {
-		if timeout.Err() != nil {
-			return xerrors.Errorf("timeout waiting for oidc container to start: %w", timeout.Err())
-		}
-		if len(result.Container.NetworkSettings.Ports["4500/tcp"]) > 0 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
 	o.containerID = result.Container.ID
 	o.result = OIDCResult{
-		IssuerURL:    testidpIssuerURL,
-		ClientID:     testidpClientID,
-		ClientSecret: testidpClientSec,
-		Port:         testidpHostPort,
+		IssuerURL:         testidpIssuerURL,
+		InternalIssuerURL: "http://oidc:4500",
+		ClientID:          testidpClientID,
+		ClientSecret:      testidpClientSec,
+		Port:              testidpHostPort,
 	}
 
 	return o.waitForReady(ctx, logger)
