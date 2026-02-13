@@ -28,8 +28,12 @@ export const WorkspaceSessionRow: FC<WorkspaceSessionRowProps> = ({
 		useState<WorkspaceConnection | null>(null);
 	const hasConnections = session.connections.length > 0;
 
-	const clientLabel =
+	// Client location: hostname or IP (where the connection came from).
+	const clientLocation =
 		session.client_hostname || session.ip || "Unknown client";
+	// Session description: what the session is (e.g. "Coder Server",
+	// "CLI ssh"). Falls back to client location if not available.
+	const sessionLabel = session.short_description || clientLocation;
 	const timeRange = session.ended_at
 		? `${formatDateTime(session.started_at)} — ${formatDateTime(session.ended_at)}`
 		: `${formatDateTime(session.started_at)} — ongoing`;
@@ -40,18 +44,25 @@ export const WorkspaceSessionRow: FC<WorkspaceSessionRowProps> = ({
 				clickable={hasConnections}
 				onClick={() => hasConnections && setIsOpen((v) => !v)}
 			>
-				<TableCell>
+				<TableCell className="pl-4">
 					<div className="flex items-center gap-3 py-1">
-						{hasConnections && (
-							<DropdownArrow close={isOpen} />
-						)}
-						{!hasConnections && <div className="w-6" />}
+						{/* Fixed-width arrow container for consistent alignment. */}
+						<span className="flex items-center justify-center w-6 shrink-0">
+							{hasConnections && (
+								<DropdownArrow close={isOpen} margin={false} />
+							)}
+						</span>
 
 						<div className="flex flex-col gap-1 flex-1 min-w-0">
 							<div className="flex items-center gap-2">
 								<span className="font-medium text-sm truncate">
-									{clientLabel}
+									{sessionLabel}
 								</span>
+								{session.short_description && clientLocation !== session.short_description && (
+									<span className="text-xs text-content-secondary font-mono truncate">
+										{clientLocation}
+									</span>
+								)}
 								<span className="flex items-center gap-1.5">
 									<span
 										className={`inline-block h-2 w-2 rounded-full ${connectionStatusDot(session.status)}`}
