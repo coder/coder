@@ -32,6 +32,15 @@ var scanDirs = []string{
 	"provisionerd",
 }
 
+// skipPaths lists files that should be excluded from scanning. Their metrics
+// must be maintained in the static metrics file instead.
+// TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
+//
+//	eliminate the need for this skip list.
+var skipPaths = []string{
+	"enterprise/aibridgeproxyd/metrics.go",
+}
+
 // MetricType represents the type of Prometheus metric.
 type MetricType string
 
@@ -132,6 +141,13 @@ func scanDirectory(root string) ([]Metric, error) {
 			return nil
 		}
 
+		// Skip files listed in skipPaths.
+		for _, sp := range skipPaths {
+			if path == sp {
+				return nil
+			}
+		}
+
 		fileMetrics, err := scanFile(path)
 		if err != nil {
 			return xerrors.Errorf("scanning %s: %w", path, err)
@@ -173,10 +189,11 @@ func scanFile(path string) ([]Metric, error) {
 
 		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
-			// TODO(ssncferreira): Consider filtering out metrics with empty Help descriptions.
-			//   These indicate missing documentation in the source code.
 			if metric.Help == "" {
-				log.Printf("WARNING: metric %q has no HELP description, consider updating the source code", metric.Name)
+				log.Printf("WARNING: metric %q has no HELP description, skipping", metric.Name)
+				// Skip metrics without descriptions, they should be fixed in the source code
+				// or added to the static metrics file with a manual description.
+				return true
 			}
 			metrics = append(metrics, metric)
 		}

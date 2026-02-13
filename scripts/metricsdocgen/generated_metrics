@@ -1,30 +1,3 @@
-# HELP agent_reconnecting_pty_connections_total 
-# TYPE agent_reconnecting_pty_connections_total counter
-agent_reconnecting_pty_connections_total 0
-# HELP agent_reconnecting_pty_errors_total 
-# TYPE agent_reconnecting_pty_errors_total counter
-agent_reconnecting_pty_errors_total{error_type=""} 0
-# HELP agent_scripts_executed_total 
-# TYPE agent_scripts_executed_total counter
-agent_scripts_executed_total{success=""} 0
-# HELP agent_sessions_errors_total 
-# TYPE agent_sessions_errors_total counter
-agent_sessions_errors_total{magic_type="",pty="",error_type=""} 0
-# HELP agent_sessions_total 
-# TYPE agent_sessions_total counter
-agent_sessions_total{magic_type="",pty=""} 0
-# HELP agent_ssh_server_failed_connections_total 
-# TYPE agent_ssh_server_failed_connections_total counter
-agent_ssh_server_failed_connections_total 0
-# HELP agent_ssh_server_sftp_connections_total 
-# TYPE agent_ssh_server_sftp_connections_total counter
-agent_ssh_server_sftp_connections_total 0
-# HELP agent_ssh_server_sftp_server_errors_total 
-# TYPE agent_ssh_server_sftp_server_errors_total counter
-agent_ssh_server_sftp_server_errors_total 0
-# HELP agent_x11_handler_errors_total 
-# TYPE agent_x11_handler_errors_total counter
-agent_x11_handler_errors_total{error_type=""} 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0
@@ -211,9 +184,6 @@ coderd_license_warnings 0
 # HELP coderd_lifecycle_autobuild_execution_duration_seconds Duration of each autobuild execution.
 # TYPE coderd_lifecycle_autobuild_execution_duration_seconds histogram
 coderd_lifecycle_autobuild_execution_duration_seconds 0
-# HELP coderd_notifications_dispatch_attempts_total 
-# TYPE coderd_notifications_dispatch_attempts_total counter
-coderd_notifications_dispatch_attempts_total{method="",notification_template_id="",result=""} 0
 # HELP coderd_notifications_dispatcher_send_seconds The time taken to dispatch notifications.
 # TYPE coderd_notifications_dispatcher_send_seconds histogram
 coderd_notifications_dispatcher_send_seconds{method=""} 0
@@ -319,6 +289,9 @@ coderd_prometheusmetrics_metrics_aggregator_execution_update_seconds 0
 # HELP coderd_prometheusmetrics_metrics_aggregator_store_size The number of metrics stored in the aggregator
 # TYPE coderd_prometheusmetrics_metrics_aggregator_store_size gauge
 coderd_prometheusmetrics_metrics_aggregator_store_size 0
+# HELP coderd_provisioner_job_queue_wait_seconds Time from job creation to acquisition by a provisioner daemon.
+# TYPE coderd_provisioner_job_queue_wait_seconds histogram
+coderd_provisioner_job_queue_wait_seconds{provisioner_type="",job_type="",transition="",build_reason=""} 0
 # HELP coderd_provisionerd_job_timings_seconds The provisioner job time duration in seconds.
 # TYPE coderd_provisionerd_job_timings_seconds histogram
 coderd_provisionerd_job_timings_seconds{provisioner="",status=""} 0
@@ -340,6 +313,9 @@ coderd_proxyhealth_health_check_results{proxy_id=""} 0
 # HELP coderd_template_workspace_build_duration_seconds Duration from workspace build creation to agent ready, by template.
 # TYPE coderd_template_workspace_build_duration_seconds histogram
 coderd_template_workspace_build_duration_seconds{template_name="",organization_name="",transition="",status="",is_prebuild=""} 0
+# HELP coderd_workspace_builds_enqueued_total Total number of workspace build enqueue attempts.
+# TYPE coderd_workspace_builds_enqueued_total counter
+coderd_workspace_builds_enqueued_total{provisioner_type="",build_reason="",transition="",status=""} 0
 # HELP coderd_workspace_builds_total The number of workspaces started, updated, or deleted.
 # TYPE coderd_workspace_builds_total counter
 coderd_workspace_builds_total{workspace_owner="",workspace_name="",template_name="",template_version="",workspace_transition="",status=""} 0
@@ -352,15 +328,3 @@ coderd_workspace_creation_total{organization_name="",template_name="",preset_nam
 # HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner for all non-deleted workspaces.
 # TYPE coderd_workspace_latest_build_status gauge
 coderd_workspace_latest_build_status{status="",template_name="",template_version="",workspace_owner="",workspace_transition=""} 0
-# HELP connect_sessions_total Total number of CONNECT sessions established.
-# TYPE connect_sessions_total counter
-connect_sessions_total{type=""} 0
-# HELP inflight_mitm_requests Number of MITM requests currently being processed.
-# TYPE inflight_mitm_requests gauge
-inflight_mitm_requests{provider=""} 0
-# HELP mitm_requests_total Total number of MITM requests handled by the proxy.
-# TYPE mitm_requests_total counter
-mitm_requests_total{provider=""} 0
-# HELP mitm_responses_total Total number of MITM responses by HTTP status code class.
-# TYPE mitm_responses_total counter
-mitm_responses_total{code="",provider=""} 0
