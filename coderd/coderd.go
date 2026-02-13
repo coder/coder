@@ -279,10 +279,11 @@ type Options struct {
 	OneTimePasscodeValidityPeriod time.Duration
 
 	// Keycaches
-	AppSigningKeyCache    cryptokeys.SigningKeycache
-	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
-	OIDCConvertKeyCache   cryptokeys.SigningKeycache
-	Clock                 quartz.Clock
+	AppSigningKeyCache      cryptokeys.SigningKeycache
+	AppEncryptionKeyCache   cryptokeys.EncryptionKeycache
+	OIDCConvertKeyCache     cryptokeys.SigningKeycache
+	WebAuthnConnectKeyCache cryptokeys.SigningKeycache
+	Clock                   quartz.Clock
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
@@ -545,6 +546,17 @@ func New(options *Options) *API {
 		}
 	}
 
+	if options.WebAuthnConnectKeyCache == nil {
+		options.WebAuthnConnectKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("webauthn_connect_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureWebAuthnConnect,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate webauthn connect signing cache", slog.Error(err))
+		}
+	}
+
 	if options.CoordinatorResumeTokenProvider == nil {
 		fetcher := &cryptokeys.DBFetcher{
 			DB: options.Database,
@@ -614,6 +626,8 @@ func New(options *Options) *API {
 		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
+		WebAuthnJTICache:            newWebAuthnJTICache(),
+		WebAuthnVerifyCache:         newWebAuthnVerifyCache(),
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
@@ -1420,6 +1434,14 @@ func New(options *Options) *API {
 							r.Delete("/subscription", api.deleteUserWebpushSubscription)
 							r.Post("/test", api.postUserPushNotificationTest)
 						})
+						r.Route("/webauthn", func(r chi.Router) {
+							r.Post("/register/begin", api.beginWebAuthnRegistration)
+							r.Post("/register/finish", api.finishWebAuthnRegistration)
+							r.Get("/credentials", api.listWebAuthnCredentials)
+							r.Delete("/credentials/{credentialID}", api.deleteWebAuthnCredential)
+							r.Post("/challenge", api.requestWebAuthnChallenge)
+							r.Post("/verify", api.verifyWebAuthnChallenge)
+						})
 					})
 				})
 			})
@@ -1863,6 +1885,19 @@ type API struct {
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
+	// WebAuthnSessionStore holds transient WebAuthn ceremony session
+	// data (registration/assertion). Keyed by "<userID>:<ceremony>".
+	WebAuthnSessionStore sync.Map
+
+	// WebAuthnJTICache tracks used JWT IDs to prevent replay of
+	// single-use connection tokens.
+	WebAuthnJTICache *webAuthnJTICache
+
+	// WebAuthnVerifyCache tracks recent FIDO2 verification times
+	// per user so subsequent connections within the token duration
+	// window don't require another key touch.
+	WebAuthnVerifyCache *webAuthnVerifyCache
+
 	HTTPAuth *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
@@ -1954,6 +1989,7 @@ func (api *API) Close() error {
 	_ = api.OIDCConvertKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
+	_ = api.WebAuthnConnectKeyCache.Close()
 	_ = api.UpdatesProvider.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {

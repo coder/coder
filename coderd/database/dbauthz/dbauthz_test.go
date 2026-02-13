@@ -3733,6 +3733,40 @@ func (s *MethodTestSuite) TestNotifications() {
 		check.Args().Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
 	}))
 
+	// WebAuthn credentials
+	s.Run("GetWebAuthnCredentialsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetWebAuthnCredentialsByUserID(gomock.Any(), user.ID).Return([]database.WebauthnCredential{}, nil).AnyTimes()
+		check.Args(user.ID).Asserts(rbac.ResourceWebauthnCredential.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("GetWebAuthnCredentialByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		cred := testutil.Fake(s.T(), faker, database.WebauthnCredential{UserID: user.ID})
+		dbm.EXPECT().GetWebAuthnCredentialByID(gomock.Any(), cred.ID).Return(cred, nil).AnyTimes()
+		check.Args(cred.ID).Asserts(rbac.ResourceWebauthnCredential.WithID(cred.ID).WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("InsertWebAuthnCredential", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertWebAuthnCredentialParams{UserID: user.ID}
+		dbm.EXPECT().InsertWebAuthnCredential(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WebauthnCredential{UserID: user.ID}), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWebauthnCredential.WithOwner(user.ID.String()), policy.ActionCreate)
+	}))
+	s.Run("DeleteWebAuthnCredential", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		cred := testutil.Fake(s.T(), faker, database.WebauthnCredential{UserID: user.ID})
+		dbm.EXPECT().GetWebAuthnCredentialByID(gomock.Any(), cred.ID).Return(cred, nil).AnyTimes()
+		dbm.EXPECT().DeleteWebAuthnCredential(gomock.Any(), cred.ID).Return(nil).AnyTimes()
+		check.Args(cred.ID).Asserts(rbac.ResourceWebauthnCredential.WithID(cred.ID).WithOwner(user.ID.String()), policy.ActionDelete)
+	}))
+	s.Run("UpdateWebAuthnCredentialSignCount", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		cred := testutil.Fake(s.T(), faker, database.WebauthnCredential{UserID: user.ID})
+		arg := database.UpdateWebAuthnCredentialSignCountParams{ID: cred.ID}
+		dbm.EXPECT().GetWebAuthnCredentialByID(gomock.Any(), cred.ID).Return(cred, nil).AnyTimes()
+		dbm.EXPECT().UpdateWebAuthnCredentialSignCount(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWebauthnCredential.WithID(cred.ID).WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+
 	// Notification templates
 	s.Run("GetNotificationTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.NotificationTemplate{})
