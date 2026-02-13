@@ -2081,52 +2081,62 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 
 const closeConnectionLogsAndCreateSessions = `-- name: CloseConnectionLogsAndCreateSessions :execrows
 WITH connections_to_close AS (
-    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description
+    SELECT id, ip, connect_time, disconnect_time, agent_id,
+           client_hostname, short_description, type
     FROM connection_logs
     WHERE (disconnect_time IS NULL OR session_id IS NULL)
-      AND connection_logs.workspace_id = $3
+      AND workspace_id = $3
       AND type = ANY($4::connection_type[])
 ),
-ordered AS (
-    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description,
-        ROW_NUMBER() OVER (PARTITION BY ip ORDER BY connect_time) AS rn,
-        MAX(COALESCE(disconnect_time, $1::timestamptz))
-            OVER (PARTITION BY ip ORDER BY connect_time
-                  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS running_max_end
+primary_connections AS (
+    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description, type,
+        COALESCE(client_hostname, host(ip), 'unknown') AS group_key
     FROM connections_to_close
+    WHERE type != 'system'
+),
+ordered AS (
+    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description, type, group_key,
+        ROW_NUMBER() OVER (PARTITION BY group_key ORDER BY connect_time) AS rn,
+        MAX(COALESCE(disconnect_time, $1::timestamptz))
+            OVER (PARTITION BY group_key ORDER BY connect_time
+                  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS running_max_end
+    FROM primary_connections
 ),
 with_boundaries AS (
-    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description, rn, running_max_end,
+    SELECT id, ip, connect_time, disconnect_time, agent_id, client_hostname, short_description, type, group_key, rn, running_max_end,
         SUM(CASE
             WHEN rn = 1 THEN 1
             WHEN connect_time > running_max_end + INTERVAL '30 minutes' THEN 1
             ELSE 0
-        END) OVER (PARTITION BY ip ORDER BY connect_time) AS group_id
+        END) OVER (PARTITION BY group_key ORDER BY connect_time) AS group_id
     FROM ordered
 ),
 session_groups AS (
     SELECT
-        ip,
+        group_key,
         group_id,
         MIN(connect_time) AS started_at,
         MAX(COALESCE(disconnect_time, $1::timestamptz)) AS ended_at,
-        (array_agg(agent_id ORDER BY connect_time))[1] AS agent_id,
+        (array_agg(agent_id ORDER BY connect_time) FILTER (WHERE agent_id IS NOT NULL))[1] AS agent_id,
+        (array_agg(ip ORDER BY connect_time) FILTER (WHERE ip IS NOT NULL))[1] AS ip,
         (array_agg(client_hostname ORDER BY connect_time) FILTER (WHERE client_hostname IS NOT NULL))[1] AS client_hostname,
         (array_agg(short_description ORDER BY connect_time) FILTER (WHERE short_description IS NOT NULL))[1] AS short_description
     FROM with_boundaries
-    WHERE ip IS NOT NULL
-    GROUP BY ip, group_id
+    GROUP BY group_key, group_id
 ),
 existing_sessions AS (
-    SELECT DISTINCT ON (sg.ip, sg.group_id)
-        sg.ip, sg.group_id, ws.id AS session_id
+    SELECT DISTINCT ON (sg.group_key, sg.group_id)
+        sg.group_key, sg.group_id, ws.id AS session_id
     FROM session_groups sg
     JOIN workspace_sessions ws
       ON ws.workspace_id = $3
-     AND ws.ip = sg.ip
+     AND (
+         (sg.client_hostname IS NOT NULL AND ws.client_hostname = sg.client_hostname)
+         OR (sg.client_hostname IS NULL AND sg.ip IS NOT NULL AND ws.ip = sg.ip AND ws.client_hostname IS NULL)
+     )
      AND sg.started_at <= ws.ended_at + INTERVAL '30 minutes'
      AND sg.ended_at >= ws.started_at - INTERVAL '30 minutes'
-    ORDER BY sg.ip, sg.group_id, ws.started_at DESC
+    ORDER BY sg.group_key, sg.group_id, ws.started_at DESC
 ),
 new_sessions AS (
     INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
@@ -2134,27 +2144,90 @@ new_sessions AS (
     FROM session_groups sg
     WHERE NOT EXISTS (
         SELECT 1 FROM existing_sessions es
-        WHERE es.ip = sg.ip AND es.group_id = sg.group_id
+        WHERE es.group_key = sg.group_key AND es.group_id = sg.group_id
     )
     RETURNING id, ip, started_at
 ),
 all_sessions AS (
-    SELECT ns.id, ns.ip, ns.started_at
+    SELECT ns.id, sg.group_key, sg.started_at
     FROM new_sessions ns
+    JOIN session_groups sg
+      ON sg.started_at = ns.started_at
+     AND (sg.ip IS NOT DISTINCT FROM ns.ip)
     UNION ALL
-    SELECT es.session_id, es.ip, sg.started_at
+    SELECT es.session_id AS id, es.group_key, sg.started_at
     FROM existing_sessions es
-    JOIN session_groups sg ON es.ip = sg.ip AND es.group_id = sg.group_id
+    JOIN session_groups sg ON es.group_key = sg.group_key AND es.group_id = sg.group_id
+),
+system_batch_match AS (
+    SELECT DISTINCT ON (c.id)
+        c.id AS connection_id,
+        alls.id AS session_id,
+        sg.started_at AS session_start
+    FROM connections_to_close c
+    JOIN all_sessions alls ON true
+    JOIN session_groups sg ON alls.group_key = sg.group_key AND alls.started_at = sg.started_at
+    WHERE c.type = 'system'
+      AND COALESCE(c.disconnect_time, $1::timestamptz) >= sg.started_at
+      AND c.connect_time <= sg.ended_at
+    ORDER BY c.id, sg.started_at
+),
+system_existing_match AS (
+    SELECT DISTINCT ON (c.id)
+        c.id AS connection_id,
+        ws.id AS session_id
+    FROM connections_to_close c
+    JOIN workspace_sessions ws
+      ON ws.workspace_id = $3
+     AND COALESCE(c.disconnect_time, $1::timestamptz) >= ws.started_at
+     AND c.connect_time <= ws.ended_at
+    WHERE c.type = 'system'
+      AND NOT EXISTS (SELECT 1 FROM system_batch_match sbm WHERE sbm.connection_id = c.id)
+    ORDER BY c.id, ws.started_at
+),
+system_session_match AS (
+    SELECT connection_id, session_id FROM system_batch_match
+    UNION ALL
+    SELECT connection_id, session_id FROM system_existing_match
+),
+orphan_system AS (
+    SELECT c.id, c.ip, c.connect_time, c.disconnect_time, c.agent_id, c.client_hostname, c.short_description, c.type
+    FROM connections_to_close c
+    LEFT JOIN system_session_match ssm ON ssm.connection_id = c.id
+    WHERE c.type = 'system'
+      AND ssm.connection_id IS NULL
+      AND c.ip IS NOT NULL
+),
+orphan_system_sessions AS (
+    INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
+    SELECT $3, os.agent_id, os.ip, os.client_hostname, os.short_description,
+           os.connect_time, COALESCE(os.disconnect_time, $1::timestamptz)
+    FROM orphan_system os
+    RETURNING id, ip, started_at
+),
+final_sessions AS (
+    -- Primary sessions matched to non-system connections.
+    SELECT wb.id AS connection_id, alls.id AS session_id
+    FROM with_boundaries wb
+    JOIN session_groups sg ON wb.group_key = sg.group_key AND wb.group_id = sg.group_id
+    JOIN all_sessions alls ON sg.group_key = alls.group_key AND sg.started_at = alls.started_at
+    UNION ALL
+    -- System connections matched to primary sessions.
+    SELECT ssm.connection_id, ssm.session_id
+    FROM system_session_match ssm
+    UNION ALL
+    -- Orphaned system connections with their own sessions.
+    SELECT os.id, oss.id
+    FROM orphan_system os
+    JOIN orphan_system_sessions oss ON os.ip = oss.ip AND os.connect_time = oss.started_at
 )
 UPDATE connection_logs cl
 SET
     disconnect_time = COALESCE(cl.disconnect_time, $1),
     disconnect_reason = COALESCE(cl.disconnect_reason, $2),
-    session_id = COALESCE(cl.session_id, alls.id)
+    session_id = COALESCE(cl.session_id, fs.session_id)
 FROM connections_to_close ctc
-LEFT JOIN with_boundaries wb ON ctc.id = wb.id
-LEFT JOIN session_groups sg ON wb.ip = sg.ip AND wb.group_id = sg.group_id
-LEFT JOIN all_sessions alls ON sg.ip = alls.ip AND sg.started_at = alls.started_at
+LEFT JOIN final_sessions fs ON ctc.id = fs.connection_id
 WHERE cl.id = ctc.id
 `
 
@@ -2165,40 +2238,30 @@ type CloseConnectionLogsAndCreateSessionsParams struct {
 	Types       []ConnectionType `db:"types" json:"types"`
 }
 
-// Atomically closes open connections and creates sessions grouped by IP
-// and time overlap. Connections from the same IP are grouped into the
-// same session if their time ranges overlap within a 30-minute tolerance
-// (matching FindOrCreateSessionForDisconnect). Used when a workspace is
-// stopped/deleted.
+// Atomically closes open connections and creates sessions grouped by
+// client_hostname (with IP fallback) and time overlap. Non-system
+// connections drive session boundaries; system connections attach to
+// the first overlapping session or get their own if orphaned.
 //
 // Processes connections that are still open (disconnect_time IS NULL) OR
 // already disconnected but not yet assigned to a session (session_id IS
 // NULL). The latter covers system/tunnel connections whose disconnect is
 // recorded by dbsink but which have no session-assignment code path.
-//
-// To avoid creating duplicate sessions when assignSessionForDisconnect
-// has already created one (race with agent-reported disconnects), the
-// new_sessions CTE checks workspace_sessions for existing overlapping
-// sessions and reuses them instead of inserting duplicates.
-// Step 1: Order by IP then time, compute running max of end times
-// to detect gaps between connection groups.
-// Step 2: Mark group boundaries. A new group starts when the gap
-// between this connection's start and the running max end exceeds
-// 30 minutes (matching FindOrCreateSessionForDisconnect's window).
-// Step 3: Aggregate per (ip, group_id) into session-level rows.
-// Exclude NULL-IP connections from session creation since
-// workspace_sessions.ip is NOT NULL. NULL IPs can occur when
-// only a tunnel disconnect event is received without a prior
-// connect (e.g., during shutdown races).
-// Step 4: Find existing sessions that overlap with our groups.
-// This prevents duplicates when assignSessionForDisconnect already
-// created a session for the same IP/time range (race window between
-// disconnect_time and session_id being set on agent-reported connections).
-// Step 5: Only insert sessions for groups that don't already have one.
-// Combine existing and newly created sessions for the final update.
-// Use LEFT JOINs so that connection logs with NULL IPs (which
-// have no session) are still closed with disconnect_time and
-// disconnect_reason set. They get session_id = NULL.
+// Phase 1: Group non-system connections by hostname+time overlap.
+// System connections persist for the entire workspace lifetime and
+// would create mega-sessions if included in boundary computation.
+// Check for pre-existing sessions that match by hostname (or IP
+// fallback) and overlap in time, to avoid duplicates from the race
+// with FindOrCreateSessionForDisconnect.
+// Combine existing and newly created sessions.
+// Phase 2: Assign system connections to the earliest overlapping
+// primary session. First check sessions from this batch, then fall
+// back to pre-existing workspace_sessions.
+// Also match system connections to pre-existing sessions (created
+// by FindOrCreateSessionForDisconnect) that aren't in this batch.
+// Create sessions for orphaned system connections (no overlapping
+// primary session) that have an IP.
+// Combine all session sources for the final UPDATE.
 func (q *sqlQuerier) CloseConnectionLogsAndCreateSessions(ctx context.Context, arg CloseConnectionLogsAndCreateSessionsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, closeConnectionLogsAndCreateSessions,
 		arg.ClosedAt,
@@ -24805,20 +24868,25 @@ func (q *sqlQuerier) CountWorkspaceSessions(ctx context.Context, arg CountWorksp
 
 const findOrCreateSessionForDisconnect = `-- name: FindOrCreateSessionForDisconnect :one
 WITH lock AS (
-    SELECT pg_advisory_xact_lock(hashtext($1::text || CAST($2::inet AS text)))
+    SELECT pg_advisory_xact_lock(
+        hashtext($1::text || COALESCE($2, host($3::inet), 'unknown'))
+    )
 ),
 existing AS (
     SELECT id FROM workspace_sessions
     WHERE workspace_id = $1::uuid
-      AND ip = $2::inet
-      AND (client_hostname IS NOT DISTINCT FROM $3)
+      AND (
+          ($2 IS NOT NULL AND client_hostname = $2)
+          OR
+          ($2 IS NULL AND client_hostname IS NULL AND ip = $3::inet)
+      )
       AND $4 BETWEEN started_at - INTERVAL '30 minutes' AND ended_at + INTERVAL '30 minutes'
     ORDER BY started_at DESC
     LIMIT 1
 ),
 new_session AS (
     INSERT INTO workspace_sessions (workspace_id, agent_id, ip, client_hostname, short_description, started_at, ended_at)
-    SELECT $1::uuid, $5, $2::inet, $3, $6, $4, $7
+    SELECT $1::uuid, $5, $3::inet, $2, $6, $4, $7
     WHERE NOT EXISTS (SELECT 1 FROM existing)
     RETURNING id
 ),
@@ -24837,8 +24905,8 @@ SELECT COALESCE(
 
 type FindOrCreateSessionForDisconnectParams struct {
 	WorkspaceID      string         `db:"workspace_id" json:"workspace_id"`
-	Ip               pqtype.Inet    `db:"ip" json:"ip"`
 	ClientHostname   sql.NullString `db:"client_hostname" json:"client_hostname"`
+	Ip               pqtype.Inet    `db:"ip" json:"ip"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
 	AgentID          uuid.NullUUID  `db:"agent_id" json:"agent_id"`
 	ShortDescription sql.NullString `db:"short_description" json:"short_description"`
@@ -24847,18 +24915,13 @@ type FindOrCreateSessionForDisconnectParams struct {
 
 // Find existing session within time window, or create new one.
 // Uses advisory lock to prevent duplicate sessions from concurrent disconnects.
-// The lock CTE acquires a transaction-scoped advisory lock keyed on
-// (workspace_id, ip) so concurrent disconnects from the same client
-// serialize instead of creating duplicate sessions.
-// TODO: Update matching to prefer client_hostname over ip to match the Go-side
-// grouping in mergeWorkspaceConnectionsIntoSessions, which groups by
-// ClientHostname (with IP fallback) so connections from the same machine
-// collapse into one session.
+// Groups by client_hostname (with IP fallback) to match the live session
+// grouping in mergeWorkspaceConnectionsIntoSessions.
 func (q *sqlQuerier) FindOrCreateSessionForDisconnect(ctx context.Context, arg FindOrCreateSessionForDisconnectParams) (interface{}, error) {
 	row := q.db.QueryRowContext(ctx, findOrCreateSessionForDisconnect,
 		arg.WorkspaceID,
-		arg.Ip,
 		arg.ClientHostname,
+		arg.Ip,
 		arg.ConnectTime,
 		arg.AgentID,
 		arg.ShortDescription,

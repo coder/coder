@@ -2925,7 +2925,7 @@ CREATE TABLE workspace_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workspace_id uuid NOT NULL,
     agent_id uuid,
-    ip inet NOT NULL,
+    ip inet,
     client_hostname text,
     short_description text,
     started_at timestamp with time zone NOT NULL,
@@ -3409,7 +3409,9 @@ CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
 
-CREATE INDEX idx_workspace_sessions_lookup ON workspace_sessions USING btree (workspace_id, ip, started_at);
+CREATE INDEX idx_workspace_sessions_hostname_lookup ON workspace_sessions USING btree (workspace_id, client_hostname, started_at) WHERE (client_hostname IS NOT NULL);
+
+CREATE INDEX idx_workspace_sessions_ip_lookup ON workspace_sessions USING btree (workspace_id, ip, started_at) WHERE ((ip IS NOT NULL) AND (client_hostname IS NULL));
 
 CREATE INDEX idx_workspace_sessions_workspace ON workspace_sessions USING btree (workspace_id, started_at DESC);
 

@@ -1,21 +1,21 @@
 -- name: FindOrCreateSessionForDisconnect :one
 -- Find existing session within time window, or create new one.
 -- Uses advisory lock to prevent duplicate sessions from concurrent disconnects.
--- The lock CTE acquires a transaction-scoped advisory lock keyed on
--- (workspace_id, ip) so concurrent disconnects from the same client
--- serialize instead of creating duplicate sessions.
--- TODO: Update matching to prefer client_hostname over ip to match the Go-side
--- grouping in mergeWorkspaceConnectionsIntoSessions, which groups by
--- ClientHostname (with IP fallback) so connections from the same machine
--- collapse into one session.
+-- Groups by client_hostname (with IP fallback) to match the live session
+-- grouping in mergeWorkspaceConnectionsIntoSessions.
 WITH lock AS (
-    SELECT pg_advisory_xact_lock(hashtext(@workspace_id::text || CAST(@ip::inet AS text)))
+    SELECT pg_advisory_xact_lock(
+        hashtext(@workspace_id::text || COALESCE(@client_hostname, host(@ip::inet), 'unknown'))
+    )
 ),
 existing AS (
     SELECT id FROM workspace_sessions
     WHERE workspace_id = @workspace_id::uuid
-      AND ip = @ip::inet
-      AND (client_hostname IS NOT DISTINCT FROM @client_hostname)
+      AND (
+          (@client_hostname IS NOT NULL AND client_hostname = @client_hostname)
+          OR
+          (@client_hostname IS NULL AND client_hostname IS NULL AND ip = @ip::inet)
+      )
       AND @connect_time BETWEEN started_at - INTERVAL '30 minutes' AND ended_at + INTERVAL '30 minutes'
     ORDER BY started_at DESC
     LIMIT 1

@@ -68,40 +68,30 @@ type sqlcQuerier interface {
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
-	// Atomically closes open connections and creates sessions grouped by IP
-	// and time overlap. Connections from the same IP are grouped into the
-	// same session if their time ranges overlap within a 30-minute tolerance
-	// (matching FindOrCreateSessionForDisconnect). Used when a workspace is
-	// stopped/deleted.
+	// Atomically closes open connections and creates sessions grouped by
+	// client_hostname (with IP fallback) and time overlap. Non-system
+	// connections drive session boundaries; system connections attach to
+	// the first overlapping session or get their own if orphaned.
 	//
 	// Processes connections that are still open (disconnect_time IS NULL) OR
 	// already disconnected but not yet assigned to a session (session_id IS
 	// NULL). The latter covers system/tunnel connections whose disconnect is
 	// recorded by dbsink but which have no session-assignment code path.
-	//
-	// To avoid creating duplicate sessions when assignSessionForDisconnect
-	// has already created one (race with agent-reported disconnects), the
-	// new_sessions CTE checks workspace_sessions for existing overlapping
-	// sessions and reuses them instead of inserting duplicates.
-	// Step 1: Order by IP then time, compute running max of end times
-	// to detect gaps between connection groups.
-	// Step 2: Mark group boundaries. A new group starts when the gap
-	// between this connection's start and the running max end exceeds
-	// 30 minutes (matching FindOrCreateSessionForDisconnect's window).
-	// Step 3: Aggregate per (ip, group_id) into session-level rows.
-	// Exclude NULL-IP connections from session creation since
-	// workspace_sessions.ip is NOT NULL. NULL IPs can occur when
-	// only a tunnel disconnect event is received without a prior
-	// connect (e.g., during shutdown races).
-	// Step 4: Find existing sessions that overlap with our groups.
-	// This prevents duplicates when assignSessionForDisconnect already
-	// created a session for the same IP/time range (race window between
-	// disconnect_time and session_id being set on agent-reported connections).
-	// Step 5: Only insert sessions for groups that don't already have one.
-	// Combine existing and newly created sessions for the final update.
-	// Use LEFT JOINs so that connection logs with NULL IPs (which
-	// have no session) are still closed with disconnect_time and
-	// disconnect_reason set. They get session_id = NULL.
+	// Phase 1: Group non-system connections by hostname+time overlap.
+	// System connections persist for the entire workspace lifetime and
+	// would create mega-sessions if included in boundary computation.
+	// Check for pre-existing sessions that match by hostname (or IP
+	// fallback) and overlap in time, to avoid duplicates from the race
+	// with FindOrCreateSessionForDisconnect.
+	// Combine existing and newly created sessions.
+	// Phase 2: Assign system connections to the earliest overlapping
+	// primary session. First check sessions from this batch, then fall
+	// back to pre-existing workspace_sessions.
+	// Also match system connections to pre-existing sessions (created
+	// by FindOrCreateSessionForDisconnect) that aren't in this batch.
+	// Create sessions for orphaned system connections (no overlapping
+	// primary session) that have an IP.
+	// Combine all session sources for the final UPDATE.
 	CloseConnectionLogsAndCreateSessions(ctx context.Context, arg CloseConnectionLogsAndCreateSessionsParams) (int64, error)
 	CloseOpenAgentConnectionLogsForWorkspace(ctx context.Context, arg CloseOpenAgentConnectionLogsForWorkspaceParams) (int64, error)
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
@@ -201,13 +191,8 @@ type sqlcQuerier interface {
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
 	// Find existing session within time window, or create new one.
 	// Uses advisory lock to prevent duplicate sessions from concurrent disconnects.
-	// The lock CTE acquires a transaction-scoped advisory lock keyed on
-	// (workspace_id, ip) so concurrent disconnects from the same client
-	// serialize instead of creating duplicate sessions.
-	// TODO: Update matching to prefer client_hostname over ip to match the Go-side
-	// grouping in mergeWorkspaceConnectionsIntoSessions, which groups by
-	// ClientHostname (with IP fallback) so connections from the same machine
-	// collapse into one session.
+	// Groups by client_hostname (with IP fallback) to match the live session
+	// grouping in mergeWorkspaceConnectionsIntoSessions.
 	FindOrCreateSessionForDisconnect(ctx context.Context, arg FindOrCreateSessionForDisconnectParams) (interface{}, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)

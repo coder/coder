@@ -244,9 +244,10 @@ func TestCloseConnectionLogsAndCreateSessions_NullIP(t *testing.T) {
 			require.True(t, cl.SessionID.Valid,
 				"valid-IP log should be linked to a session")
 		case nullIPLog.ID:
-			// NULL-IP log should NOT have a session.
-			require.False(t, cl.SessionID.Valid,
-				"NULL-IP log should not be linked to a session")
+			// NULL-IP system connection overlaps with the SSH
+			// session, so it gets attached to that session.
+			require.True(t, cl.SessionID.Valid,
+				"NULL-IP system log overlapping with SSH session should be linked to a session")
 		default:
 			t.Fatalf("unexpected connection log id: %s", cl.ID)
 		}
@@ -482,4 +483,458 @@ func TestCloseConnectionLogsAndCreateSessions_ReusesExistingSession(t *testing.T
 		require.Equal(t, existingSessionID, cl.SessionID.UUID,
 			"connection log %s should reuse the existing session, not create a new one", cl.ID)
 	}
+}
+
+// Test: connections with different IPs but same hostname get grouped
+// into one session.
+func TestCloseConnectionLogsAndCreateSessions_GroupsByHostname(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	now := dbtime.Now()
+	hostname := sql.NullString{String: "my-laptop", Valid: true}
+
+	// Create 3 SSH connections with different IPs but same hostname,
+	// overlapping in time.
+	var logIDs []uuid.UUID
+	for i := 0; i < 3; i++ {
+		ip := pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(10, 0, 0, byte(i+1)),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		}
+		log, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             now.Add(time.Duration(-30+i*5) * time.Minute),
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        "agent",
+			Type:             database.ConnectionTypeSsh,
+			Ip:               ip,
+			ClientHostname:   hostname,
+			ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+		require.NoError(t, err)
+		logIDs = append(logIDs, log.ID)
+	}
+
+	closedAt := now
+	_, err := db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSsh,
+		},
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+
+	// All 3 connections should have the same session_id.
+	var sessionID uuid.UUID
+	for i, row := range rows {
+		cl := row.ConnectionLog
+		require.True(t, cl.SessionID.Valid,
+			"connection %d should have a session", i)
+		if i == 0 {
+			sessionID = cl.SessionID.UUID
+		} else {
+			require.Equal(t, sessionID, cl.SessionID.UUID,
+				"all connections with same hostname should share one session")
+		}
+	}
+}
+
+// Test: a long-running system connection gets attached to the first
+// overlapping primary session, not the second.
+func TestCloseConnectionLogsAndCreateSessions_SystemAttachesToFirstSession(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	ip := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   net.IPv4(10, 0, 0, 1),
+			Mask: net.IPv4Mask(255, 255, 255, 255),
+		},
+		Valid: true,
+	}
+	now := dbtime.Now()
+
+	// System connection spanning the full workspace lifetime.
+	sysLog, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-3 * time.Hour),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	// SSH session 1: -3h to -2h.
+	ssh1ConnID := uuid.New()
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-3 * time.Hour),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: ssh1ConnID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+	ssh1Disc, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-2 * time.Hour),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: ssh1ConnID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+	})
+	require.NoError(t, err)
+	_ = ssh1Disc
+
+	// SSH session 2: -30min to now (>30min gap from session 1).
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-30 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	closedAt := now
+	_, err = db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSsh,
+			database.ConnectionTypeSystem,
+		},
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+
+	// Find the system connection and its assigned session.
+	var sysSessionID uuid.UUID
+	// Collect all session IDs from SSH connections to verify 2
+	// distinct sessions were created.
+	sshSessionIDs := make(map[uuid.UUID]bool)
+	for _, row := range rows {
+		cl := row.ConnectionLog
+		if cl.ID == sysLog.ID {
+			require.True(t, cl.SessionID.Valid,
+				"system connection should have a session")
+			sysSessionID = cl.SessionID.UUID
+		}
+		if cl.Type == database.ConnectionTypeSsh && cl.SessionID.Valid {
+			sshSessionIDs[cl.SessionID.UUID] = true
+		}
+	}
+
+	// Two distinct SSH sessions should exist (>30min gap).
+	require.Len(t, sshSessionIDs, 2, "should have 2 distinct SSH sessions")
+
+	// System connection should be attached to the first (earliest)
+	// session.
+	require.True(t, sshSessionIDs[sysSessionID],
+		"system connection should be attached to one of the SSH sessions")
+}
+
+// Test: an orphaned system connection (no overlapping primary sessions)
+// with an IP gets its own session.
+func TestCloseConnectionLogsAndCreateSessions_OrphanSystemGetsOwnSession(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	ip := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   net.IPv4(10, 0, 0, 1),
+			Mask: net.IPv4Mask(255, 255, 255, 255),
+		},
+		Valid: true,
+	}
+	now := dbtime.Now()
+
+	// System connection with an IP but no overlapping primary
+	// connections.
+	_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-10 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	closedAt := now
+	_, err = db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSystem,
+		},
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.True(t, rows[0].ConnectionLog.SessionID.Valid,
+		"orphaned system connection with IP should get its own session")
+}
+
+// Test: a system connection with NULL IP and no overlapping primary
+// sessions gets no session (can't create a useful session without IP).
+func TestCloseConnectionLogsAndCreateSessions_SystemNoIPNoSession(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	now := dbtime.Now()
+
+	// System connection with NULL IP and no overlapping primary.
+	_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-10 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSystem,
+		Ip:               pqtype.Inet{Valid: false},
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	closedAt := now
+	_, err = db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSystem,
+		},
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.True(t, rows[0].ConnectionLog.DisconnectTime.Valid,
+		"system connection should be closed")
+	require.False(t, rows[0].ConnectionLog.SessionID.Valid,
+		"NULL-IP system connection with no primary overlap should not get a session")
+}
+
+// Test: connections from the same hostname with a >30-minute gap
+// create separate sessions.
+func TestCloseConnectionLogsAndCreateSessions_SeparateSessionsForLargeGap(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	u := dbgen.User(t, db, database.User{})
+	o := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: o.ID,
+		CreatedBy:      u.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:          u.ID,
+		OrganizationID:   o.ID,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+		TemplateID:       tpl.ID,
+	})
+
+	ip := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   net.IPv4(10, 0, 0, 1),
+			Mask: net.IPv4Mask(255, 255, 255, 255),
+		},
+		Valid: true,
+	}
+	now := dbtime.Now()
+
+	// SSH connection 1: -3h to -2h.
+	conn1ID := uuid.New()
+	_, err := db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-3 * time.Hour),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: conn1ID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-2 * time.Hour),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: conn1ID, Valid: true},
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+	})
+	require.NoError(t, err)
+
+	// SSH connection 2: -30min to now (>30min gap from connection 1).
+	_, err = db.UpsertConnectionLog(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             now.Add(-30 * time.Minute),
+		OrganizationID:   ws.OrganizationID,
+		WorkspaceOwnerID: ws.OwnerID,
+		WorkspaceID:      ws.ID,
+		WorkspaceName:    ws.Name,
+		AgentName:        "agent",
+		Type:             database.ConnectionTypeSsh,
+		Ip:               ip,
+		ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ConnectionStatus: database.ConnectionStatusConnected,
+	})
+	require.NoError(t, err)
+
+	closedAt := now
+	_, err = db.CloseConnectionLogsAndCreateSessions(ctx, database.CloseConnectionLogsAndCreateSessionsParams{
+		ClosedAt:    sql.NullTime{Time: closedAt, Valid: true},
+		Reason:      sql.NullString{String: "workspace stopped", Valid: true},
+		WorkspaceID: ws.ID,
+		Types: []database.ConnectionType{
+			database.ConnectionTypeSsh,
+		},
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{
+		WorkspaceID: ws.ID,
+	})
+	require.NoError(t, err)
+
+	sessionIDs := make(map[uuid.UUID]bool)
+	for _, row := range rows {
+		cl := row.ConnectionLog
+		if cl.SessionID.Valid {
+			sessionIDs[cl.SessionID.UUID] = true
+		}
+	}
+	require.Len(t, sessionIDs, 2,
+		"connections with >30min gap should create 2 separate sessions")
 }
