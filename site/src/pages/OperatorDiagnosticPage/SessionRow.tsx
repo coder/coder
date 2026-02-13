@@ -90,27 +90,30 @@ const friendlyType: Record<string, string> = {
 	system: "System",
 };
 
+function connLabel(conn: DiagnosticSessionConnection): string {
+	if (conn.type === "workspace_app" && conn.detail) return conn.detail;
+	if (conn.type === "port_forwarding" && conn.detail) return `Port ${conn.detail}`;
+	return friendlyType[conn.type] || conn.type;
+}
+
 // typeDisplayLabel is the PROMINENT first column. Shows what kind of
-// activity this session represents: "VS Code", "SSH", "code-server",
-// "Port 6666 (3)", etc.
+// activity this session represents: "VS Code", "SSH", "code-server (2)",
+// "code-server (2), Terminal", etc.
 function typeDisplayLabel(session: DiagnosticSession): string {
 	if (session.connections.length === 0) return "";
-	const first = session.connections[0];
-	const count = session.connections.length;
 
-	let label: string;
-	if (first.type === "workspace_app" && first.detail) {
-		label = first.detail;
-	} else if (first.type === "port_forwarding" && first.detail) {
-		label = `Port ${first.detail}`;
-	} else {
-		label = friendlyType[first.type] || first.type;
+	// Group by display label, preserving insertion order.
+	const groups = new Map<string, number>();
+	for (const conn of session.connections) {
+		const lbl = connLabel(conn);
+		groups.set(lbl, (groups.get(lbl) ?? 0) + 1);
 	}
 
-	if (count > 1) {
-		label += ` (${count})`;
+	const parts: string[] = [];
+	for (const [lbl, count] of groups) {
+		parts.push(count > 1 ? `${lbl} (${count})` : lbl);
 	}
-	return label;
+	return parts.join(", ");
 }
 
 // clientDisplayLabel is the primary line in the client identity column.
