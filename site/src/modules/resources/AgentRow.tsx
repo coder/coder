@@ -533,6 +533,14 @@ const SessionRow: FC<{ session: WorkspaceSession }> = ({ session }) => {
 										{formatDate(new Date(conn.connected_at ?? conn.created_at))}
 									</TooltipContent>
 								</Tooltip>
+								<span className="inline-flex items-center gap-1.5 text-xs">
+									<span
+										className={`inline-block size-2 rounded-full shrink-0 ${connectionStatusDot(conn.status)}`}
+									/>
+									<span className={connectionStatusColor(conn.status)}>
+										{connectionStatusLabel(conn.status)}
+									</span>
+								</span>
 							</div>
 						))}
 					</div>
