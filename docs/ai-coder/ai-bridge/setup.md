@@ -121,8 +121,8 @@ CODER_AIBRIDGE_OPENAI_BASE_URL=https://your-internal-gateway.example.com/v1
 Bridge is complementary to existing gateways — it adds Coder-level identity
 attribution and audit logging on top of your existing routing infrastructure.
 
-> **Note:** See the
-> [Supported APIs](https://coder.com/docs/ai-coder/ai-bridge/reference#supported-apis) section
+> [NOTE]
+> See the [Supported APIs](./reference.md#supported-apis) section
 > for precise endpoint coverage and interception behavior.
 
 ## Configure templates
