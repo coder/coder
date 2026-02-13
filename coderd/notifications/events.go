@@ -18,6 +18,7 @@ var (
 	TemplateWorkspaceManualBuildFailed = uuid.MustParse("2faeee0f-26cb-4e96-821c-85ccb9f71513")
 	TemplateWorkspaceOutOfMemory       = uuid.MustParse("a9d027b4-ac49-4fb1-9f6d-45af15f64e7a")
 	TemplateWorkspaceOutOfDisk         = uuid.MustParse("f047f6a3-5713-40f7-85aa-0394cce9fa3a")
+	TemplateWorkspaceAgentRestarted    = uuid.MustParse("bb2bb51b-5d40-4e33-ae8b-f40f13bfcd24")
 )
 
 // Account-related events.

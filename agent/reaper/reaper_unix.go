@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -23,6 +24,19 @@ const (
 	defaultRestartWindow    = 10 * time.Minute
 	defaultRestartBaseDelay = 1 * time.Second
 	defaultRestartMaxDelay  = 60 * time.Second
+
+	// StartCountFile tracks how many times the agent process has
+	// started. A value > 1 indicates the agent was restarted
+	// (e.g. after an OOM kill). The file is written by the reaper
+	// in PID 1 mode and by the agent itself in systemd mode. It
+	// is deleted on graceful shutdown.
+	StartCountFile = "/tmp/coder-agent-start-count.txt"
+	// KillSignalFile records the signal that terminated the
+	// previous agent process (e.g. "SIGKILL"). Written by the
+	// reaper after wait4 in the PID 1 path, or by systemd's
+	// ExecStopPost in the supervised path. Deleted on graceful
+	// shutdown.
+	KillSignalFile = "/tmp/coder-agent-kill-signal.txt"
 )
 
 // IsInitProcess returns true if the current process's PID is 1.
@@ -119,13 +133,15 @@ func ForkReap(opt ...Option) (int, error) {
 	var restartTimes []time.Time
 
 	for {
-		args := opts.ExecArgs
-		if restartCount > 0 {
-			args = appendRestartArgs(args, restartCount, "sigkill")
+		// Write the start count before forking so the child can
+		// detect restarts. Start count = restartCount + 1 (first
+		// start is 1, first restart is 2, etc.).
+		if err := WriteStartCount(restartCount + 1); err != nil {
+			opts.Logger.Error(context.Background(), "failed to write start count file", slog.Error(err))
 		}
 
 		//#nosec G204
-		pid, err := syscall.ForkExec(args[0], args, pattrs)
+		pid, err := syscall.ForkExec(opts.ExecArgs[0], opts.ExecArgs, pattrs)
 		if err != nil {
 			return 1, xerrors.Errorf("fork exec: %w", err)
 		}
@@ -142,6 +158,14 @@ func ForkReap(opt ...Option) (int, error) {
 
 		if !shouldRestart(wstatus, stopping, restartTimes, opts) {
 			return exitCode, err
+		}
+
+		// Record the signal that killed the child so the next
+		// instance can report it to coderd.
+		if wstatus.Signaled() {
+			if err := WriteKillSignal(wstatus.Signal().String()); err != nil {
+				opts.Logger.Error(context.Background(), "failed to write kill signal file", slog.Error(err))
+			}
 		}
 
 		restartCount++
@@ -228,13 +252,39 @@ func backoffDelay(attempt int, baseDelay, maxDelay time.Duration) time.Duration 
 	return delay
 }
 
-// appendRestartArgs appends --restart-count and --restart-reason
-// flags to the argument list for the child process.
-func appendRestartArgs(args []string, count int, reason string) []string {
-	result := make([]string, 0, len(args)+2)
-	result = append(result, args...)
-	return append(result,
-		fmt.Sprintf("--restart-count=%d", count),
-		fmt.Sprintf("--restart-reason=%s", reason),
-	)
+// WriteStartCount writes the start count to the well-known file.
+// The reaper calls this before forking each child so the agent
+// can detect it has been restarted (start count > 1).
+func WriteStartCount(count int) error {
+	if err := os.WriteFile(StartCountFile, []byte(fmt.Sprintf("%d", count)), 0o644); err != nil {
+		return xerrors.Errorf("write start count file: %w", err)
+	}
+	return nil
+}
+
+// WriteKillSignal writes the signal name (e.g. "killed") to the
+// well-known file so the agent can report it to coderd.
+func WriteKillSignal(sig string) error {
+	if err := os.WriteFile(KillSignalFile, []byte(sig), 0o644); err != nil {
+		return xerrors.Errorf("write kill signal file: %w", err)
+	}
+	return nil
+}
+
+// ReadKillSignal reads the kill signal from the well-known file.
+// Returns an empty string if the file doesn't exist.
+func ReadKillSignal() string {
+	data, err := os.ReadFile(KillSignalFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// ClearRestartState deletes the start count and kill signal files.
+// This should be called on graceful shutdown so the next start
+// begins fresh.
+func ClearRestartState() {
+	_ = os.Remove(StartCountFile)
+	_ = os.Remove(KillSignalFile)
 }

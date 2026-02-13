@@ -88,7 +88,7 @@ if [ "${SUPERVISED}" = "true" ]; then
 	cat >"${STOP_POST_SCRIPT}" <<-STOPEOF
 		#!/bin/sh
 		if [ "\$SERVICE_RESULT" != "success" ]; then
-		    echo "\$EXIT_STATUS" > ${KILL_SIGNAL_FILE}
+		    echo "OOOPS \$EXIT_STATUS" > ${KILL_SIGNAL_FILE}
 		fi
 	STOPEOF
 	chmod +x "${STOP_POST_SCRIPT}"

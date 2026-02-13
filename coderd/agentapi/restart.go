@@ -3,13 +3,18 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"golang.org/x/xerrors"
+
+	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
@@ -18,8 +23,10 @@ import (
 // or other SIGKILL event.
 type RestartAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
+	WorkspaceID              uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
+	NotificationsEnqueuer    notifications.Enqueuer
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 }
 
@@ -42,12 +49,45 @@ func (a *RestartAPI) ReportRestart(ctx context.Context, req *agentproto.ReportRe
 	a.Log.Info(ctx, "agent reported restart",
 		slog.F("agent_id", workspaceAgent.ID),
 		slog.F("restart_count", req.RestartCount),
-		slog.F("restart_reason", req.RestartReason),
+		slog.F("kill_signal", req.KillSignal),
 	)
 
 	if a.PublishWorkspaceUpdateFn != nil {
 		if err := a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLifecycleUpdate); err != nil {
 			a.Log.Error(ctx, "failed to publish workspace update after restart report", slog.Error(err))
+		}
+	}
+
+	// Notify the workspace owner that the agent has been restarted.
+	if a.NotificationsEnqueuer != nil {
+		workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
+		if err != nil {
+			a.Log.Error(ctx, "failed to get workspace for restart notification", slog.Error(err))
+		} else {
+			if _, err := a.NotificationsEnqueuer.EnqueueWithData(
+				// nolint:gocritic // Notifier context required to enqueue.
+				dbauthz.AsNotifier(ctx),
+				workspace.OwnerID,
+				notifications.TemplateWorkspaceAgentRestarted,
+				map[string]string{
+					"workspace":     workspace.Name,
+					"agent":         workspaceAgent.Name,
+					"restart_count": fmt.Sprintf("%d", req.RestartCount),
+					"kill_signal":   req.KillSignal,
+				},
+				map[string]any{
+					// Include a timestamp to prevent deduplication
+					// of repeated restart notifications within the
+					// same day.
+					"timestamp": now,
+				},
+				"agent-restart",
+				workspace.ID,
+				workspace.OwnerID,
+				workspace.OrganizationID,
+			); err != nil {
+				a.Log.Error(ctx, "failed to send restart notification", slog.Error(err))
+			}
 		}
 	}
 

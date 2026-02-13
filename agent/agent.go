@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
+	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
@@ -74,6 +75,32 @@ const (
 )
 
 var ErrAgentClosing = xerrors.New("agent is closing")
+
+// readStartCount reads the start count from the well-known file.
+// Returns 0 if the file doesn't exist or can't be parsed.
+func readStartCount() int {
+	data, err := os.ReadFile(reaper.StartCountFile)
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// IncrementStartCount reads the current start count, increments it,
+// writes it back, and returns the new value. This is used in the
+// systemd supervised path where the agent manages its own file
+// (as opposed to the PID 1 reaper path where the reaper does it).
+func IncrementStartCount() int {
+	count := readStartCount() + 1
+	// Best-effort write; if it fails we still return the count
+	// so the agent can report the restart.
+	_ = reaper.WriteStartCount(count)
+	return count
+}
 
 type Options struct {
 	Filesystem             afero.Fs
@@ -105,8 +132,6 @@ type Options struct {
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
 	BoundaryLogProxySocketPath   string
-	RestartCount                 int
-	RestartReason                string
 }
 
 type Client interface {
@@ -215,8 +240,6 @@ func New(options Options) Agent {
 		socketPath:                 options.SocketPath,
 		socketServerEnabled:        options.SocketServerEnabled,
 		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
-		restartCount:               options.RestartCount,
-		restartReason:              options.RestartReason,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -305,9 +328,6 @@ type agent struct {
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
-
-	restartCount  int
-	restartReason string
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1022,23 +1042,29 @@ func (a *agent) run() (retErr error) {
 	connMan := newAPIConnRoutineManager(a.gracefulCtx, a.hardCtx, a.logger, aAPI, tAPI)
 
 	// Report restart to coderd if this agent was restarted by the
-	// reaper after an OOM kill or other SIGKILL event.
-	if a.restartCount > 0 {
+	// reaper or systemd after an OOM kill or other SIGKILL event.
+	// In the reaper path, the reaper writes the start count before
+	// forking. In the systemd path, the agent increments it itself
+	// on startup. A start count > 1 means we've been restarted.
+	startCount := readStartCount()
+	if startCount > 1 {
+		// #nosec G115 - restart count is always small (< max restarts).
+		restartCount := int32(startCount - 1)
+		killSignal := reaper.ReadKillSignal()
 		_, err := aAPI.ReportRestart(a.hardCtx, &proto.ReportRestartRequest{
-			// #nosec G115 - restart count is always small (< max restarts).
-			RestartCount:  int32(a.restartCount),
-			RestartReason: a.restartReason,
+			RestartCount: restartCount,
+			KillSignal:   killSignal,
 		})
 		if err != nil {
 			a.logger.Error(a.hardCtx, "failed to report restart to coderd",
-				slog.F("restart_count", a.restartCount),
-				slog.F("restart_reason", a.restartReason),
+				slog.F("start_count", startCount),
+				slog.F("kill_signal", killSignal),
 				slog.Error(err),
 			)
 		} else {
 			a.logger.Info(a.hardCtx, "reported restart to coderd",
-				slog.F("restart_count", a.restartCount),
-				slog.F("restart_reason", a.restartReason),
+				slog.F("start_count", startCount),
+				slog.F("kill_signal", killSignal),
 			)
 		}
 	}
@@ -1258,10 +1284,10 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			// scripts since they already ran on the initial start.
 			// We still initialize the script runner for cron jobs
 			// and set the lifecycle to ready.
-			if a.restartCount > 0 {
+			startCount := readStartCount()
+			if startCount > 1 {
 				a.logger.Warn(ctx, "agent was restarted, skipping startup scripts",
-					slog.F("restart_count", a.restartCount),
-					slog.F("restart_reason", a.restartReason),
+					slog.F("start_count", startCount),
 				)
 			}
 
@@ -1306,7 +1332,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}
-			if a.restartCount > 0 {
+			if startCount > 1 {
 				// On restart, skip startup script execution but
 				// still start the cron scheduler for ongoing tasks.
 				a.setLifecycle(codersdk.WorkspaceAgentLifecycleReady)
@@ -2021,6 +2047,11 @@ func (a *agent) Close() error {
 
 	a.logger.Info(a.hardCtx, "shutting down agent")
 	a.setLifecycle(codersdk.WorkspaceAgentLifecycleShuttingDown)
+
+	// Clear restart state files on graceful shutdown so the next
+	// start doesn't incorrectly think it's a restart after a
+	// crash.
+	reaper.ClearRestartState()
 
 	// Attempt to gracefully shut down all active SSH connections and
 	// stop accepting new ones. If all processes have not exited after 5

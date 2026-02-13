@@ -40,6 +40,7 @@ var fallbackIcons = map[uuid.UUID]string{
 	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceOutOfDisk:         codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAgentRestarted:    codersdk.InboxNotificationFallbackIconWorkspace,
 
 	// account related notifications
 	notifications.TemplateUserAccountCreated:           codersdk.InboxNotificationFallbackIconAccount,

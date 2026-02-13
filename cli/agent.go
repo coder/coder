@@ -60,8 +60,6 @@ func workspaceAgent() *serpent.Command {
 		socketServerEnabled            bool
 		socketPath                     string
 		boundaryLogProxySocketPath     string
-		restartCount                   int64
-		restartReason                  string
 	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -206,6 +204,21 @@ func workspaceAgent() *serpent.Command {
 			go DumpHandler(ctx, "agent")
 
 			version := buildinfo.Version()
+
+			// In the systemd supervised path (not under a PID 1
+			// reaper), the agent manages its own start count.
+			// Increment the count on each startup so that a crash
+			// (which skips graceful shutdown) leaves the incremented
+			// value for the next start. Graceful shutdown deletes
+			// the file. The kill signal file is written by the
+			// systemd ExecStopPost handler, not the agent itself.
+			if os.Getppid() != 1 {
+				startCount := agent.IncrementStartCount()
+				logger.Info(ctx, "agent starting (self-managed start count)",
+					slog.F("start_count", startCount),
+				)
+			}
+
 			logger.Info(ctx, "agent is starting now",
 				slog.F("url", agentAuth.agentURL),
 				slog.F("auth", agentAuth.agentAuth),
@@ -351,8 +364,6 @@ func workspaceAgent() *serpent.Command {
 					SocketPath:                 socketPath,
 					SocketServerEnabled:        socketServerEnabled,
 					BoundaryLogProxySocketPath: boundaryLogProxySocketPath,
-					RestartCount:               int(restartCount),
-					RestartReason:              restartReason,
 				})
 
 				if debugAddress != "" {
@@ -532,18 +543,6 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH",
 			Description: "The path for the boundary log proxy server Unix socket. Boundary should write audit logs to this socket.",
 			Value:       serpent.StringOf(&boundaryLogProxySocketPath),
-		},
-		{
-			Flag:        "restart-count",
-			Description: "Internal flag set by the reaper to indicate how many times the agent has been restarted.",
-			Value:       serpent.Int64Of(&restartCount),
-			Hidden:      true,
-		},
-		{
-			Flag:        "restart-reason",
-			Description: "Internal flag set by the reaper to indicate the reason for the restart.",
-			Value:       serpent.StringOf(&restartReason),
-			Hidden:      true,
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)

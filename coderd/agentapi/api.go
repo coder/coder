@@ -239,8 +239,10 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.RestartAPI = &RestartAPI{
 		AgentFn:                  api.agent,
+		WorkspaceID:              opts.WorkspaceID,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
+		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 	}
 

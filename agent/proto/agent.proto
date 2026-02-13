@@ -496,7 +496,7 @@ message ReportBoundaryLogsResponse {}
 
 message ReportRestartRequest {
 	int32 restart_count = 1;
-	string restart_reason = 2;
+	string kill_signal = 2;
 }
 
 message ReportRestartResponse {}

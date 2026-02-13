@@ -1186,6 +1186,21 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateWorkspaceAgentRestarted",
+			id:   notifications.TemplateWorkspaceAgentRestarted,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace":     "bobby-workspace",
+					"agent":         "main",
+					"restart_count": "3",
+					"kill_signal":   "killed",
+				},
+			},
+		},
+		{
 			name: "TemplateTestNotification",
 			id:   notifications.TemplateTestNotification,
 			payload: types.MessagePayload{
