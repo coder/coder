@@ -3,7 +3,6 @@ package catalog
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -195,6 +194,12 @@ func (p *Prometheus) Start(ctx context.Context, logger slog.Logger, cat *Catalog
 					"--storage.tsdb.path=/prom-vol/data",
 					fmt.Sprintf("--web.listen-address=0.0.0.0:%d", prometheusUIPort),
 				},
+				Healthcheck: &docker.HealthConfig{
+					Test:     []string{"CMD-SHELL", fmt.Sprintf("wget -q --spider http://localhost:%d/-/ready || exit 1", prometheusUIPort)},
+					Interval: 2 * time.Second,
+					Timeout:  2 * time.Second,
+					Retries:  3,
+				},
 				Labels:       labels,
 				ExposedPorts: map[docker.Port]struct{}{docker.Port(fmt.Sprintf("%d/tcp", prometheusUIPort)): {}},
 			},
@@ -240,31 +245,12 @@ func (p *Prometheus) waitForReady(ctx context.Context, logger slog.Logger, pool 
 		case <-timeout:
 			return xerrors.New("timeout waiting for prometheus to be ready")
 		case <-ticker.C:
-			// The container has no host port bindings, so we
-			// inspect its bridge IP to health-check from the host.
 			ctr, err := pool.Client.InspectContainer("cdev_prometheus")
 			if err != nil {
 				continue
 			}
-			ep, ok := ctr.NetworkSettings.Networks[CDevNetworkName]
-			if !ok || ep.IPAddress == "" {
-				continue
-			}
-			readyURL := fmt.Sprintf("http://%s:%d/-/ready", ep.IPAddress, prometheusUIPort)
-			client := &http.Client{Timeout: 2 * time.Second}
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := client.Do(req)
-			if err != nil {
-				continue
-			}
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				logger.Info(ctx, "prometheus is ready",
-					slog.F("url", p.result.URL),
-				)
+			if ctr.State.Health.Status == "healthy" {
+				logger.Info(ctx, "prometheus is ready")
 				return nil
 			}
 		}
