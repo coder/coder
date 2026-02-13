@@ -1,8 +1,11 @@
 import Collapse from "@mui/material/Collapse";
 import type {
+	DiagnosticTimelineEvent,
 	GlobalWorkspaceSession,
+	UserDiagnosticResponse,
 	WorkspaceConnection,
 } from "api/typesGenerated";
+import { API } from "api/api";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
@@ -14,6 +17,7 @@ import {
 } from "modules/resources/ConnectionStatus";
 import { ConnectionDetailDialog } from "pages/WorkspaceSessionsPage/ConnectionDetailDialog";
 import { type FC, useState } from "react";
+import { useQuery } from "react-query";
 import { Link } from "react-router";
 
 interface GlobalSessionRowProps {
@@ -25,7 +29,15 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 	const [selectedConnection, setSelectedConnection] =
 		useState<WorkspaceConnection | null>(null);
 
+	const diagnosticQuery = useQuery<UserDiagnosticResponse>({
+		queryKey: ["userDiagnostic", session.workspace_owner_username],
+		queryFn: () => API.getUserDiagnostic(session.workspace_owner_username),
+		enabled: selectedConnection !== null,
+		staleTime: 60 * 1000,
+	});
+
 	const hasConnections = session.connections.length > 0;
+	const selectedTimeline = findSessionTimeline(diagnosticQuery.data, session);
 
 	// Client location: hostname or IP (where the connection came from).
 	const clientLocation = session.client_hostname || session.ip || "Unknown";
@@ -158,10 +170,52 @@ export const GlobalSessionRow: FC<GlobalSessionRowProps> = ({ session }) => {
 				connection={selectedConnection}
 				open={selectedConnection !== null}
 				onClose={() => setSelectedConnection(null)}
+				timeline={selectedTimeline}
+				timelineLoading={diagnosticQuery.isLoading}
+				timelineError={diagnosticQuery.error}
+				showTimeline={selectedConnection !== null}
 			/>
 		</>
 	);
 };
+
+function findSessionTimeline(
+	diagnostic: UserDiagnosticResponse | undefined,
+	session: GlobalWorkspaceSession,
+): readonly DiagnosticTimelineEvent[] {
+	if (!diagnostic) {
+		return [];
+	}
+
+	const workspace =
+		diagnostic.workspaces.find((w) => w.id === session.workspace_id) ??
+		diagnostic.workspaces.find((w) => w.name === session.workspace_name);
+	if (!workspace) {
+		return [];
+	}
+
+	if (session.id) {
+		const byID = workspace.sessions.find((s) => s.id === session.id);
+		if (byID) {
+			return byID.timeline;
+		}
+	}
+
+	const byComposite = workspace.sessions.find(
+		(s) =>
+			s.started_at === session.started_at &&
+			s.short_description === (session.short_description ?? "") &&
+			s.client_hostname === (session.client_hostname ?? ""),
+	);
+	if (byComposite) {
+		return byComposite.timeline;
+	}
+
+	const byStartTime = workspace.sessions.find(
+		(s) => s.started_at === session.started_at,
+	);
+	return byStartTime?.timeline ?? [];
+}
 
 function formatTimeRange(startedAt: string, endedAt?: string): string {
 	const start = new Date(startedAt);

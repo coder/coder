@@ -1,4 +1,4 @@
-import type { WorkspaceConnection } from "api/typesGenerated";
+import type { DiagnosticTimelineEvent, WorkspaceConnection } from "api/typesGenerated";
 import {
 	Dialog,
 	DialogContent,
@@ -18,6 +18,10 @@ interface ConnectionDetailDialogProps {
 	connection: WorkspaceConnection | null;
 	open: boolean;
 	onClose: () => void;
+	timeline?: readonly DiagnosticTimelineEvent[];
+	timelineLoading?: boolean;
+	timelineError?: unknown;
+	showTimeline?: boolean;
 }
 
 function formatDuration(startISO: string, endISO: string): string {
@@ -57,6 +61,10 @@ export const ConnectionDetailDialog: FC<ConnectionDetailDialogProps> = ({
 	connection,
 	open,
 	onClose,
+	timeline = [],
+	timelineLoading = false,
+	timelineError,
+	showTimeline = false,
 }) => {
 	if (!connection) {
 		return null;
@@ -147,6 +155,55 @@ export const ConnectionDetailDialog: FC<ConnectionDetailDialogProps> = ({
 						<DetailRow label="Home DERP" value={connection.home_derp.name} />
 					)}
 				</div>
+
+				{showTimeline && (
+					<div className="mt-4">
+						<h3 className="text-sm font-semibold mb-2">Timeline</h3>
+						{timelineLoading ? (
+							<p className="text-xs text-content-secondary">
+								Loading timeline…
+							</p>
+						) : timelineError ? (
+							<p className="text-xs text-content-destructive">
+								Unable to load timeline for this session.
+							</p>
+						) : timeline.length === 0 ? (
+							<p className="text-xs text-content-secondary italic">
+								No timeline data for this session.
+							</p>
+						) : (
+							<ol className="max-h-56 overflow-y-auto border border-border rounded p-3 space-y-2">
+								{timeline.map((event, idx) => (
+									<li
+										key={`${event.timestamp}-${idx}`}
+										className="flex items-start gap-2"
+									>
+										<span
+											className={`mt-1.5 inline-block size-2 rounded-full shrink-0 ${
+												event.severity === "error"
+													? "bg-content-destructive"
+													: event.severity === "warning"
+														? "bg-content-warning"
+														: "bg-highlight-sky"
+											}`}
+										/>
+										<span className="text-xs text-content-secondary font-mono shrink-0 w-16">
+											{new Date(event.timestamp).toLocaleTimeString([], {
+												hour: "2-digit",
+												minute: "2-digit",
+												second: "2-digit",
+												hour12: false,
+											})}
+										</span>
+										<span className="text-xs text-content-primary">
+											{event.description}
+										</span>
+									</li>
+								))}
+							</ol>
+						)}
+					</div>
+				)}
 			</DialogContent>
 		</Dialog>
 	);
