@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
-	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/scripts/cdev/passthrough"
 	"github.com/coder/coder/v2/scripts/cdev/workingdir"
 	"github.com/coder/serpent"
 )
@@ -23,7 +21,7 @@ func main() {
 		Children:   []*serpent.Command{
 			//pprofCmd(),
 		},
-		Handler: dockerComposePassthroughCmd,
+		Handler: passthrough.DockerComposePassthroughCmd,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -45,22 +43,6 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func dockerComposePassthroughCmd(inv *serpent.Invocation) error {
-	logger := slog.Make(sloghuman.Sink(inv.Stderr))
-	ctx := inv.Context()
-	working := workingdir.From(ctx)
-
-	logger.Info(ctx, "docker-compose passthrough", slog.F("dir", working.Root()))
-
-	cmd := exec.CommandContext(inv.Context(), "docker-compose", inv.Args...)
-	cmd.Stdout = inv.Stdout
-	cmd.Stderr = inv.Stderr
-	cmd.Stdin = inv.Stdin
-	cmd.Dir = working.Root()
-	return cmd.Run()
-
 }
 
 //func pprofCmd() *serpent.Command {
@@ -112,8 +94,3 @@ func dockerComposePassthroughCmd(inv *serpent.Invocation) error {
 //			//nolint:gosec // User-provided profile name is passed as a URL path.
 //			cmd := exec.CommandContext(inv.Context(), "go", "tool", "pprof", "-http=:", url)
 //			cmd.Stdout = inv.Stdout
-//			cmd.Stderr = inv.Stderr
-//			return cmd.Run()
-//		},
-//	}
-//}
