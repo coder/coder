@@ -115,17 +115,26 @@ var pgCoordSubject = rbac.Subject{
 
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and
 // receives notifications of updates via the pubsub.
-func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal())
+func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, eventSink ...agpl.EventSink) (agpl.Coordinator, error) {
+	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal(), firstEventSink(eventSink))
 }
 
 // NewTestPGCoord is only used in testing to pass a clock.Clock in.
-func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store, clk)
+func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock, eventSink ...agpl.EventSink) (agpl.Coordinator, error) {
+	return newPGCoordInternal(ctx, logger, ps, store, clk, firstEventSink(eventSink))
+}
+
+// firstEventSink returns the first non-nil EventSink from the
+// variadic slice, or nil if none provided.
+func firstEventSink(eventSinks []agpl.EventSink) agpl.EventSink {
+	if len(eventSinks) > 0 && eventSinks[0] != nil {
+		return eventSinks[0]
+	}
+	return nil
 }
 
 func newPGCoordInternal(
-	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock,
+	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock, eventSink agpl.EventSink,
 ) (
 	*pgCoord, error,
 ) {
@@ -154,7 +163,7 @@ func newPGCoordInternal(
 		bindings:         bCh,
 		newConnections:   cCh,
 		closeConnections: ccCh,
-		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
+		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB, eventSink),
 		tunnelerCh:       sCh,
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
@@ -330,10 +339,12 @@ type tunneler struct {
 	coordinatorID uuid.UUID
 	store         database.Store
 	updates       <-chan tunnel
+	eventSink     agpl.EventSink // nil means no events fired
 
-	mu     sync.Mutex
-	latest map[uuid.UUID]map[uuid.UUID]tunnel
-	workQ  *workQ[tKey]
+	mu              sync.Mutex
+	latest          map[uuid.UUID]map[uuid.UUID]tunnel
+	pendingRemovals map[uuid.UUID][]uuid.UUID // src -> removed dsts for delete-all events
+	workQ           *workQ[tKey]
 
 	workerWG sync.WaitGroup
 }
@@ -344,6 +355,7 @@ func newTunneler(ctx context.Context,
 	store database.Store,
 	updates <-chan tunnel,
 	startWorkers <-chan struct{},
+	eventSink agpl.EventSink,
 ) *tunneler {
 	s := &tunneler{
 		ctx:           ctx,
@@ -351,8 +363,10 @@ func newTunneler(ctx context.Context,
 		coordinatorID: id,
 		store:         store,
 		updates:       updates,
-		latest:        make(map[uuid.UUID]map[uuid.UUID]tunnel),
-		workQ:         newWorkQ[tKey](ctx),
+		eventSink:       eventSink,
+		latest:          make(map[uuid.UUID]map[uuid.UUID]tunnel),
+		pendingRemovals: make(map[uuid.UUID][]uuid.UUID),
+		workQ:           newWorkQ[tKey](ctx),
 	}
 	go s.handle()
 	// add to the waitgroup immediately to avoid any races waiting for it before
@@ -414,6 +428,18 @@ func (t *tunneler) cache(update tunnel) {
 	} else {
 		// If inactive and dst is nil, it means clean up all tunnels.
 		if update.dst == uuid.Nil {
+			// Capture active destinations before clearing, so
+			// writeOne can fire RemovedTunnel events after the
+			// DB deletion succeeds.
+			if t.eventSink != nil {
+				if dsts := t.latest[update.src]; len(dsts) > 0 {
+					removed := make([]uuid.UUID, 0, len(dsts))
+					for dst := range dsts {
+						removed = append(removed, dst)
+					}
+					t.pendingRemovals[update.src] = removed
+				}
+			}
 			delete(t.latest, update.src)
 		} else {
 			delete(t.latest[update.src], update.dst)
@@ -460,6 +486,18 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("src_id", tun.src),
 			slog.Error(err),
 		)
+		if err == nil && t.eventSink != nil {
+			// Fire RemovedTunnel for every destination that was cached
+			// before cache() cleared them. The list was captured in
+			// pendingRemovals during cache().
+			t.mu.Lock()
+			removed := t.pendingRemovals[tun.src]
+			delete(t.pendingRemovals, tun.src)
+			t.mu.Unlock()
+			for _, dst := range removed {
+				t.eventSink.RemovedTunnel(tun.src, dst)
+			}
+		}
 	case tun.active:
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -505,6 +543,9 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		// writeOne should be idempotent
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
+		}
+		if err == nil && t.eventSink != nil {
+			t.eventSink.RemovedTunnel(tun.src, tun.dst)
 		}
 	default:
 		panic("unreachable")
