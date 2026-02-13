@@ -40,7 +40,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 	selectedOption,
 	onSelect,
 	placeholder,
-	emptyText,
+	emptyText = "No options found",
 	width = BASE_WIDTH,
 	selectFilterSearch,
 }) => {
