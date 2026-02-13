@@ -76,6 +76,8 @@ type Docker struct {
 	networkOnce sync.Once
 	networkErr  error
 
+	composeMu  sync.Mutex
+
 	// compose holds registered compose services keyed by name.
 	compose map[string]ComposeService
 	// composeVolumes holds registered compose volumes keyed by name.
@@ -238,11 +240,15 @@ func (d *Docker) chownVolume(ctx context.Context, opts VolumeOptions) error {
 
 // SetCompose registers a compose service definition.
 func (d *Docker) SetCompose(name string, svc ComposeService) {
+	d.composeMu.Lock()
+	defer d.composeMu.Unlock()
 	d.compose[name] = svc
 }
 
 // SetComposeVolume registers a compose volume definition.
 func (d *Docker) SetComposeVolume(name string, vol ComposeVolume) {
+	d.composeMu.Lock()
+	defer d.composeMu.Unlock()
 	d.composeVolumes[name] = vol
 }
 
@@ -254,6 +260,9 @@ func composeFilePath() string {
 // WriteCompose writes the current compose state to
 // .cdev/docker-compose.yml.
 func (d *Docker) WriteCompose(_ context.Context) error {
+	d.composeMu.Lock()
+	defer d.composeMu.Unlock()
+
 	// Strip depends_on entries referencing services not yet
 	// registered — the catalog DAG handles ordering, and
 	// partial compose files may not contain all services.
@@ -288,8 +297,14 @@ func (d *Docker) WriteCompose(_ context.Context) error {
 		return xerrors.Errorf("create .cdev directory: %w", err)
 	}
 
-	if err := os.WriteFile(composeFilePath(), data, 0o644); err != nil {
-		return xerrors.Errorf("write compose file: %w", err)
+	// Atomic write: temp file + rename to avoid readers
+	// seeing a truncated file.
+	tmp := composeFilePath() + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return xerrors.Errorf("write compose temp file: %w", err)
+	}
+	if err := os.Rename(tmp, composeFilePath()); err != nil {
+		return xerrors.Errorf("rename compose file: %w", err)
 	}
 
 	return nil
