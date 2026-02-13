@@ -62,7 +62,7 @@ describe("appearance page", () => {
 		});
 	});
 
-	it("changes font to fira code, then back to web terminal font", async () => {
+	it("changes font to fira code, then back to geist mono", async () => {
 		renderWithAuth(<AppearancePage />);
 
 		// given
@@ -90,8 +90,8 @@ describe("appearance page", () => {
 		});
 
 		// when
-		const ibmPlex = await screen.findByText("Web Terminal Font");
-		await userEvent.click(ibmPlex);
+		const geistMono = await screen.findByText("Geist Mono");
+		await userEvent.click(geistMono);
 
 		// then
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(2);
