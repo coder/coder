@@ -70,6 +70,8 @@ type Coderd struct {
 	// server command, set by Configure callbacks.
 	ExtraArgs []string
 
+	watch bool
+
 	containerID string
 	result      CoderdResult
 	logger      slog.Logger
@@ -124,6 +126,14 @@ func (c *Coderd) Options() serpent.OptionSet {
 			Env:         "CDEV_CODERD_COUNT",
 			Default:     "1",
 			Value:       serpent.Int64Of(&c.haCount),
+		},
+		{
+			Name:        "Watch",
+			Description: "Automatically rebuild and restart coderd when Go files change.",
+			Flag:        "watch",
+			Env:         "CDEV_WATCH",
+			Default:     "false",
+			Value:       serpent.BoolOf(&c.watch),
 		},
 	}
 }
@@ -279,8 +289,7 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 	}
 	env = append(env, c.ExtraEnv...)
 
-	cmd := []string{
-		"go", "run", "./enterprise/cmd/coder", "server",
+	serverArgs := []string{
 		"--http-address", httpAddress,
 		"--access-url", accessURL,
 		"--wildcard-access-url", wildcardAccessURL,
@@ -297,7 +306,19 @@ func (c *Coderd) startCoderd(ctx context.Context, logger slog.Logger, cat *Catal
 		"--oidc-client-id", oidc.Result().ClientID,
 		"--oidc-client-secret", oidc.Result().ClientSecret,
 	}
-	cmd = append(cmd, c.ExtraArgs...)
+	serverArgs = append(serverArgs, c.ExtraArgs...)
+
+	var cmd []string
+	if c.watch {
+		// Use air for live reload via go tool.
+		cmd = []string{
+			"sh", "-c",
+			fmt.Sprintf("go tool air -c /app/scripts/cdev/.air.toml -- server %s",
+				strings.Join(serverArgs, " ")),
+		}
+	} else {
+		cmd = append([]string{"go", "run", "./enterprise/cmd/coder", "server"}, serverArgs...)
+	}
 
 	// Ensure the cdev bridge network exists.
 	if _, err := dkr.EnsureNetwork(ctx, NewLabels()); err != nil {
