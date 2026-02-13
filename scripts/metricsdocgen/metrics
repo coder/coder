@@ -184,3 +184,27 @@ coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5"
 coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="output"} 2014
 coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_audio"} 0
 coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_cached"} 31872
+# HELP coder_aibridged_circuit_breaker_rejects_total Total number of requests rejected due to open circuit breaker.
+# TYPE coder_aibridged_circuit_breaker_rejects_total counter
+coder_aibridged_circuit_breaker_rejects_total{provider="",endpoint="",model=""} 0
+# HELP coder_aibridged_circuit_breaker_state Current state of the circuit breaker (0=closed, 0.5=half-open, 1=open).
+# TYPE coder_aibridged_circuit_breaker_state gauge
+coder_aibridged_circuit_breaker_state{provider="",endpoint="",model=""} 0
+# HELP coder_aibridged_circuit_breaker_trips_total Total number of times the circuit breaker transitioned to open state.
+# TYPE coder_aibridged_circuit_breaker_trips_total counter
+coder_aibridged_circuit_breaker_trips_total{provider="",endpoint="",model=""} 0
+# HELP coder_aibridged_passthrough_total The count of requests which were not intercepted but passed through to the upstream.
+# TYPE coder_aibridged_passthrough_total counter
+coder_aibridged_passthrough_total{provider="",route="",method=""} 0
+# HELP coder_aibridgeproxyd_connect_sessions_total Total number of CONNECT sessions established.
+# TYPE coder_aibridgeproxyd_connect_sessions_total counter
+coder_aibridgeproxyd_connect_sessions_total{type=""} 0
+# HELP coder_aibridgeproxyd_inflight_mitm_requests Number of MITM requests currently being processed.
+# TYPE coder_aibridgeproxyd_inflight_mitm_requests gauge
+coder_aibridgeproxyd_inflight_mitm_requests{provider=""} 0
+# HELP coder_aibridgeproxyd_mitm_requests_total Total number of MITM requests handled by the proxy.
+# TYPE coder_aibridgeproxyd_mitm_requests_total counter
+coder_aibridgeproxyd_mitm_requests_total{provider=""} 0
+# HELP coder_aibridgeproxyd_mitm_responses_total Total number of MITM responses by HTTP status code class.
+# TYPE coder_aibridgeproxyd_mitm_responses_total counter
+coder_aibridgeproxyd_mitm_responses_total{code="",provider=""} 0

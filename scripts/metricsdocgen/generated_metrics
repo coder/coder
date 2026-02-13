@@ -328,15 +328,3 @@ coderd_workspace_creation_total{organization_name="",template_name="",preset_nam
 # HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner for all non-deleted workspaces.
 # TYPE coderd_workspace_latest_build_status gauge
 coderd_workspace_latest_build_status{status="",template_name="",template_version="",workspace_owner="",workspace_transition=""} 0
-# HELP connect_sessions_total Total number of CONNECT sessions established.
-# TYPE connect_sessions_total counter
-connect_sessions_total{type=""} 0
-# HELP inflight_mitm_requests Number of MITM requests currently being processed.
-# TYPE inflight_mitm_requests gauge
-inflight_mitm_requests{provider=""} 0
-# HELP mitm_requests_total Total number of MITM requests handled by the proxy.
-# TYPE mitm_requests_total counter
-mitm_requests_total{provider=""} 0
-# HELP mitm_responses_total Total number of MITM responses by HTTP status code class.
-# TYPE mitm_responses_total counter
-mitm_responses_total{code="",provider=""} 0

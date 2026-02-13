@@ -32,6 +32,14 @@ var scanDirs = []string{
 	"provisionerd",
 }
 
+// skipPaths lists files that should be excluded from scanning. Their metrics
+// must be maintained in the static metrics file instead.
+// TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
+// 	eliminate the need for this skip list.
+var skipPaths = []string{
+	"enterprise/aibridgeproxyd/metrics.go",
+}
+
 // MetricType represents the type of Prometheus metric.
 type MetricType string
 
@@ -130,6 +138,13 @@ func scanDirectory(root string) ([]Metric, error) {
 		// Skip test files.
 		if strings.HasSuffix(path, "_test.go") {
 			return nil
+		}
+
+		// Skip files listed in skipPaths.
+		for _, sp := range skipPaths {
+			if path == sp {
+				return nil
+			}
 		}
 
 		fileMetrics, err := scanFile(path)
