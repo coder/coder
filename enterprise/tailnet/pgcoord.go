@@ -471,6 +471,26 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("dst_id", tun.dst),
 			slog.Error(err),
 		)
+		if err == nil && t.eventSink != nil {
+			// Look up the source peer's node from the database
+			// so that the EventSink can record IP, hostname, and
+			// description on the connection_log. The binder writes
+			// node data to tailnet_peers independently, so it may
+			// not exist yet; nil is an acceptable fallback.
+			var srcNode *proto.Node
+			peers, dbErr := t.store.GetTailnetPeers(t.ctx, tun.src)
+			if dbErr == nil && len(peers) > 0 {
+				srcNode = new(proto.Node)
+				if uErr := gProto.Unmarshal(peers[0].Node, srcNode); uErr != nil {
+					t.logger.Warn(t.ctx, "failed to unmarshal peer node for event sink",
+						slog.F("src_id", tun.src),
+						slog.Error(uErr),
+					)
+					srcNode = nil
+				}
+			}
+			t.eventSink.AddedTunnel(tun.src, tun.dst, srcNode)
+		}
 	case !tun.active:
 		_, err = t.store.DeleteTailnetTunnel(t.ctx, database.DeleteTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
