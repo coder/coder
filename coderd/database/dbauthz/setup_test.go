@@ -44,11 +44,14 @@ var skipMethods = map[string]string{
 	"GetOngoingAgentConnectionsLast24h":    "Hackathon",
 	"InsertTailnetPeeringEvent":            "Hackathon",
 	"CloseConnectionLogsAndCreateSessions": "Hackathon",
+	"CountGlobalWorkspaceSessions":         "Hackathon",
 	"CountWorkspaceSessions":               "Hackathon",
 	"FindOrCreateSessionForDisconnect":     "Hackathon",
 	"GetConnectionLogByConnectionID":       "Hackathon",
 	"GetConnectionLogsBySessionIDs":        "Hackathon",
+	"GetGlobalWorkspaceSessionsOffset":     "Hackathon",
 	"GetWorkspaceSessionsOffset":           "Hackathon",
+	"UpdateConnectionLogSessionID":         "Hackathon",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
