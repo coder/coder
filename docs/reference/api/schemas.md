@@ -9298,9 +9298,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Value(s)                                                              |
-|-----------------------------------------------------------------------|
-| ``, `fira-code`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
+| Value(s)                                                                            |
+|-------------------------------------------------------------------------------------|
+| ``, `fira-code`, `geist-mono`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
 
 ## codersdk.TimingStage
 
