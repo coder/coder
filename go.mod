@@ -163,7 +163,7 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.7
-	github.com/prometheus-community/pro-bing v0.7.0
+	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.4
@@ -198,14 +198,14 @@ require (
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
 	golang.org/x/mod v0.32.0
 	golang.org/x/net v0.49.0
-	golang.org/x/oauth2 v0.34.0
+	golang.org/x/oauth2 v0.35.0
 	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.40.0
+	golang.org/x/sys v0.41.0
 	golang.org/x/term v0.39.0
 	golang.org/x/text v0.33.0
 	golang.org/x/tools v0.41.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.264.0
+	google.golang.org/api v0.265.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
@@ -450,7 +450,7 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260122232226-8e98ce8d340d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	howett.net/plist v1.0.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
@@ -473,7 +473,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.0.2
+	github.com/coder/aibridge v1.0.3
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.0
 	github.com/coder/preview v1.0.4
@@ -481,7 +481,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-git/go-git/v5 v5.16.2
+	github.com/go-git/go-git/v5 v5.16.5
 	github.com/icholy/replace v0.6.0
 	github.com/mark3labs/mcp-go v0.38.0
 	gonum.org/v1/gonum v0.17.0

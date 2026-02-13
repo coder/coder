@@ -42,7 +42,7 @@ jobs:
           # on version 2.29 and above.
           nix_version: "2.28.5"
 
-      - uses: nix-community/cache-nix-action@106bba72ed8e29c8357661199511ef07790175e9 # v7.0.1
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
           # restore and save a cache using this key
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
@@ -82,7 +82,7 @@ jobs:
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}

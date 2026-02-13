@@ -37,7 +37,7 @@ importers:
       '@emotion/styled':
         specifier: 11.14.1
         version: 11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2)
-      '@fontsource-variable/inter':
+      '@fontsource-variable/geist':
         specifier: 5.2.8
         version: 5.2.8
       '@fontsource/fira-code':
@@ -61,9 +61,6 @@ importers:
       '@mui/system':
         specifier: 5.18.0
         version: 5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2)
-      '@mui/utils':
-        specifier: 5.17.1
-        version: 5.17.1(@types/react@19.2.7)(react@19.2.2)
       '@mui/x-tree-view':
         specifier: 7.29.10
         version: 7.29.10(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@mui/material@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(@mui/system@5.18.0(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react@19.2.2))(@types/react@19.2.7)(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
@@ -1196,8 +1193,8 @@ packages:
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==, tarball: https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.10.tgz}
 
-  '@fontsource-variable/inter@5.2.8':
-    resolution: {integrity: sha512-kOfP2D+ykbcX/P3IFnokOhVRNoTozo5/JxhAIVYLpea/UBmCQ/YWPBfWIDuBImXX/15KH+eKh4xpEUyS2sQQGQ==, tarball: https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.2.8.tgz}
+  '@fontsource-variable/geist@5.2.8':
+    resolution: {integrity: sha512-cJ6m9e+8MQ5dCYJsLylfZrgBh6KkG4bOLckB35Tr9J/EqdkEM6QllH5PxqP1dhTvFup+HtMRPuz9xOjxXJggxw==, tarball: https://registry.npmjs.org/@fontsource-variable/geist/-/geist-5.2.8.tgz}
 
   '@fontsource/fira-code@5.2.7':
     resolution: {integrity: sha512-tnB9NNund9TwIym8/7DMJe573nlPEQb+fKUV5GL8TBYXjIhDvL0D7mgmNVNQUPhXp+R7RylQeiBdkA4EbOHPGQ==, tarball: https://registry.npmjs.org/@fontsource/fira-code/-/fira-code-5.2.7.tgz}
@@ -7144,7 +7141,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.10': {}
 
-  '@fontsource-variable/inter@5.2.8': {}
+  '@fontsource-variable/geist@5.2.8': {}
 
   '@fontsource/fira-code@5.2.7': {}
 

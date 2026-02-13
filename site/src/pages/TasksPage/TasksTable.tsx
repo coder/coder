@@ -1,6 +1,6 @@
-import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import type { Task, TaskStatus as TaskStatusType } from "api/typesGenerated";
+import { pauseTask, resumeTask } from "api/queries/tasks";
+import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
@@ -28,13 +28,18 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
 import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
+import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
+import {
+	canPauseTask,
+	canResumeTask,
+	isPauseDisabled,
+} from "modules/tasks/taskActions";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { relativeTime } from "utils/time";
-import { TaskActionButton } from "./TaskActionButton";
 
 type TasksTableProps = {
 	tasks: readonly Task[] | undefined;
@@ -173,16 +178,6 @@ const TasksEmpty: FC = () => {
 	);
 };
 
-const pauseStatuses: TaskStatusType[] = [
-	"active",
-	"initializing",
-	"pending",
-	"error",
-	"unknown",
-];
-const pauseDisabledStatuses: TaskStatusType[] = ["pending", "initializing"];
-const resumeStatuses: TaskStatusType[] = ["paused", "error", "unknown"];
-
 type TaskRowProps = {
 	task: Task;
 	checked: boolean;
@@ -199,42 +194,20 @@ const TaskRow: FC<TaskRowProps> = ({
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
+
+	const showPause = canPauseTask(task.status) && task.workspace_id;
+	const pauseDisabled = isPauseDisabled(task.status);
+	const showResume = canResumeTask(task.status) && task.workspace_id;
+
 	const queryClient = useQueryClient();
-
-	const showPause = pauseStatuses.includes(task.status);
-	const pauseDisabled = pauseDisabledStatuses.includes(task.status);
-	const showResume = resumeStatuses.includes(task.status);
-
 	const pauseMutation = useMutation({
-		mutationFn: async () => {
-			if (!task.workspace_id) {
-				throw new Error("Task has no workspace");
-			}
-			return API.stopWorkspace(task.workspace_id);
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-		},
+		...pauseTask(task, queryClient),
 		onError: (error: unknown) => {
 			displayError(getErrorMessage(error, "Failed to pause task."));
 		},
 	});
-
 	const resumeMutation = useMutation({
-		mutationFn: async () => {
-			if (!task.workspace_id) {
-				throw new Error("Task has no workspace");
-			}
-			return API.startWorkspace(
-				task.workspace_id,
-				task.template_version_id,
-				undefined,
-				undefined,
-			);
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-		},
+		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
 			displayError(getErrorMessage(error, "Failed to resume task."));
 		},

@@ -23,7 +23,7 @@ export const PageHeader: FC<PageHeaderProps> = ({
 		>
 			<hgroup className="flex flex-col gap-2">{children}</hgroup>
 			{actions && (
-				<div className="flex ml-[initial] md:ml-auto w-full md:w-auto">
+				<div className="flex items-center gap-2 ml-[initial] md:ml-auto w-full md:w-auto">
 					{actions}
 				</div>
 			)}

@@ -25,6 +25,13 @@ export const AIBridgeProviderIcon = ({
 					className={cn(iconClassName, props.className)}
 				/>
 			);
+		case "copilot":
+			return (
+				<ExternalImage
+					src="/icon/github.svg"
+					className={cn(iconClassName, props.className)}
+				/>
+			);
 		default:
 			return (
 				<CircleQuestionMarkIcon

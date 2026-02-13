@@ -14,4 +14,3 @@ type Story = StoryObj<typeof DropdownArrow>;
 
 export const Open: Story = {};
 export const Close: Story = { args: { close: true } };
-export const WithColor: Story = { args: { color: "#f00" } };

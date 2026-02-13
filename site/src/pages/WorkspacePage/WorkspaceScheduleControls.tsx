@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link, { type LinkProps } from "@mui/material/Link";
-import { visuallyHidden } from "@mui/utils";
 import { getErrorMessage } from "api/errors";
 import {
 	updateDeadline,
@@ -19,7 +18,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
-import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
+import { type FC, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import {
@@ -218,7 +217,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						}}
 					>
 						<MinusIcon />
-						<span style={visuallyHidden}>Subtract 1 hour from deadline</span>
+						<span className="sr-only">Subtract 1 hour from deadline</span>
 					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">
@@ -236,7 +235,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 						}}
 					>
 						<PlusIcon />
-						<span style={visuallyHidden}>Add 1 hour to deadline</span>
+						<span className="sr-only">Add 1 hour to deadline</span>
 					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Add 1 hour to deadline</TooltipContent>
@@ -266,24 +265,21 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	);
 };
 
-const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
-	(props, ref) => {
-		return (
-			<Link
-				ref={ref}
-				component={RouterLink}
-				to="settings/schedule"
-				css={{
-					color: "inherit",
-					"&:first-letter": {
-						textTransform: "uppercase",
-					},
-				}}
-				{...props}
-			/>
-		);
-	},
-);
+const ScheduleSettingsLink: React.FC<LinkProps> = ({ ...props }) => {
+	return (
+		<Link
+			component={RouterLink}
+			to="settings/schedule"
+			css={{
+				color: "inherit",
+				"&:first-letter": {
+					textTransform: "uppercase",
+				},
+			}}
+			{...props}
+		/>
+	);
+};
 
 const hasDeadline = (workspace: Workspace): boolean => {
 	return Boolean(workspace.latest_build.deadline);

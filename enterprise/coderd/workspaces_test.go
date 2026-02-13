@@ -1991,6 +1991,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2115,6 +2116,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2239,6 +2241,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2385,6 +2388,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2532,6 +2536,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2979,6 +2984,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		api.AGPL.BuildUsageChecker,
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 	api.AGPL.PrebuildsClaimer.Store(&claimer)

@@ -5824,6 +5824,90 @@ const docTemplate = `{
                 }
             }
         },
+        "/tasks/{user}/{task}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Pause task",
+                "operationId": "pause-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PauseTaskResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{user}/{task}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Resume task",
+                "operationId": "resume-task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ResumeTaskResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/tasks/{user}/{task}/send": {
             "post": {
                 "security": [
@@ -14102,14 +14186,18 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection"
+                "jetbrains_connection",
+                "task_manual_pause",
+                "task_resume"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
                 "CreateWorkspaceBuildReasonCLI",
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
-                "CreateWorkspaceBuildReasonJetbrainsConnection"
+                "CreateWorkspaceBuildReasonJetbrainsConnection",
+                "CreateWorkspaceBuildReasonTaskManualPause",
+                "CreateWorkspaceBuildReasonTaskResume"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -14143,7 +14231,8 @@ const docTemplate = `{
                         "cli",
                         "ssh_connection",
                         "vscode_connection",
-                        "jetbrains_connection"
+                        "jetbrains_connection",
+                        "task_manual_pause"
                     ],
                     "allOf": [
                         {
@@ -17014,6 +17103,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PauseTaskResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_build": {
+                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                }
+            }
+        },
         "codersdk.Permission": {
             "type": "object",
             "properties": {
@@ -18179,6 +18276,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ValidationError"
                     }
+                }
+            }
+        },
+        "codersdk.ResumeTaskResponse": {
+            "type": "object",
+            "properties": {
+                "workspace_build": {
+                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
                 }
             }
         },

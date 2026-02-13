@@ -93,7 +93,6 @@ type TxOptions struct {
 
 // IncrementExecutionCount is a helper function for external packages
 // to increment the unexported count.
-// Mainly for `dbmem`.
 func IncrementExecutionCount(opts *TxOptions) {
 	opts.executionCount++
 }
