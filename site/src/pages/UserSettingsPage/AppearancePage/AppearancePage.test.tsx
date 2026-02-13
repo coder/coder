@@ -27,7 +27,7 @@ describe("appearance page", () => {
 
 		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUserOwner,
-			terminal_font: "ibm-plex-mono",
+			terminal_font: "geist-mono",
 			theme_preference: "light",
 		});
 
@@ -37,7 +37,7 @@ describe("appearance page", () => {
 		// Check if the API was called correctly
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
 		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
-			terminal_font: "ibm-plex-mono",
+			terminal_font: "geist-mono",
 			theme_preference: "light",
 		});
 	});
@@ -74,7 +74,7 @@ describe("appearance page", () => {
 			})
 			.mockResolvedValueOnce({
 				...MockUserOwner,
-				terminal_font: "ibm-plex-mono",
+				terminal_font: "geist-mono",
 				theme_preference: "dark",
 			});
 
@@ -96,7 +96,7 @@ describe("appearance page", () => {
 		// then
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(2);
 		expect(API.updateAppearanceSettings).toHaveBeenNthCalledWith(2, {
-			terminal_font: "ibm-plex-mono",
+			terminal_font: "geist-mono",
 			theme_preference: "dark",
 		});
 	});

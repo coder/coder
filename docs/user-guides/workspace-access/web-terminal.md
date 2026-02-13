@@ -85,7 +85,8 @@ You can customize the terminal font through your user settings:
 1. Click your avatar in the top-right corner
 2. Select **Settings** → **Appearance**
 3. Choose from available fonts:
-   - **IBM Plex Mono** (default)
+	 - **Geist Mono** (default)
+   - **IBM Plex Mono**
    - **Fira Code** (with ligatures)
    - **JetBrains Mono**
    - **Source Code Pro**
