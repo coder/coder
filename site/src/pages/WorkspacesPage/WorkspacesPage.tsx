@@ -70,7 +70,6 @@ const WorkspacesPage: FC = () => {
 		},
 	});
 	const { permissions, user: me } = useAuthenticated();
-	const { entitlements } = useDashboard();
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
@@ -129,8 +128,7 @@ const WorkspacesPage: FC = () => {
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
-	const canCheckWorkspaces =
-		entitlements.features.workspace_batch_actions.enabled;
+	const canCheckWorkspaces = true;
 	const batchActions = useBatchActions({
 		onSuccess: async () => {
 			await refetch();

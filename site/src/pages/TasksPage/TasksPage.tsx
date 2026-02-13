@@ -30,7 +30,6 @@ import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ChevronDownIcon, TrashIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	isTaskNotification,
 	notificationIsDisabled,
@@ -102,8 +101,7 @@ const TasksPage: FC = () => {
 		await batchActions.delete(checkedTasks);
 	};
 
-	const { entitlements } = useDashboard();
-	const canCheckTasks = entitlements.features.task_batch_actions.enabled;
+	const canCheckTasks = true;
 
 	// Count workspaces that will be deleted with the selected tasks.
 	const workspaceCount = checkedTasks.filter(
