@@ -1897,10 +1897,16 @@ class ApiMethods {
 	getUserDiagnostic = async (
 		username: string,
 		hours?: number,
+		status?: string,
+		workspace?: string,
 	): Promise<UserDiagnosticResponse> => {
+		const params: Record<string, string | number> = {};
+		if (hours) params.hours = hours;
+		if (status && status !== "all") params.status = status;
+		if (workspace && workspace !== "all") params.workspace = workspace;
 		const response = await this.axios.get(
 			`/api/v2/connectionlog/diagnostics/${username}`,
-			{ params: hours ? { hours } : undefined },
+			{ params },
 		);
 		return response.data;
 	};

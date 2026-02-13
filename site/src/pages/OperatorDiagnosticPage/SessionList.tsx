@@ -35,33 +35,14 @@ export const SessionList: FC<SessionListProps> = ({
 	onStatusFilterChange,
 	onWorkspaceFilterChange,
 }) => {
-	const workspaceNames = [
-		...new Set(workspaces.flatMap((ws) => ws.sessions.map(() => ws.name))),
-	];
+	const workspaceNames = [...new Set(workspaces.map((ws) => ws.name))];
 
-	let filtered = workspaces
+	const sessions = workspaces
 		.flatMap((ws) => ws.sessions)
 		.sort(
 			(a, b) =>
 				new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
 		);
-
-	if (statusFilter === "ongoing") {
-		filtered = filtered.filter((s) => s.status === "ongoing");
-	} else if (statusFilter === "disconnected") {
-		filtered = filtered.filter(
-			(s) =>
-				s.status !== "ongoing" &&
-				!s.disconnect_reason.toLowerCase().includes("workspace stopped"),
-		);
-	} else if (statusFilter === "workspace_stopped") {
-		filtered = filtered.filter((s) =>
-			s.disconnect_reason.toLowerCase().includes("workspace stopped"),
-		);
-	}
-	if (workspaceFilter !== "all") {
-		filtered = filtered.filter((s) => s.workspace_name === workspaceFilter);
-	}
 
 	return (
 		<div>
@@ -112,7 +93,7 @@ export const SessionList: FC<SessionListProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{filtered.length === 0 ? (
+					{sessions.length === 0 ? (
 						<TableRow>
 							<TableCell colSpan={999}>
 								<EmptyState message="No sessions in this time window" />
@@ -120,7 +101,7 @@ export const SessionList: FC<SessionListProps> = ({
 						</TableRow>
 					) : (
 						<Timeline
-							items={filtered}
+							items={sessions}
 							getDate={(s) => new Date(s.started_at)}
 							row={(session) => (
 								<SessionRow key={session.id} session={session} />

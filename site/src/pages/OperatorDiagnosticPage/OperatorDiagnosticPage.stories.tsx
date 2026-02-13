@@ -16,6 +16,10 @@ const meta: Meta<typeof OperatorDiagnosticPageView> = {
 		onUserSelect: () => {},
 		onTimeWindowChange: () => {},
 		isDemo: true,
+		statusFilter: "all",
+		onStatusFilterChange: () => {},
+		workspaceFilter: "all",
+		onWorkspaceFilterChange: () => {},
 	},
 };
 

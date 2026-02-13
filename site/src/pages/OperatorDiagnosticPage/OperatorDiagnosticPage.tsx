@@ -13,14 +13,22 @@ const OperatorDiagnosticPage: FC = () => {
 	const [searchParams] = useSearchParams();
 	const isDemo = searchParams.get("demo") === "true";
 	const [hours, setHours] = useState(72);
+	const [statusFilter, setStatusFilter] = useState("all");
+	const [workspaceFilter, setWorkspaceFilter] = useState("all");
 
 	const diagnosticQuery = useQuery(
 		isDemo
 			? {
-					queryKey: ["userDiagnostic", username, hours] as const,
+					queryKey: [
+						"userDiagnostic",
+						username,
+						hours,
+						statusFilter,
+						workspaceFilter,
+					] as const,
 					queryFn: () => Promise.resolve(getMockDiagnosticData(username)),
 				}
-			: userDiagnostic(username, hours),
+			: userDiagnostic(username, hours, statusFilter, workspaceFilter),
 	);
 
 	const handleUserSelect = (newUsername: string) => {
@@ -39,6 +47,10 @@ const OperatorDiagnosticPage: FC = () => {
 				onTimeWindowChange={setHours}
 				selectedHours={hours}
 				isDemo={isDemo}
+				statusFilter={statusFilter}
+				onStatusFilterChange={setStatusFilter}
+				workspaceFilter={workspaceFilter}
+				onWorkspaceFilterChange={setWorkspaceFilter}
 			/>
 		</>
 	);

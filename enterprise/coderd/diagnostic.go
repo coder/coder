@@ -64,6 +64,10 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Optional filters applied after session assembly.
+	statusFilter := r.URL.Query().Get("status")    // "all", "ongoing", "disconnected", "workspace_stopped"
+	workspaceFilter := r.URL.Query().Get("workspace") // workspace name or empty/"all"
+
 	// Look up the target user.
 	user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: username,
@@ -193,6 +197,40 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 	roles := make([]string, 0, len(user.RBACRoles))
 	for _, r := range user.RBACRoles {
 		roles = append(roles, r)
+	}
+
+	// Apply session filters. The summary/patterns are computed from the
+	// full data; filters only affect which sessions are returned.
+	if statusFilter != "" && statusFilter != "all" || (workspaceFilter != "" && workspaceFilter != "all") {
+		for wi := range workspaces {
+			var filtered []codersdk.DiagnosticSession
+			for _, sess := range workspaces[wi].Sessions {
+				if workspaceFilter != "" && workspaceFilter != "all" && sess.WorkspaceName != workspaceFilter {
+					continue
+				}
+				if statusFilter == "ongoing" && sess.Status != codersdk.ConnectionStatusOngoing {
+					continue
+				}
+				if statusFilter == "disconnected" && (sess.Status == codersdk.ConnectionStatusOngoing || strings.Contains(strings.ToLower(sess.DisconnectReason), "workspace stopped")) {
+					continue
+				}
+				if statusFilter == "workspace_stopped" && !strings.Contains(strings.ToLower(sess.DisconnectReason), "workspace stopped") {
+					continue
+				}
+				filtered = append(filtered, sess)
+			}
+			workspaces[wi].Sessions = filtered
+		}
+		// Remove workspaces with no sessions after filtering (unless workspace filter is set).
+		if workspaceFilter == "" || workspaceFilter == "all" {
+			var filteredWS []codersdk.DiagnosticWorkspace
+			for _, ws := range workspaces {
+				if len(ws.Sessions) > 0 {
+					filteredWS = append(filteredWS, ws)
+				}
+			}
+			workspaces = filteredWS
+		}
 	}
 
 	resp := codersdk.UserDiagnosticResponse{

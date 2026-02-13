@@ -15,7 +15,7 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import { Link } from "react-router";
 import { DiagnosticSummaryBar } from "./DiagnosticSummaryBar";
 import { PatternBanner } from "./PatternBanner";
@@ -31,6 +31,10 @@ interface OperatorDiagnosticPageViewProps {
 	onTimeWindowChange: (hours: number) => void;
 	selectedHours: number;
 	isDemo: boolean;
+	statusFilter: string;
+	onStatusFilterChange: (status: string) => void;
+	workspaceFilter: string;
+	onWorkspaceFilterChange: (workspace: string) => void;
 }
 
 const TIME_WINDOW_OPTIONS = [24, 48, 72] as const;
@@ -45,10 +49,11 @@ export const OperatorDiagnosticPageView: FC<
 	onTimeWindowChange,
 	selectedHours,
 	isDemo,
+	statusFilter,
+	onStatusFilterChange,
+	workspaceFilter,
+	onWorkspaceFilterChange,
 }) => {
-	const [statusFilter, setStatusFilter] = useState("all");
-	const [workspaceFilter, setWorkspaceFilter] = useState("all");
-
 	return (
 		<Margins className="pb-12">
 			<Breadcrumb>
@@ -143,8 +148,8 @@ export const OperatorDiagnosticPageView: FC<
 						workspaces={data.workspaces}
 						statusFilter={statusFilter}
 						workspaceFilter={workspaceFilter}
-						onStatusFilterChange={setStatusFilter}
-						onWorkspaceFilterChange={setWorkspaceFilter}
+						onStatusFilterChange={onStatusFilterChange}
+						onWorkspaceFilterChange={onWorkspaceFilterChange}
 					/>
 				</div>
 			)}
