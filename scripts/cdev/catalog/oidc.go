@@ -106,11 +106,10 @@ func (o *OIDC) Start(ctx context.Context, logger slog.Logger, c *Catalog) error 
 			"-client-sec", testidpClientSec,
 			"-issuer", testidpIssuerURL,
 		},
-		Ports:    []string{"4500:4500"},
 		Networks: []string{composeNetworkName},
 		Labels:   composeServiceLabels("oidc"),
 		Healthcheck: &ComposeHealthcheck{
-			Test:     []string{"CMD-SHELL", "curl -sf http://localhost:4500/.well-known/openid-configuration || exit 1"},
+			Test:     []string{"CMD-SHELL", "curl -sf http://oidc:4500/.well-known/openid-configuration || exit 1"},
 			Interval: "2s",
 			Timeout:  "5s",
 			Retries:  15,
