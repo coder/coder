@@ -474,9 +474,9 @@ func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
-	} else {
-		rw.WriteHeader(http.StatusNoContent)
 	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get token config
