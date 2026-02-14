@@ -18919,6 +18919,9 @@ const docTemplate = `{
                 "default_ttl_ms": {
                     "type": "integer"
                 },
+                "deleted": {
+                    "type": "boolean"
+                },
                 "deprecated": {
                     "type": "boolean"
                 },
