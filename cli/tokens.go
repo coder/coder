@@ -355,14 +355,14 @@ func (r *RootCmd) removeToken() *serpent.Command {
 					return xerrors.Errorf("expire api key: %w", err)
 				}
 				cliui.Infof(inv.Stdout, "Token has been expired.")
-			} else {
-				err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
-				if err != nil {
-					return xerrors.Errorf("delete api key: %w", err)
-				}
-				cliui.Infof(inv.Stdout, "Token has been deleted.")
+				return nil
 			}
 
+			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
+			if err != nil {
+				return xerrors.Errorf("delete api key: %w", err)
+			}
+			cliui.Infof(inv.Stdout, "Token has been deleted.")
 			return nil
 		},
 	}

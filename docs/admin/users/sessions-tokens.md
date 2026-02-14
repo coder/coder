@@ -96,6 +96,25 @@ You can use the
 server flag to set the maximum duration for long-lived tokens in your
 deployment.
 
+### Remove or expire a token
+
+You can remove a token using the CLI or the API. By default, `coder tokens remove`
+permanently deletes the token:
+
+```console
+coder tokens remove <name|id>
+```
+
+To expire a token instead of deleting it, preserving the token record for audit
+purposes, use the `--expire` flag:
+
+```console
+coder tokens remove --expire <name|id>
+```
+
+Expired tokens can no longer be used for authentication but remain visible in
+token listings.
+
 ## API Key Scopes
 
 API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
