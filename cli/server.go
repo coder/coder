@@ -959,14 +959,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			options.NotificationsEnqueuer = enqueuer
 
-			// Broadcast changelog notifications to all users for new versions.
-			changelogStore := changelog.NewStore()
-			go func() {
-				if err := changelog.BroadcastChangelog(ctx, logger.Named("changelog.broadcast"), sqlDB, options.Database, enqueuer, changelogStore); err != nil {
-					logger.Error(ctx, "failed to broadcast changelog", slog.Error(err))
-				}
-			}()
-
 			// The notification manager is responsible for:
 			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
 			//   - keeping the store updated with status updates
@@ -989,6 +981,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
 			}
+
+			// Broadcast changelog notifications to all users for
+			// new versions. This must run after newAPI so that the
+			// database is wrapped with dbauthz.
+			changelogStore := changelog.NewStore()
+			go func() {
+				if err := changelog.BroadcastChangelog(ctx, logger.Named("changelog.broadcast"), sqlDB, coderAPI.Database, enqueuer, changelogStore); err != nil {
+					logger.Error(ctx, "failed to broadcast changelog", slog.Error(err))
+				}
+			}()
 
 			if vals.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.

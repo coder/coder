@@ -2730,13 +2730,18 @@ class ApiMethods {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 
-	getChangelogEntries = async (): Promise<TypesGen.ListChangelogEntriesResponse> => {
-		const res =
-			await this.axios.get<TypesGen.ListChangelogEntriesResponse>("/api/v2/changelog");
-		return res.data;
-	};
+	getChangelogEntries =
+		async (): Promise<TypesGen.ListChangelogEntriesResponse> => {
+			const res =
+				await this.axios.get<TypesGen.ListChangelogEntriesResponse>(
+					"/api/v2/changelog",
+				);
+			return res.data;
+		};
 
-	getChangelogEntry = async (version: string): Promise<TypesGen.ChangelogEntry> => {
+	getChangelogEntry = async (
+		version: string,
+	): Promise<TypesGen.ChangelogEntry> => {
 		const res = await this.axios.get<TypesGen.ChangelogEntry>(
 			`/api/v2/changelog/${encodeURIComponent(version)}`,
 		);
@@ -2745,9 +2750,10 @@ class ApiMethods {
 
 	getUnreadChangelogNotification =
 		async (): Promise<TypesGen.UnreadChangelogNotificationResponse> => {
-			const res = await this.axios.get<TypesGen.UnreadChangelogNotificationResponse>(
-				"/api/v2/changelog/unread",
-			);
+			const res =
+				await this.axios.get<TypesGen.UnreadChangelogNotificationResponse>(
+					"/api/v2/changelog/unread",
+				);
 			return res.data;
 		};
 
