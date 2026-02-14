@@ -169,7 +169,7 @@ func TestTokens(t *testing.T) {
 	require.Contains(t, res, "deleted")
 
 	// Regular users cannot expire other users' tokens.
-	inv, root = clitest.New(t, "tokens", "expire", secondTokenID)
+	inv, root = clitest.New(t, "tokens", "rm", "--expire", secondTokenID)
 	clitest.SetupConfig(t, thirdUserClient, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -179,7 +179,7 @@ func TestTokens(t *testing.T) {
 
 	// Only admin users can expire other users' tokens.
 	now := time.Now()
-	inv, root = clitest.New(t, "tokens", "expire", secondTokenID)
+	inv, root = clitest.New(t, "tokens", "rm", "--expire", secondTokenID)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
