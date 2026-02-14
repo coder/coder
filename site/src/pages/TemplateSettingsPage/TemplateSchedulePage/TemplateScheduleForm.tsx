@@ -334,10 +334,13 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					<TextField
 						{...getFieldHelpers("activity_bump_ms", {
 							helperText: (
-								<ActivityBumpHelperText bump={form.values.activity_bump_ms} />
+								<ActivityBumpHelperText
+									bump={form.values.activity_bump_ms}
+									defaultTTL={form.values.default_ttl_ms}
+								/>
 							),
 						})}
-						disabled={isSubmitting}
+						disabled={isSubmitting || !form.values.default_ttl_ms}
 						fullWidth
 						inputProps={{ min: 0, step: 1 }}
 						label="Activity bump (hours)"

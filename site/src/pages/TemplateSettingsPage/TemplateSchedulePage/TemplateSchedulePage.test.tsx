@@ -352,4 +352,64 @@ describe("TemplateSchedulePage", () => {
 		const validate = () => getValidationSchema().validateSync(values);
 		expect(validate).toThrowError();
 	});
+
+	it("disables activity bump field when default TTL is 0", async () => {
+		await renderTemplateSchedulePage();
+		const user = userEvent.setup();
+
+		const defaultTtlField = await screen.findByLabelText(
+			"Default autostop (hours)",
+		);
+		const activityBumpField = screen.getByLabelText("Activity bump (hours)");
+
+		// Activity bump should be enabled when default TTL is non-zero.
+		expect(activityBumpField).not.toBeDisabled();
+
+		// Set default TTL to 0.
+		await user.clear(defaultTtlField);
+		await user.type(defaultTtlField, "0");
+
+		// Activity bump should now be disabled.
+		expect(activityBumpField).toBeDisabled();
+	});
+
+	it("shows helper text on activity bump when default TTL is 0", async () => {
+		await renderTemplateSchedulePage();
+		const user = userEvent.setup();
+
+		const defaultTtlField = await screen.findByLabelText(
+			"Default autostop (hours)",
+		);
+
+		// Set default TTL to 0.
+		await user.clear(defaultTtlField);
+		await user.type(defaultTtlField, "0");
+
+		// Should show the explanatory helper text.
+		expect(
+			screen.getByText(
+				/activity bump only applies when a default TTL is configured/i,
+			),
+		).toBeInTheDocument();
+	});
+
+	it("re-enables activity bump field when default TTL is set back to non-zero", async () => {
+		await renderTemplateSchedulePage();
+		const user = userEvent.setup();
+
+		const defaultTtlField = await screen.findByLabelText(
+			"Default autostop (hours)",
+		);
+		const activityBumpField = screen.getByLabelText("Activity bump (hours)");
+
+		// Set default TTL to 0.
+		await user.clear(defaultTtlField);
+		await user.type(defaultTtlField, "0");
+		expect(activityBumpField).toBeDisabled();
+
+		// Set default TTL back to a non-zero value.
+		await user.clear(defaultTtlField);
+		await user.type(defaultTtlField, "8");
+		expect(activityBumpField).not.toBeDisabled();
+	});
 });
