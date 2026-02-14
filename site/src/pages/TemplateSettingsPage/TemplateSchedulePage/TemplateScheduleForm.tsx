@@ -12,7 +12,6 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import {
 	StackLabel,
 	StackLabelHelperText,
@@ -58,7 +57,6 @@ const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
  * increase the space can make it feels lighter.
  */
 const FORM_FIELDS_SPACING = 8;
-const DORMANT_FIELDSET_SPACING = 4;
 
 export interface TemplateScheduleForm {
 	template: Template;
@@ -316,7 +314,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						type="number"
 					/>
 
-					<Stack direction="row" className="w-full">
+					<div className="flex flex-row gap-4 w-full">
 						<TextField
 							{...getFieldHelpers("autostop_requirement_days_of_week", {
 								helperText: (
@@ -365,7 +363,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							label="Weeks between required stops"
 							type="number"
 						/>
-					</Stack>
+					</div>
 
 					<FormControlLabel
 						control={
@@ -400,7 +398,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 				title="Autostart"
 				description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
 			>
-				<Stack>
+				<div className="flex flex-col gap-4">
 					<FormControlLabel
 						control={
 							<Checkbox
@@ -438,7 +436,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							}}
 						/>
 					)}
-				</Stack>
+				</div>
 			</FormSection>
 
 			{allowAdvancedScheduling && (
@@ -447,7 +445,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
 				>
 					<FormFields spacing={FORM_FIELDS_SPACING}>
-						<Stack spacing={DORMANT_FIELDSET_SPACING}>
+						<div className="flex flex-col gap-8">
 							<FormControlLabel
 								control={
 									<Switch
@@ -474,9 +472,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 									isSubmitting || !form.values.inactivity_cleanup_enabled
 								}
 							/>
-						</Stack>
+						</div>
 
-						<Stack spacing={DORMANT_FIELDSET_SPACING}>
+						<div className="flex flex-col gap-8">
 							<FormControlLabel
 								control={
 									<Switch
@@ -516,9 +514,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 									!form.values.dormant_autodeletion_cleanup_enabled
 								}
 							/>
-						</Stack>
+						</div>
 
-						<Stack spacing={DORMANT_FIELDSET_SPACING}>
+						<div className="flex flex-col gap-8">
 							<FormControlLabel
 								control={
 									<Switch
@@ -548,7 +546,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								onChange={(v) => form.setFieldValue("failure_ttl_ms", v)}
 								disabled={isSubmitting || !form.values.failure_cleanup_enabled}
 							/>
-						</Stack>
+						</div>
 					</FormFields>
 				</FormSection>
 			)}
