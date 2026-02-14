@@ -175,13 +175,15 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 		var sdkErr *codersdk.Error
 		if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
 			memberExists = false
-		} else if sdkErr.StatusCode() == http.StatusBadRequest {
-			// https://github.com/coder/coder/pull/22069 fixes this bug
-			memberExists = false
 		} else {
-			return xerrors.Errorf("check member user: %w", err)
+			switch sdkErr.StatusCode() {
+			case http.StatusBadRequest:
+				// https://github.com/coder/coder/pull/22069 fixes this bug
+				memberExists = false
+			default:
+				return xerrors.Errorf("check member user: %w", err)
+			}
 		}
-
 	}
 
 	if !memberExists {
@@ -220,7 +222,7 @@ func (s *Setup) Start(ctx context.Context, logger slog.Logger, c *Catalog) error
 		logger.Warn(ctx, "failed to create docker template", slog.Error(err))
 	}
 
-	logger.Info(ctx, "setup completed",
+	logger.Info(ctx, "setup completed successfully",
 		slog.F("admin_email", s.result.AdminEmail),
 		slog.F("admin_username", s.result.AdminUsername),
 		slog.F("member_email", s.result.MemberEmail),
@@ -353,13 +355,13 @@ func (s *Setup) prepareTemplateDir(ctx context.Context, logger slog.Logger, srcD
 		return err
 	})
 	if err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return "", xerrors.Errorf("copy template files: %w", err)
 	}
 
 	// Inject additional modules into main.tf for development.
 	if err := s.injectDevModules(filepath.Join(tempDir, "main.tf")); err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return "", xerrors.Errorf("inject dev modules: %w", err)
 	}
 
@@ -370,7 +372,7 @@ func (s *Setup) prepareTemplateDir(ctx context.Context, logger slog.Logger, srcD
 	cmd.Dir = tempDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return "", xerrors.Errorf("terraform init failed: %w\nOutput: %s", err, string(output))
 	}
 
@@ -387,7 +389,7 @@ func (s *Setup) prepareTemplateDir(ctx context.Context, logger slog.Logger, srcD
 }
 
 // injectDevModules appends additional Terraform modules to main.tf for development.
-func (s *Setup) injectDevModules(mainTFPath string) error {
+func (*Setup) injectDevModules(mainTFPath string) error {
 	const filebrowserModule = `
 # ============================================================
 # Development modules injected by cdev
@@ -416,7 +418,7 @@ module "filebrowser" {
 	return nil
 }
 
-func (s *Setup) waitForTemplateVersion(ctx context.Context, logger slog.Logger, client *codersdk.Client, versionID uuid.UUID) (codersdk.TemplateVersion, error) {
+func (*Setup) waitForTemplateVersion(ctx context.Context, logger slog.Logger, client *codersdk.Client, versionID uuid.UUID) (codersdk.TemplateVersion, error) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 

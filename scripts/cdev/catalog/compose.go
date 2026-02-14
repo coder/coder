@@ -264,7 +264,7 @@ func (cf *ComposeFile) AddCoderd(index int) *ComposeFile {
 	volName := fmt.Sprintf("coderv2_config_%d", index)
 	cf.Volumes[volName] = ComposeVolume{}
 
-	pgURL := "postgresql://coder:coder@database:5432/coder?sslmode=disable"
+	pgURL := "postgresql://coder:coder@database:5432/coder?sslmode=disable" //nolint:gosec // G101: Dev-only postgres credentials.
 	accessURL := fmt.Sprintf("http://localhost:%d", hostPort)
 
 	env := map[string]string{

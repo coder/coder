@@ -433,7 +433,7 @@ func (c *Catalog) NotifySubscribers() {
 	c.notifySubscribers()
 }
 
-// notifySubscribers does a non-blocking send to every subscriber.
+//nolint:revive // Intentional: public NotifySubscribers wraps internal notifySubscribers.
 func (c *Catalog) notifySubscribers() {
 	c.subscribersMu.Lock()
 	defer c.subscribersMu.Unlock()

@@ -80,11 +80,11 @@ func (s *Server) Start(ctx context.Context) error {
 		return xerrors.Errorf("listen on %s: %w", s.addr, err)
 	}
 
-	s.logger.Info(ctx, "API server listening", slog.F("addr", s.addr))
+	s.logger.Info(ctx, "api server listening", slog.F("addr", s.addr))
 
 	go func() {
 		if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			s.logger.Error(ctx, "API server error", slog.Error(err))
+			s.logger.Error(ctx, "api server error", slog.Error(err))
 		}
 	}()
 
@@ -101,7 +101,7 @@ func (s *Server) Addr() string {
 	return s.addr
 }
 
-func (s *Server) writeJSON(w http.ResponseWriter, status int, v any) {
+func (*Server) writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)

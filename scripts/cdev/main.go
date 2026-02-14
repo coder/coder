@@ -58,7 +58,7 @@ func main() {
 	err := cmd.Invoke().WithContext(ctx).WithOS().Run()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: deferred cancel is for the non-error path.
 	}
 }
 
@@ -151,7 +151,11 @@ func (m *psModel) tick() tea.Cmd {
 
 func (m *psModel) fetchData() tea.Msg {
 	url := fmt.Sprintf("http://%s/api/services", m.apiAddr)
-	resp, err := http.Get(url) //nolint:gosec // User-provided API address.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec // User-provided API address.
 	if err != nil {
 		return err
 	}
@@ -686,7 +690,7 @@ func generateCmd() *serpent.Command {
 			}
 
 			if outputFile != "" {
-				if err := os.WriteFile(outputFile, data, 0o644); err != nil {
+				if err := os.WriteFile(outputFile, data, 0o644); err != nil { //nolint:gosec // G306: Generated compose file, 0o644 is intentional.
 					return xerrors.Errorf("write output file: %w", err)
 				}
 				_, _ = fmt.Fprintf(inv.Stdout, "Wrote compose file to %s\n", outputFile)

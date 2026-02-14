@@ -235,10 +235,10 @@ type flushWriter struct {
 func (fw *flushWriter) Write(p []byte) (n int, err error) {
 	n, err = fw.w.Write(p)
 	fw.f.Flush()
-	return
+	return n, err
 }
 
-func (s *Server) handleStartAllServices(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleStartAllServices(w http.ResponseWriter, _ *http.Request) {
 	// Start all services in background since this can take a while.
 	// Use a background context since the request context will be cancelled
 	// when the response is sent.
@@ -443,7 +443,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		lastData = data
-		fmt.Fprintf(w, "data: %s\n\n", data)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 		flusher.Flush()
 	}
 

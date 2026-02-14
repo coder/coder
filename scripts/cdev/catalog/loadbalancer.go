@@ -83,7 +83,10 @@ func (lb *LoadBalancer) Start(ctx context.Context, logger slog.Logger, cat *Cata
 		return xerrors.New("unexpected type for Docker service")
 	}
 
-	coderd := cat.MustGet(OnCoderd()).(*Coderd)
+	coderd, ok2 := cat.MustGet(OnCoderd()).(*Coderd)
+	if !ok2 {
+		return xerrors.New("unexpected type for Coderd service")
+	}
 
 	haCount := int(coderd.HACount())
 	if haCount < 1 {
@@ -106,7 +109,7 @@ func (lb *LoadBalancer) Start(ctx context.Context, logger slog.Logger, cat *Cata
 	lb.tmpDir = tmpDir
 
 	nginxConf := generateNginxConfig(haCount)
-	if err := os.WriteFile(filepath.Join(tmpDir, "nginx.conf"), []byte(nginxConf), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "nginx.conf"), []byte(nginxConf), 0o644); err != nil { //nolint:gosec // G306: nginx.conf must be readable by the container.
 		return xerrors.Errorf("write nginx.conf: %w", err)
 	}
 
