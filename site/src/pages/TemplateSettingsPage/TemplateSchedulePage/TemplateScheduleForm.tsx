@@ -1,10 +1,9 @@
-import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import MenuItem from "@mui/material/MenuItem";
-import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { DurationField } from "components/DurationField/DurationField";
 import {
 	FormFields,
@@ -18,8 +17,9 @@ import {
 	StackLabel,
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
+import { Switch } from "components/Switch/Switch";
 import { type FormikTouched, useFormik } from "formik";
-import { type ChangeEvent, type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
 	calculateAutostopRequirementDaysValue,
@@ -251,61 +251,30 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 		}
 	}, [currentValues, setValues]);
 
-	const handleToggleFailureCleanup = async (e: ChangeEvent) => {
-		form.handleChange(e);
-		if (!form.values.failure_cleanup_enabled) {
-			// fill failure_ttl_ms with defaults
-			await form.setValues({
-				...form.values,
-				failure_cleanup_enabled: true,
-				failure_ttl_ms: FAILURE_CLEANUP_DEFAULT,
-			});
-		} else {
-			// clear failure_ttl_ms
-			await form.setValues({
-				...form.values,
-				failure_cleanup_enabled: false,
-				failure_ttl_ms: 0,
-			});
-		}
+	const handleToggleFailureCleanup = async (checked: boolean) => {
+		await form.setValues({
+			...form.values,
+			failure_cleanup_enabled: checked,
+			failure_ttl_ms: checked ? FAILURE_CLEANUP_DEFAULT : 0,
+		});
 	};
 
-	const handleToggleInactivityCleanup = async (e: ChangeEvent) => {
-		form.handleChange(e);
-		if (!form.values.inactivity_cleanup_enabled) {
-			// fill time_til_dormant_ms with defaults
-			await form.setValues({
-				...form.values,
-				inactivity_cleanup_enabled: true,
-				time_til_dormant_ms: INACTIVITY_CLEANUP_DEFAULT,
-			});
-		} else {
-			// clear time_til_dormant_ms
-			await form.setValues({
-				...form.values,
-				inactivity_cleanup_enabled: false,
-				time_til_dormant_ms: 0,
-			});
-		}
+	const handleToggleInactivityCleanup = async (checked: boolean) => {
+		await form.setValues({
+			...form.values,
+			inactivity_cleanup_enabled: checked,
+			time_til_dormant_ms: checked ? INACTIVITY_CLEANUP_DEFAULT : 0,
+		});
 	};
 
-	const handleToggleDormantAutoDeletion = async (e: ChangeEvent) => {
-		form.handleChange(e);
-		if (!form.values.dormant_autodeletion_cleanup_enabled) {
-			// fill failure_ttl_ms with defaults
-			await form.setValues({
-				...form.values,
-				dormant_autodeletion_cleanup_enabled: true,
-				time_til_dormant_autodelete_ms: DORMANT_AUTODELETION_DEFAULT,
-			});
-		} else {
-			// clear failure_ttl_ms
-			await form.setValues({
-				...form.values,
-				dormant_autodeletion_cleanup_enabled: false,
-				time_til_dormant_autodelete_ms: 0,
-			});
-		}
+	const handleToggleDormantAutoDeletion = async (checked: boolean) => {
+		await form.setValues({
+			...form.values,
+			dormant_autodeletion_cleanup_enabled: checked,
+			time_til_dormant_autodelete_ms: checked
+				? DORMANT_AUTODELETION_DEFAULT
+				: 0,
+		});
 	};
 
 	return (
@@ -347,7 +316,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						type="number"
 					/>
 
-					<Stack direction="row" css={styles.ttlFields}>
+					<Stack direction="row" className="w-full">
 						<TextField
 							{...getFieldHelpers("autostop_requirement_days_of_week", {
 								helperText: (
@@ -402,10 +371,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						control={
 							<Checkbox
 								id="allow-user-autostop"
-								size="small"
 								disabled={isSubmitting || !allowAdvancedScheduling}
-								onChange={async (_, checked) => {
-									await form.setFieldValue("allow_user_autostop", checked);
+								onCheckedChange={async (checked) => {
+									await form.setFieldValue(
+										"allow_user_autostop",
+										checked === true,
+									);
 								}}
 								name="allow_user_autostop"
 								checked={form.values.allow_user_autostop}
@@ -434,12 +405,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						control={
 							<Checkbox
 								id="allow_user_autostart"
-								size="small"
 								disabled={isSubmitting || !allowAdvancedScheduling}
-								onChange={async () => {
+								onCheckedChange={async (checked) => {
 									await form.setFieldValue(
 										"allow_user_autostart",
-										!form.values.allow_user_autostart,
+										checked === true,
 									);
 								}}
 								name="allow_user_autostart"
@@ -481,10 +451,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							<FormControlLabel
 								control={
 									<Switch
-										size="small"
 										name="dormancyThreshold"
 										checked={form.values.inactivity_cleanup_enabled}
-										onChange={handleToggleInactivityCleanup}
+										onCheckedChange={handleToggleInactivityCleanup}
 									/>
 								}
 								label={<StackLabel>Enable Dormancy Threshold</StackLabel>}
@@ -511,10 +480,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							<FormControlLabel
 								control={
 									<Switch
-										size="small"
 										name="dormancyAutoDeletion"
 										checked={form.values.dormant_autodeletion_cleanup_enabled}
-										onChange={handleToggleDormantAutoDeletion}
+										onCheckedChange={handleToggleDormantAutoDeletion}
 									/>
 								}
 								label={
@@ -554,10 +522,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							<FormControlLabel
 								control={
 									<Switch
-										size="small"
 										name="failureCleanupEnabled"
 										checked={form.values.failure_cleanup_enabled}
-										onChange={handleToggleFailureCleanup}
+										onCheckedChange={handleToggleFailureCleanup}
 									/>
 								}
 								label={
@@ -648,13 +615,4 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			</FormFooter>
 		</HorizontalForm>
 	);
-};
-
-const styles = {
-	ttlFields: {
-		width: "100%",
-	},
-	dayButtons: {
-		borderRadius: "0px",
-	},
 };

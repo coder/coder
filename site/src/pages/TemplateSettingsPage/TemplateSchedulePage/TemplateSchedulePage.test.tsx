@@ -75,27 +75,24 @@ const fillAndSubmitForm = async ({
 	}
 
 	if (failure_ttl_ms) {
-		const failureTtlField = screen.getByRole("checkbox", {
+		const failureTtlField = screen.getByRole("switch", {
 			name: /Failure Cleanup/i,
 		});
-		await user.type(failureTtlField, failure_ttl_ms.toString());
+		await user.click(failureTtlField);
 	}
 
 	if (time_til_dormant_ms) {
-		const inactivityTtlField = screen.getByRole("checkbox", {
+		const inactivityTtlField = screen.getByRole("switch", {
 			name: /Dormancy Threshold/i,
 		});
-		await user.type(inactivityTtlField, time_til_dormant_ms.toString());
+		await user.click(inactivityTtlField);
 	}
 
 	if (time_til_dormant_autodelete_ms) {
-		const dormancyAutoDeletionField = screen.getByRole("checkbox", {
+		const dormancyAutoDeletionField = screen.getByRole("switch", {
 			name: /Dormancy Auto-Deletion/i,
 		});
-		await user.type(
-			dormancyAutoDeletionField,
-			time_til_dormant_autodelete_ms.toString(),
-		);
+		await user.click(dormancyAutoDeletionField);
 	}
 
 	const submitButton = screen.getByRole("button", {
