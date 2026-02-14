@@ -365,7 +365,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						/>
 					</div>
 
-					<div className="flex items-center">
+					<div className="flex items-start">
 						<Checkbox
 							id="allow-user-autostop"
 							disabled={isSubmitting || !allowAdvancedScheduling}
@@ -397,7 +397,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 				description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
 			>
 				<div className="flex flex-col gap-4">
-					<div className="flex items-center">
+					<div className="flex items-start">
 						<Checkbox
 							id="allow_user_autostart"
 							disabled={isSubmitting || !allowAdvancedScheduling}
@@ -442,7 +442,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 				>
 					<FormFields spacing={FORM_FIELDS_SPACING}>
 						<div className="flex flex-col gap-8">
-							<div className="flex items-center">
+							<div className="flex items-start">
 								<Switch
 									id="dormancyThreshold"
 									name="dormancyThreshold"
@@ -472,7 +472,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						</div>
 
 						<div className="flex flex-col gap-8">
-							<div className="flex items-center">
+							<div className="flex items-start">
 								<Switch
 									id="dormancyAutoDeletion"
 									name="dormancyAutoDeletion"
@@ -513,7 +513,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						</div>
 
 						<div className="flex flex-col gap-8">
-							<div className="flex items-center">
+							<div className="flex items-start">
 								<Switch
 									id="failureCleanupEnabled"
 									name="failureCleanupEnabled"
