@@ -537,9 +537,9 @@ func TestExpireAPIKey(t *testing.T) {
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		// Members cannot read other users, so they get a 400 Bad Request
+		// Members cannot read other users, so they get a 404 Not Found
 		// from the authorization layer.
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
