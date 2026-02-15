@@ -9,6 +9,7 @@ interface TerminalLinkProps {
 	agentName?: string;
 	userName?: string;
 	containerName?: string;
+	disabled?: boolean;
 }
 
 /**
@@ -23,6 +24,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 	userName = "me",
 	workspaceName,
 	containerName,
+	disabled,
 }) => {
 	const href = getTerminalHref({
 		username: userName,
@@ -34,8 +36,11 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 	return (
 		<AgentButton asChild>
 			<a
-				href={href}
+				href={disabled ? undefined : href}
 				onClick={(event: MouseEvent<HTMLElement>) => {
+					if (disabled) {
+						return;
+					}
 					event.preventDefault();
 					openAppInNewWindow(href);
 				}}

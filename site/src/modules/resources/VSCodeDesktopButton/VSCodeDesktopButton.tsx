@@ -16,6 +16,7 @@ interface VSCodeDesktopButtonProps {
 	agentName?: string;
 	folderPath?: string;
 	displayApps: readonly DisplayApp[];
+	disabled?: boolean;
 }
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
@@ -109,12 +110,13 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 	workspaceName,
 	agentName,
 	folderPath,
+	disabled,
 }) => {
 	const [loading, setLoading] = useState(false);
 
 	return (
 		<AgentButton
-			disabled={loading}
+			disabled={loading || disabled}
 			onClick={() => {
 				setLoading(true);
 				API.getApiKey()
@@ -146,12 +148,13 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
 	workspaceName,
 	agentName,
 	folderPath,
+	disabled,
 }) => {
 	const [loading, setLoading] = useState(false);
 
 	return (
 		<AgentButton
-			disabled={loading}
+			disabled={loading || disabled}
 			onClick={() => {
 				setLoading(true);
 				API.getApiKey()
