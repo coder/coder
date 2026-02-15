@@ -3,12 +3,14 @@ package database_test
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -93,4 +95,93 @@ func testSQLDB(t testing.TB) *sql.DB {
 	t.Cleanup(func() { _ = db.Close() })
 
 	return db
+}
+
+func TestNestedInTxStricterIsolation(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	t.Run("CriticalLogOnStricterNested", func(t *testing.T) {
+		t.Parallel()
+
+		sqlDB := testSQLDB(t)
+		sink := &capturedSink{}
+		logger := slog.Make(sink)
+		db := database.New(sqlDB, database.WithLogger(logger))
+
+		err := db.InTx(func(outer database.Store) error {
+			return outer.InTx(func(_ database.Store) error {
+				return nil
+			}, &database.TxOptions{Isolation: sql.LevelSerializable})
+		}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
+		require.NoError(t, err)
+
+		entries := sink.entries()
+		require.Len(t, entries, 1, "expected exactly one critical log entry")
+		require.Equal(t, slog.LevelCritical, entries[0].Level)
+		require.Contains(t, entries[0].Message, "nested transaction requested stricter isolation level")
+	})
+
+	t.Run("NoCriticalLogOnSameIsolation", func(t *testing.T) {
+		t.Parallel()
+
+		sqlDB := testSQLDB(t)
+		sink := &capturedSink{}
+		logger := slog.Make(sink)
+		db := database.New(sqlDB, database.WithLogger(logger))
+
+		err := db.InTx(func(outer database.Store) error {
+			return outer.InTx(func(_ database.Store) error {
+				return nil
+			}, &database.TxOptions{Isolation: sql.LevelSerializable})
+		}, &database.TxOptions{Isolation: sql.LevelSerializable})
+		require.NoError(t, err)
+
+		entries := sink.entries()
+		require.Empty(t, entries, "should not log when isolation levels match")
+	})
+
+	t.Run("NoCriticalLogOnWeakerNested", func(t *testing.T) {
+		t.Parallel()
+
+		sqlDB := testSQLDB(t)
+		sink := &capturedSink{}
+		logger := slog.Make(sink)
+		db := database.New(sqlDB, database.WithLogger(logger))
+
+		err := db.InTx(func(outer database.Store) error {
+			return outer.InTx(func(_ database.Store) error {
+				return nil
+			}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
+		}, &database.TxOptions{Isolation: sql.LevelSerializable})
+		require.NoError(t, err)
+
+		entries := sink.entries()
+		require.Empty(t, entries, "should not log when nested requests weaker isolation")
+	})
+}
+
+// capturedSink is a slog.Sink that captures log entries for assertion
+// in tests.
+type capturedSink struct {
+	mu   sync.Mutex
+	logs []slog.SinkEntry
+}
+
+func (s *capturedSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logs = append(s.logs, e)
+}
+
+func (s *capturedSink) Sync() {}
+
+func (s *capturedSink) entries() []slog.SinkEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	dst := make([]slog.SinkEntry, len(s.logs))
+	copy(dst, s.logs)
+	return dst
 }

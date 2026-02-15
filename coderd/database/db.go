@@ -15,6 +15,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 // Store contains all queryable database functions.
@@ -51,6 +53,12 @@ type DBTX interface {
 func WithSerialRetryCount(count int) func(*sqlQuerier) {
 	return func(q *sqlQuerier) {
 		q.serialRetryCount = count
+	}
+}
+
+func WithLogger(logger slog.Logger) func(*sqlQuerier) {
+	return func(q *sqlQuerier) {
+		q.logger = logger
 	}
 }
 
@@ -117,9 +125,17 @@ type sqlQuerier struct {
 	sdb *sqlx.DB
 	db  DBTX
 
+	// logger is used for critical logging when nested transactions
+	// request stricter isolation levels than the outer transaction.
+	logger slog.Logger
+
 	// serialRetryCount is the number of times to retry a transaction
 	// if it fails with a serialization error.
 	serialRetryCount int
+
+	// currentIsolation tracks the isolation level of the current
+	// transaction, used to detect mismatched nested transactions.
+	currentIsolation sql.IsolationLevel
 }
 
 func (*sqlQuerier) Wrappers() []string {
@@ -181,12 +197,25 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 	return q.runTx(function, sqlOpts)
 }
 
-// InTx performs database operations inside a transaction.
+// runTx performs database operations inside a transaction.
 func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) error {
 	if _, ok := q.db.(*sqlx.Tx); ok {
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
 		// that.
+		//
+		// Check if the requested isolation level is stricter than the
+		// current transaction's isolation level. If so, log a critical
+		// error because the caller's correctness expectations cannot be
+		// met by the weaker outer isolation level.
+		if txOpts.Isolation > q.currentIsolation {
+			q.logger.Critical(
+				context.Background(),
+				"nested transaction requested stricter isolation level than outer",
+				slog.F("outer_isolation_level", q.currentIsolation.String()),
+				slog.F("requested_isolation_level", txOpts.Isolation.String()),
+			)
+		}
 		err := function(q)
 		if err != nil {
 			return xerrors.Errorf("execute transaction: %w", err)
@@ -207,7 +236,11 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) er
 		// couldn't roll back for some reason, extend returned error
 		err = xerrors.Errorf("defer (%s): %w", rerr.Error(), err)
 	}()
-	err = function(&sqlQuerier{db: transaction})
+	err = function(&sqlQuerier{
+		db:               transaction,
+		logger:           q.logger,
+		currentIsolation: txOpts.Isolation,
+	})
 	if err != nil {
 		return xerrors.Errorf("execute transaction: %w", err)
 	}
