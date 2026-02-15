@@ -1431,7 +1431,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	emailHello := serpent.Option{
 		Name:        "Email: Hello",
-		Description: "The hostname identifying the SMTP server.",
+		Description: "The hostname identifying this client to the SMTP server.",
 		Flag:        "email-hello",
 		Env:         "CODER_EMAIL_HELLO",
 		Default:     "localhost",
@@ -1523,7 +1523,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	emailTLSCertFile := serpent.Option{
 		Name:        "Email TLS: Certificate File",
-		Description: "Certificate file to use.",
+		Description: "Client certificate file for mutual TLS authentication.",
 		Flag:        "email-tls-cert-file",
 		Env:         "CODER_EMAIL_TLS_CERTFILE",
 		Value:       &c.Notifications.SMTP.TLS.CertFile,
@@ -1532,7 +1532,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	emailTLSCertKeyFile := serpent.Option{
 		Name:        "Email TLS: Certificate Key File",
-		Description: "Certificate key file to use.",
+		Description: "Private key file for the client certificate.",
 		Flag:        "email-tls-cert-key-file",
 		Env:         "CODER_EMAIL_TLS_CERTKEYFILE",
 		Value:       &c.Notifications.SMTP.TLS.KeyFile,
@@ -1551,7 +1551,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	workspaceHostnameSuffix := serpent.Option{
 		Name:        "Workspace Hostname Suffix",
-		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+		Description: "Workspace hostnames use this suffix for SSH connections and Coder Connect. By default it is coder, resulting in hostnames like agent.workspace.owner.coder.",
 		Flag:        "workspace-hostname-suffix",
 		Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
 		YAML:        "workspaceHostnameSuffix",
@@ -1680,7 +1680,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "TLS Client CA Files",
-			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of client.",
+			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of the client.",
 			Flag:        "tls-client-ca-file",
 			Env:         "CODER_TLS_CLIENT_CA_FILE",
 			Value:       &c.TLS.ClientCAFile,
@@ -1742,7 +1742,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "TLS Ciphers",
-			Description: "Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.",
+			Description: "Specify specific TLS ciphers that are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.",
 			Flag:        "tls-ciphers",
 			Env:         "CODER_TLS_CIPHERS",
 			Default:     "",
@@ -1800,7 +1800,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "DERP Server Region Name",
-			Description: "Region name that for the embedded DERP server.",
+			Description: "Region name to use for the embedded DERP server.",
 			Flag:        "derp-server-region-name",
 			Env:         "CODER_DERP_SERVER_REGION_NAME",
 			Default:     "Coder Embedded Relay",
@@ -1811,7 +1811,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
+			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get its own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
 			Default:     "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302",
@@ -1833,7 +1833,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Block Direct Connections",
-			Description: "Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.",
+			Description: "Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspace agents may still reach out to STUN servers to discover their address until they are restarted, but all new connections will be proxied regardless.",
 			// This cannot be called `disable-direct-connections` because that's
 			// already a global CLI flag for CLI connections. This is a
 			// deployment-wide flag.
@@ -1884,7 +1884,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		// Prometheus settings
 		{
 			Name:        "Prometheus Enable",
-			Description: "Serve prometheus metrics on the address defined by prometheus address.",
+			Description: "Serve Prometheus metrics on the address defined by prometheus address.",
 			Flag:        "prometheus-enable",
 			Env:         "CODER_PROMETHEUS_ENABLE",
 			Value:       &c.Prometheus.Enable,
@@ -1894,7 +1894,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Prometheus Address",
-			Description: "The bind address to serve prometheus metrics.",
+			Description: "The bind address to serve Prometheus metrics.",
 			Flag:        "prometheus-address",
 			Env:         "CODER_PROMETHEUS_ADDRESS",
 			Default:     "127.0.0.1:2112",
@@ -1945,7 +1945,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		// Pprof settings
 		{
 			Name:        "pprof Enable",
-			Description: "Serve pprof metrics on the address defined by pprof address.",
+			Description: "Serve pprof profiling endpoints on the address defined by pprof address.",
 			Flag:        "pprof-enable",
 			Env:         "CODER_PPROF_ENABLE",
 			Value:       &c.Pprof.Enable,
@@ -2032,7 +2032,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OAuth2 GitHub Allow Everyone",
-			Description: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+			Description: "Allow all GitHub users to authenticate. When enabled, allowed orgs and teams must be empty.",
 			Flag:        "oauth2-github-allow-everyone",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOW_EVERYONE",
 			Value:       &c.OAuth2.Github.AllowEveryone,
@@ -2079,8 +2079,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name: "OIDC Client Key File",
-			Description: "Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. " +
-				"This can be used instead of oidc-client-secret if your IDP supports it.",
+			Description: "PEM encoded RSA private key to use for OAuth2 PKI/JWT authorization. " +
+				"This can be used instead of oidc-client-secret if your IdP supports it.",
 			Flag:  "oidc-client-key-file",
 			Env:   "CODER_OIDC_CLIENT_KEY_FILE",
 			YAML:  "oidcClientKeyFile",
@@ -2089,8 +2089,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name: "OIDC Client Cert File",
-			Description: "Pem encoded certificate file to use for oauth2 PKI/JWT authorization. " +
-				"The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.",
+			Description: "PEM encoded certificate file to use for OAuth2 PKI/JWT authorization. " +
+				"The public certificate that accompanies oidc-client-key-file. A standard X.509 certificate is expected.",
 			Flag:  "oidc-client-cert-file",
 			Env:   "CODER_OIDC_CLIENT_CERT_FILE",
 			YAML:  "oidcClientCertFile",
@@ -2242,7 +2242,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC Group Field",
-			Description: "This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.",
+			Description: "OIDC claim field to use as the user's groups. This field must be set if using the group sync feature and the scope name is not 'groups'.",
 			Flag:        "oidc-group-field",
 			Env:         "CODER_OIDC_GROUP_FIELD",
 			// This value is intentionally blank. If this is empty, then OIDC group
@@ -2257,7 +2257,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC Group Mapping",
-			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
+			Description: "A map of OIDC group IDs and the groups in Coder they should map to. This is useful when OIDC providers only return group IDs.",
 			Flag:        "oidc-group-mapping",
 			Env:         "CODER_OIDC_GROUP_MAPPING",
 			Default:     "{}",
@@ -2277,7 +2277,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC Regex Group Filter",
-			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.",
+			Description: "If provided, any group name not matching the regex is ignored. This allows filtering out groups that are not needed. This filter is applied after the OIDC Group Mapping step.",
 			Flag:        "oidc-group-regex-filter",
 			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
 			Default:     ".*",
@@ -2287,7 +2287,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC Allowed Groups",
-			Description: "If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.",
+			Description: "If provided, only users with at least one group in this list will be allowed to authenticate. This restricts access to a specific set of groups. This check is applied before any group mapping or filtering.",
 			Flag:        "oidc-allowed-groups",
 			Env:         "CODER_OIDC_ALLOWED_GROUPS",
 			Default:     "",
@@ -2309,7 +2309,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC User Role Mapping",
-			Description: "A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.",
+			Description: "A map of OIDC user role names to Coder role names. This is useful if the role names do not match between systems. If mapped to the empty string, the role will be ignored.",
 			Flag:        "oidc-user-role-mapping",
 			Env:         "CODER_OIDC_USER_ROLE_MAPPING",
 			Default:     "{}",
@@ -2319,7 +2319,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OIDC User Role Default",
-			Description: "If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.",
+			Description: "If user role sync is enabled, these roles are always included for all authenticated users in addition to synced roles. The 'member' role is always assigned regardless of this setting.",
 			Flag:        "oidc-user-role-default",
 			Env:         "CODER_OIDC_USER_ROLE_DEFAULT",
 			Default:     "",
@@ -2339,7 +2339,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OpenID connect icon URL",
-			Description: "URL pointing to the icon to use on the OpenID Connect login button.",
+			Description: "URL of the icon to use on the OpenID Connect login button.",
 			Flag:        "oidc-icon-url",
 			Env:         "CODER_OIDC_ICON_URL",
 			Value:       &c.OIDC.IconURL,
@@ -2348,7 +2348,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Signups disabled text",
-			Description: "The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.",
+			Description: "Custom text to show on the error page when OIDC signups are disabled. Markdown format is supported.",
 			Flag:        "oidc-signups-disabled-text",
 			Env:         "CODER_OIDC_SIGNUPS_DISABLED_TEXT",
 			Value:       &c.OIDC.SignupsDisabledText,
@@ -2807,7 +2807,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "SameSite Auth Cookie",
-			Description: "Controls the 'SameSite' property is set on browser session cookies.",
+			Description: "Controls if the 'SameSite' property is set on browser session cookies.",
 			Flag:        "samesite-auth-cookie",
 			Env:         "CODER_SAMESITE_AUTH_COOKIE",
 			// Do not allow "strict" same-site cookies. That would potentially break workspace apps.
@@ -3000,7 +3000,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name: "SSH Config Options",
 			Description: "These SSH config options will override the default SSH config options. " +
-				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
+				"Provide options in \"key=value\" or \"key value\" format separated by commas. " +
 				"Using this incorrectly can break SSH to your deployment, use cautiously.",
 			Flag:   "ssh-config-options",
 			Env:    "CODER_SSH_CONFIG_OPTIONS",
@@ -3041,7 +3041,7 @@ Write out the current server config as YAML to stdout.`,
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
-			Description: "External Authentication providers.",
+			Description: "Configure external authentication providers for Git and other services.",
 			YAML:        "externalAuthProviders",
 			Flag:        "external-auth-providers",
 			Value:       &c.ExternalAuthConfigs,
@@ -3059,7 +3059,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Proxy Health Check Interval",
-			Description: "The interval in which coderd should be checking the status of workspace proxies.",
+			Description: "The interval at which coderd checks the status of workspace proxies.",
 			Flag:        "proxy-health-interval",
 			Env:         "CODER_PROXY_HEALTH_INTERVAL",
 			Default:     (time.Minute).String(),
@@ -3080,7 +3080,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Allow Custom Quiet Hours",
-			Description: "Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.",
+			Description: "Allow users to set their own quiet hours schedule for when workspaces are stopped (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.",
 			Flag:        "allow-custom-quiet-hours",
 			Env:         "CODER_ALLOW_CUSTOM_QUIET_HOURS",
 			Default:     "true",
@@ -3192,7 +3192,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Notifications: Email: Hello",
-			Description: "The hostname identifying the SMTP server.",
+			Description: "The hostname identifying this client to the SMTP server.",
 			Flag:        "notifications-email-hello",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_HELLO",
 			Value:       &c.Notifications.SMTP.Hello,
@@ -3355,7 +3355,7 @@ Write out the current server config as YAML to stdout.`,
 			Name: "Notifications: Store Sync Interval",
 			Description: "The notifications system buffers message updates in memory to ease pressure on the database. " +
 				"This option controls how often it synchronizes its state with the database. The shorter this value the " +
-				"lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
+				"lower the chance of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
 				"database. It is recommended to keep this option at its default value.",
 			Flag:        "notifications-store-sync-interval",
 			Env:         "CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL",
@@ -3370,7 +3370,7 @@ Write out the current server config as YAML to stdout.`,
 			Name: "Notifications: Store Sync Buffer Size",
 			Description: "The notifications system buffers message updates in memory to ease pressure on the database. " +
 				"This option controls how many updates are kept in memory. The lower this value the " +
-				"lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
+				"lower the chance of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
 				"database. It is recommended to keep this option at its default value.",
 			Flag:    "notifications-store-sync-buffer-size",
 			Env:     "CODER_NOTIFICATIONS_STORE_SYNC_BUFFER_SIZE",
@@ -3434,7 +3434,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Reconciliation Backoff Interval",
-			Description: "Interval to increase reconciliation backoff by when prebuilds fail, after which a retry attempt is made.",
+			Description: "Amount of time to add to the reconciliation backoff delay after each prebuild failure, before the next retry attempt is made.",
 			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
@@ -3446,7 +3446,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Reconciliation Backoff Lookback Period",
-			Description: "Interval to look back to determine number of failed prebuilds, which influences backoff.",
+			Description: "Time period to look back when counting failed prebuilds to calculate the backoff delay.",
 			Flag:        "workspace-prebuilds-reconciliation-backoff-lookback-period",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_LOOKBACK_PERIOD",
 			Value:       &c.Prebuilds.ReconciliationBackoffLookback,
@@ -3458,7 +3458,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Failure Hard Limit",
-			Description: "Maximum number of consecutive failed prebuilds before a preset hits the hard limit; disabled when set to zero.",
+			Description: "Maximum number of consecutive failed prebuilds before a preset is considered hard-limited and stops automatic prebuild creation. Disabled when set to zero.",
 			Flag:        "workspace-prebuilds-failure-hard-limit",
 			Env:         "CODER_WORKSPACE_PREBUILDS_FAILURE_HARD_LIMIT",
 			Value:       &c.Prebuilds.FailureHardLimit,
@@ -3481,7 +3481,7 @@ Write out the current server config as YAML to stdout.`,
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
-			Description: "Whether to start an in-memory aibridged instance.",
+			Description: "Enable the embedded AI Bridge service to intercept and record AI provider requests.",
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
@@ -3501,7 +3501,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge OpenAI Key",
-			Description: "The key to authenticate against the OpenAI API.",
+			Description: "API key for authenticating with the OpenAI API.",
 			Flag:        "aibridge-openai-key",
 			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
 			Value:       &c.AI.BridgeConfig.OpenAI.Key,
@@ -3521,7 +3521,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Anthropic Key",
-			Description: "The key to authenticate against the Anthropic API.",
+			Description: "API key for authenticating with the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
@@ -3553,7 +3553,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key",
-			Description: "The access key to authenticate against the AWS Bedrock API.",
+			Description: "AWS access key for authenticating with the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
 			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
@@ -3563,7 +3563,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Bedrock Access Key Secret",
-			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+			Description: "AWS secret access key for authenticating with the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key-secret",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
 			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
@@ -3593,7 +3593,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
-			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Description: "Enable injection of Coder's MCP tools into intercepted AI Bridge requests. Requires the 'oauth2' and 'mcp-server-http' experiments.",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
 			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
@@ -3603,7 +3603,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Data Retention Duration",
-			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Description: "How long to retain AI Bridge data including interceptions, tokens, prompts, and tool usage records.",
 			Flag:        "aibridge-retention",
 			Env:         "CODER_AIBRIDGE_RETENTION",
 			Value:       &c.AI.BridgeConfig.Retention,
@@ -3656,7 +3656,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
-			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits and overload errors (HTTP 429, 503, 529).",
 			Flag:        "aibridge-circuit-breaker-enabled",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
@@ -3666,7 +3666,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Failure Threshold",
-			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+			Description: "Number of consecutive failures that trigger the circuit breaker to open.",
 			Flag:        "aibridge-circuit-breaker-failure-threshold",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
 			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
@@ -3682,7 +3682,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Circuit Breaker Interval",
-			Description: "Cyclic period of the closed state for clearing internal failure counts.",
+			Description: "Time window for counting failures before resetting the failure count in the closed state.",
 			Flag:        "aibridge-circuit-breaker-interval",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
@@ -3830,7 +3830,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Workspace Agent Logs Retention",
-			Description: "How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.",
+			Description: "How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build for each workspace are always retained. Set to 0 to disable automatic deletion.",
 			Flag:        "workspace-agent-logs-retention",
 			Env:         "CODER_WORKSPACE_AGENT_LOGS_RETENTION",
 			Value:       &c.Retention.WorkspaceAgentLogs,
@@ -3841,7 +3841,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name: "Enable Authorization Recordings",
-			Description: "All api requests will have a header including all authorization calls made during the request. " +
+			Description: "All API requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
 			Required: false,
 			Flag:     "enable-authz-recordings",
