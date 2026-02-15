@@ -55,6 +55,29 @@ runs:
       run: |
         go run scripts/embedded-pg/main.go -path "${EMBEDDED_PG_PATH}" -cache "${EMBEDDED_PG_CACHE_DIR}"
 
+    - name: Set PTY limit for tests
+      if: runner.os != 'Windows'
+      shell: bash
+      run: | # zizmor: ignore[github-env] Value is validated as numeric before writing
+        set -euo pipefail
+        # Capacity per package = PTY_MAX_TOTAL / TEST_NUM_PARALLEL_PACKAGES
+        pty_max=""
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          pty_max=$(sysctl -n kern.tty.ptmx_max)
+        elif [[ "$RUNNER_OS" == "Linux" ]]; then
+          if [[ -f /proc/sys/kernel/pty/max ]]; then
+            pty_max=$(cat /proc/sys/kernel/pty/max)
+          else
+            pty_max="4096"
+          fi
+        fi
+        # Validate it's numeric before writing
+        if [[ -n "$pty_max" ]] && [[ "$pty_max" =~ ^[0-9]+$ ]]; then
+          echo "PTY_MAX_TOTAL=$pty_max" >> "$GITHUB_ENV"
+        else
+          echo "PTY_MAX_TOTAL=4096" >> "$GITHUB_ENV"
+        fi
+
     - name: Run tests
       shell: bash
       env:

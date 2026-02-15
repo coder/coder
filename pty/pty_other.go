@@ -3,6 +3,7 @@
 package pty
 
 import (
+	"context"
 	"io"
 	"io/fs"
 	"os"
@@ -22,8 +23,17 @@ func newPty(opt ...Option) (retPTY *otherPty, err error) {
 		o(&opts)
 	}
 
+	// Acquire semaphore slot if test semaphore is configured
+	ctx := context.Background()
+	if err := acquireTestSemaphore(ctx); err != nil {
+		return nil, xerrors.Errorf("acquire PTY semaphore: %w", err)
+	}
+	// Note: semaphore will be released in Close(), it ensures we limit concurrent PTYs in use
+
 	ptyFile, ttyFile, err := pty.Open()
 	if err != nil {
+		// If PTY creation fails, release semaphore immediately
+		releaseTestSemaphore()
 		return nil, err
 	}
 	opty := &otherPty{
@@ -142,6 +152,11 @@ func (p *otherPty) Close() error {
 			err = err2
 		}
 	}
+
+	// Release semaphore slot when PTY is closed
+	// This ensures we limit concurrent PTYs in use
+	// Safe to call even if we never acquired a slot (no-op if semaphore is nil or empty)
+	releaseTestSemaphore()
 
 	if err != nil {
 		p.err = err
