@@ -25,6 +25,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -115,6 +116,13 @@ func TestAuthorization(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
+					ID:       user.ID,
+					Username: user.Username,
+					Status:   user.Status,
+					Roles:    []string{},
+					Groups:   []string{},
+				}, nil)
 			},
 		},
 	}
@@ -174,7 +182,7 @@ func TestAuthorization(t *testing.T) {
 				tc.mocksFn(db, apiKey, user)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(t.Context(), db, (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil), logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -264,7 +272,7 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			logger := testutil.Logger(t)
 
 			accessURL := "https://my-cool-deployment.com"
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, codersdk.AIBridgeConfig{
+			srv, err := aibridgedserver.NewServer(t.Context(), db, (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil), logger, accessURL, codersdk.AIBridgeConfig{
 				InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
 			}, tc.externalAuthConfigs, tc.experiments)
 			require.NoError(t, err)
@@ -304,7 +312,7 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	// Given: 2 external auth configured with MCP and 1 without.
-	srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, []*externalauth.Config{
+	srv, err := aibridgedserver.NewServer(t.Context(), db, (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil), logger, "/", codersdk.AIBridgeConfig{}, []*externalauth.Config{
 		{
 			ID:     "1",
 			MCPURL: "1.com/mcp",
@@ -811,7 +819,7 @@ func testRecordMethod[Req any, Resp any](
 			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(ctx, db, (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil), logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
 			require.NoError(t, err)
 
 			resp, err := callMethod(srv, ctx, tc.request)
@@ -1085,7 +1093,7 @@ func TestStructuredLogging(t *testing.T) {
 			tc.setupMocks(db, interceptionID)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{
+			srv, err := aibridgedserver.NewServer(ctx, db, (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil), logger, "/", codersdk.AIBridgeConfig{
 				StructuredLogging: serpent.Bool(tc.structuredLogging),
 			}, nil, requiredExperiments)
 			require.NoError(t, err)

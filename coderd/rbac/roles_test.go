@@ -1000,7 +1000,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "AIBridgeInterceptions",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, memberMe},
@@ -1010,6 +1010,25 @@ func TestRolePermissions(t *testing.T) {
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
+			},
+		},
+		{
+			Name:     "AIBridgeInterceptionsRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAibridgeInterception.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAuditor},
+				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "AIBridgeInterceptionsCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceAibridgeInterception.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				// All authenticated members can use AI Bridge (creating interceptions gates feature access).
+				true:  {owner, memberMe, orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin, setOtherOrg},
+				false: {},
 			},
 		},
 		{

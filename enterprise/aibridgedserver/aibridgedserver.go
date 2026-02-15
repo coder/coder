@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
@@ -66,6 +68,10 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+
+	// RBAC-related queries.
+	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
+	CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error)
 }
 
 type Server struct {
@@ -74,6 +80,7 @@ type Server struct {
 	// long-running operations.
 	lifecycleCtx        context.Context
 	store               store
+	authorizer          rbac.Authorizer
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
@@ -81,7 +88,7 @@ type Server struct {
 	structuredLogging bool
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
+func NewServer(lifecycleCtx context.Context, store store, authorizer rbac.Authorizer, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
 ) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
@@ -97,6 +104,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
+		authorizer:          authorizer,
 		logger:              logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
@@ -500,6 +508,20 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
+	}
+
+	// Check RBAC permissions for AI Bridge access. The API key's scope
+	// set is used so that scoped tokens (e.g. created with
+	// --scope "aibridge_interception:create") are properly enforced.
+	subject, _, err := httpmw.UserRBACSubject(ctx, s.store, key.UserID, key.ScopeSet())
+	if err != nil {
+		s.logger.Warn(ctx, "failed to build RBAC subject", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, xerrors.Errorf("build RBAC subject: %w", err)
+	}
+
+	if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
+		rbac.ResourceAibridgeInterception.AnyOrganization()); err != nil {
+		return nil, xerrors.Errorf("not authorized to use AI Bridge: %w", err)
 	}
 
 	return &proto.IsAuthorizedResponse{
