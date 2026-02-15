@@ -137,6 +137,21 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							<span className="text-content-destructive">*</span>
 						)}
 					</span>
+					{!parameter.required && (
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="text-sm font-medium text-content-disabled">
+										(optional)
+									</span>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									If no value is specified, the system will default to the value
+									set by the administrator.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
 					{!parameter.mutable && (
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
