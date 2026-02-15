@@ -107,8 +107,9 @@ export const LoadingTasks: Story = {
 
 		await step("Select the first AI template", async () => {
 			const form = await canvas.findByRole("form");
-			const combobox = await within(form).findByRole("combobox");
-			expect(combobox).toHaveTextContent(MockTemplate.display_name);
+			const templateSelect =
+				await within(form).findByLabelText(/select template/i);
+			expect(templateSelect).toHaveTextContent(MockTemplate.display_name);
 		});
 	},
 };
