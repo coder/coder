@@ -108,6 +108,13 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	// to the IO provided. See:
 	// https://github.com/AlecAivazis/survey/blob/master/terminal/runereader_windows.go#L94
 	if flag.Lookup("test.v") != nil {
+		// Return the default option if it matches a valid option,
+		// otherwise return the first option.
+		for _, opt := range opts.Options {
+			if opt == opts.Default {
+				return opt, nil
+			}
+		}
 		return opts.Options[0], nil
 	}
 
@@ -117,6 +124,14 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		options:    opts.Options,
 		height:     opts.Size,
 		message:    opts.Message,
+	}
+
+	// Set initial cursor position to the default option if provided.
+	for i, opt := range opts.Options {
+		if opt == opts.Default {
+			initialModel.cursor = i
+			break
+		}
 	}
 
 	if initialModel.height == 0 {
