@@ -236,6 +236,9 @@ type agent struct {
 	listeningPortsHandler listeningPortsHandler
 	subsystems            []codersdk.AgentSubsystem
 
+	// RDP session tracking
+	rdpActive atomic.Bool
+
 	reconnectingPTYTimeout time.Duration
 	reconnectingPTYServer  *reconnectingpty.Server
 
@@ -1290,6 +1293,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 					}
 				}
 
+				// Start RDP monitoring
+				go a.monitorRDP(ctx)
+
 				dur := time.Since(start).Seconds()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
@@ -1796,6 +1802,14 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	stats.SessionCountJetbrains = sshStats.JetBrains
 
 	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
+
+	if a.rdpActive.Load() {
+		stats.ConnectionsByProto["rdp"] = 1
+		// Ensure ConnectionCount is at least 1 so that activity bumping occurs.
+		if stats.ConnectionCount == 0 {
+			stats.ConnectionCount = 1
+		}
+	}
 
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")
