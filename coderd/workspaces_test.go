@@ -5625,6 +5625,54 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAvailableUsers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OrgAdminCanListUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create an org admin and additional users
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+		_, user1 := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Org admin should be able to list available users
+		users, err := orgAdminClient.WorkspaceAvailableUsers(ctx, owner.OrganizationID, "me")
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(users), 4) // owner + orgAdmin + 2 users
+
+		// Verify the users we created are in the list
+		usernames := make([]string, 0, len(users))
+		for _, u := range users {
+			usernames = append(usernames, u.Username)
+		}
+		require.Contains(t, usernames, user1.Username)
+		require.Contains(t, usernames, user2.Username)
+	})
+
+	t.Run("MemberCannotListUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a regular member
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Regular member should not be able to list available users
+		_, err := memberClient.WorkspaceAvailableUsers(ctx, owner.OrganizationID, "me")
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+}
+
 func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 	t.Parallel()
 

@@ -569,6 +569,28 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * Get users for workspace owner selection. Requires
+	 * permission to create workspaces for other users in the
+	 * organization. Returns minimal user data (no email, roles,
+	 * etc.).
+	 */
+	getWorkspaceAvailableUsers = async (
+		organizationId: string,
+		options: TypesGen.UsersRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.MinimalUser[]> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organizationId}/members/me/workspaces/available-users`,
+			options,
+		);
+		const response = await this.axios.get<TypesGen.MinimalUser[]>(
+			url.toString(),
+			{ signal },
+		);
+		return response.data;
+	};
+
 	createOrganization = async (params: TypesGen.CreateOrganizationRequest) => {
 		const response = await this.axios.post<TypesGen.Organization>(
 			"/api/v2/organizations",
