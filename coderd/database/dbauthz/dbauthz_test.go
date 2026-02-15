@@ -3550,8 +3550,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetNotificationReportGeneratorLogByTemplate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetNotificationReportGeneratorLogByTemplate(gomock.Any(), notifications.TemplateWorkspaceBuildsFailedReport).Return(database.NotificationReportGeneratorLog{}, nil).AnyTimes()
-		check.Args(notifications.TemplateWorkspaceBuildsFailedReport).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		dbm.EXPECT().GetNotificationReportGeneratorLogByTemplate(gomock.Any(), notifications.TemplateReportWorkspaceBuildsFailedForTemplate).Return(database.NotificationReportGeneratorLog{}, nil).AnyTimes()
+		check.Args(notifications.TemplateReportWorkspaceBuildsFailedForTemplate).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceBuildStatsByTemplates", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		at := dbtime.Now()
@@ -3745,7 +3745,7 @@ func (s *MethodTestSuite) TestNotifications() {
 		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
 	}))
 	s.Run("UpdateNotificationTemplateMethodByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.UpdateNotificationTemplateMethodByIDParams{Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true}, ID: notifications.TemplateWorkspaceDormant}
+		arg := database.UpdateNotificationTemplateMethodByIDParams{Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true}, ID: notifications.TemplateWorkspaceMarkedAsDormant}
 		dbm.EXPECT().UpdateNotificationTemplateMethodByID(gomock.Any(), arg).Return(database.NotificationTemplate{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate)
 	}))
@@ -3758,14 +3758,14 @@ func (s *MethodTestSuite) TestNotifications() {
 	}))
 	s.Run("UpdateUserNotificationPreferences", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.UpdateUserNotificationPreferencesParams{UserID: user.ID, NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted}, Disableds: []bool{true, false}}
+		arg := database.UpdateUserNotificationPreferencesParams{UserID: user.ID, NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceUpdatedAutomatically, notifications.TemplateWorkspaceDeleted}, Disableds: []bool{true, false}}
 		dbm.EXPECT().UpdateUserNotificationPreferences(gomock.Any(), arg).Return(int64(2), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
 	}))
 
 	s.Run("GetInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceUpdatedAutomatically})
 		arg := database.GetInboxNotificationsByUserIDParams{UserID: u.ID, ReadStatus: database.InboxNotificationReadStatusAll}
 		dbm.EXPECT().GetInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
@@ -3773,15 +3773,15 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("GetFilteredInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
-		arg := database.GetFilteredInboxNotificationsByUserIDParams{UserID: u.ID, Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated}, Targets: []uuid.UUID{u.ID}, ReadStatus: database.InboxNotificationReadStatusAll}
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceUpdatedAutomatically, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceUpdatedAutomatically}})
+		arg := database.GetFilteredInboxNotificationsByUserIDParams{UserID: u.ID, Templates: []uuid.UUID{notifications.TemplateWorkspaceUpdatedAutomatically}, Targets: []uuid.UUID{u.ID}, ReadStatus: database.InboxNotificationReadStatusAll}
 		dbm.EXPECT().GetFilteredInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetInboxNotificationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceUpdatedAutomatically, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceUpdatedAutomatically}})
 		dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notif.ID).Return(notif, nil).AnyTimes()
 		check.Args(notif.ID).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
 	}))
@@ -3795,7 +3795,7 @@ func (s *MethodTestSuite) TestNotifications() {
 	s.Run("InsertInboxNotification", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		notifID := uuid.New()
-		arg := database.InsertInboxNotificationParams{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}, Title: "test title", Content: "test content notification", Icon: "https://coder.com/favicon.ico", Actions: json.RawMessage("{}")}
+		arg := database.InsertInboxNotificationParams{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceUpdatedAutomatically, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceUpdatedAutomatically}, Title: "test title", Content: "test content notification", Icon: "https://coder.com/favicon.ico", Actions: json.RawMessage("{}")}
 		dbm.EXPECT().InsertInboxNotification(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID}), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))

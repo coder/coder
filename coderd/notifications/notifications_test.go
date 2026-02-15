@@ -690,11 +690,10 @@ func TestNotifierPaused(t *testing.T) {
 	}, fetchInterval*5, testutil.IntervalFast)
 }
 
-//go:embed events.go
+//go:embed events_gen.go
 var events []byte
 
-// enumerateAllTemplates gets all the template names from the coderd/notifications/events.go file.
-// TODO(dannyk): use code-generation to create a list of all templates: https://github.com/coder/team-coconut/issues/36
+// enumerateAllTemplates gets all the template names from the coderd/notifications/events_gen.go file.
 func enumerateAllTemplates(t *testing.T) ([]string, error) {
 	t.Helper()
 
@@ -782,8 +781,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceDormant",
-			id:   notifications.TemplateWorkspaceDormant,
+			name: "TemplateWorkspaceMarkedAsDormant",
+			id:   notifications.TemplateWorkspaceMarkedAsDormant,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -798,8 +797,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceAutoUpdated",
-			id:   notifications.TemplateWorkspaceAutoUpdated,
+			name: "TemplateWorkspaceUpdatedAutomatically",
+			id:   notifications.TemplateWorkspaceUpdatedAutomatically,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -883,8 +882,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateYourAccountSuspended",
-			id:   notifications.TemplateYourAccountSuspended,
+			name: "TemplateYourAccountHasBeenSuspended",
+			id:   notifications.TemplateYourAccountHasBeenSuspended,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -896,8 +895,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateYourAccountActivated",
-			id:   notifications.TemplateYourAccountActivated,
+			name: "TemplateYourAccountHasBeenActivated",
+			id:   notifications.TemplateYourAccountHasBeenActivated,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -939,8 +938,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceBuildsFailedReport",
-			id:   notifications.TemplateWorkspaceBuildsFailedReport,
+			name: "TemplateReportWorkspaceBuildsFailedForTemplate",
+			id:   notifications.TemplateReportWorkspaceBuildsFailedForTemplate,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -1049,8 +1048,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateUserRequestedOneTimePasscode",
-			id:   notifications.TemplateUserRequestedOneTimePasscode,
+			name: "TemplateOneTimePasscode",
+			id:   notifications.TemplateOneTimePasscode,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby/drop-table+user@coder.com",
@@ -1184,8 +1183,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateTestNotification",
-			id:   notifications.TemplateTestNotification,
+			name: "TemplateTroubleshootingNotification",
+			id:   notifications.TemplateTroubleshootingNotification,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -1194,8 +1193,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceResourceReplaced",
-			id:   notifications.TemplateWorkspaceResourceReplaced,
+			name: "TemplatePrebuiltWorkspaceResourceReplaced",
+			id:   notifications.TemplatePrebuiltWorkspaceResourceReplaced,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -1217,8 +1216,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "PrebuildFailureLimitReached",
-			id:   notifications.PrebuildFailureLimitReached,
+			name: "TemplatePrebuildFailureLimitReached",
+			id:   notifications.TemplatePrebuildFailureLimitReached,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
 				UserEmail:    "bobby@coder.com",
@@ -1823,7 +1822,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// GIVEN: a notification template which has a method explicitly set
 	var (
-		tmpl          = notifications.TemplateWorkspaceDormant
+		tmpl          = notifications.TemplateWorkspaceMarkedAsDormant
 		defaultMethod = database.NotificationMethodSmtp
 		customMethod  = database.NotificationMethodWebhook
 	)
@@ -2071,7 +2070,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 		user := createSampleUser(t, store)
 
 		// When: A one-time-passcode notification is sent, it does not enqueue a notification.
-		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateUserRequestedOneTimePasscode,
+		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateOneTimePasscode,
 			map[string]string{"one_time_passcode": "1234"}, "test", user.ID)
 		require.NoError(t, err)
 		require.Len(t, enqueued, 0)
@@ -2094,7 +2093,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 		user := createSampleUser(t, store)
 
 		// When: A one-time-passcode notification is sent, it does enqueue a notification.
-		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateUserRequestedOneTimePasscode,
+		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateOneTimePasscode,
 			map[string]string{"one_time_passcode": "1234"}, "test", user.ID)
 		require.NoError(t, err)
 		require.Len(t, enqueued, 1)
@@ -2117,7 +2116,7 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 		user := createSampleUser(t, store)
 
 		// When: A one-time-passcode notification is sent, it does enqueue a notification.
-		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateUserRequestedOneTimePasscode,
+		enqueued, err := enq.Enqueue(ctx, user.ID, notifications.TemplateOneTimePasscode,
 			map[string]string{"one_time_passcode": "1234"}, "test", user.ID)
 		require.NoError(t, err)
 		require.Len(t, enqueued, 1)

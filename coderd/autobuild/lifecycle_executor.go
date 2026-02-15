@@ -434,7 +434,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						templateVersionMessage = "None provided"
 					}
 
-					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceUpdatedAutomatically,
 						map[string]string{
 							"name":                     ws.Name,
 							"initiator":                "autobuild",
@@ -466,7 +466,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
-						notifications.TemplateWorkspaceDormant,
+						notifications.TemplateWorkspaceMarkedAsDormant,
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",

@@ -112,16 +112,16 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	since := now.Add(-failedWorkspaceBuildsReportFrequency)
 
 	// Firstly, check if this is the first run of the job ever
-	reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateWorkspaceBuildsFailedReport)
+	reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateReportWorkspaceBuildsFailedForTemplate)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("unable to read report generator log: %w", err)
 	}
 	if xerrors.Is(err, sql.ErrNoRows) {
 		// First run? Check-in the job, and get back after one week.
-		logger.Info(ctx, "report generator is executing the job for the first time", slog.F("notification_template_id", notifications.TemplateWorkspaceBuildsFailedReport))
+		logger.Info(ctx, "report generator is executing the job for the first time", slog.F("notification_template_id", notifications.TemplateReportWorkspaceBuildsFailedForTemplate))
 
 		err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
-			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+			NotificationTemplateID: notifications.TemplateReportWorkspaceBuildsFailedForTemplate,
 			LastGeneratedAt:        dbtime.Time(now).UTC(),
 		})
 		if err != nil {
@@ -199,7 +199,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			targets = append(targets, report.stats.TemplateID, report.stats.TemplateOrganizationID)
 		}
 
-		if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin, notifications.TemplateWorkspaceBuildsFailedReport,
+		if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin, notifications.TemplateReportWorkspaceBuildsFailedForTemplate,
 			map[string]string{},
 			reportData,
 			"report_generator",
@@ -216,7 +216,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	// Lastly, update the timestamp in the generator log.
 	err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
-		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+		NotificationTemplateID: notifications.TemplateReportWorkspaceBuildsFailedForTemplate,
 		LastGeneratedAt:        dbtime.Time(now).UTC(),
 	})
 	if err != nil {
