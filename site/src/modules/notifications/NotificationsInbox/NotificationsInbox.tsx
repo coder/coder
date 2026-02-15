@@ -10,7 +10,7 @@ import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { InboxPopover } from "./InboxPopover";
 
-export type ReadStatus = "read" | "unread" | "all";
+type ReadStatus = "read" | "unread" | "all";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
 const NOTIFICATIONS_LIMIT = 25; // This is hard set in the API
