@@ -201,9 +201,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			default_ttl_ms: form.values.default_ttl_ms
 				? form.values.default_ttl_ms * MS_HOUR_CONVERSION
 				: undefined,
-			activity_bump_ms: form.values.activity_bump_ms
-				? form.values.activity_bump_ms * MS_HOUR_CONVERSION
-				: undefined,
+			// Activity bump has no effect without a default TTL, so
+			// discard any stale value when default autostop is off.
+			activity_bump_ms:
+				form.values.default_ttl_ms && form.values.activity_bump_ms
+					? form.values.activity_bump_ms * MS_HOUR_CONVERSION
+					: undefined,
 			failure_ttl_ms: form.values.failure_ttl_ms,
 			time_til_dormant_ms: form.values.time_til_dormant_ms,
 			time_til_dormant_autodelete_ms:
