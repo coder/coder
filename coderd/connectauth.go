@@ -105,43 +105,6 @@ func (api *API) putAPIKeyConnectPublicKey(rw http.ResponseWriter, r *http.Reques
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// deleteAPIKeyConnectPublicKey removes the connect public key from
-// an API key, disabling connect-auth for that key.
-//
-// @Summary Delete connect public key
-// @ID delete-connect-public-key
-// @Security CoderSessionToken
-// @Tags API Keys
-// @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "API Key ID"
-// @Success 204
-// @Router /users/{user}/keys/{keyid}/connect-key [delete]
-func (api *API) deleteAPIKeyConnectPublicKey(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	keyID := chi.URLParam(r, "keyid")
-
-	forKey, err := api.Database.GetAPIKeyByID(ctx, keyID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	err = api.Database.UpdateAPIKeyConnectPublicKey(ctx, database.UpdateAPIKeyConnectPublicKeyParams{
-		ID:               forKey.ID,
-		ConnectPublicKey: nil,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
-}
-
 // verifyConnectProof checks the Coder-Connect-Proof header against
 // the API key's stored public key. Returns nil if the proof is
 // valid, or an error describing why it failed.

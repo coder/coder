@@ -3485,7 +3485,7 @@ Write out the current server config as YAML to stdout.`,
 
 		{
 			Name:        "Connect Auth Endpoints",
-			Description: "Endpoint categories that require Secure Enclave connect-auth proof. Supported values: ssh, port-forward, apps. When set, users must have a connect public key registered on their API key. Users without a registered key are blocked from the listed endpoints.",
+			Description: "Endpoint categories that require Secure Enclave connect-auth proof. Supported values: ssh, port-forward. When set, users must have a connect public key registered on their API key. Users without a registered key are blocked from the listed endpoints.",
 			Flag:        "connect-auth-endpoints",
 			Env:         "CODER_CONNECT_AUTH_ENDPOINTS",
 			Value:       &c.ConnectAuthEndpoints,

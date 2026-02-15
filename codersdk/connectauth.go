@@ -22,11 +22,8 @@ const (
 	// workspace coordination (used by `coder ssh`).
 	ConnectAuthEndpointSSH = "ssh"
 	// ConnectAuthEndpointPortForward is the endpoint category for
-	// port forwarding.
+	// port forwarding (shares the coordination endpoint with SSH).
 	ConnectAuthEndpointPortForward = "port-forward"
-	// ConnectAuthEndpointApps is the endpoint category for
-	// workspace applications.
-	ConnectAuthEndpointApps = "apps"
 )
 
 // UpdateConnectPublicKeyRequest sets the ECDSA P-256 public key
@@ -55,23 +52,6 @@ func (c *Client) UpdateAPIKeyConnectPublicKey(ctx context.Context, user, keyID s
 	res, err := c.Request(ctx, http.MethodPut,
 		fmt.Sprintf("/api/v2/users/%s/keys/%s/connect-key", user, keyID),
 		req,
-	)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// DeleteAPIKeyConnectPublicKey removes the connect public key from
-// an API key, disabling connect-auth for that key.
-func (c *Client) DeleteAPIKeyConnectPublicKey(ctx context.Context, user, keyID string) error {
-	res, err := c.Request(ctx, http.MethodDelete,
-		fmt.Sprintf("/api/v2/users/%s/keys/%s/connect-key", user, keyID),
-		nil,
 	)
 	if err != nil {
 		return err

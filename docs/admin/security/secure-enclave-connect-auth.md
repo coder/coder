@@ -106,19 +106,18 @@ Touch ID prompt.
 # coder server config
 connectAuthEndpoints:
   - ssh
-  - port-forward
 ```
 
 Or via CLI:
 
 ```bash
-coder server --connect-auth-endpoints ssh,port-forward
+coder server --connect-auth-endpoints ssh
 ```
 
 Or via environment variable:
 
 ```bash
-export CODER_CONNECT_AUTH_ENDPOINTS=ssh,port-forward
+export CODER_CONNECT_AUTH_ENDPOINTS=ssh
 ```
 
 ### Supported Endpoint Categories
@@ -127,7 +126,9 @@ export CODER_CONNECT_AUTH_ENDPOINTS=ssh,port-forward
 |---|---|
 | `ssh` | Workspace SSH connections (`coder ssh`) |
 | `port-forward` | Port forwarding (`coder port-forward`) |
-| `apps` | Workspace applications (reserved, not yet enforced) |
+
+Both SSH and port-forward share the same coordination endpoint, so
+enabling either category protects both connection types.
 
 An empty list (the default) disables connect-auth enforcement entirely.
 

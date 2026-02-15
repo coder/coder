@@ -117,28 +117,30 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(ctx, u.String(), dialOpts)
+
+	// Check for connect-auth requirement on every dial attempt
+	// (not just the first). This ensures reconnects after the
+	// 30-second proof expiry obtain a fresh Touch ID proof
+	// rather than reusing a stale one.
+	if res != nil && isConnectAuthResponse(res) && w.onConnectAuthRequired != nil {
+		res.Body.Close()
+		// Clear the stale proof so the next attempt starts fresh.
+		w.connectProof = ""
+		proof, cbErr := w.onConnectAuthRequired()
+		if cbErr != nil {
+			if w.isFirst {
+				w.connected <- cbErr
+			}
+			return tailnet.ControlProtocolClients{}, cbErr
+		}
+		if proof != "" {
+			w.connectProof = proof
+			return tailnet.ControlProtocolClients{}, xerrors.New("connect-auth: retrying with proof")
+		}
+	}
+
 	if w.isFirst {
 		if res != nil && slices.Contains(permanentErrorStatuses, res.StatusCode) {
-			// Check for connect-auth requirement via response
-			// header BEFORE consuming the body. This uses a
-			// structured header rather than parsing error
-			// message strings.
-			if isConnectAuthResponse(res) && w.onConnectAuthRequired != nil {
-				res.Body.Close()
-				proof, cbErr := w.onConnectAuthRequired()
-				if cbErr != nil {
-					w.connected <- cbErr
-					return tailnet.ControlProtocolClients{}, cbErr
-				}
-				if proof != "" {
-					w.connectProof = proof
-					// Don't count this as a permanent
-					// error — let the retry loop call
-					// Dial again with the proof header.
-					return tailnet.ControlProtocolClients{}, xerrors.New("connect-auth: retrying with proof")
-				}
-			}
-
 			err = codersdk.ReadBodyAsError(res)
 			var sdkErr *codersdk.Error
 			if xerrors.As(err, &sdkErr) {
