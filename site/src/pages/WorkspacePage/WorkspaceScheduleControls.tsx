@@ -18,7 +18,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
-import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
+import { type FC, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import {
@@ -265,24 +265,21 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	);
 };
 
-const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
-	(props, ref) => {
-		return (
-			<Link
-				ref={ref}
-				component={RouterLink}
-				to="settings/schedule"
-				css={{
-					color: "inherit",
-					"&:first-letter": {
-						textTransform: "uppercase",
-					},
-				}}
-				{...props}
-			/>
-		);
-	},
-);
+const ScheduleSettingsLink: React.FC<LinkProps> = ({ ...props }) => {
+	return (
+		<Link
+			component={RouterLink}
+			to="settings/schedule"
+			css={{
+				color: "inherit",
+				"&:first-letter": {
+					textTransform: "uppercase",
+				},
+			}}
+			{...props}
+		/>
+	);
+};
 
 const hasDeadline = (workspace: Workspace): boolean => {
 	return Boolean(workspace.latest_build.deadline);

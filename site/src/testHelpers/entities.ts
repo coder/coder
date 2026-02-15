@@ -852,6 +852,7 @@ export const MockTemplate: TypesGen.Template = {
 	require_active_version: false,
 	deprecated: false,
 	deprecation_message: "",
+	deleted: false,
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",

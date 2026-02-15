@@ -40,7 +40,7 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 				}
 			}}
 		>
-			<Download size={14} />
+			<Download />
 			Export Policy
 		</Button>
 	);

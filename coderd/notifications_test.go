@@ -150,7 +150,7 @@ func TestNotificationPreferences(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		// NOTE: ExtractUserParam gets in the way here, and returns a 400 Bad Request instead of a 403 Forbidden.
 		// This is not ideal, and we should probably change this behavior.
-		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
+		require.Equal(t, http.StatusNotFound, sdkError.StatusCode())
 	})
 
 	t.Run("Admin may read any users' preferences", func(t *testing.T) {

@@ -143,11 +143,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							isOpen && "text-content-primary",
 						])}
 					>
-						{isOpen ? (
-							<ChevronDownIcon className="size-icon-xs" />
-						) : (
-							<ChevronRightIcon className="size-icon-xs" />
-						)}
+						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{formatDate(new Date(interception.started_at))}
 					</div>
@@ -201,15 +197,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="w-full min-w-0 overflow-hidden">
-									<Badge className="gap-1.5 w-full">
+								<div className="min-w-0 overflow-hidden">
+									<Badge className="gap-1.5 max-w-full">
 										<div className="flex-shrink-0 flex items-center">
 											<AIBridgeModelIcon
 												model={interception.model}
 												className="size-icon-xs"
 											/>
 										</div>
-										<span className="truncate min-w-0 w-full">
+										<span className="truncate min-w-0">
 											{interception.model}
 										</span>
 									</Badge>

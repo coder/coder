@@ -71,7 +71,53 @@ func TestUserParam(t *testing.T) {
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		// User "ben" doesn't exist, so expect 404.
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("NotFoundByUsername", func(t *testing.T) {
+		t.Parallel()
+		db, rw, r := setup(t)
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
+			r = returnedRequest
+		})).ServeHTTP(rw, r)
+
+		routeContext := chi.NewRouteContext()
+		routeContext.URLParams.Add("user", "nonexistent-user")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
+		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("NotFoundByUUID", func(t *testing.T) {
+		t.Parallel()
+		db, rw, r := setup(t)
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
+			r = returnedRequest
+		})).ServeHTTP(rw, r)
+
+		routeContext := chi.NewRouteContext()
+		// Use a valid UUID that doesn't exist in the database.
+		routeContext.URLParams.Add("user", "88888888-4444-4444-4444-121212121212")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
+		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("me", func(t *testing.T) {
