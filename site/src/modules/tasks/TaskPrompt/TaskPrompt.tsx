@@ -10,26 +10,34 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Kbd, KbdGroup } from "components/Kbd/Kbd";
 import { Link } from "components/Link/Link";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectValue,
-} from "components/Select/Select";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
+import {
+	ArrowUpIcon,
+	ChevronDownIcon,
+	InfoIcon,
+	RedoIcon,
+	RotateCcwIcon,
+} from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize, {
@@ -37,7 +45,6 @@ import TextareaAutosize, {
 } from "react-textarea-autosize";
 import { docs } from "utils/docs";
 import { getOSKey } from "utils/platform";
-import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
 type TaskPromptProps = {
@@ -160,6 +167,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		templateVersionPresets(selectedVersionId),
 	);
 	const [selectedPresetId, setSelectedPresetId] = useState<string>();
+	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
 	useEffect(() => {
 		const defaultPreset = presets?.find((p) => p.Default);
 		setSelectedPresetId(defaultPreset?.ID ?? presets?.[0]?.ID);
@@ -255,41 +263,70 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							<label htmlFor="templateID" className="sr-only">
 								Select template
 							</label>
-							<Select
-								name="templateID"
-								onValueChange={(value) => {
-									setSelectedTemplateId(value);
-									if (value !== selectedTemplateId) {
-										setSelectedPresetId(undefined);
-									}
-								}}
-								defaultValue={templates[0].id}
-								required
-							>
-								<PromptSelectTrigger id="templateID" tooltip="Template">
-									<SelectValue placeholder="Select a template" />
-								</PromptSelectTrigger>
-								<SelectContent>
-									{templates.map((template) => {
-										return (
-											<SelectItem value={template.id} key={template.id}>
-												<div className="flex items-center gap-2">
-													{template.icon && (
+							<DropdownMenu>
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<DropdownMenuTrigger
+												id="templateID"
+												className="w-full md:w-auto max-w-full overflow-hidden border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-4 md:px-3
+													[&_svg]:text-inherit cursor-pointer hover:bg-surface-quaternary rounded-full
+													h-10 md:h-8 data-[state=open]:bg-surface-tertiary
+													flex items-center"
+											>
+												<span className="overflow-hidden min-w-0 flex items-center gap-2">
+													{selectedTemplate.icon && (
 														<img
-															src={template.icon}
-															alt={template.name}
+															src={selectedTemplate.icon}
+															alt={selectedTemplate.name}
 															className="size-icon-sm flex-shrink-0"
 														/>
 													)}
 													<span className="overflow-hidden text-ellipsis block">
-														{template.display_name || template.name}
+														{selectedTemplate.display_name ||
+															selectedTemplate.name}
 													</span>
-												</div>
-											</SelectItem>
-										);
-									})}
-								</SelectContent>
-							</Select>
+												</span>
+												<ChevronDownIcon className="size-icon-sm shrink-0" />
+											</DropdownMenuTrigger>
+										</TooltipTrigger>
+										<TooltipContent>Template</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+								<DropdownMenuContent align="start">
+									<DropdownMenuRadioGroup
+										value={selectedTemplateId}
+										onValueChange={(value) => {
+											setSelectedTemplateId(value);
+											if (value !== selectedTemplateId) {
+												setSelectedPresetId(undefined);
+											}
+										}}
+									>
+										{templates.map((template) => {
+											return (
+												<DropdownMenuRadioItem
+													value={template.id}
+													key={template.id}
+												>
+													<div className="flex items-center gap-2">
+														{template.icon && (
+															<img
+																src={template.icon}
+																alt={template.name}
+																className="size-icon-sm flex-shrink-0"
+															/>
+														)}
+														<span className="overflow-hidden text-ellipsis block">
+															{template.display_name || template.name}
+														</span>
+													</div>
+												</DropdownMenuRadioItem>
+											);
+										})}
+									</DropdownMenuRadioGroup>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 
 						{permissions.updateTemplates && (
@@ -316,60 +353,79 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								presets &&
 								presets.length > 0 &&
 								selectedPresetId && (
-									<Select
+									<DropdownMenu
 										key={`preset-select-${selectedTemplate.active_version_id}`}
-										name="presetID"
-										value={selectedPresetId}
-										onValueChange={setSelectedPresetId}
 									>
-										<PromptSelectTrigger
-											id="presetID"
-											tooltip="Preset"
-											className="max-w-full [&_[data-slot=preset-name]]:truncate [&_[data-slot=preset-name]]:min-w-0 [&_[data-slot=preset-description]]:hidden"
-										>
-											<SelectValue placeholder="Select a preset" />
-										</PromptSelectTrigger>
-										<SelectContent>
-											{presets?.toSorted(sortByDefault).map((preset) => (
-												<SelectItem value={preset.ID} key={preset.ID}>
-													<div className="flex items-center gap-2">
-														{preset.Icon && (
-															<img
-																data-slot="preset-icon"
-																src={preset.Icon}
-																alt={preset.Name}
-																className="size-icon-sm shrink-0"
-															/>
-														)}
-														<span
-															data-slot="preset-name"
-															className="truncate min-w-0"
-														>
-															{preset.Name}
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<DropdownMenuTrigger
+														id="presetID"
+														className="max-w-full w-full md:w-auto overflow-hidden border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-4 md:px-3
+															[&_svg]:text-inherit cursor-pointer hover:bg-surface-quaternary rounded-full
+															h-10 md:h-8 data-[state=open]:bg-surface-tertiary
+															flex items-center"
+													>
+														<span className="overflow-hidden min-w-0 flex items-center gap-2">
+															{selectedPreset?.Icon && (
+																<img
+																	src={selectedPreset.Icon}
+																	alt={selectedPreset.Name}
+																	className="size-icon-sm shrink-0"
+																/>
+															)}
+															<span className="truncate min-w-0">
+																{selectedPreset?.Name ?? "Select a preset"}
+															</span>
 														</span>
-														{preset.Default && (
-															<Badge size="xs" className="shrink-0">
-																Default
-															</Badge>
-														)}
-														{preset.Description && (
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<InfoIcon
-																		className="size-4"
-																		data-slot="preset-description"
-																	/>
-																</TooltipTrigger>
-																<TooltipContent>
-																	{preset.Description}
-																</TooltipContent>
-															</Tooltip>
-														)}
-													</div>
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+														<ChevronDownIcon className="size-icon-sm shrink-0" />
+													</DropdownMenuTrigger>
+												</TooltipTrigger>
+												<TooltipContent>Preset</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+										<DropdownMenuContent align="start">
+											<DropdownMenuRadioGroup
+												value={selectedPresetId}
+												onValueChange={setSelectedPresetId}
+											>
+												{presets?.toSorted(sortByDefault).map((preset) => (
+													<DropdownMenuRadioItem
+														value={preset.ID}
+														key={preset.ID}
+													>
+														<div className="flex items-center gap-2">
+															{preset.Icon && (
+																<img
+																	src={preset.Icon}
+																	alt={preset.Name}
+																	className="size-icon-sm shrink-0"
+																/>
+															)}
+															<span className="truncate min-w-0">
+																{preset.Name}
+															</span>
+															{preset.Default && (
+																<Badge size="xs" className="shrink-0">
+																	Default
+																</Badge>
+															)}
+															{preset.Description && (
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<InfoIcon className="size-4" />
+																	</TooltipTrigger>
+																	<TooltipContent>
+																		{preset.Description}
+																	</TooltipContent>
+																</Tooltip>
+															)}
+														</div>
+													</DropdownMenuRadioItem>
+												))}
+											</DropdownMenuRadioGroup>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								)
 							)}
 						</div>

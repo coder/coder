@@ -74,7 +74,7 @@ export const Open: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const trigger = await canvas.findByRole("combobox");
+		const trigger = await canvas.findByRole("button");
 		await userEvent.click(trigger);
 	},
 };

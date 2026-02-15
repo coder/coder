@@ -236,7 +236,7 @@ export const ChangeTemplate: Story = {
 		await step("Change template", async () => {
 			const templateSelect = await canvas.findByLabelText(/select template/i);
 			await userEvent.click(templateSelect);
-			const templateOption = await body.findByRole("option", {
+			const templateOption = await body.findByRole("menuitemradio", {
 				name: /codex/i,
 			});
 			await userEvent.click(templateOption);
@@ -277,7 +277,7 @@ export const SelectTemplateVersion: Story = {
 			const body = within(canvasElement.ownerDocument.body);
 			const versionSelect = await canvas.findByLabelText(/template version/i);
 			await userEvent.click(versionSelect);
-			const versionOption = await body.findByRole("option", {
+			const versionOption = await body.findByRole("menuitemradio", {
 				name: /v2.0.0/i,
 			});
 			await userEvent.click(versionOption);
@@ -459,7 +459,7 @@ export const CheckExternalAuthOnChangingVersions: Story = {
 			const body = within(canvasElement.ownerDocument.body);
 			const versionSelect = await canvas.findByLabelText(/template version/i);
 			await userEvent.click(versionSelect);
-			const versionOption = await body.findByRole("option", {
+			const versionOption = await body.findByRole("menuitemradio", {
 				name: /no external/i,
 			});
 			await userEvent.click(versionOption);
@@ -566,7 +566,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			const presetSelect = await canvas.findByLabelText(/preset/i);
 			await userEvent.click(presetSelect);
 
-			const options = await body.findAllByRole("option");
+			const options = await body.findAllByRole("menuitemradio");
 			expect(options).toHaveLength(1);
 			expect(options[0]).toContainHTML("Claude Code Dev");
 
@@ -577,7 +577,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			const templateSelect = await canvas.findByLabelText(/select template/i);
 			await userEvent.click(templateSelect);
 
-			const codexTemplateOption = await body.findByRole("option", {
+			const codexTemplateOption = await body.findByRole("menuitemradio", {
 				name: /codex/i,
 			});
 			await userEvent.click(codexTemplateOption);
@@ -587,7 +587,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			const presetSelect = await canvas.findByLabelText(/preset/i);
 			await userEvent.click(presetSelect);
 
-			const options = await body.findAllByRole("option");
+			const options = await body.findAllByRole("menuitemradio");
 			expect(options).toHaveLength(1);
 			expect(options[0]).toContainHTML("Codex Dev");
 
@@ -598,7 +598,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			const templateSelect = await canvas.findByLabelText(/select template/i);
 			await userEvent.click(templateSelect);
 
-			const codexTemplateOption = await body.findByRole("option", {
+			const codexTemplateOption = await body.findByRole("menuitemradio", {
 				name: /claude code/i,
 			});
 			await userEvent.click(codexTemplateOption);
@@ -608,7 +608,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			const presetSelect = await canvas.findByLabelText(/preset/i);
 			await userEvent.click(presetSelect);
 
-			const options = await body.findAllByRole("option");
+			const options = await body.findAllByRole("menuitemradio");
 			expect(options).toHaveLength(1);
 			expect(options[0]).toContainHTML("Claude Code Dev");
 		});
