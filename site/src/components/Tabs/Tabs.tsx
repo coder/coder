@@ -47,6 +47,10 @@ export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 		width: 0,
 	});
 	const [hasActiveTab, setHasActiveTab] = useState(false);
+	// Track whether we've done the initial placement so we can
+	// skip the transition on first render and avoid the "slide in"
+	// effect on page load.
+	const hasInitialized = useRef(false);
 
 	const updateIndicator = useCallback(() => {
 		if (!listRef.current) return;
@@ -68,6 +72,13 @@ export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 				width: activeRect.width,
 			});
 			setHasActiveTab(true);
+			// Mark as initialized after the first position is set so
+			// subsequent updates will animate.
+			if (!hasInitialized.current) {
+				requestAnimationFrame(() => {
+					hasInitialized.current = true;
+				});
+			}
 		});
 	}, []);
 
@@ -101,7 +112,10 @@ export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 			/>
 			<div
 				className={cn(
-					"absolute bottom-0 h-px bg-surface-invert-primary transition-all duration-200 ease-in-out",
+					"absolute bottom-0 h-px bg-surface-invert-primary ease-in-out",
+					hasInitialized.current
+						? "transition-all duration-300"
+						: "transition-none",
 					!hasActiveTab && "opacity-0",
 				)}
 				style={indicatorStyle}
