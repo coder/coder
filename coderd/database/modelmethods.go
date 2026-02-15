@@ -824,6 +824,10 @@ func (s UserSecret) RBACObject() rbac.Object {
 	return rbac.ResourceUserSecret.WithID(s.ID).WithOwner(s.UserID.String())
 }
 
+func (w WebauthnCredential) RBACObject() rbac.Object {
+	return rbac.ResourceWebauthnCredential.WithID(w.ID).WithOwner(w.UserID.String())
+}
+
 func (s AIBridgeInterception) RBACObject() rbac.Object {
 	return rbac.ResourceAibridgeInterception.WithOwner(s.InitiatorID.String())
 }

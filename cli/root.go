@@ -108,6 +108,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.tokens(),
 		r.users(),
 		r.version(defaultVersionInfo),
+		r.webauthn(),
 
 		// Workspace Commands
 		r.autoupdate(),

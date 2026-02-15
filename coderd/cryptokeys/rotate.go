@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	WorkspaceAppsTokenDuration = time.Minute
-	OIDCConvertTokenDuration   = time.Minute * 5
-	TailnetResumeTokenDuration = time.Hour * 24
+	WorkspaceAppsTokenDuration   = time.Minute
+	OIDCConvertTokenDuration     = time.Minute * 5
+	TailnetResumeTokenDuration   = time.Hour * 24
+	WebAuthnConnectTokenDuration = time.Minute * 5
 
 	// defaultRotationInterval is the default interval at which keys are checked for rotation.
 	defaultRotationInterval = time.Minute * 10
@@ -237,6 +238,8 @@ func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateKey(64)
+	case database.CryptoKeyFeatureWebauthnConnect:
+		return generateKey(64)
 	}
 	return "", xerrors.Errorf("unknown feature: %s", feature)
 }
@@ -260,6 +263,8 @@ func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 		return OIDCConvertTokenDuration
 	case database.CryptoKeyFeatureTailnetResume:
 		return TailnetResumeTokenDuration
+	case database.CryptoKeyFeatureWebauthnConnect:
+		return WebAuthnConnectTokenDuration
 	default:
 		return 0
 	}

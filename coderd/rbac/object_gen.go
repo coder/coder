@@ -348,6 +348,15 @@ var (
 		Type: "user_secret",
 	}
 
+	// ResourceWebauthnCredential
+	// Valid Actions
+	//  - "ActionCreate" :: create WebAuthn credentials
+	//  - "ActionDelete" :: delete WebAuthn credentials
+	//  - "ActionRead" :: read WebAuthn credentials
+	ResourceWebauthnCredential = Object{
+		Type: "webauthn_credential",
+	}
+
 	// ResourceWebpushSubscription
 	// Valid Actions
 	//  - "ActionCreate" :: create webpush subscriptions
@@ -459,6 +468,7 @@ func AllResources() []Objecter {
 		ResourceUsageEvent,
 		ResourceUser,
 		ResourceUserSecret,
+		ResourceWebauthnCredential,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,

@@ -381,11 +381,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
+
 			conn, err := wsClient.
 				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
 					Logger:          logger,
 					BlockEndpoints:  r.disableDirect,
 					EnableTelemetry: !r.disableNetworkTelemetry,
+					ConnectionJWT:   promptConnectionAuth(inv, client),
 				})
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)
