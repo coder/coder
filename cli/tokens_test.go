@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -22,7 +24,7 @@ func TestTokens(t *testing.T) {
 	adminUser := coderdtest.CreateFirstUser(t, client)
 
 	secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
-	_, thirdUser := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
+	thirdUserClient, thirdUser := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancelFunc()
@@ -165,6 +167,28 @@ func TestTokens(t *testing.T) {
 	res = buf.String()
 	require.NotEmpty(t, res)
 	require.Contains(t, res, "deleted")
+
+	// Regular users cannot expire other users' tokens.
+	inv, root = clitest.New(t, "tokens", "rm", "--expire", secondTokenID)
+	clitest.SetupConfig(t, thirdUserClient, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+
+	// Only admin users can expire other users' tokens.
+	now := time.Now()
+	inv, root = clitest.New(t, "tokens", "rm", "--expire", secondTokenID)
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	// Validate that token was expired
+	if token, err := client.APIKeyByName(ctx, secondUser.ID.String(), "token-two"); assert.NoError(t, err) {
+		require.GreaterOrEqual(t, token.ExpiresAt, now)
+	}
 
 	// Delete by ID
 	inv, root = clitest.New(t, "tokens", "rm", secondTokenID)

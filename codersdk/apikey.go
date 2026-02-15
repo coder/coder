@@ -171,6 +171,20 @@ func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) err
 	return nil
 }
 
+// ExpireAPIKey expires an API key by id, setting its expiry to now.
+// This preserves the API key record for audit purposes rather than deleting it.
+func (c *Client) ExpireAPIKey(ctx context.Context, userID string, id string) error {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/keys/%s/expire", userID, id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetTokenConfig returns deployment options related to token management
 func (c *Client) GetTokenConfig(ctx context.Context, userID string) (TokenConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens/tokenconfig", userID), nil)
