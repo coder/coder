@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -783,11 +784,37 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 			return nil
 		}
 
+		// If preset previously failed validation (e.g. missing required parameter,
+		// invalid workspace tags), skip creation until the template version is updated.
+		// The status resets naturally when a new template version is promoted, since
+		// new presets are created with the default 'healthy' status.
+		if ps.Preset.PrebuildStatus == database.PrebuildStatusValidationFailed && action.Create > 0 {
+			logger.Warn(ctx, "skipping preset with validation failure for create operation")
+			return nil
+		}
+
 		var multiErr multierror.Error
 		for range action.Create {
 			if err := c.createPrebuiltWorkspace(prebuildsCtx, uuid.New(), ps.Preset.TemplateID, ps.Preset.ID); err != nil {
 				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
 				multiErr.Errors = append(multiErr.Errors, err)
+
+				// A 400 BuildError means the build failed due to a validation error
+				// (e.g. missing parameter, invalid workspace tags). These errors are
+				// deterministic and will persist until the template is updated, so we
+				// mark the preset to prevent endless retries on every reconciliation loop.
+				var buildErr wsbuilder.BuildError
+				if xerrors.As(err, &buildErr) && buildErr.Status == http.StatusBadRequest {
+					logger.Warn(ctx, "marking preset as failed validation", slog.Error(err))
+					if dbErr := c.store.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
+						Status:   database.PrebuildStatusValidationFailed,
+						PresetID: ps.Preset.ID,
+					}); dbErr != nil {
+						logger.Error(ctx, "failed to update preset prebuild status", slog.Error(dbErr))
+					}
+					// All prebuilds for this preset will fail the same way, so stop trying.
+					break
+				}
 			}
 		}
 
