@@ -133,10 +133,15 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 					})),
 				};
 			});
-			// Invalidate all notification caches so other views stay fresh.
+			// Mark all notification caches as stale so other views refresh
+			// when next accessed. We use refetchType: 'none' to avoid an
+			// immediate refetch that would replace the paginated cache
+			// (which may contain multiple "Load more" pages) with only
+			// the first page.
 			queryClient.invalidateQueries({
 				queryKey: NOTIFICATIONS_QUERY_KEY,
 				exact: false,
+				refetchType: "none",
 			});
 		},
 		onError: (error) => {
@@ -161,9 +166,12 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 					}),
 				};
 			});
+			// Same as markAllAsRead: mark stale without immediate refetch
+			// to preserve paginated cache.
 			queryClient.invalidateQueries({
 				queryKey: NOTIFICATIONS_QUERY_KEY,
 				exact: false,
+				refetchType: "none",
 			});
 		},
 		onError: (error) => {
