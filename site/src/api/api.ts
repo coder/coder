@@ -2777,6 +2777,16 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
 	};
 
+	getTaskLogs = async (
+		user: string,
+		id: string,
+	): Promise<TypesGen.TaskLogsResponse> => {
+		const response = await this.axios.get<TypesGen.TaskLogsResponse>(
+			`/api/v2/tasks/${user}/${id}/logs`,
+		);
+		return response.data;
+	};
+
 	updateTaskInput = async (
 		user: string,
 		id: string,
