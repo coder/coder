@@ -14,7 +14,7 @@ export const DropdownMenu = ({
 	children,
 	modal = false,
 	...props
-}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
 	return (
 		<DropdownMenuPrimitive.Root modal={modal} {...props}>
 			{children}
