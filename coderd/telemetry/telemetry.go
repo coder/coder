@@ -876,17 +876,20 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 		return nil, xerrors.Errorf("insert boundary usage telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
 	}
 
-	summary, err := r.options.Database.GetBoundaryUsageSummary(boundaryCtx, maxStaleness.Milliseconds())
+	var summary database.GetAndResetBoundaryUsageSummaryRow
+	err = r.options.Database.InTx(func(tx database.Store) error {
+		// The advisory lock use here ensures a clean transition to the next snapshot by
+		// preventing replicas from upserting row(s) at the same time as we aggregate and
+		// delete all rows here.
+		var txErr error
+		if txErr = tx.AcquireLock(boundaryCtx, database.LockIDBoundaryUsageStats); txErr != nil {
+			return txErr
+		}
+		summary, txErr = tx.GetAndResetBoundaryUsageSummary(boundaryCtx, maxStaleness.Milliseconds())
+		return txErr
+	}, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("get boundary usage summary: %w", err)
-	}
-
-	// Reset stats after capturing the summary. This deletes all rows so each
-	// replica will detect a new period on their next flush. Note: there is a
-	// known race condition here that may result in a small telemetry inaccuracy
-	// with multiple replicas (https://github.com/coder/coder/issues/21770).
-	if err := r.options.Database.ResetBoundaryUsageStats(boundaryCtx); err != nil {
-		return nil, xerrors.Errorf("reset boundary usage stats: %w", err)
+		return nil, xerrors.Errorf("get and reset boundary usage summary: %w", err)
 	}
 
 	return &BoundaryUsageSummary{

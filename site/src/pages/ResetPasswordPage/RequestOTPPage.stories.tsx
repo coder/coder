@@ -27,6 +27,24 @@ export const Success: Story = {
 	},
 };
 
+export const InvalidEmail: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const emailInput = await canvas.findByLabelText(/email/i);
+		await user.type(emailInput, "not-an-email");
+		await user.click(canvas.getByRole("button", { name: /reset password/i }));
+	},
+};
+
+export const EmptySubmission: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("button", { name: /reset password/i }));
+	},
+};
+
 export const ServerError: Story = {
 	play: async ({ canvasElement }) => {
 		spyOn(API, "requestOneTimePassword").mockRejectedValueOnce(

@@ -909,7 +909,10 @@ site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen
 	(cd site/ && pnpm exec biome format --write src/api/countriesGenerated.ts)
 	touch "$@"
 
-docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
+scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
+	go run ./scripts/metricsdocgen/scanner > $@
+
+docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics
 	go run scripts/metricsdocgen/main.go
 	pnpm exec markdownlint-cli2 --fix ./docs/admin/integrations/prometheus.md
 	pnpm exec markdown-table-formatter ./docs/admin/integrations/prometheus.md
@@ -938,6 +941,7 @@ coderd/apidoc/.gen: \
 	coderd/rbac/object_gen.go \
 	.swaggo \
 	scripts/apidocgen/generate.sh \
+	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
 	$(wildcard scripts/apidocgen/markdown-template/*)
 	./scripts/apidocgen/generate.sh

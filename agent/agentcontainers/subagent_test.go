@@ -306,3 +306,128 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 		}
 	})
 }
+
+func TestSubAgent_CloneConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CopiesIDFromDevcontainer", func(t *testing.T) {
+		t.Parallel()
+
+		subAgent := agentcontainers.SubAgent{
+			ID:              uuid.New(),
+			Name:            "original-name",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
+			Apps:            []agentcontainers.SubAgentApp{{Slug: "app1"}},
+		}
+		expectedID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			Name:       "devcontainer-name",
+			SubagentID: uuid.NullUUID{UUID: expectedID, Valid: true},
+		}
+
+		cloned := subAgent.CloneConfig(dc)
+
+		assert.Equal(t, expectedID, cloned.ID)
+		assert.Equal(t, dc.Name, cloned.Name)
+		assert.Equal(t, subAgent.Directory, cloned.Directory)
+		assert.Zero(t, cloned.AuthToken, "AuthToken should not be copied")
+	})
+
+	t.Run("HandlesNilSubagentID", func(t *testing.T) {
+		t.Parallel()
+
+		subAgent := agentcontainers.SubAgent{
+			ID:              uuid.New(),
+			Name:            "original-name",
+			Directory:       "/workspace",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		}
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			Name:       "devcontainer-name",
+			SubagentID: uuid.NullUUID{Valid: false},
+		}
+
+		cloned := subAgent.CloneConfig(dc)
+
+		assert.Equal(t, uuid.Nil, cloned.ID)
+	})
+}
+
+func TestSubAgent_EqualConfig(t *testing.T) {
+	t.Parallel()
+
+	base := agentcontainers.SubAgent{
+		ID:              uuid.New(),
+		Name:            "test-agent",
+		Directory:       "/workspace",
+		Architecture:    "amd64",
+		OperatingSystem: "linux",
+		DisplayApps:     []codersdk.DisplayApp{codersdk.DisplayAppVSCodeDesktop},
+		Apps: []agentcontainers.SubAgentApp{
+			{Slug: "test-app", DisplayName: "Test App"},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		modify    func(*agentcontainers.SubAgent)
+		wantEqual bool
+	}{
+		{
+			name:      "identical",
+			modify:    func(s *agentcontainers.SubAgent) {},
+			wantEqual: true,
+		},
+		{
+			name:      "different ID",
+			modify:    func(s *agentcontainers.SubAgent) { s.ID = uuid.New() },
+			wantEqual: true,
+		},
+		{
+			name:      "different Name",
+			modify:    func(s *agentcontainers.SubAgent) { s.Name = "different-name" },
+			wantEqual: false,
+		},
+		{
+			name:      "different Directory",
+			modify:    func(s *agentcontainers.SubAgent) { s.Directory = "/different/path" },
+			wantEqual: false,
+		},
+		{
+			name:      "different Architecture",
+			modify:    func(s *agentcontainers.SubAgent) { s.Architecture = "arm64" },
+			wantEqual: false,
+		},
+		{
+			name:      "different OperatingSystem",
+			modify:    func(s *agentcontainers.SubAgent) { s.OperatingSystem = "windows" },
+			wantEqual: false,
+		},
+		{
+			name:      "different DisplayApps",
+			modify:    func(s *agentcontainers.SubAgent) { s.DisplayApps = []codersdk.DisplayApp{codersdk.DisplayAppSSH} },
+			wantEqual: false,
+		},
+		{
+			name: "different Apps",
+			modify: func(s *agentcontainers.SubAgent) {
+				s.Apps = []agentcontainers.SubAgentApp{{Slug: "different-app", DisplayName: "Different App"}}
+			},
+			wantEqual: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			modified := base
+			tt.modify(&modified)
+			assert.Equal(t, tt.wantEqual, base.EqualConfig(modified))
+		})
+	}
+}

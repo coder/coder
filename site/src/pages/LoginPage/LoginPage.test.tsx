@@ -34,8 +34,8 @@ describe("LoginPage", () => {
 		// When
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
-		const email = screen.getByLabelText(Language.emailLabel);
-		const password = screen.getByLabelText(Language.passwordLabel);
+		const email = screen.getByLabelText(new RegExp(Language.emailLabel));
+		const password = screen.getByLabelText(new RegExp(Language.passwordLabel));
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
 		// Click sign-in

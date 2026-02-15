@@ -220,16 +220,12 @@ screen-readers; a placeholder text value is not enough for all users.
 When possible, make sure that all image/graphic elements have accompanying text
 that describes the image. `<img />` elements should have an `alt` text value. In
 other situations, it might make sense to place invisible, descriptive text
-inside the component itself using MUI's `visuallyHidden` utility function.
+inside the component itself using Tailwind's `sr-only` class.
 
 ```tsx
-import { visuallyHidden } from "@mui/utils";
-
 <Button>
     <GearIcon />
-    <Box component="span" sx={visuallyHidden}>
-        Settings
-    </Box>
+    <span className="sr-only">Settings</span>
 </Button>;
 ```
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,7 +32,9 @@ type LifecycleAPI struct {
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 
-	TimeNowFn func() time.Time // defaults to dbtime.Now()
+	TimeNowFn       func() time.Time // defaults to dbtime.Now()
+	Metrics         *LifecycleMetrics
+	emitMetricsOnce sync.Once
 }
 
 func (a *LifecycleAPI) now() time.Time {
@@ -123,6 +126,17 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
+	}
+
+	// Emit build duration metric when agent transitions to a terminal startup state.
+	// We only emit once per agent connection to avoid duplicate metrics.
+	switch lifecycleState {
+	case database.WorkspaceAgentLifecycleStateReady,
+		database.WorkspaceAgentLifecycleStateStartTimeout,
+		database.WorkspaceAgentLifecycleStateStartError:
+		a.emitMetricsOnce.Do(func() {
+			a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
+		})
 	}
 
 	return req.Lifecycle, nil

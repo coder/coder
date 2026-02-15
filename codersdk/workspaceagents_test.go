@@ -110,3 +110,142 @@ func TestWorkspaceAgentLogTextSpecialChars(t *testing.T) {
 	result := log.Text("main", "startup_script")
 	require.Equal(t, "2024-01-28T10:30:00Z [debug] [agent.main|startup_script] \033[31mError!\033[0m 🚀 Unicode: 日本語", result)
 }
+
+func TestWorkspaceAgentDevcontainerEquals(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+
+	base := codersdk.WorkspaceAgentDevcontainer{
+		ID:              uuid.New(),
+		Name:            "test-dc",
+		WorkspaceFolder: "/workspace",
+		Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+		Dirty:           false,
+		Container:       &codersdk.WorkspaceAgentContainer{ID: "container-123"},
+		Agent:           &codersdk.WorkspaceAgentDevcontainerAgent{ID: agentID, Name: "agent-1"},
+		Error:           "",
+	}
+
+	tests := []struct {
+		name      string
+		modify    func(*codersdk.WorkspaceAgentDevcontainer)
+		wantEqual bool
+	}{
+		{
+			name:      "identical",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) {},
+			wantEqual: true,
+		},
+		{
+			name:      "different ID",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.ID = uuid.New() },
+			wantEqual: false,
+		},
+		{
+			name:      "different Name",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Name = "other-dc" },
+			wantEqual: false,
+		},
+		{
+			name:      "different WorkspaceFolder",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.WorkspaceFolder = "/other" },
+			wantEqual: false,
+		},
+		{
+			name: "different SubagentID (one valid, one nil)",
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
+				d.SubagentID = uuid.NullUUID{Valid: true, UUID: uuid.New()}
+			},
+			wantEqual: false,
+		},
+		{
+			name: "different SubagentID UUIDs",
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
+				d.SubagentID = uuid.NullUUID{Valid: true, UUID: uuid.New()}
+			},
+			wantEqual: false,
+		},
+		{
+			name: "different Status",
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
+				d.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
+			},
+			wantEqual: false,
+		},
+		{
+			name:      "different Dirty",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Dirty = true },
+			wantEqual: false,
+		},
+		{
+			name:      "different Container (one nil)",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Container = nil },
+			wantEqual: false,
+		},
+		{
+			name: "different Container IDs",
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
+				d.Container = &codersdk.WorkspaceAgentContainer{ID: "different-container"}
+			},
+			wantEqual: false,
+		},
+		{
+			name:      "different Agent (one nil)",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Agent = nil },
+			wantEqual: false,
+		},
+		{
+			name: "different Agent values",
+			modify: func(d *codersdk.WorkspaceAgentDevcontainer) {
+				d.Agent = &codersdk.WorkspaceAgentDevcontainerAgent{ID: agentID, Name: "agent-2"}
+			},
+			wantEqual: false,
+		},
+		{
+			name:      "different Error",
+			modify:    func(d *codersdk.WorkspaceAgentDevcontainer) { d.Error = "some error" },
+			wantEqual: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			modified := base
+			tt.modify(&modified)
+			require.Equal(t, tt.wantEqual, base.Equals(modified))
+		})
+	}
+}
+
+func TestWorkspaceAgentDevcontainerIsTerraformDefined(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SubagentID Valid", func(t *testing.T) {
+		t.Parallel()
+
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			ID:              uuid.New(),
+			Name:            "test-dc",
+			WorkspaceFolder: "/workspace",
+			SubagentID:      uuid.NullUUID{Valid: true, UUID: uuid.New()},
+		}
+
+		require.True(t, dc.IsTerraformDefined())
+	})
+
+	t.Run("SubagentID Null", func(t *testing.T) {
+		t.Parallel()
+
+		dc := codersdk.WorkspaceAgentDevcontainer{
+			ID:              uuid.New(),
+			Name:            "test-dc",
+			WorkspaceFolder: "/workspace",
+			SubagentID:      uuid.NullUUID{Valid: false},
+		}
+
+		require.False(t, dc.IsTerraformDefined())
+	})
+}

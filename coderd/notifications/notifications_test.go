@@ -262,8 +262,6 @@ func TestWebhookDispatch(t *testing.T) {
 	// This is not strictly necessary for this test, but it's testing some side logic which is too small for its own test.
 	require.Equal(t, payload.Payload.UserName, name)
 	require.Equal(t, payload.Payload.UserUsername, username)
-	// Right now we don't have a way to query notification templates by ID in dbmem, and it's not necessary to add this
-	// just to satisfy this test. We can safely assume that as long as this value is not empty that the given value was delivered.
 	require.NotEmpty(t, payload.Payload.NotificationName)
 }
 

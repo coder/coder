@@ -2,13 +2,13 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/input}
  */
-import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
-export const Input = forwardRef<
-	HTMLInputElement,
-	React.ComponentProps<"input">
->(({ className, type, ...props }, ref) => {
+export const Input: React.FC<React.ComponentPropsWithRef<"input">> = ({
+	className,
+	type,
+	...props
+}) => {
 	return (
 		<input
 			type={type}
@@ -19,11 +19,11 @@ export const Input = forwardRef<
 				placeholder:text-content-secondary
 				focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 				disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-inherit
+				aria-[invalid=true]:border-border-destructive
 				`,
 				className,
 			)}
-			ref={ref}
 			{...props}
 		/>
 	);
-});
+};

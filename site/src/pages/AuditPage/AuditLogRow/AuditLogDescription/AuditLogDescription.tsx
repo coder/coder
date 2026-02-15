@@ -1,5 +1,5 @@
-import Link from "@mui/material/Link";
 import type { AuditLog } from "api/typesGenerated";
+import { Link } from "components/Link/Link";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { BuildAuditDescription } from "./BuildAuditDescription";
@@ -52,8 +52,10 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 		<span>
 			{truncatedDescription}
 			{auditLog.resource_link ? (
-				<Link component={RouterLink} to={auditLog.resource_link}>
-					<strong>{target}</strong>
+				<Link asChild showExternalIcon={false} className="text-base px-0">
+					<RouterLink to={auditLog.resource_link}>
+						<strong>{target}</strong>
+					</RouterLink>
 				</Link>
 			) : (
 				<strong>{target}</strong>
@@ -70,8 +72,10 @@ function AppSessionAuditLogDescription({ auditLog }: AuditLogDescriptionProps) {
 	return (
 		<>
 			{connection_type} session to {workspace_owner}'s{" "}
-			<Link component={RouterLink} to={`${auditLog.resource_link}`}>
-				<strong>{workspace_name}</strong>
+			<Link asChild showExternalIcon={false} className="text-base px-0">
+				<RouterLink to={`${auditLog.resource_link}`}>
+					<strong>{workspace_name}</strong>
+				</RouterLink>
 			</Link>{" "}
 			workspace{" "}
 			<strong>{auditLog.action === "disconnect" ? "closed" : "opened"}</strong>

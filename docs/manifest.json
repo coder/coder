@@ -169,7 +169,14 @@
 					"title": "Upgrading",
 					"description": "Learn how to upgrade Coder",
 					"path": "./install/upgrade.md",
-					"icon_path": "./images/icons/upgrade.svg"
+					"icon_path": "./images/icons/upgrade.svg",
+					"children": [
+						{
+							"title": "Upgrading Best Practices",
+							"description": "Best practices and troubleshooting for Coder upgrades",
+							"path": "./install/upgrade-best-practices.md"
+						}
+					]
 				},
 				{
 					"title": "Uninstall",
@@ -2001,6 +2008,11 @@
 							"title": "task logs",
 							"description": "Show a task's logs",
 							"path": "reference/cli/task_logs.md"
+						},
+						{
+							"title": "task pause",
+							"description": "Pause a task",
+							"path": "reference/cli/task_pause.md"
 						},
 						{
 							"title": "task send",

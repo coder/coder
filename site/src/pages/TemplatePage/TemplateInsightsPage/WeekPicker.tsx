@@ -1,9 +1,14 @@
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
 import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import dayjs from "dayjs";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { ChevronDownIcon } from "lucide-react";
+import type { FC } from "react";
 import type { DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";
 
@@ -17,70 +22,31 @@ interface WeekPickerProps {
 }
 
 export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
-	const anchorRef = useRef<HTMLButtonElement>(null);
-	const [open, setOpen] = useState(false);
 	const numberOfWeeks = dayjs(value.endDate).diff(
 		dayjs(value.startDate),
 		"week",
 	);
 
-	const handleClose = () => {
-		setOpen(false);
-	};
-
 	return (
-		<div>
-			<Button
-				variant="outline"
-				ref={anchorRef}
-				id="interval-button"
-				aria-controls={open ? "interval-menu" : undefined}
-				aria-haspopup="true"
-				aria-expanded={open ? "true" : undefined}
-				onClick={() => setOpen(true)}
-			>
-				Last {numberOfWeeks} weeks
-				<ChevronDownIcon />
-			</Button>
-			<Menu
-				id="interval-menu"
-				anchorEl={anchorRef.current}
-				open={open}
-				onClose={handleClose}
-				MenuListProps={{
-					"aria-labelledby": "interval-button",
-				}}
-				anchorOrigin={{
-					vertical: "bottom",
-					horizontal: "left",
-				}}
-				transformOrigin={{
-					vertical: "top",
-					horizontal: "left",
-				}}
-			>
-				{numberOfWeeksOptions.map((option) => {
-					const optionRange = lastWeeks(option);
-
-					return (
-						<MenuItem
-							css={{ fontSize: 14, justifyContent: "space-between" }}
-							key={option}
-							onClick={() => {
-								onChange(optionRange);
-								handleClose();
-							}}
-						>
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="outline">
+					Last {numberOfWeeks} weeks
+					<ChevronDownIcon />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start">
+				<DropdownMenuRadioGroup
+					value={String(numberOfWeeks)}
+					onValueChange={(v) => onChange(lastWeeks(Number(v)))}
+				>
+					{numberOfWeeksOptions.map((option) => (
+						<DropdownMenuRadioItem key={option} value={String(option)}>
 							Last {option} weeks
-							<div css={{ width: 16, height: 16 }}>
-								{numberOfWeeks === option && (
-									<CheckIcon className="size-icon-xs" />
-								)}
-							</div>
-						</MenuItem>
-					);
-				})}
-			</Menu>
-		</div>
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };

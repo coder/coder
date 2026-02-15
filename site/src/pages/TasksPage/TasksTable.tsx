@@ -1,6 +1,6 @@
-import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import type { Task, TaskStatus as TaskStatusType } from "api/typesGenerated";
+import { pauseTask, resumeTask } from "api/queries/tasks";
+import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
@@ -28,13 +28,18 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
 import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
+import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
+import {
+	canPauseTask,
+	canResumeTask,
+	isPauseDisabled,
+} from "modules/tasks/taskActions";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { relativeTime } from "utils/time";
-import { TaskActionButton } from "./TaskActionButton";
 
 type TasksTableProps = {
 	tasks: readonly Task[] | undefined;
@@ -42,7 +47,6 @@ type TasksTableProps = {
 	onRetry: () => void;
 	checkedTaskIds?: Set<string>;
 	onCheckChange?: (checkedTaskIds: Set<string>) => void;
-	canCheckTasks?: boolean;
 };
 
 export const TasksTable: FC<TasksTableProps> = ({
@@ -51,14 +55,13 @@ export const TasksTable: FC<TasksTableProps> = ({
 	onRetry,
 	checkedTaskIds = new Set(),
 	onCheckChange,
-	canCheckTasks = false,
 }) => {
 	let body: ReactNode = null;
 
 	if (error) {
 		body = <TasksErrorBody error={error} onRetry={onRetry} />;
 	} else if (!tasks) {
-		body = <TasksSkeleton canCheckTasks={canCheckTasks} />;
+		body = <TasksSkeleton />;
 	} else if (tasks.length === 0) {
 		body = <TasksEmpty />;
 	} else {
@@ -79,7 +82,6 @@ export const TasksTable: FC<TasksTableProps> = ({
 						}
 						onCheckChange(newIds);
 					}}
-					canCheck={canCheckTasks}
 				/>
 			);
 		});
@@ -91,28 +93,26 @@ export const TasksTable: FC<TasksTableProps> = ({
 				<TableRow>
 					<TableHead className="w-1/3">
 						<div className="flex items-center gap-5">
-							{canCheckTasks && (
-								<Checkbox
-									disabled={!tasks || tasks.length === 0}
-									checked={
-										tasks &&
-										tasks.length > 0 &&
-										checkedTaskIds.size === tasks.length
+							<Checkbox
+								disabled={!tasks || tasks.length === 0}
+								checked={
+									tasks &&
+									tasks.length > 0 &&
+									checkedTaskIds.size === tasks.length
+								}
+								onCheckedChange={(checked) => {
+									if (!tasks || !onCheckChange) {
+										return;
 									}
-									onCheckedChange={(checked) => {
-										if (!tasks || !onCheckChange) {
-											return;
-										}
 
-										if (!checked) {
-											onCheckChange(new Set());
-										} else {
-											onCheckChange(new Set(tasks.map((t) => t.id)));
-										}
-									}}
-									aria-label="Select all tasks"
-								/>
-							)}
+									if (!checked) {
+										onCheckChange(new Set());
+									} else {
+										onCheckChange(new Set(tasks.map((t) => t.id)));
+									}
+								}}
+								aria-label="Select all tasks"
+							/>
 							Task
 						</div>
 					</TableHead>
@@ -173,68 +173,30 @@ const TasksEmpty: FC = () => {
 	);
 };
 
-const pauseStatuses: TaskStatusType[] = [
-	"active",
-	"initializing",
-	"pending",
-	"error",
-	"unknown",
-];
-const pauseDisabledStatuses: TaskStatusType[] = ["pending", "initializing"];
-const resumeStatuses: TaskStatusType[] = ["paused", "error", "unknown"];
-
 type TaskRowProps = {
 	task: Task;
 	checked: boolean;
 	onCheckChange: (taskId: string, checked: boolean) => void;
-	canCheck: boolean;
 };
 
-const TaskRow: FC<TaskRowProps> = ({
-	task,
-	checked,
-	onCheckChange,
-	canCheck,
-}) => {
+const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName = task.template_display_name ?? task.template_name;
 	const navigate = useNavigate();
+
+	const showPause = canPauseTask(task.status) && task.workspace_id;
+	const pauseDisabled = isPauseDisabled(task.status);
+	const showResume = canResumeTask(task.status) && task.workspace_id;
+
 	const queryClient = useQueryClient();
-
-	const showPause = pauseStatuses.includes(task.status);
-	const pauseDisabled = pauseDisabledStatuses.includes(task.status);
-	const showResume = resumeStatuses.includes(task.status);
-
 	const pauseMutation = useMutation({
-		mutationFn: async () => {
-			if (!task.workspace_id) {
-				throw new Error("Task has no workspace");
-			}
-			return API.stopWorkspace(task.workspace_id);
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-		},
+		...pauseTask(task, queryClient),
 		onError: (error: unknown) => {
 			displayError(getErrorMessage(error, "Failed to pause task."));
 		},
 	});
-
 	const resumeMutation = useMutation({
-		mutationFn: async () => {
-			if (!task.workspace_id) {
-				throw new Error("Task has no workspace");
-			}
-			return API.startWorkspace(
-				task.workspace_id,
-				task.template_version_id,
-				undefined,
-				undefined,
-			);
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-		},
+		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
 			displayError(getErrorMessage(error, "Failed to resume task."));
 		},
@@ -255,19 +217,17 @@ const TaskRow: FC<TaskRowProps> = ({
 			>
 				<TableCell>
 					<div className="flex items-center gap-5">
-						{canCheck && (
-							<Checkbox
-								data-testid={`checkbox-${task.id}`}
-								checked={checked}
-								onClick={(e) => {
-									e.stopPropagation();
-								}}
-								onCheckedChange={(checked) => {
-									onCheckChange(task.id, Boolean(checked));
-								}}
-								aria-label={`Select task ${task.initial_prompt}`}
-							/>
-						)}
+						<Checkbox
+							data-testid={`checkbox-${task.id}`}
+							checked={checked}
+							onClick={(e) => {
+								e.stopPropagation();
+							}}
+							onCheckedChange={(checked) => {
+								onCheckChange(task.id, Boolean(checked));
+							}}
+							aria-label={`Select task ${task.initial_prompt}`}
+						/>
 						<AvatarData
 							title={
 								<span className="block max-w-[520px] truncate">
@@ -360,17 +320,13 @@ const TaskRow: FC<TaskRowProps> = ({
 	);
 };
 
-type TasksSkeletonProps = {
-	canCheckTasks: boolean;
-};
-
-const TasksSkeleton: FC<TasksSkeletonProps> = ({ canCheckTasks }) => {
+const TasksSkeleton: FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
 					<div className="flex items-center gap-5">
-						{canCheckTasks && <Checkbox disabled />}
+						<Checkbox disabled />
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

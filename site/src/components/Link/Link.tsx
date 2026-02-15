@@ -1,7 +1,6 @@
 import { Slot, Slottable } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
-import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
 const linkVariants = cva(
@@ -23,28 +22,26 @@ const linkVariants = cva(
 	},
 );
 
-interface LinkProps
-	extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
-		VariantProps<typeof linkVariants> {
-	asChild?: boolean;
-	showExternalIcon?: boolean;
-}
+type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
+	VariantProps<typeof linkVariants> & {
+		asChild?: boolean;
+		showExternalIcon?: boolean;
+		ref?: React.Ref<HTMLAnchorElement>;
+	};
 
-export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
-	(
-		{ className, children, size, asChild, showExternalIcon = true, ...props },
-		ref,
-	) => {
-		const Comp = asChild ? Slot : "a";
-		return (
-			<Comp
-				className={cn(linkVariants({ size }), className)}
-				ref={ref}
-				{...props}
-			>
-				<Slottable>{children}</Slottable>
-				{showExternalIcon && <SquareArrowOutUpRightIcon aria-hidden="true" />}
-			</Comp>
-		);
-	},
-);
+export const Link: React.FC<LinkProps> = ({
+	className,
+	children,
+	size,
+	asChild,
+	showExternalIcon = true,
+	...props
+}) => {
+	const Comp = asChild ? Slot : "a";
+	return (
+		<Comp className={cn(linkVariants({ size }), className)} {...props}>
+			<Slottable>{children}</Slottable>
+			{showExternalIcon && <SquareArrowOutUpRightIcon />}
+		</Comp>
+	);
+};

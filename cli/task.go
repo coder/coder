@@ -17,6 +17,7 @@ func (r *RootCmd) tasksCommand() *serpent.Command {
 			r.taskDelete(),
 			r.taskList(),
 			r.taskLogs(),
+			r.taskPause(),
 			r.taskSend(),
 			r.taskStatus(),
 		},
