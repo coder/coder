@@ -5,8 +5,8 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
+	useLayoutEffect,
 	useRef,
-	useState,
 } from "react";
 import { Link, type LinkProps } from "react-router";
 import { cn } from "utils/cn";
@@ -41,66 +41,57 @@ export const Tabs: FC<TabsProps> = ({ className, active, ...htmlProps }) => {
 type TabsListProps = HTMLAttributes<HTMLDivElement>;
 
 export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
-	const listRef = useRef<HTMLDivElement | null>(null);
-	const [indicatorStyle, setIndicatorStyle] = useState({
-		left: 0,
-		width: 0,
-	});
-	const [hasActiveTab, setHasActiveTab] = useState(false);
-	// Track whether we've done the initial placement so we can
-	// skip the transition on first render and avoid the "slide in"
-	// effect on page load.
+	const tabsContext = useContext(TabsContext);
+	const listRef = useRef<HTMLDivElement>(null);
+	const indicatorRef = useRef<HTMLDivElement>(null);
 	const hasInitialized = useRef(false);
 
-	const updateIndicator = useCallback(() => {
-		if (!listRef.current) return;
+	const updateIndicator = useCallback((animate: boolean) => {
+		const list = listRef.current;
+		const indicator = indicatorRef.current;
+		if (!list || !indicator) return;
 
-		const activeTab = listRef.current.querySelector<HTMLElement>(
-			"[data-active='true']",
-		);
+		const activeTab = list.querySelector<HTMLElement>("[data-active='true']");
 		if (!activeTab) {
-			setHasActiveTab(false);
+			indicator.style.opacity = "0";
 			return;
 		}
 
-		const listRect = listRef.current.getBoundingClientRect();
+		const listRect = list.getBoundingClientRect();
 		const activeRect = activeTab.getBoundingClientRect();
 
-		requestAnimationFrame(() => {
-			setIndicatorStyle({
-				left: activeRect.left - listRect.left,
-				width: activeRect.width,
-			});
-			setHasActiveTab(true);
-			// Mark as initialized after the first position is set so
-			// subsequent updates will animate.
-			if (!hasInitialized.current) {
-				requestAnimationFrame(() => {
-					hasInitialized.current = true;
-				});
-			}
-		});
-	}, []);
-
-	useEffect(() => {
-		const timeoutId = setTimeout(updateIndicator, 0);
-
-		window.addEventListener("resize", updateIndicator);
-		const observer = new MutationObserver(updateIndicator);
-
-		if (listRef.current) {
-			observer.observe(listRef.current, {
-				attributes: true,
-				childList: true,
-				subtree: true,
-			});
+		if (!animate) {
+			indicator.style.transition = "none";
 		}
 
-		return () => {
-			clearTimeout(timeoutId);
-			window.removeEventListener("resize", updateIndicator);
-			observer.disconnect();
-		};
+		indicator.style.left = `${activeRect.left - listRect.left}px`;
+		indicator.style.width = `${activeRect.width}px`;
+		indicator.style.opacity = "1";
+
+		if (!animate) {
+			// Force a reflow so the position applies before
+			// restoring the transition property.
+			void indicator.offsetHeight;
+			indicator.style.transition = "";
+		}
+	}, []);
+
+	// Measure synchronously before paint so the indicator is
+	// positioned correctly on the first frame. Animate only on
+	// subsequent active-tab changes.
+	const active = tabsContext?.active;
+	useLayoutEffect(() => {
+		// Re-run whenever the active tab changes.
+		void active;
+		updateIndicator(hasInitialized.current);
+		hasInitialized.current = true;
+	}, [active, updateIndicator]);
+
+	// Reposition without animation on window resize.
+	useEffect(() => {
+		const handleResize = () => updateIndicator(false);
+		window.addEventListener("resize", handleResize);
+		return () => window.removeEventListener("resize", handleResize);
 	}, [updateIndicator]);
 
 	return (
@@ -111,14 +102,8 @@ export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 				{...props}
 			/>
 			<div
-				className={cn(
-					"absolute bottom-0 h-px bg-surface-invert-primary ease-in-out",
-					hasInitialized.current
-						? "transition-all duration-300"
-						: "transition-none",
-					!hasActiveTab && "opacity-0",
-				)}
-				style={indicatorStyle}
+				ref={indicatorRef}
+				className="absolute bottom-0 h-px bg-surface-invert-primary opacity-0 transition-all duration-300 ease-in-out"
 			/>
 		</div>
 	);
