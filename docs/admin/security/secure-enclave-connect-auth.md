@@ -143,6 +143,20 @@ An empty list (the default) disables connect-auth enforcement entirely.
 - Non-sensitive operations (API calls, template management, workspace
   creation) are never affected regardless of configuration.
 
+> **Important: Platform Limitation**
+>
+> Enabling `--connect-auth-endpoints` blocks **all non-macOS users**
+> from SSH and port-forward. Linux and Windows clients cannot generate
+> Secure Enclave keys and will be rejected by the server with:
+>
+> *"Connect-auth is required by this deployment. Register a connect
+> public key on your API key using a macOS device with Touch ID."*
+>
+> Only enable this setting if **all users who need SSH/port-forward
+> access are on macOS** with Apple Silicon or Intel T2 chip. Deployments
+> with mixed platforms should not enable this feature until cross-platform
+> alternatives (e.g., FIDO2 hardware keys) are supported.
+
 ## Building with Secure Enclave Support
 
 The Secure Enclave integration uses Apple's CryptoKit framework via a
