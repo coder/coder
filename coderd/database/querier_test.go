@@ -8070,12 +8070,15 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 				ID:          uid,
 				InitiatorID: user.ID,
 				Metadata:    json.RawMessage("{}"),
+				Client:      sql.NullString{String: "client", Valid: true},
 			}
 
 			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
 			require.NoError(t, err)
 			require.Equal(t, uid, intc.ID)
 			require.False(t, intc.EndedAt.Valid)
+			require.True(t, intc.Client.Valid)
+			require.Equal(t, "client", intc.Client.String)
 			interceptions = append(interceptions, intc)
 		}
 
