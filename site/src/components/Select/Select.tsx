@@ -3,7 +3,12 @@
  * @see {@link https://ui.shadcn.com/docs/components/select}
  */
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import {
+	Check,
+	ChevronUp,
+	ChevronDown as LucideChevronDown,
+} from "lucide-react";
 import { cn } from "utils/cn";
 
 export const Select = SelectPrimitive.Root;
@@ -34,12 +39,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	>
 		{children}
 		<SelectPrimitive.Icon asChild>
-			<ChevronDown
-				className={cn(
-					"size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary",
-					"transition-transform group-data-[state=open]:rotate-180",
-				)}
-			/>
+			<ChevronDownIcon className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
 		</SelectPrimitive.Icon>
 	</SelectPrimitive.Trigger>
 );
@@ -69,7 +69,7 @@ const SelectScrollDownButton: React.FC<
 			)}
 			{...props}
 		>
-			<ChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
+			<LucideChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
 		</SelectPrimitive.ScrollDownButton>
 	);
 };

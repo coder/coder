@@ -1,6 +1,7 @@
 import Skeleton from "@mui/material/Skeleton";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -15,10 +16,8 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
-import { cn } from "utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
@@ -73,7 +72,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="lg" className="group">
+				<Button variant="outline" size="lg">
 					<span className="sr-only">
 						Latency for {selectedProxy?.display_name ?? "your region"}
 					</span>
@@ -96,12 +95,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 						"Select Proxy"
 					)}
 
-					<ChevronDownIcon
-						className={cn(
-							"text-content-primary !size-icon-sm",
-							"group-data-[state=open]:rotate-180 transition-transform",
-						)}
-					/>
+					<ChevronDownIcon className="text-content-primary !size-icon-sm" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-80">

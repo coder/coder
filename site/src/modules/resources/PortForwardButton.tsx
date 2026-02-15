@@ -21,6 +21,7 @@ import {
 	type WorkspaceAgentPortShareProtocol,
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	HelpTooltipLink,
@@ -41,7 +42,6 @@ import {
 import { useFormik } from "formik";
 import {
 	BuildingIcon,
-	ChevronDownIcon,
 	ExternalLinkIcon,
 	LockIcon,
 	LockOpenIcon,
@@ -52,7 +52,6 @@ import {
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
-import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -94,22 +93,12 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button
-					disabled={!listeningPorts}
-					size="sm"
-					variant="subtle"
-					className="group"
-				>
+				<Button disabled={!listeningPorts} size="sm" variant="subtle">
 					<Spinner loading={!listeningPorts}>
 						<span css={styles.portCount}>{listeningPorts?.length}</span>
 					</Spinner>
 					Open ports
-					<ChevronDownIcon
-						className={cn(
-							"size-4",
-							"group-data-[state=open]:rotate-180 transition-transform",
-						)}
-					/>
+					<ChevronDownIcon className="size-4" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

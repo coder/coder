@@ -6,12 +6,11 @@ import type {
 	AgentScriptTiming,
 	ProvisionerTiming,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { cn } from "utils/cn";
 import {
 	calcDuration,
 	formatTime,
@@ -108,12 +107,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				css={styles.collapseTrigger}
 				onClick={() => setIsOpen((o) => !o)}
 			>
-				<ChevronDownIcon
-					className={cn(
-						"size-4 mr-4 transition-transform",
-						isOpen && "rotate-180",
-					)}
-				/>
+				<ChevronDownIcon open={isOpen} className="size-4 mr-4" />
 
 				<span>Build timeline</span>
 				<span

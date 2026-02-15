@@ -1,5 +1,6 @@
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Popover,
@@ -12,7 +13,7 @@ import {
 	SearchField,
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
@@ -57,14 +58,14 @@ export const SelectMenuButton: React.FC<SelectMenuButtonProps> = ({
 			size="lg"
 			// Shrink padding right slightly to account for visual weight of
 			// the chevron
-			className={cn("flex flex-row gap-2 pr-1.5 group", className)}
+			className={cn("flex flex-row gap-2 pr-1.5", className)}
 			{...props}
 		>
 			{startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
 				{children}
 			</span>
-			<ChevronDownIcon className="group-data-[state=open]:rotate-180 transition-transform" />
+			<ChevronDownIcon />
 		</Button>
 	);
 };

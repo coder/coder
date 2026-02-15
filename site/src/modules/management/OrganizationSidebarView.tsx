@@ -1,4 +1,5 @@
 import type { Organization } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
@@ -16,12 +17,11 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { SettingsSidebarNavItem } from "components/Sidebar/Sidebar";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
-import { cn } from "utils/cn";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */
@@ -63,7 +63,7 @@ export const OrganizationSidebarView: FC<
 					<Button
 						variant="outline"
 						aria-expanded={isPopoverOpen}
-						className="w-60 gap-2 justify-start group"
+						className="w-60 gap-2 justify-start"
 					>
 						{activeOrganization ? (
 							<>
@@ -79,12 +79,7 @@ export const OrganizationSidebarView: FC<
 						) : (
 							<span className="truncate">No organization selected</span>
 						)}
-						<ChevronDown
-							className={cn(
-								"ml-auto !size-icon-sm",
-								"group-data-[state=open]:rotate-180 transition-transform",
-							)}
-						/>
+						<ChevronDownIcon className="ml-auto !size-icon-sm" />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">

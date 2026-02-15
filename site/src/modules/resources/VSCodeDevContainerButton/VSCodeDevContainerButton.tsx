@@ -2,11 +2,10 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { API } from "api/api";
 import type { DisplayApp } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
-import { cn } from "utils/cn";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
@@ -68,12 +67,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					}}
 					size="icon-lg"
 				>
-					<ChevronDownIcon
-						className={cn(
-							"transition-transform",
-							isVariantMenuOpen && "rotate-180",
-						)}
-					/>
+					<ChevronDownIcon open={isVariantMenuOpen} />
 				</AgentButton>
 			</div>
 

@@ -1,6 +1,7 @@
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
 import type { ProvisionerDaemon } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { FormSection } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
@@ -8,10 +9,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { ChevronDownIcon } from "lucide-react";
 import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
-import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
 interface ProvisionerTagsPopoverProps {
@@ -28,13 +27,8 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<TopbarButton color="neutral" className="group px-0 !min-w-7">
-					<ChevronDownIcon
-						className={cn(
-							"size-icon-xs",
-							"group-data-[state=open]:rotate-180 transition-transform",
-						)}
-					/>
+				<TopbarButton color="neutral" className="px-0 !min-w-7">
+					<ChevronDownIcon className="size-icon-xs" />
 					<span className="sr-only">Expand provisioner tags</span>
 				</TopbarButton>
 			</PopoverTrigger>

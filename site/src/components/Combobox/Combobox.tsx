@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	Command,
@@ -17,7 +18,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Check, ChevronDown, CornerDownLeft, Info } from "lucide-react";
+import { Check, CornerDownLeft, Info } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
 import { ExternalImage } from "../ExternalImage/ExternalImage";
@@ -81,17 +82,12 @@ export const Combobox: FC<ComboboxProps> = ({
 					id={id}
 					variant="outline"
 					aria-expanded={isOpen}
-					className="w-full justify-between group"
+					className="w-full justify-between"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
 						{optionsMap.get(value)?.displayName || value || placeholder}
 					</span>
-					<ChevronDown
-						className={cn(
-							"size-icon-sm text-content-secondary group-hover:text-content-primary transition-transform",
-							"group-data-[state=open]:rotate-180",
-						)}
-					/>
+					<ChevronDownIcon className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="w-[var(--radix-popover-trigger-width)]">

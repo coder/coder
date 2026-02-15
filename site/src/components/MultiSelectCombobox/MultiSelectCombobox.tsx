@@ -3,6 +3,7 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import {
@@ -17,7 +18,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useDebouncedValue } from "hooks/debounce";
-import { ChevronDown, Info, X } from "lucide-react";
+import { Info, X } from "lucide-react";
 import {
 	type ComponentProps,
 	type ComponentPropsWithoutRef,
@@ -608,11 +609,9 @@ export const MultiSelectCombobox = forwardRef<
 							>
 								<X className="h-5 w-5" />
 							</button>
-							<ChevronDown
-								className={cn(
-									"size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary transition-transform",
-									open && "rotate-180",
-								)}
+							<ChevronDownIcon
+								open={open}
+								className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary"
 							/>
 						</div>
 					</div>

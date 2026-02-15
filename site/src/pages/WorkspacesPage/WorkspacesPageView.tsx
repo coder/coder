@@ -1,6 +1,7 @@
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -17,13 +18,7 @@ import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidg
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import {
-	ChevronDownIcon,
-	CloudIcon,
-	PlayIcon,
-	SquareIcon,
-	TrashIcon,
-} from "lucide-react";
+import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
@@ -146,11 +141,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									disabled={isRunningBatchAction}
 									variant="outline"
 									size="sm"
-									className="ml-auto group"
+									className="ml-auto"
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon className="size-4 transition-transform group-data-[state=open]:rotate-180" />
+										<ChevronDownIcon className="size-4" />
 									</Spinner>
 								</Button>
 							</DropdownMenuTrigger>

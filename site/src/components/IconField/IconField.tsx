@@ -1,6 +1,7 @@
 import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
@@ -9,9 +10,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, lazy, Suspense, useState } from "react";
-import { cn } from "utils/cn";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>
@@ -91,11 +90,7 @@ export const IconField: FC<IconFieldProps> = ({
 				<PopoverTrigger asChild>
 					<Button variant="outline" size="lg" className="group flex-shrink-0">
 						Emoji
-						<ChevronDownIcon
-							className={cn(
-								"transition-transform group-data-[state=open]:rotate-180",
-							)}
-						/>
+						<ChevronDownIcon />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent id="emoji" side="bottom" align="end" className="w-min">

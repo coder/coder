@@ -1,4 +1,5 @@
 import { deploymentSSHConfig } from "api/queries/deployment";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
@@ -12,7 +13,6 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
@@ -34,9 +34,9 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild={true}>
-				<Button size="sm" variant="subtle" className="group">
+				<Button size="sm" variant="subtle">
 					Connect via SSH
-					<ChevronDownIcon className="group-data-[state=open]:rotate-180 transition-transform" />
+					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 
