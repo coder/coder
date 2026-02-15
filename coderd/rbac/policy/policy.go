@@ -319,6 +319,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update notification preferences",
 		},
 	},
+	"webauthn_credential": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create WebAuthn credentials",
+			ActionRead:   "read WebAuthn credentials",
+			ActionDelete: "delete WebAuthn credentials",
+		},
+	},
 	"webpush_subscription": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create webpush subscriptions",

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -17,6 +18,12 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/websocket"
 )
+
+// isFIDO2Error checks if an SDK error is a FIDO2-specific rejection.
+func isFIDO2Error(sdkErr *codersdk.Error) bool {
+	return strings.Contains(sdkErr.Message, "FIDO2") ||
+		strings.Contains(sdkErr.Message, "security key")
+}
 
 var permanentErrorStatuses = []int{
 	http.StatusConflict,            // returned if client/agent connections disabled (browser only)
@@ -40,6 +47,10 @@ type WebsocketDialer struct {
 	resumeTokenFailed bool
 	connected         chan error
 	isFirst           bool
+
+	// OnFIDO2Required is called when the server rejects with a
+	// FIDO2-specific 403. Returns a JWT to retry with.
+	OnFIDO2Required func() (string, error)
 }
 
 // checkResumeTokenFailure checks if the parsed error indicates a resume token failure
@@ -101,6 +112,28 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(ctx, u.String(), w.dialOptions)
 	if w.isFirst {
+		// If the server requires FIDO2, attempt auth and retry once.
+		if res != nil && res.StatusCode == http.StatusForbidden && w.OnFIDO2Required != nil {
+			firstErr := codersdk.ReadBodyAsError(res)
+			var sdkErr *codersdk.Error
+			if xerrors.As(firstErr, &sdkErr) && isFIDO2Error(sdkErr) {
+				fido2JWT, fido2Err := w.OnFIDO2Required()
+				if fido2Err != nil {
+					err = xerrors.Errorf("FIDO2 authentication: %w", fido2Err)
+					w.connected <- err
+					return tailnet.ControlProtocolClients{}, err
+				}
+				if fido2JWT != "" {
+					if w.dialOptions.HTTPHeader == nil {
+						w.dialOptions.HTTPHeader = make(http.Header)
+					}
+					w.dialOptions.HTTPHeader.Set("Coder-WebAuthn-JWT", fido2JWT)
+					//nolint:bodyclose
+					ws, res, err = websocket.Dial(ctx, u.String(), w.dialOptions)
+					// Fall through — ws/res/err are now from the retry.
+				}
+			}
+		}
 		if res != nil && slices.Contains(permanentErrorStatuses, res.StatusCode) {
 			err = codersdk.ReadBodyAsError(res)
 			var sdkErr *codersdk.Error

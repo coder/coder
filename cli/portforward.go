@@ -121,6 +121,11 @@ func (r *RootCmd) portForward() *serpent.Command {
 			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
 			}
+
+			opts.OnFIDO2Required = func() (string, error) {
+				return ObtainConnectionJWT(inv, client)
+			}
+
 			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
