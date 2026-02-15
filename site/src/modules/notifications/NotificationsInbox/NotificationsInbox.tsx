@@ -6,9 +6,11 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { InboxPopover } from "./InboxPopover";
+
+type ReadStatus = "read" | "unread" | "all";
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"];
 const NOTIFICATIONS_LIMIT = 25; // This is hard set in the API
@@ -17,6 +19,7 @@ type NotificationsInboxProps = {
 	defaultOpen?: boolean;
 	fetchNotifications: (
 		startingBeforeId?: string,
+		readStatus?: ReadStatus,
 	) => Promise<ListInboxNotificationsResponse>;
 	markAllAsRead: () => Promise<void>;
 	markNotificationAsRead: (
@@ -31,14 +34,18 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	markNotificationAsRead,
 }) => {
 	const queryClient = useQueryClient();
+	const [readStatus, setReadStatus] = useState<ReadStatus>("unread");
+
+	const queryKey = [...NOTIFICATIONS_QUERY_KEY, readStatus];
 
 	const {
 		data: inboxRes,
 		error,
 		refetch,
+		isFetching,
 	} = useQuery({
-		queryKey: NOTIFICATIONS_QUERY_KEY,
-		queryFn: () => fetchNotifications(),
+		queryKey,
+		queryFn: () => fetchNotifications(undefined, readStatus),
 	});
 
 	const updateNotificationsCache = useEffectEvent(
@@ -47,9 +54,9 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 				res: ListInboxNotificationsResponse,
 			) => ListInboxNotificationsResponse,
 		) => {
-			await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
+			await queryClient.cancelQueries({ queryKey });
 			queryClient.setQueryData<ListInboxNotificationsResponse>(
-				NOTIFICATIONS_QUERY_KEY,
+				queryKey,
 				(prev) => {
 					if (!prev) {
 						return { notifications: [], unread_count: 0 };
@@ -98,7 +105,7 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			}
 			const lastNotification =
 				inboxRes.notifications[inboxRes.notifications.length - 1];
-			const newRes = await fetchNotifications(lastNotification.id);
+			const newRes = await fetchNotifications(lastNotification.id, readStatus);
 			updateNotificationsCache((prev) => {
 				return {
 					unread_count: newRes.unread_count,
@@ -122,9 +129,19 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 					unread_count: 0,
 					notifications: prev.notifications.map((n) => ({
 						...n,
-						read_at: new Date().toISOString(),
+						read_at: n.read_at ?? new Date().toISOString(),
 					})),
 				};
+			});
+			// Mark all notification caches as stale so other views refresh
+			// when next accessed. We use refetchType: 'none' to avoid an
+			// immediate refetch that would replace the paginated cache
+			// (which may contain multiple "Load more" pages) with only
+			// the first page.
+			queryClient.invalidateQueries({
+				queryKey: NOTIFICATIONS_QUERY_KEY,
+				exact: false,
+				refetchType: "none",
 			});
 		},
 		onError: (error) => {
@@ -149,6 +166,13 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 					}),
 				};
 			});
+			// Same as markAllAsRead: mark stale without immediate refetch
+			// to preserve paginated cache.
+			queryClient.invalidateQueries({
+				queryKey: NOTIFICATIONS_QUERY_KEY,
+				exact: false,
+				refetchType: "none",
+			});
 		},
 		onError: (error) => {
 			displayError(
@@ -161,9 +185,10 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 	return (
 		<InboxPopover
 			defaultOpen={defaultOpen}
-			notifications={inboxRes?.notifications}
+			readStatus={readStatus}
+			notifications={isFetching ? undefined : inboxRes?.notifications}
 			unreadCount={inboxRes?.unread_count ?? 0}
-			error={error}
+			error={isFetching ? undefined : error}
 			isLoadingMoreNotifications={isLoadingMoreNotifications}
 			hasMoreNotifications={Boolean(
 				inboxRes && inboxRes.notifications.length % NOTIFICATIONS_LIMIT === 0,
@@ -172,6 +197,8 @@ export const NotificationsInbox: FC<NotificationsInboxProps> = ({
 			onMarkAllAsRead={markAllAsReadMutation.mutate}
 			onMarkNotificationAsRead={markNotificationAsReadMutation.mutate}
 			onLoadMoreNotifications={loadMoreNotifications}
+			onViewAllNotifications={() => setReadStatus("all")}
+			onClose={() => setReadStatus("unread")}
 		/>
 	);
 };

@@ -8,6 +8,8 @@ const meta: Meta<typeof InboxPopover> = {
 	component: InboxPopover,
 	args: {
 		defaultOpen: true,
+		readStatus: "unread",
+		onViewAllNotifications: fn(),
 	},
 	render: (args) => {
 		return (

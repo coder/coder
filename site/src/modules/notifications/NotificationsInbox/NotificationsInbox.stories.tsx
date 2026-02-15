@@ -66,9 +66,7 @@ export const FailAndRetry: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await expect(
-			body.getByText("Error loading notifications"),
-		).toBeInTheDocument();
+		await body.findByText("Error loading notifications");
 
 		const retryButton = body.getByRole("button", { name: /retry/i });
 		await userEvent.click(retryButton);
