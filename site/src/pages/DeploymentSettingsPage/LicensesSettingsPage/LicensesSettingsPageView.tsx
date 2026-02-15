@@ -23,7 +23,10 @@ import Confetti from "react-confetti";
 import { Link } from "react-router";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
-import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
+import {
+	getEffectiveSeatLimit,
+	LicenseSeatConsumptionChart,
+} from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 
 type Props = {
@@ -157,11 +160,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 
 				{licenses && licenses.length > 0 && (
 					<LicenseSeatConsumptionChart
-						limit={userLimitLimit}
 						data={activeUsers?.map((i) => ({
 							date: i.date,
 							users: i.count,
-							limit: 80,
+							limit: getEffectiveSeatLimit(new Date(i.date), licenses),
 						}))}
 					/>
 				)}
