@@ -66,6 +66,14 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateAPIKeyConnectPublicKey :exec
+UPDATE
+	api_keys
+SET
+	connect_public_key = $2
+WHERE
+	id = $1;
+
 -- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys

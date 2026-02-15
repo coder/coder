@@ -136,6 +136,14 @@ func (r *RootCmd) loginWithPassword(
 		pretty.Sprint(cliui.DefaultStyles.Keyword, u.Username),
 	)
 
+	// Set up Secure Enclave connect-auth if available (macOS).
+	keyID := KeyIDFromToken(sessionToken)
+	if err := SetupConnectAuth(inv, client, keyID, r.createConfig()); err != nil {
+		// Non-fatal: connect-auth is optional. Log for
+		// debugging but don't block the login flow.
+		_, _ = fmt.Fprintf(inv.Stderr, "Warning: could not set up Touch ID connect-auth: %v\n", err)
+	}
+
 	return nil
 }
 
@@ -422,6 +430,13 @@ func (r *RootCmd) login() *serpent.Command {
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))
+
+			// Set up Secure Enclave connect-auth if available.
+			keyID := KeyIDFromToken(sessionToken)
+			if err := SetupConnectAuth(inv, client, keyID, r.createConfig()); err != nil {
+				_, _ = fmt.Fprintf(inv.Stderr, "Warning: could not set up Touch ID connect-auth: %v\n", err)
+			}
+
 			return nil
 		},
 	}

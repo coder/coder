@@ -1094,6 +1094,7 @@ CREATE TABLE api_keys (
     token_name text DEFAULT ''::text NOT NULL,
     scopes api_key_scope[] NOT NULL,
     allow_list text[] NOT NULL,
+    connect_public_key bytea,
     CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
 );
 

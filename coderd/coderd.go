@@ -1399,6 +1399,8 @@ func New(options *Options) *API {
 							r.Route("/{keyid}", func(r chi.Router) {
 								r.Get("/", api.apiKeyByID)
 								r.Delete("/", api.deleteAPIKey)
+								r.Put("/connect-key", api.putAPIKeyConnectPublicKey)
+								r.Delete("/connect-key", api.deleteAPIKeyConnectPublicKey)
 							})
 						})
 

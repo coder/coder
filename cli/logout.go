@@ -35,6 +35,9 @@ func (r *RootCmd) logout() *serpent.Command {
 				return err
 			}
 
+			// Clean up Secure Enclave connect-auth key data.
+			TeardownConnectAuth(r.createConfig())
+
 			err = client.Logout(inv.Context())
 			if err != nil {
 				errors = append(errors, xerrors.Errorf("logout api: %w", err))

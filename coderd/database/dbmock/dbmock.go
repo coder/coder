@@ -6380,6 +6380,20 @@ func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), ctx, arg)
 }
 
+// UpdateAPIKeyConnectPublicKey mocks base method.
+func (m *MockStore) UpdateAPIKeyConnectPublicKey(ctx context.Context, arg database.UpdateAPIKeyConnectPublicKeyParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAPIKeyConnectPublicKey", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAPIKeyConnectPublicKey indicates an expected call of UpdateAPIKeyConnectPublicKey.
+func (mr *MockStoreMockRecorder) UpdateAPIKeyConnectPublicKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyConnectPublicKey", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyConnectPublicKey), ctx, arg)
+}
+
 // UpdateCryptoKeyDeletesAt mocks base method.
 func (m *MockStore) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
