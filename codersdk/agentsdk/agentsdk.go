@@ -65,6 +65,13 @@ func New(serverURL *url.URL, setup SessionTokenSetup, opts ...codersdk.ClientOpt
 type Client struct {
 	RefreshableSessionTokenProvider
 	SDK *codersdk.Client
+
+	// Role identifies the type of client connecting to the agent RPC
+	// endpoint. This is sent as a query parameter to allow the server
+	// to distinguish real agents from other clients (e.g.
+	// coder-logstream-kube) that use the same agent token. When empty,
+	// defaults to "agent" for backward compatibility.
+	Role string
 }
 
 type GitSSHKey struct {
@@ -291,6 +298,11 @@ func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIV
 	}
 	q := rpcURL.Query()
 	q.Add("version", version.String())
+	role := c.Role
+	if role == "" {
+		role = "agent"
+	}
+	q.Add("role", role)
 	rpcURL.RawQuery = q.Encode()
 
 	jar, err := cookiejar.New(nil)
