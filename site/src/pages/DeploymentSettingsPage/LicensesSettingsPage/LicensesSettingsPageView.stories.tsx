@@ -9,7 +9,8 @@ export default {
 };
 
 const defaultArgs = {
-	showConfetti: false,
+	showSuccessDialog: false,
+	onDismissSuccessDialog: () => {},
 	isLoading: false,
 	userLimitActual: 1,
 	userLimitLimit: 10,

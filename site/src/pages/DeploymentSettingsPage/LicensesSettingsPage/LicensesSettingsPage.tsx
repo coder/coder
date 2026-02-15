@@ -4,7 +4,7 @@ import { entitlements, refreshEntitlements } from "api/queries/entitlements";
 import { insightsUserStatusCounts } from "api/queries/insights";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -14,7 +14,7 @@ const LicensesSettingsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const success = searchParams.get("success");
-	const [confettiOn, setConfettiOn] = useState(false);
+	const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
 	const { metadata } = useEmbeddedMetadata();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
@@ -53,28 +53,25 @@ const LicensesSettingsPage: FC = () => {
 		queryFn: () => API.getLicenses(),
 	});
 
+	const dismissSuccessDialog = useCallback(() => {
+		setShowSuccessDialog(false);
+		setSearchParams();
+	}, [setSearchParams]);
+
 	useEffect(() => {
 		if (!success) {
 			return;
 		}
-
-		setConfettiOn(true);
-		const timeout = setTimeout(() => {
-			setConfettiOn(false);
-			setSearchParams();
-		}, 2000);
-
-		return () => {
-			clearTimeout(timeout);
-		};
-	}, [setSearchParams, success]);
+		setShowSuccessDialog(true);
+	}, [success]);
 
 	return (
 		<>
 			<title>{pageTitle("License Settings")}</title>
 
 			<LicensesSettingsPageView
-				showConfetti={confettiOn}
+				showSuccessDialog={showSuccessDialog}
+				onDismissSuccessDialog={dismissSuccessDialog}
 				isLoading={isLoading}
 				isRefreshing={refreshEntitlementsMutation.isPending}
 				userLimitActual={entitlementsQuery.data?.features.user_limit?.actual}

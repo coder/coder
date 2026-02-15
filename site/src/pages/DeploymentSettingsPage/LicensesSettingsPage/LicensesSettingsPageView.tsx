@@ -1,9 +1,17 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import type { GetLicensesResponse } from "api/api";
 import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -16,10 +24,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
-import Confetti from "react-confetti";
 import { Link } from "react-router";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
@@ -27,7 +33,8 @@ import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 
 type Props = {
-	showConfetti: boolean;
+	showSuccessDialog: boolean;
+	onDismissSuccessDialog: () => void;
 	isLoading: boolean;
 	userLimitActual?: number;
 	userLimitLimit?: number;
@@ -42,7 +49,8 @@ type Props = {
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
-	showConfetti,
+	showSuccessDialog,
+	onDismissSuccessDialog,
 	isLoading,
 	userLimitActual,
 	userLimitLimit,
@@ -55,17 +63,11 @@ const LicensesSettingsPageView: FC<Props> = ({
 	managedAgentFeature,
 	aiGovernanceUserFeature,
 }) => {
-	const theme = useTheme();
-	const { width, height } = useWindowSize();
-
 	return (
 		<>
-			<Confetti
-				// For some reason this overflows the window and adds scrollbars if we don't subtract here.
-				width={width - 1}
-				height={height - 1}
-				numberOfPieces={showConfetti ? 200 : 0}
-				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
+			<LicenseUpgradeSuccessDialog
+				open={showSuccessDialog}
+				onClose={onDismissSuccessDialog}
 			/>
 
 			<Stack
@@ -178,6 +180,44 @@ const LicensesSettingsPageView: FC<Props> = ({
 				)}
 			</div>
 		</>
+	);
+};
+
+interface LicenseUpgradeSuccessDialogProps {
+	open: boolean;
+	onClose: () => void;
+}
+
+const LicenseUpgradeSuccessDialog: FC<LicenseUpgradeSuccessDialogProps> = ({
+	open,
+	onClose,
+}) => {
+	return (
+		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+			<DialogContent className="max-w-md">
+				<div className="flex flex-col items-center text-center gap-4">
+					<img
+						src="/blink-ident.svg"
+						alt="Blink animation"
+						className="size-24"
+					/>
+				</div>
+
+				<DialogHeader className="items-center">
+					<DialogTitle className="text-center">
+						License added successfully
+					</DialogTitle>
+					<DialogDescription className="text-center">
+						Your Premium features are now unlocked. Enjoy high availability,
+						RBAC, quotas, and much more.
+					</DialogDescription>
+				</DialogHeader>
+
+				<DialogFooter className="sm:justify-center">
+					<Button onClick={onClose}>Get started</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 };
 
