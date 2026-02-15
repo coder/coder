@@ -1138,6 +1138,11 @@
 							]
 						},
 						{
+							"title": "Deployment Guide",
+							"description": "How to deploy our AI governance features",
+							"path": "./ai-coder/deployment-guide.md"
+						},
+						{
 							"title": "Usage Data Reporting",
 							"description": "Configure AI usage data reporting",
 							"path": "./ai-coder/usage-data-reporting.md"

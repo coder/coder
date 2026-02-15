@@ -71,6 +71,13 @@ The table below shows tested AI clients and their compatibility with AI Bridge.
 
 *Legend: ✅ supported, ⚙️ requires AI Bridge Proxy, ❌ not supported, - not applicable.*
 
+### Why some clients are not supported
+
+AI Bridge requires clients to support either of the two capabilities:
+
+1. **Base URL override (Preferred)** — the client must allow redirecting API requests from the default provider endpoint to the Bridge endpoint.
+2. **Standard API Spec** — the client must follow a standard OpenAI/Anthropic API to allow [AI Bridge Proxy](../ai-bridge-proxy/index.md) to intercept the requests.
+
 ## Configuring In-Workspace Tools
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.

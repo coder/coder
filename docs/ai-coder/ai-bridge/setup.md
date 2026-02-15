@@ -8,9 +8,19 @@ AI Bridge runs inside the Coder control plane (`coderd`), requiring no separate 
 1. Feature must be [enabled](#activation) using the server flag
 1. One or more [providers](#configure-providers) API key(s) must be configured
 
+## Prerequisites
+
+Before enabling AI Bridge:
+
+- Ensure your Coder deployment is running **v2.30 or later**.
+- If your environment uses a corporate HTTP proxy, confirm the proxy path to
+  your model provider endpoints (e.g., `api.openai.com`,
+  `api.anthropic.com`) is open and pre-approved by your network security team.
+- Have API keys ready for the LLM providers you want to use.
+
 ## Activation
 
-You will need to enable AI Bridge explicitly:
+Enable AI Bridge explicitly:
 
 ```sh
 export CODER_AIBRIDGE_ENABLED=true
@@ -92,14 +102,33 @@ proxy between AI Bridge and AWS Bedrock.
    coder server
    ```
 
-### Additional providers and Model Proxies
+### Additional providers and model proxies
 
-AI Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
+If you use an internal LLM gateway (such as LiteLLM, Portkey, or a custom
+proxy), you can point AI Bridge at your gateway as the upstream endpoint instead
+of pointing directly at the provider. This lets Bridge handle authentication
+and audit logging while your existing gateway handles routing, load balancing,
+and failover.
 
-</div>
+Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
 
-> [!NOTE]
-> See the [Supported APIs](./reference.md#supported-apis) section below for precise endpoint coverage and interception behavior.
+Set the base URL for the upstream provider:
+
+```bash
+CODER_AIBRIDGE_OPENAI_BASE_URL=https://your-internal-gateway.example.com/v1
+```
+
+Bridge is complementary to existing gateways — it adds Coder-level identity
+attribution and audit logging on top of your existing routing infrastructure.
+
+> [NOTE]
+> See the [Supported APIs](./reference.md#supported-apis) section
+> for precise endpoint coverage and interception behavior.
+
+## Configure templates
+
+For per-client configuration details, see
+[Client Configuration](./clients/index.md).
 
 ## Data Retention
 
@@ -123,3 +152,27 @@ Set to `0` to retain data indefinitely.
 
 For duration formats, how retention works, and best practices, see the
 [Data Retention](../../admin/setup/data-retention.md) documentation.
+
+## Verify the setup
+
+After enabling AI Bridge and configuring a template:
+
+1. Launch a workspace from the configured template.
+2. Run an AI tool (e.g., Claude Code) inside the workspace.
+3. Verify that the request appears in the Coder audit logs or via the
+   [REST API / CLI export](./monitoring.md#exporting-data).
+4. Check that the response is returned successfully through Bridge.
+
+If you have the [Grafana dashboard](./monitoring.md) imported, you should see
+the request appear in the AI Bridge dashboards.
+
+## Next steps
+
+- [Client Configuration](./clients/index.md) — Configure specific AI tools to
+  use Bridge.
+- [Monitoring](./monitoring.md) — Set up observability, export data, and
+  configure tracing.
+- [MCP Tools Injection](./mcp.md) — Centrally configure MCP servers.
+- [AI Bridge Proxy](./ai-bridge-proxy/index.md) — Support tools behind corporate
+  proxies or without base URL overrides.
+- [Reference](./reference.md) — Full configuration reference.
