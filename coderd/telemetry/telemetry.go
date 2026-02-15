@@ -740,17 +740,19 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
-			OwnerID:        uuid.Nil,
-			OrganizationID: uuid.Nil,
-			Status:         "",
-		})
+		tasks, err := CollectTasks(ctx, r.options.Database)
 		if err != nil {
-			return err
+			return xerrors.Errorf("collect tasks telemetry: %w", err)
 		}
-		for _, dbTask := range dbTasks {
-			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
+		snapshot.Tasks = tasks
+		return nil
+	})
+	eg.Go(func() error {
+		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("collect task events telemetry: %w", err)
 		}
+		snapshot.TaskEvents = events
 		return nil
 	})
 	eg.Go(func() error {
@@ -900,6 +902,105 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 		PeriodStart:                now.Add(-r.options.SnapshotFrequency),
 		PeriodDurationMilliseconds: r.options.SnapshotFrequency.Milliseconds(),
 	}, nil
+}
+
+func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
+	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{
+		OwnerID:        uuid.Nil,
+		OrganizationID: uuid.Nil,
+		Status:         "",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("list tasks: %w", err)
+	}
+	if len(dbTasks) == 0 {
+		return []Task{}, nil
+	}
+
+	tasks := make([]Task, 0, len(dbTasks))
+	for _, dbTask := range dbTasks {
+		tasks = append(tasks, ConvertTask(dbTask))
+	}
+	return tasks, nil
+}
+
+// buildTaskEvent constructs a TaskEvent from the combined query row.
+func buildTaskEvent(
+	row database.GetTelemetryTaskEventsRow,
+	createdAfter time.Time,
+) TaskEvent {
+	event := TaskEvent{
+		TaskID: row.TaskID.String(),
+	}
+
+	hasStartBuild := row.StartBuildCreatedAt.Valid
+	hasStopBuild := row.StopBuildCreatedAt.Valid
+	startedAfterStop := hasStartBuild && hasStopBuild &&
+		row.StartBuildCreatedAt.Time.After(row.StopBuildCreatedAt.Time)
+	// The workspace is running if it was started without ever being
+	// stopped, or if it was restarted after the most recent stop.
+	running := (hasStartBuild && !hasStopBuild) || startedAfterStop
+
+	// Last paused (latest stop build).
+	if hasStopBuild {
+		event.LastPausedAt = &row.StopBuildCreatedAt.Time
+		switch {
+		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskAutoPause:
+			event.PauseReason = ptr.Ref("auto")
+		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskManualPause:
+			event.PauseReason = ptr.Ref("manual")
+		default:
+			event.PauseReason = ptr.Ref("other")
+		}
+	}
+
+	// Last resumed (latest start build that follows a stop build).
+	if startedAfterStop {
+		event.LastResumedAt = &row.StartBuildCreatedAt.Time
+	}
+
+	// Idle duration: time between last working status and latest stop.
+	if hasStopBuild && row.LastWorkingStatusAt.Valid &&
+		row.StopBuildCreatedAt.Time.After(row.LastWorkingStatusAt.Time) {
+		idle := row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time)
+		event.IdleDurationMS = ptr.Ref(idle.Milliseconds())
+	}
+
+	// Paused duration: time between latest stop and latest start,
+	// gated by createdAfter so only recent pairs are reported.
+	if startedAfterStop &&
+		row.StartBuildCreatedAt.Time.After(createdAfter) {
+		paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
+		event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
+	}
+
+	// Resume-to-status: time from the latest start build to the
+	// first app status reported after that start.
+	if running && row.FirstStatusAfterResumeAt.Valid {
+		delta := row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time)
+		event.ResumeToStatusMS = ptr.Ref(delta.Milliseconds())
+	}
+
+	return event
+}
+
+// CollectTaskEvents collects lifecycle events for tasks with recent activity.
+func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter time.Time) ([]TaskEvent, error) {
+	rows, err := db.GetTelemetryTaskEvents(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get telemetry task events: %w", err)
+	}
+	events := make([]TaskEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, buildTaskEvent(row, createdAfter))
+	}
+	return events, nil
+}
+
+// HashContent returns a SHA256 hash of the content as a hex string.
+// This is useful for hashing sensitive content like prompts for telemetry.
+func HashContent(content string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 }
 
 // ConvertAPIKey anonymizes an API key.
@@ -1370,6 +1471,7 @@ type Snapshot struct {
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
 	Tasks                                []Task                                `json:"tasks"`
+	TaskEvents                           []TaskEvent                           `json:"task_events"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
@@ -1931,25 +2033,34 @@ type Task struct {
 	WorkspaceAppID       *string   `json:"workspace_app_id"`
 	TemplateVersionID    string    `json:"template_version_id"`
 	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
-	CreatedAt            time.Time `json:"created_at"`
 	Status               string    `json:"status"`
+	CreatedAt            time.Time `json:"created_at"`
 }
 
-// ConvertTask anonymizes a Task.
+// TaskEvent represents lifecycle events for a task (pause/resume
+// cycles). The createdAfter parameter gates PausedDurationMS so
+// that only recent pause/resume pairs are reported.
+type TaskEvent struct {
+	TaskID           string     `json:"task_id"`
+	LastPausedAt     *time.Time `json:"last_paused_at"`
+	LastResumedAt    *time.Time `json:"last_resumed_at"`
+	PauseReason      *string    `json:"pause_reason"`
+	IdleDurationMS   *int64     `json:"idle_duration_ms"`
+	PausedDurationMS *int64     `json:"paused_duration_ms"`
+	ResumeToStatusMS *int64     `json:"resume_to_status_ms"`
+}
+
+// ConvertTask converts a database Task to a telemetry Task.
 func ConvertTask(task database.Task) Task {
-	t := &Task{
-		ID:                   task.ID.String(),
-		OrganizationID:       task.OrganizationID.String(),
-		OwnerID:              task.OwnerID.String(),
-		Name:                 task.Name,
-		WorkspaceID:          nil,
-		WorkspaceBuildNumber: nil,
-		WorkspaceAgentID:     nil,
-		WorkspaceAppID:       nil,
-		TemplateVersionID:    task.TemplateVersionID.String(),
-		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
-		CreatedAt:            task.CreatedAt,
-		Status:               string(task.Status),
+	t := Task{
+		ID:                task.ID.String(),
+		OrganizationID:    task.OrganizationID.String(),
+		OwnerID:           task.OwnerID.String(),
+		Name:              task.Name,
+		TemplateVersionID: task.TemplateVersionID.String(),
+		PromptHash:        HashContent(task.Prompt),
+		Status:            string(task.Status),
+		CreatedAt:         task.CreatedAt,
 	}
 	if task.WorkspaceID.Valid {
 		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
@@ -1963,7 +2074,7 @@ func ConvertTask(task database.Task) Task {
 	if task.WorkspaceAppID.Valid {
 		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
 	}
-	return *t
+	return t
 }
 
 type telemetryItemKey string
