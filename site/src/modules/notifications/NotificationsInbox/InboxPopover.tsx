@@ -101,7 +101,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 							<Button variant="outline" size="icon" asChild>
 								<RouterLink
 									to="/settings/notifications"
-									onClick={() => setIsOpen(false)}
+									onClick={() => handleOpenChange(false)}
 								>
 									<SettingsIcon />
 									<span className="sr-only">Notification settings</span>
