@@ -51,7 +51,7 @@ export const Notifications: FC<NotificationsProps> = ({
 				<TooltipContent
 					align="end"
 					collisionPadding={16}
-					className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
+					className="max-w-[400px] p-0 text-sm"
 					style={{
 						borderColor: theme.roles[severity].outline,
 					}}
@@ -95,11 +95,17 @@ interface NotificationItemProps {
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (
 		<article css={styles.notificationItem}>
-			<h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>
+			<h4 className="m-0 font-semibold text-content-primary">
+				{notification.title}
+			</h4>
 			{notification.detail && (
 				<p css={styles.notificationDetail}>{notification.detail}</p>
 			)}
-			<div className="mt-2 flex items-center gap-1">{notification.actions}</div>
+			{notification.actions && (
+				<div className="mt-3 flex justify-end items-center gap-1">
+					{notification.actions}
+				</div>
+			)}
 		</article>
 	);
 };
