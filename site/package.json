@@ -109,6 +109,7 @@
 		"remark-gfm": "4.0.1",
 		"resize-observer-polyfill": "1.5.1",
 		"semver": "7.7.3",
+		"sonner": "2.0.7",
 		"tailwind-merge": "2.6.0",
 		"tailwindcss-animate": "1.0.7",
 		"tzdata": "1.0.46",

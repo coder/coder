@@ -241,6 +241,9 @@ importers:
       semver:
         specifier: 7.7.3
         version: 7.7.3
+      sonner:
+        specifier: 2.0.7
+        version: 2.0.7(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
       tailwind-merge:
         specifier: 2.6.0
         version: 2.6.0
@@ -5711,6 +5714,12 @@ packages:
   smol-toml@1.5.2:
     resolution: {integrity: sha512-QlaZEqcAH3/RtNyet1IPIYPsEWAaYyXXv1Krsi+1L/QHppjX4Ifm8MQsBISz9vE8cHicIq3clogsheili5vhaQ==, tarball: https://registry.npmjs.org/smol-toml/-/smol-toml-1.5.2.tgz}
     engines: {node: '>= 18'}
+
+  sonner@2.0.7:
+    resolution: {integrity: sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==, tarball: https://registry.npmjs.org/sonner/-/sonner-2.0.7.tgz}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
+      react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==, tarball: https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz}
@@ -12450,6 +12459,11 @@ snapshots:
   slash@3.0.0: {}
 
   smol-toml@1.5.2: {}
+
+  sonner@2.0.7(react-dom@19.2.2(react@19.2.2))(react@19.2.2):
+    dependencies:
+      react: 19.2.2
+      react-dom: 19.2.2(react@19.2.2)
 
   source-map-js@1.2.1: {}
 

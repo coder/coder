@@ -1,4 +1,5 @@
 import "./theme/globalFonts";
+import { useTheme } from "@emotion/react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { TooltipProvider } from "components/Tooltip/Tooltip";
 import {
@@ -10,6 +11,7 @@ import {
 } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router";
+import { Toaster } from "sonner";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
@@ -23,6 +25,11 @@ const defaultQueryClient = new QueryClient({
 		},
 	},
 });
+
+const AppToaster: FC = () => {
+	const theme = useTheme();
+	return <Toaster position="bottom-right" theme={theme.palette.mode} />;
+};
 
 interface AppProvidersProps {
 	children: ReactNode;
@@ -57,6 +64,7 @@ export const AppProviders: FC<AppProvidersProps> = ({
 					<TooltipProvider delayDuration={100}>
 						{children}
 						<GlobalSnackbar />
+						<AppToaster />
 					</TooltipProvider>
 				</ThemeProvider>
 			</AuthProvider>

@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "Changelog",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View changelog",
+        "url": "/changelog/2.30"
+      }
+    ],
+    "labels": {
+      "summary": "Highlights of this release.",
+      "version": "2.30"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "2.30",
+  "title_markdown": "2.30",
+  "body": "Highlights of this release.",
+  "body_markdown": "Highlights of this release."
+}

@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/changelog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -980,6 +981,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
 			}
+
+			// Broadcast changelog notifications to all users for
+			// new versions. This must run after newAPI so that the
+			// database is wrapped with dbauthz.
+			changelogStore := changelog.NewStore()
+			go func() {
+				if err := changelog.BroadcastChangelog(ctx, logger.Named("changelog.broadcast"), sqlDB, coderAPI.Database, enqueuer, changelogStore); err != nil {
+					logger.Error(ctx, "failed to broadcast changelog", slog.Error(err))
+				}
+			}()
 
 			if vals.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
