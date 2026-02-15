@@ -2746,7 +2746,7 @@ func convertWorkspace(
 			Healthy:       len(failingAgents) == 0,
 			FailingAgents: failingAgents,
 		},
-		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
+		AutomaticUpdates: convertWorkspaceAutomaticUpdates(template.RequireActiveVersion, workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
@@ -2803,6 +2803,18 @@ func sharedWorkspaceActors(
 	}
 
 	return out
+}
+
+// convertWorkspaceAutomaticUpdates returns "always" when the template
+// requires the active version, regardless of the workspace-level
+// setting. This keeps API responses consistent with the actual
+// enforcement behavior so that all consumers (UI, CLI, etc.) see
+// the effective value.
+func convertWorkspaceAutomaticUpdates(templateRequireActiveVersion bool, ws database.AutomaticUpdates) codersdk.AutomaticUpdates {
+	if templateRequireActiveVersion {
+		return codersdk.AutomaticUpdatesAlways
+	}
+	return codersdk.AutomaticUpdates(ws)
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
