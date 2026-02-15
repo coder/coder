@@ -835,6 +835,10 @@ func New(options *Options) *API {
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})
 
+	// apiKeyMiddleware performs a full API key extraction including a
+	// database lookup. Use this only on routes that are NOT under a
+	// router that already applies apiKeyMiddlewareOptional (e.g. routes
+	// outside /api/v2 and /api/experimental such as /oauth2).
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
@@ -847,6 +851,12 @@ func New(options *Options) *API {
 		Logger:                        options.Logger,
 		AccessURL:                     options.AccessURL,
 	})
+	// apiKeyMiddlewareRequired is a lightweight check that the API key
+	// is already present in context. It must only be used on routes
+	// where apiKeyMiddlewareOptional runs earlier in the middleware
+	// chain (i.e. under /api/v2 and /api/experimental).
+	apiKeyMiddlewareRequired := httpmw.RequireAPIKeyMW()
+	apiKeyMiddlewareRequiredRedirect := httpmw.RequireAPIKeyMWRedirect()
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1054,6 +1064,9 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
+			// Extract API key optionally so the rate limiter can
+			// key by user ID instead of falling back to IP.
+			apiKeyMiddlewareOptional,
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
@@ -1064,7 +1077,7 @@ func New(options *Options) *API {
 		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
 		// where these routes must remain. These should be removed no earlier than Coder v2.30.0
 		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 
 			r.Get("/", api.tasksList)
 
@@ -1086,7 +1099,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
 			)
 			// MCP HTTP transport endpoint with mandatory authentication
@@ -1099,6 +1112,9 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
+			// Extract API key optionally so the rate limiter can
+			// key by user ID instead of falling back to IP.
+			apiKeyMiddlewareOptional,
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
@@ -1113,28 +1129,28 @@ func New(options *Options) *API {
 		r.Get("/buildinfo", buildInfoHandler(buildInfo))
 		// /regions is overridden in the enterprise version
 		r.Group(func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
+			// r.Use(apiKeyMiddlewareRequired)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
 		})
 		r.Route("/experiments", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 				// This middleware only checks the site and orgs for the audit_log read
 				// permission.
 				// In the future if it makes sense to have this permission on the user as
@@ -1161,7 +1177,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 				httpmw.RateLimit(options.FilesRateLimit, time.Minute),
 			)
 			r.Get("/{fileID}", api.fileByID)
@@ -1169,7 +1185,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 			)
 			// Get without a specific external auth ID will return all external auths.
 			r.Get("/", api.listUserExternalAuths)
@@ -1185,7 +1201,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 			)
 			r.Get("/", api.organizations)
 			r.Route("/{organization}", func(r chi.Router) {
@@ -1247,7 +1263,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/templates", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 			)
 			r.Get("/", api.fetchTemplates(nil))
 			r.Get("/examples", api.templateExamples)
@@ -1270,7 +1286,7 @@ func New(options *Options) *API {
 
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
 			r.Get("/", api.templateVersion)
@@ -1339,7 +1355,7 @@ func New(options *Options) *API {
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(
-					apiKeyMiddleware,
+					apiKeyMiddlewareRequired,
 				)
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
@@ -1486,7 +1502,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 			)
 			r.Get("/", api.workspaces)
 			r.Route("/{workspace}", func(r chi.Router) {
@@ -1533,7 +1549,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -1547,18 +1563,18 @@ func New(options *Options) *API {
 			r.Get("/timings", api.workspaceBuildTimings)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 			r.Post("/", api.checkAuthorization)
 		})
 		r.Route("/applications", func(r chi.Router) {
 			r.Route("/host", func(r chi.Router) {
 				// Don't leak the hostname to unauthenticated users.
-				r.Use(apiKeyMiddleware)
+				r.Use(apiKeyMiddlewareRequired)
 				r.Get("/", api.appHost)
 			})
 			r.Route("/auth-redirect", func(r chi.Router) {
 				// We want to redirect to login if they are not authenticated.
-				r.Use(apiKeyMiddlewareRedirect)
+				r.Use(apiKeyMiddlewareRequiredRedirect)
 
 				// This is a GET request as it's redirected to by the subdomain app
 				// handler and the login page.
@@ -1566,7 +1582,7 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/insights", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 			r.Group(func(r chi.Router) {
 				r.Use(
 					func(next http.Handler) http.Handler {
@@ -1593,7 +1609,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 				// Ensure only users with the debug_info:read (e.g. only owners)
 				// can view debug endpoints.
 				func(next http.Handler) http.Handler {
@@ -1667,7 +1683,7 @@ func New(options *Options) *API {
 		// Manage OAuth2 applications that can use Coder as an OAuth2 provider.
 		r.Route("/oauth2-provider", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
+				apiKeyMiddlewareRequired,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 			)
 			r.Route("/apps", func(r chi.Router) {
@@ -1693,7 +1709,7 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/notifications", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 			r.Route("/inbox", func(r chi.Router) {
 				r.Get("/", api.listInboxNotifications)
 				r.Put("/mark-all-as-read", api.markAllInboxNotificationsAsRead)
@@ -1711,14 +1727,14 @@ func New(options *Options) *API {
 			r.Post("/custom", api.postCustomNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 			r.Get("/", api.tailnetRPCConn)
 		})
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
 		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(apiKeyMiddlewareRequired)
 
 			r.Get("/", api.tasksList)
 

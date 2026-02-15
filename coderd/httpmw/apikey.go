@@ -149,6 +149,52 @@ func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireAPIKeyMW is a lightweight middleware that enforces the presence
+// of an API key in the request context. It is designed to be used
+// deeper in the route tree *after* ExtractAPIKeyMW(Optional: true) has
+// already run at the top level. Unlike ExtractAPIKeyMW, it never
+// touches the database — it only checks for a key that was previously
+// extracted and stored in the context.
+//
+// If the key is missing, it returns 401 Unauthorized.
+// See [RequireAPIKeyMWRedirect] for the variant that redirects to
+// the login page instead.
+func RequireAPIKeyMW() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if _, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey); ok {
+				next.ServeHTTP(rw, r)
+				return
+			}
+
+			response := codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
+			}
+			// Add WWW-Authenticate header for 401 responses
+			// (matches ExtractAPIKeyMW behavior).
+			rw.Header().Set("WWW-Authenticate", "Bearer")
+			httpapi.Write(r.Context(), rw, http.StatusUnauthorized, response)
+		})
+	}
+}
+
+// RequireAPIKeyMWRedirect behaves like [RequireAPIKeyMW] but redirects
+// to the login page when the API key is absent instead of returning a
+// JSON 401 response.
+func RequireAPIKeyMWRedirect() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if _, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey); ok {
+				next.ServeHTTP(rw, r)
+				return
+			}
+
+			RedirectToLogin(rw, r, nil, SignedOutErrorMessage)
+		})
+	}
+}
+
 func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
 	tokenFunc := APITokenFromRequest
 	if sessionTokenFunc != nil {
@@ -208,6 +254,16 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 // nolint:revive
 func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyConfig) (*database.APIKey, *rbac.Subject, bool) {
 	ctx := r.Context()
+
+	// If the API key was already extracted by a prior middleware (e.g.
+	// the optional extractor at the top of the route tree), return it
+	// immediately to avoid a redundant database lookup.
+	if existingKey, ok := ctx.Value(apiKeyContextKey{}).(database.APIKey); ok {
+		if existingAuthz, ok := dbauthz.ActorFromContext(ctx); ok {
+			return &existingKey, &existingAuthz, true
+		}
+	}
+
 	// Write wraps writing a response to redirect if the handler
 	// specified it should. This redirect is used for user-facing pages
 	// like workspace applications.
