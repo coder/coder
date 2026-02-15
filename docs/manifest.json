@@ -2015,6 +2015,11 @@
 							"path": "reference/cli/task_pause.md"
 						},
 						{
+							"title": "task resume",
+							"description": "Resume a task",
+							"path": "reference/cli/task_resume.md"
+						},
+						{
 							"title": "task send",
 							"description": "Send input to a task",
 							"path": "reference/cli/task_send.md"

@@ -22,5 +22,6 @@ coder task
 | [<code>list</code>](./task_list.md)     | List tasks                 |
 | [<code>logs</code>](./task_logs.md)     | Show a task's logs         |
 | [<code>pause</code>](./task_pause.md)   | Pause a task               |
+| [<code>resume</code>](./task_resume.md) | Resume a task              |
 | [<code>send</code>](./task_send.md)     | Send input to a task       |
 | [<code>status</code>](./task_status.md) | Show the status of a task. |
