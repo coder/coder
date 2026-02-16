@@ -387,7 +387,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			// Gateway and similar clients. If no connect key
 			// is stored, this returns empty and the server
 			// allows or denies based on its policy.
-			connectProof, _ := ObtainConnectProof(r.createConfig())
+			connectProof, _ := ObtainConnectProof(r.createConfig(), workspace.Name)
 
 			conn, err := wsClient.
 				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
@@ -396,7 +396,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					EnableTelemetry: !r.disableNetworkTelemetry,
 					ConnectProof:    connectProof,
 					OnConnectAuthRequired: func() (string, error) {
-						return ObtainConnectProof(r.createConfig())
+						return ObtainConnectProof(r.createConfig(), workspace.Name)
 					},
 				})
 			if err != nil {

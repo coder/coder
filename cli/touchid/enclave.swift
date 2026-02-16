@@ -82,6 +82,7 @@ public func swiftSEGenerate(
 public func swiftSESign(
     _ dataRepB64: UnsafePointer<CChar>,
     _ messageB64: UnsafePointer<CChar>,
+    _ reason: UnsafePointer<CChar>,
     _ sigOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
     _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>
 ) -> Int32 {
@@ -93,6 +94,8 @@ public func swiftSESign(
         errorOut.pointee = strdup("invalid base64 message")
         return -1
     }
+
+    let reasonStr = String(cString: reason)
 
     // Require biometric authentication BEFORE signing. This call
     // shows the macOS Touch ID dialog. The signing only proceeds
@@ -108,7 +111,7 @@ public func swiftSESign(
 
     context.evaluatePolicy(
         .deviceOwnerAuthenticationWithBiometrics,
-        localizedReason: "Coder needs your fingerprint for a secure workspace connection"
+        localizedReason: reasonStr
     ) { success, error in
         authSuccess = success
         authError = error

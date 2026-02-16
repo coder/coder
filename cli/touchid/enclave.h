@@ -21,15 +21,17 @@ int swift_se_generate(
     char **error_out);
 
 // Sign message bytes using a Secure Enclave key.
-// Triggers Touch ID prompt.
+// Triggers Touch ID prompt with the given reason string.
 // data_rep_b64: base64 dataRepresentation of the private key.
 // message_b64: base64 message to sign.
+// reason: text shown in the Touch ID dialog.
 // On success (return 0): sig_out is base64 DER signature.
 // On error (return -1): error_out is set.
 // On user cancel (return 2): error_out is set.
 int swift_se_sign(
     const char *data_rep_b64,
     const char *message_b64,
+    const char *reason,
     char **sig_out,
     char **error_out);
 

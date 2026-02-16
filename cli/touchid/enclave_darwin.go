@@ -62,16 +62,18 @@ func GenerateKey() (publicKeyB64 string, dataRepB64 string, err error) {
 // Sign signs the given base64-encoded message using the Secure
 // Enclave key identified by its dataRepresentation. This triggers
 // a Touch ID prompt. Returns the base64-encoded DER ECDSA signature.
-func Sign(dataRepB64, messageB64 string) (string, error) {
+func Sign(dataRepB64, messageB64, reason string) (string, error) {
 	cDataRep := C.CString(dataRepB64)
 	cMsg := C.CString(messageB64)
+	cReason := C.CString(reason)
 	defer C.free(unsafe.Pointer(cDataRep))
 	defer C.free(unsafe.Pointer(cMsg))
+	defer C.free(unsafe.Pointer(cReason))
 
 	var cSig *C.char
 	var cErr *C.char
 
-	status := C.swift_se_sign(cDataRep, cMsg, &cSig, &cErr)
+	status := C.swift_se_sign(cDataRep, cMsg, cReason, &cSig, &cErr)
 	defer func() {
 		if cSig != nil {
 			C.free(unsafe.Pointer(cSig))

@@ -9,7 +9,7 @@ func IsAvailable() bool { return false }
 func GenerateKey() (string, string, error) { return "", "", ErrNotAvailable }
 
 // Sign is not supported on this platform.
-func Sign(_, _ string) (string, error) { return "", ErrNotAvailable }
+func Sign(_, _, _ string) (string, error) { return "", ErrNotAvailable }
 
 // DeleteKey is not supported on this platform.
 func DeleteKey(_ string) error { return ErrNotAvailable }

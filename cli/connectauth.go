@@ -63,9 +63,11 @@ func TeardownConnectAuth(cfg config.Root) {
 // ObtainConnectProof signs the current timestamp with the Secure
 // Enclave key (triggering Touch ID) and returns the encoded
 // proof string suitable for the Coder-Connect-Proof header.
+// The workspaceName is shown in the Touch ID dialog so the user
+// knows which workspace they're authenticating for.
 // Returns empty string if Touch ID is not available or no connect
 // key is stored.
-func ObtainConnectProof(cfg config.Root) (string, error) {
+func ObtainConnectProof(cfg config.Root, workspaceName string) (string, error) {
 	if !touchid.IsAvailable() {
 		return "", nil
 	}
@@ -78,11 +80,16 @@ func ObtainConnectProof(cfg config.Root) (string, error) {
 		return "", nil
 	}
 
+	reason := "Coder needs your fingerprint for a secure workspace connection"
+	if workspaceName != "" {
+		reason = fmt.Sprintf("Coder: connect to workspace '%s'", workspaceName)
+	}
+
 	timestamp := time.Now().Unix()
 	tsStr := strconv.FormatInt(timestamp, 10)
 	tsB64 := base64.StdEncoding.EncodeToString([]byte(tsStr))
 
-	sigB64, err := touchid.Sign(dataRepB64, tsB64)
+	sigB64, err := touchid.Sign(dataRepB64, tsB64, reason)
 	if err != nil {
 		return "", xerrors.Errorf("Touch ID sign: %w", err)
 	}
