@@ -2579,7 +2579,7 @@ export interface License {
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
-export const LicenseManagedAgentLimitExceededErrorText =
+export const LicenseManagedAgentLimitExceededWarningText =
 	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go

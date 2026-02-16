@@ -1,5 +1,5 @@
 import {
-	LicenseManagedAgentLimitExceededErrorText,
+	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "api/typesGenerated";
 import { Expander } from "components/Expander/Expander";
@@ -20,7 +20,7 @@ const formatMessage = (message: string) => {
 const messageLinkProps = (
 	message: string,
 ): Pick<React.ComponentProps<typeof Link>, "href" | "children" | "target"> => {
-	if (message === LicenseManagedAgentLimitExceededErrorText) {
+	if (message === LicenseManagedAgentLimitExceededWarningText) {
 		return {
 			href: docs("/ai-coder/ai-governance"),
 			children: "View AI Governance",

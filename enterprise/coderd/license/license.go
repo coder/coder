@@ -578,7 +578,7 @@ func LicensesEntitlements(
 				}
 				if managedAgentCount >= *agentLimit.Limit {
 					entitlements.Warnings = append(entitlements.Warnings,
-						codersdk.LicenseManagedAgentLimitExceededErrorText)
+						codersdk.LicenseManagedAgentLimitExceededWarningText)
 				} else if managedAgentCount >= softWarningThreshold {
 					entitlements.Warnings = append(entitlements.Warnings,
 						"You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
