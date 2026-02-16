@@ -189,11 +189,17 @@ type DialAgentOptions struct {
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
 	// OnConnectAuthRequired is called when the server rejects the
-	// connection with a connect-auth requirement (403 with
-	// "connect-auth" in the message). The callback should return
-	// a Coder-Connect-Proof header value, or an error. If nil,
-	// connect-auth failures are treated as permanent errors.
+	// connection with a connect-auth requirement (403). The
+	// callback should return a Coder-Connect-Proof header value,
+	// or an error. If nil, connect-auth failures are treated as
+	// permanent errors.
 	OnConnectAuthRequired func() (string, error)
+	// ConnectProof is a pre-obtained connect-auth proof to include
+	// on the first dial attempt. This avoids a 403 round-trip that
+	// can cause timeouts in clients like JetBrains Gateway. If
+	// empty, the dialer obtains a proof reactively via
+	// OnConnectAuthRequired when the server returns 403.
+	ConnectProof string
 }
 
 // RewriteDERPMap rewrites the DERP map to use the configured access URL of the
@@ -241,6 +247,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 
 	dialer := NewWebsocketDialer(options.Logger, coordinateURL, wsOptions)
 	dialer.onConnectAuthRequired = options.OnConnectAuthRequired
+	dialer.connectProof = options.ConnectProof
 	clk := quartz.NewReal()
 	controller := tailnet.NewController(options.Logger, dialer)
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)

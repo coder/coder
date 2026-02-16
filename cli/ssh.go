@@ -381,11 +381,20 @@ func (r *RootCmd) ssh() *serpent.Command {
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
+			// Obtain a connect-auth proof before dialing so the
+			// first attempt includes it. This avoids a 403
+			// round-trip that causes timeouts in JetBrains
+			// Gateway and similar clients. If no connect key
+			// is stored, this returns empty and the server
+			// allows or denies based on its policy.
+			connectProof, _ := ObtainConnectProof(r.createConfig())
+
 			conn, err := wsClient.
 				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
 					Logger:          logger,
 					BlockEndpoints:  r.disableDirect,
 					EnableTelemetry: !r.disableNetworkTelemetry,
+					ConnectProof:    connectProof,
 					OnConnectAuthRequired: func() (string, error) {
 						return ObtainConnectProof(r.createConfig())
 					},

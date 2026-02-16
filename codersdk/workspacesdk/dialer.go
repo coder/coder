@@ -104,8 +104,6 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 	}
 	u.RawQuery = q.Encode()
 
-	// If we have a connect-auth proof from a previous attempt, add
-	// it to the dial options.
 	dialOpts := w.dialOptions
 	if w.connectProof != "" {
 		dialOpts = cloneDialOptions(w.dialOptions)

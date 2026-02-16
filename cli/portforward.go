@@ -121,6 +121,8 @@ func (r *RootCmd) portForward() *serpent.Command {
 			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
 			}
+			connectProof, _ := ObtainConnectProof(r.createConfig())
+			opts.ConnectProof = connectProof
 			opts.OnConnectAuthRequired = func() (string, error) {
 				return ObtainConnectProof(r.createConfig())
 			}
