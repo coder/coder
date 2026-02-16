@@ -16,7 +16,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { createMockWebSocket } from "testHelpers/websockets";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { DynamicParametersResponse } from "api/typesGenerated";
@@ -137,9 +137,10 @@ describe("CreateWorkspacePage", () => {
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 
-			const instanceTypeSelect = screen.getByRole("button", {
-				name: /instance type/i,
-			});
+			const instanceTypeField = screen.getByTestId(
+				"parameter-field-instance_type",
+			);
+			const instanceTypeSelect = within(instanceTypeField).getByRole("button");
 			expect(instanceTypeSelect).toBeInTheDocument();
 
 			jest.useFakeTimers();
@@ -474,6 +475,12 @@ describe("CreateWorkspacePage", () => {
 			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
+
+			// Consent dialog appears for mode=auto — confirm to proceed.
+			const confirmButton = await screen.findByRole("button", {
+				name: /confirm and create/i,
+			});
+			await userEvent.click(confirmButton);
 
 			await waitForLoaderToBeRemoved();
 

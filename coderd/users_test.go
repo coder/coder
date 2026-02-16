@@ -349,7 +349,7 @@ func TestDeleteUser(t *testing.T) {
 		err := client.DeleteUser(context.Background(), firstUser.UserID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 	t.Run("HasWorkspaces", func(t *testing.T) {
 		t.Parallel()
@@ -1010,7 +1010,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		// Right now, we are raising a BAD request error because we don't support a
 		// user accessing other users info
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
 	t.Run("ConflictingUsername", func(t *testing.T) {
@@ -2602,7 +2602,7 @@ func TestUserAutofillParameters(t *testing.T) {
 
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 
 		// u1 should be able to read u2's parameters as u1 is site admin.
 		_, err = client1.UserAutofillParameters(

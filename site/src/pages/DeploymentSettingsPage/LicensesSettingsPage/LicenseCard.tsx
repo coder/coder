@@ -29,6 +29,10 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 
 	const currentUserLimit = license.claims.features.user_limit || userLimitLimit;
 
+	const isExpired = dayjs
+		.unix(license.claims.license_expires)
+		.isBefore(dayjs());
+
 	const licenseType = license.claims.trial
 		? "Trial"
 		: license.claims.feature_set?.toLowerCase() === "premium"
@@ -57,7 +61,11 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				title="Confirm License Removal"
 				confirmLoading={isRemoving}
 				confirmText="Remove"
-				description="Removing this license will disable all Premium features. You add a new license at any time."
+				description={
+					isExpired
+						? "This license has already expired and is not providing any features. Removing it will not affect your current entitlements."
+						: "Removing this license will disable all Premium features. You can add a new license at any time."
+				}
 			/>
 			<Stack
 				direction="row"
@@ -86,25 +94,15 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						</span>
 					</Stack>
 					{license.claims.nbf && (
-						<Stack
-							direction="column"
-							spacing={0}
-							alignItems="center"
-							width="134px" // standardize width of date column
-						>
+						<Stack direction="column" spacing={0} alignItems="center">
 							<span css={styles.secondaryMaincolor}>Valid From</span>
 							<span css={styles.licenseExpires} className="license-valid-from">
 								{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
 							</span>
 						</Stack>
 					)}
-					<Stack
-						direction="column"
-						spacing={0}
-						alignItems="center"
-						width="134px" // standardize width of date column
-					>
-						{dayjs(license.claims.license_expires * 1000).isBefore(dayjs()) ? (
+					<Stack direction="column" spacing={0} alignItems="center">
+						{isExpired ? (
 							<Pill css={styles.expiredBadge} type="error">
 								Expired
 							</Pill>

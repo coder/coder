@@ -4,7 +4,6 @@
  */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
 // Be careful when changing the child styles from the button such as images
@@ -58,31 +57,34 @@ const buttonVariants = cva(
 	},
 );
 
-export interface ButtonProps
-	extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-		VariantProps<typeof buttonVariants> {
-	asChild?: boolean;
-}
+export type ButtonProps = React.ComponentPropsWithRef<"button"> &
+	VariantProps<typeof buttonVariants> & {
+		asChild?: boolean;
+	};
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-	({ className, variant, size, asChild = false, ...props }, ref) => {
-		const Comp = asChild ? Slot : "button";
-		return (
-			<Comp
-				{...props}
-				ref={ref}
-				className={cn(buttonVariants({ variant, size }), className)}
-				// Adding default button type to make sure that buttons don't
-				// accidentally trigger form actions when clicked. But because
-				// this Button component is so polymorphic (it's also used to
-				// make <a> elements look like buttons), we can only safely
-				// default to adding the prop when we know that we're rendering
-				// a real HTML button instead of an arbitrary Slot. Adding the
-				// type attribute to any non-buttons will produce invalid HTML
-				type={
-					props.type === undefined && Comp === "button" ? "button" : props.type
-				}
-			/>
-		);
-	},
-);
+export const Button: React.FC<ButtonProps> = ({
+	className,
+	variant,
+	size,
+	asChild = false,
+	...props
+}) => {
+	const Comp = asChild ? Slot : "button";
+
+	// We want `type` to default to `"button"` when the component is not being
+	// used as a `Slot`. The default behavior of any given `<button>` element is
+	// to submit the closest parent `<form>` because Web Platform reasons. This
+	// prevents that. However, we don't want to set it on non-`<button>`s when
+	// `asChild` is set.
+	// https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/button#type
+	if (!asChild && !props.type) {
+		props.type = "button";
+	}
+
+	return (
+		<Comp
+			{...props}
+			className={cn(buttonVariants({ variant, size }), className)}
+		/>
+	);
+};

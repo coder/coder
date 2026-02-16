@@ -2015,6 +2015,11 @@
 							"path": "reference/cli/task_logs.md"
 						},
 						{
+							"title": "task pause",
+							"description": "Pause a task",
+							"path": "reference/cli/task_pause.md"
+						},
+						{
 							"title": "task send",
 							"description": "Send input to a task",
 							"path": "reference/cli/task_send.md"

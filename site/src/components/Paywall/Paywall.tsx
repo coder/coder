@@ -13,7 +13,7 @@ export const Paywall = ({
 		<div
 			className={cn(
 				"flex flex-row items-center justify-center min-h-[280px] p-4 rounded-lg gap-8",
-				"border border-solid border-border-purple bg-[linear-gradient(160deg,transparent,hsl(var(--surface-purple)))]",
+				"border border-solid border-border-magenta bg-[linear-gradient(160deg,transparent,hsl(var(--surface-magenta)))]",
 				className,
 			)}
 			{...props}
@@ -101,7 +101,7 @@ export const PaywallSeparator: FC<React.ComponentProps<"hr">> = ({
 	return (
 		<hr
 			className={cn(
-				"w-0 h-[220px] border-0 border-l border-highlight-purple/50 ml-2 mr-0",
+				"w-0 h-[220px] border-0 border-l border-highlight-magenta/50 ml-2 mr-0",
 				className,
 			)}
 			{...props}
@@ -182,10 +182,7 @@ const FeatureIcon: FC<React.ComponentProps<"svg">> = ({
 	return (
 		<CircleCheckBigIcon
 			aria-hidden="true"
-			className="size-icon-sm"
-			css={(theme) => ({
-				color: theme.branding.premium.border,
-			})}
+			className={cn("size-icon-sm text-border-magenta", className)}
 			{...props}
 		/>
 	);

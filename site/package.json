@@ -32,7 +32,7 @@
 		"test:watch": "vitest",
 		"test:watch-jest": "jest --watch",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
+		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png"
 	},
 	"dependencies": {
 		"@emoji-mart/data": "1.2.1",
@@ -41,7 +41,7 @@
 		"@emotion/css": "11.13.5",
 		"@emotion/react": "11.14.0",
 		"@emotion/styled": "11.14.1",
-		"@fontsource-variable/inter": "5.2.8",
+		"@fontsource-variable/geist": "5.2.8",
 		"@fontsource/fira-code": "5.2.7",
 		"@fontsource/ibm-plex-mono": "5.2.7",
 		"@fontsource/jetbrains-mono": "5.2.8",

@@ -3,11 +3,11 @@
 		"enabled": true,
 		"clientKind": "git",
 		"useIgnoreFile": true,
-		"defaultBranch": "main"
+		"defaultBranch": "main",
 	},
 	"files": {
 		"includes": ["**", "!**/pnpm-lock.yaml"],
-		"ignoreUnknown": true
+		"ignoreUnknown": true,
 	},
 	"linter": {
 		"rules": {
@@ -15,18 +15,18 @@
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
 				"useSemanticElements": "off",
-				"noStaticElementInteractions": "off"
+				"noStaticElementInteractions": "off",
 			},
-		"correctness": {
-			"noUnusedImports": "warn",
+			"correctness": {
+				"noUnusedImports": "warn",
 				"useUniqueElementIds": "off", // TODO: This is new but we want to fix it
 				"noNestedComponentDefinitions": "off", // TODO: Investigate, since it is used by shadcn components
-			"noUnusedVariables": {
-				"level": "warn",
+				"noUnusedVariables": {
+					"level": "warn",
 					"options": {
-						"ignoreRestSiblings": true
-					}
-				}
+						"ignoreRestSiblings": true,
+					},
+				},
 			},
 			"style": {
 				"noNonNullAssertion": "off",
@@ -45,6 +45,10 @@
 					"level": "error",
 					"options": {
 						"paths": {
+							"react": {
+								"message": "React 19 no longer requires forwardRef. Use ref as a prop instead.",
+								"importNames": ["forwardRef"],
+							},
 							// "@mui/material/Alert": "Use components/Alert/Alert instead.",
 							// "@mui/material/AlertTitle": "Use components/Alert/Alert instead.",
 							// "@mui/material/Autocomplete": "Use shadcn/ui Combobox instead.",
@@ -111,10 +115,10 @@
 							"@emotion/styled": "Use Tailwind CSS instead.",
 							// "@emotion/cache": "Use Tailwind CSS instead.",
 							// "components/Stack/Stack": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>).",
-							"lodash": "Use lodash/<name> instead."
-						}
-					}
-				}
+							"lodash": "Use lodash/<name> instead.",
+						},
+					},
+				},
 			},
 			"suspicious": {
 				"noArrayIndexKey": "off",
@@ -125,14 +129,14 @@
 				"noConsole": {
 					"level": "error",
 					"options": {
-						"allow": ["error", "info", "warn"]
-					}
-				}
+						"allow": ["error", "info", "warn"],
+					},
+				},
 			},
 			"complexity": {
-				"noImportantStyles": "off" // TODO: check and fix !important styles
-			}
-		}
+				"noImportantStyles": "off", // TODO: check and fix !important styles
+			},
+		},
 	},
-	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 }
