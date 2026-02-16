@@ -72,27 +72,20 @@ func (r *RootCmd) taskResume() *serpent.Command {
 			resp, err := client.ResumeTask(ctx, task.OwnerName, task.ID)
 			if err != nil {
 				return xerrors.Errorf("resume task %q: %w", display, err)
-			}
-
-			if noWait {
-				_, _ = fmt.Fprintf(inv.Stdout, "The %s task is resuming in no-wait mode. Task is initializing in the background.\n", cliui.Keyword(task.Name))
-				return nil
-			}
-
-			if resp.WorkspaceBuild == nil {
+			} else if resp.WorkspaceBuild == nil {
 				return xerrors.Errorf("resume task %q: no workspace build returned", display)
 			}
 
-			err = cliui.WorkspaceBuild(ctx, inv.Stdout, client, resp.WorkspaceBuild.ID)
-			if err != nil {
+			if noWait {
+				_, _ = fmt.Fprintf(inv.Stdout, "Resuming task %q in the background.\n", cliui.Keyword(display))
+				return nil
+			}
+
+			if err = cliui.WorkspaceBuild(ctx, inv.Stdout, client, resp.WorkspaceBuild.ID); err != nil {
 				return xerrors.Errorf("watch resume build for task %q: %w", display, err)
 			}
 
-			_, _ = fmt.Fprintf(
-				inv.Stdout,
-				"\nThe %s task has been resumed.\n",
-				cliui.Keyword(task.Name),
-			)
+			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s task has been resumed.\n", cliui.Keyword(display))
 			return nil
 		},
 	}
