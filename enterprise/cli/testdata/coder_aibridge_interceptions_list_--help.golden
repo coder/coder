@@ -11,7 +11,7 @@ OPTIONS:
           cursor.
 
       --client string
-          Only return interceptions from this client name.
+          Only return interceptions from this client.
 
       --initiator string
           Only return interceptions initiated by this user. Accepts a user ID,
