@@ -962,6 +962,7 @@ export type BuildReason =
 	| "initiator"
 	| "jetbrains_connection"
 	| "ssh_connection"
+	| "task_auto_pause"
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
@@ -973,6 +974,7 @@ export const BuildReasons: BuildReason[] = [
 	"initiator",
 	"jetbrains_connection",
 	"ssh_connection",
+	"task_auto_pause",
 	"vscode_connection",
 ];
 

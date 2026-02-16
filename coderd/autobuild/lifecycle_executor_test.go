@@ -2019,5 +2019,11 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
 		assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID], "should autostop the workspace")
 		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
+
+		// Then: The build reason should be TaskAutoPause (not regular Autostop)
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		assert.Equal(t, codersdk.BuildReasonTaskAutoPause, workspace.LatestBuild.Reason, "task workspace should use TaskAutoPause build reason")
 	})
 }

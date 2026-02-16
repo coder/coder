@@ -96,7 +96,12 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 	return undefined;
 };
 
-export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
+export const systemBuildReasons = [
+	"autostart",
+	"autostop",
+	"dormancy",
+	"task_auto_pause",
+];
 
 export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	// User build reasons
@@ -111,6 +116,7 @@ export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	autostart: "Autostart",
 	autostop: "Autostop",
 	dormancy: "Dormancy",
+	task_auto_pause: "Task Auto-Pause",
 };
 
 const getWorkspaceBuildDurationInSeconds = (

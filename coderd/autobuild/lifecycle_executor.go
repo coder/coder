@@ -525,10 +525,18 @@ func getNextTransition(
 ) {
 	switch {
 	case isEligibleForAutostop(user, ws, latestBuild, latestJob, currentTick):
+		// Use task-specific reason for AI task workspaces.
+		if ws.TaskID.Valid {
+			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
+		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
+		// Use task-specific reason for AI task workspaces.
+		if ws.TaskID.Valid {
+			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
+		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.
