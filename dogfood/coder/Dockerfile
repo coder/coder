@@ -1,5 +1,5 @@
 # 1.86.0
-FROM rust:slim@sha256:760ad1d638d70ebbd0c61e06210e1289cbe45ff6425e3ea6e01241de3e14d08e AS rust-utils
+FROM rust:slim@sha256:9663b80a1621253d30b146454f903de48f0af925c967be48c84745537cd35d8b AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages

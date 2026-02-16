@@ -1131,6 +1131,7 @@ func (api *API) convertTemplate(
 		RequireActiveVersion:    templateAccessControl.RequireActiveVersion,
 		Deprecated:              templateAccessControl.IsDeprecated(),
 		DeprecationMessage:      templateAccessControl.Deprecated,
+		Deleted:                 template.Deleted,
 		MaxPortShareLevel:       maxPortShareLevel,
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
 		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
