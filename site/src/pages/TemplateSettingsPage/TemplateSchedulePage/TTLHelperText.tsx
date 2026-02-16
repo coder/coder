@@ -22,8 +22,20 @@ export const DefaultTTLHelperText = (props: { ttl?: number }) => {
 	);
 };
 
-export const ActivityBumpHelperText = (props: { bump?: number }) => {
-	const { bump = 0 } = props;
+export const ActivityBumpHelperText = (props: {
+	bump?: number;
+	defaultTTL?: number;
+}) => {
+	const { bump = 0, defaultTTL = 0 } = props;
+
+	if (!defaultTTL) {
+		return (
+			<span>
+				Activity bump only applies when a default TTL is configured. Set a
+				default TTL above to enable activity bumping.
+			</span>
+		);
+	}
 
 	// Error will show once field is considered touched
 	if (bump < 0) {
