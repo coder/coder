@@ -2,7 +2,7 @@ import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Paper from "@mui/material/Paper";
 import type { GetLicensesResponse } from "api/api";
 import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
@@ -28,6 +28,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	>(undefined);
 
 	const currentUserLimit = license.claims.features.user_limit || userLimitLimit;
+	const confirmationName = licenseIDMarkedForRemoval?.toString() ?? "";
 
 	const licenseType = license.claims.trial
 		? "Trial"
@@ -42,22 +43,23 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			css={styles.licenseCard}
 			className="license-card"
 		>
-			<ConfirmDialog
-				type="delete"
-				hideCancel={false}
-				open={licenseIDMarkedForRemoval !== undefined}
+			<DeleteDialog
+				key={licenseIDMarkedForRemoval}
+				isOpen={licenseIDMarkedForRemoval !== undefined}
 				onConfirm={() => {
-					if (!licenseIDMarkedForRemoval) {
-						return;
-					}
+					if (!licenseIDMarkedForRemoval) return;
 					onRemove(licenseIDMarkedForRemoval);
 					setLicenseIDMarkedForRemoval(undefined);
 				}}
-				onClose={() => setLicenseIDMarkedForRemoval(undefined)}
-				title="Confirm License Removal"
-				confirmLoading={isRemoving}
+				onCancel={() => setLicenseIDMarkedForRemoval(undefined)}
+				entity="license"
+				name={confirmationName}
+				label="ID of the license to remove"
+				title="Confirm license removal"
+				verb="Removing"
 				confirmText="Remove"
-				description="Removing this license will disable all Premium features. You add a new license at any time."
+				info="Removing this license will disable all Premium features. You can add a new license at any time."
+				confirmLoading={isRemoving}
 			/>
 			<Stack
 				direction="row"
