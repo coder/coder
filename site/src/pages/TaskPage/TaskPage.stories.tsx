@@ -37,7 +37,14 @@ import type {
 	Workspace,
 	WorkspaceApp,
 } from "api/typesGenerated";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage from "./TaskPage";
 
@@ -77,34 +84,47 @@ const MockTaskLogsResponse: TaskLogsResponse = {
 	logs: [
 		{
 			id: 1,
+			content: "Implement JWT authentication with refresh token rotation.",
+			type: "input",
+			time: "2024-01-01T11:59:55Z",
+		},
+		{
+			id: 2,
 			content:
 				"I'll help you implement the authentication system. Let me start by examining the existing code structure.",
 			type: "output",
 			time: "2024-01-01T12:00:00Z",
 		},
 		{
-			id: 2,
+			id: 3,
 			content:
 				"Looking at the codebase, I can see the following relevant files:\n- src/auth/login.ts\n- src/auth/middleware.ts\n- src/models/user.ts",
 			type: "output",
 			time: "2024-01-01T12:00:05Z",
 		},
 		{
-			id: 3,
+			id: 4,
 			content:
 				"I'll now create the JWT token validation middleware. This will intercept all protected routes and verify the bearer token.",
 			type: "output",
 			time: "2024-01-01T12:00:10Z",
 		},
 		{
-			id: 4,
+			id: 5,
+			content:
+				"Looks good so far. Also add rate limiting to the token endpoint.",
+			type: "input",
+			time: "2024-01-01T12:00:12Z",
+		},
+		{
+			id: 6,
 			content:
 				"Successfully updated src/auth/middleware.ts with the new token validation logic.\nRunning tests to verify the changes...",
 			type: "output",
 			time: "2024-01-01T12:00:15Z",
 		},
 		{
-			id: 5,
+			id: 7,
 			content:
 				"All 12 tests passed. The authentication middleware is working correctly.\n\nNext, I'll add the refresh token rotation endpoint to prevent token reuse attacks.",
 			type: "output",
@@ -112,7 +132,7 @@ const MockTaskLogsResponse: TaskLogsResponse = {
 		},
 	],
 	snapshot: true,
-	snapshot_at: new Date().toISOString(),
+	snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
 };
 
 const meta: Meta<typeof TaskPage> = {
@@ -257,6 +277,31 @@ export const TaskPaused: Story = {
 			MockStoppedWorkspace,
 		);
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const TaskPausedSnapshotTooltip: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const tooltipTrigger = await canvas.findByRole("button", {
+			name: /info/i,
+		});
+		await userEvent.hover(tooltipTrigger);
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
+				/This log snapshot was taken/,
+			),
+		);
 	},
 };
 

@@ -13,6 +13,7 @@ import type {
 import isChromatic from "chromatic/isChromatic";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
@@ -45,7 +46,9 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
 import type { FixedSizeList } from "react-window";
+import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import { relativeTime } from "utils/time";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
@@ -327,12 +330,14 @@ type TaskLogPreviewProps = {
 	logs: readonly TaskLogEntry[];
 	maxMessages?: number;
 	headerAction?: ReactNode;
+	snapshotAt?: string;
 };
 
 const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	logs,
 	maxMessages = 30,
 	headerAction,
+	snapshotAt,
 }) => {
 	const visibleLogs = logs.slice(-maxMessages);
 	const scrollAreaRef = useScrollAreaAutoScroll([visibleLogs]);
@@ -341,14 +346,39 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 		<div className="w-full max-w-screen-lg mx-auto px-16">
 			<div className="border border-solid border-border rounded-lg overflow-hidden">
 				<div className="flex items-center justify-between px-4 py-2 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
-					<span>Last {maxMessages} messages of AI chat logs</span>
+					<span className="flex items-center gap-1.5">
+						Last {maxMessages} messages of AI chat logs
+						{snapshotAt && (
+							<InfoTooltip
+								type="info"
+								message={`This log snapshot was taken ${relativeTime(snapshotAt)}.`}
+							/>
+						)}
+					</span>
 					{headerAction}
 				</div>
 				<ScrollArea ref={scrollAreaRef} className="h-96">
 					<div className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words">
-						{visibleLogs.map((entry) => (
-							<div key={entry.id}>{entry.content || "\u00A0"}</div>
-						))}
+						{visibleLogs.map((entry, index) => {
+							const prev = visibleLogs[index - 1];
+							const isNewGroup = !prev || prev.type !== entry.type;
+							return (
+								<div
+									key={entry.id}
+									className={cn(
+										"pl-3 border-0 border-l-2 border-solid border-l-content-secondary",
+										isNewGroup && index > 0 && "mt-4",
+									)}
+								>
+									{isNewGroup && (
+										<div className="text-content-primary font-semibold mb-1">
+											{entry.type === "input" ? "[user]" : "[agent]"}
+										</div>
+									)}
+									{entry.content || "\u00A0"}
+								</div>
+							);
+						})}
 					</div>
 				</ScrollArea>
 			</div>
@@ -385,6 +415,7 @@ const TaskBuildFailed: FC<TaskBuildFailedProps> = ({ task, workspace }) => {
 			{hasLogs && (
 				<TaskLogPreview
 					logs={logsData.logs}
+					snapshotAt={logsData.snapshot_at}
 					headerAction={
 						<Button size="sm" variant="subtle" asChild>
 							<RouterLink to={buildLogsLink}>View full logs</RouterLink>
@@ -475,6 +506,7 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 			{hasLogs && (
 				<TaskLogPreview
 					logs={logsData.logs}
+					snapshotAt={logsData.snapshot_at}
 					headerAction={
 						<Button
 							size="sm"
