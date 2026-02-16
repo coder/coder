@@ -12,10 +12,6 @@ import {
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, lazy, Suspense, useState } from "react";
 
-// See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
-const urlFromUnifiedCode = (unified: string) =>
-	`/emojis/${unified.replace(/-fe0f$/, "")}.png`;
-
 type IconFieldProps = TextFieldProps & {
 	onPickEmoji: (value: string) => void;
 };
@@ -97,7 +93,7 @@ export const IconField: FC<IconFieldProps> = ({
 					<Suspense fallback={<Loader />}>
 						<EmojiPicker
 							onEmojiSelect={(emoji) => {
-								const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
+								const value = emoji.src ?? `/emojis/${emoji.unified}.png`;
 								onPickEmoji(value);
 								setOpen(false);
 							}}
