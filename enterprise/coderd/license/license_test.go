@@ -1476,8 +1476,6 @@ func TestUsageLimitFeatures(t *testing.T) {
 			t.Run("HardBelowSoft", func(t *testing.T) {
 				t.Parallel()
 
-				// When hard < soft, the soft limit is still used as Limit.
-				// This is valid now since limits are advisory only.
 				lic := database.License{
 					ID:         1,
 					UploadedAt: time.Now(),
@@ -1501,11 +1499,10 @@ func TestUsageLimitFeatures(t *testing.T) {
 
 				feature, ok := entitlements.Features[c.sdkFeatureName]
 				require.True(t, ok, "feature %s not found", c.sdkFeatureName)
-				require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
-				require.True(t, feature.Enabled)
-				require.NotNil(t, feature.Limit)
-				require.EqualValues(t, 100, *feature.Limit)
-				require.Empty(t, entitlements.Errors)
+				require.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+
+				require.Len(t, entitlements.Errors, 1)
+				require.Equal(t, fmt.Sprintf("Invalid license (%v): feature %s has a hard limit less than the soft limit", lic.UUID, c.sdkFeatureName), entitlements.Errors[0])
 			})
 
 			// Ensures that these features are ranked by issued at, not by

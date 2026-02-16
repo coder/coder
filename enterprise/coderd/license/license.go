@@ -420,6 +420,11 @@ func LicensesEntitlements(
 					fmt.Sprintf("Invalid license (%s): feature %s has missing soft or hard limit values", license.UUID.String(), featureName))
 				continue
 			}
+			if *ul.Hard < *ul.Soft {
+				entitlements.Errors = append(entitlements.Errors,
+					fmt.Sprintf("Invalid license (%s): feature %s has a hard limit less than the soft limit", license.UUID.String(), featureName))
+				continue
+			}
 			if *ul.Soft < 0 || *ul.Hard < 0 {
 				entitlements.Errors = append(entitlements.Errors,
 					fmt.Sprintf("Invalid license (%s): feature %s has a soft or hard limit less than 0", license.UUID.String(), featureName))
