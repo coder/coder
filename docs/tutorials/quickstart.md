@@ -106,13 +106,22 @@ If you plan to use the built-in PostgreSQL database, ensure that the
 [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 is installed.
 
-1. Use the
-   [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-   package manager to install Coder:
+1. Install Coder using one of these options:
 
-   ```powershell
-   winget install Coder.Coder
-   ```
+   - Use the
+     [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
+     package manager:
+
+     ```powershell
+     winget install Coder.Coder
+     ```
+
+   - If you already have access to a Coder deployment running version 2.19 or
+     newer, install the matching CLI version from that deployment:
+
+     ```powershell
+     irm https://your-coder-server/install.ps1 | iex
+     ```
 
 1. Start Coder:
 
@@ -281,7 +290,7 @@ Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder
 
    ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
 
-Congratulation! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. Learn more specifics about Coder Tasks [here](https://coder.com/docs/ai-coder/tasks).
+Congratulation! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. Learn more specifics in the [Coder Tasks documentation](https://coder.com/docs/ai-coder/tasks).
 
 ## Troubleshooting
 

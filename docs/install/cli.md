@@ -58,11 +58,27 @@ coder login https://coder.example.com
 ## Download the CLI from your deployment
 
 > [!NOTE]
-> Available in Coder 2.19 and newer on macOS and Linux clients only.
+> Available in Coder 2.19 and newer on macOS, Linux, and Windows clients.
 
 Every Coder server hosts CLI binaries for all supported platforms. You can run a
 script to download the appropriate CLI for your machine from your Coder
 deployment.
+
+<div class="tabs">
+
+## Linux/macOS (deployment script)
+
+```sh
+curl -fsSL https://your-coder-server/install.sh | sh
+```
+
+## Windows (deployment script)
+
+```powershell
+irm https://your-coder-server/install.ps1 | iex
+```
+
+</div>
 
 ![Install Coder binary from your deployment](../images/install/install_from_deployment.png)
 
