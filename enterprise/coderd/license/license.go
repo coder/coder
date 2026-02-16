@@ -59,9 +59,6 @@ var (
 	}
 
 	// Features that are forbidden to be set directly in a license.
-	// Previously, we had a usageBasedFeatureGrouping map that grouped features
-	// by their usage period. This is no longer used and the features are now
-	// grouped by their SDK feature name.
 	licenseForbiddenFeatures = map[codersdk.FeatureName]struct{}{}
 )
 
