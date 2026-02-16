@@ -103,6 +103,10 @@ function Invoke-Download {
     try {
         $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri $Url -OutFile $incompleteFile -UseBasicParsing -ErrorAction Stop
+        $downloadedFile = Get-Item -Path $incompleteFile -ErrorAction Stop
+        if ($downloadedFile.Length -eq 0) {
+            throw "Downloaded file is empty: $Url"
+        }
         Move-Item -Path $incompleteFile -Destination $OutFile -Force
     }
     catch {
