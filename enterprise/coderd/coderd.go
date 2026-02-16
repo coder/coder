@@ -983,7 +983,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 var _ wsbuilder.UsageChecker = &API{}
 
-func (api *API) CheckBuildUsage(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) CheckBuildUsage(
+	_ context.Context,
+	_ database.Store,
+	templateVersion *database.TemplateVersion,
+	_ *database.Task,
+	_ database.WorkspaceTransition,
+) (wsbuilder.UsageCheckResponse, error) {
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
 	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
@@ -995,37 +1001,6 @@ func (api *API) CheckBuildUsage(_ context.Context, _ database.Store, templateVer
 			}, nil
 		}
 	}
-
-	resp, err := api.checkAIBuildUsage(task, transition)
-	if err != nil {
-		return wsbuilder.UsageCheckResponse{}, err
-	}
-	if !resp.Permitted {
-		return resp, nil
-	}
-
-	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-}
-
-// checkAIBuildUsage is a hook for AI-related usage constraints. Currently
-// it always permits the build because managed agent limits are advisory
-// only (enforced via warnings, not by blocking workspace creation).
-func (*API) checkAIBuildUsage(task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
-	// Only check AI usage rules for start transitions.
-	if transition != database.WorkspaceTransitionStart {
-		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-	}
-
-	// If the template version doesn't have an AI task, we don't need to check usage.
-	if task == nil {
-		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-	}
-
-	// Managed agent limits are advisory only. We never block workspace
-	// creation based on the managed agent count because this is a
-	// critical path for users. Warnings are surfaced via entitlements
-	// instead. See enterprise/coderd/license/license.go for the
-	// warning logic.
 
 	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 }
