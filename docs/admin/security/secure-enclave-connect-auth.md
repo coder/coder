@@ -303,6 +303,78 @@ authentication flow.
 | **Short-lived tokens** | Protected | Must re-auth | Yes | No |
 | **No protection (status quo)** | Vulnerable | Vulnerable | N/A | N/A |
 
+## Preventing Code Exfiltration via Browser Access
+
+Connect-auth protects CLI-based connections (SSH, port-forward), which
+covers VS Code Remote SSH, JetBrains Gateway, and direct `coder ssh`.
+However, **browser-based workspace access is not protected** by
+connect-auth because browsers cannot access the Secure Enclave.
+
+An attacker with a stolen session token could still:
+
+- Open the Coder dashboard and use the **web terminal**
+- Access **code-server** or other web IDEs running in the workspace
+- Download files through browser-based workspace apps
+
+To fully prevent code exfiltration, disable browser-based workspace
+access in your templates and force all connections through the CLI.
+
+### Disable Web Terminal
+
+Remove the `coder_agent` web terminal by setting `troubleshooting_url`
+and disabling the built-in terminal in your template. The web terminal
+is enabled by default on every `coder_agent` resource.
+
+Currently, the web terminal cannot be disabled per-agent via Terraform.
+To block browser-based terminal access, use a network policy or reverse
+proxy rule that blocks the `/api/v2/workspaceagents/*/pty` endpoint
+for non-admin users.
+
+### Disable Browser-Based IDE Apps
+
+Do not include web IDE apps (code-server, VS Code Web, JupyterLab) in
+your templates. If your template currently defines a `coder_app`
+resource for a web IDE, remove it:
+
+```hcl
+# REMOVE this block to prevent browser-based code access:
+# resource "coder_app" "code-server" {
+#   agent_id     = coder_agent.main.id
+#   slug         = "code-server"
+#   display_name = "code-server"
+#   url          = "http://localhost:13337/?folder=/home/coder"
+#   share        = "owner"
+# }
+```
+
+### Recommended Secure Configuration
+
+For maximum code exfiltration protection, combine these measures:
+
+1. **Enable connect-auth**: `--connect-auth-endpoints ssh,port-forward`
+2. **Require SSO + 2FA** for all logins
+3. **Remove all `coder_app` resources** from templates (no web IDEs)
+4. **Block the PTY endpoint** via reverse proxy or network policy
+5. **Force IDE access through CLI**: users connect via
+   `coder ssh` with VS Code Remote SSH or JetBrains Gateway, which
+   both go through the Touch ID-protected coordination endpoint
+
+This ensures every code access path requires a biometric check on
+a macOS device with Secure Enclave.
+
+### Connection Paths and Protection Status
+
+| Access method | Path | Protected by connect-auth? |
+|---|---|---|
+| `coder ssh` | Coordination WebSocket | **Yes** |
+| VS Code Remote SSH | `coder ssh` under the hood | **Yes** |
+| JetBrains Gateway | `coder ssh` under the hood | **Yes** |
+| `coder port-forward` | Coordination WebSocket | **Yes** |
+| Web terminal (browser) | `/api/v2/workspaceagents/*/pty` | **No** — disable via proxy rules |
+| code-server (browser) | Workspace app proxy | **No** — remove from template |
+| Other web IDEs (browser) | Workspace app proxy | **No** — remove from template |
+| Coder dashboard | HTTPS | Not applicable — read-only views |
+
 ## Multi-Device Considerations
 
 Currently, each `coder login` replaces the previous connect public key on
