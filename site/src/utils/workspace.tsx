@@ -91,6 +91,7 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "autostart":
 		case "autostop":
 		case "dormancy":
+		case "task_auto_pause":
 			return "Coder";
 	}
 	return undefined;
