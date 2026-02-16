@@ -579,4 +579,37 @@ func TestExpireAPIKey(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, key.ExpiresAt.Before(time.Now()))
 	})
+
+	t.Run("DeletingExpiredTokenSucceeds", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create a token.
+		res, err := adminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+			Lifetime: time.Hour * 24 * 7,
+		})
+		require.NoError(t, err)
+		keyID := strings.Split(res.Key, "-")[0]
+
+		// Expire it first.
+		err = adminClient.ExpireAPIKey(ctx, codersdk.Me, keyID)
+		require.NoError(t, err)
+
+		// Verify it's expired.
+		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
+		require.NoError(t, err)
+		require.True(t, key.ExpiresAt.Before(time.Now()))
+
+		// Delete the expired token - should succeed.
+		err = adminClient.DeleteAPIKey(ctx, codersdk.Me, keyID)
+		require.NoError(t, err)
+
+		// Verify it's gone.
+		_, err = adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
 }
