@@ -5,7 +5,7 @@ import {
 import { Expander } from "components/Expander/Expander";
 import { Link } from "components/Link/Link";
 import { Pill } from "components/Pill/Pill";
-import React, { type FC, useState } from "react";
+import { useState } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
@@ -44,7 +44,7 @@ interface LicenseBannerViewProps {
 	warnings: readonly string[];
 }
 
-export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
+export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 	errors,
 	warnings,
 }) => {
