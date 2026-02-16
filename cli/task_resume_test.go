@@ -92,11 +92,11 @@ func TestExpTaskResume(t *testing.T) {
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
-		// Then: We expect to have "no-wait" mode returned
+		// Then: We expect the task to be resumed in the background
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		require.Contains(t, output.Stdout(), "no-wait mode")
+		require.Contains(t, output.Stdout(), "in the background")
 
 		// And: The task to eventually be resumed
 		require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
