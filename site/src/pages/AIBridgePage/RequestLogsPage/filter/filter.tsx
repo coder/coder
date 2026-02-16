@@ -24,6 +24,13 @@ const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 			<AIBridgeProviderIcon provider="anthropic" className="size-icon-sm" />
 		),
 	},
+	{
+		label: "Copilot",
+		value: "copilot",
+		startIcon: (
+			<AIBridgeProviderIcon provider="copilot" className="size-icon-sm" />
+		),
+	},
 ];
 
 export const useProviderFilterMenu = ({

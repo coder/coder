@@ -2787,6 +2787,46 @@ class ApiMethods {
 		} satisfies TypesGen.UpdateTaskInputRequest);
 	};
 
+	getTaskLogs = async (
+		user: string,
+		id: string,
+	): Promise<TypesGen.TaskLogsResponse> => {
+		const response = await this.axios.get<TypesGen.TaskLogsResponse>(
+			`/api/v2/tasks/${user}/${id}/logs`,
+		);
+		return response.data;
+	};
+
+	pauseTask = async (
+		user: string,
+		id: string,
+	): Promise<TypesGen.PauseTaskResponse> => {
+		const response = await this.axios.post<TypesGen.PauseTaskResponse>(
+			`/api/v2/tasks/${user}/${id}/pause`,
+		);
+		return response.data;
+	};
+
+	resumeTask = async (
+		user: string,
+		id: string,
+	): Promise<TypesGen.ResumeTaskResponse> => {
+		const response = await this.axios.post<TypesGen.ResumeTaskResponse>(
+			`/api/v2/tasks/${user}/${id}/resume`,
+		);
+		return response.data;
+	};
+
+	sendTaskInput = async (
+		user: string,
+		id: string,
+		input: string,
+	): Promise<void> => {
+		await this.axios.post(`/api/v2/tasks/${user}/${id}/send`, {
+			input,
+		} satisfies TypesGen.TaskSendRequest);
+	};
+
 	createTaskFeedback = async (
 		_taskId: string,
 		_req: CreateTaskFeedbackRequest,

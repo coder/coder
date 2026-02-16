@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || linux
 
 package cli_test
 
@@ -67,22 +67,35 @@ func TestVPNDaemonRun(t *testing.T) {
 
 		r1, w1, err := os.Pipe()
 		require.NoError(t, err)
-		defer r1.Close()
 		defer w1.Close()
+
 		r2, w2, err := os.Pipe()
 		require.NoError(t, err)
 		defer r2.Close()
-		defer w2.Close()
+
+		// The daemon closes the handles passed via NewBidirectionalPipe. Since our
+		// CLI tests run in-process, pass duplicated handles so we can close the
+		// originals without risking a double-close on FD reuse.
+		rpcReadHandle := dupHandle(t, r1)
+		rpcWriteHandle := dupHandle(t, w2)
+		require.NoError(t, r1.Close())
+		require.NoError(t, w2.Close())
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, _ := clitest.New(t, "vpn-daemon", "run", "--rpc-read-handle", fmt.Sprint(r1.Fd()), "--rpc-write-handle", fmt.Sprint(w2.Fd()))
+		inv, _ := clitest.New(t,
+			"vpn-daemon",
+			"run",
+			"--rpc-read-handle",
+			fmt.Sprint(rpcReadHandle),
+			"--rpc-write-handle",
+			fmt.Sprint(rpcWriteHandle),
+		)
 		waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
-		// Send garbage which should cause the handshake to fail and the daemon
-		// to exit.
-		_, err = w1.Write([]byte("garbage"))
+		// Send an invalid header, including a newline delimiter, so the handshake
+		// fails without requiring context cancellation.
+		_, err = w1.Write([]byte("garbage\n"))
 		require.NoError(t, err)
-		waiter.Cancel()
 		err = waiter.Wait()
 		require.ErrorContains(t, err, "handshake failed")
 	})

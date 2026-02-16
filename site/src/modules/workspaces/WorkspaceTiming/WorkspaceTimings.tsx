@@ -107,11 +107,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				css={styles.collapseTrigger}
 				onClick={() => setIsOpen((o) => !o)}
 			>
-				{isOpen ? (
-					<ChevronUpIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				) : (
-					<ChevronDownIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				)}
+				{isOpen ? <ChevronUpIcon /> : <ChevronDownIcon />}
 				<span>Build timeline</span>
 				<span
 					css={(theme) => ({

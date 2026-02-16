@@ -27,11 +27,8 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<TopbarButton
-					color="neutral"
-					css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
-				>
-					<ChevronDownIcon className="size-icon-xs" />
+				<TopbarButton color="neutral" size="icon">
+					<ChevronDownIcon />
 					<span className="sr-only">Expand provisioner tags</span>
 				</TopbarButton>
 			</PopoverTrigger>

@@ -354,6 +354,29 @@ func (c *Client) PauseTask(ctx context.Context, user string, id uuid.UUID) (Paus
 	return resp, nil
 }
 
+// ResumeTaskResponse represents the response from resuming a task.
+type ResumeTaskResponse struct {
+	WorkspaceBuild *WorkspaceBuild `json:"workspace_build"`
+}
+
+func (c *Client) ResumeTask(ctx context.Context, user string, id uuid.UUID) (ResumeTaskResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/resume", user, id.String()), nil)
+	if err != nil {
+		return ResumeTaskResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return ResumeTaskResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp ResumeTaskResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return ResumeTaskResponse{}, err
+	}
+
+	return resp, nil
+}
+
 // TaskLogType indicates the source of a task log entry.
 type TaskLogType string
 

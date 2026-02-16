@@ -95,7 +95,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 								variant="outline"
 							>
 								<Spinner loading={isRefreshing}>
-									<RotateCwIcon className="size-icon-xs" />
+									<RotateCwIcon />
 								</Spinner>
 								Refresh
 							</Button>

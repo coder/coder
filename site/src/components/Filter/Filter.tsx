@@ -288,7 +288,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button variant="outline">
-					<SlidersHorizontal className="size-icon-xs" />
+					<SlidersHorizontal />
 					Filters
 				</Button>
 			</DropdownMenuTrigger>
