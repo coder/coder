@@ -1426,6 +1426,7 @@ export type CreateWorkspaceBuildReason =
 	| "jetbrains_connection"
 	| "ssh_connection"
 	| "task_manual_pause"
+	| "task_resume"
 	| "vscode_connection";
 
 export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
@@ -1434,6 +1435,7 @@ export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
 	"jetbrains_connection",
 	"ssh_connection",
 	"task_manual_pause",
+	"task_resume",
 	"vscode_connection",
 ];
 
@@ -2573,7 +2575,7 @@ export interface License {
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
-export const LicenseManagedAgentLimitExceededErrorText =
+export const LicenseManagedAgentLimitExceededWarningText =
 	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
@@ -4353,6 +4355,14 @@ export interface Response {
 	readonly validations?: readonly ValidationError[];
 }
 
+// From codersdk/aitasks.go
+/**
+ * ResumeTaskResponse represents the response from resuming a task.
+ */
+export interface ResumeTaskResponse {
+	readonly workspace_build: WorkspaceBuild | null;
+}
+
 // From codersdk/deployment.go
 /**
  * RetentionConfig contains configuration for data retention policies.
@@ -5143,6 +5153,7 @@ export interface Template {
 	readonly description: string;
 	readonly deprecated: boolean;
 	readonly deprecation_message: string;
+	readonly deleted: boolean;
 	readonly icon: string;
 	readonly default_ttl_ms: number;
 	readonly activity_bump_ms: number;

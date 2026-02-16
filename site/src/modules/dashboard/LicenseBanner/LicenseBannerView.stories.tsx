@@ -1,6 +1,6 @@
 import { chromatic } from "testHelpers/chromatic";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { LicenseManagedAgentLimitExceededErrorText } from "api/typesGenerated";
+import { LicenseManagedAgentLimitExceededWarningText } from "api/typesGenerated";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
@@ -41,7 +41,7 @@ export const OneError: Story = {
 export const ManagedAgentLimitExceeded: Story = {
 	args: {
 		errors: [],
-		warnings: [LicenseManagedAgentLimitExceededErrorText],
+		warnings: [LicenseManagedAgentLimitExceededWarningText],
 	},
 };
 
@@ -49,7 +49,7 @@ export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
 	args: {
 		errors: [],
 		warnings: [
-			LicenseManagedAgentLimitExceededErrorText,
+			LicenseManagedAgentLimitExceededWarningText,
 			"You have exceeded the number of seats in your license.",
 		],
 	},

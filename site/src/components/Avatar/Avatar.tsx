@@ -83,7 +83,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 			/>
 			{fallback && (
 				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-					{fallback.charAt(0).toUpperCase()}
+					{fallback.slice(0, 2).toUpperCase()}
 				</AvatarPrimitive.Fallback>
 			)}
 			{children}

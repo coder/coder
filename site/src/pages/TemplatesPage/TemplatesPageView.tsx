@@ -85,6 +85,49 @@ const TemplateHelpTooltip: FC = () => {
 	);
 };
 
+interface TemplateActionsProps {
+	template: Template;
+	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
+	templatePageLink: string;
+}
+
+const TemplateActions: FC<TemplateActionsProps> = ({
+	template,
+	workspacePermissions,
+	templatePageLink,
+}) => {
+	if (template.deleted) {
+		return null;
+	}
+
+	if (template.deprecated) {
+		return <DeprecatedBadge />;
+	}
+
+	if (
+		!workspacePermissions?.[template.organization_id]?.createWorkspaceForUserID
+	) {
+		return null;
+	}
+
+	return (
+		<Button
+			asChild
+			variant="outline"
+			size="sm"
+			title={`Create a workspace using the ${template.display_name} template`}
+			onClick={(e) => {
+				e.stopPropagation();
+			}}
+		>
+			<RouterLink to={`${templatePageLink}/workspace`}>
+				<ArrowRightIcon />
+				Create Workspace
+			</RouterLink>
+		</Button>
+	);
+};
+
 interface TemplateRowProps {
 	showOrganizations: boolean;
 	template: Template;
@@ -149,25 +192,11 @@ const TemplateRow: FC<TemplateRowProps> = ({
 			</TableCell>
 
 			<TableCell css={styles.actionCell}>
-				{template.deprecated ? (
-					<DeprecatedBadge />
-				) : workspacePermissions?.[template.organization_id]
-						?.createWorkspaceForUserID ? (
-					<Button
-						asChild
-						variant="outline"
-						size="sm"
-						title={`Create a workspace using the ${template.display_name} template`}
-						onClick={(e) => {
-							e.stopPropagation();
-						}}
-					>
-						<RouterLink to={`${templatePageLink}/workspace`}>
-							<ArrowRightIcon />
-							Create Workspace
-						</RouterLink>
-					</Button>
-				) : null}
+				<TemplateActions
+					template={template}
+					workspacePermissions={workspacePermissions}
+					templatePageLink={templatePageLink}
+				/>
 			</TableCell>
 		</TableRow>
 	);

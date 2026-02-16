@@ -18,7 +18,7 @@
 		--content-success: 142 72% 29%;
 		--content-warning: 27 96% 61%;
 		--content-destructive: 0 84% 60%;
-		--surface-primary: 0 0% 98%;
+		--surface-primary: 0 0% 100%;
 		--surface-secondary: 240 5% 96%;
 		--surface-tertiary: 240 6% 90%;
 		--surface-quaternary: 240 5% 84%;
@@ -28,25 +28,28 @@
 		--surface-green: 141 79% 85%;
 		--surface-grey: 240 5% 96%;
 		--surface-orange: 34 100% 92%;
-		--surface-sky: 201 94% 86%;
+		--surface-sky: 191, 67%, 89%;
 		--surface-red: 0 93% 94%;
-		--surface-purple: 251 91% 95%;
+		--surface-purple: 259, 100%, 95%;
+		--surface-magenta: 290, 100%, 95%;
 		--border-purple: 255 92% 76%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
 		--border-sky: 203 90% 40%;
 		--border-green: 138 82% 82%;
+		--border-magenta: 295, 68%, 46%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 84% 60%;
 		--border-hover: 240 5% 34%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
-		--highlight-purple: 262 83% 58%;
+		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 143 64% 24%;
 		--highlight-orange: 30 100% 54%;
 		--highlight-grey: 240 5% 65%;
-		--highlight-sky: 201 90% 27%;
+		--highlight-sky: 195, 61%, 22%;
 		--highlight-red: 0 74% 42%;
+		--highlight-magenta: 295, 68%, 46%;
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
@@ -55,7 +58,7 @@
 		--avatar-sm: 1.125rem;
 	}
 	.dark {
-		--content-primary: 0 0% 98%;
+		--content-primary: 0 0% 100%;
 		--content-secondary: 240 5% 65%;
 		--content-link: 213 94% 68%;
 		--content-invert: 240 10% 4%;
@@ -73,24 +76,27 @@
 		--surface-green: 145 80% 10%;
 		--surface-grey: 240 6% 10%;
 		--surface-orange: 13 81% 15%;
-		--surface-sky: 204 80% 16%;
+		--surface-sky: 196, 67%, 12%;
 		--surface-red: 0 75% 15%;
-		--surface-purple: 261 73% 23%;
+		--surface-purple: 268, 68%, 17%;
+		--surface-magenta: 291, 74%, 15%;
 		--border-purple: 255 92% 76%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
+		--border-magenta: 292, 100%, 78%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 91% 71%;
 		--border-sky: 194 90% 62%;
 		--border-green: 143 77% 87%;
 		--border-hover: 240, 5%, 34%;
 		--overlay-default: 240 10% 4% / 80%;
-		--highlight-purple: 252 95% 85%;
+		--highlight-purple: 269, 100%, 74%;
 		--highlight-green: 141 79% 85%;
 		--highlight-orange: 31 100% 70%;
 		--highlight-grey: 240 4% 46%;
-		--highlight-sky: 198 93% 60%;
+		--highlight-sky: 188, 75%, 80%;
 		--highlight-red: 0 91% 71%;
+		--highlight-magenta: 292, 100%, 78%;
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
@@ -131,5 +137,11 @@
 	*/
 	body[style*="overflow: hidden"][style*="padding-right"] {
 		padding-right: 0px;
+	}
+}
+
+@layer utilities {
+	.text-xs-mono {
+		@apply text-xs font-mono font-medium;
 	}
 }

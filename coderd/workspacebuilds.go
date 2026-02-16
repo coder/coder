@@ -382,7 +382,8 @@ func (api *API) postWorkspaceBuildsInternal(
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
-		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
+		TemplateVersionPresetID(createBuild.TemplateVersionPresetID).
+		BuildMetrics(api.WorkspaceBuilderMetrics)
 
 	if (transition == database.WorkspaceTransitionStart || transition == database.WorkspaceTransitionStop) && createBuild.Reason != "" {
 		builder = builder.Reason(database.BuildReason(createBuild.Reason))

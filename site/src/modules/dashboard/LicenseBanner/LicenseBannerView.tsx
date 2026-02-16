@@ -1,11 +1,11 @@
 import {
-	LicenseManagedAgentLimitExceededErrorText,
+	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "api/typesGenerated";
 import { Expander } from "components/Expander/Expander";
 import { Link } from "components/Link/Link";
 import { Pill } from "components/Pill/Pill";
-import React, { type FC, useState } from "react";
+import { useState } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
@@ -17,10 +17,10 @@ const formatMessage = (message: string) => {
 	return message;
 };
 
-const messageLink = (
+const messageLinkProps = (
 	message: string,
 ): Pick<React.ComponentProps<typeof Link>, "href" | "children" | "target"> => {
-	if (message === LicenseManagedAgentLimitExceededErrorText) {
+	if (message === LicenseManagedAgentLimitExceededWarningText) {
 		return {
 			href: docs("/ai-coder/ai-governance"),
 			children: "View AI Governance",
@@ -44,7 +44,7 @@ interface LicenseBannerViewProps {
 	warnings: readonly string[];
 }
 
-export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
+export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 	errors,
 	warnings,
 }) => {
@@ -55,7 +55,6 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 
 	if (messages.length === 1) {
 		const [message] = messages;
-		const { ...props } = messageLink(message);
 
 		return (
 			<div
@@ -73,7 +72,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 							"font-medium",
 							isError ? "!text-content-destructive" : "!text-content-warning",
 						)}
-						{...props}
+						{...messageLinkProps(message)}
 					/>
 				</div>
 			</div>
@@ -92,23 +91,20 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 				<div>It looks like you've exceeded some limits of your license.</div>
 				<Expander expanded={showDetails} setExpanded={setShowDetails}>
 					<ul className="p-2 m-0">
-						{messages.map((message) => {
-							const { ...props } = messageLink(message);
-							return (
-								<li className="m-1" key={message}>
-									{formatMessage(message)}&nbsp;
-									<Link
-										className={cn(
-											"font-medium text-xs px-0",
-											isError
-												? "!text-content-destructive"
-												: "!text-content-warning",
-										)}
-										{...props}
-									/>
-								</li>
-							);
-						})}
+						{messages.map((message) => (
+							<li className="m-1" key={message}>
+								{formatMessage(message)}&nbsp;
+								<Link
+									className={cn(
+										"font-medium text-xs px-0",
+										isError
+											? "!text-content-destructive"
+											: "!text-content-warning",
+									)}
+									{...messageLinkProps(message)}
+								/>
+							</li>
+						))}
 					</ul>
 				</Expander>
 			</div>

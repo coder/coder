@@ -60,7 +60,6 @@ interface WorkspacesPageViewProps {
 	onBatchUpdateTransition: () => void;
 	onBatchStartTransition: () => void;
 	onBatchStopTransition: () => void;
-	canCheckWorkspaces: boolean;
 	templatesFetchStatus: TemplateQuery["status"];
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
@@ -84,7 +83,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	onBatchStopTransition,
 	onBatchStartTransition,
 	isRunningBatchAction,
-	canCheckWorkspaces,
 	templates,
 	templatesFetchStatus,
 	canCreateTemplate,
@@ -150,7 +148,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon className="size-4" />
+										<ChevronDownIcon />
 									</Spinner>
 								</Button>
 							</DropdownMenuTrigger>
@@ -231,7 +229,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					isUsingFilter={filterState.filter.used}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
-					canCheckWorkspaces={canCheckWorkspaces}
 					templates={templates}
 					onActionSuccess={onActionSuccess}
 					onActionError={onActionError}
