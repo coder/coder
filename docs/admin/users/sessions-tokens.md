@@ -115,7 +115,6 @@ To permanently delete a token and remove its audit trail, use the `--delete` fla
 coder tokens remove --delete <name|id>
 ```
 
->>>>>>>
 ## API Key Scopes
 
 API key scopes allow you to limit the permissions of a token to specific operations. By default, tokens are created with the `all` scope, granting full access to all actions the user can perform. For improved security, you can create tokens with limited scopes that restrict access to only the operations needed.
