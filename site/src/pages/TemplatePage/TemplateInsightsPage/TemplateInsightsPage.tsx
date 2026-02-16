@@ -40,8 +40,8 @@ import {
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
 	Fragment,
