@@ -7,13 +7,13 @@ USAGE:
 
   Aliases: delete, rm
 
-  Delete a token. Use --expire to expire the token instead of deleting it,
-  preserving the token record for audit purposes.
+  Remove a token by expiring it. Use --delete to permanently delete the token
+  instead, which removes the audit trail.
 
 OPTIONS:
-      --expire bool
-          Expire the token instead of deleting it, preserving the token record
-          for audit purposes.
+      --delete bool
+          Permanently delete the token instead of expiring it. This removes the
+          audit trail.
 
 ———
 Run `coder --help` for a list of global options.

@@ -428,6 +428,8 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(string)
 // @Success 204
+// @Failure 404 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
 // @Router /users/{user}/keys/{keyid}/expire [put]
 func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -470,7 +472,7 @@ func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching API key.",
+			Message: "Internal error expiring API key.",
 			Detail:  err.Error(),
 		})
 		return

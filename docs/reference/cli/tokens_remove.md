@@ -17,15 +17,15 @@ coder tokens remove [flags] <name|id|token>
 ## Description
 
 ```console
-Delete a token. Use --expire to expire the token instead of deleting it, preserving the token record for audit purposes.
+Remove a token by expiring it. Use --delete to permanently delete the token instead, which removes the audit trail.
 ```
 
 ## Options
 
-### --expire
+### --delete
 
 |      |                   |
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Expire the token instead of deleting it, preserving the token record for audit purposes.
+Permanently delete the token instead of expiring it. This removes the audit trail.

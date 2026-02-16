@@ -218,9 +218,10 @@ func (r *RootCmd) listTokens() *serpent.Command {
 	}
 
 	var (
-		all           bool
-		displayTokens []tokenListRow
-		formatter     = cliui.NewOutputFormatter(
+		all            bool
+		includeExpired bool
+		displayTokens  []tokenListRow
+		formatter      = cliui.NewOutputFormatter(
 			cliui.TableFormat([]tokenListRow{}, defaultCols),
 			cliui.JSONFormat(),
 		)
@@ -244,6 +245,18 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			})
 			if err != nil {
 				return xerrors.Errorf("list tokens: %w", err)
+			}
+
+			// Filter out expired tokens unless --include-expired is set
+			if !includeExpired {
+				now := time.Now()
+				filtered := make([]codersdk.APIKeyWithOwner, 0, len(tokens))
+				for _, token := range tokens {
+					if token.ExpiresAt.After(now) {
+						filtered = append(filtered, token)
+					}
+				}
+				tokens = filtered
 			}
 
 			displayTokens = make([]tokenListRow, len(tokens))
@@ -273,6 +286,12 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			FlagShorthand: "a",
 			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",
 			Value:         serpent.BoolOf(&all),
+		},
+		{
+			Name:        "include-expired",
+			Flag:        "include-expired",
+			Description: "Include expired tokens in the output. By default, expired tokens are hidden.",
+			Value:       serpent.BoolOf(&includeExpired),
 		},
 	}
 
@@ -323,13 +342,13 @@ func (r *RootCmd) viewToken() *serpent.Command {
 }
 
 func (r *RootCmd) removeToken() *serpent.Command {
-	var expire bool
+	var deleteToken bool
 	cmd := &serpent.Command{
 		Use:     "remove <name|id|token>",
 		Aliases: []string{"delete"},
 		Short:   "Delete a token",
-		Long: "Delete a token. Use --expire to expire the token instead of " +
-			"deleting it, preserving the token record for audit purposes.",
+		Long: "Remove a token by expiring it. Use --delete to permanently delete " +
+			"the token instead, which removes the audit trail.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
@@ -349,29 +368,29 @@ func (r *RootCmd) removeToken() *serpent.Command {
 				}
 			}
 
-			if expire {
-				err = client.ExpireAPIKey(inv.Context(), codersdk.Me, token.ID)
+			if deleteToken {
+				err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
 				if err != nil {
-					return xerrors.Errorf("expire api key: %w", err)
+					return xerrors.Errorf("delete api key: %w", err)
 				}
-				cliui.Infof(inv.Stdout, "Token has been expired.")
+				cliui.Infof(inv.Stdout, "Token has been deleted.")
 				return nil
 			}
 
-			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
+			err = client.ExpireAPIKey(inv.Context(), codersdk.Me, token.ID)
 			if err != nil {
-				return xerrors.Errorf("delete api key: %w", err)
+				return xerrors.Errorf("expire api key: %w", err)
 			}
-			cliui.Infof(inv.Stdout, "Token has been deleted.")
+			cliui.Infof(inv.Stdout, "Token has been expired.")
 			return nil
 		},
 	}
 
 	cmd.Options = serpent.OptionSet{
 		{
-			Flag:        "expire",
-			Description: "Expire the token instead of deleting it, preserving the token record for audit purposes.",
-			Value:       serpent.BoolOf(&expire),
+			Flag:        "delete",
+			Description: "Permanently delete the token instead of expiring it. This removes the audit trail.",
+			Value:       serpent.BoolOf(&deleteToken),
 		},
 	}
 

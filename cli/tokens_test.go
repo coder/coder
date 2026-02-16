@@ -14,6 +14,8 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -157,7 +159,7 @@ func TestTokens(t *testing.T) {
 	require.Len(t, scopedToken.AllowList, 1)
 	require.Equal(t, allowSpec, scopedToken.AllowList[0].String())
 
-	// Delete by name
+	// Delete by name (default behavior is now expire)
 	inv, root = clitest.New(t, "tokens", "rm", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
@@ -166,10 +168,10 @@ func TestTokens(t *testing.T) {
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
-	require.Contains(t, res, "deleted")
+	require.Contains(t, res, "expired")
 
-	// Regular users cannot expire other users' tokens.
-	inv, root = clitest.New(t, "tokens", "rm", "--expire", secondTokenID)
+	// Regular users cannot expire other users' tokens (expire is default now).
+	inv, root = clitest.New(t, "tokens", "rm", secondTokenID)
 	clitest.SetupConfig(t, thirdUserClient, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -177,9 +179,8 @@ func TestTokens(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
 
-	// Only admin users can expire other users' tokens.
-	now := time.Now()
-	inv, root = clitest.New(t, "tokens", "rm", "--expire", secondTokenID)
+	// Only admin users can expire other users' tokens (expire is default now).
+	inv, root = clitest.New(t, "tokens", "rm", secondTokenID)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -187,11 +188,11 @@ func TestTokens(t *testing.T) {
 	require.NoError(t, err)
 	// Validate that token was expired
 	if token, err := client.APIKeyByName(ctx, secondUser.ID.String(), "token-two"); assert.NoError(t, err) {
-		require.GreaterOrEqual(t, token.ExpiresAt, now)
+		require.True(t, token.ExpiresAt.Before(time.Now()))
 	}
 
-	// Delete by ID
-	inv, root = clitest.New(t, "tokens", "rm", secondTokenID)
+	// Delete by ID (explicit delete flag)
+	inv, root = clitest.New(t, "tokens", "rm", "--delete", secondTokenID)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -201,8 +202,8 @@ func TestTokens(t *testing.T) {
 	require.NotEmpty(t, res)
 	require.Contains(t, res, "deleted")
 
-	// Delete scoped token by ID
-	inv, root = clitest.New(t, "tokens", "rm", scopedTokenID)
+	// Delete scoped token by ID (explicit delete flag)
+	inv, root = clitest.New(t, "tokens", "rm", "--delete", scopedTokenID)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -223,8 +224,8 @@ func TestTokens(t *testing.T) {
 	require.NotEmpty(t, res)
 	fourthToken := res
 
-	// Delete by token
-	inv, root = clitest.New(t, "tokens", "rm", fourthToken)
+	// Delete by token (explicit delete flag)
+	inv, root = clitest.New(t, "tokens", "rm", "--delete", fourthToken)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -233,4 +234,115 @@ func TestTokens(t *testing.T) {
 	res = buf.String()
 	require.NotEmpty(t, res)
 	require.Contains(t, res, "deleted")
+}
+
+func TestTokensListExpiredFiltering(t *testing.T) {
+	t.Parallel()
+
+	client, _, api := coderdtest.NewWithAPI(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Create a valid (non-expired) token
+	validToken, _ := dbgen.APIKey(t, api.Database, database.APIKey{
+		UserID:    owner.UserID,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		LoginType: database.LoginTypeToken,
+		TokenName: "valid-token",
+	})
+
+	// Create an expired token
+	expiredToken, _ := dbgen.APIKey(t, api.Database, database.APIKey{
+		UserID:    owner.UserID,
+		ExpiresAt: time.Now().Add(-24 * time.Hour),
+		LoginType: database.LoginTypeToken,
+		TokenName: "expired-token",
+	})
+
+	t.Run("HidesExpiredByDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "tokens", "ls")
+		clitest.SetupConfig(t, client, root)
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		res := buf.String()
+		require.Contains(t, res, validToken.ID)
+		require.Contains(t, res, "valid-token")
+		require.NotContains(t, res, expiredToken.ID)
+		require.NotContains(t, res, "expired-token")
+	})
+
+	t.Run("ShowsExpiredWithFlag", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "tokens", "ls", "--include-expired")
+		clitest.SetupConfig(t, client, root)
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		res := buf.String()
+		require.Contains(t, res, validToken.ID)
+		require.Contains(t, res, "valid-token")
+		require.Contains(t, res, expiredToken.ID)
+		require.Contains(t, res, "expired-token")
+	})
+
+	t.Run("JSONOutputRespectsFilter", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Default (no expired)
+		inv, root := clitest.New(t, "tokens", "ls", "--output=json")
+		clitest.SetupConfig(t, client, root)
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		res := buf.String()
+		require.Contains(t, res, "valid-token")
+		require.NotContains(t, res, "expired-token")
+
+		// With --include-expired
+		inv, root = clitest.New(t, "tokens", "ls", "--output=json", "--include-expired")
+		clitest.SetupConfig(t, client, root)
+		buf = new(bytes.Buffer)
+		inv.Stdout = buf
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		res = buf.String()
+		require.Contains(t, res, "valid-token")
+		require.Contains(t, res, "expired-token")
+	})
+
+	t.Run("AllUsersWithIncludeExpired", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "tokens", "ls", "--all", "--include-expired")
+		clitest.SetupConfig(t, client, root)
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		res := buf.String()
+		// Should show both valid and expired tokens
+		require.Contains(t, res, validToken.ID)
+		require.Contains(t, res, "valid-token")
+		require.Contains(t, res, expiredToken.ID)
+		require.Contains(t, res, "expired-token")
+	})
 }
