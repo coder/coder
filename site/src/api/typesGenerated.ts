@@ -615,7 +615,9 @@ export interface ChatDiffContents {
 
 // From codersdk/chats.go
 /**
- * ChatDiffStatus represents cached diff status for a chat. The URL may point to a pull request or a branch page depending on whether a PR has been opened.
+ * ChatDiffStatus represents cached diff status for a chat. The URL
+ * may point to a pull request or a branch page depending on whether
+ * a PR has been opened.
  */
 export interface ChatDiffStatus {
     readonly chat_id: string;

@@ -21,6 +21,17 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
+    "diff_status": {
+      "additions": 0,
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "deletions": 0,
+      "pull_request_state": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "model_config": [
       0
@@ -45,18 +56,28 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 Status Code **200**
 
-| Name                   | Type                                                 | Required | Restrictions | Description |
-|------------------------|------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`         | array                                                | false    |              |             |
-| `» created_at`         | string(date-time)                                    | false    |              |             |
-| `» id`                 | string(uuid)                                         | false    |              |             |
-| `» model_config`       | array                                                | false    |              |             |
-| `» owner_id`           | string(uuid)                                         | false    |              |             |
-| `» status`             | [codersdk.ChatStatus](schemas.md#codersdkchatstatus) | false    |              |             |
-| `» title`              | string                                               | false    |              |             |
-| `» updated_at`         | string(date-time)                                    | false    |              |             |
-| `» workspace_agent_id` | string(uuid)                                         | false    |              |             |
-| `» workspace_id`       | string(uuid)                                         | false    |              |             |
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`          | array                                                        | false    |              |             |
+| `» created_at`          | string(date-time)                                            | false    |              |             |
+| `» diff_status`         | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus) | false    |              |             |
+| `»» additions`          | integer                                                      | false    |              |             |
+| `»» changed_files`      | integer                                                      | false    |              |             |
+| `»» changes_requested`  | boolean                                                      | false    |              |             |
+| `»» chat_id`            | string(uuid)                                                 | false    |              |             |
+| `»» deletions`          | integer                                                      | false    |              |             |
+| `»» pull_request_state` | string                                                       | false    |              |             |
+| `»» refreshed_at`       | string(date-time)                                            | false    |              |             |
+| `»» stale_at`           | string(date-time)                                            | false    |              |             |
+| `»» url`                | string                                                       | false    |              |             |
+| `» id`                  | string(uuid)                                                 | false    |              |             |
+| `» model_config`        | array                                                        | false    |              |             |
+| `» owner_id`            | string(uuid)                                                 | false    |              |             |
+| `» status`              | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)         | false    |              |             |
+| `» title`               | string                                                       | false    |              |             |
+| `» updated_at`          | string(date-time)                                            | false    |              |             |
+| `» workspace_agent_id`  | string(uuid)                                                 | false    |              |             |
+| `» workspace_id`        | string(uuid)                                                 | false    |              |             |
 
 #### Enumerated Values
 
@@ -116,6 +137,17 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "deletions": 0,
+    "pull_request_state": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_config": [
     0
@@ -209,6 +241,17 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
 {
   "chat": {
     "created_at": "2019-08-24T14:15:22Z",
+    "diff_status": {
+      "additions": 0,
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "deletions": 0,
+      "pull_request_state": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "model_config": [
       0
@@ -229,12 +272,47 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "created_at": "2019-08-24T14:15:22Z",
       "hidden": true,
       "id": 0,
+      "parts": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "data": [
+            0
+          ],
+          "is_error": true,
+          "media_type": "string",
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_meta": {
+            "content": "string",
+            "created": true,
+            "error": "string",
+            "exit_code": 0,
+            "mime_type": "string",
+            "output": "string",
+            "reason": "string",
+            "workspace_agent_id": "string",
+            "workspace_id": "string",
+            "workspace_name": "string",
+            "workspace_url": "string"
+          },
+          "signature": "string",
+          "source_id": "string",
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
       "role": "string",
       "thinking": "string",
-      "tool_call_id": "string",
-      "tool_calls": [
-        0
-      ]
+      "tool_call_id": "string"
     }
   ]
 }
@@ -274,18 +352,18 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get git changes for a chat
+## Get diff contents for a chat
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/chats/{chat}/git-changes \
+curl -X GET http://coder-server:8080/api/v2/chats/{chat}/diff \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /chats/{chat}/git-changes`
+`GET /chats/{chat}/diff`
 
 ### Parameters
 
@@ -298,39 +376,66 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/git-changes \
 > 200 Response
 
 ```json
-[
-  {
-    "change_type": "string",
-    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-    "detected_at": "2019-08-24T14:15:22Z",
-    "diff_summary": "string",
-    "file_path": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "old_path": "string"
-  }
-]
+{
+  "branch": "string",
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "diff": "string",
+  "provider": "string",
+  "pull_request_url": "string",
+  "remote_origin": "string"
+}
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                              |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatGitChange](schemas.md#codersdkchatgitchange) |
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDiffContents](schemas.md#codersdkchatdiffcontents) |
 
-<h3 id="get-git-changes-for-a-chat-responseschema">Response Schema</h3>
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-Status Code **200**
+## Get diff status for a chat
 
-| Name             | Type              | Required | Restrictions | Description                       |
-|------------------|-------------------|----------|--------------|-----------------------------------|
-| `[array item]`   | array             | false    |              |                                   |
-| `» change_type`  | string            | false    |              | added, modified, deleted, renamed |
-| `» chat_id`      | string(uuid)      | false    |              |                                   |
-| `» detected_at`  | string(date-time) | false    |              |                                   |
-| `» diff_summary` | string            | false    |              |                                   |
-| `» file_path`    | string            | false    |              |                                   |
-| `» id`           | string(uuid)      | false    |              |                                   |
-| `» old_path`     | string            | false    |              |                                   |
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/{chat}/diff-status \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /chats/{chat}/diff-status`
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "additions": 0,
+  "changed_files": 0,
+  "changes_requested": true,
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "deletions": 0,
+  "pull_request_state": "string",
+  "refreshed_at": "2019-08-24T14:15:22Z",
+  "stale_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -360,6 +465,17 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "deletions": 0,
+    "pull_request_state": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_config": [
     0
@@ -404,10 +520,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "role": "string",
   "thinking": "string",
-  "tool_call_id": "string",
-  "tool_calls": [
-    0
-  ]
+  "tool_call_id": "string"
 }
 ```
 
@@ -432,12 +545,47 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "created_at": "2019-08-24T14:15:22Z",
     "hidden": true,
     "id": 0,
+    "parts": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "data": [
+          0
+        ],
+        "is_error": true,
+        "media_type": "string",
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "result_meta": {
+          "content": "string",
+          "created": true,
+          "error": "string",
+          "exit_code": 0,
+          "mime_type": "string",
+          "output": "string",
+          "reason": "string",
+          "workspace_agent_id": "string",
+          "workspace_id": "string",
+          "workspace_name": "string",
+          "workspace_url": "string"
+        },
+        "signature": "string",
+        "source_id": "string",
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
     "role": "string",
     "thinking": "string",
-    "tool_call_id": "string",
-    "tool_calls": [
-      0
-    ]
+    "tool_call_id": "string"
   }
 ]
 ```
@@ -452,18 +600,51 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description |
-|------------------|-------------------|----------|--------------|-------------|
-| `[array item]`   | array             | false    |              |             |
-| `» chat_id`      | string(uuid)      | false    |              |             |
-| `» content`      | array             | false    |              |             |
-| `» created_at`   | string(date-time) | false    |              |             |
-| `» hidden`       | boolean           | false    |              |             |
-| `» id`           | integer           | false    |              |             |
-| `» role`         | string            | false    |              |             |
-| `» thinking`     | string            | false    |              |             |
-| `» tool_call_id` | string            | false    |              |             |
-| `» tool_calls`   | array             | false    |              |             |
+| Name                     | Type                                                                         | Required | Restrictions | Description |
+|--------------------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`           | array                                                                        | false    |              |             |
+| `» chat_id`              | string(uuid)                                                                 | false    |              |             |
+| `» content`              | array                                                                        | false    |              |             |
+| `» created_at`           | string(date-time)                                                            | false    |              |             |
+| `» hidden`               | boolean                                                                      | false    |              |             |
+| `» id`                   | integer                                                                      | false    |              |             |
+| `» parts`                | array                                                                        | false    |              |             |
+| `»» args`                | array                                                                        | false    |              |             |
+| `»» args_delta`          | string                                                                       | false    |              |             |
+| `»» data`                | array                                                                        | false    |              |             |
+| `»» is_error`            | boolean                                                                      | false    |              |             |
+| `»» media_type`          | string                                                                       | false    |              |             |
+| `»» result`              | array                                                                        | false    |              |             |
+| `»» result_delta`        | string                                                                       | false    |              |             |
+| `»» result_meta`         | [codersdk.ChatToolResultMetadata](schemas.md#codersdkchattoolresultmetadata) | false    |              |             |
+| `»»» content`            | string                                                                       | false    |              |             |
+| `»»» created`            | boolean                                                                      | false    |              |             |
+| `»»» error`              | string                                                                       | false    |              |             |
+| `»»» exit_code`          | integer                                                                      | false    |              |             |
+| `»»» mime_type`          | string                                                                       | false    |              |             |
+| `»»» output`             | string                                                                       | false    |              |             |
+| `»»» reason`             | string                                                                       | false    |              |             |
+| `»»» workspace_agent_id` | string                                                                       | false    |              |             |
+| `»»» workspace_id`       | string                                                                       | false    |              |             |
+| `»»» workspace_name`     | string                                                                       | false    |              |             |
+| `»»» workspace_url`      | string                                                                       | false    |              |             |
+| `»» signature`           | string                                                                       | false    |              |             |
+| `»» source_id`           | string                                                                       | false    |              |             |
+| `»» text`                | string                                                                       | false    |              |             |
+| `»» title`               | string                                                                       | false    |              |             |
+| `»» tool_call_id`        | string                                                                       | false    |              |             |
+| `»» tool_name`           | string                                                                       | false    |              |             |
+| `»» type`                | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype)       | false    |              |             |
+| `»» url`                 | string                                                                       | false    |              |             |
+| `» role`                 | string                                                                       | false    |              |             |
+| `» thinking`             | string                                                                       | false    |              |             |
+| `» tool_call_id`         | string                                                                       | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                          |
+|----------|-------------------------------------------------------------------|
+| `type`   | `file`, `reasoning`, `source`, `text`, `tool-call`, `tool-result` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

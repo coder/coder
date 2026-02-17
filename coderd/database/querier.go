@@ -12,6 +12,9 @@ import (
 )
 
 type sqlcQuerier interface {
+	// Acquires a pending chat for processing. Uses SKIP LOCKED to prevent
+	// multiple replicas from acquiring the same chat.
+	AcquireChat(ctx context.Context, arg AcquireChatParams) (Chat, error)
 	// Blocks until the lock is acquired.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -90,6 +93,8 @@ type sqlcQuerier interface {
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	// Deletes boundary usage statistics for a specific replica.
 	DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error
+	DeleteChatByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
@@ -202,11 +207,17 @@ type sqlcQuerier interface {
 	// include data where window_start is within the given interval to exclude
 	// stale data.
 	GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error)
+	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
+	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
+	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
+	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
+	GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	GetChatProviderByID(ctx context.Context, id uuid.UUID) (ChatProvider, error)
 	GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
+	GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
@@ -362,6 +373,9 @@ type sqlcQuerier interface {
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
+	// Find chats that appear stuck (running but no heartbeat).
+	// Used for recovery after coderd crashes.
+	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error)
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
@@ -559,6 +573,8 @@ type sqlcQuerier interface {
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
+	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
@@ -682,8 +698,11 @@ type sqlcQuerier interface {
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error)
+	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
+	UpdateChatWorkspace(ctx context.Context, arg UpdateChatWorkspaceParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
@@ -779,6 +798,8 @@ type sqlcQuerier interface {
 	// the current in-memory state. Returns true if this was an insert (new period),
 	// false if update.
 	UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error)
+	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
+	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	UpsertConnectionLog(ctx context.Context, arg UpsertConnectionLogParams) (ConnectionLog, error)
 	UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error
 	// The default proxy is implied and not actually stored in the database.

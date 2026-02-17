@@ -852,7 +852,7 @@ enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command
 	go run -C ./scripts/apitypings main.go > $@
-	(cd site/ && pnpm exec biome format --write src/api/typesGenerated.ts)
+	./scripts/biome_format.sh src/api/typesGenerated.ts
 	touch "$@"
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
@@ -861,7 +861,7 @@ site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/prot
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
 	go run ./scripts/gensite/ -icons "$@"
-	(cd site/ && pnpm exec biome format --write src/theme/icons.json)
+	./scripts/biome_format.sh src/theme/icons.json
 	touch "$@"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
@@ -899,12 +899,12 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/typegen/main.go rbac typescript > "$@"
-	(cd site/ && pnpm exec biome format --write src/api/rbacresourcesGenerated.ts)
+	./scripts/biome_format.sh src/api/rbacresourcesGenerated.ts
 	touch "$@"
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
 	go run scripts/typegen/main.go countries > "$@"
-	(cd site/ && pnpm exec biome format --write src/api/countriesGenerated.ts)
+	./scripts/biome_format.sh src/api/countriesGenerated.ts
 	touch "$@"
 
 docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
@@ -944,11 +944,11 @@ coderd/apidoc/.gen: \
 	touch "$@"
 
 docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md
-	(cd site/ && pnpm exec biome format --write ../docs/manifest.json)
+	./scripts/biome_format.sh ../docs/manifest.json
 	touch "$@"
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
-	(cd site/ && pnpm exec biome format --write ../coderd/apidoc/swagger.json)
+	./scripts/biome_format.sh ../coderd/apidoc/swagger.json
 	touch "$@"
 
 update-golden-files:
@@ -993,11 +993,19 @@ enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/
 	touch "$@"
 
 helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.yaml) $(wildcard helm/coder/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/coder/tests/*_test.go)
-	TZ=UTC go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
+	if command -v helm >/dev/null 2>&1; then
+		TZ=UTC go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
+	else
+		echo "WARNING: helm not found; skipping helm/coder golden generation" >&2
+	fi
 	touch "$@"
 
 helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/testdata/*.yaml) $(wildcard helm/provisioner/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/provisioner/tests/*_test.go)
-	TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	if command -v helm >/dev/null 2>&1; then
+		TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	else
+		echo "WARNING: helm not found; skipping helm/provisioner golden generation" >&2
+	fi
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)

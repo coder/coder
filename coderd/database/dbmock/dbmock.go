@@ -1765,18 +1765,18 @@ func (mr *MockStoreMockRecorder) GetChatDiffStatusByChatID(ctx, chatID any) *gom
 }
 
 // GetChatDiffStatusesByChatIDs mocks base method.
-func (m *MockStore) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]database.ChatDiffStatus, error) {
+func (m *MockStore) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]database.ChatDiffStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatDiffStatusesByChatIDs", ctx, chatIDs)
+	ret := m.ctrl.Call(m, "GetChatDiffStatusesByChatIDs", ctx, chatIds)
 	ret0, _ := ret[0].([]database.ChatDiffStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetChatDiffStatusesByChatIDs indicates an expected call of GetChatDiffStatusesByChatIDs.
-func (mr *MockStoreMockRecorder) GetChatDiffStatusesByChatIDs(ctx, chatIDs any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetChatDiffStatusesByChatIDs(ctx, chatIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatDiffStatusesByChatIDs", reflect.TypeOf((*MockStore)(nil).GetChatDiffStatusesByChatIDs), ctx, chatIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatDiffStatusesByChatIDs", reflect.TypeOf((*MockStore)(nil).GetChatDiffStatusesByChatIDs), ctx, chatIds)
 }
 
 // GetChatMessageByID mocks base method.

@@ -605,7 +605,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/{chat}/git-changes": {
+        "/chats/{chat}/diff": {
             "get": {
                 "security": [
                     {
@@ -618,8 +618,8 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Get git changes for a chat",
-                "operationId": "get-chat-git-changes",
+                "summary": "Get diff contents for a chat",
+                "operationId": "get-chat-diff",
                 "parameters": [
                     {
                         "type": "string",
@@ -634,10 +634,42 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatGitChange"
-                            }
+                            "$ref": "#/definitions/codersdk.ChatDiffContents"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/diff-status": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get diff status for a chat",
+                "operationId": "get-chat-diff-status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatDiffStatus"
                         }
                     }
                 }
@@ -9657,6 +9689,12 @@ const docTemplate = `{
                         "description": "Wait for a new token to be issued",
                         "name": "listen",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Working directory used for git context refresh",
+                        "name": "workdir",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -13736,6 +13774,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "diff_status": {
+                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -13770,32 +13811,61 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatGitChange": {
+        "codersdk.ChatDiffContents": {
             "type": "object",
             "properties": {
-                "change_type": {
-                    "description": "added, modified, deleted, renamed",
+                "branch": {
                     "type": "string"
                 },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
                 },
-                "detected_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "diff_summary": {
+                "diff": {
                     "type": "string"
                 },
-                "file_path": {
+                "provider": {
                     "type": "string"
                 },
-                "id": {
+                "pull_request_url": {
+                    "type": "string"
+                },
+                "remote_origin": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatDiffStatus": {
+            "type": "object",
+            "properties": {
+                "additions": {
+                    "type": "integer"
+                },
+                "changed_files": {
+                    "type": "integer"
+                },
+                "changes_requested": {
+                    "type": "boolean"
+                },
+                "chat_id": {
                     "type": "string",
                     "format": "uuid"
                 },
-                "old_path": {
+                "deletions": {
+                    "type": "integer"
+                },
+                "pull_request_state": {
+                    "type": "string"
+                },
+                "refreshed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "stale_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
                     "type": "string"
                 }
             }
@@ -13854,6 +13924,12 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessagePart"
+                    }
+                },
                 "role": {
                     "type": "string"
                 },
@@ -13862,14 +13938,89 @@ const docTemplate = `{
                 },
                 "tool_call_id": {
                     "type": "string"
-                },
-                "tool_calls": {
+                }
+            }
+        },
+        "codersdk.ChatMessagePart": {
+            "type": "object",
+            "properties": {
+                "args": {
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
+                },
+                "args_delta": {
+                    "type": "string"
+                },
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "is_error": {
+                    "type": "boolean"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "result_delta": {
+                    "type": "string"
+                },
+                "result_meta": {
+                    "$ref": "#/definitions/codersdk.ChatToolResultMetadata"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "source_id": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "tool_call_id": {
+                    "type": "string"
+                },
+                "tool_name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatMessagePartType"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
+        },
+        "codersdk.ChatMessagePartType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "reasoning",
+                "tool-call",
+                "tool-result",
+                "source",
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ChatMessagePartTypeText",
+                "ChatMessagePartTypeReasoning",
+                "ChatMessagePartTypeToolCall",
+                "ChatMessagePartTypeToolResult",
+                "ChatMessagePartTypeSource",
+                "ChatMessagePartTypeFile"
+            ]
         },
         "codersdk.ChatModel": {
             "type": "object",
@@ -13948,6 +14099,44 @@ const docTemplate = `{
                 "ChatStatusCompleted",
                 "ChatStatusError"
             ]
+        },
+        "codersdk.ChatToolResultMetadata": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "created": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "output": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                },
+                "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_url": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatWithMessages": {
             "type": "object",
@@ -14146,12 +14335,6 @@ const docTemplate = `{
                 },
                 "tool_call_id": {
                     "type": "string"
-                },
-                "tool_calls": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
                 }
             }
         },

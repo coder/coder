@@ -1587,6 +1587,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "deletions": 0,
+    "pull_request_state": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_config": [
     0
@@ -1602,43 +1613,72 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                 | Type                                       | Required | Restrictions | Description |
-|----------------------|--------------------------------------------|----------|--------------|-------------|
-| `created_at`         | string                                     | false    |              |             |
-| `id`                 | string                                     | false    |              |             |
-| `model_config`       | array of integer                           | false    |              |             |
-| `owner_id`           | string                                     | false    |              |             |
-| `status`             | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |             |
-| `title`              | string                                     | false    |              |             |
-| `updated_at`         | string                                     | false    |              |             |
-| `workspace_agent_id` | string                                     | false    |              |             |
-| `workspace_id`       | string                                     | false    |              |             |
+| Name                 | Type                                               | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------|----------|--------------|-------------|
+| `created_at`         | string                                             | false    |              |             |
+| `diff_status`        | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              |             |
+| `id`                 | string                                             | false    |              |             |
+| `model_config`       | array of integer                                   | false    |              |             |
+| `owner_id`           | string                                             | false    |              |             |
+| `status`             | [codersdk.ChatStatus](#codersdkchatstatus)         | false    |              |             |
+| `title`              | string                                             | false    |              |             |
+| `updated_at`         | string                                             | false    |              |             |
+| `workspace_agent_id` | string                                             | false    |              |             |
+| `workspace_id`       | string                                             | false    |              |             |
 
-## codersdk.ChatGitChange
+## codersdk.ChatDiffContents
 
 ```json
 {
-  "change_type": "string",
+  "branch": "string",
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "detected_at": "2019-08-24T14:15:22Z",
-  "diff_summary": "string",
-  "file_path": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "old_path": "string"
+  "diff": "string",
+  "provider": "string",
+  "pull_request_url": "string",
+  "remote_origin": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                       |
-|----------------|--------|----------|--------------|-----------------------------------|
-| `change_type`  | string | false    |              | added, modified, deleted, renamed |
-| `chat_id`      | string | false    |              |                                   |
-| `detected_at`  | string | false    |              |                                   |
-| `diff_summary` | string | false    |              |                                   |
-| `file_path`    | string | false    |              |                                   |
-| `id`           | string | false    |              |                                   |
-| `old_path`     | string | false    |              |                                   |
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `branch`           | string | false    |              |             |
+| `chat_id`          | string | false    |              |             |
+| `diff`             | string | false    |              |             |
+| `provider`         | string | false    |              |             |
+| `pull_request_url` | string | false    |              |             |
+| `remote_origin`    | string | false    |              |             |
+
+## codersdk.ChatDiffStatus
+
+```json
+{
+  "additions": 0,
+  "changed_files": 0,
+  "changes_requested": true,
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "deletions": 0,
+  "pull_request_state": "string",
+  "refreshed_at": "2019-08-24T14:15:22Z",
+  "stale_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `additions`          | integer | false    |              |             |
+| `changed_files`      | integer | false    |              |             |
+| `changes_requested`  | boolean | false    |              |             |
+| `chat_id`            | string  | false    |              |             |
+| `deletions`          | integer | false    |              |             |
+| `pull_request_state` | string  | false    |              |             |
+| `refreshed_at`       | string  | false    |              |             |
+| `stale_at`           | string  | false    |              |             |
+| `url`                | string  | false    |              |             |
 
 ## codersdk.ChatInput
 
@@ -1700,28 +1740,139 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_at": "2019-08-24T14:15:22Z",
   "hidden": true,
   "id": 0,
+  "parts": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "data": [
+        0
+      ],
+      "is_error": true,
+      "media_type": "string",
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_meta": {
+        "content": "string",
+        "created": true,
+        "error": "string",
+        "exit_code": 0,
+        "mime_type": "string",
+        "output": "string",
+        "reason": "string",
+        "workspace_agent_id": "string",
+        "workspace_id": "string",
+        "workspace_name": "string",
+        "workspace_url": "string"
+      },
+      "signature": "string",
+      "source_id": "string",
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
   "role": "string",
   "thinking": "string",
-  "tool_call_id": "string",
-  "tool_calls": [
-    0
-  ]
+  "tool_call_id": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type             | Required | Restrictions | Description |
-|----------------|------------------|----------|--------------|-------------|
-| `chat_id`      | string           | false    |              |             |
-| `content`      | array of integer | false    |              |             |
-| `created_at`   | string           | false    |              |             |
-| `hidden`       | boolean          | false    |              |             |
-| `id`           | integer          | false    |              |             |
-| `role`         | string           | false    |              |             |
-| `thinking`     | string           | false    |              |             |
-| `tool_call_id` | string           | false    |              |             |
-| `tool_calls`   | array of integer | false    |              |             |
+| Name           | Type                                                          | Required | Restrictions | Description |
+|----------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`      | string                                                        | false    |              |             |
+| `content`      | array of integer                                              | false    |              |             |
+| `created_at`   | string                                                        | false    |              |             |
+| `hidden`       | boolean                                                       | false    |              |             |
+| `id`           | integer                                                       | false    |              |             |
+| `parts`        | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `role`         | string                                                        | false    |              |             |
+| `thinking`     | string                                                        | false    |              |             |
+| `tool_call_id` | string                                                        | false    |              |             |
+
+## codersdk.ChatMessagePart
+
+```json
+{
+  "args": [
+    0
+  ],
+  "args_delta": "string",
+  "data": [
+    0
+  ],
+  "is_error": true,
+  "media_type": "string",
+  "result": [
+    0
+  ],
+  "result_delta": "string",
+  "result_meta": {
+    "content": "string",
+    "created": true,
+    "error": "string",
+    "exit_code": 0,
+    "mime_type": "string",
+    "output": "string",
+    "reason": "string",
+    "workspace_agent_id": "string",
+    "workspace_id": "string",
+    "workspace_name": "string",
+    "workspace_url": "string"
+  },
+  "signature": "string",
+  "source_id": "string",
+  "text": "string",
+  "title": "string",
+  "tool_call_id": "string",
+  "tool_name": "string",
+  "type": "text",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                               | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `args`         | array of integer                                                   | false    |              |             |
+| `args_delta`   | string                                                             | false    |              |             |
+| `data`         | array of integer                                                   | false    |              |             |
+| `is_error`     | boolean                                                            | false    |              |             |
+| `media_type`   | string                                                             | false    |              |             |
+| `result`       | array of integer                                                   | false    |              |             |
+| `result_delta` | string                                                             | false    |              |             |
+| `result_meta`  | [codersdk.ChatToolResultMetadata](#codersdkchattoolresultmetadata) | false    |              |             |
+| `signature`    | string                                                             | false    |              |             |
+| `source_id`    | string                                                             | false    |              |             |
+| `text`         | string                                                             | false    |              |             |
+| `title`        | string                                                             | false    |              |             |
+| `tool_call_id` | string                                                             | false    |              |             |
+| `tool_name`    | string                                                             | false    |              |             |
+| `type`         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype)       | false    |              |             |
+| `url`          | string                                                             | false    |              |             |
+
+## codersdk.ChatMessagePartType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                          |
+|-------------------------------------------------------------------|
+| `file`, `reasoning`, `source`, `text`, `tool-call`, `tool-result` |
 
 ## codersdk.ChatModel
 
@@ -1826,12 +1977,57 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------------------------------------------------|
 | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
 
+## codersdk.ChatToolResultMetadata
+
+```json
+{
+  "content": "string",
+  "created": true,
+  "error": "string",
+  "exit_code": 0,
+  "mime_type": "string",
+  "output": "string",
+  "reason": "string",
+  "workspace_agent_id": "string",
+  "workspace_id": "string",
+  "workspace_name": "string",
+  "workspace_url": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `content`            | string  | false    |              |             |
+| `created`            | boolean | false    |              |             |
+| `error`              | string  | false    |              |             |
+| `exit_code`          | integer | false    |              |             |
+| `mime_type`          | string  | false    |              |             |
+| `output`             | string  | false    |              |             |
+| `reason`             | string  | false    |              |             |
+| `workspace_agent_id` | string  | false    |              |             |
+| `workspace_id`       | string  | false    |              |             |
+| `workspace_name`     | string  | false    |              |             |
+| `workspace_url`      | string  | false    |              |             |
+
 ## codersdk.ChatWithMessages
 
 ```json
 {
   "chat": {
     "created_at": "2019-08-24T14:15:22Z",
+    "diff_status": {
+      "additions": 0,
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "deletions": 0,
+      "pull_request_state": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "model_config": [
       0
@@ -1852,12 +2048,47 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_at": "2019-08-24T14:15:22Z",
       "hidden": true,
       "id": 0,
+      "parts": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "data": [
+            0
+          ],
+          "is_error": true,
+          "media_type": "string",
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_meta": {
+            "content": "string",
+            "created": true,
+            "error": "string",
+            "exit_code": 0,
+            "mime_type": "string",
+            "output": "string",
+            "reason": "string",
+            "workspace_agent_id": "string",
+            "workspace_id": "string",
+            "workspace_name": "string",
+            "workspace_url": "string"
+          },
+          "signature": "string",
+          "source_id": "string",
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
       "role": "string",
       "thinking": "string",
-      "tool_call_id": "string",
-      "tool_calls": [
-        0
-      ]
+      "tool_call_id": "string"
     }
   ]
 }
@@ -2128,10 +2359,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "role": "string",
   "thinking": "string",
-  "tool_call_id": "string",
-  "tool_calls": [
-    0
-  ]
+  "tool_call_id": "string"
 }
 ```
 
@@ -2143,7 +2371,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `role`         | string           | false    |              |             |
 | `thinking`     | string           | false    |              |             |
 | `tool_call_id` | string           | false    |              |             |
-| `tool_calls`   | array of integer | false    |              |             |
 
 ## codersdk.CreateChatRequest
 
