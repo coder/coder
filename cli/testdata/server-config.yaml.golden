@@ -904,9 +904,6 @@ aibridge:
   # (default: Generate a concise title (max 8 words) for the user's first message.
   # Return plain text only, with no surrounding quotes., type: string)
   chat_title_generation_prompt: Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.
-  # Model used to generate chat titles.
-  # (default: gpt-5.2, type: string)
-  chat_title_generation_model: gpt-5.2
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)
   enabled: false

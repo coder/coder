@@ -812,7 +812,6 @@ func New(options *Options) *API {
 			chatd.WithProviderAPIKeysResolver(chatProviderAPIKeysResolver),
 			chatd.WithTitleGenerationConfig(chatd.TitleGenerationConfig{
 				Prompt: options.DeploymentValues.AI.Chat.TitleGenerationPrompt.Value(),
-				Model:  options.DeploymentValues.AI.Chat.TitleGenerationModel.Value(),
 			}),
 			chatd.WithAgentConnector(api.agentProvider),
 			chatd.WithWorkspaceCreator(api.newChatWorkspaceCreator()),

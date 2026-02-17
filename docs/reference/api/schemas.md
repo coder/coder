@@ -746,7 +746,6 @@
 ```json
 {
   "system_prompt": "string",
-  "title_generation_model": "string",
   "title_generation_prompt": "string"
 }
 ```
@@ -756,7 +755,6 @@
 | Name                      | Type   | Required | Restrictions | Description |
 |---------------------------|--------|----------|--------------|-------------|
 | `system_prompt`           | string | false    |              |             |
-| `title_generation_model`  | string | false    |              |             |
 | `title_generation_prompt` | string | false    |              |             |
 
 ## codersdk.AIConfig
@@ -810,7 +808,6 @@
   },
   "chat": {
     "system_prompt": "string",
-    "title_generation_model": "string",
     "title_generation_prompt": "string"
   }
 }
@@ -3321,7 +3318,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "chat": {
         "system_prompt": "string",
-        "title_generation_model": "string",
         "title_generation_prompt": "string"
       }
     },
@@ -3884,7 +3880,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "chat": {
       "system_prompt": "string",
-      "title_generation_model": "string",
       "title_generation_prompt": "string"
     }
   },

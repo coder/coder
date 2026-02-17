@@ -3563,16 +3563,6 @@ Don't assume what needs to be done - collaborate to define the scope together.
 			Group: &deploymentGroupAIBridge,
 			YAML:  "chat_title_generation_prompt",
 		},
-		{
-			Name:        "Chat Title Generation Model",
-			Description: "Model used to generate chat titles.",
-			Flag:        "chat-title-generation-model",
-			Env:         "CODER_CHAT_TITLE_GENERATION_MODEL",
-			Value:       &c.AI.Chat.TitleGenerationModel,
-			Default:     "gpt-5.2",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "chat_title_generation_model",
-		},
 
 		// AI Bridge Options
 		{
@@ -4049,7 +4039,6 @@ type AIBridgeProxyConfig struct {
 type AIChatConfig struct {
 	SystemPrompt          serpent.String `json:"system_prompt" typescript:",notnull"`
 	TitleGenerationPrompt serpent.String `json:"title_generation_prompt" typescript:",notnull"`
-	TitleGenerationModel  serpent.String `json:"title_generation_model" typescript:",notnull"`
 }
 
 type AIConfig struct {

@@ -209,7 +209,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       },
       "chat": {
         "system_prompt": "string",
-        "title_generation_model": "string",
         "title_generation_prompt": "string"
       }
     },
