@@ -41,8 +41,38 @@ const (
 	chatDiffBackgroundRefreshTimeout = 20 * time.Second
 	chatRepositoryRefResolveTimeout  = 8 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
-	chatGitReferenceCommand          = `sh -lc 'branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; origin="$(git config --get remote.origin.url 2>/dev/null || true)"; if [ -n "$branch" ] && [ -n "$origin" ]; then printf "%s\n%s\n" "$branch" "$origin"; fi'`
+	chatGitReferenceCommandBody      = `branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; origin="$(git config --get remote.origin.url 2>/dev/null || true)"; if [ -n "$branch" ] && [ -n "$origin" ]; then printf "%s\n%s\n" "$branch" "$origin"; fi`
 )
+
+type chatWorkingDirectoryContextKey struct{}
+
+func contextWithChatWorkingDirectory(ctx context.Context, workingDirectory string) context.Context {
+	workingDirectory = strings.TrimSpace(workingDirectory)
+	if workingDirectory == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, chatWorkingDirectoryContextKey{}, workingDirectory)
+}
+
+func chatWorkingDirectoryFromContext(ctx context.Context) string {
+	workingDirectory, _ := ctx.Value(chatWorkingDirectoryContextKey{}).(string)
+	return strings.TrimSpace(workingDirectory)
+}
+
+func shellEscapeSingleQuoted(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+}
+
+func buildChatGitReferenceCommand(workingDirectory string) string {
+	body := chatGitReferenceCommandBody
+	if strings.TrimSpace(workingDirectory) != "" {
+		return fmt.Sprintf("sh -lc 'cd \"$1\" && %s' -- %s", body, shellEscapeSingleQuoted(workingDirectory))
+	}
+	return fmt.Sprintf("sh -lc '%s'", body)
+}
 
 var (
 	githubPullRequestPathPattern = regexp.MustCompile(
@@ -906,17 +936,22 @@ func shouldRefreshChatDiffStatus(status database.ChatDiffStatus, now time.Time, 
 	return chatDiffStatusIsStale(status, now)
 }
 
-func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspace) {
+func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, workspace database.Workspace) {
 	if workspace.ID == uuid.Nil || workspace.OwnerID == uuid.Nil {
 		return
 	}
 
-	go func(workspaceID, workspaceOwnerID uuid.UUID) {
+	workingDirectory := chatWorkingDirectoryFromContext(ctx)
+
+	go func(workspaceID, workspaceOwnerID uuid.UUID, workingDirectory string) {
 		ctx := api.ctx
 		if ctx == nil {
 			ctx = context.Background()
 		}
 		ctx = dbauthz.AsSystemRestricted(ctx)
+		if workingDirectory != "" {
+			ctx = contextWithChatWorkingDirectory(ctx, workingDirectory)
+		}
 
 		chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
 		if err != nil {
@@ -942,7 +977,7 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspa
 
 			api.publishChatStatusEvent(chat)
 		}
-	}(workspace.ID, workspace.OwnerID)
+	}(workspace.ID, workspace.OwnerID, workingDirectory)
 }
 
 func filterChatsByWorkspaceID(chats []database.Chat, workspaceID uuid.UUID) []database.Chat {
@@ -1193,7 +1228,8 @@ func (api *API) detectChatGitBranchAndOrigin(
 	execCtx, cancel := context.WithTimeout(ctx, chatRepositoryRefResolveTimeout)
 	defer cancel()
 
-	output, _, err := executeChatWorkspaceCommand(execCtx, conn, chatGitReferenceCommand)
+	command := buildChatGitReferenceCommand(chatWorkingDirectoryFromContext(ctx))
+	output, _, err := executeChatWorkspaceCommand(execCtx, conn, command)
 	if err != nil {
 		return "", "", xerrors.Errorf("resolve git repository reference: %w", err)
 	}

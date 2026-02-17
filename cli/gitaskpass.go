@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -38,8 +39,14 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
 
+			workingDirectory, err := os.Getwd()
+			if err != nil {
+				workingDirectory = ""
+			}
+
 			token, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
-				Match: host,
+				Match:   host,
+				Workdir: workingDirectory,
 			})
 			if err != nil {
 				var apiError *codersdk.Error
@@ -66,8 +73,9 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
 					token, err = client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
-						Match:  host,
-						Listen: true,
+						Match:   host,
+						Listen:  true,
+						Workdir: workingDirectory,
 					})
 					if err != nil {
 						continue

@@ -1081,7 +1081,60 @@ func chatMessagesToPrompt(messages []database.ChatMessage) ([]api.Message, error
 			return nil, xerrors.Errorf("unsupported chat message role %q", message.Role)
 		}
 	}
-	return prompt, nil
+	return injectMissingToolResults(prompt), nil
+}
+
+// injectMissingToolResults scans the prompt for assistant messages
+// that contain tool calls without corresponding tool result messages
+// and injects synthetic "interrupted" tool results. This can happen
+// when a chat is interrupted mid-tool-call: the assistant message
+// with tool_use blocks is persisted but the tool results are not.
+// The Anthropic API requires every tool_use to have a matching
+// tool_result in the immediately following message.
+func injectMissingToolResults(prompt []api.Message) []api.Message {
+	result := make([]api.Message, 0, len(prompt))
+	for i, msg := range prompt {
+		result = append(result, msg)
+
+		assistantMsg, ok := msg.(*api.AssistantMessage)
+		if !ok {
+			continue
+		}
+		toolCalls := extractToolCalls(assistantMsg.Content)
+		if len(toolCalls) == 0 {
+			continue
+		}
+
+		// Collect the tool call IDs that have results in the
+		// following tool message(s).
+		answered := make(map[string]struct{})
+		for j := i + 1; j < len(prompt); j++ {
+			toolMsg, ok := prompt[j].(*api.ToolMessage)
+			if !ok {
+				break
+			}
+			for _, tr := range toolMsg.Content {
+				answered[tr.ToolCallID] = struct{}{}
+			}
+		}
+
+		// Build synthetic results for any unanswered tool calls.
+		var missing []api.ToolResultBlock
+		for _, tc := range toolCalls {
+			if _, ok := answered[tc.ToolCallID]; !ok {
+				missing = append(missing, api.ToolResultBlock{
+					ToolCallID: tc.ToolCallID,
+					ToolName:   tc.ToolName,
+					Result:     map[string]any{"error": "tool call was interrupted and did not receive a result"},
+					IsError:    true,
+				})
+			}
+		}
+		if len(missing) > 0 {
+			result = append(result, &api.ToolMessage{Content: missing})
+		}
+	}
+	return result
 }
 
 func prependSystemInstruction(prompt []api.Message, instruction string) []api.Message {
