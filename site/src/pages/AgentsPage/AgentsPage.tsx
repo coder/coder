@@ -218,9 +218,7 @@ export const AgentsPage: FC = () => {
 					chats={chatList}
 					chatErrorReasons={chatErrorReasons}
 					modelOptions={catalogModelOptions}
-					selectedChatId={agentId}
 					logoUrl={appearance.logo_url}
-					onSelect={(id) => navigate(`/agents/${id}`)}
 					onArchiveAgent={handleArchiveAgent}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}

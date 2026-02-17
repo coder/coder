@@ -41,7 +41,7 @@ const (
 type WorkspaceCreatorAdapter interface {
 	PrepareWorkspaceCreate(
 		ctx context.Context,
-		ownerID uuid.UUID,
+		chat database.Chat,
 	) (context.Context, *http.Request, string, error)
 	AuthorizedTemplates(ctx context.Context, r *http.Request) ([]database.Template, error)
 	CreateWorkspace(
@@ -59,7 +59,7 @@ type WorkspaceCreatorAdapter interface {
 type WorkspaceCreatorAdapterFuncs struct {
 	PrepareWorkspaceCreateFunc func(
 		ctx context.Context,
-		ownerID uuid.UUID,
+		chat database.Chat,
 	) (context.Context, *http.Request, string, error)
 	AuthorizedTemplatesFunc func(
 		ctx context.Context,
@@ -78,12 +78,12 @@ type WorkspaceCreatorAdapterFuncs struct {
 
 func (a WorkspaceCreatorAdapterFuncs) PrepareWorkspaceCreate(
 	ctx context.Context,
-	ownerID uuid.UUID,
+	chat database.Chat,
 ) (context.Context, *http.Request, string, error) {
 	if a.PrepareWorkspaceCreateFunc == nil {
 		return nil, nil, "", xerrors.New("chat workspace creator prepare callback is not configured")
 	}
-	return a.PrepareWorkspaceCreateFunc(ctx, ownerID)
+	return a.PrepareWorkspaceCreateFunc(ctx, chat)
 }
 
 func (a WorkspaceCreatorAdapterFuncs) AuthorizedTemplates(
@@ -161,7 +161,7 @@ func (c *workspaceCreator) CreateWorkspace(
 		return CreateWorkspaceToolResult{}, xerrors.New("chat workspace creator database is not configured")
 	}
 
-	ctx, httpReq, accessURL, err := c.adapter.PrepareWorkspaceCreate(ctx, req.Chat.OwnerID)
+	ctx, httpReq, accessURL, err := c.adapter.PrepareWorkspaceCreate(ctx, req.Chat)
 	if err != nil {
 		return CreateWorkspaceToolResult{}, err
 	}

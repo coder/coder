@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -123,6 +126,75 @@ func TestChatWorkspaceAuditStatus(t *testing.T) {
 
 		require.Equal(t, http.StatusInternalServerError, chatWorkspaceAuditStatus(assertionError("boom")))
 	})
+}
+
+func TestSynthesizeChatWorkspaceRequestPreservesMetadata(t *testing.T) {
+	t.Parallel()
+
+	requestID := uuid.New()
+	metadata := chatWorkspaceRequestMetadata{
+		Header:     http.Header{"User-Agent": []string{"coder-test-agent"}},
+		RemoteAddr: "203.0.113.42:9999",
+		RequestID:  requestID.String(),
+	}
+
+	req, err := synthesizeChatWorkspaceRequest(
+		context.Background(),
+		"http://localhost/api/v2/chats/workspace",
+		metadata,
+	)
+	require.NoError(t, err)
+	require.Equal(t, metadata.RemoteAddr, req.RemoteAddr)
+	require.Equal(t, metadata.Header.Get("User-Agent"), req.Header.Get("User-Agent"))
+	require.Equal(t, requestID, httpmw.RequestID(req))
+}
+
+func TestSynthesizeChatWorkspaceRequestFallsBackToGeneratedRequestID(t *testing.T) {
+	t.Parallel()
+
+	req, err := synthesizeChatWorkspaceRequest(
+		context.Background(),
+		"http://localhost/api/v2/chats/workspace",
+		chatWorkspaceRequestMetadata{RequestID: "not-a-uuid"},
+	)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, httpmw.RequestID(req))
+}
+
+func TestConvertChatMessagesSkipsWorkspaceMetadata(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		{
+			ID:   1,
+			Role: "user",
+		},
+		{
+			ID:     2,
+			Role:   chatWorkspaceRequestMetadataRole,
+			Hidden: true,
+		},
+	}
+
+	converted := convertChatMessages(messages)
+	require.Len(t, converted, 1)
+	require.Equal(t, int64(1), converted[0].ID)
+}
+
+func TestChatWorkspaceRequestMetadataFromRequest(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodPost, "http://example.test/chats", nil)
+	req.Header.Set("User-Agent", "coder-test-agent")
+	req.RemoteAddr = "203.0.113.42:9999"
+
+	requestID := uuid.New()
+	req = req.WithContext(httpmw.WithRequestID(context.Background(), requestID))
+
+	metadata := chatWorkspaceRequestMetadataFromRequest(req)
+	require.Equal(t, "203.0.113.42:9999", metadata.RemoteAddr)
+	require.Equal(t, requestID.String(), metadata.RequestID)
+	require.Equal(t, "coder-test-agent", metadata.Header.Get("User-Agent"))
 }
 
 type assertionError string
