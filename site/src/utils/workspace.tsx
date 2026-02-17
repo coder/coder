@@ -87,6 +87,8 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "ssh_connection":
 		case "vscode_connection":
 		case "jetbrains_connection":
+		case "task_manual_pause":
+		case "task_resume":
 			return build.initiator_name;
 		case "autostart":
 		case "autostop":
@@ -102,6 +104,8 @@ export const systemBuildReasons = [
 	"autostop",
 	"dormancy",
 	"task_auto_pause",
+	"task_manual_pause",
+	"task_resume",
 ];
 
 export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
@@ -118,6 +122,8 @@ export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	autostop: "Autostop",
 	dormancy: "Dormancy",
 	task_auto_pause: "Task Auto-Pause",
+	task_manual_pause: "Task Manual Pause",
+	task_resume: "Task Resume",
 };
 
 const getWorkspaceBuildDurationInSeconds = (
