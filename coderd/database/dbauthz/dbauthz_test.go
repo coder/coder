@@ -1327,8 +1327,9 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTelemetryTaskEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetTelemetryTaskEvents(gomock.Any()).Return([]database.GetTelemetryTaskEventsRow{}, nil).AnyTimes()
-		check.Asserts(rbac.ResourceTask.All(), policy.ActionRead)
+		arg := database.GetTelemetryTaskEventsParams{}
+		dbm.EXPECT().GetTelemetryTaskEvents(gomock.Any(), arg).Return([]database.GetTelemetryTaskEventsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTask.All(), policy.ActionRead)
 	}))
 	s.Run("GetTemplateAppInsights", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetTemplateAppInsightsParams{}

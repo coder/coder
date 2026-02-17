@@ -1790,9 +1790,9 @@ func (m queryMetricsStore) GetTelemetryItems(ctx context.Context) ([]database.Te
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTelemetryTaskEvents(ctx context.Context) ([]database.GetTelemetryTaskEventsRow, error) {
+func (m queryMetricsStore) GetTelemetryTaskEvents(ctx context.Context, createdAfter database.GetTelemetryTaskEventsParams) ([]database.GetTelemetryTaskEventsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTelemetryTaskEvents(ctx)
+	r0, r1 := m.s.GetTelemetryTaskEvents(ctx, createdAfter)
 	m.queryLatencies.WithLabelValues("GetTelemetryTaskEvents").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTelemetryTaskEvents").Inc()
 	return r0, r1

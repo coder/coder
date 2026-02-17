@@ -416,9 +416,10 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
 		ctx = r.ctx
+		now = r.options.Clock.Now()
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
-		createdAfter = dbtime.Time(r.options.Clock.Now().Add(-1 * time.Hour)).UTC()
+		createdAfter = dbtime.Time(now.Add(-1 * time.Hour)).UTC()
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
@@ -748,7 +749,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter)
+		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter, now)
 		if err != nil {
 			return xerrors.Errorf("collect task events telemetry: %w", err)
 		}
@@ -928,6 +929,7 @@ func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
 func buildTaskEvent(
 	row database.GetTelemetryTaskEventsRow,
 	createdAfter time.Time,
+	now time.Time,
 ) TaskEvent {
 	event := TaskEvent{
 		TaskID: row.TaskID.String(),
@@ -937,11 +939,9 @@ func buildTaskEvent(
 	hasStopBuild := row.StopBuildCreatedAt.Valid
 	startedAfterStop := hasStartBuild && hasStopBuild &&
 		row.StartBuildCreatedAt.Time.After(row.StopBuildCreatedAt.Time)
-	// The workspace is running if it was started without ever being
-	// stopped, or if it was restarted after the most recent stop.
-	running := (hasStartBuild && !hasStopBuild) || startedAfterStop
+	currentlyPaused := hasStopBuild && !startedAfterStop
 
-	// Last paused (latest stop build).
+	// Pause-related fields (requires a stop build).
 	if hasStopBuild {
 		event.LastPausedAt = &row.StopBuildCreatedAt.Time
 		switch {
@@ -952,47 +952,58 @@ func buildTaskEvent(
 		default:
 			event.PauseReason = ptr.Ref("other")
 		}
+
+		// Idle duration: time between last working status and the pause.
+		if row.LastWorkingStatusAt.Valid &&
+			row.StopBuildCreatedAt.Time.After(row.LastWorkingStatusAt.Time) {
+			idle := row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time)
+			event.IdleDurationMS = ptr.Ref(idle.Milliseconds())
+		}
 	}
 
-	// Last resumed (latest start build that follows a stop build).
+	// Resume-related fields (requires task_resume start after stop).
 	if startedAfterStop {
 		event.LastResumedAt = &row.StartBuildCreatedAt.Time
+
+		// Paused duration: time between pause and resume.
+		if row.StartBuildCreatedAt.Time.After(createdAfter) {
+			paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
+			event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
+		}
 	}
 
-	// Idle duration: time between last working status and latest stop.
-	if hasStopBuild && row.LastWorkingStatusAt.Valid &&
-		row.StopBuildCreatedAt.Time.After(row.LastWorkingStatusAt.Time) {
-		idle := row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time)
-		event.IdleDurationMS = ptr.Ref(idle.Milliseconds())
-	}
-
-	// Paused duration: time between latest stop and latest start,
-	// gated by createdAfter so only recent pairs are reported.
-	if startedAfterStop &&
-		row.StartBuildCreatedAt.Time.After(createdAfter) {
-		paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
+	// Unresolved pause: report current paused duration.
+	if currentlyPaused {
+		paused := now.Sub(row.StopBuildCreatedAt.Time)
 		event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
 	}
 
-	// Resume-to-status: time from the latest start build to the
-	// first app status reported after that start.
-	if running && row.FirstStatusAfterResumeAt.Valid {
+	// Resume-to-status duration.
+	if row.FirstStatusAfterResumeAt.Valid {
 		delta := row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time)
 		event.ResumeToStatusMS = ptr.Ref(delta.Milliseconds())
+	}
+
+	// Active duration: from SQL calculation.
+	if activeDurationMs, ok := row.ActiveDurationMs.(int64); ok && activeDurationMs > 0 {
+		event.ActiveDurationMS = ptr.Ref(activeDurationMs)
 	}
 
 	return event
 }
 
 // CollectTaskEvents collects lifecycle events for tasks with recent activity.
-func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter time.Time) ([]TaskEvent, error) {
-	rows, err := db.GetTelemetryTaskEvents(ctx)
+func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter, now time.Time) ([]TaskEvent, error) {
+	rows, err := db.GetTelemetryTaskEvents(ctx, database.GetTelemetryTaskEventsParams{
+		CreatedAfter: createdAfter,
+		Now:          now,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("get telemetry task events: %w", err)
 	}
 	events := make([]TaskEvent, 0, len(rows))
 	for _, row := range rows {
-		events = append(events, buildTaskEvent(row, createdAfter))
+		events = append(events, buildTaskEvent(row, createdAfter, now))
 	}
 	return events, nil
 }
@@ -2048,6 +2059,7 @@ type TaskEvent struct {
 	IdleDurationMS   *int64     `json:"idle_duration_ms"`
 	PausedDurationMS *int64     `json:"paused_duration_ms"`
 	ResumeToStatusMS *int64     `json:"resume_to_status_ms"`
+	ActiveDurationMS *int64     `json:"active_duration_ms"`
 }
 
 // ConvertTask converts a database Task to a telemetry Task.

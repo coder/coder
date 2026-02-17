@@ -368,7 +368,13 @@ type sqlcQuerier interface {
 	//   - the most recent stop and start builds (workspace_builds)
 	//   - the last "working" app status (workspace_app_statuses)
 	//   - the first app status after resume, for active workspaces
-	GetTelemetryTaskEvents(ctx context.Context) ([]GetTelemetryTaskEventsRow, error)
+	//
+	// Assumptions:
+	// - 1:1 relationship between tasks and workspaces. All builds on the
+	//   workspace are considered task-related.
+	// - Idle duration approximation: If the agent reports "working", does
+	//   work, then reports "done", we miss that working time.
+	GetTelemetryTaskEvents(ctx context.Context, arg GetTelemetryTaskEventsParams) ([]GetTelemetryTaskEventsRow, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.

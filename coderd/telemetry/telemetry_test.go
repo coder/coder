@@ -786,6 +786,7 @@ func TestTasksTelemetry(t *testing.T) {
 		idleDurationMS    *int64
 		pausedDurationMS  *int64
 		resumeToStatusMS  *int64
+		activeDurationMS  *int64
 	}{
 		{
 			name:          "no workspace - all lifecycle fields nil",
@@ -801,12 +802,14 @@ func TestTasksTelemetry(t *testing.T) {
 		{
 			name:          "with app status - no lifecycle events",
 			createdOffset: -90 * time.Minute,
-			buildOffset:   ptr.Ref(-2 * time.Hour),
+			buildOffset:   ptr.Ref(-45 * time.Minute),
 			appStatuses: []statusSpec{
-				{database.WorkspaceAppStatusStateWorking, "Task started", -85 * time.Minute},
+				{database.WorkspaceAppStatusStateWorking, "Task started", -40 * time.Minute},
 			},
-			expectEvent:      true,
-			resumeToStatusMS: ptr.Ref((35 * time.Minute).Milliseconds()),
+			expectEvent: true,
+			// ResumeToStatusMS is nil because initial start (BuildReasonInitiator)
+			// doesn't count - only task_resume starts are considered.
+			activeDurationMS: ptr.Ref(int64(40 * time.Minute / time.Millisecond)),
 		},
 		{
 			name:          "auto paused - LastPausedAt and PauseReason=auto",
@@ -817,6 +820,7 @@ func TestTasksTelemetry(t *testing.T) {
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-20 * time.Minute),
 			pauseReason:      ptr.Ref("auto"),
+			pausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 		{
 			name:          "manual paused - LastPausedAt and PauseReason=manual",
@@ -827,6 +831,7 @@ func TestTasksTelemetry(t *testing.T) {
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-15 * time.Minute),
 			pauseReason:      ptr.Ref("manual"),
+			pausedDurationMS: ptr.Ref(15 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 		{
 			name:          "paused with idle time - IdleDurationMS calculated",
@@ -841,7 +846,9 @@ func TestTasksTelemetry(t *testing.T) {
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-25 * time.Minute),
 			pauseReason:      ptr.Ref("auto"),
-			idleDurationMS:   ptr.Ref(15 * time.Minute.Milliseconds()),
+			idleDurationMS:   ptr.Ref(15 * time.Minute.Milliseconds()), // Last working (-40) to stop (-25).
+			activeDurationMS: ptr.Ref(5 * time.Minute.Milliseconds()),  // -40 min (working) to -35 min (idle).
+			pausedDurationMS: ptr.Ref(25 * time.Minute.Milliseconds()), // Ongoing pause: now - (-25min).
 		},
 		{
 			name:          "paused with working status after pause - IdleDurationMS nil",
@@ -855,6 +862,9 @@ func TestTasksTelemetry(t *testing.T) {
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-25 * time.Minute),
 			pauseReason:      ptr.Ref("auto"),
+			pausedDurationMS: ptr.Ref(25 * time.Minute.Milliseconds()), // Ongoing pause.
+			// IdleDurationMS is nil because "last working" is after pause.
+			// ActiveDurationMS is nil because working→stop interval is negative.
 		},
 		{
 			name:          "recently resumed - PausedDurationMS calculated",
@@ -870,16 +880,23 @@ func TestTasksTelemetry(t *testing.T) {
 			pausedDurationMS:  ptr.Ref(40 * time.Minute.Milliseconds()),
 		},
 		{
+			// This test verifies the Go-side createdAfter check for PausedDurationMS.
+			// The resume happened 2 hours ago (before the 1-hour createdAfter window),
+			// so PausedDurationMS should be nil even though the task is returned.
+			// A recent start build ensures the task passes the SQL filter.
 			name:          "resumed long ago - PausedDurationMS nil",
 			createdOffset: -10 * time.Hour,
 			extraBuilds: []buildSpec{
 				{2, -5 * time.Hour, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
 				{3, -2 * time.Hour, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
+				// Recent build ensures task matches the SQL filter.
+				{4, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator},
 			},
 			expectEvent:       true,
 			lastPausedOffset:  ptr.Ref(-5 * time.Hour),
 			lastResumedOffset: ptr.Ref(-2 * time.Hour),
 			pauseReason:       ptr.Ref("auto"),
+			// PausedDurationMS is nil because resume happened before createdAfter.
 		},
 		{
 			name:          "multiple cycles - captures latest pause/resume",
@@ -892,9 +909,10 @@ func TestTasksTelemetry(t *testing.T) {
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-30 * time.Minute),
 			pauseReason:      ptr.Ref("manual"),
+			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()), // Ongoing pause: now - (-30min).
 		},
 		{
-			name:          "currently paused after recent resume - PausedDurationMS nil",
+			name:          "currently paused after recent resume - reports ongoing pause",
 			createdOffset: -6 * time.Hour,
 			extraBuilds: []buildSpec{
 				{2, -50 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
@@ -904,6 +922,7 @@ func TestTasksTelemetry(t *testing.T) {
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-10 * time.Minute),
 			pauseReason:      ptr.Ref("manual"),
+			pausedDurationMS: ptr.Ref(10 * time.Minute.Milliseconds()), // Ongoing pause: now - pause time.
 		},
 		{
 			name:          "multiple cycles with recent resume - pairs with preceding pause",
@@ -941,6 +960,78 @@ func TestTasksTelemetry(t *testing.T) {
 			idleDurationMS:    ptr.Ref(10 * time.Minute.Milliseconds()),
 			pausedDurationMS:  ptr.Ref(30 * time.Minute.Milliseconds()),
 			resumeToStatusMS:  ptr.Ref((3 * time.Minute).Milliseconds()),
+			// Active duration: (-390 to -45) + (-45 to -2) = 345 + 43 = 388 min.
+			activeDurationMS: ptr.Ref(388 * time.Minute.Milliseconds()),
+		},
+		{
+			name:          "only task_resume builds count for LastResumedAt",
+			createdOffset: -4 * time.Hour,
+			extraBuilds: []buildSpec{
+				{2, -60 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator},
+			},
+			expectEvent:      true,
+			lastPausedOffset: ptr.Ref(-60 * time.Minute),
+			pauseReason:      ptr.Ref("auto"),
+			// LastResumedAt is nil because start wasn't task_resume.
+			// PausedDurationMS reports ongoing pause: now - (-60min) = 60min.
+			pausedDurationMS: ptr.Ref(60 * time.Minute.Milliseconds()),
+		},
+		{
+			name:          "simple ongoing pause reports duration",
+			createdOffset: -3 * time.Hour,
+			extraBuilds: []buildSpec{
+				{2, -45 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+			},
+			expectEvent:      true,
+			lastPausedOffset: ptr.Ref(-45 * time.Minute),
+			pauseReason:      ptr.Ref("auto"),
+			// No resume, so ongoing pause: now - (-45min) = 45min.
+			pausedDurationMS: ptr.Ref(45 * time.Minute.Milliseconds()),
+		},
+		{
+			name:          "active duration with paused task",
+			createdOffset: -2 * time.Hour,
+			buildOffset:   ptr.Ref(-2 * time.Hour),
+			appStatuses: []statusSpec{
+				{database.WorkspaceAppStatusStateWorking, "Started", -90 * time.Minute},
+				{database.WorkspaceAppStatusStateIdle, "Thinking", -60 * time.Minute}, // 30min working
+				{database.WorkspaceAppStatusStateWorking, "Resumed", -45 * time.Minute},
+				{database.WorkspaceAppStatusStateComplete, "Done", -30 * time.Minute}, // 15min working
+			},
+			extraBuilds: []buildSpec{
+				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+			},
+			expectEvent:      true,
+			lastPausedOffset: ptr.Ref(-25 * time.Minute),
+			pauseReason:      ptr.Ref("auto"),
+			idleDurationMS:   ptr.Ref(20 * time.Minute.Milliseconds()), // Last working (-45) to stop (-25).
+			activeDurationMS: ptr.Ref(45 * time.Minute.Milliseconds()), // 30 + 15 = 45min of "working".
+			pausedDurationMS: ptr.Ref(25 * time.Minute.Milliseconds()), // Ongoing pause.
+		},
+		{
+			// SQL filter: EXISTS (workspace_builds.created_at > createdAfter).
+			// This task has only old builds (7 days ago), so it won't match
+			// the 1-hour createdAfter filter and should not return an event.
+			name:          "old task with no recent builds - not returned",
+			createdOffset: -7 * 24 * time.Hour,
+			buildOffset:   ptr.Ref(-7 * 24 * time.Hour),
+			expectEvent:   false,
+		},
+		{
+			// SQL filter: EXISTS (workspace_builds.created_at > createdAfter).
+			// This task was created 7 days ago, but has a recent stop build,
+			// so it should match the filter and return an event.
+			name:          "old task with recent build - returned",
+			createdOffset: -7 * 24 * time.Hour,
+			buildOffset:   ptr.Ref(-7 * 24 * time.Hour),
+			extraBuilds: []buildSpec{
+				{2, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+			},
+			expectEvent:      true,
+			lastPausedOffset: ptr.Ref(-30 * time.Minute),
+			pauseReason:      ptr.Ref("auto"),
+			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 	}
 
@@ -1064,7 +1155,7 @@ func TestTasksTelemetry(t *testing.T) {
 				t.Fatalf("task diff (-want +got):\n%s", diff)
 			}
 
-			actualEvents, err := telemetry.CollectTaskEvents(h.ctx, h.db, now.Add(-1*time.Hour))
+			actualEvents, err := telemetry.CollectTaskEvents(h.ctx, h.db, now.Add(-1*time.Hour), now)
 			require.NoError(t, err)
 			if !tt.expectEvent {
 				require.Empty(t, actualEvents)
@@ -1084,11 +1175,14 @@ func TestTasksTelemetry(t *testing.T) {
 				expectedEvent.IdleDurationMS = tt.idleDurationMS
 				expectedEvent.PausedDurationMS = tt.pausedDurationMS
 				expectedEvent.ResumeToStatusMS = tt.resumeToStatusMS
+				expectedEvent.ActiveDurationMS = tt.activeDurationMS
 
 				// Each test case creates exactly one workspace with lifecycle
 				// activity, so we expect exactly one event.
 				require.Len(t, actualEvents, 1)
-				if diff := cmp.Diff(expectedEvent, actualEvents[0]); diff != "" {
+				actual := actualEvents[0]
+
+				if diff := cmp.Diff(expectedEvent, actual); diff != "" {
 					t.Fatalf("event diff (-want +got):\n%s", diff)
 				}
 			}

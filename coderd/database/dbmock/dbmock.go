@@ -3315,18 +3315,18 @@ func (mr *MockStoreMockRecorder) GetTelemetryItems(ctx any) *gomock.Call {
 }
 
 // GetTelemetryTaskEvents mocks base method.
-func (m *MockStore) GetTelemetryTaskEvents(ctx context.Context) ([]database.GetTelemetryTaskEventsRow, error) {
+func (m *MockStore) GetTelemetryTaskEvents(ctx context.Context, arg database.GetTelemetryTaskEventsParams) ([]database.GetTelemetryTaskEventsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTelemetryTaskEvents", ctx)
+	ret := m.ctrl.Call(m, "GetTelemetryTaskEvents", ctx, arg)
 	ret0, _ := ret[0].([]database.GetTelemetryTaskEventsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTelemetryTaskEvents indicates an expected call of GetTelemetryTaskEvents.
-func (mr *MockStoreMockRecorder) GetTelemetryTaskEvents(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetTelemetryTaskEvents(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryTaskEvents", reflect.TypeOf((*MockStore)(nil).GetTelemetryTaskEvents), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryTaskEvents", reflect.TypeOf((*MockStore)(nil).GetTelemetryTaskEvents), ctx, arg)
 }
 
 // GetTemplateAppInsights mocks base method.
