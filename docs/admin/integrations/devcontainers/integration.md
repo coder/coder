@@ -162,7 +162,7 @@ always auto-start regardless of this setting.
 > For Coder-specific apps, use the
 > [`apps` customization](../../../user-guides/devcontainers/customizing-dev-containers.md#custom-apps).
 >
-> If you really need modules, look into [other Dev Container options](./index.md#Comparison)
+> If you really need modules, look into [other Dev Container options](./index.md#comparison)
 
 Developers can customize individual dev containers using the `customizations.coder`
 block in their `devcontainer.json` file. Available options include:
