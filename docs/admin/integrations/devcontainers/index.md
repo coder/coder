@@ -19,21 +19,21 @@ your infrastructure and workflow requirements.
 
 ## Comparison
 
-| Method                            | Dev Container CLI                                      | Envbuilder                            | CI/CD Pre-built                                           |
-|------------------------------------|--------------------------------------------------------|---------------------------------------|-----------------------------------------------------------|
-| **Standard Dev Container implementation**            | ✅ Yes                                                  | ❌ No                                  | ✅ Yes                                                     |
-| **Full Dev Container Spec Support** | ✅ All options                                          | ❌ Limited options                     | \~ Most options                                           |
-| **Startup Time**                   | Build at runtime, faster with caching                  | Build at runtime, faster with caching | Fast (pre-built)                                          |
-| **Docker Required**                | ❌ Yes                                                  | ✅ No                                  | ✅ No                                                      |
-| **Caching**                        | More difficult                                         | ✅ Yes                                 | ✅ Yes                                                     |
-| **Repo Discovery**                 | ✅ Yes                                                  | ❌ No                                  | ❌ No                                                      |
-| **Custom Apps in-spec**            | ✅ Via spec args                                        | ❌ No                                  | ❌ No                                                      |
-| **Debugging**                      | Easy                                                   | Very difficult                        | Moderate                                                  |
-| **Versioning**                     | \~ Via spec, or template                               | \~ Via spec, or template              | ✅ Image tags                                              |
-| **Testing Pipeline**               | \~ Via CLI in CI/CD                                    | \~ Via CLI in CI/CD                   | ✅ Yes, via the same pipeline                              |
-| **Feedback Loop**                  | ✅ Fast                                                 | ✅ Fast                                | Slow (build, and then test)                               |
-| **Maintenance Status**             | ✅ Active                                               | ⚠️ Maintenance mode                   | ✅ Active                                                  |
-| **Best For**                       | Dev flexibility, rapid iteration, feature completeness | Restricted environments               | Controlled and centralized releases, less dev flexibility |
+| Method                                    | Dev Container CLI                                      | Envbuilder                            | CI/CD Pre-built                                           |
+|-------------------------------------------|--------------------------------------------------------|---------------------------------------|-----------------------------------------------------------|
+| **Standard Dev Container implementation** | ✅ Yes                                                  | ❌ No                                  | ✅ Yes                                                     |
+| **Full Dev Container Spec Support**       | ✅ All options                                          | ❌ Limited options                     | \~ Most options                                           |
+| **Startup Time**                          | Build at runtime, faster with caching                  | Build at runtime, faster with caching | Fast (pre-built)                                          |
+| **Docker Required**                       | ❌ Yes                                                  | ✅ No                                  | ✅ No                                                      |
+| **Caching**                               | More difficult                                         | ✅ Yes                                 | ✅ Yes                                                     |
+| **Repo Discovery**                        | ✅ Yes                                                  | ❌ No                                  | ❌ No                                                      |
+| **Custom Apps in-spec**                   | ✅ Via spec args                                        | ❌ No                                  | ❌ No                                                      |
+| **Debugging**                             | Easy                                                   | Very difficult                        | Moderate                                                  |
+| **Versioning**                            | \~ Via spec, or template                               | \~ Via spec, or template              | ✅ Image tags                                              |
+| **Testing Pipeline**                      | \~ Via CLI in CI/CD                                    | \~ Via CLI in CI/CD                   | ✅ Yes, via the same pipeline                              |
+| **Feedback Loop**                         | ✅ Fast                                                 | ✅ Fast                                | Slow (build, and then test)                               |
+| **Maintenance Status**                    | ✅ Active                                               | ⚠️ Maintenance mode                   | ✅ Active                                                  |
+| **Best For**                              | Dev flexibility, rapid iteration, feature completeness | Restricted environments               | Controlled and centralized releases, less dev flexibility |
 
 ## Dev Container CLI
 

@@ -222,6 +222,7 @@ By default, discovered containers appear in the dashboard but developers must
 manually start them. To have them start automatically, enable autostart by setting the `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE` environment to `true` within the workspace.
 
 For example, with a Docker-based template:
+
 ```terraform
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
