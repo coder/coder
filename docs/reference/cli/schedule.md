@@ -1,18 +1,16 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # schedule
 
-
 Schedule automated start and stop times for workspaces
 
-
-
-
 ## Usage
+
 ```console
 coder schedule { show | start | stop | extend } <workspace>
 ```
 
 ## Subcommands
+
 | Name                                        | Purpose                                                         |
 |---------------------------------------------|-----------------------------------------------------------------|
 | [<code>show</code>](./schedule_show.md)     | Show workspace schedules                                        |

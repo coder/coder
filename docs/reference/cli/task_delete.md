@@ -1,21 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # task delete
 
-
 Delete tasks
 
-
-
-
 Aliases:
+
 * rm
 
 ## Usage
+
 ```console
 coder task delete [flags] <task> [<task> ...]
 ```
 
 ## Description
+
 ```console
   - Delete a single task.:
 
@@ -30,10 +29,10 @@ coder task delete [flags] <task> [<task> ...]
      $ $ coder task delete task4 --yes
 ```
 
-
 ## Options
+
 ### -y, --yes
- 
+
 |      |                   |
 |------|-------------------|
 | Type | <code>bool</code> |

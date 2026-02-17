@@ -1,21 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # provisioner keys
 
-
 Manage provisioner keys
 
-
-
-
 Aliases:
+
 * key
 
 ## Usage
+
 ```console
 coder provisioner keys
 ```
 
 ## Subcommands
+
 | Name                                                | Purpose                                  |
 |-----------------------------------------------------|------------------------------------------|
 | [<code>create</code>](./provisioner_keys_create.md) | Create a new provisioner key             |

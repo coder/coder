@@ -1,18 +1,16 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # server dbcrypt
 
-
 Manage database encryption.
 
-
-
-
 ## Usage
+
 ```console
 coder server dbcrypt
 ```
 
 ## Subcommands
+
 | Name                                                | Purpose                                                                       |
 |-----------------------------------------------------|-------------------------------------------------------------------------------|
 | [<code>decrypt</code>](./server_dbcrypt_decrypt.md) | Decrypt a previously encrypted database.                                      |
