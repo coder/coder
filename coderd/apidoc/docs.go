@@ -8386,6 +8386,54 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/keys/{keyid}/expire": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Expire API key",
+                "operationId": "expire-api-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Key ID",
+                        "name": "keyid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/login-type": {
             "get": {
                 "security": [

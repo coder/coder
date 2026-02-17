@@ -2126,7 +2126,7 @@
 						},
 						{
 							"title": "tokens remove",
-							"description": "Delete a token",
+							"description": "Expire or delete a token",
 							"path": "reference/cli/tokens_remove.md"
 						},
 						{
