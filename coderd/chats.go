@@ -2086,6 +2086,7 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 
 	return result
 }
+
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {

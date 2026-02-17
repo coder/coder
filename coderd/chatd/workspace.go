@@ -13,10 +13,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"go.jetify.com/ai"
 	aiapi "go.jetify.com/ai/api"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"

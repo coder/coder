@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import type { FC } from "react";
 
 /**
  * Skeleton shown while the AgentsPage chunk is loading. Mimics the

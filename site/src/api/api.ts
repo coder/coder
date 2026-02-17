@@ -397,7 +397,8 @@ export type CreateChatModelConfigRequest = {
 	is_default?: boolean;
 } & Record<string, unknown>;
 
-export type UpdateChatModelConfigRequest = Partial<CreateChatModelConfigRequest>;
+export type UpdateChatModelConfigRequest =
+	Partial<CreateChatModelConfigRequest>;
 
 export interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly patch?: string;
@@ -465,10 +466,7 @@ const isOptionalEndpointUnavailable = (error: unknown): boolean => {
 
 	const status = error.response?.status;
 	return (
-		status === undefined ||
-		status === 404 ||
-		status === 405 ||
-		status === 501
+		status === undefined || status === 404 || status === 405 || status === 501
 	);
 };
 
@@ -2937,10 +2935,7 @@ class ApiMethods {
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {
-		const response = await this.axios.post<TypesGen.Chat>(
-			"/api/v2/chats",
-			req,
-		);
+		const response = await this.axios.post<TypesGen.Chat>("/api/v2/chats", req);
 		return response.data;
 	};
 
@@ -2975,7 +2970,9 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatDiffStatus = async (chatId: string): Promise<ChatDiffStatusResponse> => {
+	getChatDiffStatus = async (
+		chatId: string,
+	): Promise<ChatDiffStatusResponse> => {
 		const response = await this.axios.get<ChatDiffStatusResponse>(
 			`/api/v2/chats/${chatId}/diff-status`,
 		);
@@ -3044,7 +3041,9 @@ class ApiMethods {
 		return response.data;
 	};
 
-	deleteChatProviderConfig = async (providerConfigId: string): Promise<void> => {
+	deleteChatProviderConfig = async (
+		providerConfigId: string,
+	): Promise<void> => {
 		await this.axios.delete(
 			`${chatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
 		);
@@ -3052,9 +3051,8 @@ class ApiMethods {
 
 	getChatModelConfigs = async (): Promise<ChatModelConfig[] | null> => {
 		try {
-			const response = await this.axios.get<ChatModelConfig[]>(
-				chatModelConfigsPath,
-			);
+			const response =
+				await this.axios.get<ChatModelConfig[]>(chatModelConfigsPath);
 			return response.data;
 		} catch (error) {
 			// This endpoint is optional and may not exist on older deployments.

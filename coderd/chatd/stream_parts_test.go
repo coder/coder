@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-
 	"go.jetify.com/ai/api"
 
 	"github.com/coder/coder/v2/coderd/database"

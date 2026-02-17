@@ -1,30 +1,31 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # templates delete
 
+
 Delete templates
 
-Aliases:
 
+
+
+Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder templates delete [flags] [name...]
 ```
 
+
 ## Options
-
 ### -y, --yes
-
+ 
 |      |                   |
 |------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass confirmation prompts.
-
 ### -O, --org
-
+ 
 |             |                                  |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |

@@ -9,8 +9,8 @@ import {
 } from "components/Command/Command";
 import {
 	Popover,
-	type PopoverContentProps,
 	PopoverContent,
+	type PopoverContentProps,
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
@@ -104,14 +104,14 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						className,
 					)}
 				>
-				<span
-					className={cn(
-						"min-w-0 truncate",
-						selectedModel ? "text-content-primary" : "text-content-secondary",
-					)}
-				>
-					{selectedModel?.displayName ?? placeholder}
-				</span>
+					<span
+						className={cn(
+							"min-w-0 truncate",
+							selectedModel ? "text-content-primary" : "text-content-secondary",
+						)}
+					>
+						{selectedModel?.displayName ?? placeholder}
+					</span>
 					<ChevronsUpDownIcon className="h-4 w-4 shrink-0 text-content-secondary" />
 				</Button>
 			</PopoverTrigger>

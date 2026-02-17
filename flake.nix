@@ -109,6 +109,24 @@
           vendorHash = "sha256-69kg3qkvEWyCAzjaCSr3a73MNonub9sZTYyGaCW+UTI=";
         };
 
+        # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
+        # so `make gen` remains deterministic in Nix shells.
+        terraform_1_14_1 =
+          if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
+            pkgs.runCommand "terraform-1.14.1" {
+              nativeBuildInputs = [ pkgs.unzip ];
+              src = pkgs.fetchurl {
+                url = "https://releases.hashicorp.com/terraform/1.14.1/terraform_1.14.1_linux_amd64.zip";
+                hash = "sha256-n1MHDuYm354VeIfB0/mvPYEHobZUNxzZkEBinu1piyc=";
+              };
+            } ''
+              mkdir -p "$out/bin"
+              unzip -p "$src" terraform > "$out/bin/terraform"
+              chmod +x "$out/bin/terraform"
+            ''
+          else
+            unstablePkgs.terraform;
+
         # Packages required to build the frontend
         frontendPackages =
           with pkgs;
@@ -156,7 +174,7 @@
             gnused
             gnugrep
             gnutar
-            unstablePkgs.go_1_24
+            unstablePkgs.go_1_25
             gofumpt
             go-migrate
             (pinnedPkgs.golangci-lint)
@@ -170,7 +188,7 @@
             lazydocker
             lazygit
             less
-            mockgen
+            unstablePkgs.mockgen
             moreutils
             nfpm
             nix-prefetch-git
@@ -191,7 +209,7 @@
             # sqlc
             sqlc-custom
             syft
-            unstablePkgs.terraform
+            terraform_1_14_1
             typos
             which
             # Needed for many LD system libs!
@@ -285,6 +303,14 @@
               lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
 
             NODE_OPTIONS = "--max-old-space-size=8192";
+            BIOME_BINARY =
+              if pkgs.stdenv.isLinux then
+                if pkgs.stdenv.hostPlatform.isAarch64 then
+                  "@biomejs/cli-linux-arm64-musl/biome"
+                else
+                  "@biomejs/cli-linux-x64-musl/biome"
+              else
+                "";
             GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
           };
         };

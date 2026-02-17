@@ -1,6 +1,9 @@
-import { File as FileViewer, SupportedLanguages } from "@pierre/diffs/react";
-import { Streamdown } from "streamdown";
+import {
+	File as FileViewer,
+	type SupportedLanguages,
+} from "@pierre/diffs/react";
 import { forwardRef } from "react";
+import { Streamdown } from "streamdown";
 import { cn } from "utils/cn";
 
 interface ResponseProps
@@ -11,18 +14,40 @@ interface ResponseProps
 const fileViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
 
+type HastNode = {
+	type?: string;
+	value?: string;
+	children?: HastNode[];
+	tagName?: string;
+	properties?: {
+		className?: string[] | string;
+	};
+};
+
+type MarkdownComponentProps = {
+	href?: string;
+	children?: React.ReactNode;
+	node?: HastNode;
+};
+
 /**
  * Recursively extracts text from a HAST node tree. This is plain
  * data (not React elements), so it's reliable to traverse.
  */
-const getHastText = (node: any): string => {
+const getHastText = (node: HastNode | null | undefined): string => {
+	if (!node) {
+		return "";
+	}
 	if (node.type === "text") return node.value ?? "";
 	if (node.children) return node.children.map(getHastText).join("");
 	return "";
 };
 
-const components: Record<string, React.ComponentType<any>> = {
-	a: ({ href, children }) => (
+const components: Record<
+	string,
+	React.ComponentType<MarkdownComponentProps>
+> = {
+	a: ({ href, children }: MarkdownComponentProps) => (
 		<a
 			href={href}
 			target="_blank"
@@ -34,20 +59,27 @@ const components: Record<string, React.ComponentType<any>> = {
 		</a>
 	),
 	// Inline code only — fenced blocks are handled by the pre override.
-	code: ({ children }) => (
+	code: ({ children }: MarkdownComponentProps) => (
 		<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-[#FFB757]">
 			{children}
 		</code>
 	),
 	// Fenced code blocks: extract language and content from the HAST
 	// node directly (plain data), then render with FileViewer.
-	pre: ({ node }) => {
+	pre: ({ node }: MarkdownComponentProps) => {
 		const codeChild = node?.children?.[0];
 		if (codeChild?.tagName === "code") {
-			const classes: string[] = codeChild.properties?.className ?? [];
-			const langClass = classes.find((c: string) =>
-				c.startsWith("language-"),
-			);
+			const className = codeChild.properties?.className;
+			const classes =
+				typeof className === "string"
+					? className.split(/\s+/).filter(Boolean)
+					: Array.isArray(className)
+						? className.filter(
+								(classToken): classToken is string =>
+									typeof classToken === "string",
+							)
+						: [];
+			const langClass = classes.find((c: string) => c.startsWith("language-"));
 			const lang = langClass ? langClass.replace("language-", "") : "text";
 			const content = getHastText(codeChild).trimEnd();
 			if (content) {
@@ -80,7 +112,10 @@ export const Response = forwardRef<HTMLDivElement, ResponseProps>(
 		return (
 			<div
 				ref={ref}
-				className={cn("text-[13px] leading-relaxed text-content-primary", className)}
+				className={cn(
+					"text-[13px] leading-relaxed text-content-primary",
+					className,
+				)}
 				{...props}
 			>
 				<Streamdown controls={false} components={components}>

@@ -1,16 +1,18 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # organizations settings set
 
+
 Update specified organization setting.
 
-## Usage
 
+
+
+## Usage
 ```console
 coder organizations settings set
 ```
 
 ## Description
-
 ```console
   - Update group sync settings.:
 
@@ -18,7 +20,6 @@ coder organizations settings set
 ```
 
 ## Subcommands
-
 | Name                                                                                | Purpose                                                                  |
 |-------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
 | [<code>group-sync</code>](./organizations_settings_set_group-sync.md)               | Group sync settings to sync groups from an IdP.                          |

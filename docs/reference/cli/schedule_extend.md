@@ -1,20 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # schedule extend
 
+
 Extend the stop time of a currently running workspace instance.
 
-Aliases:
 
+
+
+Aliases:
 * override-stop
 
 ## Usage
-
 ```console
 coder schedule extend <workspace-name> <duration from now>
 ```
 
 ## Description
-
 ```console
 Extends the workspace deadline.
   * The new stop time is calculated from *now*.
@@ -23,3 +24,4 @@ Extends the workspace deadline.
 
  $ coder schedule extend my-workspace 90m
 ```
+

@@ -136,7 +136,6 @@ export function shortRelativeTime(date: DateTimeInput): string {
 	return `${diffYears}y`;
 }
 
-
 export function relativeTimeWithoutSuffix(date: DateTimeInput) {
 	return dayjs(date).fromNow(true);
 }

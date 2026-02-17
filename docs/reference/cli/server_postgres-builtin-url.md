@@ -1,18 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # server postgres-builtin-url
 
+
 Output the connection URL for the built-in PostgreSQL deployment.
 
-## Usage
 
+
+
+## Usage
 ```console
 coder server postgres-builtin-url [flags]
 ```
 
+
 ## Options
-
 ### --raw-url
-
+ 
 |      |                   |
 |------|-------------------|
 | Type | <code>bool</code> |

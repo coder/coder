@@ -1,16 +1,16 @@
-import { type FC, useMemo } from "react";
-import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
-import { useQuery } from "react-query";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
+import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	ExternalLinkIcon,
 	GitBranchIcon,
 	GitPullRequestIcon,
 } from "lucide-react";
+import { type FC, useMemo } from "react";
+import { useQuery } from "react-query";
 
 interface FilesChangedPanelProps {
 	chatId: string;
@@ -22,9 +22,7 @@ interface FilesChangedPanelProps {
  */
 function formatPullRequestLabel(url: string): string {
 	try {
-		const match = url.match(
-			/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/,
-		);
+		const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
 		if (match) {
 			return `${match[1]}/${match[2]}#${match[3]}`;
 		}
@@ -129,35 +127,34 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 					No file changes to display.
 				</div>
 			) : (
-		<ScrollArea className="min-w-0 flex-1" scrollBarClassName="w-1.5">
-			<div className="min-w-0 text-xs">
-					{parsedFiles.map((fileDiff) => (
-						<FileDiff
-							key={fileDiff.name}
-							fileDiff={fileDiff}
-						options={{
-							diffStyle: "unified",
-							diffIndicators: "bars",
-							overflow: "scroll",
-							themeType: "dark",
-							enableLineSelection: true,
-							enableHoverUtility: true,
-							onLineSelected(range) {
-								// TODO: Make this add context to the input so the user can type.
-								console.log(range);
-							},
-							theme: "github-dark-high-contrast",
-						unsafeCSS:
-							"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }",
-						}}
-						style={{
-							'--diffs-font-size': '11px',
-							'--diffs-line-height': '1.5',
-						}}
-						/>
-					))}
-				</div>
-			</ScrollArea>
+				<ScrollArea className="min-w-0 flex-1" scrollBarClassName="w-1.5">
+					<div className="min-w-0 text-xs">
+						{parsedFiles.map((fileDiff) => (
+							<FileDiff
+								key={fileDiff.name}
+								fileDiff={fileDiff}
+								options={{
+									diffStyle: "unified",
+									diffIndicators: "bars",
+									overflow: "scroll",
+									themeType: "dark",
+									enableLineSelection: true,
+									enableHoverUtility: true,
+									onLineSelected() {
+										// TODO: Make this add context to the input so the user can type.
+									},
+									theme: "github-dark-high-contrast",
+									unsafeCSS:
+										"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }",
+								}}
+								style={{
+									"--diffs-font-size": "11px",
+									"--diffs-line-height": "1.5",
+								}}
+							/>
+						))}
+					</div>
+				</ScrollArea>
 			)}
 		</div>
 	);

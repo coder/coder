@@ -1,20 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # prebuilds
 
+
 Manage Coder prebuilds
 
-Aliases:
 
+
+
+Aliases:
 * prebuild
 
 ## Usage
-
 ```console
 coder prebuilds
 ```
 
 ## Description
-
 ```console
 Administrators can use these commands to manage prebuilt workspace settings.
   - Pause Coder prebuilt workspace reconciliation.:
@@ -27,7 +28,6 @@ Administrators can use these commands to manage prebuilt workspace settings.
 ```
 
 ## Subcommands
-
 | Name                                         | Purpose          |
 |----------------------------------------------|------------------|
 | [<code>pause</code>](./prebuilds_pause.md)   | Pause prebuilds  |

@@ -1,11 +1,13 @@
-import { parsePatchFiles } from "@pierre/diffs";
-import { File as FileViewer, FileDiff } from "@pierre/diffs/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
-import { forwardRef, useMemo, useRef, useState } from "react";
+import { parsePatchFiles } from "@pierre/diffs";
+import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "components/Tooltip/Tooltip";
-import { cn } from "utils/cn";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	ChevronDownIcon,
 	CircleAlertIcon,
@@ -16,10 +18,13 @@ import {
 	TerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
+import { forwardRef, useMemo, useRef, useState } from "react";
+import { cn } from "utils/cn";
 
 type ToolStatus = "completed" | "error" | "running";
 
-interface ToolProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
+interface ToolProps
+	extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
 	name: string;
 	status?: ToolStatus;
 	args?: unknown;
@@ -56,9 +61,7 @@ const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 	name,
 	isError,
 }) => {
-	const color = isError
-		? "text-content-destructive"
-		: "text-content-secondary";
+	const color = isError ? "text-content-destructive" : "text-content-secondary";
 	const base = `h-4 w-4 shrink-0 ${color}`;
 	switch (name) {
 		case "execute":
@@ -206,7 +209,12 @@ const getFileContentForViewer = (
 	toolName: string,
 	args: unknown,
 	result: unknown,
-): { path: string; content: string; disableHeader?: boolean; disableLineNumbers?: boolean } | null => {
+): {
+	path: string;
+	content: string;
+	disableHeader?: boolean;
+	disableLineNumbers?: boolean;
+} | null => {
 	if (toolName === "execute") {
 		const rec = asRecord(result);
 		if (!rec) {
@@ -216,7 +224,12 @@ const getFileContentForViewer = (
 		if (!output) {
 			return null;
 		}
-		return { path: "output.sh", content: output, disableHeader: true, disableLineNumbers: true };
+		return {
+			path: "output.sh",
+			content: output,
+			disableHeader: true,
+			disableLineNumbers: true,
+		};
 	}
 	if (toolName !== "read_file") {
 		return null;
@@ -345,7 +358,10 @@ const ExecuteTool: React.FC<{
 			{/* Output preview / expanded */}
 			{hasOutput && (
 				<>
-				<div className="h-px" style={{ background: "hsl(var(--border-default))" }} />
+					<div
+						className="h-px"
+						style={{ background: "hsl(var(--border-default))" }}
+					/>
 					<ScrollArea
 						className="text-2xs"
 						viewportClassName={expanded ? "max-h-96" : ""}
@@ -360,9 +376,7 @@ const ExecuteTool: React.FC<{
 							}
 							className={cn(
 								"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-2.5 py-2 font-mono text-xs",
-								isError
-									? "text-content-destructive"
-									: "text-content-secondary",
+								isError ? "text-content-destructive" : "text-content-secondary",
 							)}
 						>
 							{output}
@@ -380,14 +394,14 @@ const ExecuteTool: React.FC<{
 									setExpanded((v) => !v);
 								}
 							}}
-						className="flex w-full cursor-pointer items-center justify-center py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
-						aria-label={expanded ? "Collapse output" : "Expand output"}
-					>
-						<ChevronDownIcon
-							className={cn(
-								"h-3 w-3 transition-transform",
-								expanded && "rotate-180",
-							)}
+							className="flex w-full cursor-pointer items-center justify-center py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
+							aria-label={expanded ? "Collapse output" : "Expand output"}
+						>
+							<ChevronDownIcon
+								className={cn(
+									"h-3 w-3 transition-transform",
+									expanded && "rotate-180",
+								)}
 							/>
 						</div>
 					)}
@@ -428,12 +442,13 @@ const ReadFileTool: React.FC<{
 					hasContent && "cursor-pointer",
 				)}
 			>
-				<span className={cn(
-					"text-sm",
-					isError ? "text-content-destructive" : "text-content-secondary",
-				)}>
-					Read{" "}
-					{path.split("/").pop() || path}
+				<span
+					className={cn(
+						"text-sm",
+						isError ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
+					Read {path.split("/").pop() || path}
 				</span>
 				{isError && (
 					<Tooltip>
@@ -478,8 +493,8 @@ const ReadFileTool: React.FC<{
 							unsafeCSS: fileViewerCSS,
 						}}
 						style={{
-							'--diffs-font-size': '11px',
-							'--diffs-line-height': '1.5',
+							"--diffs-font-size": "11px",
+							"--diffs-line-height": "1.5",
 						}}
 					/>
 				</ScrollArea>
@@ -517,15 +532,14 @@ const WriteFileTool: React.FC<{
 						setExpanded((v) => !v);
 					}
 				}}
-				className={cn(
-					"flex items-center gap-2",
-					hasDiff && "cursor-pointer",
-				)}
+				className={cn("flex items-center gap-2", hasDiff && "cursor-pointer")}
 			>
-				<span className={cn(
-					"text-sm",
-					isError ? "text-content-destructive" : "text-content-secondary",
-				)}>
+				<span
+					className={cn(
+						"text-sm",
+						isError ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
 					{label}
 				</span>
 				{isError && (
@@ -568,8 +582,8 @@ const WriteFileTool: React.FC<{
 							unsafeCSS: diffViewerCSS,
 						}}
 						style={{
-							'--diffs-font-size': '11px',
-							'--diffs-line-height': '1.5',
+							"--diffs-font-size": "11px",
+							"--diffs-line-height": "1.5",
 						}}
 					/>
 				</ScrollArea>
@@ -632,7 +646,10 @@ const buildEditDiff = (
 		if (searchLines.length > 0 && searchLines[searchLines.length - 1] === "") {
 			searchLines.pop();
 		}
-		if (replaceLines.length > 0 && replaceLines[replaceLines.length - 1] === "") {
+		if (
+			replaceLines.length > 0 &&
+			replaceLines[replaceLines.length - 1] === ""
+		) {
 			replaceLines.pop();
 		}
 		if (searchLines.length === 0 && replaceLines.length === 0) continue;
@@ -692,17 +709,12 @@ const EditFilesTool: React.FC<{
 						setExpanded((v) => !v);
 					}
 				}}
-				className={cn(
-					"flex items-center gap-2",
-					hasDiffs && "cursor-pointer",
-				)}
+				className={cn("flex items-center gap-2", hasDiffs && "cursor-pointer")}
 			>
 				<span
 					className={cn(
 						"text-sm",
-						isError
-							? "text-content-destructive"
-							: "text-content-secondary",
+						isError ? "text-content-destructive" : "text-content-secondary",
 					)}
 				>
 					{label}
@@ -782,7 +794,14 @@ const CreateWorkspaceTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ workspaceName, resultJson, buildLogs, status, isError, errorMessage }) => {
+}> = ({
+	workspaceName,
+	resultJson,
+	buildLogs,
+	status,
+	isError,
+	errorMessage,
+}) => {
 	const [expanded, setExpanded] = useState(false);
 	const isBuilding = buildLogs.length > 0 && resultJson.length === 0;
 	const isRunning = status === "running" || isBuilding;
@@ -810,10 +829,12 @@ const CreateWorkspaceTool: React.FC<{
 					hasContent && "cursor-pointer",
 				)}
 			>
-				<span className={cn(
-					"text-sm",
-					isError ? "text-content-destructive" : "text-content-secondary",
-				)}>
+				<span
+					className={cn(
+						"text-sm",
+						isError ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
 					{label}
 				</span>
 				{isError && (
@@ -873,8 +894,8 @@ const CreateWorkspaceTool: React.FC<{
 							unsafeCSS: fileViewerCSS,
 						}}
 						style={{
-							'--diffs-font-size': '11px',
-							'--diffs-line-height': '1.5',
+							"--diffs-font-size": "11px",
+							"--diffs-line-height": "1.5",
 						}}
 					/>
 				</ScrollArea>
@@ -991,9 +1012,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			const rec = asRecord(result);
 			const buildLogs = typeof result === "string" ? result.trim() : "";
 			const wsName = rec ? asString(rec.workspace_name) : "";
-			const resultJson = rec
-				? JSON.stringify(rec, null, 2)
-				: "";
+			const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
 
 			return (
 				<div ref={ref} className={cn("py-0.5", className)} {...props}>
@@ -1015,60 +1034,72 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 					<ToolIcon name={name} isError={status === "error" || isError} />
 					<ToolLabel name={name} args={args} result={result} />
 				</div>
-			{writeFileDiff ? (
-				<ScrollArea className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs" viewportClassName="max-h-64" scrollBarClassName="w-1.5">
-					<FileDiff
-						fileDiff={writeFileDiff}
-						options={{
-							diffStyle: "unified",
-							diffIndicators: "bars",
-							overflow: "scroll",
-							themeType: "dark",
-							theme: "github-dark-high-contrast",
-							unsafeCSS: diffViewerCSS,
-						}}
-					/>
-				</ScrollArea>
-			) : fileContent ? (
-				<ScrollArea className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs" viewportClassName="max-h-64" scrollBarClassName="w-1.5">
-					<FileViewer
-						file={{
-							name: fileContent.path,
-							contents: fileContent.content,
-						}}
-						options={{
-							overflow: "scroll",
-							themeType: "dark",
-							theme: "github-dark-high-contrast",
-							unsafeCSS: fileViewerCSS,
-							disableFileHeader: fileContent.disableHeader,
-							disableLineNumbers: fileContent.disableLineNumbers,
-						}}
-					/>
-				</ScrollArea>
-			) : (
-				resultOutput && (
-					<ScrollArea className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs" viewportClassName="max-h-64" scrollBarClassName="w-1.5">
+				{writeFileDiff ? (
+					<ScrollArea
+						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
+						<FileDiff
+							fileDiff={writeFileDiff}
+							options={{
+								diffStyle: "unified",
+								diffIndicators: "bars",
+								overflow: "scroll",
+								themeType: "dark",
+								theme: "github-dark-high-contrast",
+								unsafeCSS: diffViewerCSS,
+							}}
+						/>
+					</ScrollArea>
+				) : fileContent ? (
+					<ScrollArea
+						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
 						<FileViewer
 							file={{
-								name: "output.json",
-								contents: resultOutput,
+								name: fileContent.path,
+								contents: fileContent.content,
 							}}
 							options={{
 								overflow: "scroll",
 								themeType: "dark",
 								theme: "github-dark-high-contrast",
 								unsafeCSS: fileViewerCSS,
-								disableFileHeader: true,
-							}}
-							style={{
-								'--diffs-font-size': '11px',
-								'--diffs-line-height': '1.5',
+								disableFileHeader: fileContent.disableHeader,
+								disableLineNumbers: fileContent.disableLineNumbers,
 							}}
 						/>
 					</ScrollArea>
-				)
-			)}
+				) : (
+					resultOutput && (
+						<ScrollArea
+							className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+							viewportClassName="max-h-64"
+							scrollBarClassName="w-1.5"
+						>
+							<FileViewer
+								file={{
+									name: "output.json",
+									contents: resultOutput,
+								}}
+								options={{
+									overflow: "scroll",
+									themeType: "dark",
+									theme: "github-dark-high-contrast",
+									unsafeCSS: fileViewerCSS,
+									disableFileHeader: true,
+								}}
+								style={{
+									"--diffs-font-size": "11px",
+									"--diffs-line-height": "1.5",
+								}}
+							/>
+						</ScrollArea>
+					)
+				)}
 			</div>
 		);
 	},

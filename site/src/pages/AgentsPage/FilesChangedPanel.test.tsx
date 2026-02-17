@@ -1,14 +1,13 @@
+import { renderComponent } from "testHelpers/renderHelpers";
 import { parsePatchFiles } from "@pierre/diffs";
 import { screen } from "@testing-library/react";
 import { useQuery } from "react-query";
-import { renderComponent } from "testHelpers/renderHelpers";
 import type { Mock } from "vitest";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 
 vi.mock("react-query", async () => {
-	const actual = await vi.importActual<typeof import("react-query")>(
-		"react-query",
-	);
+	const actual =
+		await vi.importActual<typeof import("react-query")>("react-query");
 	return {
 		...actual,
 		useQuery: vi.fn(),
@@ -16,9 +15,8 @@ vi.mock("react-query", async () => {
 });
 
 vi.mock("@pierre/diffs", async () => {
-	const actual = await vi.importActual<typeof import("@pierre/diffs")>(
-		"@pierre/diffs",
-	);
+	const actual =
+		await vi.importActual<typeof import("@pierre/diffs")>("@pierre/diffs");
 	return {
 		...actual,
 		parsePatchFiles: vi.fn(),

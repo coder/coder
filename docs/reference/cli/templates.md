@@ -1,20 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # templates
 
+
 Manage templates
 
-Aliases:
 
+
+
+Aliases:
 * template
 
 ## Usage
-
 ```console
 coder templates
 ```
 
 ## Description
-
 ```console
 Templates are written in standard Terraform and describe the infrastructure for workspaces
   - Create or push an update to the template. Your developers can update their
@@ -24,7 +25,6 @@ workspaces:
 ```
 
 ## Subcommands
-
 | Name                                             | Purpose                                                                          |
 |--------------------------------------------------|----------------------------------------------------------------------------------|
 | [<code>create</code>](./templates_create.md)     | DEPRECATED: Create a template from the current directory or as specified by flag |

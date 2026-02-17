@@ -1,15 +1,18 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # favorite
 
+
 Add a workspace to your favorites
 
-Aliases:
 
+
+
+Aliases:
 * fav
 * favourite
 
 ## Usage
-
 ```console
 coder favorite <workspace>
 ```
+

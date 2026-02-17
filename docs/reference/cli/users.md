@@ -1,20 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # users
 
+
 Manage users
 
-Aliases:
 
+
+
+Aliases:
 * user
 
 ## Usage
-
 ```console
 coder users [subcommand]
 ```
 
 ## Subcommands
-
 | Name                                             | Purpose                                                                               |
 |--------------------------------------------------|---------------------------------------------------------------------------------------|
 | [<code>create</code>](./users_create.md)         | Create a new user.                                                                    |

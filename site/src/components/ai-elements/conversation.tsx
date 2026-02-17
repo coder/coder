@@ -21,21 +21,22 @@ type ConversationItemProps = React.HTMLAttributes<HTMLDivElement> & {
 	role: "user" | "assistant";
 };
 
-export const ConversationItem = forwardRef<HTMLDivElement, ConversationItemProps>(
-	({ className, role, ...props }, ref) => {
-		return (
-			<div
-				ref={ref}
-				data-role={role}
-				className={cn(
-					"group flex w-full items-start gap-3",
-					role === "user" && "justify-end",
-					className,
-				)}
-				{...props}
-			/>
-		);
-	},
-);
+export const ConversationItem = forwardRef<
+	HTMLDivElement,
+	ConversationItemProps
+>(({ className, role, ...props }, ref) => {
+	return (
+		<div
+			ref={ref}
+			data-role={role}
+			className={cn(
+				"group flex w-full items-start gap-3",
+				role === "user" && "justify-end",
+				className,
+			)}
+			{...props}
+		/>
+	);
+});
 
 ConversationItem.displayName = "ConversationItem";

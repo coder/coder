@@ -1,11 +1,11 @@
-import { type ReactNode, memo, useCallback, useState } from "react";
-import TextareaAutosize from "react-textarea-autosize";
-import { Button } from "components/Button/Button";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "components/ai-elements";
+import { Button } from "components/Button/Button";
 import { ArrowUpIcon, Loader2Icon, Square } from "lucide-react";
+import { memo, type ReactNode, useCallback, useState } from "react";
+import TextareaAutosize from "react-textarea-autosize";
 import { formatProviderLabel } from "./modelOptions";
 
 interface AgentChatInputProps {
@@ -167,9 +167,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		if (sticky) {
 			return (
-				<div className="sticky bottom-0 z-50 bg-surface-primary">
-					{content}
-				</div>
+				<div className="sticky bottom-0 z-50 bg-surface-primary">{content}</div>
 			);
 		}
 

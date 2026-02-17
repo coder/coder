@@ -18,13 +18,11 @@ import (
 	"github.com/spf13/afero"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.jetify.com/ai/api"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
-	"go.jetify.com/ai/api"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chatd"
@@ -37,10 +35,12 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-const readFileToolName = "read_file"
-const writeFileToolName = "write_file"
-const createWorkspaceToolName = "create_workspace"
-const executeToolName = "execute"
+const (
+	readFileToolName        = "read_file"
+	writeFileToolName       = "write_file"
+	createWorkspaceToolName = "create_workspace"
+	executeToolName         = "execute"
+)
 
 type fakeModel struct {
 	mu    sync.Mutex
@@ -751,9 +751,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var (
-		streamErr string
-	)
+	var streamErr string
 	require.Eventually(t, func() bool {
 		select {
 		case event, ok := <-events:

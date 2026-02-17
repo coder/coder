@@ -1,10 +1,14 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # notifications pause
 
+
 Pause notifications
 
-## Usage
 
+
+
+## Usage
 ```console
 coder notifications pause
 ```
+
