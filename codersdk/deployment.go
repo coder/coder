@@ -2897,7 +2897,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "__HOST Prefix Cookies",
-			Description: "Reccomended to be enabled. Enables `__HOST-` prefix for cookies to guarantee they are only set by the right domain.",
+			Description: "Recommended to be enabled. Enables `__HOST-` prefix for cookies to guarantee they are only set by the right domain.",
 			Flag:        "host-prefix-cookie",
 			Env:         "CODER_HOST_PREFIX_COOKIE",
 			Value:       serpent.BoolOf(&c.HTTPCookies.EnableHostPrefix),
