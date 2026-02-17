@@ -24,11 +24,11 @@ const AddNewLicensePage: FC = () => {
 			{
 				onSuccess: (data) => {
 					displaySuccess("You have successfully added a license");
-					const params = new URLSearchParams({
-						success: "true",
-						tier: data.claims.feature_set ?? "",
-					});
-					navigate(new URL(`/deployment/licenses?${params.toString()}`));
+					const tier =
+						data.claims.feature_set?.toLowerCase() === "enterprise"
+							? "enterprise"
+							: "premium";
+					navigate(`/deployment/licenses?success=true&tier=${tier}`);
 				},
 				onError: () => displayError("Failed to save license key"),
 			},
