@@ -1,8 +1,10 @@
 import { paginatedInterceptions } from "api/queries/aiBridge";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -11,12 +13,19 @@ import { RequestLogsPageView } from "./RequestLogsPageView";
 
 const RequestLogsPage: FC = () => {
 	const feats = useFeatureVisibility();
-	const isRequestLogsVisible = Boolean(feats.aibridge);
+	const { permissions } = useAuthenticated();
+
+	// Users are allowed to view their own request logs via the API,
+	// but this page is only visible if the feature is enabled and the user
+	// has the necessary permission (as its found in the Admin settings dropdown).
+	const canViewRequestLogs =
+		Boolean(feats.aibridge) && permissions.viewAnyAIBridgeInterception;
 
 	const [searchParams, setSearchParams] = useSearchParams();
-	const interceptionsQuery = usePaginatedQuery(
-		paginatedInterceptions(searchParams),
-	);
+	const interceptionsQuery = usePaginatedQuery({
+		...paginatedInterceptions(searchParams),
+		enabled: canViewRequestLogs,
+	});
 	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
@@ -42,12 +51,12 @@ const RequestLogsPage: FC = () => {
 	});
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={canViewRequestLogs}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}
-				isRequestLogsVisible={isRequestLogsVisible}
+				isRequestLogsVisible={canViewRequestLogs}
 				interceptions={interceptionsQuery.data?.results}
 				interceptionsQuery={interceptionsQuery}
 				filterProps={{
@@ -59,7 +68,7 @@ const RequestLogsPage: FC = () => {
 					},
 				}}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 
