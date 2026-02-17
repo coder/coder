@@ -251,7 +251,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 			Thinking: sql.NullString{
 				Valid: false,
 			},
-			Hidden: false,
+			Hidden: true,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

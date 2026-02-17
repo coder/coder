@@ -1049,7 +1049,10 @@ func (p *Processor) Close() error {
 func chatMessagesToPrompt(messages []database.ChatMessage) ([]api.Message, error) {
 	prompt := make([]api.Message, 0, len(messages))
 	for _, message := range messages {
-		if message.Hidden {
+		// System messages are always included in the prompt even when
+		// hidden, because the system prompt must reach the LLM. Other
+		// hidden messages (e.g. internal bookkeeping) are skipped.
+		if message.Hidden && message.Role != string(api.MessageRoleSystem) {
 			continue
 		}
 
