@@ -128,6 +128,12 @@ We are always happy to see new contributors to Coder. If you are new to the Code
 [a guide on how to get started](https://coder.com/docs/CONTRIBUTING). We'd love to see your
 contributions!
 
+## Joke of the Day
+
+> Why do programmers prefer dark mode?
+>
+> Because light attracts bugs. 🪲
+
 ## Hiring
 
 Apply [here](https://jobs.ashbyhq.com/coder?utm_source=github&utm_medium=readme&utm_campaign=unknown) if you're interested in joining our team.
