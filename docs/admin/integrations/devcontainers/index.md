@@ -1,11 +1,11 @@
 # Dev Containers
 
-Dev containers allow developers to define their development environment
+Dev Containers allow developers to define their development environment
 as code using the [Dev Container specification](https://containers.dev/).
 Configuration lives in a `devcontainer.json` file alongside source code,
 enabling consistent, reproducible environments.
 
-By adopting dev containers, organizations can:
+By adopting Dev Containers, organizations can:
 
 - **Standardize environments**: Eliminate "works on my machine" issues while
   still allowing developers to customize their tools within approved boundaries.
@@ -14,7 +14,7 @@ By adopting dev containers, organizations can:
 - **Improve security**: Use hardened base images and controlled package
   registries to enforce security policies while enabling developer self-service.
 
-Coder supports multiple approaches for running dev containers. Choose based on
+Coder supports multiple approaches for running Dev Containers. Choose based on
 your infrastructure and workflow requirements.
 
 ## Comparison
@@ -37,9 +37,9 @@ your infrastructure and workflow requirements.
 
 ## Dev Container CLI
 
-The Dev Container CLI uses the standard `@devcontainers/cli` and Docker to run
-containers inside your workspace. This is the recommended approach for most use
-cases and provides the most complete dev container experience.
+The Dev Container CLI integration uses the standard `@devcontainers/cli` and Docker to run
+Dev Containers inside your workspace. This is the recommended approach for most use
+cases and provides the most complete Dev Container experience.
 
 Uses the
 [devcontainers-cli module](https://registry.coder.com/modules/devcontainers-cli),
@@ -48,11 +48,11 @@ the `coder_devcontainer` Terraform resource, and
 
 **Pros:**
 
-- Official Microsoft integration with the `@devcontainers/cli`.
-- Supports all dev container configuration options.
-- Supports custom arguments in the dev container spec for defining custom apps
+- Standard Dev Container implementation via Microsoft's official `@devcontainers/cli` package.
+- Supports all Dev Container configuration options.
+- Supports custom arguments in the Dev Container spec for defining custom apps
   without needing template changes.
-- Supports discovery of repos with dev containers in them.
+- Supports discovery of repos with Dev Containers in them.
 - Easier to debug, since you have access to the outer container.
 
 **Cons / Requirements:**
@@ -60,25 +60,23 @@ the `coder_devcontainer` Terraform resource, and
 - Requires Docker in workspaces. This does not necessarily mean Docker-in-Docker
   or a specific Kubernetes runtime — you could use Rootless Podman or a
   privileged sidecar.
-- Caching is more difficult. You might want to pair this with the CI/CD Pre-built
-  approach to pull the layers. You could also use a shared cache, but that is not
-  a great security practice.
+- Caching is more difficult than with Envbuilder or CI/CD pre-built approaches.
 
 **Best for:**
 
 - Dev flexibility, rapid iteration, and feature completeness.
 - Workspaces with Docker available (Docker-in-Docker or mounted socket).
-- Dev container management in the Coder dashboard (discovery, status, rebuild).
-- Multiple dev containers per workspace.
+- Dev Container management in the Coder dashboard (discovery, status, rebuild).
+- Multiple Dev Containers per workspace.
 
-[Configure Dev Containers Integration](./integration.md)
+See the [Dev Containers Integration](./integration.md) page for instructions.
 
 For user documentation, see the
 [Dev Containers user guide](../../../user-guides/devcontainers/index.md).
 
 ## Envbuilder
 
-Envbuilder transforms the workspace image itself from a `devcontainer.json`,
+Envbuilder transforms the workspace environment itself from a Dev Container spec (i.e `devcontainer.json`),
 rather than running containers inside the workspace. It does not require a Docker
 daemon.
 
@@ -98,8 +96,8 @@ daemon.
 - Very complicated to debug, since Envbuilder replaces the filesystem of the
   container. You can't access that environment within Coder easily if it fails,
   and you won't have many debug tools.
-- Does not support all of the dev container configuration options.
-- Does not support discovery of repos with dev containers in them.
+- Does not support all of the Dev Container configuration options.
+- Does not support discovery of repos with Dev Containers in them.
 - Less flexible and more complex in general.
 
 **Best for:**
@@ -108,22 +106,21 @@ daemon.
 - Infrastructure-level control over image builds, caching, and security scanning.
 - Kubernetes-native deployments without privileged containers.
 
-[Configure Envbuilder](./envbuilder/index.md)
+See the [Envbuilder](./envbuilder/index.md) page for instructions.
 
 ## CI/CD Pre-built
 
-Build the dev container image from CI/CD and pull it from within Terraform. This
+Build the Dev Container image from CI/CD and pull it from within Terraform. This
 approach separates the image build step from the workspace startup, resulting in
 fast startup times and a generic template that doesn't have any
-dev container-specific configuration items.
+Dev Container-specific configuration items.
 
 **Pros:**
 
-- Official Microsoft integration.
-- Faster startup time — no need for a caching setup.
-- The template is generic and doesn't have any dev container-specific
+- Standard Dev Container implementation via Microsoft's official `@devcontainers/cli` package.
+- Faster startup time — no need for a specific caching setup.
+- The template is generic and doesn't have any Dev Container-specific
   configuration items.
-- Easier caching.
 - Versioned via image tags.
 - Testable pipeline.
 
@@ -132,7 +129,7 @@ dev container-specific configuration items.
 - Adds a build step.
 - Does not support all of the runtime options, but still supports more options
   than Envbuilder.
-- Does not support discovery of repos with dev containers.
+- Does not support discovery of repos with Dev Containers.
 - Slow feedback loop (build, then test).
 
 **Best for:**
@@ -142,4 +139,4 @@ dev container-specific configuration items.
 - Environments that need fast, predictable startup times.
 
 For an example workflow, see the
-[basic-env CI/CD workflow](https://github.com/uwu/basic-env/blob/main/.github/workflows/_build-and-push.yml).
+[uwu/basic-env CI/CD workflow](https://github.com/uwu/basic-env/blob/main/.github/workflows/_build-and-push.yml).
