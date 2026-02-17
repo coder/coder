@@ -320,12 +320,10 @@ function logPreviewLabel(count: number): string {
 
 const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	logs,
-	maxMessages = 30,
 	headerAction,
 	snapshotAt,
 }) => {
-	const visibleLogs = logs.slice(-maxMessages);
-	const hasLogs = visibleLogs.length > 0;
+	const hasLogs = logs.length > 0;
 
 	// Scroll to the bottom on mount since snapshot logs are static.
 	const scrollToBottom = useRef((el: HTMLDivElement | null) => {
@@ -339,7 +337,7 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 			<div className="border border-solid border-border rounded-lg overflow-hidden">
 				<div className="flex items-center justify-between px-4 py-2 border-0 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
 					<span className="flex items-center gap-1.5">
-						{logPreviewLabel(visibleLogs.length)}
+						{logPreviewLabel(logs.length)}
 						{snapshotAt && (
 							<InfoTooltip
 								type="info"
@@ -355,8 +353,8 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 							ref={scrollToBottom}
 							className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
 						>
-							{visibleLogs.map((entry, index) => {
-								const prev = visibleLogs[index - 1];
+							{logs.map((entry, index) => {
+								const prev = index === 0 ? undefined : logs[index - 1];
 								const isNewGroup = !prev || prev.type !== entry.type;
 								return (
 									<div
