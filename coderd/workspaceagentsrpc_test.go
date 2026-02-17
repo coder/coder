@@ -183,10 +183,10 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		// Connect with the default role (agent). The agent SDK sends
-		// role=agent by default.
+		// Connect with role=agent using ConnectRPCWithRole. This is
+		// how the real workspace agent connects.
 		ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
-		conn, err := ac.ConnectRPC(ctx)
+		conn, err := ac.ConnectRPCWithRole(ctx, "agent")
 		require.NoError(t, err)
 		defer func() {
 			_ = conn.Close()
@@ -216,10 +216,10 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		// Connect with a non-agent role (e.g. logstream-kube).
+		// Connect with a non-agent role using ConnectRPCWithRole.
+		// This is how coder-logstream-kube should connect.
 		ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
-		ac.Role = "logstream-kube"
-		conn, err := ac.ConnectRPC(ctx)
+		conn, err := ac.ConnectRPCWithRole(ctx, "logstream-kube")
 		require.NoError(t, err)
 
 		// Send a log to confirm the RPC connection is functional.
@@ -247,7 +247,7 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 	})
 
 	// NOTE: Backward compatibility (empty role) is implicitly tested by
-	// existing tests like TestWorkspaceAgentReportStats which use the
-	// SDK without setting a role. The server defaults to monitoring
-	// when the role query parameter is omitted.
+	// existing tests like TestWorkspaceAgentReportStats which use
+	// ConnectRPC() (no role). The server defaults to monitoring when
+	// the role query parameter is omitted.
 }
