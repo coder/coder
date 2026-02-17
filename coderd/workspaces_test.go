@@ -3809,9 +3809,6 @@ func TestWorkspaceBuildUpdatesChannel(t *testing.T) {
 	require.Equal(t, workspace.ID, update.WorkspaceID)
 	require.Equal(t, "start", update.Transition)
 	require.Equal(t, "failed", update.JobStatus)
-
-	// Ensure api is used to avoid unused variable error.
-	_ = api.ID
 }
 
 func TestWatchAllWorkspaceBuilds(t *testing.T) {
