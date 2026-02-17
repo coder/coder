@@ -1,5 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
 import type { GetLicensesResponse } from "api/api";
 import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -9,6 +7,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -101,9 +100,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 			</Stack>
 
 			<div className="flex flex-col gap-4">
-				{isLoading && (
-					<Skeleton className="rounded" variant="rectangular" height={78} />
-				)}
+				{isLoading && <Skeleton className="h-[78px] rounded" />}
 
 				{!isLoading && licenses && licenses?.length > 0 && (
 					<Stack spacing={4} className="licenses">
@@ -127,13 +124,13 @@ const LicensesSettingsPageView: FC<Props> = ({
 				)}
 
 				{!isLoading && licenses === null && (
-					<div css={styles.root}>
+					<div className="min-h-[240px] flex items-center justify-center rounded-lg border border-solid border-border p-12">
 						<Stack alignItems="center" spacing={1}>
 							<Stack alignItems="center" spacing={0.5}>
-								<span css={styles.title}>
+								<span className="text-base">
 									You don&apos;t have any licenses!
 								</span>
-								<span css={styles.description}>
+								<span className="text-content-secondary text-center max-w-[464px] mt-2">
 									You&apos;re missing out on high availability, RBAC, quotas,
 									and much more. Contact{" "}
 									<Link href="mailto:sales@coder.com">sales</Link> or{" "}
@@ -178,28 +175,5 @@ const LicensesSettingsPageView: FC<Props> = ({
 		</>
 	);
 };
-
-const styles = {
-	title: {
-		fontSize: 16,
-	},
-
-	root: (theme) => ({
-		minHeight: 240,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		padding: 48,
-	}),
-
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		maxWidth: 464,
-		marginTop: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default LicensesSettingsPageView;

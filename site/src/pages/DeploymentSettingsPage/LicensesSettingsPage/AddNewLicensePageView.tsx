@@ -1,4 +1,3 @@
-import TextField from "@mui/material/TextField";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { FileUpload } from "components/FileUpload/FileUpload";
@@ -8,7 +7,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+import { Textarea } from "components/Textarea/Textarea";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
@@ -49,11 +48,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Add a license</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -67,7 +62,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 						All Licenses
 					</RouterLink>
 				</Button>
-			</Stack>
+			</div>
 
 			{savingLicenseError && <ErrorAlert error={savingLicenseError} />}
 
@@ -79,7 +74,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 				description="Select a text file that contains your license key."
 			/>
 
-			<Stack css={{ paddingTop: 40 }}>
+			<div className="flex flex-col gap-4 pt-10">
 				<DividerWithText>or</DividerWithText>
 
 				<Fieldset
@@ -100,15 +95,14 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 						</Button>
 					}
 				>
-					<TextField
+					<Textarea
 						name="licenseKey"
 						placeholder="Enter your license..."
-						multiline
 						rows={3}
-						fullWidth
+						className="w-full"
 					/>
 				</Fieldset>
-			</Stack>
+			</div>
 		</>
 	);
 };
