@@ -34,7 +34,6 @@ import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceEr
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
-	type DependencyList,
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
@@ -302,23 +301,6 @@ const TaskDeleted: FC = () => {
 	);
 };
 
-/**
- * Auto-scrolls a ScrollArea to the bottom whenever deps change.
- */
-function useAutoScrollToBottom(deps: DependencyList) {
-	const ref = useRef<HTMLDivElement>(null);
-
-	useLayoutEffect(() => {
-		if (isChromatic()) {
-			return;
-		}
-		ref.current?.scrollIntoView({ block: "end" });
-		// biome-ignore lint/correctness/useExhaustiveDependencies: caller controls deps
-	}, deps);
-
-	return ref;
-}
-
 type TaskLogPreviewProps = {
 	logs: readonly TaskLogEntry[];
 	maxMessages?: number;
@@ -343,13 +325,19 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	snapshotAt,
 }) => {
 	const visibleLogs = logs.slice(-maxMessages);
-	const ref = useAutoScrollToBottom([visibleLogs]);
 	const hasLogs = visibleLogs.length > 0;
+
+	// Scroll to the bottom on mount since snapshot logs are static.
+	const scrollToBottom = useRef((el: HTMLDivElement | null) => {
+		if (!isChromatic() && el) {
+			el.scrollIntoView({ block: "end" });
+		}
+	}).current;
 
 	return (
 		<div className="w-full max-w-screen-lg mx-auto px-16">
 			<div className="border border-solid border-border rounded-lg overflow-hidden">
-				<div className="flex items-center justify-between px-4 py-2 border-b border-b-solid border-b-border bg-surface-secondary text-sm text-content-secondary">
+				<div className="flex items-center justify-between px-4 py-2 border-0 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
 					<span className="flex items-center gap-1.5">
 						{logPreviewLabel(visibleLogs.length)}
 						{snapshotAt && (
@@ -364,7 +352,7 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 				{hasLogs ? (
 					<ScrollArea className="h-96">
 						<div
-							ref={ref}
+							ref={scrollToBottom}
 							className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
 						>
 							{visibleLogs.map((entry, index) => {
