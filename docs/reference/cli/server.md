@@ -1782,17 +1782,6 @@ Default system prompt inserted into new chats.
 
 Prompt used to generate chat titles from the first user message.
 
-### --chat-title-generation-model
-
-|             |                                                   |
-|-------------|---------------------------------------------------|
-| Type        | <code>string</code>                               |
-| Environment | <code>$CODER_CHAT_TITLE_GENERATION_MODEL</code>   |
-| YAML        | <code>aibridge.chat_title_generation_model</code> |
-| Default     | <code>gpt-5.2</code>                              |
-
-Model used to generate chat titles.
-
 ### --aibridge-enabled
 
 |             |                                      |

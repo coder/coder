@@ -256,9 +256,6 @@ Don't assume what needs to be done - collaborate to define the scope together.
 </collaboration>)
           Default system prompt inserted into new chats.
 
-      --chat-title-generation-model string, $CODER_CHAT_TITLE_GENERATION_MODEL (default: gpt-5.2)
-          Model used to generate chat titles.
-
       --chat-title-generation-prompt string, $CODER_CHAT_TITLE_GENERATION_PROMPT (default: Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.)
           Prompt used to generate chat titles from the first user message.
 

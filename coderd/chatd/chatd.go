@@ -59,7 +59,6 @@ const (
 	defaultTitleGenerationPrompt = "Generate a concise title (max 8 words) for " +
 		"the user's first message. Return plain text only, with no surrounding " +
 		"quotes."
-	defaultTitleGenerationModel = "gpt-5.2"
 
 	defaultNoWorkspaceInstruction = "No workspace is selected yet. Call the create_workspace tool first before using read_file, write_file, or execute. If create_workspace fails, ask the user to clarify the template or workspace request."
 )
@@ -138,19 +137,14 @@ type ProviderAPIKeysResolver func(context.Context) (ProviderAPIKeys, error)
 // TitleGenerationConfig controls AI-generated chat title behavior.
 type TitleGenerationConfig struct {
 	Prompt string
-	Model  string
 }
 
 func (c TitleGenerationConfig) withDefaults() TitleGenerationConfig {
 	cfg := TitleGenerationConfig{
 		Prompt: strings.TrimSpace(c.Prompt),
-		Model:  strings.TrimSpace(c.Model),
 	}
 	if cfg.Prompt == "" {
 		cfg.Prompt = defaultTitleGenerationPrompt
-	}
-	if cfg.Model == "" {
-		cfg.Model = defaultTitleGenerationModel
 	}
 	return cfg
 }
@@ -334,7 +328,6 @@ func NewProcessor(logger slog.Logger, db database.Store, opts ...Option) *Proces
 		staleThreshold: DefaultStaleThreshold,
 		titleGeneration: TitleGenerationConfig{
 			Prompt: defaultTitleGenerationPrompt,
-			Model:  defaultTitleGenerationModel,
 		}.withDefaults(),
 	}
 
@@ -804,7 +797,7 @@ func (p *Processor) generateChatTitle(ctx context.Context, input string) (string
 	if err != nil {
 		return "", xerrors.Errorf("resolve provider API keys: %w", err)
 	}
-	model, err := modelFromName(config.Model, keys)
+	model, err := anyAvailableModel(keys)
 	if err != nil {
 		return "", xerrors.Errorf("resolve title generation model: %w", err)
 	}
@@ -1490,6 +1483,21 @@ func modelFromChat(chat database.Chat, providerKeys ProviderAPIKeys) (api.Langua
 
 func modelFromName(modelName string, providerKeys ProviderAPIKeys) (api.LanguageModel, error) {
 	return modelFromConfig(chatModelConfig{Model: modelName}, providerKeys)
+}
+
+// anyAvailableModel returns a language model from whichever provider
+// has an API key configured. This is used for lightweight tasks like
+// title generation where we don't need a specific model.
+func anyAvailableModel(keys ProviderAPIKeys) (api.LanguageModel, error) {
+	if key := keys.apiKey(aiopenai.ProviderName); key != "" {
+		client := openai.NewClient(openaioption.WithAPIKey(key))
+		return aiopenai.NewLanguageModel("gpt-4o-mini", aiopenai.WithClient(client)), nil
+	}
+	if key := keys.apiKey(aianthropic.ProviderName); key != "" {
+		client := anthropic.NewClient(anthropicoption.WithAPIKey(key))
+		return aianthropic.NewLanguageModel("claude-haiku-4-5", aianthropic.WithClient(client)), nil
+	}
+	return nil, xerrors.New("no AI provider API keys are configured")
 }
 
 func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (api.LanguageModel, error) {

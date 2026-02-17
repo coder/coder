@@ -12985,9 +12985,6 @@ const docTemplate = `{
                 "system_prompt": {
                     "type": "string"
                 },
-                "title_generation_model": {
-                    "type": "string"
-                },
                 "title_generation_prompt": {
                     "type": "string"
                 }
