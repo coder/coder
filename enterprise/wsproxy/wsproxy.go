@@ -332,12 +332,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		sharedhttpmw.Recover(s.Logger),
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
+		opts.CookieConfig.Middleware,
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		loggermw.Logger(s.Logger),
 		prometheusMW,
-		opts.CookieConfig.Middleware,
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
