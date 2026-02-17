@@ -15,16 +15,17 @@ import {
 	interruptChat,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
 import {
 	ConversationItem,
 	Message,
 	MessageContent,
 	Response,
+	Shimmer,
 	Thinking,
 	Tool,
 	type ModelSelectorOption,
 } from "components/ai-elements";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -538,9 +539,9 @@ const StreamingOutput = memo<{
 					{streamState?.content ? (
 						<Response>{streamState.content}</Response>
 					) : (
-						<div className="text-sm text-content-secondary">
-							Agent is thinking...
-						</div>
+						<Shimmer as="span" className="text-sm">
+							Thinking...
+						</Shimmer>
 					)}
 					{streamState?.reasoning && (
 						<Thinking>{streamState.reasoning}</Thinking>
@@ -1080,8 +1081,19 @@ export const AgentDetail: FC = () => {
 
 	if (chatQuery.isLoading) {
 		return (
-			<div className="flex flex-1 items-center justify-center">
-				<Loader />
+			<div className="mx-auto w-full max-w-3xl space-y-6 py-6">
+				{/* User message skeleton */}
+				<div className="flex justify-end">
+					<Skeleton className="h-10 w-2/3 rounded-xl" />
+				</div>
+				{/* Assistant response skeleton */}
+				<div className="space-y-3">
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-4 w-5/6" />
+					<Skeleton className="h-4 w-4/6" />
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-4 w-3/5" />
+				</div>
 			</div>
 		);
 	}
@@ -1142,7 +1154,7 @@ export const AgentDetail: FC = () => {
 									<div
 										key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
 									>
-										<div className="flex flex-col gap-5">
+										<div className="flex flex-col gap-3">
 											{section.entries.map(({ message, parsed }) => {
 												const isUser = message.role === "user";
 												return isUser ? (

@@ -18,7 +18,6 @@ import {
 	DialogTitle,
 } from "components/Dialog/Dialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
 import { type ModelSelectorOption } from "components/ai-elements";
 import {
 	DropdownMenu,
@@ -167,27 +166,6 @@ export const AgentsPage: FC = () => {
 		document.title = pageTitle("Agents");
 	}, []);
 
-	if (chatsQuery.isLoading) {
-		return <Loader />;
-	}
-
-	if (chatsQuery.isError) {
-		return (
-			<div className="flex h-full items-center justify-center p-6">
-				<div className="w-full max-w-xl space-y-3">
-					<ErrorAlert error={chatsQuery.error} />
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => void chatsQuery.refetch()}
-					>
-						Retry
-					</Button>
-				</div>
-			</div>
-		);
-	}
-
 	const chatList = chatsQuery.data ?? [];
 	const archiveTargetChat = archiveTargetChatId
 		? chatList.find((chat) => chat.id === archiveTargetChatId)
@@ -248,6 +226,9 @@ export const AgentsPage: FC = () => {
 					isCreating={createMutation.isPending}
 					isArchiving={archiveMutation.isPending}
 					archivingChatId={archiveTargetChatId}
+					isLoading={chatsQuery.isLoading}
+					loadError={chatsQuery.isError ? chatsQuery.error : undefined}
+					onRetryLoad={() => void chatsQuery.refetch()}
 				/>
 			</div>
 

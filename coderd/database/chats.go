@@ -420,7 +420,7 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 	var i ChatDiffStatus
 	err := row.Scan(
 		&i.ChatID,
-		&i.URL,
+		&i.Url,
 		&i.PullRequestState,
 		&i.ChangesRequested,
 		&i.Additions,
@@ -457,7 +457,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs [
 		var i ChatDiffStatus
 		if err := rows.Scan(
 			&i.ChatID,
-			&i.URL,
+			&i.Url,
 			&i.PullRequestState,
 			&i.ChangesRequested,
 			&i.Additions,
@@ -519,7 +519,7 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 	var i ChatDiffStatus
 	err := row.Scan(
 		&i.ChatID,
-		&i.URL,
+		&i.Url,
 		&i.PullRequestState,
 		&i.ChangesRequested,
 		&i.Additions,
@@ -597,7 +597,7 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 	var i ChatDiffStatus
 	err := row.Scan(
 		&i.ChatID,
-		&i.URL,
+		&i.Url,
 		&i.PullRequestState,
 		&i.ChangesRequested,
 		&i.Additions,

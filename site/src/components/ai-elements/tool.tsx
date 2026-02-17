@@ -4,6 +4,7 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { forwardRef, useMemo, useRef, useState } from "react";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "components/Tooltip/Tooltip";
 import { cn } from "utils/cn";
 import {
 	ChevronDownIcon,
@@ -321,11 +322,11 @@ const ExecuteTool: React.FC<{
 					<CopyButton text={command} label="Copy command" />
 				</span>
 			</div>
-			<div className="h-px" style={{ background: "hsl(var(--border-default))" }} />
 
 			{/* Output preview / expanded */}
 			{hasOutput && (
 				<>
+				<div className="h-px" style={{ background: "hsl(var(--border-default))" }} />
 					<ScrollArea
 						className="text-2xs"
 						viewportClassName={expanded ? "max-h-96" : ""}
@@ -386,7 +387,8 @@ const ReadFileTool: React.FC<{
 	content: string;
 	status: ToolStatus;
 	isError: boolean;
-}> = ({ path, content, status, isError }) => {
+	errorMessage?: string;
+}> = ({ path, content, status, isError, errorMessage }) => {
 	const [expanded, setExpanded] = useState(false);
 	const hasContent = content.length > 0;
 	const isRunning = status === "running";
@@ -415,7 +417,14 @@ const ReadFileTool: React.FC<{
 					{path.split("/").pop() || path}
 				</span>
 				{isError && (
-					<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+						</TooltipTrigger>
+						<TooltipContent>
+							{errorMessage || "Failed to read file"}
+						</TooltipContent>
+					</Tooltip>
 				)}
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
@@ -440,6 +449,215 @@ const ReadFileTool: React.FC<{
 						file={{
 							name: path,
 							contents: content,
+						}}
+						options={{
+							overflow: "scroll",
+							disableLineNumbers: true,
+							disableFileHeader: true,
+							themeType: "dark",
+							theme: "github-dark-high-contrast",
+							unsafeCSS: fileViewerCSS,
+						}}
+						style={{
+							'--diffs-font-size': '11px',
+							'--diffs-line-height': '1.5',
+						}}
+					/>
+				</ScrollArea>
+			)}
+		</div>
+	);
+};
+
+/**
+ * Collapsed-by-default rendering for `write_file` tool calls. Shows
+ * "Wrote <filename>" with a chevron; expanding reveals the unified diff.
+ */
+const WriteFileTool: React.FC<{
+	path: string;
+	diff: FileDiffMetadata | null;
+	status: ToolStatus;
+	isError: boolean;
+	errorMessage?: string;
+}> = ({ path, diff, status, isError, errorMessage }) => {
+	const [expanded, setExpanded] = useState(false);
+	const hasDiff = diff !== null;
+	const isRunning = status === "running";
+
+	const filename = path.split("/").pop() || path;
+	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
+
+	return (
+		<div className="w-full">
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => hasDiff && setExpanded((v) => !v)}
+				onKeyDown={(e) => {
+					if ((e.key === "Enter" || e.key === " ") && hasDiff) {
+						setExpanded((v) => !v);
+					}
+				}}
+				className={cn(
+					"flex items-center gap-2",
+					hasDiff && "cursor-pointer",
+				)}
+			>
+				<span className={cn(
+					"text-sm",
+					isError ? "text-content-destructive" : "text-content-secondary",
+				)}>
+					{label}
+				</span>
+				{isError && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+						</TooltipTrigger>
+						<TooltipContent>
+							{errorMessage || "Failed to write file"}
+						</TooltipContent>
+					</Tooltip>
+				)}
+				{isRunning && (
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
+				)}
+				{hasDiff && (
+					<ChevronDownIcon
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
+				)}
+			</div>
+
+			{expanded && hasDiff && (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<FileDiff
+						fileDiff={diff}
+						options={{
+							diffStyle: "unified",
+							diffIndicators: "bars",
+							overflow: "scroll",
+							themeType: "dark",
+							theme: "github-dark-high-contrast",
+							unsafeCSS: diffViewerCSS,
+						}}
+						style={{
+							'--diffs-font-size': '11px',
+							'--diffs-line-height': '1.5',
+						}}
+					/>
+				</ScrollArea>
+			)}
+		</div>
+	);
+};
+
+/**
+ * Collapsed-by-default rendering for `create_workspace` tool calls.
+ *
+ * While the workspace is being built, build logs stream in as
+ * `result_delta` strings. Once complete the result becomes a JSON
+ * object with workspace metadata. This component handles both:
+ *   - **Building**: shows "Creating workspace…" with a spinner and
+ *     live build-log output.
+ *   - **Completed**: shows "Created <name>" collapsed, expandable
+ *     to reveal the full result JSON.
+ */
+const CreateWorkspaceTool: React.FC<{
+	workspaceName: string;
+	resultJson: string;
+	buildLogs: string;
+	status: ToolStatus;
+	isError: boolean;
+	errorMessage?: string;
+}> = ({ workspaceName, resultJson, buildLogs, status, isError, errorMessage }) => {
+	const [expanded, setExpanded] = useState(false);
+	const isBuilding = buildLogs.length > 0 && resultJson.length === 0;
+	const isRunning = status === "running" || isBuilding;
+	const hasContent = resultJson.length > 0;
+
+	const label = isRunning
+		? "Creating workspace…"
+		: workspaceName
+			? `Created ${workspaceName}`
+			: "Created workspace";
+
+	return (
+		<div className="w-full">
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => hasContent && setExpanded((v) => !v)}
+				onKeyDown={(e) => {
+					if ((e.key === "Enter" || e.key === " ") && hasContent) {
+						setExpanded((v) => !v);
+					}
+				}}
+				className={cn(
+					"flex items-center gap-2",
+					hasContent && "cursor-pointer",
+				)}
+			>
+				<span className={cn(
+					"text-sm",
+					isError ? "text-content-destructive" : "text-content-secondary",
+				)}>
+					{label}
+				</span>
+				{isError && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+						</TooltipTrigger>
+						<TooltipContent>
+							{errorMessage || "Failed to create workspace"}
+						</TooltipContent>
+					</Tooltip>
+				)}
+				{isRunning && (
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
+				)}
+				{hasContent && !isBuilding && (
+					<ChevronDownIcon
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
+				)}
+			</div>
+
+			{/* Live build-log output while workspace is being created. */}
+			{isBuilding && (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default"
+					viewportClassName="max-h-48"
+					scrollBarClassName="w-1.5"
+				>
+					<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-2.5 py-2 font-mono text-xs text-content-secondary">
+						{buildLogs}
+					</pre>
+				</ScrollArea>
+			)}
+
+			{/* Expandable JSON result once workspace creation completes. */}
+			{expanded && hasContent && !isBuilding && (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<FileViewer
+						file={{
+							name: "result.json",
+							contents: resultJson,
 						}}
 						options={{
 							overflow: "scroll",
@@ -516,6 +734,52 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 						content={content}
 						status={status}
 						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render write_file with a collapsed-by-default diff viewer.
+		if (name === "write_file") {
+			const parsed = parseArgs(args);
+			const path = parsed ? asString(parsed.path).trim() : "";
+			const rec = asRecord(result);
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<WriteFileTool
+						path={path || "file"}
+						diff={writeFileDiff}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render create_workspace with a collapsed-by-default viewer.
+		// During workspace creation, build logs stream as result_delta
+		// strings. Once the tool finishes, the result becomes a JSON
+		// object with workspace metadata.
+		if (name === "create_workspace") {
+			const rec = asRecord(result);
+			const buildLogs = typeof result === "string" ? result.trim() : "";
+			const wsName = rec ? asString(rec.workspace_name) : "";
+			const resultJson = rec
+				? JSON.stringify(rec, null, 2)
+				: "";
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<CreateWorkspaceTool
+						workspaceName={wsName}
+						resultJson={resultJson}
+						buildLogs={buildLogs}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 					/>
 				</div>
 			);
@@ -572,6 +836,10 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 								theme: "github-dark-high-contrast",
 								unsafeCSS: fileViewerCSS,
 								disableFileHeader: true,
+							}}
+							style={{
+								'--diffs-font-size': '11px',
+								'--diffs-line-height': '1.5',
 							}}
 						/>
 					</ScrollArea>

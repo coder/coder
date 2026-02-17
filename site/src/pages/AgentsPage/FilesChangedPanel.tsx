@@ -2,7 +2,7 @@ import { type FC, useMemo } from "react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
 import { useQuery } from "react-query";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
@@ -57,8 +57,21 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 
 	if (diffContentsQuery.isLoading || diffStatusQuery.isLoading) {
 		return (
-			<div className="flex h-full items-center justify-center">
-				<Loader size="sm" />
+			<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
+				<div className="flex items-center gap-2 border-0 border-b border-l border-solid px-4 py-3">
+					<Skeleton className="h-4 w-4 rounded" />
+					<Skeleton className="h-4 w-28" />
+				</div>
+				<div className="space-y-4 p-4">
+					{Array.from({ length: 3 }, (_, i) => (
+						<div key={i} className="space-y-2">
+							<Skeleton className="h-4 w-48" />
+							<Skeleton className="h-3 w-full" />
+							<Skeleton className="h-3 w-full" />
+							<Skeleton className="h-3 w-3/4" />
+						</div>
+					))}
+				</div>
 			</div>
 		);
 	}
