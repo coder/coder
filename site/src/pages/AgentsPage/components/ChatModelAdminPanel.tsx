@@ -1,8 +1,8 @@
-import {
-	type ChatModelConfig,
-	type ChatModelsResponse,
-	type ChatProviderConfig,
-	type CreateChatModelConfigRequest,
+import type {
+	ChatModelConfig,
+	ChatModelsResponse,
+	ChatProviderConfig,
+	CreateChatModelConfigRequest,
 } from "api/api";
 import {
 	chatModelConfigs,
@@ -23,7 +23,14 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { Loader2Icon, Trash2Icon } from "lucide-react";
-import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
+import {
+	type FC,
+	type FormEvent,
+	useEffect,
+	useId,
+	useMemo,
+	useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 
@@ -60,7 +67,9 @@ const getProviderKey = (provider: string): ProviderKey | null => {
 	return null;
 };
 
-const getProviderDefinition = (providerKey: ProviderKey): ProviderDefinition => {
+const getProviderDefinition = (
+	providerKey: ProviderKey,
+): ProviderDefinition => {
 	const providerDefinition = providerDefinitions.find(
 		(definition) => definition.key === providerKey,
 	);
@@ -74,11 +83,13 @@ const hasProviderAPIKey = (providerConfig: ChatProviderConfig | undefined) => {
 	if (!providerConfig) {
 		return false;
 	}
-	const providerConfigWithLegacyAPIKeyField = providerConfig as ChatProviderConfig & {
-		has_api_key?: boolean;
-	};
+	const providerConfigWithLegacyAPIKeyField =
+		providerConfig as ChatProviderConfig & {
+			has_api_key?: boolean;
+		};
 	return Boolean(
-		providerConfig.api_key_set ?? providerConfigWithLegacyAPIKeyField.has_api_key,
+		providerConfig.api_key_set ??
+			providerConfigWithLegacyAPIKeyField.has_api_key,
 	);
 };
 
@@ -108,6 +119,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		useState<ProviderKey | null>(null);
 	const [model, setModel] = useState("");
 	const [displayName, setDisplayName] = useState("");
+	const providerSelectId = useId();
+	const modelInputId = useId();
+	const displayNameInputId = useId();
 
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
 	const modelConfigsQuery = useQuery(chatModelConfigs());
@@ -261,21 +275,31 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 				)}
 			</div>
 
-			{providerConfigsQuery.isError && <ErrorAlert error={providerConfigsQuery.error} />}
-			{modelConfigsQuery.isError && <ErrorAlert error={modelConfigsQuery.error} />}
-			{modelCatalogQuery.isError && <ErrorAlert error={modelCatalogQuery.error} />}
+			{providerConfigsQuery.isError && (
+				<ErrorAlert error={providerConfigsQuery.error} />
+			)}
+			{modelConfigsQuery.isError && (
+				<ErrorAlert error={modelConfigsQuery.error} />
+			)}
+			{modelCatalogQuery.isError && (
+				<ErrorAlert error={modelCatalogQuery.error} />
+			)}
 			{modelMutationError && <ErrorAlert error={modelMutationError} />}
 
 			{modelConfigsUnavailable && (
 				<Alert severity="info" className="mb-3">
-					<AlertTitle>Chat model admin API is unavailable on this deployment.</AlertTitle>
+					<AlertTitle>
+						Chat model admin API is unavailable on this deployment.
+					</AlertTitle>
 					<AlertDetail>/api/v2/chats/model-configs is missing.</AlertDetail>
 				</Alert>
 			)}
 
 			{unsupportedModelConfigs.length > 0 && (
 				<Alert severity="info" className="mb-3">
-					<AlertTitle>Some model configs are outside this simplified UI.</AlertTitle>
+					<AlertTitle>
+						Some model configs are outside this simplified UI.
+					</AlertTitle>
 					<AlertDetail>
 						This panel only edits OpenAI and Anthropic model configs.
 					</AlertDetail>
@@ -289,13 +313,23 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			) : (
 				<div className="space-y-4">
 					<div className="grid gap-1.5">
-						<div className="text-xs font-medium text-content-primary">Provider</div>
+						<label
+							htmlFor={providerSelectId}
+							className="text-xs font-medium text-content-primary"
+						>
+							Provider
+						</label>
 						<Select
 							value={selectedProviderKey ?? undefined}
-							onValueChange={(value) => setSelectedProviderKey(value as ProviderKey)}
+							onValueChange={(value) =>
+								setSelectedProviderKey(value as ProviderKey)
+							}
 							disabled={modelConfigsUnavailable}
 						>
-							<SelectTrigger className="h-9 max-w-xs text-xs">
+							<SelectTrigger
+								id={providerSelectId}
+								className="h-9 max-w-xs text-xs"
+							>
 								<SelectValue placeholder="Select provider" />
 							</SelectTrigger>
 							<SelectContent>
@@ -313,28 +347,38 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 							className="grid gap-2 md:grid-cols-[1fr_1fr_auto] md:items-end"
 							onSubmit={(event) => void handleAddModel(event)}
 						>
-							<label className="grid gap-1 text-xs text-content-secondary">
-								<span className="font-medium text-content-primary">Model ID</span>
+							<div className="grid gap-1 text-xs text-content-secondary">
+								<label
+									htmlFor={modelInputId}
+									className="font-medium text-content-primary"
+								>
+									Model ID
+								</label>
 								<Input
+									id={modelInputId}
 									className="h-9 text-xs"
 									placeholder="gpt-5, claude-sonnet-4-5, etc."
 									value={model}
 									onChange={(event) => setModel(event.target.value)}
 									disabled={createModelConfigMutation.isPending}
 								/>
-							</label>
-							<label className="grid gap-1 text-xs text-content-secondary">
-								<span className="font-medium text-content-primary">
+							</div>
+							<div className="grid gap-1 text-xs text-content-secondary">
+								<label
+									htmlFor={displayNameInputId}
+									className="font-medium text-content-primary"
+								>
 									Display name (optional)
-								</span>
+								</label>
 								<Input
+									id={displayNameInputId}
 									className="h-9 text-xs"
 									placeholder="Friendly label"
 									value={displayName}
 									onChange={(event) => setDisplayName(event.target.value)}
 									disabled={createModelConfigMutation.isPending}
 								/>
-							</label>
+							</div>
 							<Button
 								size="sm"
 								type="submit"

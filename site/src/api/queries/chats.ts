@@ -40,7 +40,10 @@ export const deleteChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const createChatMessage = (queryClient: QueryClient, chatId: string) => ({
+export const createChatMessage = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
 	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
 		API.createChatMessage(chatId, req),
 	onSuccess: async () => {
@@ -130,7 +133,10 @@ export type UpdateChatProviderConfigMutationArgs = {
 };
 
 export const updateChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: ({ providerConfigId, req }: UpdateChatProviderConfigMutationArgs) =>
+	mutationFn: ({
+		providerConfigId,
+		req,
+	}: UpdateChatProviderConfigMutationArgs) =>
 		API.updateChatProviderConfig(providerConfigId, req),
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
@@ -146,7 +152,8 @@ export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
 });
 
 export const createChatModelConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: CreateChatModelConfigRequest) => API.createChatModelConfig(req),
+	mutationFn: (req: CreateChatModelConfigRequest) =>
+		API.createChatModelConfig(req),
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -166,7 +173,8 @@ export const updateChatModelConfig = (queryClient: QueryClient) => ({
 });
 
 export const deleteChatModelConfig = (queryClient: QueryClient) => ({
-	mutationFn: (modelConfigId: string) => API.deleteChatModelConfig(modelConfigId),
+	mutationFn: (modelConfigId: string) =>
+		API.deleteChatModelConfig(modelConfigId),
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},

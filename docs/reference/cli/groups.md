@@ -1,20 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # groups
 
+
 Manage groups
 
-Aliases:
 
+
+
+Aliases:
 * group
 
 ## Usage
-
 ```console
 coder groups
 ```
 
 ## Subcommands
-
 | Name                                      | Purpose             |
 |-------------------------------------------|---------------------|
 | [<code>create</code>](./groups_create.md) | Create a user group |

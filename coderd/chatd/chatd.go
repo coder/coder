@@ -19,13 +19,12 @@ import (
 	"github.com/openai/openai-go/v2"
 	openaioption "github.com/openai/openai-go/v2/option"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
-
 	"go.jetify.com/ai"
 	"go.jetify.com/ai/api"
 	aianthropic "go.jetify.com/ai/provider/anthropic"
 	aiopenai "go.jetify.com/ai/provider/openai"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"

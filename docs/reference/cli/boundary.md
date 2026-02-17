@@ -134,7 +134,7 @@ Disable sending of audit logs to the workspace agent when set to true.
 |-------------|----------------------------------------------------------|
 | Type        | <code>string</code>                                      |
 | Environment | <code>$CODER_AGENT_BOUNDARY_LOG_PROXY_SOCKET_PATH</code> |
-| Default     | <code>/tmp/nix-shell.pgn6Cp/boundary-audit.sock</code>   |
+| Default     | <code>/tmp/boundary-audit.sock</code>                    |
 
 Path to the socket where the boundary log proxy server listens for audit logs.
 

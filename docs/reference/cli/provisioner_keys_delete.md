@@ -1,30 +1,31 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # provisioner keys delete
 
+
 Delete a provisioner key
 
-Aliases:
 
+
+
+Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder provisioner keys delete [flags] <name>
 ```
 
+
 ## Options
-
 ### -y, --yes
-
+ 
 |      |                   |
 |------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass confirmation prompts.
-
 ### -O, --org
-
+ 
 |             |                                  |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |

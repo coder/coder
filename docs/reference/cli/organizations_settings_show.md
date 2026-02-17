@@ -1,16 +1,18 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # organizations settings show
 
+
 Outputs specified organization setting.
 
-## Usage
 
+
+
+## Usage
 ```console
 coder organizations settings show
 ```
 
 ## Description
-
 ```console
   - Output group sync settings.:
 
@@ -18,7 +20,6 @@ coder organizations settings show
 ```
 
 ## Subcommands
-
 | Name                                                                                 | Purpose                                                                  |
 |--------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
 | [<code>group-sync</code>](./organizations_settings_show_group-sync.md)               | Group sync settings to sync groups from an IdP.                          |

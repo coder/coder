@@ -1,7 +1,7 @@
+import { renderComponent } from "testHelpers/renderHelpers";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { renderComponent } from "testHelpers/renderHelpers";
 import { AgentChatInput } from "./AgentChatInput";
 
 type AgentChatInputProps = ComponentProps<typeof AgentChatInput>;

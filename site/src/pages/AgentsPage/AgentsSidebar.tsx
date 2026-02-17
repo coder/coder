@@ -1,33 +1,31 @@
-import { type FC, useMemo, useState } from "react";
 import type { Chat, ChatDiffStatus, ChatStatus } from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { shortRelativeTime } from "utils/time";
-import { cn } from "utils/cn";
+import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import {
-	AlertTriangleIcon,
-	ArchiveIcon,
-	CheckIcon,
-	EllipsisIcon,
-	EditIcon,
-	Loader2Icon,
-	PauseIcon,
-	PlusIcon,
-	SearchIcon,
-} from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { Input } from "components/Input/Input";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Skeleton } from "components/Skeleton/Skeleton";
+import {
+	AlertTriangleIcon,
+	ArchiveIcon,
+	CheckIcon,
+	EllipsisIcon,
+	Loader2Icon,
+	PauseIcon,
+	SearchIcon,
+} from "lucide-react";
+import { type FC, useMemo, useState } from "react";
 import { NavLink } from "react-router";
+import { cn } from "utils/cn";
+import { shortRelativeTime } from "utils/time";
 
 interface AgentsSidebarProps {
 	chats: readonly Chat[];
@@ -157,183 +155,187 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				</div>
 			</div>
 
-		<ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block" scrollBarClassName="w-1.5">
-			<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
-				{loadError ? (
-					<div className="space-y-3 px-1">
-						<ErrorAlert error={loadError} />
-						{onRetryLoad && (
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={onRetryLoad}
-							>
-								Retry
-							</Button>
-						)}
-					</div>
-				) : isLoading ? (
-					<>
-						<Skeleton className="ml-2.5 h-3.5 w-16" />
-						<div className="flex flex-col gap-0.5">
-							{Array.from({ length: 6 }, (_, i) => (
-								<div
-									key={i}
-									className="flex items-start gap-2 rounded-md px-2 py-1"
-								>
-									<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-									<div className="min-w-0 flex-1 space-y-1.5">
-										<Skeleton
-											className="h-3.5"
-											style={{ width: `${55 + ((i * 17) % 35)}%` }}
-										/>
-										<Skeleton className="h-3 w-20" />
-									</div>
-								</div>
-							))}
+			<ScrollArea
+				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
+				scrollBarClassName="w-1.5"
+			>
+				<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+					{loadError ? (
+						<div className="space-y-3 px-1">
+							<ErrorAlert error={loadError} />
+							{onRetryLoad && (
+								<Button size="sm" variant="outline" onClick={onRetryLoad}>
+									Retry
+								</Button>
+							)}
 						</div>
-					</>
-				) : (
-				<>
-				<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-					<span>This Week</span>
-				</div>
-
-				<div className="flex flex-col gap-0.5">
-						{filteredChats.map((chat) => {
-								const config = getStatusConfig(chat.status);
-								const StatusIcon = config.icon;
-								const modelName = getModelDisplayName(chat.model_config, modelOptions);
-								const errorReason =
-									chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
-								const subtitle = errorReason || modelName;
-								const diffStatus = getChatDiffStatus(chat);
-								const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-								const changedFiles = diffStatus?.changed_files ?? 0;
-								const additions = diffStatus?.additions ?? 0;
-								const deletions = diffStatus?.deletions ?? 0;
-								const hasLineStats = additions > 0 || deletions > 0;
-								const filesChangedLabel = `${changedFiles} ${
-									changedFiles === 1 ? "file" : "files"
-								}`;
-								const isArchivingThisChat =
-									isArchiving && archivingChatId === chat.id;
-
-								return (
+					) : isLoading ? (
+						<>
+							<Skeleton className="ml-2.5 h-3.5 w-16" />
+							<div className="flex flex-col gap-0.5">
+								{Array.from({ length: 6 }, (_, i) => (
 									<div
-										key={chat.id}
-										className={cn(
-											"group relative flex min-w-0 items-start gap-2 rounded-md pr-1 text-content-secondary",
-											"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-											"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-										)}
+										key={i}
+										className="flex items-start gap-2 rounded-md px-2 py-1"
 									>
-										<NavLink
-											to={`/agents/${chat.id}`}
-											className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] px-2 py-1 text-inherit no-underline"
-										>
-											{({ isActive }) => (
-												<>
-													<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md">
-														<StatusIcon
-															className={cn(
-																"h-3.5 w-3.5 shrink-0",
-																config.className,
-															)}
-														/>
-													</div>
-													<div className="min-w-0 flex-1 overflow-hidden text-left">
-														<div className="flex min-w-0 items-center overflow-hidden">
-															<span
-																className={cn(
-																	"block flex-1 truncate text-[13px] text-content-primary",
-																	isActive && "font-medium",
-																)}
-															>
-																{chat.title}
-															</span>
-														</div>
-														<div className="flex min-w-0 items-center gap-2">
-														{hasLinkedDiffStatus && hasLineStats && (
-																<span
-																	className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
-																	title={`${filesChangedLabel}, +${additions} -${deletions}`}
-																>
-																	<span className="text-content-success">
-																		+{additions}
-																	</span>
-																	<span className="text-content-destructive">
-																		-{deletions}
-																	</span>
-																</span>
-															)}
-															<div
-																className={cn(
-																	"min-w-0 overflow-hidden text-[13px] leading-4",
-																	errorReason
-																		? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-																		: "truncate text-content-secondary",
-																)}
-																title={subtitle}
-															>
-																{subtitle}
-															</div>
-														</div>
-													</div>
-												</>
-											)}
-										</NavLink>
-										<div className="relative mt-1 h-6 w-7 shrink-0 mr-1 text-right">
-											<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
-												{shortRelativeTime(chat.updated_at)}
-											</span>
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button
-														size="icon"
-														variant="subtle"
-														className={cn(
-															"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
-															isArchivingThisChat && "opacity-100",
-														)}
-														aria-label={`Open actions for ${chat.title}`}
-													>
-														{isArchivingThisChat ? (
-															<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-														) : (
-															<EllipsisIcon className="h-3.5 w-3.5" />
-														)}
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuItem
-														onSelect={(event) => event.preventDefault()}
-													>
-														Mark as unread
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														className="text-content-destructive focus:text-content-destructive"
-														disabled={isArchiving}
-														onSelect={() => onArchiveAgent(chat.id)}
-													>
-														<ArchiveIcon className="h-3.5 w-3.5" />
-														Archive agent
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
+										<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+										<div className="min-w-0 flex-1 space-y-1.5">
+											<Skeleton
+												className="h-3.5"
+												style={{ width: `${55 + ((i * 17) % 35)}%` }}
+											/>
+											<Skeleton className="h-3 w-20" />
 										</div>
 									</div>
-								);
-							})}
+								))}
+							</div>
+						</>
+					) : (
+						<>
+							<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+								<span>This Week</span>
+							</div>
 
-							{filteredChats.length === 0 && (
-								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-									{search ? "No matching agents" : "No agents yet"}
-								</div>
-							)}
-					</div>
-				</>
-				)}
+							<div className="flex flex-col gap-0.5">
+								{filteredChats.map((chat) => {
+									const config = getStatusConfig(chat.status);
+									const StatusIcon = config.icon;
+									const modelName = getModelDisplayName(
+										chat.model_config,
+										modelOptions,
+									);
+									const errorReason =
+										chat.status === "error"
+											? chatErrorReasons[chat.id]
+											: undefined;
+									const subtitle = errorReason || modelName;
+									const diffStatus = getChatDiffStatus(chat);
+									const hasLinkedDiffStatus = Boolean(diffStatus?.url);
+									const changedFiles = diffStatus?.changed_files ?? 0;
+									const additions = diffStatus?.additions ?? 0;
+									const deletions = diffStatus?.deletions ?? 0;
+									const hasLineStats = additions > 0 || deletions > 0;
+									const filesChangedLabel = `${changedFiles} ${
+										changedFiles === 1 ? "file" : "files"
+									}`;
+									const isArchivingThisChat =
+										isArchiving && archivingChatId === chat.id;
+
+									return (
+										<div
+											key={chat.id}
+											className={cn(
+												"group relative flex min-w-0 items-start gap-2 rounded-md pr-1 text-content-secondary",
+												"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+												"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+											)}
+										>
+											<NavLink
+												to={`/agents/${chat.id}`}
+												className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] px-2 py-1 text-inherit no-underline"
+											>
+												{({ isActive }) => (
+													<>
+														<div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md">
+															<StatusIcon
+																className={cn(
+																	"h-3.5 w-3.5 shrink-0",
+																	config.className,
+																)}
+															/>
+														</div>
+														<div className="min-w-0 flex-1 overflow-hidden text-left">
+															<div className="flex min-w-0 items-center overflow-hidden">
+																<span
+																	className={cn(
+																		"block flex-1 truncate text-[13px] text-content-primary",
+																		isActive && "font-medium",
+																	)}
+																>
+																	{chat.title}
+																</span>
+															</div>
+															<div className="flex min-w-0 items-center gap-2">
+																{hasLinkedDiffStatus && hasLineStats && (
+																	<span
+																		className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
+																		title={`${filesChangedLabel}, +${additions} -${deletions}`}
+																	>
+																		<span className="text-content-success">
+																			+{additions}
+																		</span>
+																		<span className="text-content-destructive">
+																			-{deletions}
+																		</span>
+																	</span>
+																)}
+																<div
+																	className={cn(
+																		"min-w-0 overflow-hidden text-[13px] leading-4",
+																		errorReason
+																			? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+																			: "truncate text-content-secondary",
+																	)}
+																	title={subtitle}
+																>
+																	{subtitle}
+																</div>
+															</div>
+														</div>
+													</>
+												)}
+											</NavLink>
+											<div className="relative mt-1 h-6 w-7 shrink-0 mr-1 text-right">
+												<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
+													{shortRelativeTime(chat.updated_at)}
+												</span>
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<Button
+															size="icon"
+															variant="subtle"
+															className={cn(
+																"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+																isArchivingThisChat && "opacity-100",
+															)}
+															aria-label={`Open actions for ${chat.title}`}
+														>
+															{isArchivingThisChat ? (
+																<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+															) : (
+																<EllipsisIcon className="h-3.5 w-3.5" />
+															)}
+														</Button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuItem
+															onSelect={(event) => event.preventDefault()}
+														>
+															Mark as unread
+														</DropdownMenuItem>
+														<DropdownMenuItem
+															className="text-content-destructive focus:text-content-destructive"
+															disabled={isArchiving}
+															onSelect={() => onArchiveAgent(chat.id)}
+														>
+															<ArchiveIcon className="h-3.5 w-3.5" />
+															Archive agent
+														</DropdownMenuItem>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											</div>
+										</div>
+									);
+								})}
+
+								{filteredChats.length === 0 && (
+									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+										{search ? "No matching agents" : "No agents yet"}
+									</div>
+								)}
+							</div>
+						</>
+					)}
 				</div>
 			</ScrollArea>
 		</div>

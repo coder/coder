@@ -1,9 +1,4 @@
-import { type FC, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useOutletContext, useParams } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { type ChatDiffStatusResponse, watchChat } from "api/api";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
 	chat,
 	chatDiffContentsKey,
@@ -19,17 +14,28 @@ import {
 	ConversationItem,
 	Message,
 	MessageContent,
+	type ModelSelectorOption,
 	Response,
 	Shimmer,
 	Thinking,
 	Tool,
-	type ModelSelectorOption,
 } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { PanelRightCloseIcon, PanelRightOpenIcon } from "lucide-react";
 import {
-	PanelRightCloseIcon,
-	PanelRightOpenIcon,
-} from "lucide-react";
+	type FC,
+	memo,
+	startTransition,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useOutletContext, useParams } from "react-router";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
 import type { AgentsOutletContext } from "./AgentsPage";
@@ -148,11 +154,7 @@ const mergeTools = (
 			args: call.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
-			status: result
-				? result.isError
-					? "error"
-					: "completed"
-				: "completed",
+			status: result ? (result.isError ? "error" : "completed") : "completed",
 		});
 	}
 
@@ -195,15 +197,22 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 
 			switch (normalizeBlockType(typedBlock.type)) {
 				case "text":
-					parsed.markdown = appendText(parsed.markdown, asString(typedBlock.text));
+					parsed.markdown = appendText(
+						parsed.markdown,
+						asString(typedBlock.text),
+					);
 					break;
 				case "reasoning":
 				case "thinking":
-					parsed.reasoning = appendText(parsed.reasoning, asString(typedBlock.text));
+					parsed.reasoning = appendText(
+						parsed.reasoning,
+						asString(typedBlock.text),
+					);
 					break;
 				case "tool-call":
 				case "toolcall": {
-					const name = asString(typedBlock.tool_name) || asString(typedBlock.name);
+					const name =
+						asString(typedBlock.tool_name) || asString(typedBlock.name);
 					const id =
 						asString(typedBlock.tool_call_id) ||
 						asString(typedBlock.id) ||
@@ -217,7 +226,8 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				}
 				case "tool-result":
 				case "toolresult": {
-					const name = asString(typedBlock.tool_name) || asString(typedBlock.name);
+					const name =
+						asString(typedBlock.tool_name) || asString(typedBlock.name);
 					const id =
 						asString(typedBlock.tool_call_id) ||
 						asString(typedBlock.id) ||
@@ -235,7 +245,10 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					break;
 				}
 				default:
-					parsed.markdown = appendText(parsed.markdown, asString(typedBlock.text));
+					parsed.markdown = appendText(
+						parsed.markdown,
+						asString(typedBlock.text),
+					);
 					break;
 			}
 		}
@@ -309,8 +322,7 @@ const resolveModelFromChatConfig = (
 	if (model) {
 		const modelMatch = modelOptions.find(
 			(option) =>
-				option.model === model &&
-				(!provider || option.provider === provider),
+				option.model === model && (!provider || option.provider === provider),
 		);
 		if (modelMatch) {
 			return modelMatch.id;
@@ -392,10 +404,7 @@ const parseChatMessageContent = (
 			}
 		}
 	}
-	parsed.tools = mergeTools(
-		parsed.toolCalls,
-		Array.from(resultById.values()),
-	);
+	parsed.tools = mergeTools(parsed.toolCalls, Array.from(resultById.values()));
 	return parsed;
 };
 
@@ -403,7 +412,8 @@ type CreateChatMessagePayload = TypesGen.CreateChatMessageRequest & {
 	readonly model?: string;
 };
 
-const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] = () => {};
+const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
+	() => {};
 const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
 	() => {};
 
@@ -478,27 +488,24 @@ const ChatMessageItem = memo<{
 		parsed.markdown !== "" ||
 		parsed.reasoning !== "" ||
 		parsed.tools.length > 0;
+	const conversationItemProps = {
+		role: (isUser ? "user" : "assistant") as const,
+	};
 
 	return (
-		<ConversationItem
-			role={isUser ? "user" : "assistant"}
-		>
+		<ConversationItem {...conversationItemProps}>
 			{isUser ? (
 				<Message className="my-2 w-full max-w-none">
 					<MessageContent className="rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm">
 						{parsed.markdown || ""}
 					</MessageContent>
 				</Message>
-		) : (
-			<Message className="w-full">
-				<MessageContent className="whitespace-normal">
-					<div className="space-y-3">
-							{parsed.markdown && (
-								<Response>{parsed.markdown}</Response>
-							)}
-							{parsed.reasoning && (
-								<Thinking>{parsed.reasoning}</Thinking>
-							)}
+			) : (
+				<Message className="w-full">
+					<MessageContent className="whitespace-normal">
+						<div className="space-y-3">
+							{parsed.markdown && <Response>{parsed.markdown}</Response>}
+							{parsed.reasoning && <Thinking>{parsed.reasoning}</Thinking>}
 							{parsed.tools.map((tool) => (
 								<Tool
 									key={tool.id}
@@ -531,38 +538,41 @@ ChatMessageItem.displayName = "ChatMessageItem";
 const StreamingOutput = memo<{
 	streamState: StreamState | null;
 	streamTools: MergedTool[];
-}>(({ streamState, streamTools }) => (
-	<ConversationItem role="assistant">
-		<Message>
-			<MessageContent className="whitespace-normal">
-				<div className="space-y-3">
-					{streamState?.content ? (
-						<Response>{streamState.content}</Response>
-					) : (
-						<Shimmer as="span" className="text-sm">
-							Thinking...
-						</Shimmer>
-					)}
-					{streamState?.reasoning && (
-						<Thinking>{streamState.reasoning}</Thinking>
-					)}
-					{streamTools.map((tool) => (
-						<Tool
-							key={tool.id}
-							name={tool.name}
-							args={tool.args}
-							result={tool.result}
-							status={tool.status}
-							isError={tool.isError}
-						/>
-					))}
-				</div>
-			</MessageContent>
-		</Message>
-	</ConversationItem>
-));
-StreamingOutput.displayName = "StreamingOutput";
+}>(({ streamState, streamTools }) => {
+	const conversationItemProps = { role: "assistant" as const };
 
+	return (
+		<ConversationItem {...conversationItemProps}>
+			<Message>
+				<MessageContent className="whitespace-normal">
+					<div className="space-y-3">
+						{streamState?.content ? (
+							<Response>{streamState.content}</Response>
+						) : (
+							<Shimmer as="span" className="text-sm">
+								Thinking...
+							</Shimmer>
+						)}
+						{streamState?.reasoning && (
+							<Thinking>{streamState.reasoning}</Thinking>
+						)}
+						{streamTools.map((tool) => (
+							<Tool
+								key={tool.id}
+								name={tool.name}
+								args={tool.args}
+								result={tool.result}
+								status={tool.status}
+								isError={tool.isError}
+							/>
+						))}
+					</div>
+				</MessageContent>
+			</Message>
+		</ConversationItem>
+	);
+});
+StreamingOutput.displayName = "StreamingOutput";
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -577,7 +587,9 @@ export const AgentDetail: FC = () => {
 	>(new Map());
 	const [streamState, setStreamState] = useState<StreamState | null>(null);
 	const [streamError, setStreamError] = useState<string | null>(null);
-	const [chatStatus, setChatStatus] = useState<TypesGen.ChatStatus | null>(null);
+	const [chatStatus, setChatStatus] = useState<TypesGen.ChatStatus | null>(
+		null,
+	);
 	const [selectedModel, setSelectedModel] = useState("");
 	const chatErrorReasons = outletContext?.chatErrorReasons ?? {};
 	const setChatErrorReason =
@@ -611,8 +623,12 @@ export const AgentDetail: FC = () => {
 	);
 	const modelOptions = catalogModelOptions;
 
-	const sendMutation = useMutation(createChatMessage(queryClient, agentId ?? ""));
-	const interruptMutation = useMutation(interruptChat(queryClient, agentId ?? ""));
+	const sendMutation = useMutation(
+		createChatMessage(queryClient, agentId ?? ""),
+	);
+	const interruptMutation = useMutation(
+		interruptChat(queryClient, agentId ?? ""),
+	);
 	const updateSidebarChat = useCallback(
 		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
 			if (!agentId) {
@@ -674,7 +690,10 @@ export const AgentDetail: FC = () => {
 			if (current && modelOptions.some((model) => model.id === current)) {
 				return current;
 			}
-			return resolveModelFromChatConfig(chatQuery.data.chat.model_config, modelOptions);
+			return resolveModelFromChatConfig(
+				chatQuery.data.chat.model_config,
+				modelOptions,
+			);
 		});
 	}, [chatQuery.data, modelOptions]);
 
@@ -739,7 +758,8 @@ export const AgentDetail: FC = () => {
 						case "text":
 							startTransition(() => {
 								setStreamState((prev) => {
-									const nextState: StreamState = prev ?? createEmptyStreamState();
+									const nextState: StreamState =
+										prev ?? createEmptyStreamState();
 									return {
 										...nextState,
 										content: `${nextState.content}${asString(part.text)}`,
@@ -751,7 +771,8 @@ export const AgentDetail: FC = () => {
 						case "thinking":
 							startTransition(() => {
 								setStreamState((prev) => {
-									const nextState: StreamState = prev ?? createEmptyStreamState();
+									const nextState: StreamState =
+										prev ?? createEmptyStreamState();
 									return {
 										...nextState,
 										reasoning: `${nextState.reasoning}${asString(part.text)}`,
@@ -765,10 +786,11 @@ export const AgentDetail: FC = () => {
 
 							startTransition(() => {
 								setStreamState((prev) => {
-									const nextState: StreamState = prev ?? createEmptyStreamState();
-									const existingByName = Object.values(nextState.toolCalls).find(
-										(call) => call.name === toolName,
-									);
+									const nextState: StreamState =
+										prev ?? createEmptyStreamState();
+									const existingByName = Object.values(
+										nextState.toolCalls,
+									).find((call) => call.name === toolName);
 									const toolCallID =
 										asString(part.tool_call_id) ||
 										existingByName?.id ||
@@ -801,13 +823,14 @@ export const AgentDetail: FC = () => {
 
 							startTransition(() => {
 								setStreamState((prev) => {
-									const nextState: StreamState = prev ?? createEmptyStreamState();
-									const existingByName = Object.values(nextState.toolResults).find(
-										(result) => result.name === toolName,
-									);
-									const existingCallByName = Object.values(nextState.toolCalls).find(
-										(call) => call.name === toolName,
-									);
+									const nextState: StreamState =
+										prev ?? createEmptyStreamState();
+									const existingByName = Object.values(
+										nextState.toolResults,
+									).find((result) => result.name === toolName);
+									const existingCallByName = Object.values(
+										nextState.toolCalls,
+									).find((call) => call.name === toolName);
 									const toolCallID =
 										asString(part.tool_call_id) ||
 										existingByName?.id ||
@@ -840,43 +863,43 @@ export const AgentDetail: FC = () => {
 							return;
 					}
 				}
-					case "status": {
-						const status = asRecord(streamEvent.status);
-						const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
-						if (nextStatus) {
-							setChatStatus(nextStatus);
-							if (agentId && nextStatus !== "error") {
-								clearChatErrorReason(agentId);
-							}
-							updateSidebarChat((chat) => ({
-								...chat,
-								status: nextStatus,
-								updated_at: new Date().toISOString(),
-							}));
-							// Always refresh diff queries on any status event
-							// because the background refresh may have discovered
-							// a new PR or updated diff contents.
-							if (agentId) {
-								void Promise.all([
-									queryClient.invalidateQueries({
-										queryKey: chatDiffStatusKey(agentId),
-									}),
-									queryClient.invalidateQueries({
-										queryKey: chatDiffContentsKey(agentId),
-									}),
-								]);
-							}
-							const shouldRefreshQueries =
-								nextStatus === "completed" ||
-								nextStatus === "error" ||
-								nextStatus === "paused" ||
-								nextStatus === "waiting";
-							if (shouldRefreshQueries) {
-								void queryClient.invalidateQueries({ queryKey: chatsKey });
-							}
+				case "status": {
+					const status = asRecord(streamEvent.status);
+					const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
+					if (nextStatus) {
+						setChatStatus(nextStatus);
+						if (agentId && nextStatus !== "error") {
+							clearChatErrorReason(agentId);
 						}
-						return;
+						updateSidebarChat((chat) => ({
+							...chat,
+							status: nextStatus,
+							updated_at: new Date().toISOString(),
+						}));
+						// Always refresh diff queries on any status event
+						// because the background refresh may have discovered
+						// a new PR or updated diff contents.
+						if (agentId) {
+							void Promise.all([
+								queryClient.invalidateQueries({
+									queryKey: chatDiffStatusKey(agentId),
+								}),
+								queryClient.invalidateQueries({
+									queryKey: chatDiffContentsKey(agentId),
+								}),
+							]);
+						}
+						const shouldRefreshQueries =
+							nextStatus === "completed" ||
+							nextStatus === "error" ||
+							nextStatus === "paused" ||
+							nextStatus === "waiting";
+						if (shouldRefreshQueries) {
+							void queryClient.invalidateQueries({ queryKey: chatsKey });
+						}
 					}
+					return;
+				}
 				case "error": {
 					const error = asRecord(streamEvent.error);
 					const reason =
@@ -925,16 +948,21 @@ export const AgentDetail: FC = () => {
 
 	const messages = useMemo(() => {
 		const list = Array.from(messagesById.values());
-		list.sort((a, b) =>
-			new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+		list.sort(
+			(a, b) =>
+				new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
 		);
 		return list;
 	}, [messagesById]);
 
 	const isStreaming =
-		Boolean(streamState) || chatStatus === "running" || chatStatus === "pending";
+		Boolean(streamState) ||
+		chatStatus === "running" ||
+		chatStatus === "pending";
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(chatModelsQuery.data);
+	const hasConfiguredModels = hasConfiguredModelsInCatalog(
+		chatModelsQuery.data,
+	);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		chatModelsQuery.isLoading,
@@ -951,16 +979,24 @@ export const AgentDetail: FC = () => {
 		: hasConfiguredModels
 			? "Models are configured but unavailable. Ask an admin."
 			: "No models configured. Ask an admin.";
-	const isSubmissionPending = sendMutation.isPending || interruptMutation.isPending;
+	const isSubmissionPending =
+		sendMutation.isPending || interruptMutation.isPending;
 	const isInputDisabled = isSubmissionPending || !hasModelOptions;
 
 	// Stable callback refs — the actual implementation is updated on
 	// every render, but the reference passed to ChatInput never changes.
 	// This prevents ChatInput from re-rendering when unrelated parent
 	// state (streamState, messagesById) changes.
-	const handleSendRef = useRef<(message: string) => Promise<void>>(async () => {});
+	const handleSendRef = useRef<(message: string) => Promise<void>>(
+		async () => {},
+	);
 	handleSendRef.current = async (message: string) => {
-		if (!message.trim() || isSubmissionPending || !agentId || !hasModelOptions) {
+		if (
+			!message.trim() ||
+			isSubmissionPending ||
+			!agentId ||
+			!hasModelOptions
+		) {
 			return;
 		}
 		if (isStreaming) {
@@ -989,10 +1025,7 @@ export const AgentDetail: FC = () => {
 		(message: string) => handleSendRef.current(message),
 		[],
 	);
-	const stableOnInterrupt = useCallback(
-		() => handleInterruptRef.current(),
-		[],
-	);
+	const stableOnInterrupt = useCallback(() => handleInterruptRef.current(), []);
 
 	const streamTools = useMemo((): MergedTool[] => {
 		if (!streamState) {
@@ -1011,11 +1044,7 @@ export const AgentDetail: FC = () => {
 				args: call.args,
 				result: result?.result,
 				isError: result?.isError ?? false,
-				status: result
-					? result.isError
-						? "error"
-						: "completed"
-					: "running",
+				status: result ? (result.isError ? "error" : "completed") : "running",
 			});
 		}
 
@@ -1152,7 +1181,9 @@ export const AgentDetail: FC = () => {
 							<div className="flex flex-col">
 								{messageSections.map((section, sectionIdx) => (
 									<div
-										key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
+										key={
+											section.userEntry?.message.id ?? `section-${sectionIdx}`
+										}
 									>
 										<div className="flex flex-col gap-3">
 											{section.entries.map(({ message, parsed }) => {

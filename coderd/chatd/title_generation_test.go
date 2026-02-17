@@ -8,10 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.jetify.com/ai/api"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
-
-	"go.jetify.com/ai/api"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"

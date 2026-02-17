@@ -1,20 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # licenses
 
+
 Add, delete, and list licenses
 
-Aliases:
 
+
+
+Aliases:
 * license
 
 ## Usage
-
 ```console
 coder licenses
 ```
 
 ## Subcommands
-
 | Name                                        | Purpose                           |
 |---------------------------------------------|-----------------------------------|
 | [<code>add</code>](./licenses_add.md)       | Add license to Coder deployment   |

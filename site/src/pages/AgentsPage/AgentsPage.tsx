@@ -1,13 +1,9 @@
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Outlet, useNavigate, useParams } from "react-router";
-import TextareaAutosize from "react-textarea-autosize";
 import type { ChatModelsResponse } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { chatModels, chats, createChat, deleteChat } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -17,14 +13,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { type ModelSelectorOption } from "components/ai-elements";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	Select,
 	SelectContent,
@@ -42,6 +37,18 @@ import {
 } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Outlet, useNavigate, useParams } from "react-router";
+import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
@@ -232,7 +239,10 @@ export const AgentsPage: FC = () => {
 
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
 				<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-					<div ref={topBarTitleRef} className="flex min-w-0 flex-1 items-center" />
+					<div
+						ref={topBarTitleRef}
+						className="flex min-w-0 flex-1 items-center"
+					/>
 					<div ref={topBarActionsRef} className="flex items-center gap-2" />
 					<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
 						<UserDropdown
@@ -345,8 +355,9 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const [isSystemPromptDialogOpen, setSystemPromptDialogOpen] = useState(false);
 	const [isModelConfigDialogOpen, setModelConfigDialogOpen] = useState(false);
 	const workspacesQuery = useQuery(workspaces({ limit: 50 }));
-	const [selectedWorkspaceId, setSelectedWorkspaceId] =
-		useState<string | null>(null);
+	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+		null,
+	);
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
 	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
@@ -468,7 +479,9 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? <ErrorAlert error={createError} /> : null}
-				{workspacesQuery.isError && <ErrorAlert error={workspacesQuery.error} />}
+				{workspacesQuery.isError && (
+					<ErrorAlert error={workspacesQuery.error} />
+				)}
 
 				<AgentChatInput
 					onSend={handleSend}

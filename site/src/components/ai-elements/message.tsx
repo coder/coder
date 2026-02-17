@@ -43,7 +43,10 @@ export const MessageHeader = forwardRef<HTMLDivElement, MessageHeaderProps>(
 		return (
 			<div
 				ref={ref}
-				className={cn("mb-1 text-xs font-medium text-content-secondary", className)}
+				className={cn(
+					"mb-1 text-xs font-medium text-content-secondary",
+					className,
+				)}
 				{...props}
 			/>
 		);

@@ -1,18 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # open vscode
 
+
 Open a workspace in VS Code Desktop
 
-## Usage
 
+
+
+## Usage
 ```console
 coder open vscode [flags] <workspace> [<directory in workspace>]
 ```
 
+
 ## Options
-
 ### --generate-token
-
+ 
 |             |                                                |
 |-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
