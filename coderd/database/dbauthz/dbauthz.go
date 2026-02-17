@@ -4948,6 +4948,13 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
 }
 
+func (q *querier) UpdateAPIKeyConnectPublicKey(ctx context.Context, arg database.UpdateAPIKeyConnectPublicKeyParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateAPIKeyConnectPublicKeyParams) (database.APIKey, error) {
+		return q.db.GetAPIKeyByID(ctx, arg.ID)
+	}
+	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyConnectPublicKey)(ctx, arg)
+}
+
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err

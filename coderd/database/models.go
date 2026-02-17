@@ -3688,18 +3688,19 @@ type AIBridgeUserPrompt struct {
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
-	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
-	UserID          uuid.UUID    `db:"user_id" json:"user_id"`
-	LastUsed        time.Time    `db:"last_used" json:"last_used"`
-	ExpiresAt       time.Time    `db:"expires_at" json:"expires_at"`
-	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
-	LoginType       LoginType    `db:"login_type" json:"login_type"`
-	LifetimeSeconds int64        `db:"lifetime_seconds" json:"lifetime_seconds"`
-	IPAddress       pqtype.Inet  `db:"ip_address" json:"ip_address"`
-	TokenName       string       `db:"token_name" json:"token_name"`
-	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
-	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+	HashedSecret     []byte       `db:"hashed_secret" json:"hashed_secret"`
+	UserID           uuid.UUID    `db:"user_id" json:"user_id"`
+	LastUsed         time.Time    `db:"last_used" json:"last_used"`
+	ExpiresAt        time.Time    `db:"expires_at" json:"expires_at"`
+	CreatedAt        time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
+	LoginType        LoginType    `db:"login_type" json:"login_type"`
+	LifetimeSeconds  int64        `db:"lifetime_seconds" json:"lifetime_seconds"`
+	IPAddress        pqtype.Inet  `db:"ip_address" json:"ip_address"`
+	TokenName        string       `db:"token_name" json:"token_name"`
+	Scopes           APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList        AllowList    `db:"allow_list" json:"allow_list"`
+	ConnectPublicKey []byte       `db:"connect_public_key" json:"connect_public_key"`
 }
 
 type AuditLog struct {

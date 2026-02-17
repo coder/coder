@@ -40,6 +40,12 @@ type WebsocketDialer struct {
 	resumeTokenFailed bool
 	connected         chan error
 	isFirst           bool
+
+	// onConnectAuthRequired is called when the server returns 403
+	// with a connect-auth requirement. If set, the dialer retries
+	// with the returned proof header.
+	onConnectAuthRequired func() (string, error)
+	connectProof          string
 }
 
 // checkResumeTokenFailure checks if the parsed error indicates a resume token failure
@@ -98,8 +104,39 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 	}
 	u.RawQuery = q.Encode()
 
+	dialOpts := w.dialOptions
+	if w.connectProof != "" {
+		dialOpts = cloneDialOptions(w.dialOptions)
+		if dialOpts.HTTPHeader == nil {
+			dialOpts.HTTPHeader = make(http.Header)
+		}
+		dialOpts.HTTPHeader.Set(codersdk.ConnectProofHeader, w.connectProof)
+	}
+
 	// nolint:bodyclose
-	ws, res, err := websocket.Dial(ctx, u.String(), w.dialOptions)
+	ws, res, err := websocket.Dial(ctx, u.String(), dialOpts)
+
+	// Check for connect-auth requirement on every dial attempt
+	// (not just the first). This ensures reconnects after the
+	// 30-second proof expiry obtain a fresh Touch ID proof
+	// rather than reusing a stale one.
+	if res != nil && isConnectAuthResponse(res) && w.onConnectAuthRequired != nil {
+		res.Body.Close()
+		// Clear the stale proof so the next attempt starts fresh.
+		w.connectProof = ""
+		proof, cbErr := w.onConnectAuthRequired()
+		if cbErr != nil {
+			if w.isFirst {
+				w.connected <- cbErr
+			}
+			return tailnet.ControlProtocolClients{}, cbErr
+		}
+		if proof != "" {
+			w.connectProof = proof
+			return tailnet.ControlProtocolClients{}, xerrors.New("connect-auth: retrying with proof")
+		}
+	}
+
 	if w.isFirst {
 		if res != nil && slices.Contains(permanentErrorStatuses, res.StatusCode) {
 			err = codersdk.ReadBodyAsError(res)
@@ -207,4 +244,30 @@ func NewWebsocketDialer(
 		o(w)
 	}
 	return w
+}
+
+// isConnectAuthResponse checks whether an HTTP response indicates
+// that the server requires connect-auth (Secure Enclave proof).
+// Uses the Coder-Connect-Auth-Required header for reliable
+// detection rather than parsing error message strings.
+func isConnectAuthResponse(res *http.Response) bool {
+	if res == nil {
+		return false
+	}
+	return res.StatusCode == http.StatusForbidden &&
+		res.Header.Get(codersdk.ConnectAuthRequiredHeader) == "true"
+}
+
+// cloneDialOptions creates a copy of the dial options so we can
+// add headers without mutating the original. The HTTPHeader map
+// is deep-copied to avoid sharing state.
+func cloneDialOptions(opts *websocket.DialOptions) *websocket.DialOptions {
+	if opts == nil {
+		return &websocket.DialOptions{}
+	}
+	clone := *opts
+	if opts.HTTPHeader != nil {
+		clone.HTTPHeader = opts.HTTPHeader.Clone()
+	}
+	return &clone
 }

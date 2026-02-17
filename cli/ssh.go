@@ -386,6 +386,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 					Logger:          logger,
 					BlockEndpoints:  r.disableDirect,
 					EnableTelemetry: !r.disableNetworkTelemetry,
+					OnConnectAuthRequired: func() (string, error) {
+						return ObtainConnectProof(r.createConfig(), workspace.Name)
+					},
 				})
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)

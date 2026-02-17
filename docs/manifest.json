@@ -934,6 +934,11 @@
 							"description": "Encrypt the database to prevent unauthorized access",
 							"path": "./admin/security/database-encryption.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Secure Enclave Connect Auth",
+							"description": "Require Touch ID for sensitive workspace connections on macOS",
+							"path": "./admin/security/secure-enclave-connect-auth.md"
 						}
 					]
 				},

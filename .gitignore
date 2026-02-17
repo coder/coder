@@ -5,6 +5,7 @@
 .idea
 .run
 **/*.swp
+cli/touchid/libenclave.a
 gotests.coverage
 gotests.xml
 gotests_stats.json

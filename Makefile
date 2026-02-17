@@ -141,6 +141,16 @@ build-slim: $(CODER_SLIM_BINARIES)
 build-fat build-full build: $(CODER_FAT_BINARIES)
 .PHONY: build-fat build-full build
 
+# build-touchid builds the coder binary with CGO + CryptoKit Secure
+# Enclave support. macOS only. Requires Xcode and swiftc.
+# No code signing needed — CryptoKit's SecureEnclave APIs work
+# without entitlements, unlike the Security framework.
+build-touchid:
+	bash cli/touchid/build_swift.sh
+	CGO_ENABLED=1 go build -o ./build/coder-touchid ./cmd/coder/
+	echo "Built: ./build/coder-touchid"
+.PHONY: build-touchid
+
 release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(CODER_ARCH_IMAGES) build/coder_helm_$(VERSION).tgz
 .PHONY: release
 

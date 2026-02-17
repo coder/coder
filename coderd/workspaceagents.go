@@ -1487,6 +1487,36 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		}
 	}
 
+	// Connect-auth enforcement: the coordination endpoint is
+	// shared by SSH and port-forward, so check both categories.
+	// Only user API key auth is checked — workspace proxy auth
+	// (moon actor) does not carry an API key and is allowed
+	// through, as proxies authenticate via a different mechanism.
+	endpoints := api.DeploymentValues.ConnectAuthEndpoints.Value()
+	if connectAuthRequired(endpoints, codersdk.ConnectAuthEndpointSSH) ||
+		connectAuthRequired(endpoints, codersdk.ConnectAuthEndpointPortForward) {
+		apiKey, ok := httpmw.APIKeyOptional(r)
+		if ok {
+			if len(apiKey.ConnectPublicKey) > 0 {
+				proofHeader := r.Header.Get(codersdk.ConnectProofHeader)
+				if err := verifyConnectProof(proofHeader, apiKey.ConnectPublicKey); err != nil {
+					rw.Header().Set(codersdk.ConnectAuthRequiredHeader, "true")
+					httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+						Message: "Connect-auth proof required for workspace connections.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+			} else {
+				rw.Header().Set(codersdk.ConnectAuthRequiredHeader, "true")
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "Connect-auth is required by this deployment. Register a connect public key on your API key using a macOS device with Touch ID.",
+				})
+				return
+			}
+		}
+	}
+
 	version := "1.0"
 	qv := r.URL.Query().Get("version")
 	if qv != "" {

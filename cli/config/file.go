@@ -47,6 +47,14 @@ func (r Root) Organization() File {
 	return File(filepath.Join(string(r), "organization"))
 }
 
+// ConnectKey returns the path to the Secure Enclave connect key
+// dataRepresentation file. This is an encrypted blob that only the
+// Secure Enclave on this specific device can use.
+func (r Root) ConnectKey() File {
+	r.mustNotEmpty()
+	return File(filepath.Join(string(r), "connect-key"))
+}
+
 func (r Root) DotfilesURL() File {
 	r.mustNotEmpty()
 	return File(filepath.Join(string(r), "dotfilesurl"))

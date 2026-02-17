@@ -188,6 +188,12 @@ type DialAgentOptions struct {
 	// Whether the client will send network telemetry events.
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
+	// OnConnectAuthRequired is called when the server rejects the
+	// connection with a connect-auth requirement (403). The
+	// callback should return a Coder-Connect-Proof header value,
+	// or an error. If nil, connect-auth failures are treated as
+	// permanent errors.
+	OnConnectAuthRequired func() (string, error)
 }
 
 // RewriteDERPMap rewrites the DERP map to use the configured access URL of the
@@ -234,6 +240,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 
 	dialer := NewWebsocketDialer(options.Logger, coordinateURL, wsOptions)
+	dialer.onConnectAuthRequired = options.OnConnectAuthRequired
 	clk := quartz.NewReal()
 	controller := tailnet.NewController(options.Logger, dialer)
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)

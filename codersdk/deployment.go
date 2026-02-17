@@ -645,6 +645,11 @@ type DeploymentValues struct {
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                              AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                 StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	// ConnectAuthEndpoints lists the endpoint categories that
+	// require Secure Enclave connect-auth proof. Supported values:
+	// "ssh" (workspace SSH/coordinate), "port-forward", "apps".
+	// An empty list disables connect-auth enforcement.
+	ConnectAuthEndpoints serpent.StringArray `json:"connect_auth_endpoints,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -3476,6 +3481,15 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.HideAITasks,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
+		},
+
+		{
+			Name:        "Connect Auth Endpoints",
+			Description: "Endpoint categories that require Secure Enclave connect-auth proof. Supported values: ssh, port-forward. When set, users must have a connect public key registered on their API key. Users without a registered key are blocked from the listed endpoints. WARNING: enabling this blocks all non-macOS users (Linux, Windows) from SSH and port-forward, as Secure Enclave is only available on Apple devices.",
+			Flag:        "connect-auth-endpoints",
+			Env:         "CODER_CONNECT_AUTH_ENDPOINTS",
+			Value:       &c.ConnectAuthEndpoints,
+			YAML:        "connectAuthEndpoints",
 		},
 
 		// AI Bridge Options
