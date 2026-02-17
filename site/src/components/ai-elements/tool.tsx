@@ -1,4 +1,6 @@
-import { File as FileViewer } from "@pierre/diffs/react";
+import { parsePatchFiles } from "@pierre/diffs";
+import { File as FileViewer, FileDiff } from "@pierre/diffs/react";
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { forwardRef, useMemo } from "react";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { cn } from "utils/cn";
@@ -168,6 +170,9 @@ const ToolLabel: React.FC<{ name: string; args: unknown; result: unknown }> = ({
 const fileViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
 
+const diffViewerCSS =
+	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }";
+
 /**
  * Checks whether a tool result should be rendered as a syntax-highlighted
  * file viewer. Returns the file path, content, and whether the header
@@ -189,7 +194,7 @@ const getFileContentForViewer = (
 		}
 		return { path: "output.sh", content: output, disableHeader: true, disableLineNumbers: true };
 	}
-	if (toolName !== "read_file" && toolName !== "write_file") {
+	if (toolName !== "read_file") {
 		return null;
 	}
 	const parsed = parseArgs(args);
@@ -206,6 +211,64 @@ const getFileContentForViewer = (
 		return null;
 	}
 	return { path, content };
+};
+
+/**
+ * Builds a FileDiffMetadata representing a new-file diff (all lines
+ * are additions) from the content written by a write_file tool call.
+ * Returns null when the content is empty or unparseable.
+ */
+const buildWriteFileDiff = (
+	path: string,
+	content: string,
+): FileDiffMetadata | null => {
+	const lines = content.split("\n");
+	// Remove trailing empty line produced by a final newline.
+	if (lines.length > 0 && lines[lines.length - 1] === "") {
+		lines.pop();
+	}
+	if (lines.length === 0) {
+		return null;
+	}
+
+	const patchLines = [
+		`diff --git a/${path} b/${path}`,
+		"new file mode 100644",
+		"--- /dev/null",
+		`+++ b/${path}`,
+		`@@ -0,0 +1,${lines.length} @@`,
+		...lines.map((l) => `+${l}`),
+	];
+	const patch = `${patchLines.join("\n")}\n`;
+
+	const parsed = parsePatchFiles(patch);
+	if (!parsed.length || !parsed[0].files.length) {
+		return null;
+	}
+	return parsed[0].files[0];
+};
+
+/**
+ * For write_file tool calls, extracts the path and content from args
+ * and builds a FileDiffMetadata showing all lines as additions.
+ */
+const getWriteFileDiff = (
+	toolName: string,
+	args: unknown,
+): FileDiffMetadata | null => {
+	if (toolName !== "write_file") {
+		return null;
+	}
+	const parsed = parseArgs(args);
+	if (!parsed) {
+		return null;
+	}
+	const path = asString(parsed.path).trim();
+	const content = asString(parsed.content).trim();
+	if (!path || !content) {
+		return null;
+	}
+	return buildWriteFileDiff(path, content);
 };
 
 export const Tool = forwardRef<HTMLDivElement, ToolProps>(
@@ -226,6 +289,10 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			() => getFileContentForViewer(name, args, result),
 			[name, args, result],
 		);
+		const writeFileDiff = useMemo(
+			() => getWriteFileDiff(name, args),
+			[name, args],
+		);
 
 		return (
 			<div ref={ref} className={cn("py-0.5", className)} {...props}>
@@ -233,7 +300,21 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 					<ToolIcon name={name} isError={status === "error" || isError} />
 					<ToolLabel name={name} args={args} result={result} />
 				</div>
-			{fileContent ? (
+			{writeFileDiff ? (
+				<ScrollArea className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs" viewportClassName="max-h-64" scrollBarClassName="w-1.5">
+					<FileDiff
+						fileDiff={writeFileDiff}
+						options={{
+							diffStyle: "unified",
+							diffIndicators: "bars",
+							overflow: "scroll",
+							themeType: "dark",
+							theme: "github-dark-high-contrast",
+							unsafeCSS: diffViewerCSS,
+						}}
+					/>
+				</ScrollArea>
+			) : fileContent ? (
 				<ScrollArea className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs" viewportClassName="max-h-64" scrollBarClassName="w-1.5">
 					<FileViewer
 						file={{

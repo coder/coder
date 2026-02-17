@@ -987,12 +987,10 @@ export const AgentDetail: FC = () => {
 								status: nextStatus,
 								updated_at: new Date().toISOString(),
 							}));
-							const shouldRefreshQueries =
-								nextStatus === "completed" ||
-								nextStatus === "error" ||
-								nextStatus === "paused" ||
-								nextStatus === "waiting";
-							if (agentId && shouldRefreshQueries) {
+							// Always refresh diff queries on any status event
+							// because the background refresh may have discovered
+							// a new PR or updated diff contents.
+							if (agentId) {
 								void Promise.all([
 									queryClient.invalidateQueries({
 										queryKey: chatDiffStatusKey(agentId),
@@ -1002,6 +1000,11 @@ export const AgentDetail: FC = () => {
 									}),
 								]);
 							}
+							const shouldRefreshQueries =
+								nextStatus === "completed" ||
+								nextStatus === "error" ||
+								nextStatus === "paused" ||
+								nextStatus === "waiting";
 							if (shouldRefreshQueries) {
 								void queryClient.invalidateQueries({ queryKey: chatsKey });
 							}

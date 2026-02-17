@@ -200,41 +200,32 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																{chat.title}
 															</span>
 														</div>
-														<div
-															className={cn(
-																"overflow-hidden text-xs leading-4",
-																errorReason
-																	? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-																	: "truncate text-content-secondary",
-															)}
-															title={subtitle}
-														>
-															{subtitle}
-														</div>
-														{hasLinkedDiffStatus && (
-															<div className="flex min-w-0 justify-end">
-																<div
-																	className="inline-flex max-w-full items-center gap-1 rounded border border-border-default/80 bg-surface-tertiary/30 px-1.5 py-0.5 text-[10px] leading-none text-content-secondary tabular-nums"
-																	title={hasLineStats
-																		? `${filesChangedLabel}, +${additions} -${deletions}`
-																		: filesChangedLabel}
-																>
-																	<span className="truncate">
-																		{filesChangedLabel}
-																	</span>
-																	{hasLineStats && (
-																		<>
-																			<span className="text-content-success">
-																				+{additions}
-																			</span>
-																			<span className="text-content-destructive">
-																				-{deletions}
-																			</span>
-																		</>
-																	)}
-																</div>
+														<div className="flex min-w-0 items-center gap-1.5">
+															<div
+																className={cn(
+																	"min-w-0 overflow-hidden text-xs leading-4",
+																	errorReason
+																		? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+																		: "truncate text-content-secondary",
+																)}
+																title={subtitle}
+															>
+																{subtitle}
 															</div>
-														)}
+															{hasLinkedDiffStatus && hasLineStats && (
+																<span
+																	className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold leading-none tabular-nums"
+																	title={`${filesChangedLabel}, +${additions} -${deletions}`}
+																>
+																	<span className="text-content-success">
+																		+{additions}
+																	</span>
+																	<span className="text-content-destructive">
+																		-{deletions}
+																	</span>
+																</span>
+															)}
+														</div>
 													</div>
 												</>
 											)}
