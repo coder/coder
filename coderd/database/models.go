@@ -3818,7 +3818,7 @@ type Chat struct {
 
 type ChatDiffStatus struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
-	URL              sql.NullString `db:"url" json:"url"`
+	Url              sql.NullString `db:"url" json:"url"`
 	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
 	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
 	Additions        int32          `db:"additions" json:"additions"`

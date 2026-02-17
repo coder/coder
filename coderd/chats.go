@@ -932,7 +932,7 @@ func (api *API) resolveChatDiffStatusWithOptions(
 		return nil, err
 	}
 	if reference.PullRequestURL != "" {
-		if !found || !strings.EqualFold(strings.TrimSpace(status.URL.String), reference.PullRequestURL) {
+		if !found || !strings.EqualFold(strings.TrimSpace(status.Url.String), reference.PullRequestURL) {
 			status, err = api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(-time.Second))
 			if err != nil {
 				return nil, err
@@ -1139,7 +1139,7 @@ func (api *API) resolveChatDiffContents(
 	if reference.PullRequestURL != "" {
 		pullRequestURL := strings.TrimSpace(reference.PullRequestURL)
 		result.PullRequestURL = &pullRequestURL
-		if !found || !strings.EqualFold(strings.TrimSpace(status.URL.String), pullRequestURL) {
+		if !found || !strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL) {
 			_, err := api.upsertChatDiffStatusReference(ctx, chat.ID, pullRequestURL, time.Now().UTC().Add(-time.Second))
 			if err != nil {
 				return result, err
@@ -1188,7 +1188,7 @@ func (api *API) resolveChatDiffReference(
 		return reference, nil
 	}
 
-	reference.PullRequestURL = strings.TrimSpace(status.URL.String)
+	reference.PullRequestURL = strings.TrimSpace(status.Url.String)
 
 	// Build the repository ref from the stored git branch/origin
 	// that the agent reported.
@@ -1936,8 +1936,8 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 	}
 
 	result.ChatID = status.ChatID
-	if status.URL.Valid {
-		u := strings.TrimSpace(status.URL.String)
+	if status.Url.Valid {
+		u := strings.TrimSpace(status.Url.String)
 		if u != "" {
 			result.URL = &u
 		}

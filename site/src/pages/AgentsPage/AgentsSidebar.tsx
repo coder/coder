@@ -1,8 +1,10 @@
 import { type FC, useMemo, useState } from "react";
 import type { Chat, ChatDiffStatus, ChatStatus } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import { shortRelativeTime } from "utils/time";
 import { cn } from "utils/cn";
 import { Button } from "components/Button/Button";
@@ -39,6 +41,9 @@ interface AgentsSidebarProps {
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
+	isLoading?: boolean;
+	loadError?: unknown;
+	onRetryLoad?: () => void;
 }
 
 const statusConfig = {
@@ -103,6 +108,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
+		isLoading = false,
+		loadError,
+		onRetryLoad,
 	} = props;
 	const [search, setSearch] = useState("");
 
@@ -116,7 +124,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	return (
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
-			<div className="border-b border-border-default px-3 pb-3 pt-3 md:px-3.5">
+			<div className="border-b border-border-default px-3 pb-3 pt-1.5 md:px-3.5">
 				<NavLink to="/workspaces" className="mb-2.5 inline-flex">
 					{logoUrl ? (
 						<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
@@ -151,14 +159,50 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				</div>
 			</div>
 
-			<ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block" scrollBarClassName="w-1.5">
-				<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
-					<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-						<span>This Week</span>
+		<ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block" scrollBarClassName="w-1.5">
+			<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+				{loadError ? (
+					<div className="space-y-3 px-1">
+						<ErrorAlert error={loadError} />
+						{onRetryLoad && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={onRetryLoad}
+							>
+								Retry
+							</Button>
+						)}
 					</div>
+				) : isLoading ? (
+					<>
+						<Skeleton className="ml-2.5 h-3.5 w-16" />
+						<div className="flex flex-col gap-0.5">
+							{Array.from({ length: 6 }, (_, i) => (
+								<div
+									key={i}
+									className="flex items-start gap-2 rounded-md px-2 py-1"
+								>
+									<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+									<div className="min-w-0 flex-1 space-y-1.5">
+										<Skeleton
+											className="h-3.5"
+											style={{ width: `${55 + ((i * 17) % 35)}%` }}
+										/>
+										<Skeleton className="h-3 w-20" />
+									</div>
+								</div>
+							))}
+						</div>
+					</>
+				) : (
+				<>
+				<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+					<span>This Week</span>
+				</div>
 
-					<div className="flex flex-col gap-0.5">
-							{filteredChats.map((chat) => {
+				<div className="flex flex-col gap-0.5">
+						{filteredChats.map((chat) => {
 								const config = getStatusConfig(chat.status);
 								const StatusIcon = config.icon;
 								const modelName = getModelDisplayName(chat.model_config, modelOptions);
@@ -290,6 +334,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								</div>
 							)}
 					</div>
+				</>
+				)}
 				</div>
 			</ScrollArea>
 		</div>
