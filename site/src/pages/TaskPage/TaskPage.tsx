@@ -37,6 +37,7 @@ import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
+	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -326,11 +327,11 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	const hasLogs = logs.length > 0;
 
 	// Scroll to the bottom on mount since snapshot logs are static.
-	const scrollToBottom = useRef((el: HTMLDivElement | null) => {
+	const scrollToBottom = useCallback((el: HTMLDivElement | null) => {
 		if (!isChromatic() && el) {
 			el.scrollIntoView({ block: "end" });
 		}
-	}).current;
+	}, []);
 
 	return (
 		<div className="w-full max-w-screen-lg mx-auto px-16">
