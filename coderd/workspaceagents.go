@@ -1959,6 +1959,14 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	if workdir != "" {
 		ctx = contextWithChatWorkingDirectory(ctx, workdir)
 	}
+	gitBranch := strings.TrimSpace(query.Get("git_branch"))
+	gitRemoteOrigin := strings.TrimSpace(query.Get("git_remote_origin"))
+	if gitBranch != "" || gitRemoteOrigin != "" {
+		ctx = contextWithChatGitRef(ctx, chatGitRef{
+			Branch:       gitBranch,
+			RemoteOrigin: gitRemoteOrigin,
+		})
+	}
 	// Either match or configID must be provided!
 	match := query.Get("match")
 	if match == "" {

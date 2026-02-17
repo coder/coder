@@ -1152,9 +1152,8 @@ COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last upda
 
 CREATE TABLE chat_diff_statuses (
     chat_id uuid NOT NULL,
-    github_pr_url text,
-    pull_request_state text DEFAULT ''::text NOT NULL,
-    pull_request_open boolean DEFAULT false NOT NULL,
+    url text,
+    pull_request_state text,
     changes_requested boolean DEFAULT false NOT NULL,
     additions integer DEFAULT 0 NOT NULL,
     deletions integer DEFAULT 0 NOT NULL,
@@ -1162,7 +1161,9 @@ CREATE TABLE chat_diff_statuses (
     refreshed_at timestamp with time zone,
     stale_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    git_branch text DEFAULT ''::text NOT NULL,
+    git_remote_origin text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE chat_messages (

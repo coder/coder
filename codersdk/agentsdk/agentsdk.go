@@ -608,6 +608,14 @@ type ExternalAuthRequest struct {
 	// Workdir is an optional working directory used for follow-up workspace
 	// context refreshes.
 	Workdir string
+	// GitBranch is the current git branch in the working directory.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitBranch string
+	// GitRemoteOrigin is the remote origin URL of the git repository.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitRemoteOrigin string
 	// Listen indicates that the request should be long-lived and listen for
 	// a new token to be requested.
 	Listen bool
@@ -625,6 +633,12 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.Workdir != "" {
 		q.Set("workdir", req.Workdir)
+	}
+	if req.GitBranch != "" {
+		q.Set("git_branch", req.GitBranch)
+	}
+	if req.GitRemoteOrigin != "" {
+		q.Set("git_remote_origin", req.GitRemoteOrigin)
 	}
 	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)

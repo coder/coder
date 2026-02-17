@@ -70,9 +70,8 @@ func TestChats(t *testing.T) {
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusParams{
 				ChatID:           chatWithStatus.ID,
-				GithubPrUrl:      sql.NullString{String: "https://github.com/octocat/hello-world/pull/99", Valid: true},
-				PullRequestState: "open",
-				PullRequestOpen:  true,
+				URL:              sql.NullString{String: "https://github.com/octocat/hello-world/pull/99", Valid: true},
+				PullRequestState: sql.NullString{String: "open", Valid: true},
 				ChangesRequested: true,
 				Additions:        17,
 				Deletions:        4,
@@ -96,11 +95,10 @@ func TestChats(t *testing.T) {
 
 		withStatus, ok := chatsByID[chatWithStatus.ID]
 		require.True(t, ok)
-		require.NotNil(t, withStatus.DiffStatus.PullRequestURL)
-		require.Equal(t, "https://github.com/octocat/hello-world/pull/99", *withStatus.DiffStatus.PullRequestURL)
+		require.NotNil(t, withStatus.DiffStatus.URL)
+		require.Equal(t, "https://github.com/octocat/hello-world/pull/99", *withStatus.DiffStatus.URL)
 		require.NotNil(t, withStatus.DiffStatus.PullRequestState)
 		require.Equal(t, "open", *withStatus.DiffStatus.PullRequestState)
-		require.True(t, withStatus.DiffStatus.PullRequestOpen)
 		require.True(t, withStatus.DiffStatus.ChangesRequested)
 		require.EqualValues(t, 17, withStatus.DiffStatus.Additions)
 		require.EqualValues(t, 4, withStatus.DiffStatus.Deletions)
@@ -110,9 +108,8 @@ func TestChats(t *testing.T) {
 
 		withoutStatus, ok := chatsByID[chatWithoutStatus.ID]
 		require.True(t, ok)
-		require.Nil(t, withoutStatus.DiffStatus.PullRequestURL)
+		require.Nil(t, withoutStatus.DiffStatus.URL)
 		require.Nil(t, withoutStatus.DiffStatus.PullRequestState)
-		require.False(t, withoutStatus.DiffStatus.PullRequestOpen)
 		require.False(t, withoutStatus.DiffStatus.ChangesRequested)
 		require.EqualValues(t, 0, withoutStatus.DiffStatus.Additions)
 		require.EqualValues(t, 0, withoutStatus.DiffStatus.Deletions)
@@ -211,9 +208,8 @@ func TestChatDiffStatus(t *testing.T) {
 		status, err := client.GetChatDiffStatus(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, status.ChatID)
-		require.Nil(t, status.PullRequestURL)
+		require.Nil(t, status.URL)
 		require.Nil(t, status.PullRequestState)
-		require.False(t, status.PullRequestOpen)
 		require.False(t, status.ChangesRequested)
 		require.EqualValues(t, 0, status.Additions)
 		require.EqualValues(t, 0, status.Deletions)
@@ -290,9 +286,9 @@ func TestChatDiffStatus(t *testing.T) {
 		_, err = api.Database.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
-				ChatID:      chat.ID,
-				GithubPrUrl: sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
-				StaleAt:     time.Now().UTC().Add(-time.Minute),
+				ChatID:  chat.ID,
+				URL:     sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
+				StaleAt: time.Now().UTC().Add(-time.Minute),
 			},
 		)
 		require.NoError(t, err)
@@ -300,11 +296,10 @@ func TestChatDiffStatus(t *testing.T) {
 		status, err := client.GetChatDiffStatus(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, status.ChatID)
-		require.NotNil(t, status.PullRequestURL)
-		require.Equal(t, "https://github.com/octocat/hello-world/pull/42", *status.PullRequestURL)
+		require.NotNil(t, status.URL)
+		require.Equal(t, "https://github.com/octocat/hello-world/pull/42", *status.URL)
 		require.NotNil(t, status.PullRequestState)
 		require.Equal(t, "open", *status.PullRequestState)
-		require.True(t, status.PullRequestOpen)
 		require.True(t, status.ChangesRequested)
 		require.EqualValues(t, 12, status.Additions)
 		require.EqualValues(t, 3, status.Deletions)
@@ -382,9 +377,9 @@ func TestChatDiffContents(t *testing.T) {
 		_, err = api.Database.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
-				ChatID:      chat.ID,
-				GithubPrUrl: sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
-				StaleAt:     time.Now().UTC().Add(-time.Minute),
+				ChatID:  chat.ID,
+				URL:     sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
+				StaleAt: time.Now().UTC().Add(-time.Minute),
 			},
 		)
 		require.NoError(t, err)

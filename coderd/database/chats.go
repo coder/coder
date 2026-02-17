@@ -410,7 +410,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 }
 
 const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
-SELECT chat_id, github_pr_url, pull_request_state, pull_request_open, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at
+SELECT chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
 FROM chat_diff_statuses
 WHERE chat_id = $1
 `
@@ -420,9 +420,8 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 	var i ChatDiffStatus
 	err := row.Scan(
 		&i.ChatID,
-		&i.GithubPrUrl,
+		&i.URL,
 		&i.PullRequestState,
-		&i.PullRequestOpen,
 		&i.ChangesRequested,
 		&i.Additions,
 		&i.Deletions,
@@ -431,12 +430,14 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 		&i.StaleAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GitBranch,
+		&i.GitRemoteOrigin,
 	)
 	return i, err
 }
 
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
-SELECT chat_id, github_pr_url, pull_request_state, pull_request_open, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at
+SELECT chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
 FROM chat_diff_statuses
 WHERE chat_id = ANY($1::uuid[])
 `
@@ -456,9 +457,8 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs [
 		var i ChatDiffStatus
 		if err := rows.Scan(
 			&i.ChatID,
-			&i.GithubPrUrl,
+			&i.URL,
 			&i.PullRequestState,
-			&i.PullRequestOpen,
 			&i.ChangesRequested,
 			&i.Additions,
 			&i.Deletions,
@@ -467,6 +467,8 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs [
 			&i.StaleAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GitBranch,
+			&i.GitRemoteOrigin,
 		); err != nil {
 			return nil, err
 		}
@@ -484,34 +486,41 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs [
 const upsertChatDiffStatusReference = `-- name: UpsertChatDiffStatusReference :one
 INSERT INTO chat_diff_statuses (
 	chat_id,
-	github_pr_url,
+	url,
+	git_branch,
+	git_remote_origin,
 	stale_at
 ) VALUES (
 	$1,
 	$2,
-	$3
+	$3,
+	$4,
+	$5
 )
 ON CONFLICT (chat_id) DO UPDATE SET
-	github_pr_url = EXCLUDED.github_pr_url,
+	url = CASE WHEN EXCLUDED.url IS NOT NULL THEN EXCLUDED.url ELSE chat_diff_statuses.url END,
+	git_branch = CASE WHEN EXCLUDED.git_branch != '' THEN EXCLUDED.git_branch ELSE chat_diff_statuses.git_branch END,
+	git_remote_origin = CASE WHEN EXCLUDED.git_remote_origin != '' THEN EXCLUDED.git_remote_origin ELSE chat_diff_statuses.git_remote_origin END,
 	stale_at = EXCLUDED.stale_at,
 	updated_at = NOW()
-RETURNING chat_id, github_pr_url, pull_request_state, pull_request_open, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at
+RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
 `
 
 type UpsertChatDiffStatusReferenceParams struct {
-	ChatID      uuid.UUID      `db:"chat_id" json:"chat_id"`
-	GithubPrUrl sql.NullString `db:"github_pr_url" json:"github_pr_url"`
-	StaleAt     time.Time      `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID      `db:"chat_id" json:"chat_id"`
+	URL             sql.NullString `db:"url" json:"url"`
+	GitBranch       string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin string         `db:"git_remote_origin" json:"git_remote_origin"`
+	StaleAt         time.Time      `db:"stale_at" json:"stale_at"`
 }
 
 func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatDiffStatusReference, arg.ChatID, arg.GithubPrUrl, arg.StaleAt)
+	row := q.db.QueryRowContext(ctx, upsertChatDiffStatusReference, arg.ChatID, arg.URL, arg.GitBranch, arg.GitRemoteOrigin, arg.StaleAt)
 	var i ChatDiffStatus
 	err := row.Scan(
 		&i.ChatID,
-		&i.GithubPrUrl,
+		&i.URL,
 		&i.PullRequestState,
-		&i.PullRequestOpen,
 		&i.ChangesRequested,
 		&i.Additions,
 		&i.Deletions,
@@ -520,6 +529,8 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 		&i.StaleAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GitBranch,
+		&i.GitRemoteOrigin,
 	)
 	return i, err
 }
@@ -527,9 +538,8 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 const upsertChatDiffStatus = `-- name: UpsertChatDiffStatus :one
 INSERT INTO chat_diff_statuses (
 	chat_id,
-	github_pr_url,
+	url,
 	pull_request_state,
-	pull_request_open,
 	changes_requested,
 	additions,
 	deletions,
@@ -545,13 +555,11 @@ INSERT INTO chat_diff_statuses (
 	$6,
 	$7,
 	$8,
-	$9,
-	$10
+	$9
 )
 ON CONFLICT (chat_id) DO UPDATE SET
-	github_pr_url = EXCLUDED.github_pr_url,
+	url = EXCLUDED.url,
 	pull_request_state = EXCLUDED.pull_request_state,
-	pull_request_open = EXCLUDED.pull_request_open,
 	changes_requested = EXCLUDED.changes_requested,
 	additions = EXCLUDED.additions,
 	deletions = EXCLUDED.deletions,
@@ -559,14 +567,13 @@ ON CONFLICT (chat_id) DO UPDATE SET
 	refreshed_at = EXCLUDED.refreshed_at,
 	stale_at = EXCLUDED.stale_at,
 	updated_at = NOW()
-RETURNING chat_id, github_pr_url, pull_request_state, pull_request_open, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at
+RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
 `
 
 type UpsertChatDiffStatusParams struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
-	GithubPrUrl      sql.NullString `db:"github_pr_url" json:"github_pr_url"`
-	PullRequestState string         `db:"pull_request_state" json:"pull_request_state"`
-	PullRequestOpen  bool           `db:"pull_request_open" json:"pull_request_open"`
+	URL              sql.NullString `db:"url" json:"url"`
+	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
 	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
 	Additions        int32          `db:"additions" json:"additions"`
 	Deletions        int32          `db:"deletions" json:"deletions"`
@@ -578,9 +585,8 @@ type UpsertChatDiffStatusParams struct {
 func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatDiffStatus,
 		arg.ChatID,
-		arg.GithubPrUrl,
+		arg.URL,
 		arg.PullRequestState,
-		arg.PullRequestOpen,
 		arg.ChangesRequested,
 		arg.Additions,
 		arg.Deletions,
@@ -591,9 +597,8 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 	var i ChatDiffStatus
 	err := row.Scan(
 		&i.ChatID,
-		&i.GithubPrUrl,
+		&i.URL,
 		&i.PullRequestState,
-		&i.PullRequestOpen,
 		&i.ChangesRequested,
 		&i.Additions,
 		&i.Deletions,
@@ -602,6 +607,8 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 		&i.StaleAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GitBranch,
+		&i.GitRemoteOrigin,
 	)
 	return i, err
 }

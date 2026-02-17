@@ -461,10 +461,6 @@ export const router = createBrowserRouter(
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
-					<Route path="/agents" element={<AgentsPage />}>
-						<Route path=":agentId" element={<AgentDetail />} />
-					</Route>
-
 					<Route path="/tasks" element={<TasksPage />} />
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
@@ -630,6 +626,9 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				<Route path="/agents" element={<AgentsPage />}>
+					<Route path=":agentId" element={<AgentDetail />} />
+				</Route>
 			</Route>
 		</Route>,
 	),

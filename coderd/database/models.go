@@ -3818,9 +3818,8 @@ type Chat struct {
 
 type ChatDiffStatus struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
-	GithubPrUrl      sql.NullString `db:"github_pr_url" json:"github_pr_url"`
-	PullRequestState string         `db:"pull_request_state" json:"pull_request_state"`
-	PullRequestOpen  bool           `db:"pull_request_open" json:"pull_request_open"`
+	URL              sql.NullString `db:"url" json:"url"`
+	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
 	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
 	Additions        int32          `db:"additions" json:"additions"`
 	Deletions        int32          `db:"deletions" json:"deletions"`
@@ -3829,6 +3828,8 @@ type ChatDiffStatus struct {
 	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
 	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	GitBranch        string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 }
 
 type ChatMessage struct {

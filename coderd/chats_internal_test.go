@@ -17,32 +17,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestParseChatGitReferenceOutput(t *testing.T) {
-	t.Parallel()
-
-	branch, origin := parseChatGitReferenceOutput("feature/chat-diff\nhttps://github.com/coder/coder.git\n")
-	require.Equal(t, "feature/chat-diff", branch)
-	require.Equal(t, "https://github.com/coder/coder.git", origin)
-
-	branch, origin = parseChatGitReferenceOutput("single-line-only")
-	require.Empty(t, branch)
-	require.Empty(t, origin)
-}
-
-func TestBuildChatGitReferenceCommandWorkdir(t *testing.T) {
-	t.Parallel()
-
-	noWorkdirCommand := buildChatGitReferenceCommand("")
-	require.Equal(t, "sh -lc '"+chatGitReferenceCommandBody+"'", noWorkdirCommand)
-
-	workdirCommand := buildChatGitReferenceCommand("/tmp/repo with 'quote'")
-	require.Equal(
-		t,
-		"sh -lc 'cd \"$1\" && "+chatGitReferenceCommandBody+"' -- '/tmp/repo with '\"'\"'quote'\"'\"''",
-		workdirCommand,
-	)
-}
-
 func TestChatWorkingDirectoryContextWorkingDir(t *testing.T) {
 	t.Parallel()
 
