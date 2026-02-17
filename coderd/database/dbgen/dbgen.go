@@ -1590,6 +1590,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		Model:       takeFirst(seed.Model, "model"),
 		Metadata:    takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		StartedAt:   takeFirst(seed.StartedAt, dbtime.Now()),
+		Client:      seed.Client,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

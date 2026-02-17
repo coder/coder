@@ -56,6 +56,7 @@ export interface AIBridgeInterception {
 	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
+	readonly client: string | null;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
