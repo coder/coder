@@ -253,11 +253,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                       |
-|----------|-------|---------|----------|-----------------------------------|
-| `match`  | query | string  | true     | Match                             |
-| `id`     | query | string  | true     | Provider ID                       |
-| `listen` | query | boolean | false    | Wait for a new token to be issued |
+| Name      | In    | Type    | Required | Description                                    |
+|-----------|-------|---------|----------|------------------------------------------------|
+| `match`   | query | string  | true     | Match                                          |
+| `id`      | query | string  | true     | Provider ID                                    |
+| `listen`  | query | boolean | false    | Wait for a new token to be issued              |
+| `workdir` | query | string  | false    | Working directory used for git context refresh |
 
 ### Example responses
 

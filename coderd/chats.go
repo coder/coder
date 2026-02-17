@@ -1258,7 +1258,7 @@ func (api *API) upsertChatDiffStatusReference(
 		ctx,
 		database.UpsertChatDiffStatusReferenceParams{
 			ChatID: chatID,
-			URL: sql.NullString{
+			Url: sql.NullString{
 				String: pullRequestURL,
 				Valid:  strings.TrimSpace(pullRequestURL) != "",
 			},
@@ -1359,7 +1359,7 @@ func (api *API) refreshChatDiffStatus(
 		ctx,
 		database.UpsertChatDiffStatusParams{
 			ChatID: chatID,
-			URL:    sql.NullString{String: pullRequestURL, Valid: true},
+			Url:    sql.NullString{String: pullRequestURL, Valid: true},
 			PullRequestState: sql.NullString{
 				String: status.PullRequestState,
 				Valid:  status.PullRequestState != "",

@@ -70,7 +70,7 @@ func TestChats(t *testing.T) {
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusParams{
 				ChatID:           chatWithStatus.ID,
-				URL:              sql.NullString{String: "https://github.com/octocat/hello-world/pull/99", Valid: true},
+				Url:              sql.NullString{String: "https://github.com/octocat/hello-world/pull/99", Valid: true},
 				PullRequestState: sql.NullString{String: "open", Valid: true},
 				ChangesRequested: true,
 				Additions:        17,
@@ -287,7 +287,7 @@ func TestChatDiffStatus(t *testing.T) {
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
 				ChatID:  chat.ID,
-				URL:     sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
+				Url:     sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
 				StaleAt: time.Now().UTC().Add(-time.Minute),
 			},
 		)
@@ -378,7 +378,7 @@ func TestChatDiffContents(t *testing.T) {
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
 				ChatID:  chat.ID,
-				URL:     sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
+				Url:     sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
 				StaleAt: time.Now().UTC().Add(-time.Minute),
 			},
 		)
