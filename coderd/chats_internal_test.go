@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 	"regexp"
@@ -16,19 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-func TestChatWorkingDirectoryContextWorkingDir(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	require.Empty(t, chatWorkingDirectoryFromContext(ctx))
-
-	ctx = contextWithChatWorkingDirectory(ctx, " /tmp/repo ")
-	require.Equal(t, "/tmp/repo", chatWorkingDirectoryFromContext(ctx))
-
-	ctx = contextWithChatWorkingDirectory(ctx, " ")
-	require.Equal(t, "/tmp/repo", chatWorkingDirectoryFromContext(ctx))
-}
 
 func TestParseGitHubRepositoryOrigin(t *testing.T) {
 	t.Parallel()

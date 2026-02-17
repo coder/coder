@@ -53,42 +53,11 @@ var chatDiffRefreshBackoffSchedule = []time.Duration{
 	20 * time.Second,
 }
 
-type chatWorkingDirectoryContextKey struct{}
-
-func contextWithChatWorkingDirectory(ctx context.Context, workingDirectory string) context.Context {
-	workingDirectory = strings.TrimSpace(workingDirectory)
-	if workingDirectory == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, chatWorkingDirectoryContextKey{}, workingDirectory)
-}
-
-func chatWorkingDirectoryFromContext(ctx context.Context) string {
-	workingDirectory, _ := ctx.Value(chatWorkingDirectoryContextKey{}).(string)
-	return strings.TrimSpace(workingDirectory)
-}
-
 // chatGitRef holds the branch and remote origin reported by the
 // workspace agent during a git operation.
 type chatGitRef struct {
 	Branch       string
 	RemoteOrigin string
-}
-
-type chatGitRefContextKey struct{}
-
-func contextWithChatGitRef(ctx context.Context, ref chatGitRef) context.Context {
-	ref.Branch = strings.TrimSpace(ref.Branch)
-	ref.RemoteOrigin = strings.TrimSpace(ref.RemoteOrigin)
-	if ref.Branch == "" && ref.RemoteOrigin == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, chatGitRefContextKey{}, ref)
-}
-
-func chatGitRefFromContext(ctx context.Context) chatGitRef {
-	ref, _ := ctx.Value(chatGitRefContextKey{}).(chatGitRef)
-	return ref
 }
 
 var (
@@ -986,12 +955,10 @@ func shouldRefreshChatDiffStatus(status database.ChatDiffStatus, now time.Time, 
 	return chatDiffStatusIsStale(status, now)
 }
 
-func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, workspace database.Workspace) {
+func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspace, gitRef chatGitRef) {
 	if workspace.ID == uuid.Nil || workspace.OwnerID == uuid.Nil {
 		return
 	}
-
-	gitRef := chatGitRefFromContext(ctx)
 
 	go func(workspaceID, workspaceOwnerID uuid.UUID, gitRef chatGitRef) {
 		ctx := api.ctx
@@ -1000,11 +967,10 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, works
 		}
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
-		// If the agent reported a git ref, store it on all chats
-		// associated with this workspace before refreshing.
-		if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
-			api.storeChatGitRef(ctx, workspaceID, workspaceOwnerID, gitRef)
-		}
+		// Always store the git ref so the data is persisted even
+		// before a PR exists. The frontend can show branch info
+		// and the refresh loop can resolve a PR later.
+		api.storeChatGitRef(ctx, workspaceID, workspaceOwnerID, gitRef)
 
 		for _, delay := range chatDiffRefreshBackoffSchedule {
 			t := api.Clock.NewTimer(delay, "chat_diff_refresh")
@@ -1015,7 +981,12 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, works
 			case <-t.C:
 			}
 
-			api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID)
+			// Refresh and publish status on every iteration.
+			// Stop the loop once a PR is discovered — there's
+			// nothing more to wait for after that.
+			if api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID) {
+				return
+			}
 		}
 	}(workspace.ID, workspace.OwnerID, gitRef)
 }
@@ -1050,8 +1021,10 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 }
 
 // refreshWorkspaceChatDiffStatuses refreshes the diff status for all
-// chats associated with the given workspace.
-func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID) {
+// chats associated with the given workspace. It returns true when
+// every chat has a PR URL resolved, signalling that the caller can
+// stop polling.
+func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID) bool {
 	chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to list workspace owner chats for diff refresh",
@@ -1059,12 +1032,18 @@ func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceI
 			slog.F("workspace_owner_id", workspaceOwnerID),
 			slog.Error(err),
 		)
-		return
+		return false
 	}
 
-	for _, chat := range filterChatsByWorkspaceID(chats, workspaceID) {
+	filtered := filterChatsByWorkspaceID(chats, workspaceID)
+	if len(filtered) == 0 {
+		return false
+	}
+
+	allHavePR := true
+	for _, chat := range filtered {
 		refreshCtx, cancel := context.WithTimeout(ctx, chatDiffBackgroundRefreshTimeout)
-		_, err := api.resolveChatDiffStatusWithOptions(refreshCtx, chat, true)
+		status, err := api.resolveChatDiffStatusWithOptions(refreshCtx, chat, true)
 		cancel()
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to refresh chat diff status after workspace external auth",
@@ -1072,10 +1051,15 @@ func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceI
 				slog.F("chat_id", chat.ID),
 				slog.Error(err),
 			)
+			allHavePR = false
+		} else if status == nil || !status.Url.Valid || strings.TrimSpace(status.Url.String) == "" {
+			allHavePR = false
 		}
 
 		api.publishChatStatusEvent(chat)
 	}
+
+	return allHavePR
 }
 
 func filterChatsByWorkspaceID(chats []database.Chat, workspaceID uuid.UUID) []database.Chat {
