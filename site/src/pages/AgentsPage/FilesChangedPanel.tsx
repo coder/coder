@@ -138,9 +138,17 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 							themeType: "dark",
 							enableLineSelection: true,
 							enableHoverUtility: true,
+							onLineSelected(range) {
+								// TODO: Make this add context to the input so the user can type.
+								console.log(range);
+							},
 							theme: "github-dark-high-contrast",
 						unsafeCSS:
 							"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }",
+						}}
+						style={{
+							'--diffs-font-size': '11px',
+							'--diffs-line-height': '1.5',
 						}}
 						/>
 					))}

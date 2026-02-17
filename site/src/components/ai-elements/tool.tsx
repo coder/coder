@@ -66,6 +66,7 @@ const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 		case "read_file":
 			return <FileIcon className={base} />;
 		case "write_file":
+		case "edit_files":
 			return <FilePenIcon className={base} />;
 		case "create_workspace":
 			return <PlusCircleIcon className={base} />;
@@ -147,6 +148,24 @@ const ToolLabel: React.FC<{ name: string; args: unknown; result: unknown }> = ({
 			return (
 				<span className="truncate text-sm text-content-secondary">
 					Writing file
+				</span>
+			);
+		}
+		case "edit_files": {
+			const files = parsed?.files;
+			if (Array.isArray(files) && files.length === 1) {
+				const path = asString((files[0] as Record<string, unknown>)?.path);
+				if (path) {
+					return (
+						<code className="truncate font-mono text-xs text-content-primary">
+							{path}
+						</code>
+					);
+				}
+			}
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Editing files
 				</span>
 			);
 		}
@@ -559,6 +578,192 @@ const WriteFileTool: React.FC<{
 	);
 };
 
+interface EditFilesFileEntry {
+	path: string;
+	edits: Array<{ search: string; replace: string }>;
+}
+
+/**
+ * Parses the args of an edit_files tool call into a typed array
+ * of file entries.
+ */
+const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
+	const parsed = parseArgs(args);
+	if (!parsed) return [];
+	const files = parsed.files;
+	if (!Array.isArray(files)) return [];
+	return files.filter(
+		(f): f is EditFilesFileEntry =>
+			f !== null &&
+			typeof f === "object" &&
+			typeof (f as Record<string, unknown>).path === "string" &&
+			Array.isArray((f as Record<string, unknown>).edits),
+	);
+};
+
+/**
+ * Builds a synthetic unified diff from search/replace edit pairs
+ * for a single file. Each pair becomes a separate hunk in the
+ * diff. Line numbers are synthetic since we don't have the full
+ * file content.
+ */
+const buildEditDiff = (
+	path: string,
+	edits: Array<{ search: string; replace: string }>,
+): FileDiffMetadata | null => {
+	if (!edits.length) return null;
+
+	// Strip leading slash so the a/ and b/ prefixes don't
+	// produce a double-slash that confuses the diff parser.
+	const diffPath = path.startsWith("/") ? path.slice(1) : path;
+
+	const patchLines: string[] = [
+		`diff --git a/${diffPath} b/${diffPath}`,
+		`--- a/${diffPath}`,
+		`+++ b/${diffPath}`,
+	];
+
+	let lineOffset = 1;
+	for (const edit of edits) {
+		const searchLines = edit.search.split("\n");
+		const replaceLines = edit.replace.split("\n");
+
+		// Remove trailing empty line produced by a final newline.
+		if (searchLines.length > 0 && searchLines[searchLines.length - 1] === "") {
+			searchLines.pop();
+		}
+		if (replaceLines.length > 0 && replaceLines[replaceLines.length - 1] === "") {
+			replaceLines.pop();
+		}
+		if (searchLines.length === 0 && replaceLines.length === 0) continue;
+
+		patchLines.push(
+			`@@ -${lineOffset},${searchLines.length} +${lineOffset},${replaceLines.length} @@`,
+		);
+		for (const l of searchLines) patchLines.push(`-${l}`);
+		for (const l of replaceLines) patchLines.push(`+${l}`);
+
+		lineOffset += Math.max(searchLines.length, replaceLines.length) + 1;
+	}
+
+	const patch = `${patchLines.join("\n")}\n`;
+	const parsed = parsePatchFiles(patch);
+	if (!parsed.length || !parsed[0].files.length) return null;
+	return parsed[0].files[0];
+};
+
+/**
+ * Collapsed-by-default rendering for `edit_files` tool calls.
+ * Shows "Edited <filename>" (or "Edited N files") with a chevron;
+ * expanding reveals a unified diff for each file.
+ */
+const EditFilesTool: React.FC<{
+	files: EditFilesFileEntry[];
+	diffs: (FileDiffMetadata | null)[];
+	status: ToolStatus;
+	isError: boolean;
+	errorMessage?: string;
+}> = ({ files, diffs, status, isError, errorMessage }) => {
+	const [expanded, setExpanded] = useState(true);
+	const isRunning = status === "running";
+	const hasDiffs = diffs.some((d) => d !== null);
+
+	let label: string;
+	if (isRunning) {
+		label =
+			files.length === 1
+				? `Editing ${files[0].path.split("/").pop() || files[0].path}…`
+				: `Editing ${files.length} files…`;
+	} else if (files.length === 1) {
+		const filename = files[0].path.split("/").pop() || files[0].path;
+		label = `Edited ${filename}`;
+	} else {
+		label = `Edited ${files.length} files`;
+	}
+
+	return (
+		<div className="w-full">
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => hasDiffs && setExpanded((v) => !v)}
+				onKeyDown={(e) => {
+					if ((e.key === "Enter" || e.key === " ") && hasDiffs) {
+						setExpanded((v) => !v);
+					}
+				}}
+				className={cn(
+					"flex items-center gap-2",
+					hasDiffs && "cursor-pointer",
+				)}
+			>
+				<span
+					className={cn(
+						"text-sm",
+						isError
+							? "text-content-destructive"
+							: "text-content-secondary",
+					)}
+				>
+					{label}
+				</span>
+				{isError && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+						</TooltipTrigger>
+						<TooltipContent>
+							{errorMessage || "Failed to edit files"}
+						</TooltipContent>
+					</Tooltip>
+				)}
+				{isRunning && (
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
+				)}
+				{hasDiffs && (
+					<ChevronDownIcon
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
+				)}
+			</div>
+
+			{expanded && hasDiffs && (
+				<div className="mt-1.5 space-y-1.5">
+					{diffs.map((diff, i) =>
+						diff ? (
+							<ScrollArea
+								key={files[i].path}
+								className="rounded-md border border-solid border-border-default text-2xs"
+								viewportClassName="max-h-64"
+								scrollBarClassName="w-1.5"
+							>
+								<FileDiff
+									fileDiff={diff}
+									options={{
+										diffStyle: "unified",
+										diffIndicators: "bars",
+										overflow: "scroll",
+										themeType: "dark",
+										theme: "github-dark-high-contrast",
+										unsafeCSS: diffViewerCSS,
+									}}
+									style={{
+										"--diffs-font-size": "11px",
+										"--diffs-line-height": "1.5",
+									}}
+								/>
+							</ScrollArea>
+						) : null,
+					)}
+				</div>
+			)}
+		</div>
+	);
+};
+
 /**
  * Collapsed-by-default rendering for `create_workspace` tool calls.
  *
@@ -751,6 +956,25 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 					<WriteFileTool
 						path={path || "file"}
 						diff={writeFileDiff}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render edit_files with a collapsed-by-default diff viewer.
+		if (name === "edit_files") {
+			const files = parseEditFilesArgs(args);
+			const diffs = files.map((f) => buildEditDiff(f.path, f.edits));
+			const rec = asRecord(result);
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<EditFilesTool
+						files={files}
+						diffs={diffs}
 						status={status}
 						isError={isError}
 						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
