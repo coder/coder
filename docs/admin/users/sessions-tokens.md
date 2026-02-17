@@ -99,8 +99,7 @@ deployment.
 ### Remove or expire a token
 
 You can remove a token using the CLI or the API. By default, `coder tokens remove`
-
-expires the token, preserving the audit trail:
+expires the token, (soft-delete):
 
 ```console
 coder tokens remove <name|id>
@@ -109,7 +108,7 @@ coder tokens remove <name|id>
 Expired tokens can no longer be used for authentication but remain visible in
 token listings.
 
-To permanently delete a token and remove its audit trail, use the `--delete` flag:
+To hard-delete a token, use the `--delete` flag:
 
 ```console
 coder tokens remove --delete <name|id>

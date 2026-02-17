@@ -439,7 +439,7 @@ func TestAPIKey_PrebuildsNotAllowed(t *testing.T) {
 		DeploymentValues: dc,
 	})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	setupCtx := testutil.Context(t, testutil.WaitLong)
 
 	// Given: an existing api token for the prebuilds user
 	_, prebuildsToken := dbgen.APIKey(t, db, database.APIKey{
@@ -448,12 +448,12 @@ func TestAPIKey_PrebuildsNotAllowed(t *testing.T) {
 	client.SetSessionToken(prebuildsToken)
 
 	// When: the prebuilds user tries to create an API key
-	_, err := client.CreateAPIKey(ctx, database.PrebuildsSystemUserID.String())
+	_, err := client.CreateAPIKey(setupCtx, database.PrebuildsSystemUserID.String())
 	// Then: denied.
 	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
 
 	// When: the prebuilds user tries to create a token
-	_, err = client.CreateToken(ctx, database.PrebuildsSystemUserID.String(), codersdk.CreateTokenRequest{})
+	_, err = client.CreateToken(setupCtx, database.PrebuildsSystemUserID.String(), codersdk.CreateTokenRequest{})
 	// Then: also denied.
 	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
 }
@@ -468,8 +468,7 @@ func TestExpireAPIKey(t *testing.T) {
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
 
 	t.Run("OwnerCanExpireOwnToken", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a token.
 		res, err := adminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
@@ -498,11 +497,13 @@ func TestExpireAPIKey(t *testing.T) {
 		als := auditor.AuditLogs()
 		require.Len(t, als, 1)
 		require.Equal(t, database.AuditActionWrite, als[0].Action)
+		require.Equal(t, database.ResourceTypeApiKey, als[0].ResourceType)
+		require.Equal(t, admin.UserID.String(), als[0].UserID.String())
+
 	})
 
 	t.Run("AdminCanExpireOtherUsersToken", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a token for the member.
 		res, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
@@ -522,8 +523,7 @@ func TestExpireAPIKey(t *testing.T) {
 	})
 
 	t.Run("MemberCannotExpireOtherUsersToken", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a token for the admin.
 		res, err := adminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
@@ -543,8 +543,7 @@ func TestExpireAPIKey(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Try to expire a non-existent token.
 		err := adminClient.ExpireAPIKey(ctx, codersdk.Me, "nonexistent")
@@ -555,9 +554,7 @@ func TestExpireAPIKey(t *testing.T) {
 	})
 
 	t.Run("ExpiringAlreadyExpiredTokenSucceeds", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create and expire a token.
 		res, err := adminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
@@ -570,20 +567,23 @@ func TestExpireAPIKey(t *testing.T) {
 		err = adminClient.ExpireAPIKey(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
 
+		// Invariant: make sure it's actually expired
+		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
+		require.NoError(t, err)
+		require.LessOrEqual(t, key.ExpiresAt, time.Now(), "key should be expired")
+
 		// Expire it again - should succeed (idempotent).
 		err = adminClient.ExpireAPIKey(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
 
-		// Token should still be expired.
-		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
+		// Token should still be just as expired as before. No more, no less.
+		keyAgain, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(time.Now()))
+		require.Equal(t, key.ExpiresAt, keyAgain.ExpiresAt, "expiration should be idempotent")
 	})
 
 	t.Run("DeletingExpiredTokenSucceeds", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a token.
 		res, err := adminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{

@@ -450,6 +450,9 @@ func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("fetch API key: %w", err)
 		}
+		if !key.ExpiresAt.After(api.Clock.Now()) {
+			return nil // Already expired
+		}
 		aReq.Old = key
 		if err := db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
 			ID:        key.ID,
@@ -467,7 +470,7 @@ func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 			aReq.New = newKey
 		}
 		return nil
-	}, database.DefaultTXOptions()); httpapi.Is404Error(err) {
+	}, nil); httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	} else if err != nil {

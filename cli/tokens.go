@@ -248,6 +248,8 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			}
 
 			// Filter out expired tokens unless --include-expired is set
+			// TODO(Cian): This _could_ get too big for client-side filtering.
+			// If it causes issues, we can filter server-side.
 			if !includeExpired {
 				now := time.Now()
 				filtered := make([]codersdk.APIKeyWithOwner, 0, len(tokens))
@@ -346,9 +348,9 @@ func (r *RootCmd) removeToken() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "remove <name|id|token>",
 		Aliases: []string{"delete"},
-		Short:   "Delete a token",
-		Long: "Remove a token by expiring it. Use --delete to permanently delete " +
-			"the token instead, which removes the audit trail.",
+		Short:   "Expire or delete a token",
+		Long: "Remove a token by expiring it. Use --delete to permanently hard-" +
+			"delete the token instead.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
