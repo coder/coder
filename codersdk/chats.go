@@ -237,12 +237,13 @@ type ChatGitChange struct {
 	DetectedAt  time.Time `json:"detected_at" format:"date-time"`
 }
 
-// ChatDiffStatus represents cached GitHub pull request diff status for a chat.
+// ChatDiffStatus represents cached diff status for a chat. The URL
+// may point to a pull request or a branch page depending on whether
+// a PR has been opened.
 type ChatDiffStatus struct {
 	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
-	PullRequestURL   *string    `json:"pull_request_url,omitempty"`
+	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
-	PullRequestOpen  bool       `json:"pull_request_open"`
 	ChangesRequested bool       `json:"changes_requested"`
 	Additions        int32      `json:"additions"`
 	Deletions        int32      `json:"deletions"`

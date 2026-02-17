@@ -38,7 +38,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
 		...chatDiffContents(chatId),
-		enabled: Boolean(diffStatusQuery.data?.pull_request_url),
+		enabled: Boolean(diffStatusQuery.data?.url),
 	});
 
 	const parsedFiles = useMemo(() => {
@@ -50,7 +50,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 		return patches.flatMap((p) => p.files);
 	}, [diffContentsQuery.data?.diff]);
 
-	const pullRequestUrl = diffStatusQuery.data?.pull_request_url;
+	const pullRequestUrl = diffStatusQuery.data?.url;
 	const pullRequestLabel = pullRequestUrl
 		? formatPullRequestLabel(pullRequestUrl)
 		: undefined;

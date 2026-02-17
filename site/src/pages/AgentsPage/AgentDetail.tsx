@@ -1,6 +1,6 @@
 import { type FC, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext, useParams } from "react-router";
-import TextareaAutosize from "react-textarea-autosize";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { type ChatDiffStatusResponse, watchChat } from "api/api";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -15,14 +15,11 @@ import {
 	interruptChat,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import {
-	Conversation,
 	ConversationItem,
 	Message,
 	MessageContent,
-	ModelSelector,
 	Response,
 	Thinking,
 	Tool,
@@ -31,14 +28,12 @@ import {
 import {
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
-	SendIcon,
-	Square,
 } from "lucide-react";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
+import { AgentChatInput } from "./AgentChatInput";
 import type { AgentsOutletContext } from "./AgentsPage";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
-	formatProviderLabel,
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
@@ -435,7 +430,7 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 					onToggle();
 				}
 			}}
-			className="absolute right-3 top-3 z-10 flex cursor-pointer items-center gap-3 px-2 py-1 text-content-secondary transition-colors hover:text-content-primary"
+			className="flex cursor-pointer items-center gap-3 px-2 py-1 text-content-secondary transition-colors hover:text-content-primary"
 		>
 			<span className="font-mono text-sm font-semibold text-content-success">
 				+{additions}
@@ -484,17 +479,19 @@ const ChatMessageItem = memo<{
 		parsed.tools.length > 0;
 
 	return (
-		<ConversationItem role={isUser ? "user" : "assistant"}>
+		<ConversationItem
+			role={isUser ? "user" : "assistant"}
+		>
 			{isUser ? (
-				<Message className="max-w-[min(44rem,78%)]">
-					<MessageContent className="rounded-2xl border border-border-default/60 bg-surface-tertiary/75 px-4 py-2.5 font-sans shadow-sm">
+				<Message className="my-2 w-full max-w-none">
+					<MessageContent className="rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm">
 						{parsed.markdown || ""}
 					</MessageContent>
 				</Message>
-			) : (
-				<Message>
-					<MessageContent className="whitespace-normal">
-						<div className="space-y-3">
+		) : (
+			<Message className="w-full">
+				<MessageContent className="whitespace-normal">
+					<div className="space-y-3">
 							{parsed.markdown && (
 								<Response>{parsed.markdown}</Response>
 							)}
@@ -565,138 +562,6 @@ const StreamingOutput = memo<{
 ));
 StreamingOutput.displayName = "StreamingOutput";
 
-/**
- * The chat input area with textarea, model selector, and action
- * buttons. Manages its own input state so that keystrokes never
- * trigger re-renders of the message list or streaming output.
- */
-interface ChatInputProps {
-	onSend: (message: string) => Promise<void>;
-	onInterrupt: () => void;
-	isStreaming: boolean;
-	isDisabled: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (value: string) => void;
-	modelOptions: readonly ChatModelOption[];
-	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
-}
-
-const ChatInput = memo<ChatInputProps>(({
-	onSend,
-	onInterrupt,
-	isStreaming,
-	isDisabled,
-	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
-}) => {
-	const [input, setInput] = useState("");
-
-	const handleSubmit = useCallback(async () => {
-		const text = input.trim();
-		if (!text || isDisabled || !hasModelOptions) {
-			return;
-		}
-		try {
-			await onSend(input);
-			setInput("");
-		} catch {
-			// Keep input on failure so the user can retry.
-		}
-	}, [input, isDisabled, hasModelOptions, onSend]);
-
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent) => {
-			if (e.key === "Enter" && !e.shiftKey) {
-				e.preventDefault();
-				void handleSubmit();
-			}
-		},
-		[handleSubmit],
-	);
-
-	return (
-		<div className="sticky bottom-0 z-50 bg-surface-primary">
-			<div className="mx-auto w-full max-w-3xl pb-4">
-				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
-					<TextareaAutosize
-						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-						placeholder="Type a message..."
-						value={input}
-						onChange={(e) => setInput(e.target.value)}
-						onKeyDown={handleKeyDown}
-						disabled={isDisabled}
-						minRows={4}
-					/>
-					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-						<div className="flex min-w-0 items-center gap-2">
-							<ModelSelector
-								value={selectedModel}
-								onValueChange={onModelChange}
-								options={modelOptions}
-								disabled={isDisabled}
-								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
-								dropdownSide="top"
-								dropdownAlign="start"
-								className="h-8 justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent"
-							/>
-							{inputStatusText && (
-								<span className="hidden text-xs text-content-secondary sm:inline">
-									{inputStatusText}
-								</span>
-							)}
-						</div>
-						<div className="flex items-center gap-2">
-							{isStreaming && (
-								<Button
-									size="icon"
-									variant="outline"
-									className="rounded-full"
-									onClick={onInterrupt}
-									disabled={isInterruptPending}
-								>
-									<Square className="h-4 w-4" />
-									<span className="sr-only">Interrupt</span>
-								</Button>
-							)}
-							<Button
-								size="icon"
-								variant="default"
-								className="rounded-full"
-								onClick={() => void handleSubmit()}
-								disabled={isDisabled || !hasModelOptions || !input.trim()}
-							>
-								<SendIcon />
-								<span className="sr-only">Send</span>
-							</Button>
-						</div>
-					</div>
-					{inputStatusText && (
-						<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-							{inputStatusText}
-						</div>
-					)}
-					{modelCatalogStatusMessage && (
-						<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-							{modelCatalogStatusMessage}
-						</div>
-					)}
-				</div>
-			</div>
-		</div>
-	);
-});
-ChatInput.displayName = "ChatInput";
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -729,7 +594,7 @@ export const AgentDetail: FC = () => {
 		enabled: Boolean(agentId),
 	});
 	const chatModelsQuery = useQuery(chatModels());
-	const hasDiffStatus = Boolean(diffStatusQuery.data?.pull_request_url);
+	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
 
 	// Auto-open the diff panel when diff status becomes available.
@@ -1190,6 +1055,29 @@ export const AgentDetail: FC = () => {
 		[visibleMessages, globalToolResults],
 	);
 
+	// Group messages into sections so each user message can be CSS
+	// sticky within its section. When the section scrolls out, the
+	// sticky user message scrolls away and the next one takes over
+	// — no JavaScript scroll tracking needed.
+	const messageSections = useMemo(() => {
+		const sections: Array<{
+			userEntry: (typeof parsedMessages)[number] | null;
+			entries: typeof parsedMessages;
+		}> = [];
+
+		for (const entry of parsedMessages) {
+			if (entry.message.role === "user") {
+				sections.push({ userEntry: entry, entries: [entry] });
+			} else if (sections.length === 0) {
+				sections.push({ userEntry: null, entries: [entry] });
+			} else {
+				sections[sections.length - 1].entries.push(entry);
+			}
+		}
+
+		return sections;
+	}, [parsedMessages]);
+
 	if (chatQuery.isLoading) {
 		return (
 			<div className="flex flex-1 items-center justify-center">
@@ -1216,16 +1104,32 @@ export const AgentDetail: FC = () => {
 				streamState.reasoning !== "" ||
 				streamTools.length > 0));
 
+	const topBarTitleRef = outletContext?.topBarTitleRef;
+	const topBarActionsRef = outletContext?.topBarActionsRef;
+	const chatTitle = chatQuery.data?.chat.title;
+
 	const chatContent = (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-			{hasDiffStatus && diffStatusQuery.data && (
-				<DiffStatsBadge
-					status={diffStatusQuery.data}
-					isOpen={showDiffPanel}
-					onToggle={() => setShowDiffPanel((prev) => !prev)}
-				/>
-			)}
-			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin]">
+			{chatTitle &&
+				topBarTitleRef?.current &&
+				createPortal(
+					<span className="truncate text-sm text-content-primary">
+						{chatTitle}
+					</span>,
+					topBarTitleRef.current,
+				)}
+			{hasDiffStatus &&
+				diffStatusQuery.data &&
+				topBarActionsRef?.current &&
+				createPortal(
+					<DiffStatsBadge
+						status={diffStatusQuery.data}
+						isOpen={showDiffPanel}
+						onToggle={() => setShowDiffPanel((prev) => !prev)}
+					/>,
+					topBarActionsRef.current,
+				)}
+			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]">
 				<div>
 					<div className="mx-auto w-full max-w-3xl py-6">
 						{parsedMessages.length === 0 && !hasStreamOutput ? (
@@ -1233,22 +1137,45 @@ export const AgentDetail: FC = () => {
 								<p className="text-sm">Start a conversation with your agent.</p>
 							</div>
 						) : (
-							<Conversation>
-								{parsedMessages.map(({ message, parsed }) => (
-									<ChatMessageItem
-										key={message.id}
-										message={message}
-										parsed={parsed}
-									/>
+							<div className="flex flex-col">
+								{messageSections.map((section, sectionIdx) => (
+									<div
+										key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
+									>
+										<div className="flex flex-col gap-5">
+											{section.entries.map(({ message, parsed }) => {
+												const isUser = message.role === "user";
+												return isUser ? (
+													<div
+														key={message.id}
+														className="sticky -top-2 z-10 pt-1 drop-shadow-xl"
+													>
+														<ChatMessageItem
+															message={message}
+															parsed={parsed}
+														/>
+													</div>
+												) : (
+													<ChatMessageItem
+														key={message.id}
+														message={message}
+														parsed={parsed}
+													/>
+												);
+											})}
+										</div>
+									</div>
 								))}
 
 								{hasStreamOutput && (
-									<StreamingOutput
-										streamState={streamState}
-										streamTools={streamTools}
-									/>
+									<div className="mt-5">
+										<StreamingOutput
+											streamState={streamState}
+											streamTools={streamTools}
+										/>
+									</div>
 								)}
-							</Conversation>
+							</div>
 						)}
 
 						{detailErrorMessage && (
@@ -1258,11 +1185,12 @@ export const AgentDetail: FC = () => {
 						)}
 					</div>
 
-					<ChatInput
+					<AgentChatInput
 						onSend={stableOnSend}
-						onInterrupt={stableOnInterrupt}
-						isStreaming={isStreaming}
 						isDisabled={isInputDisabled}
+						isLoading={false}
+						isStreaming={isStreaming}
+						onInterrupt={stableOnInterrupt}
 						isInterruptPending={interruptMutation.isPending}
 						hasModelOptions={hasModelOptions}
 						selectedModel={selectedModel}
@@ -1271,6 +1199,7 @@ export const AgentDetail: FC = () => {
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						inputStatusText={inputStatusText}
 						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						sticky
 					/>
 				</div>
 			</div>

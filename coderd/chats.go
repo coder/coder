@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	aiapi "go.jetify.com/ai/api"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -33,15 +32,12 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
-	chatDiffStatusTTL                = 5 * time.Minute
+	chatDiffStatusTTL                = 120 * time.Second
 	chatDiffBackgroundRefreshTimeout = 20 * time.Second
-	chatRepositoryRefResolveTimeout  = 8 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
-	chatGitReferenceCommandBody      = `branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; origin="$(git config --get remote.origin.url 2>/dev/null || true)"; if [ -n "$branch" ] && [ -n "$origin" ]; then printf "%s\n%s\n" "$branch" "$origin"; fi`
 )
 
 // chatDiffRefreshBackoffSchedule defines the delays between successive
@@ -72,19 +68,27 @@ func chatWorkingDirectoryFromContext(ctx context.Context) string {
 	return strings.TrimSpace(workingDirectory)
 }
 
-func shellEscapeSingleQuoted(value string) string {
-	if value == "" {
-		return "''"
-	}
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+// chatGitRef holds the branch and remote origin reported by the
+// workspace agent during a git operation.
+type chatGitRef struct {
+	Branch       string
+	RemoteOrigin string
 }
 
-func buildChatGitReferenceCommand(workingDirectory string) string {
-	body := chatGitReferenceCommandBody
-	if strings.TrimSpace(workingDirectory) != "" {
-		return fmt.Sprintf("sh -lc 'cd \"$1\" && %s' -- %s", body, shellEscapeSingleQuoted(workingDirectory))
+type chatGitRefContextKey struct{}
+
+func contextWithChatGitRef(ctx context.Context, ref chatGitRef) context.Context {
+	ref.Branch = strings.TrimSpace(ref.Branch)
+	ref.RemoteOrigin = strings.TrimSpace(ref.RemoteOrigin)
+	if ref.Branch == "" && ref.RemoteOrigin == "" {
+		return ctx
 	}
-	return fmt.Sprintf("sh -lc '%s'", body)
+	return context.WithValue(ctx, chatGitRefContextKey{}, ref)
+}
+
+func chatGitRefFromContext(ctx context.Context) chatGitRef {
+	ref, _ := ctx.Value(chatGitRefContextKey{}).(chatGitRef)
+	return ref
 }
 
 var (
@@ -107,7 +111,6 @@ type githubPullRequestRef struct {
 
 type githubPullRequestStatus struct {
 	PullRequestState string
-	PullRequestOpen  bool
 	ChangesRequested bool
 	Additions        int32
 	Deletions        int32
@@ -929,7 +932,7 @@ func (api *API) resolveChatDiffStatusWithOptions(
 		return nil, err
 	}
 	if reference.PullRequestURL != "" {
-		if !found || !strings.EqualFold(strings.TrimSpace(status.GithubPrUrl.String), reference.PullRequestURL) {
+		if !found || !strings.EqualFold(strings.TrimSpace(status.URL.String), reference.PullRequestURL) {
 			status, err = api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(-time.Second))
 			if err != nil {
 				return nil, err
@@ -988,16 +991,19 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, works
 		return
 	}
 
-	workingDirectory := chatWorkingDirectoryFromContext(ctx)
+	gitRef := chatGitRefFromContext(ctx)
 
-	go func(workspaceID, workspaceOwnerID uuid.UUID, workingDirectory string) {
+	go func(workspaceID, workspaceOwnerID uuid.UUID, gitRef chatGitRef) {
 		ctx := api.ctx
 		if ctx == nil {
 			ctx = context.Background()
 		}
 		ctx = dbauthz.AsSystemRestricted(ctx)
-		if workingDirectory != "" {
-			ctx = contextWithChatWorkingDirectory(ctx, workingDirectory)
+
+		// If the agent reported a git ref, store it on all chats
+		// associated with this workspace before refreshing.
+		if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
+			api.storeChatGitRef(ctx, workspaceID, workspaceOwnerID, gitRef)
 		}
 
 		for _, delay := range chatDiffRefreshBackoffSchedule {
@@ -1011,7 +1017,36 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, works
 
 			api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID)
 		}
-	}(workspace.ID, workspace.OwnerID, workingDirectory)
+	}(workspace.ID, workspace.OwnerID, gitRef)
+}
+
+// storeChatGitRef persists the git branch and remote origin reported
+// by the workspace agent on all chats associated with the workspace.
+func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID, gitRef chatGitRef) {
+	chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to list chats for git ref storage",
+			slog.F("workspace_id", workspaceID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	for _, chat := range filterChatsByWorkspaceID(chats, workspaceID) {
+		_, err := api.Database.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+			ChatID:          chat.ID,
+			GitBranch:       gitRef.Branch,
+			GitRemoteOrigin: gitRef.RemoteOrigin,
+			StaleAt:         time.Now().UTC().Add(-time.Second),
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to store git ref on chat diff status",
+				slog.F("chat_id", chat.ID),
+				slog.F("workspace_id", workspaceID),
+				slog.Error(err),
+			)
+		}
+	}
 }
 
 // refreshWorkspaceChatDiffStatuses refreshes the diff status for all
@@ -1104,7 +1139,7 @@ func (api *API) resolveChatDiffContents(
 	if reference.PullRequestURL != "" {
 		pullRequestURL := strings.TrimSpace(reference.PullRequestURL)
 		result.PullRequestURL = &pullRequestURL
-		if !found || !strings.EqualFold(strings.TrimSpace(status.GithubPrUrl.String), pullRequestURL) {
+		if !found || !strings.EqualFold(strings.TrimSpace(status.URL.String), pullRequestURL) {
 			_, err := api.upsertChatDiffStatusReference(ctx, chat.ID, pullRequestURL, time.Now().UTC().Add(-time.Second))
 			if err != nil {
 				return result, err
@@ -1138,6 +1173,10 @@ func (api *API) resolveChatDiffContents(
 	return result, nil
 }
 
+// resolveChatDiffReference builds the diff reference from the cached
+// status stored in the database. The git branch and remote origin are
+// populated by the workspace agent during git operations (via the
+// gitaskpass flow), so no SSH into the workspace is needed here.
 func (api *API) resolveChatDiffReference(
 	ctx context.Context,
 	chat database.Chat,
@@ -1145,24 +1184,19 @@ func (api *API) resolveChatDiffReference(
 	status database.ChatDiffStatus,
 ) (chatDiffReference, error) {
 	reference := chatDiffReference{}
-	if found {
-		reference.PullRequestURL = strings.TrimSpace(status.GithubPrUrl.String)
+	if !found {
+		return reference, nil
 	}
 
-	repoRef, err := api.detectChatRepositoryRef(ctx, chat)
-	if err != nil {
-		api.Logger.Debug(ctx, "failed to resolve repository reference from workspace",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-	} else {
-		reference.RepositoryRef = repoRef
-	}
+	reference.PullRequestURL = strings.TrimSpace(status.URL.String)
 
-	// Always try to resolve the current open PR from the branch when
-	// we have a repo ref. This ensures we pick up new PRs after the
-	// previous one was closed (the cached URL would still point to
-	// the old, closed PR otherwise).
+	// Build the repository ref from the stored git branch/origin
+	// that the agent reported.
+	reference.RepositoryRef = api.buildChatRepositoryRefFromStatus(status)
+
+	// If we have a repo ref with a branch, try to resolve the
+	// current open PR. This picks up new PRs after the previous
+	// one was closed.
 	if reference.RepositoryRef != nil &&
 		strings.EqualFold(reference.RepositoryRef.Provider, string(codersdk.EnhancedExternalAuthProviderGitHub)) {
 		pullRequestURL, lookupErr := api.resolveGitHubPullRequestURLFromRepositoryRef(ctx, chat.OwnerID, *reference.RepositoryRef)
@@ -1181,6 +1215,9 @@ func (api *API) resolveChatDiffReference(
 
 	reference.PullRequestURL = normalizeGitHubPullRequestURL(reference.PullRequestURL)
 
+	// If we have a PR URL but no repo ref (e.g. the agent hasn't
+	// reported branch/origin yet), derive a partial ref from the
+	// PR URL so the caller can still show provider/owner/repo.
 	if reference.RepositoryRef == nil && reference.PullRequestURL != "" {
 		if parsed, ok := parseGitHubPullRequestURL(reference.PullRequestURL); ok {
 			reference.RepositoryRef = &chatRepositoryRef{
@@ -1195,6 +1232,38 @@ func (api *API) resolveChatDiffReference(
 	return reference, nil
 }
 
+// buildChatRepositoryRefFromStatus constructs a chatRepositoryRef
+// from the git branch and remote origin stored in the cached status.
+// Returns nil if no ref data is available.
+func (api *API) buildChatRepositoryRefFromStatus(status database.ChatDiffStatus) *chatRepositoryRef {
+	branch := strings.TrimSpace(status.GitBranch)
+	origin := strings.TrimSpace(status.GitRemoteOrigin)
+	if branch == "" || origin == "" {
+		return nil
+	}
+
+	repoRef := &chatRepositoryRef{
+		Provider:     strings.TrimSpace(api.resolveExternalAuthProviderType(origin)),
+		RemoteOrigin: origin,
+		Branch:       branch,
+	}
+
+	if owner, repo, normalizedOrigin, ok := parseGitHubRepositoryOrigin(repoRef.RemoteOrigin); ok {
+		if repoRef.Provider == "" {
+			repoRef.Provider = string(codersdk.EnhancedExternalAuthProviderGitHub)
+		}
+		repoRef.RemoteOrigin = normalizedOrigin
+		repoRef.Owner = owner
+		repoRef.Repo = repo
+	}
+
+	if repoRef.Provider == "" {
+		return nil
+	}
+
+	return repoRef
+}
+
 func (api *API) upsertChatDiffStatusReference(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -1205,11 +1274,15 @@ func (api *API) upsertChatDiffStatusReference(
 		ctx,
 		database.UpsertChatDiffStatusReferenceParams{
 			ChatID: chatID,
-			GithubPrUrl: sql.NullString{
+			URL: sql.NullString{
 				String: pullRequestURL,
 				Valid:  strings.TrimSpace(pullRequestURL) != "",
 			},
-			StaleAt: staleAt,
+			// Empty strings preserve existing values via the
+			// CASE expression in the SQL query.
+			GitBranch:       "",
+			GitRemoteOrigin: "",
+			StaleAt:         staleAt,
 		},
 	)
 	if err != nil {
@@ -1233,173 +1306,6 @@ func (api *API) getCachedChatDiffStatus(
 		"get chat diff status: %w",
 		err,
 	)
-}
-
-func (api *API) detectChatRepositoryRef(
-	ctx context.Context,
-	chat database.Chat,
-) (*chatRepositoryRef, error) {
-	branch, origin, err := api.detectChatGitBranchAndOrigin(ctx, chat)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(branch) == "" || strings.TrimSpace(origin) == "" {
-		return nil, nil
-	}
-
-	repoRef := &chatRepositoryRef{
-		Provider:     strings.TrimSpace(api.resolveExternalAuthProviderType(origin)),
-		RemoteOrigin: strings.TrimSpace(origin),
-		Branch:       strings.TrimSpace(branch),
-	}
-
-	if owner, repo, normalizedOrigin, ok := parseGitHubRepositoryOrigin(repoRef.RemoteOrigin); ok {
-		if strings.TrimSpace(repoRef.Provider) == "" {
-			repoRef.Provider = string(codersdk.EnhancedExternalAuthProviderGitHub)
-		}
-		repoRef.RemoteOrigin = normalizedOrigin
-		repoRef.Owner = owner
-		repoRef.Repo = repo
-	}
-
-	if repoRef.Provider == "" {
-		return nil, nil
-	}
-
-	return repoRef, nil
-}
-
-func (api *API) detectChatGitBranchAndOrigin(
-	ctx context.Context,
-	chat database.Chat,
-) (string, string, error) {
-	if api.agentProvider == nil {
-		return "", "", nil
-	}
-
-	agentID, ok, err := api.resolveChatWorkspaceAgentID(ctx, chat)
-	if err != nil {
-		return "", "", err
-	}
-	if !ok {
-		return "", "", nil
-	}
-
-	conn, release, err := api.agentProvider.AgentConn(ctx, agentID)
-	if err != nil {
-		return "", "", xerrors.Errorf("connect to workspace agent: %w", err)
-	}
-	defer release()
-
-	execCtx, cancel := context.WithTimeout(ctx, chatRepositoryRefResolveTimeout)
-	defer cancel()
-
-	command := buildChatGitReferenceCommand(chatWorkingDirectoryFromContext(ctx))
-	output, _, err := executeChatWorkspaceCommand(execCtx, conn, command)
-	if err != nil {
-		return "", "", xerrors.Errorf("resolve git repository reference: %w", err)
-	}
-
-	branch, origin := parseChatGitReferenceOutput(output)
-	return branch, origin, nil
-}
-
-func (api *API) resolveChatWorkspaceAgentID(
-	ctx context.Context,
-	chat database.Chat,
-) (uuid.UUID, bool, error) {
-	if chat.WorkspaceAgentID.Valid {
-		return chat.WorkspaceAgentID.UUID, true, nil
-	}
-	if !chat.WorkspaceID.Valid {
-		return uuid.Nil, false, nil
-	}
-
-	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
-	if err != nil {
-		return uuid.Nil, false, xerrors.Errorf("get workspace agents: %w", err)
-	}
-	if len(agents) == 0 {
-		return uuid.Nil, false, nil
-	}
-	return agents[0].ID, true, nil
-}
-
-func executeChatWorkspaceCommand(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	command string,
-) (string, int, error) {
-	sshClient, err := conn.SSHClient(ctx)
-	if err != nil {
-		return "", 0, err
-	}
-	defer sshClient.Close()
-
-	session, err := sshClient.NewSession()
-	if err != nil {
-		return "", 0, err
-	}
-	defer session.Close()
-
-	resultCh := make(chan struct {
-		output   string
-		exitCode int
-		err      error
-	}, 1)
-
-	go func() {
-		output, err := session.CombinedOutput(command)
-		exitCode := 0
-		if err != nil {
-			var exitErr *ssh.ExitError
-			if xerrors.As(err, &exitErr) {
-				exitCode = exitErr.ExitStatus()
-			} else {
-				exitCode = 1
-			}
-		}
-		resultCh <- struct {
-			output   string
-			exitCode int
-			err      error
-		}{
-			output:   string(output),
-			exitCode: exitCode,
-			err:      err,
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		_ = session.Close()
-		return "", 0, ctx.Err()
-	case result := <-resultCh:
-		return result.output, result.exitCode, result.err
-	}
-}
-
-func parseChatGitReferenceOutput(output string) (branch string, origin string) {
-	normalized := strings.ReplaceAll(output, "\r\n", "\n")
-	normalized = strings.ReplaceAll(normalized, "\r", "\n")
-	lines := strings.Split(normalized, "\n")
-
-	values := make([]string, 0, 2)
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		values = append(values, trimmed)
-		if len(values) >= 2 {
-			break
-		}
-	}
-	if len(values) < 2 {
-		return "", ""
-	}
-
-	return values[0], values[1]
 }
 
 func (api *API) resolveExternalAuthProviderType(match string) string {
@@ -1468,10 +1374,12 @@ func (api *API) refreshChatDiffStatus(
 	refreshedStatus, err := api.Database.UpsertChatDiffStatus(
 		ctx,
 		database.UpsertChatDiffStatusParams{
-			ChatID:           chatID,
-			GithubPrUrl:      sql.NullString{String: pullRequestURL, Valid: true},
-			PullRequestState: status.PullRequestState,
-			PullRequestOpen:  status.PullRequestOpen,
+			ChatID: chatID,
+			URL:    sql.NullString{String: pullRequestURL, Valid: true},
+			PullRequestState: sql.NullString{
+				String: status.PullRequestState,
+				Valid:  status.PullRequestState != "",
+			},
 			ChangesRequested: status.ChangesRequested,
 			Additions:        status.Additions,
 			Deletions:        status.Deletions,
@@ -1722,7 +1630,6 @@ func (api *API) fetchGitHubPullRequestStatus(
 
 	return githubPullRequestStatus{
 		PullRequestState: strings.ToLower(strings.TrimSpace(pull.State)),
-		PullRequestOpen:  strings.EqualFold(strings.TrimSpace(pull.State), "open"),
 		ChangesRequested: hasOutstandingGitHubChangesRequested(reviews),
 		Additions:        pull.Additions,
 		Deletions:        pull.Deletions,
@@ -2029,17 +1936,18 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 	}
 
 	result.ChatID = status.ChatID
-	if status.GithubPrUrl.Valid {
-		pullRequestURL := strings.TrimSpace(status.GithubPrUrl.String)
-		if pullRequestURL != "" {
-			result.PullRequestURL = &pullRequestURL
+	if status.URL.Valid {
+		u := strings.TrimSpace(status.URL.String)
+		if u != "" {
+			result.URL = &u
 		}
 	}
-	pullRequestState := strings.TrimSpace(status.PullRequestState)
-	if pullRequestState != "" {
-		result.PullRequestState = &pullRequestState
+	if status.PullRequestState.Valid {
+		pullRequestState := strings.TrimSpace(status.PullRequestState.String)
+		if pullRequestState != "" {
+			result.PullRequestState = &pullRequestState
+		}
 	}
-	result.PullRequestOpen = status.PullRequestOpen
 	result.ChangesRequested = status.ChangesRequested
 	result.Additions = status.Additions
 	result.Deletions = status.Deletions

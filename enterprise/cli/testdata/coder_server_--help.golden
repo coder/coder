@@ -172,6 +172,27 @@ AI BRIDGE OPTIONS:
           Emit structured logs for AI Bridge interception records. Use this for
           exporting these records to external SIEM or observability systems.
 
+      --chat-anthropic-models-url string, $CODER_CHAT_ANTHROPIC_MODELS_URL
+          Override URL used to list Anthropic models for the chat model catalog.
+
+      --chat-models-allowlist string, $CODER_CHAT_MODELS_ALLOWLIST
+          Comma-separated allowlist of models for the chat model catalog.
+
+      --chat-models-denylist string, $CODER_CHAT_MODELS_DENYLIST
+          Comma-separated denylist of models for the chat model catalog.
+
+      --chat-openai-models-url string, $CODER_CHAT_OPENAI_MODELS_URL
+          Override URL used to list OpenAI models for the chat model catalog.
+
+      --chat-system-prompt string, $CODER_CHAT_SYSTEM_PROMPT (default: You are Coder's AI software engineering assistant. Provide practical, accurate guidance and use available tools when needed.)
+          Default system prompt inserted into new chats.
+
+      --chat-title-generation-model string, $CODER_CHAT_TITLE_GENERATION_MODEL (default: gpt-5.2)
+          Model used to generate chat titles.
+
+      --chat-title-generation-prompt string, $CODER_CHAT_TITLE_GENERATION_PROMPT (default: Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.)
+          Prompt used to generate chat titles from the first user message.
+
 AI BRIDGE PROXY OPTIONS: 
       --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
           Path to the CA certificate file for AI Bridge Proxy.

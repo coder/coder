@@ -1,4 +1,5 @@
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Outlet, useNavigate, useParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
@@ -18,10 +19,7 @@ import {
 } from "components/Dialog/Dialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "components/ai-elements";
+import { type ModelSelectorOption } from "components/ai-elements";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -40,16 +38,17 @@ import {
 	ChevronDownIcon,
 	Loader2Icon,
 	MonitorIcon,
-	SendIcon,
 	Settings2Icon,
 	SlidersHorizontalIcon,
 } from "lucide-react";
+import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel";
 import {
-	formatProviderLabel,
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
@@ -71,13 +70,16 @@ export interface AgentsOutletContext {
 	chatErrorReasons: Record<string, string>;
 	setChatErrorReason: (chatId: string, reason: string) => void;
 	clearChatErrorReason: (chatId: string) => void;
+	topBarTitleRef: React.RefObject<HTMLDivElement | null>;
+	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
-	const { permissions, user } = useAuthenticated();
+	const { permissions, user, signOut } = useAuthenticated();
+	const { appearance, buildInfo } = useDashboard();
 
 	const chatsQuery = useQuery(chats());
 	const chatModelsQuery = useQuery(chatModels());
@@ -121,10 +123,14 @@ export const AgentsPage: FC = () => {
 			return next;
 		});
 	}, []);
+	const topBarTitleRef = useRef<HTMLDivElement>(null);
+	const topBarActionsRef = useRef<HTMLDivElement>(null);
 	const outletContext: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
+		topBarTitleRef,
+		topBarActionsRef,
 	};
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
@@ -235,6 +241,7 @@ export const AgentsPage: FC = () => {
 					chatErrorReasons={chatErrorReasons}
 					modelOptions={catalogModelOptions}
 					selectedChatId={agentId}
+					logoUrl={appearance.logo_url}
 					onSelect={(id) => navigate(`/agents/${id}`)}
 					onArchiveAgent={handleArchiveAgent}
 					onNewAgent={handleNewAgent}
@@ -245,6 +252,22 @@ export const AgentsPage: FC = () => {
 			</div>
 
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
+				<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+					<div ref={topBarTitleRef} className="flex min-w-0 flex-1 items-center" />
+					<div ref={topBarActionsRef} className="flex items-center gap-2" />
+					<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
+						<UserDropdown
+							user={user}
+							buildInfo={buildInfo}
+							supportLinks={
+								appearance.support_links?.filter(
+									(link) => link.location !== "navbar",
+								) ?? []
+							}
+							onSignOut={signOut}
+						/>
+					</div>
+				</div>
 				{agentId ? (
 					<Outlet context={outletContext} />
 				) : (
@@ -258,6 +281,7 @@ export const AgentsPage: FC = () => {
 						modelCatalogError={chatModelsQuery.error}
 						canSetSystemPrompt={canSetSystemPrompt}
 						canManageChatModelConfigs={isAgentsAdmin}
+						topBarActionsRef={topBarActionsRef}
 					/>
 				)}
 			</div>
@@ -316,6 +340,7 @@ interface AgentsEmptyStateProps {
 	modelCatalogError: unknown;
 	canSetSystemPrompt: boolean;
 	canManageChatModelConfigs: boolean;
+	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
@@ -328,13 +353,14 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	modelCatalogError,
 	canSetSystemPrompt,
 	canManageChatModelConfigs,
+	topBarActionsRef,
 }) => {
-	const [input, setInput] = useState(() => {
+	const initialInput = useMemo(() => {
 		if (typeof window === "undefined") {
 			return "";
 		}
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
-	});
+	}, []);
 	const [selectedModel, setSelectedModel] = useState(modelOptions[0]?.id ?? "");
 	const [systemPrompt, setSystemPrompt] = useState("");
 	const [isSystemPromptDialogOpen, setSystemPromptDialogOpen] = useState(false);
@@ -364,12 +390,15 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			? "Models are configured but unavailable. Ask an admin."
 			: "No models configured. Ask an admin.";
 
-	useEffect(() => {
-		if (typeof window === "undefined") {
-			return;
-		}
-		localStorage.setItem(emptyInputStorageKey, input);
-	}, [input]);
+	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
+	// that the onSend callback always sees the latest values without
+	// the shared input component re-rendering on every change.
+	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
+	selectedWorkspaceIdRef.current = selectedWorkspaceId;
+	const selectedModelRef = useRef(selectedModel);
+	selectedModelRef.current = selectedModel;
+	const systemPromptRef = useRef(systemPrompt);
+	systemPromptRef.current = systemPrompt;
 
 	useEffect(() => {
 		setSelectedModel((current) => {
@@ -388,60 +417,46 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		setSelectedWorkspaceId(value);
 	};
 
-	const handleSubmit = async () => {
-		const message = input.trim();
-		if (!message) {
-			return;
+	const handleInputChange = useCallback((value: string) => {
+		if (typeof window !== "undefined") {
+			localStorage.setItem(emptyInputStorageKey, value);
 		}
-		if (isCreating) {
-			return;
-		}
-		if (!hasModelOptions) {
-			return;
-		}
-		const trimmedSystemPrompt = systemPrompt.trim();
+	}, []);
 
-		try {
+	const handleSend = useCallback(
+		async (message: string) => {
+			const trimmedSystemPrompt = systemPromptRef.current.trim();
 			await onCreateChat({
 				message,
-				workspaceId: selectedWorkspaceId ?? undefined,
-				model: selectedModel || undefined,
+				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
+				model: selectedModelRef.current || undefined,
 				systemPrompt:
 					canSetSystemPrompt && trimmedSystemPrompt
 						? trimmedSystemPrompt
 						: undefined,
 			});
-			setInput("");
-		} catch {
-			// Error state is surfaced through createError.
-		}
-	};
-
-	const handleKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Enter" && !e.shiftKey) {
-			e.preventDefault();
-			void handleSubmit();
-		}
-	};
+		},
+		[onCreateChat, canSetSystemPrompt],
+	);
 
 	const selectedWorkspaceName = selectedWorkspaceId
 		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)?.name
 		: null;
 
 	return (
-		<div className="relative flex h-full min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6 lg:p-8">
-			{hasAdminControls && (
-				<div className="absolute right-4 top-4 z-10">
+		<div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6 lg:p-8">
+			{hasAdminControls &&
+				topBarActionsRef.current &&
+				createPortal(
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
-								variant="outline"
+								variant="subtle"
 								disabled={isCreating}
-								className="gap-2 px-4 py-2"
+								className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
 							>
-								<Settings2Icon className="h-4 w-4" />
-								Admin Settings
-								<ChevronDownIcon className="h-4 w-4 text-content-secondary" />
+								Admin
+								<ChevronDownIcon className="h-2.5 w-2.5 text-content-secondary" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
@@ -468,99 +483,59 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 								</DropdownMenuItem>
 							)}
 						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
-			)}
+					</DropdownMenu>,
+					topBarActionsRef.current,
+				)}
 
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? <ErrorAlert error={createError} /> : null}
 				{workspacesQuery.isError && <ErrorAlert error={workspacesQuery.error} />}
 
-				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
-					<TextareaAutosize
-						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-						placeholder="Ask Coder to build, fix bugs, or explore your project..."
-						value={input}
-						onChange={(e) => setInput(e.target.value)}
-						onKeyDown={handleKeyDown}
-						disabled={isCreating || !hasModelOptions}
-						minRows={4}
-					/>
-					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-						<div className="flex min-w-0 items-center gap-2">
-							<ModelSelector
-								value={selectedModel}
-								onValueChange={setSelectedModel}
-								options={modelOptions}
-								disabled={isCreating}
-								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
-								dropdownSide="top"
-								dropdownAlign="start"
-								className="h-8 w-auto justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent"
-							/>
-							<Select
-								value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
-								onValueChange={handleWorkspaceChange}
-								disabled={isCreating || workspacesQuery.isLoading}
-							>
-								<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent">
-									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-									<SelectValue>
-										{selectedWorkspaceName ?? "Workspace"}
-									</SelectValue>
-								</SelectTrigger>
-								<SelectContent side="top">
-									<SelectItem value={autoCreateWorkspaceValue}>
-										Auto-create Workspace
+				<AgentChatInput
+					onSend={handleSend}
+					placeholder="Ask Coder to build, fix bugs, or explore your project..."
+					isDisabled={isCreating}
+					isLoading={isCreating}
+					initialValue={initialInput}
+					onInputChange={handleInputChange}
+					selectedModel={selectedModel}
+					onModelChange={setSelectedModel}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder={modelSelectorPlaceholder}
+					hasModelOptions={hasModelOptions}
+					inputStatusText={inputStatusText}
+					modelCatalogStatusMessage={modelCatalogStatusMessage}
+					leftActions={
+						<Select
+							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
+							onValueChange={handleWorkspaceChange}
+							disabled={isCreating || workspacesQuery.isLoading}
+						>
+							<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent">
+								<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+								<SelectValue>
+									{selectedWorkspaceName ?? "Workspace"}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent side="top">
+								<SelectItem value={autoCreateWorkspaceValue}>
+									Auto-create Workspace
+								</SelectItem>
+								{workspaceOptions.map((workspace) => (
+									<SelectItem key={workspace.id} value={workspace.id}>
+										{workspace.name}
 									</SelectItem>
-									{workspaceOptions.map((workspace) => (
-										<SelectItem key={workspace.id} value={workspace.id}>
-											{workspace.name}
+								))}
+								{workspaceOptions.length === 0 &&
+									!workspacesQuery.isLoading && (
+										<SelectItem value="no-workspaces" disabled>
+											No workspaces found
 										</SelectItem>
-									))}
-									{workspaceOptions.length === 0 &&
-										!workspacesQuery.isLoading && (
-											<SelectItem value="no-workspaces" disabled>
-												No workspaces found
-											</SelectItem>
-										)}
-								</SelectContent>
-							</Select>
-							{inputStatusText && (
-								<span className="hidden text-xs text-content-secondary sm:inline">
-									{inputStatusText}
-								</span>
-							)}
-						</div>
-						<div className="flex items-center gap-2">
-							<Button
-								size="icon"
-								variant="default"
-								className="rounded-full"
-								onClick={() => void handleSubmit()}
-								disabled={isCreating || !hasModelOptions || !input.trim()}
-							>
-								{isCreating ? (
-									<Loader2Icon className="animate-spin" />
-								) : (
-									<SendIcon />
-								)}
-								<span className="sr-only">Send</span>
-							</Button>
-						</div>
-					</div>
-					{inputStatusText && (
-						<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-							{inputStatusText}
-						</div>
-					)}
-					{modelCatalogStatusMessage && (
-						<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-							{modelCatalogStatusMessage}
-						</div>
-					)}
-				</div>
+									)}
+							</SelectContent>
+						</Select>
+					}
+				/>
 			</div>
 
 			{canSetSystemPrompt && (

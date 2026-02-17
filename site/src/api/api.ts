@@ -411,9 +411,8 @@ export interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 export type ChatDiffStatusResponse = Readonly<
 	{
 		chat_id: string;
-		pull_request_url?: string;
+		url?: string;
 		pull_request_state?: string;
-		pull_request_open: boolean;
 		changes_requested: boolean;
 		additions: number;
 		deletions: number;

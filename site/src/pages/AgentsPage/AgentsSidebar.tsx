@@ -1,19 +1,21 @@
 import { type FC, useMemo, useState } from "react";
 import type { Chat, ChatDiffStatus, ChatStatus } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { CoderIcon } from "components/Icons/CoderIcon";
 import { shortRelativeTime } from "utils/time";
 import { cn } from "utils/cn";
 import { Button } from "components/Button/Button";
 import { Input } from "components/Input/Input";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
+	AlertTriangleIcon,
 	ArchiveIcon,
-	AlertCircleIcon,
-	CheckCircle2Icon,
+	CheckIcon,
 	EllipsisIcon,
 	EditIcon,
 	Loader2Icon,
-	PauseCircleIcon,
+	PauseIcon,
 	PlusIcon,
 	SearchIcon,
 } from "lucide-react";
@@ -30,6 +32,7 @@ interface AgentsSidebarProps {
 	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
 	selectedChatId?: string;
+	logoUrl?: string;
 	onSelect: (chatId: string) => void;
 	onArchiveAgent: (chatId: string) => void;
 	onNewAgent: () => void;
@@ -39,12 +42,12 @@ interface AgentsSidebarProps {
 }
 
 const statusConfig = {
-	waiting: { icon: CheckCircle2Icon, className: "text-content-success" },
+	waiting: { icon: CheckIcon, className: "text-content-secondary" },
 	pending: { icon: Loader2Icon, className: "text-content-link animate-spin" },
 	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
-	paused: { icon: PauseCircleIcon, className: "text-content-warning" },
-	error: { icon: AlertCircleIcon, className: "text-content-destructive" },
-	completed: { icon: CheckCircle2Icon, className: "text-content-success" },
+	paused: { icon: PauseIcon, className: "text-content-warning" },
+	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
+	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
 
 const getStatusConfig = (status: ChatStatus) => {
@@ -94,6 +97,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chats,
 		chatErrorReasons,
 		modelOptions,
+		logoUrl,
 		onArchiveAgent,
 		onNewAgent,
 		isCreating,
@@ -112,7 +116,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	return (
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
-			<div className="border-b border-border-default px-3 pb-3 pt-4 md:px-3.5">
+			<div className="border-b border-border-default px-3 pb-3 pt-3 md:px-3.5">
+				<NavLink to="/workspaces" className="mb-2.5 inline-flex">
+					{logoUrl ? (
+						<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+					) : (
+						<CoderIcon className="h-6 w-6 fill-content-primary" />
+					)}
+				</NavLink>
 				<div className="flex flex-col gap-2.5">
 					<div className="relative">
 						<label className="sr-only" htmlFor="agents-sidebar-search">
@@ -125,7 +136,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							placeholder="Search agents..."
 							value={search}
 							onChange={(event) => setSearch(event.target.value)}
-							className="h-9 rounded-lg border-border-default bg-surface-primary pl-8 text-sm shadow-none"
+							className="h-9 rounded-lg border-border-default bg-surface-primary pl-8 text-[13px] shadow-none"
 						/>
 					</div>
 					<Button
@@ -133,7 +144,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						variant="outline"
 						onClick={onNewAgent}
 						disabled={isCreating}
-						className="w-full justify-center rounded-lg hover:bg-surface-tertiary text-sm py-4 text-content-secondary"
+						className="w-full justify-center rounded-lg hover:bg-surface-tertiary text-[13px] py-4 text-content-secondary"
 					>
 						New Agent
 					</Button>
@@ -155,7 +166,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
 								const subtitle = errorReason || modelName;
 								const diffStatus = getChatDiffStatus(chat);
-								const hasLinkedDiffStatus = Boolean(diffStatus?.pull_request_url);
+								const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 								const changedFiles = diffStatus?.changed_files ?? 0;
 								const additions = diffStatus?.additions ?? 0;
 								const deletions = diffStatus?.deletions ?? 0;
@@ -171,13 +182,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										key={chat.id}
 										className={cn(
 											"group relative flex min-w-0 items-start gap-2 rounded-md pr-1 text-content-secondary",
-											"transition-none hover:bg-surface-tertiary hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+											"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 											"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 										)}
 									>
 										<NavLink
 											to={`/agents/${chat.id}`}
-											className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] px-2 py-2 text-inherit no-underline"
+											className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] px-2 py-1 text-inherit no-underline"
 										>
 											{({ isActive }) => (
 												<>
@@ -189,32 +200,21 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															)}
 														/>
 													</div>
-													<div className="min-w-0 flex-1 overflow-hidden space-y-1 text-left">
-														<div className="flex min-w-0 items-center gap-2 overflow-hidden">
+													<div className="min-w-0 flex-1 overflow-hidden text-left">
+														<div className="flex min-w-0 items-center overflow-hidden">
 															<span
 																className={cn(
-																	"block flex-1 truncate text-xs",
+																	"block flex-1 truncate text-[13px] text-content-primary",
 																	isActive && "font-medium",
 																)}
 															>
 																{chat.title}
 															</span>
 														</div>
-														<div className="flex min-w-0 items-center gap-1.5">
-															<div
-																className={cn(
-																	"min-w-0 overflow-hidden text-xs leading-4",
-																	errorReason
-																		? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-																		: "truncate text-content-secondary",
-																)}
-																title={subtitle}
-															>
-																{subtitle}
-															</div>
-															{hasLinkedDiffStatus && hasLineStats && (
+														<div className="flex min-w-0 items-center gap-2">
+														{hasLinkedDiffStatus && hasLineStats && (
 																<span
-																	className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold leading-none tabular-nums"
+																	className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
 																	title={`${filesChangedLabel}, +${additions} -${deletions}`}
 																>
 																	<span className="text-content-success">
@@ -225,13 +225,24 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	</span>
 																</span>
 															)}
+															<div
+																className={cn(
+																	"min-w-0 overflow-hidden text-[13px] leading-4",
+																	errorReason
+																		? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+																		: "truncate text-content-secondary",
+																)}
+																title={subtitle}
+															>
+																{subtitle}
+															</div>
 														</div>
 													</div>
 												</>
 											)}
 										</NavLink>
 										<div className="relative mt-1 h-6 w-7 shrink-0 mr-1 text-right">
-											<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary tabular-nums transition-opacity group-hover:opacity-0">
+											<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
 												{shortRelativeTime(chat.updated_at)}
 											</span>
 											<DropdownMenu>

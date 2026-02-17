@@ -44,6 +44,7 @@ const (
 	toolCreateWorkspace = "create_workspace"
 	toolReadFile        = "read_file"
 	toolWriteFile       = "write_file"
+	toolEditFiles       = "edit_files"
 	toolExecute         = "execute"
 
 	defaultExecuteTimeout = 60 * time.Second
@@ -1525,6 +1526,10 @@ type writeFileArgs struct {
 	Content string `json:"content"`
 }
 
+type editFilesArgs struct {
+	Files []workspacesdk.FileEdits `json:"files"`
+}
+
 type executeArgs struct {
 	Command        string `json:"command"`
 	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
@@ -1574,6 +1579,39 @@ func toolDefinitions() []api.ToolDefinition {
 					"content": {Type: "string"},
 				},
 				Required: []string{"path", "content"},
+			},
+		},
+		&api.FunctionTool{
+			Name:        toolEditFiles,
+			Description: "Perform search-and-replace edits on one or more files in the workspace. Each file can have multiple edits applied atomically.",
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"files": {
+						Type:        "array",
+						Description: "An array of file edit operations.",
+						Items: &jsonschema.Schema{
+							Type: "object",
+							Properties: map[string]*jsonschema.Schema{
+								"path": {Type: "string", Description: "The absolute path of the file to edit."},
+								"edits": {
+									Type:        "array",
+									Description: "An array of search/replace pairs to apply to the file.",
+									Items: &jsonschema.Schema{
+										Type: "object",
+										Properties: map[string]*jsonschema.Schema{
+											"search":  {Type: "string", Description: "The exact string to search for."},
+											"replace": {Type: "string", Description: "The string to replace it with."},
+										},
+										Required: []string{"search", "replace"},
+									},
+								},
+							},
+							Required: []string{"path", "edits"},
+						},
+					},
+				},
+				Required: []string{"files"},
 			},
 		},
 		&api.FunctionTool{
@@ -1820,6 +1858,20 @@ func executeTool(ctx context.Context, conn workspacesdk.AgentConn, toolCall *api
 		}
 
 		if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {
+			return toolError(result, err)
+		}
+		result.Result = map[string]any{"ok": true}
+		return result
+	case toolEditFiles:
+		args := editFilesArgs{}
+		if err := json.Unmarshal(toolCall.Args, &args); err != nil {
+			return toolError(result, err)
+		}
+		if len(args.Files) == 0 {
+			return toolError(result, xerrors.New("files is required"))
+		}
+
+		if err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files}); err != nil {
 			return toolError(result, err)
 		}
 		result.Result = map[string]any{"ok": true}

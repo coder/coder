@@ -615,13 +615,12 @@ export interface ChatDiffContents {
 
 // From codersdk/chats.go
 /**
- * ChatDiffStatus represents cached GitHub pull request diff status for a chat.
+ * ChatDiffStatus represents cached diff status for a chat. The URL may point to a pull request or a branch page depending on whether a PR has been opened.
  */
 export interface ChatDiffStatus {
     readonly chat_id: string;
-    readonly pull_request_url?: string;
+    readonly url?: string;
     readonly pull_request_state?: string;
-    readonly pull_request_open: boolean;
     readonly changes_requested: boolean;
     readonly additions: number;
     readonly deletions: number;

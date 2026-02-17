@@ -27,7 +27,7 @@ const components: Record<string, React.ComponentType<any>> = {
 			href={href}
 			target="_blank"
 			rel="noopener noreferrer"
-			className="text-content-link underline decoration-content-link/50 underline-offset-2 hover:decoration-content-link"
+			className="text-content-link decoration-content-link/50 hover:decoration-content-link"
 		>
 			{children}
 		</a>
