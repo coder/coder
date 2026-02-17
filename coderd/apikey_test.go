@@ -499,7 +499,6 @@ func TestExpireAPIKey(t *testing.T) {
 		require.Equal(t, database.AuditActionWrite, als[0].Action)
 		require.Equal(t, database.ResourceTypeApiKey, als[0].ResourceType)
 		require.Equal(t, admin.UserID.String(), als[0].UserID.String())
-
 	})
 
 	t.Run("AdminCanExpireOtherUsersToken", func(t *testing.T) {

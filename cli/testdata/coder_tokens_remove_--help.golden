@@ -3,12 +3,12 @@ coder v0.0.0-devel
 USAGE:
   coder tokens remove [flags] <name|id|token>
 
-  Delete a token
+  Expire or delete a token
 
   Aliases: delete, rm
 
-  Remove a token by expiring it. Use --delete to permanently delete the token
-  instead, which removes the audit trail.
+  Remove a token by expiring it. Use --delete to permanently hard-delete the
+  token instead.
 
 OPTIONS:
       --delete bool
