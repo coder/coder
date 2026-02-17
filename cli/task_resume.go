@@ -56,8 +56,10 @@ func (r *RootCmd) taskResume() *serpent.Command {
 
 			display := fmt.Sprintf("%s/%s", task.OwnerName, task.Name)
 
-			if task.Status != codersdk.TaskStatusPaused {
-				return xerrors.Errorf("task %q is not paused (current status: %s)", display, task.Status)
+			if task.Status == codersdk.TaskStatusError || task.Status == codersdk.TaskStatusUnknown {
+				return xerrors.Errorf("task %q is in %s state and cannot be resumed; check the workspace build logs and agent status for details", display, task.Status)
+			} else if task.Status != codersdk.TaskStatusPaused {
+				return xerrors.Errorf("task %q cannot be resumed (current status: %s)", display, task.Status)
 			}
 
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{

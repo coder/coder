@@ -178,6 +178,6 @@ func TestExpTaskResume(t *testing.T) {
 		// Then: We expect to get an error that the task is not paused
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "is not paused")
+		require.ErrorContains(t, err, "cannot be resumed")
 	})
 }
