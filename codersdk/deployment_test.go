@@ -971,10 +971,12 @@ func TestHTTPCookieConfigMiddleware(t *testing.T) {
 			extraCookies: []*http.Cookie{
 				{Name: "custom_cookie", Value: "custom-value"},
 				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__HOST-foobar", Value: "do-not-change-me"},
 			},
 			expectedCookies: map[string]string{
 				"custom_cookie":             "custom-value",
 				codersdk.SessionTokenCookie: "session",
+				"__HOST-foobar":             "do-not-change-me",
 			},
 		},
 	}
@@ -1074,6 +1076,14 @@ func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
 				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
 				{Name: "__HOST-" + codersdk.PathAppSessionTokenCookie, Value: "xyz123"},
 				{Name: "__HOST-" + codersdk.SubdomainAppSessionTokenCookie, Value: "abc456"},
+				{Name: "__HOST-" + "foobar", Value: "do-not-change-me"},
+			},
+		},
+		{
+			name: "Enabled_NonSessionPrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
 			},
 		},
 	}

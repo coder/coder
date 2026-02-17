@@ -861,50 +861,65 @@ type HTTPCookieConfig struct {
 }
 
 // cookiesToPrefix is the set of cookies that should be prefixed with the host prefix if EnableHostPrefix is true.
+// This is a constant, do not ever mutate it.
 var cookiesToPrefix = map[string]struct{}{
 	SessionTokenCookie:             {},
 	PathAppSessionTokenCookie:      {},
 	SubdomainAppSessionTokenCookie: {},
 }
 
+// Middleware handles some cookie mutation the requests.
+//
+// For performance of this, see 'BenchmarkHTTPCookieConfigMiddleware'
+// This code is executed on every request, so efficiency is important.
+// If making changes, please consider the performance implications and run benchmarks.
 func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
+	prefixed := make(map[string]struct{})
+	for name := range cookiesToPrefix {
+		prefixed[cookieHostPrefix+name] = struct{}{}
+	}
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if !cfg.EnableHostPrefix {
+			// If a deployment has this config on, then turned it off. Then some old __HOST-
+			// cookies could exist on the browsers of the clients. These cookies have no
+			// impact, so we are going to ignore them if they exist (niche scenario)
 			next.ServeHTTP(rw, r)
 			return
 		}
 
-		// Instead of having everywhere in the code handle the possibly prefix'd cookie,
-		// we just strip them in a middleware. So the rest of the codebase is unaware of this.
-		modified := false
-		cookies := r.Cookies()
+		// When 'EnableHostPrefix', some cookies are set with a `__HOST-` prefix. This
+		// middleware will strip any prefixes, so the backend is unaware of this security
+		// feature.
+		//
+		// This code also handles any unprefixed cookies that are now invalid.
+		cookies := r.Cookies() // r.Cookies() returns a parsed copy of the cookies
 		for i, c := range cookies {
+			// If any cookies that should be prefixed are found without the prefix, remove
+			// them from the client and the request. This is usually from a migration where
+			// the prefix was just turned on. In the ignorant or malicious scenario, these
+			// cookies MUST be dropped.
 			if _, ok := cookiesToPrefix[c.Name]; ok {
-				// Remove the cookie from the client
+				// Remove the cookie from the client to prevent any future requests from sending it.
 				http.SetCookie(rw, &http.Cookie{
-					// MaxAge < 0 means to delete the cookie now.
-					MaxAge: -1,
+					MaxAge: -1, // Delete
 					Name:   c.Name,
 					Path:   "/",
 				})
 				// And remove it from the request so the rest of the code doesn't see it.
 				cookies[i] = nil
-				modified = true
 			}
 
-			if strings.HasPrefix(c.Name, cookieHostPrefix) {
+			// Only strip from the cookies we care about. Let other `__HOST-` cookies be.
+			if _, ok := prefixed[c.Name]; ok {
 				c.Name = strings.TrimPrefix(c.Name, cookieHostPrefix)
-				modified = true
 			}
 		}
 
 		// r.Cookies() returns copies, so we need to rebuild the header.
-		if modified {
-			r.Header.Del("Cookie")
-			for _, c := range cookies {
-				if c != nil {
-					r.AddCookie(c)
-				}
+		r.Header.Del("Cookie")
+		for _, c := range cookies {
+			if c != nil {
+				r.AddCookie(c)
 			}
 		}
 
@@ -917,6 +932,7 @@ func (cfg *HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
 	c.Secure = cfg.Secure.Value()
 	c.SameSite = cfg.HTTPSameSite()
 	if cfg.EnableHostPrefix {
+		// Only prefix the cookies we want to be prefixed.
 		if _, ok := cookiesToPrefix[c.Name]; ok {
 			c.Name = cookieHostPrefix + c.Name
 		}
