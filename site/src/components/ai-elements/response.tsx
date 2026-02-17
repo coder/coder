@@ -79,7 +79,7 @@ export const Response = forwardRef<HTMLDivElement, ResponseProps>(
 		return (
 			<div
 				ref={ref}
-				className={cn("text-sm leading-relaxed text-content-primary", className)}
+				className={cn("text-[13px] leading-relaxed text-content-primary", className)}
 				{...props}
 			>
 				<Streamdown controls={false} components={components}>

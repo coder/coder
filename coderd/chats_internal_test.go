@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"regexp"
@@ -26,6 +27,33 @@ func TestParseChatGitReferenceOutput(t *testing.T) {
 	branch, origin = parseChatGitReferenceOutput("single-line-only")
 	require.Empty(t, branch)
 	require.Empty(t, origin)
+}
+
+func TestBuildChatGitReferenceCommandWorkdir(t *testing.T) {
+	t.Parallel()
+
+	noWorkdirCommand := buildChatGitReferenceCommand("")
+	require.Equal(t, "sh -lc '"+chatGitReferenceCommandBody+"'", noWorkdirCommand)
+
+	workdirCommand := buildChatGitReferenceCommand("/tmp/repo with 'quote'")
+	require.Equal(
+		t,
+		"sh -lc 'cd \"$1\" && "+chatGitReferenceCommandBody+"' -- '/tmp/repo with '\"'\"'quote'\"'\"''",
+		workdirCommand,
+	)
+}
+
+func TestChatWorkingDirectoryContextWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	require.Empty(t, chatWorkingDirectoryFromContext(ctx))
+
+	ctx = contextWithChatWorkingDirectory(ctx, " /tmp/repo ")
+	require.Equal(t, "/tmp/repo", chatWorkingDirectoryFromContext(ctx))
+
+	ctx = contextWithChatWorkingDirectory(ctx, " ")
+	require.Equal(t, "/tmp/repo", chatWorkingDirectoryFromContext(ctx))
 }
 
 func TestParseGitHubRepositoryOrigin(t *testing.T) {

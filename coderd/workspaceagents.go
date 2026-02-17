@@ -141,6 +141,7 @@ const AgentAPIVersionREST = "1.0"
 func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+	ctx = contextWithChatWorkingDirectory(ctx, workspaceAgent.ExpandedDirectory)
 
 	var req agentsdk.PatchLogs
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -1948,11 +1949,16 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 // @Param match query string true "Match"
 // @Param id query string true "Provider ID"
 // @Param listen query bool false "Wait for a new token to be issued"
+// @Param workdir query string false "Working directory used for git context refresh"
 // @Success 200 {object} agentsdk.ExternalAuthResponse
 // @Router /workspaceagents/me/external-auth [get]
 func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
+	workdir := strings.TrimSpace(query.Get("workdir"))
+	if workdir != "" {
+		ctx = contextWithChatWorkingDirectory(ctx, workdir)
+	}
 	// Either match or configID must be provided!
 	match := query.Get("match")
 	if match == "" {
@@ -1975,7 +1981,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 
 	// listen determines if the request will wait for a
 	// new token to be issued!
-	listen := r.URL.Query().Has("listen")
+	listen := query.Has("listen")
 
 	var externalAuthConfig *externalauth.Config
 	for _, extAuth := range api.ExternalAuthConfigs {
@@ -2117,7 +2123,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	api.triggerWorkspaceChatDiffStatusRefresh(workspace)
+	api.triggerWorkspaceChatDiffStatusRefresh(ctx, workspace)
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
@@ -2191,7 +2197,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			})
 			return
 		}
-		api.triggerWorkspaceChatDiffStatusRefresh(workspace)
+		api.triggerWorkspaceChatDiffStatusRefresh(ctx, workspace)
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}

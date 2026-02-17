@@ -605,6 +605,9 @@ type ExternalAuthRequest struct {
 	ID string
 	// Match is an arbitrary string matched against the regex of the provider.
 	Match string
+	// Workdir is an optional working directory used for follow-up workspace
+	// context refreshes.
+	Workdir string
 	// Listen indicates that the request should be long-lived and listen for
 	// a new token to be requested.
 	Listen bool
@@ -619,6 +622,9 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.Listen {
 		q.Set("listen", "true")
+	}
+	if req.Workdir != "" {
+		q.Set("workdir", req.Workdir)
 	}
 	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)

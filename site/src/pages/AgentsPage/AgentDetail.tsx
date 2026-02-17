@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FC, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext, useParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -452,11 +452,260 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 	);
 };
 
+// ---------------------------------------------------------------------------
+// Memoized sub-components
+// ---------------------------------------------------------------------------
+
+/**
+ * Renders a single historic chat message. Wrapped in React.memo so
+ * it only re-renders when its own parsed content changes — not on
+ * every stream chunk or input keystroke.
+ */
+const ChatMessageItem = memo<{
+	message: TypesGen.ChatMessage;
+	parsed: ParsedMessageContent;
+}>(({ message, parsed }) => {
+	const isUser = message.role === "user";
+
+	// Skip messages that only carry tool results. Those results
+	// are shown inline with the tool-call message they belong to.
+	if (
+		parsed.toolResults.length > 0 &&
+		parsed.toolCalls.length === 0 &&
+		parsed.markdown === "" &&
+		parsed.reasoning === ""
+	) {
+		return null;
+	}
+
+	const hasRenderableContent =
+		parsed.markdown !== "" ||
+		parsed.reasoning !== "" ||
+		parsed.tools.length > 0;
+
+	return (
+		<ConversationItem role={isUser ? "user" : "assistant"}>
+			{isUser ? (
+				<Message className="max-w-[min(44rem,78%)]">
+					<MessageContent className="rounded-2xl border border-border-default/60 bg-surface-tertiary/75 px-4 py-2.5 font-sans shadow-sm">
+						{parsed.markdown || ""}
+					</MessageContent>
+				</Message>
+			) : (
+				<Message>
+					<MessageContent className="whitespace-normal">
+						<div className="space-y-3">
+							{parsed.markdown && (
+								<Response>{parsed.markdown}</Response>
+							)}
+							{parsed.reasoning && (
+								<Thinking>{parsed.reasoning}</Thinking>
+							)}
+							{parsed.tools.map((tool) => (
+								<Tool
+									key={tool.id}
+									name={tool.name}
+									args={tool.args}
+									result={tool.result}
+									status={tool.status}
+									isError={tool.isError}
+								/>
+							))}
+							{!hasRenderableContent && (
+								<div className="text-xs text-content-secondary">
+									Message has no renderable content.
+								</div>
+							)}
+						</div>
+					</MessageContent>
+				</Message>
+			)}
+		</ConversationItem>
+	);
+});
+ChatMessageItem.displayName = "ChatMessageItem";
+
+/**
+ * Renders the live streaming assistant output. Isolated via memo so
+ * historic messages and the input area are not re-rendered on each
+ * chunk.
+ */
+const StreamingOutput = memo<{
+	streamState: StreamState | null;
+	streamTools: MergedTool[];
+}>(({ streamState, streamTools }) => (
+	<ConversationItem role="assistant">
+		<Message>
+			<MessageContent className="whitespace-normal">
+				<div className="space-y-3">
+					{streamState?.content ? (
+						<Response>{streamState.content}</Response>
+					) : (
+						<div className="text-sm text-content-secondary">
+							Agent is thinking...
+						</div>
+					)}
+					{streamState?.reasoning && (
+						<Thinking>{streamState.reasoning}</Thinking>
+					)}
+					{streamTools.map((tool) => (
+						<Tool
+							key={tool.id}
+							name={tool.name}
+							args={tool.args}
+							result={tool.result}
+							status={tool.status}
+							isError={tool.isError}
+						/>
+					))}
+				</div>
+			</MessageContent>
+		</Message>
+	</ConversationItem>
+));
+StreamingOutput.displayName = "StreamingOutput";
+
+/**
+ * The chat input area with textarea, model selector, and action
+ * buttons. Manages its own input state so that keystrokes never
+ * trigger re-renders of the message list or streaming output.
+ */
+interface ChatInputProps {
+	onSend: (message: string) => Promise<void>;
+	onInterrupt: () => void;
+	isStreaming: boolean;
+	isDisabled: boolean;
+	isInterruptPending: boolean;
+	hasModelOptions: boolean;
+	selectedModel: string;
+	onModelChange: (value: string) => void;
+	modelOptions: readonly ChatModelOption[];
+	modelSelectorPlaceholder: string;
+	inputStatusText: string | null;
+	modelCatalogStatusMessage: string | null;
+}
+
+const ChatInput = memo<ChatInputProps>(({
+	onSend,
+	onInterrupt,
+	isStreaming,
+	isDisabled,
+	isInterruptPending,
+	hasModelOptions,
+	selectedModel,
+	onModelChange,
+	modelOptions,
+	modelSelectorPlaceholder,
+	inputStatusText,
+	modelCatalogStatusMessage,
+}) => {
+	const [input, setInput] = useState("");
+
+	const handleSubmit = useCallback(async () => {
+		const text = input.trim();
+		if (!text || isDisabled || !hasModelOptions) {
+			return;
+		}
+		try {
+			await onSend(input);
+			setInput("");
+		} catch {
+			// Keep input on failure so the user can retry.
+		}
+	}, [input, isDisabled, hasModelOptions, onSend]);
+
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent) => {
+			if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				void handleSubmit();
+			}
+		},
+		[handleSubmit],
+	);
+
+	return (
+		<div className="sticky bottom-0 z-50 bg-surface-primary">
+			<div className="mx-auto w-full max-w-3xl pb-4">
+				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
+					<TextareaAutosize
+						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						placeholder="Type a message..."
+						value={input}
+						onChange={(e) => setInput(e.target.value)}
+						onKeyDown={handleKeyDown}
+						disabled={isDisabled}
+						minRows={4}
+					/>
+					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+						<div className="flex min-w-0 items-center gap-2">
+							<ModelSelector
+								value={selectedModel}
+								onValueChange={onModelChange}
+								options={modelOptions}
+								disabled={isDisabled}
+								placeholder={modelSelectorPlaceholder}
+								formatProviderLabel={formatProviderLabel}
+								dropdownSide="top"
+								dropdownAlign="start"
+								className="h-8 justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent"
+							/>
+							{inputStatusText && (
+								<span className="hidden text-xs text-content-secondary sm:inline">
+									{inputStatusText}
+								</span>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							{isStreaming && (
+								<Button
+									size="icon"
+									variant="outline"
+									className="rounded-full"
+									onClick={onInterrupt}
+									disabled={isInterruptPending}
+								>
+									<Square className="h-4 w-4" />
+									<span className="sr-only">Interrupt</span>
+								</Button>
+							)}
+							<Button
+								size="icon"
+								variant="default"
+								className="rounded-full"
+								onClick={() => void handleSubmit()}
+								disabled={isDisabled || !hasModelOptions || !input.trim()}
+							>
+								<SendIcon />
+								<span className="sr-only">Send</span>
+							</Button>
+						</div>
+					</div>
+					{inputStatusText && (
+						<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
+							{inputStatusText}
+						</div>
+					)}
+					{modelCatalogStatusMessage && (
+						<div className="px-2.5 pb-1 text-2xs text-content-secondary">
+							{modelCatalogStatusMessage}
+						</div>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+});
+ChatInput.displayName = "ChatInput";
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
 export const AgentDetail: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
 	const queryClient = useQueryClient();
-	const [input, setInput] = useState("");
 	const [messagesById, setMessagesById] = useState<
 		Map<number, TypesGen.ChatMessage>
 	>(new Map());
@@ -617,57 +866,66 @@ export const AgentDetail: FC = () => {
 					}
 					cancelScheduledStreamReset();
 
+					// Wrap stream state updates in startTransition so React
+					// treats them as low-priority — keeping user interactions
+					// (typing, clicking) responsive during rapid streaming.
 					switch (normalizeBlockType(part.type)) {
 						case "text":
-							setStreamState((prev) => {
-								const nextState: StreamState = prev ?? createEmptyStreamState();
-								return {
-									...nextState,
-									content: `${nextState.content}${asString(part.text)}`,
-								};
+							startTransition(() => {
+								setStreamState((prev) => {
+									const nextState: StreamState = prev ?? createEmptyStreamState();
+									return {
+										...nextState,
+										content: `${nextState.content}${asString(part.text)}`,
+									};
+								});
 							});
 							return;
 						case "reasoning":
 						case "thinking":
-							setStreamState((prev) => {
-								const nextState: StreamState = prev ?? createEmptyStreamState();
-								return {
-									...nextState,
-									reasoning: `${nextState.reasoning}${asString(part.text)}`,
-								};
+							startTransition(() => {
+								setStreamState((prev) => {
+									const nextState: StreamState = prev ?? createEmptyStreamState();
+									return {
+										...nextState,
+										reasoning: `${nextState.reasoning}${asString(part.text)}`,
+									};
+								});
 							});
 							return;
 						case "tool-call":
 						case "toolcall": {
 							const toolName = asString(part.tool_name);
 
-							setStreamState((prev) => {
-								const nextState: StreamState = prev ?? createEmptyStreamState();
-								const existingByName = Object.values(nextState.toolCalls).find(
-									(call) => call.name === toolName,
-								);
-								const toolCallID =
-									asString(part.tool_call_id) ||
-									existingByName?.id ||
-									`tool-call-${Object.keys(nextState.toolCalls).length + 1}`;
-								const existing = nextState.toolCalls[toolCallID];
-								const nextArgs = mergeStreamPayload(
-									existing?.args,
-									part.args,
-									part.args_delta,
-								);
+							startTransition(() => {
+								setStreamState((prev) => {
+									const nextState: StreamState = prev ?? createEmptyStreamState();
+									const existingByName = Object.values(nextState.toolCalls).find(
+										(call) => call.name === toolName,
+									);
+									const toolCallID =
+										asString(part.tool_call_id) ||
+										existingByName?.id ||
+										`tool-call-${Object.keys(nextState.toolCalls).length + 1}`;
+									const existing = nextState.toolCalls[toolCallID];
+									const nextArgs = mergeStreamPayload(
+										existing?.args,
+										part.args,
+										part.args_delta,
+									);
 
-								return {
-									...nextState,
-									toolCalls: {
-										...nextState.toolCalls,
-										[toolCallID]: {
-											id: toolCallID,
-											name: toolName || existing?.name || "Tool",
-											args: nextArgs,
+									return {
+										...nextState,
+										toolCalls: {
+											...nextState.toolCalls,
+											[toolCallID]: {
+												id: toolCallID,
+												name: toolName || existing?.name || "Tool",
+												args: nextArgs,
+											},
 										},
-									},
-								};
+									};
+								});
 							});
 							return;
 						}
@@ -675,38 +933,40 @@ export const AgentDetail: FC = () => {
 						case "toolresult": {
 							const toolName = asString(part.tool_name);
 
-							setStreamState((prev) => {
-								const nextState: StreamState = prev ?? createEmptyStreamState();
-								const existingByName = Object.values(nextState.toolResults).find(
-									(result) => result.name === toolName,
-								);
-								const existingCallByName = Object.values(nextState.toolCalls).find(
-									(call) => call.name === toolName,
-								);
-								const toolCallID =
-									asString(part.tool_call_id) ||
-									existingByName?.id ||
-									existingCallByName?.id ||
-									`tool-result-${Object.keys(nextState.toolResults).length + 1}`;
-								const existing = nextState.toolResults[toolCallID];
-								const nextResult = mergeStreamPayload(
-									existing?.result,
-									part.result,
-									part.result_delta,
-								);
+							startTransition(() => {
+								setStreamState((prev) => {
+									const nextState: StreamState = prev ?? createEmptyStreamState();
+									const existingByName = Object.values(nextState.toolResults).find(
+										(result) => result.name === toolName,
+									);
+									const existingCallByName = Object.values(nextState.toolCalls).find(
+										(call) => call.name === toolName,
+									);
+									const toolCallID =
+										asString(part.tool_call_id) ||
+										existingByName?.id ||
+										existingCallByName?.id ||
+										`tool-result-${Object.keys(nextState.toolResults).length + 1}`;
+									const existing = nextState.toolResults[toolCallID];
+									const nextResult = mergeStreamPayload(
+										existing?.result,
+										part.result,
+										part.result_delta,
+									);
 
-								return {
-									...nextState,
-									toolResults: {
-										...nextState.toolResults,
-										[toolCallID]: {
-											id: toolCallID,
-											name: toolName || existing?.name || "Tool",
-											result: nextResult,
-											isError: existing?.isError || Boolean(part.is_error),
+									return {
+										...nextState,
+										toolResults: {
+											...nextState.toolResults,
+											[toolCallID]: {
+												id: toolCallID,
+												name: toolName || existing?.name || "Tool",
+												result: nextResult,
+												isError: existing?.isError || Boolean(part.is_error),
+											},
 										},
-									},
-								};
+									};
+								});
 							});
 							return;
 						}
@@ -825,41 +1085,45 @@ export const AgentDetail: FC = () => {
 	const isSubmissionPending = sendMutation.isPending || interruptMutation.isPending;
 	const isInputDisabled = isSubmissionPending || !hasModelOptions;
 
-	const handleSend = async () => {
-		const prompt = input;
-		if (!prompt.trim() || isSubmissionPending || !agentId || !hasModelOptions) {
+	// Stable callback refs — the actual implementation is updated on
+	// every render, but the reference passed to ChatInput never changes.
+	// This prevents ChatInput from re-rendering when unrelated parent
+	// state (streamState, messagesById) changes.
+	const handleSendRef = useRef<(message: string) => Promise<void>>(async () => {});
+	handleSendRef.current = async (message: string) => {
+		if (!message.trim() || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
 		if (isStreaming) {
 			await interruptMutation.mutateAsync();
 		}
-
-		// Content is a JSON raw message; preserve plain text message shape.
 		const request: CreateChatMessagePayload = {
 			role: "user",
-			content: JSON.parse(JSON.stringify(prompt)),
+			content: JSON.parse(JSON.stringify(message)),
 			model: selectedModel || undefined,
 		};
-
 		clearChatErrorReason(agentId);
 		setStreamError(null);
 		await sendMutation.mutateAsync(request);
-		setInput("");
 	};
 
-	const handleInterrupt = async () => {
+	const handleInterruptRef = useRef<() => void>(() => {});
+	handleInterruptRef.current = () => {
 		if (!agentId || interruptMutation.isPending) {
 			return;
 		}
-		await interruptMutation.mutateAsync();
+		void interruptMutation.mutateAsync();
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Enter" && !e.shiftKey) {
-			e.preventDefault();
-			void handleSend();
-		}
-	};
+	// Stable wrappers that never change identity.
+	const stableOnSend = useCallback(
+		(message: string) => handleSendRef.current(message),
+		[],
+	);
+	const stableOnInterrupt = useCallback(
+		() => handleInterruptRef.current(),
+		[],
+	);
 
 	const streamTools = useMemo((): MergedTool[] => {
 		if (!streamState) {
@@ -910,6 +1174,19 @@ export const AgentDetail: FC = () => {
 		[visibleMessages],
 	);
 
+	// Pre-compute parsed content for all visible messages. This runs
+	// only when visibleMessages changes (at message boundaries), not
+	// on every stream chunk. Each entry keeps a stable reference so
+	// ChatMessageItem can bail out via React.memo.
+	const parsedMessages = useMemo(
+		() =>
+			visibleMessages.map((message) => ({
+				message,
+				parsed: parseChatMessageContent(message, globalToolResults),
+			})),
+		[visibleMessages, globalToolResults],
+	);
+
 	if (chatQuery.isLoading) {
 		return (
 			<div className="flex flex-1 items-center justify-center">
@@ -948,106 +1225,25 @@ export const AgentDetail: FC = () => {
 			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin]">
 				<div>
 					<div className="mx-auto w-full max-w-3xl py-6">
-						{visibleMessages.length === 0 && !hasStreamOutput ? (
+						{parsedMessages.length === 0 && !hasStreamOutput ? (
 							<div className="py-12 text-center text-content-secondary">
 								<p className="text-sm">Start a conversation with your agent.</p>
 							</div>
 						) : (
 							<Conversation>
-								{visibleMessages.map((message) => {
-									const parsed = parseChatMessageContent(message, globalToolResults);
-									const isUser = message.role === "user";
-
-									// Skip messages that only carry tool results.
-									// Those results are now shown inline with the
-									// tool-call message they belong to.
-									if (
-										parsed.toolResults.length > 0 &&
-										parsed.toolCalls.length === 0 &&
-										parsed.markdown === "" &&
-										parsed.reasoning === ""
-									) {
-										return null;
-									}
-
-									const hasRenderableContent =
-										parsed.markdown !== "" ||
-										parsed.reasoning !== "" ||
-										parsed.tools.length > 0;
-
-									return (
-										<ConversationItem
-											key={message.id}
-											role={isUser ? "user" : "assistant"}
-										>
-											{isUser ? (
-												<Message className="max-w-[min(44rem,78%)]">
-													<MessageContent className="rounded-2xl border border-border-default/60 bg-surface-tertiary/75 px-4 py-2.5 font-sans shadow-sm">
-														{parsed.markdown || ""}
-													</MessageContent>
-												</Message>
-											) : (
-												<Message>
-													<MessageContent className="whitespace-normal">
-														<div className="space-y-3">
-															{parsed.markdown && (
-																<Response>{parsed.markdown}</Response>
-															)}
-															{parsed.reasoning && (
-																<Thinking>{parsed.reasoning}</Thinking>
-															)}
-														{parsed.tools.map((tool) => (
-															<Tool
-																key={tool.id}
-																name={tool.name}
-																args={tool.args}
-																result={tool.result}
-																status={tool.status}
-																isError={tool.isError}
-															/>
-														))}
-															{!hasRenderableContent && (
-																<div className="text-xs text-content-secondary">
-																	Message has no renderable content.
-																</div>
-															)}
-														</div>
-													</MessageContent>
-												</Message>
-											)}
-										</ConversationItem>
-									);
-								})}
+								{parsedMessages.map(({ message, parsed }) => (
+									<ChatMessageItem
+										key={message.id}
+										message={message}
+										parsed={parsed}
+									/>
+								))}
 
 								{hasStreamOutput && (
-									<ConversationItem role="assistant">
-										<Message>
-											<MessageContent className="whitespace-normal">
-												<div className="space-y-3">
-													{streamState?.content ? (
-														<Response>{streamState.content}</Response>
-													) : (
-														<div className="text-sm text-content-secondary">
-															Agent is thinking...
-														</div>
-													)}
-													{streamState?.reasoning && (
-														<Thinking>{streamState.reasoning}</Thinking>
-													)}
-												{streamTools.map((tool) => (
-													<Tool
-														key={tool.id}
-														name={tool.name}
-														args={tool.args}
-														result={tool.result}
-														status={tool.status}
-														isError={tool.isError}
-													/>
-												))}
-												</div>
-											</MessageContent>
-										</Message>
-									</ConversationItem>
+									<StreamingOutput
+										streamState={streamState}
+										streamTools={streamTools}
+									/>
 								)}
 							</Conversation>
 						)}
@@ -1059,75 +1255,20 @@ export const AgentDetail: FC = () => {
 						)}
 					</div>
 
-					<div className="sticky bottom-0 z-50 bg-surface-primary">
-						<div className="mx-auto w-full max-w-3xl pb-4">
-							<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
-								<TextareaAutosize
-									className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-									placeholder="Type a message..."
-									value={input}
-									onChange={(e) => setInput(e.target.value)}
-									onKeyDown={handleKeyDown}
-									disabled={isInputDisabled}
-									minRows={4}
-								/>
-							<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-								<div className="flex min-w-0 items-center gap-2">
-									<ModelSelector
-										value={selectedModel}
-										onValueChange={setSelectedModel}
-										options={modelOptions}
-										disabled={isInputDisabled}
-										placeholder={modelSelectorPlaceholder}
-										formatProviderLabel={formatProviderLabel}
-										dropdownSide="top"
-										dropdownAlign="start"
-										className="h-8 justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent"
-									/>
-									{inputStatusText && (
-										<span className="hidden text-xs text-content-secondary sm:inline">
-											{inputStatusText}
-										</span>
-									)}
-								</div>
-								<div className="flex items-center gap-2">
-									{isStreaming && (
-										<Button
-											size="icon"
-											variant="outline"
-											className="rounded-full"
-											onClick={() => void handleInterrupt()}
-											disabled={interruptMutation.isPending}
-										>
-											<Square className="h-4 w-4" />
-											<span className="sr-only">Interrupt</span>
-										</Button>
-									)}
-									<Button
-										size="icon"
-										variant="default"
-										className="rounded-full"
-										onClick={() => void handleSend()}
-										disabled={isInputDisabled || !hasModelOptions || !input.trim()}
-									>
-										<SendIcon />
-										<span className="sr-only">Send</span>
-									</Button>
-								</div>
-							</div>
-							{inputStatusText && (
-								<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-									{inputStatusText}
-								</div>
-							)}
-							{modelCatalogStatusMessage && (
-								<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-									{modelCatalogStatusMessage}
-								</div>
-							)}
-							</div>
-						</div>
-					</div>
+					<ChatInput
+						onSend={stableOnSend}
+						onInterrupt={stableOnInterrupt}
+						isStreaming={isStreaming}
+						isDisabled={isInputDisabled}
+						isInterruptPending={interruptMutation.isPending}
+						hasModelOptions={hasModelOptions}
+						selectedModel={selectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+					/>
 				</div>
 			</div>
 		</div>

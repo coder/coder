@@ -153,3 +153,52 @@ func TestRewriteDERPMap(t *testing.T) {
 	require.Equal(t, "coconuts.org", node.HostName)
 	require.Equal(t, 44558, node.DERPPort)
 }
+
+func TestExternalAuthRequestWorkdirQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IncludesWorkdirWhenSet", func(t *testing.T) {
+		t.Parallel()
+
+		const expectedWorkdir = "/tmp/repo with spaces"
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/api/v2/workspaceagents/me/external-auth", r.URL.Path)
+			require.Equal(t, "true", r.URL.Query().Get("listen"))
+			require.Equal(t, expectedWorkdir, r.URL.Query().Get("workdir"))
+			_, _ = w.Write([]byte(`{"type":"github","access_token":"token"}`))
+		}))
+		defer srv.Close()
+
+		parsedURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := agentsdk.New(parsedURL, agentsdk.WithFixedToken("token"))
+		_, err = client.ExternalAuth(testutil.Context(t, testutil.WaitShort), agentsdk.ExternalAuthRequest{
+			Match:   "github.com",
+			Listen:  true,
+			Workdir: expectedWorkdir,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("OmitsWorkdirWhenNotSet", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/api/v2/workspaceagents/me/external-auth", r.URL.Path)
+			require.Equal(t, "", r.URL.Query().Get("workdir"))
+			require.False(t, r.URL.Query().Has("workdir"))
+			_, _ = w.Write([]byte(`{"type":"github","access_token":"token"}`))
+		}))
+		defer srv.Close()
+
+		parsedURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := agentsdk.New(parsedURL, agentsdk.WithFixedToken("token"))
+		_, err = client.ExternalAuth(testutil.Context(t, testutil.WaitShort), agentsdk.ExternalAuthRequest{
+			Match: "github.com",
+		})
+		require.NoError(t, err)
+	})
+}

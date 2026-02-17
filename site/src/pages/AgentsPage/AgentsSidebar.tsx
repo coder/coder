@@ -1,5 +1,5 @@
 import { type FC, useMemo, useState } from "react";
-import type { Chat, ChatStatus } from "api/typesGenerated";
+import type { Chat, ChatDiffStatus, ChatStatus } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { shortRelativeTime } from "utils/time";
 import { cn } from "utils/cn";
@@ -81,6 +81,14 @@ const getModelDisplayName = (
 	return model;
 };
 
+type ChatWithDiffStatus = Chat & {
+	readonly diff_status?: ChatDiffStatus;
+};
+
+const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
+	return (chat as ChatWithDiffStatus).diff_status;
+};
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -146,6 +154,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								const errorReason =
 									chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
 								const subtitle = errorReason || modelName;
+								const diffStatus = getChatDiffStatus(chat);
+								const hasLinkedDiffStatus = Boolean(diffStatus?.pull_request_url);
+								const changedFiles = diffStatus?.changed_files ?? 0;
+								const additions = diffStatus?.additions ?? 0;
+								const deletions = diffStatus?.deletions ?? 0;
+								const hasLineStats = additions > 0 || deletions > 0;
+								const filesChangedLabel = `${changedFiles} ${
+									changedFiles === 1 ? "file" : "files"
+								}`;
 								const isArchivingThisChat =
 									isArchiving && archivingChatId === chat.id;
 
@@ -194,6 +211,30 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														>
 															{subtitle}
 														</div>
+														{hasLinkedDiffStatus && (
+															<div className="flex min-w-0 justify-end">
+																<div
+																	className="inline-flex max-w-full items-center gap-1 rounded border border-border-default/80 bg-surface-tertiary/30 px-1.5 py-0.5 text-[10px] leading-none text-content-secondary tabular-nums"
+																	title={hasLineStats
+																		? `${filesChangedLabel}, +${additions} -${deletions}`
+																		: filesChangedLabel}
+																>
+																	<span className="truncate">
+																		{filesChangedLabel}
+																	</span>
+																	{hasLineStats && (
+																		<>
+																			<span className="text-content-success">
+																				+{additions}
+																			</span>
+																			<span className="text-content-destructive">
+																				-{deletions}
+																			</span>
+																		</>
+																	)}
+																</div>
+															</div>
+														)}
 													</div>
 												</>
 											)}

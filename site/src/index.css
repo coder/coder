@@ -128,11 +128,6 @@
 		margin-right: 0;
 	}
 
-	/* Prevent layout shift when modals open by maintaining scrollbar width */
-	html {
-		scrollbar-gutter: stable;
-	}
-
 	/*
 	  This is a temporary fix for MUI Modals/Popovers until they are removed.
 	  When html has scrollbar-gutter: stable, the browser reserves space for the scrollbar.
