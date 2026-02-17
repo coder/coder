@@ -39,6 +39,7 @@ import { useAuthenticated } from "hooks";
 import {
 	ChevronDownIcon,
 	Loader2Icon,
+	MonitorIcon,
 	SendIcon,
 	Settings2Icon,
 	SlidersHorizontalIcon,
@@ -357,16 +358,11 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		isModelCatalogLoading,
 		Boolean(modelCatalogError),
 	);
-	const isCreatingWorkspace = isCreating && selectedWorkspaceId === null;
-	const submitStatusText = isCreatingWorkspace
-		? "Starting agent. Workspace can be auto-created by AI tools."
-		: isCreating
-			? "Starting agent..."
-			: hasModelOptions
-				? "Press Enter to send"
-				: hasConfiguredModels
-					? "Models are configured but unavailable. Ask an admin."
-					: "No models configured. Ask an admin.";
+	const inputStatusText = hasModelOptions
+		? null
+		: hasConfiguredModels
+			? "Models are configured but unavailable. Ask an admin."
+			: "No models configured. Ask an admin.";
 
 	useEffect(() => {
 		if (typeof window === "undefined") {
@@ -428,88 +424,93 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 	};
 
+	const selectedWorkspaceName = selectedWorkspaceId
+		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)?.name
+		: null;
+
 	return (
-		<div className="flex h-full min-h-0 flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
-			<div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+		<div className="relative flex h-full min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6 lg:p-8">
+			{hasAdminControls && (
+				<div className="absolute right-4 top-4 z-10">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="outline"
+								disabled={isCreating}
+								className="gap-2 px-4 py-2"
+							>
+								<Settings2Icon className="h-4 w-4" />
+								Admin Settings
+								<ChevronDownIcon className="h-4 w-4 text-content-secondary" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							{canSetSystemPrompt && (
+								<DropdownMenuItem
+									onSelect={(event) => {
+										event.preventDefault();
+										setSystemPromptDialogOpen(true);
+									}}
+								>
+									<SlidersHorizontalIcon className="h-3.5 w-3.5" />
+									System prompt
+								</DropdownMenuItem>
+							)}
+							{canManageChatModelConfigs && (
+								<DropdownMenuItem
+									onSelect={(event) => {
+										event.preventDefault();
+										setModelConfigDialogOpen(true);
+									}}
+								>
+									<Settings2Icon className="h-3.5 w-3.5" />
+									Model config
+								</DropdownMenuItem>
+							)}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+			)}
+
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? <ErrorAlert error={createError} /> : null}
 				{workspacesQuery.isError && <ErrorAlert error={workspacesQuery.error} />}
 
-				<div className="flex items-start justify-between gap-3">
-					<div>
-						<div className="text-sm font-medium text-content-primary">
-							Start a new agent
-						</div>
-						<div className="text-xs text-content-secondary">
-							Choose settings, then send your first message.
-						</div>
-					</div>
-					{hasAdminControls && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									size="sm"
-									variant="outline"
-									disabled={isCreating}
-									className="shrink-0 gap-1.5"
-								>
-									<Settings2Icon className="h-3.5 w-3.5" />
-									Admin
-									<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								{canSetSystemPrompt && (
-									<DropdownMenuItem
-										onSelect={(event) => {
-											event.preventDefault();
-											setSystemPromptDialogOpen(true);
-										}}
-									>
-										<SlidersHorizontalIcon className="h-3.5 w-3.5" />
-										System prompt
-									</DropdownMenuItem>
-								)}
-								{canManageChatModelConfigs && (
-									<DropdownMenuItem
-										onSelect={(event) => {
-											event.preventDefault();
-											setModelConfigDialogOpen(true);
-										}}
-									>
-										<Settings2Icon className="h-3.5 w-3.5" />
-										Model config
-									</DropdownMenuItem>
-								)}
-							</DropdownMenuContent>
-						</DropdownMenu>
-					)}
-				</div>
-
-				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-4 shadow-sm">
-					<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-						<span className="text-xs font-medium text-content-primary">
-							Session settings
-						</span>
-					</div>
-
-					<div className="grid gap-3">
-						<label className="flex flex-col gap-1 text-xs text-content-secondary">
-							<span className="font-medium text-content-primary">Workspace</span>
+				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
+					<TextareaAutosize
+						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						placeholder="Ask Coder to build, fix bugs, or explore your project..."
+						value={input}
+						onChange={(e) => setInput(e.target.value)}
+						onKeyDown={handleKeyDown}
+						disabled={isCreating || !hasModelOptions}
+						minRows={4}
+					/>
+					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+						<div className="flex min-w-0 items-center gap-2">
+							<ModelSelector
+								value={selectedModel}
+								onValueChange={setSelectedModel}
+								options={modelOptions}
+								disabled={isCreating}
+								placeholder={modelSelectorPlaceholder}
+								formatProviderLabel={formatProviderLabel}
+								dropdownSide="top"
+								dropdownAlign="start"
+								className="h-8 w-auto justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent"
+							/>
 							<Select
 								value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
 								onValueChange={handleWorkspaceChange}
 								disabled={isCreating || workspacesQuery.isLoading}
 							>
-								<SelectTrigger className="h-9 rounded-lg text-xs">
-									<SelectValue
-										placeholder={
-											workspacesQuery.isLoading
-												? "Loading workspaces..."
-												: "Auto-create Workspace"
-										}
-									/>
+								<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent">
+									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+									<SelectValue>
+										{selectedWorkspaceName ?? "Workspace"}
+									</SelectValue>
 								</SelectTrigger>
-								<SelectContent>
+								<SelectContent side="top">
 									<SelectItem value={autoCreateWorkspaceValue}>
 										Auto-create Workspace
 									</SelectItem>
@@ -526,61 +527,39 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 										)}
 								</SelectContent>
 							</Select>
-						</label>
+							{inputStatusText && (
+								<span className="hidden text-xs text-content-secondary sm:inline">
+									{inputStatusText}
+								</span>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							<Button
+								size="icon"
+								variant="default"
+								className="rounded-full"
+								onClick={() => void handleSubmit()}
+								disabled={isCreating || !hasModelOptions || !input.trim()}
+							>
+								{isCreating ? (
+									<Loader2Icon className="animate-spin" />
+								) : (
+									<SendIcon />
+								)}
+								<span className="sr-only">Send</span>
+							</Button>
+						</div>
 					</div>
-
+					{inputStatusText && (
+						<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
+							{inputStatusText}
+						</div>
+					)}
 					{modelCatalogStatusMessage && (
-						<div className="mt-2 text-2xs text-content-secondary">
+						<div className="px-2.5 pb-1 text-2xs text-content-secondary">
 							{modelCatalogStatusMessage}
 						</div>
 					)}
-				</div>
-
-				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2.5 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
-					<TextareaAutosize
-						className="min-h-[170px] w-full resize-none rounded-xl border border-border-default/70 bg-surface-primary px-3 py-2 font-sans text-[15px] leading-6 text-content-primary shadow-sm placeholder:text-content-secondary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
-						placeholder="Ask Coder to build, fix bugs, or explore your project..."
-						value={input}
-						onChange={(e) => setInput(e.target.value)}
-						onKeyDown={handleKeyDown}
-						disabled={isCreating}
-						minRows={5}
-					/>
-					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-						<div className="flex min-w-0 items-center gap-2">
-							<ModelSelector
-								value={selectedModel}
-								onValueChange={setSelectedModel}
-								options={modelOptions}
-								disabled={isCreating}
-								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
-								dropdownSide="top"
-								dropdownAlign="start"
-								className="h-8 w-[220px] max-w-[65vw] justify-start rounded-lg bg-surface-secondary/60 text-xs"
-							/>
-							<span className="hidden text-xs text-content-secondary sm:inline">
-								{submitStatusText}
-							</span>
-						</div>
-						<Button
-							size="icon"
-							variant="default"
-							onClick={() => void handleSubmit()}
-							disabled={isCreating || !hasModelOptions || !input.trim()}
-							className="shadow-sm"
-						>
-							{isCreating ? (
-								<Loader2Icon className="animate-spin" />
-							) : (
-								<SendIcon />
-							)}
-							<span className="sr-only">Send</span>
-						</Button>
-					</div>
-					<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-						{submitStatusText}
-					</div>
 				</div>
 			</div>
 

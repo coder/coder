@@ -9,18 +9,19 @@ import { cn } from "utils/cn";
 interface ScrollAreaProps
 	extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
 	scrollBarClassName?: string;
+	viewportClassName?: string;
 }
 
 export const ScrollArea = React.forwardRef<
 	React.ElementRef<typeof ScrollAreaPrimitive.Root>,
 	ScrollAreaProps
->(({ className, scrollBarClassName, children, ...props }, ref) => (
+>(({ className, scrollBarClassName, viewportClassName, children, ...props }, ref) => (
 	<ScrollAreaPrimitive.Root
 		ref={ref}
 		className={cn("relative overflow-hidden", className)}
 		{...props}
 	>
-		<ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+		<ScrollAreaPrimitive.Viewport className={cn("h-full w-full rounded-[inherit]", viewportClassName)}>
 			{children}
 		</ScrollAreaPrimitive.Viewport>
 		<ScrollBar className={cn("z-10", scrollBarClassName)} />

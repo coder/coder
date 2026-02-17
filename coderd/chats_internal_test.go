@@ -1,12 +1,16 @@
 package coderd
 
 import (
+	"database/sql"
 	"net/http"
 	"regexp"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/codersdk"
@@ -65,6 +69,53 @@ func TestResolveExternalAuthProviderType(t *testing.T) {
 
 	provider = api.resolveExternalAuthProviderType("https://gitlab.com/coder/coder")
 	require.Empty(t, provider)
+}
+
+func TestShouldRefreshChatDiffStatus(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	freshStatus := database.ChatDiffStatus{
+		RefreshedAt: sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+		StaleAt:     now.Add(time.Minute),
+	}
+	staleStatus := database.ChatDiffStatus{
+		RefreshedAt: sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+		StaleAt:     now.Add(-time.Second),
+	}
+
+	require.False(t, shouldRefreshChatDiffStatus(freshStatus, now, false))
+	require.True(t, shouldRefreshChatDiffStatus(staleStatus, now, false))
+	require.True(t, shouldRefreshChatDiffStatus(freshStatus, now, true))
+	require.True(t, shouldRefreshChatDiffStatus(database.ChatDiffStatus{}, now, false))
+}
+
+func TestFilterChatsByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.New()
+	otherWorkspaceID := uuid.New()
+
+	matchingChat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+	}
+	otherWorkspaceChat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: otherWorkspaceID, Valid: true},
+	}
+	noWorkspaceChat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{},
+	}
+
+	filtered := filterChatsByWorkspaceID(
+		[]database.Chat{matchingChat, otherWorkspaceChat, noWorkspaceChat},
+		workspaceID,
+	)
+
+	require.Len(t, filtered, 1)
+	require.Equal(t, matchingChat.ID, filtered[0].ID)
 }
 
 func TestChatWorkspaceAuditStatus(t *testing.T) {

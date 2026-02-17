@@ -1996,6 +1996,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	api.triggerWorkspaceChatDiffStatusRefresh(workspace)
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
@@ -2069,6 +2070,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			})
 			return
 		}
+		api.triggerWorkspaceChatDiffStatusRefresh(workspace)
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}

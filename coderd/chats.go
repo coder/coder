@@ -37,16 +37,14 @@ import (
 )
 
 const (
-	chatDiffStatusTTL               = 5 * time.Minute
-	chatRepositoryRefResolveTimeout = 8 * time.Second
-	githubAPIBaseURL                = "https://api.github.com"
-	chatGitReferenceCommand         = `sh -lc 'branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; origin="$(git config --get remote.origin.url 2>/dev/null || true)"; if [ -n "$branch" ] && [ -n "$origin" ]; then printf "%s\n%s\n" "$branch" "$origin"; fi'`
+	chatDiffStatusTTL                = 5 * time.Minute
+	chatDiffBackgroundRefreshTimeout = 20 * time.Second
+	chatRepositoryRefResolveTimeout  = 8 * time.Second
+	githubAPIBaseURL                 = "https://api.github.com"
+	chatGitReferenceCommand          = `sh -lc 'branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; origin="$(git config --get remote.origin.url 2>/dev/null || true)"; if [ -n "$branch" ] && [ -n "$origin" ]; then printf "%s\n%s\n" "$branch" "$origin"; fi'`
 )
 
 var (
-	githubPullRequestURLPattern = regexp.MustCompile(
-		`https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+(?:[/?#][^\s"'<>)]*)?`,
-	)
 	githubPullRequestPathPattern = regexp.MustCompile(
 		`^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)(?:[/?#].*)?$`,
 	)
@@ -834,10 +832,20 @@ func (api *API) resolveChatDiffStatus(
 	ctx context.Context,
 	chat database.Chat,
 ) (*database.ChatDiffStatus, error) {
+	return api.resolveChatDiffStatusWithOptions(ctx, chat, false)
+}
+
+func (api *API) resolveChatDiffStatusWithOptions(
+	ctx context.Context,
+	chat database.Chat,
+	forceRefresh bool,
+) (*database.ChatDiffStatus, error) {
 	status, found, err := api.getCachedChatDiffStatus(ctx, chat.ID)
 	if err != nil {
 		return nil, err
 	}
+
+	now := time.Now().UTC()
 
 	reference, err := api.resolveChatDiffReference(ctx, chat, found, status)
 	if err != nil {
@@ -845,7 +853,7 @@ func (api *API) resolveChatDiffStatus(
 	}
 	if reference.PullRequestURL != "" {
 		if !found || !strings.EqualFold(strings.TrimSpace(status.GithubPrUrl.String), reference.PullRequestURL) {
-			status, err = api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, time.Now().UTC().Add(-time.Second))
+			status, err = api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(-time.Second))
 			if err != nil {
 				return nil, err
 			}
@@ -859,7 +867,7 @@ func (api *API) resolveChatDiffStatus(
 	if reference.PullRequestURL == "" {
 		return &status, nil
 	}
-	if !chatDiffStatusIsStale(status, time.Now().UTC()) {
+	if !shouldRefreshChatDiffStatus(status, now, forceRefresh) {
 		return &status, nil
 	}
 
@@ -879,7 +887,7 @@ func (api *API) resolveChatDiffStatus(
 		slog.Error(err),
 	)
 
-	backoffStatus, backoffErr := api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, time.Now().UTC().Add(chatDiffStatusTTL))
+	backoffStatus, backoffErr := api.upsertChatDiffStatusReference(ctx, chat.ID, reference.PullRequestURL, now.Add(chatDiffStatusTTL))
 	if backoffErr != nil {
 		api.Logger.Warn(ctx, "failed to extend chat diff status stale timestamp",
 			slog.F("chat_id", chat.ID),
@@ -889,6 +897,77 @@ func (api *API) resolveChatDiffStatus(
 	}
 
 	return &backoffStatus, nil
+}
+
+func shouldRefreshChatDiffStatus(status database.ChatDiffStatus, now time.Time, forceRefresh bool) bool {
+	if forceRefresh {
+		return true
+	}
+	return chatDiffStatusIsStale(status, now)
+}
+
+func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspace) {
+	if workspace.ID == uuid.Nil || workspace.OwnerID == uuid.Nil {
+		return
+	}
+
+	go func(workspaceID, workspaceOwnerID uuid.UUID) {
+		ctx := api.ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx = dbauthz.AsSystemRestricted(ctx)
+
+		chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to list workspace owner chats for diff refresh",
+				slog.F("workspace_id", workspaceID),
+				slog.F("workspace_owner_id", workspaceOwnerID),
+				slog.Error(err),
+			)
+			return
+		}
+
+		for _, chat := range filterChatsByWorkspaceID(chats, workspaceID) {
+			refreshCtx, cancel := context.WithTimeout(ctx, chatDiffBackgroundRefreshTimeout)
+			_, err := api.resolveChatDiffStatusWithOptions(refreshCtx, chat, true)
+			cancel()
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to refresh chat diff status after workspace external auth",
+					slog.F("workspace_id", workspaceID),
+					slog.F("chat_id", chat.ID),
+					slog.Error(err),
+				)
+			}
+
+			api.publishChatStatusEvent(chat)
+		}
+	}(workspace.ID, workspace.OwnerID)
+}
+
+func filterChatsByWorkspaceID(chats []database.Chat, workspaceID uuid.UUID) []database.Chat {
+	filteredChats := make([]database.Chat, 0, len(chats))
+	for _, chat := range chats {
+		if !chat.WorkspaceID.Valid || chat.WorkspaceID.UUID != workspaceID {
+			continue
+		}
+		filteredChats = append(filteredChats, chat)
+	}
+	return filteredChats
+}
+
+func (api *API) publishChatStatusEvent(chat database.Chat) {
+	if api.chatStreamManager == nil {
+		return
+	}
+
+	api.chatStreamManager.Publish(chat.ID, codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeStatus,
+		ChatID: chat.ID,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatus(chat.Status),
+		},
+	})
 }
 
 func (api *API) resolveChatDiffContents(
@@ -982,13 +1061,6 @@ func (api *API) resolveChatDiffReference(
 		reference.RepositoryRef = repoRef
 	}
 
-	if reference.PullRequestURL == "" {
-		reference.PullRequestURL, err = api.detectChatPullRequestURL(ctx, chat.ID)
-		if err != nil {
-			return chatDiffReference{}, err
-		}
-	}
-
 	if reference.PullRequestURL == "" &&
 		reference.RepositoryRef != nil &&
 		strings.EqualFold(reference.RepositoryRef.Provider, string(codersdk.EnhancedExternalAuthProviderGitHub)) {
@@ -1060,32 +1132,6 @@ func (api *API) getCachedChatDiffStatus(
 		"get chat diff status: %w",
 		err,
 	)
-}
-
-func (api *API) detectChatPullRequestURL(
-	ctx context.Context,
-	chatID uuid.UUID,
-) (string, error) {
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
-	if err != nil {
-		return "", xerrors.Errorf("get chat messages: %w", err)
-	}
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		message := messages[i]
-		if message.Content.Valid {
-			if candidate := extractGitHubPullRequestURLFromRawJSON(message.Content.RawMessage); candidate != "" {
-				return candidate, nil
-			}
-		}
-		if message.Thinking.Valid {
-			if candidate := findGitHubPullRequestURLInString(message.Thinking.String); candidate != "" {
-				return candidate, nil
-			}
-		}
-	}
-
-	return "", nil
 }
 
 func (api *API) detectChatRepositoryRef(
@@ -1675,46 +1721,6 @@ func hasOutstandingGitHubChangesRequested(
 		}
 	}
 	return false
-}
-
-func extractGitHubPullRequestURLFromRawJSON(raw json.RawMessage) string {
-	var decoded any
-	if err := json.Unmarshal(raw, &decoded); err == nil {
-		if candidate := findGitHubPullRequestURLInValue(decoded); candidate != "" {
-			return candidate
-		}
-	}
-	return findGitHubPullRequestURLInString(string(raw))
-}
-
-func findGitHubPullRequestURLInValue(value any) string {
-	switch typed := value.(type) {
-	case string:
-		return findGitHubPullRequestURLInString(typed)
-	case []any:
-		for i := len(typed) - 1; i >= 0; i-- {
-			if candidate := findGitHubPullRequestURLInValue(typed[i]); candidate != "" {
-				return candidate
-			}
-		}
-	case map[string]any:
-		for _, nested := range typed {
-			if candidate := findGitHubPullRequestURLInValue(nested); candidate != "" {
-				return candidate
-			}
-		}
-	}
-	return ""
-}
-
-func findGitHubPullRequestURLInString(value string) string {
-	matches := githubPullRequestURLPattern.FindAllString(value, -1)
-	for i := len(matches) - 1; i >= 0; i-- {
-		if normalized := normalizeGitHubPullRequestURL(matches[i]); normalized != "" {
-			return normalized
-		}
-	}
-	return ""
 }
 
 func normalizeGitHubPullRequestURL(raw string) string {

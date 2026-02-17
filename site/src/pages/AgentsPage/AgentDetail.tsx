@@ -6,7 +6,9 @@ import { type ChatDiffStatusResponse, watchChat } from "api/api";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
 	chat,
+	chatDiffContentsKey,
 	chatDiffStatus,
+	chatDiffStatusKey,
 	chatModels,
 	chatsKey,
 	createChatMessage,
@@ -15,7 +17,6 @@ import {
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Conversation,
 	ConversationItem,
@@ -350,13 +351,55 @@ const createEmptyStreamState = (): StreamState => ({
 	toolResults: {},
 });
 
+/**
+ * Collects all tool results across every message into a single
+ * lookup map keyed by tool call ID. This lets us match a tool
+ * call in one assistant message with its result that arrives in
+ * a later message.
+ */
+const buildGlobalToolResultMap = (
+	messages: TypesGen.ChatMessage[],
+): Map<string, ParsedToolResult> => {
+	const map = new Map<string, ParsedToolResult>();
+	for (const message of messages) {
+		const parsed =
+			Array.isArray(message.parts) && message.parts.length > 0
+				? parseMessageContent(message.parts)
+				: parseMessageContent(message.content);
+		for (const result of parsed.toolResults) {
+			map.set(result.id, result);
+		}
+	}
+	return map;
+};
+
 const parseChatMessageContent = (
 	message: TypesGen.ChatMessage,
+	globalToolResults: Map<string, ParsedToolResult>,
 ): ParsedMessageContent => {
-	const parsed = Array.isArray(message.parts) && message.parts.length > 0
-		? parseMessageContent(message.parts)
-		: parseMessageContent(message.content);
-	parsed.tools = mergeTools(parsed.toolCalls, parsed.toolResults);
+	const parsed =
+		Array.isArray(message.parts) && message.parts.length > 0
+			? parseMessageContent(message.parts)
+			: parseMessageContent(message.content);
+
+	// Merge using the global result map so tool calls find their
+	// results even when they arrive in a separate message.
+	const resultById = new Map<string, ParsedToolResult>();
+	for (const r of parsed.toolResults) {
+		resultById.set(r.id, r);
+	}
+	for (const call of parsed.toolCalls) {
+		if (!resultById.has(call.id)) {
+			const global = globalToolResults.get(call.id);
+			if (global) {
+				resultById.set(global.id, global);
+			}
+		}
+	}
+	parsed.tools = mergeTools(
+		parsed.toolCalls,
+		Array.from(resultById.values()),
+	);
 	return parsed;
 };
 
@@ -426,7 +469,6 @@ export const AgentDetail: FC = () => {
 		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
 	const clearChatErrorReason =
 		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
-	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const streamResetFrameRef = useRef<number | null>(null);
 
 	const chatQuery = useQuery({
@@ -672,30 +714,40 @@ export const AgentDetail: FC = () => {
 							return;
 					}
 				}
-				case "status": {
-					const status = asRecord(streamEvent.status);
-					const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
-					if (nextStatus) {
-						setChatStatus(nextStatus);
-						if (agentId && nextStatus !== "error") {
-							clearChatErrorReason(agentId);
+					case "status": {
+						const status = asRecord(streamEvent.status);
+						const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
+						if (nextStatus) {
+							setChatStatus(nextStatus);
+							if (agentId && nextStatus !== "error") {
+								clearChatErrorReason(agentId);
+							}
+							updateSidebarChat((chat) => ({
+								...chat,
+								status: nextStatus,
+								updated_at: new Date().toISOString(),
+							}));
+							const shouldRefreshQueries =
+								nextStatus === "completed" ||
+								nextStatus === "error" ||
+								nextStatus === "paused" ||
+								nextStatus === "waiting";
+							if (agentId && shouldRefreshQueries) {
+								void Promise.all([
+									queryClient.invalidateQueries({
+										queryKey: chatDiffStatusKey(agentId),
+									}),
+									queryClient.invalidateQueries({
+										queryKey: chatDiffContentsKey(agentId),
+									}),
+								]);
+							}
+							if (shouldRefreshQueries) {
+								void queryClient.invalidateQueries({ queryKey: chatsKey });
+							}
 						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: nextStatus,
-							updated_at: new Date().toISOString(),
-						}));
-						if (
-							nextStatus === "completed" ||
-							nextStatus === "error" ||
-							nextStatus === "paused" ||
-							nextStatus === "waiting"
-						) {
-							void queryClient.invalidateQueries({ queryKey: chatsKey });
-						}
+						return;
 					}
-					return;
-				}
 				case "error": {
 					const error = asRecord(streamEvent.error);
 					const reason =
@@ -849,10 +901,14 @@ export const AgentDetail: FC = () => {
 		return merged;
 	}, [streamState]);
 
-	// Scroll to bottom when messages or stream output changes.
-	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [messages, streamState]);
+	const visibleMessages = useMemo(
+		() => messages.filter((message) => !message.hidden),
+		[messages],
+	);
+	const globalToolResults = useMemo(
+		() => buildGlobalToolResultMap(visibleMessages),
+		[visibleMessages],
+	);
 
 	if (chatQuery.isLoading) {
 		return (
@@ -869,8 +925,6 @@ export const AgentDetail: FC = () => {
 			</div>
 		);
 	}
-
-	const visibleMessages = messages.filter((message) => !message.hidden);
 	const persistedErrorReason = agentId ? chatErrorReasons[agentId] : undefined;
 	const detailErrorMessage =
 		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
@@ -891,8 +945,9 @@ export const AgentDetail: FC = () => {
 					onToggle={() => setShowDiffPanel((prev) => !prev)}
 				/>
 			)}
-			<ScrollArea className="h-full">
-					<div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6">
+			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin]">
+				<div>
+					<div className="mx-auto w-full max-w-3xl py-6">
 						{visibleMessages.length === 0 && !hasStreamOutput ? (
 							<div className="py-12 text-center text-content-secondary">
 								<p className="text-sm">Start a conversation with your agent.</p>
@@ -900,8 +955,21 @@ export const AgentDetail: FC = () => {
 						) : (
 							<Conversation>
 								{visibleMessages.map((message) => {
-									const parsed = parseChatMessageContent(message);
+									const parsed = parseChatMessageContent(message, globalToolResults);
 									const isUser = message.role === "user";
+
+									// Skip messages that only carry tool results.
+									// Those results are now shown inline with the
+									// tool-call message they belong to.
+									if (
+										parsed.toolResults.length > 0 &&
+										parsed.toolCalls.length === 0 &&
+										parsed.markdown === "" &&
+										parsed.reasoning === ""
+									) {
+										return null;
+									}
+
 									const hasRenderableContent =
 										parsed.markdown !== "" ||
 										parsed.reasoning !== "" ||
@@ -989,11 +1057,10 @@ export const AgentDetail: FC = () => {
 								{detailErrorMessage}
 							</div>
 						)}
-						<div ref={messagesEndRef} />
 					</div>
 
-					<div className="sticky bottom-0 bg-gradient-to-t from-surface-primary from-70% to-transparent pt-6">
-						<div className="mx-auto w-full max-w-3xl px-4 py-4 md:px-6">
+					<div className="sticky bottom-0 z-50 bg-surface-primary">
+						<div className="mx-auto w-full max-w-3xl pb-4">
 							<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
 								<TextareaAutosize
 									className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
@@ -1061,7 +1128,8 @@ export const AgentDetail: FC = () => {
 							</div>
 						</div>
 					</div>
-				</ScrollArea>
+				</div>
+			</div>
 		</div>
 	);
 
