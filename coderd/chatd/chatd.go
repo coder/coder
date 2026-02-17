@@ -47,7 +47,7 @@ const (
 	toolExecute         = "execute"
 
 	defaultExecuteTimeout = 60 * time.Second
-	maxChatSteps          = 8
+	maxChatSteps          = 1200
 
 	defaultChatModel = "claude-opus-4-6"
 

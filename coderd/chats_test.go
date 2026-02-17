@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -15,6 +17,8 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -229,8 +233,18 @@ func TestChatDiffStatus(t *testing.T) {
 		}
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			Message: "Please review https://github.com/octocat/hello-world/pull/42",
+			Message: "Please review the latest changes.",
 		})
+		require.NoError(t, err)
+
+		_, err = api.Database.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:      chat.ID,
+				GithubPrUrl: sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
+				StaleAt:     time.Now().UTC().Add(-time.Minute),
+			},
+		)
 		require.NoError(t, err)
 
 		status, err := client.GetChatDiffStatus(ctx, chat.ID)
@@ -258,7 +272,7 @@ func TestChatDiffStatus(t *testing.T) {
 func TestChatDiffContents(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FromPullRequestURL", func(t *testing.T) {
+	t.Run("FromCachedPullRequestURL", func(t *testing.T) {
 		t.Parallel()
 		client, _, api := coderdtest.NewWithAPI(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -311,8 +325,18 @@ func TestChatDiffContents(t *testing.T) {
 		}
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			Message: "Please inspect https://github.com/octocat/hello-world/pull/42",
+			Message: "Please inspect the latest pull request.",
 		})
+		require.NoError(t, err)
+
+		_, err = api.Database.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:      chat.ID,
+				GithubPrUrl: sql.NullString{String: "https://github.com/octocat/hello-world/pull/42", Valid: true},
+				StaleAt:     time.Now().UTC().Add(-time.Minute),
+			},
+		)
 		require.NoError(t, err)
 
 		diff, err := client.GetChatDiffContents(ctx, chat.ID)
