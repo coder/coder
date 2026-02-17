@@ -1,18 +1,16 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # external-workspaces
 
-
 Create or manage external workspaces
 
-
-
-
 ## Usage
+
 ```console
 coder external-workspaces [flags] [subcommand]
 ```
 
 ## Subcommands
+
 | Name                                                                           | Purpose                                    |
 |--------------------------------------------------------------------------------|--------------------------------------------|
 | [<code>create</code>](./external-workspaces_create.md)                         | Create a new external workspace            |
@@ -20,8 +18,9 @@ coder external-workspaces [flags] [subcommand]
 | [<code>list</code>](./external-workspaces_list.md)                             | List external workspaces                   |
 
 ## Options
+
 ### -O, --org
- 
+
 |             |                                  |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |

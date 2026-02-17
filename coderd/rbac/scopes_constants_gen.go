@@ -28,6 +28,10 @@ const (
 	ScopeBoundaryUsageDelete                 ScopeName = "boundary_usage:delete"
 	ScopeBoundaryUsageRead                   ScopeName = "boundary_usage:read"
 	ScopeBoundaryUsageUpdate                 ScopeName = "boundary_usage:update"
+	ScopeChatCreate                          ScopeName = "chat:create"
+	ScopeChatDelete                          ScopeName = "chat:delete"
+	ScopeChatRead                            ScopeName = "chat:read"
+	ScopeChatUpdate                          ScopeName = "chat:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -186,6 +190,10 @@ func (e ScopeName) Valid() bool {
 		ScopeBoundaryUsageDelete,
 		ScopeBoundaryUsageRead,
 		ScopeBoundaryUsageUpdate,
+		ScopeChatCreate,
+		ScopeChatDelete,
+		ScopeChatRead,
+		ScopeChatUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -345,6 +353,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeBoundaryUsageDelete,
 		ScopeBoundaryUsageRead,
 		ScopeBoundaryUsageUpdate,
+		ScopeChatCreate,
+		ScopeChatDelete,
+		ScopeChatRead,
+		ScopeChatUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,

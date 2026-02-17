@@ -1,21 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # templates presets
 
-
 Manage presets of the specified template
 
-
-
-
 Aliases:
+
 * preset
 
 ## Usage
+
 ```console
 coder templates presets
 ```
 
 ## Description
+
 ```console
   - List presets for the active version of a template:
 
@@ -27,6 +26,7 @@ coder templates presets
 ```
 
 ## Subcommands
+
 | Name                                             | Purpose                                                                              |
 |--------------------------------------------------|--------------------------------------------------------------------------------------|
 | [<code>list</code>](./templates_presets_list.md) | List all presets of the specified template. Defaults to the active template version. |

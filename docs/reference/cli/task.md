@@ -1,21 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # task
 
-
 Manage tasks
 
-
-
-
 Aliases:
+
 * tasks
 
 ## Usage
+
 ```console
 coder task
 ```
 
 ## Subcommands
+
 | Name                                    | Purpose                    |
 |-----------------------------------------|----------------------------|
 | [<code>create</code>](./task_create.md) | Create a task              |

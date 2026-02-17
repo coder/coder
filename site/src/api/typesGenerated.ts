@@ -134,7 +134,6 @@ export interface AIBridgeUserPrompt {
 export interface AIChatConfig {
 	readonly system_prompt: string;
 	readonly title_generation_prompt: string;
-	readonly title_generation_model: string;
 }
 
 // From codersdk/deployment.go
