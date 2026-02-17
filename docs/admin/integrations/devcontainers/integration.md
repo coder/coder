@@ -1,13 +1,14 @@
 # Configure a template for Dev Containers
 
-This guide covers the Dev Containers Integration, which uses Docker. For
+This guide covers the Dev Containers CLI Integration, which uses Docker. For
 environments without Docker, see [Envbuilder](./envbuilder/index.md) as an
 alternative.
 
-To enable Dev Containers in workspaces, configure your template with the Dev Containers
-modules and configurations outlined in this doc.
+To enable Dev Containers in workspaces, configure your template with the [`devcontainers-cli`](https://registry.coder.com/modules/coder/devcontainers-cli)
+module and configurations outlined in this doc.
 
-Dev Containers are currently not supported in Windows or macOS workspaces.
+> [!WARNING]
+> Dev Containers are currently not supported in Windows or macOS workspaces.
 
 ## Configuration Modes
 
@@ -16,7 +17,7 @@ There are two approaches to configuring Dev Containers in Coder:
 ### Manual Configuration
 
 Use the [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) Terraform resource to explicitly define which Dev
-Containers should be started in your workspace. This approach provides:
+Container(s) should be started in your workspace. This approach provides:
 
 - Predictable behavior and explicit control
 - Clear template configuration
@@ -38,7 +39,7 @@ or work with many projects, as it reduces template maintenance overhead.
 
 Use the
 [devcontainers-cli](https://registry.coder.com/modules/devcontainers-cli) module
-to ensure the `@devcontainers/cli` is installed in your workspace:
+to ensure that the `@devcontainers/cli` NPM package is installed in your workspace:
 
 ```terraform
 module "devcontainers-cli" {
@@ -54,7 +55,7 @@ Alternatively, install the devcontainer CLI manually in your base image.
 
 The
 [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer)
-resource automatically starts a Dev Container in your workspace, ensuring it's
+resource automatically starts a specific Dev Container in your workspace, ensuring it's
 ready when you access the workspace:
 
 ```terraform
@@ -74,9 +75,9 @@ For multi-repo workspaces, define multiple `coder_devcontainer` resources, each
 pointing to a different repository. Each one runs as a separate sub-agent with
 its own terminal and apps in the dashboard.
 
-## Enable Dev Containers Integration
+## Enable Dev Containers CLI Integration
 
-Dev Containers integration is **enabled by default** in Coder 2.24.0 and later.
+The Dev Containers CLI Integration is **enabled by default** in Coder 2.24.0 and later.
 You don't need to set any environment variables unless you want to change the
 default behavior.
 
@@ -110,7 +111,7 @@ the feature.
 
 **Default: `true`** • **Added in: v2.24.0**
 
-Enables the Dev Containers integration in the Coder agent.
+Enables the Dev Containers CLI Integration in the Coder agent.
 
 The Dev Containers feature is enabled by default. You can explicitly disable it
 by setting this to `false`.
@@ -160,6 +161,8 @@ always auto-start regardless of this setting.
 > [dev container features](../../../user-guides/devcontainers/working-with-dev-containers.md#dev-container-features).
 > For Coder-specific apps, use the
 > [`apps` customization](../../../user-guides/devcontainers/customizing-dev-containers.md#custom-apps).
+>
+> If you really need modules, look into [other Dev Container options](./index.md#Comparison)
 
 Developers can customize individual dev containers using the `customizations.coder`
 block in their `devcontainer.json` file. Available options include:
@@ -174,7 +177,7 @@ block in their `devcontainer.json` file. Available options include:
 For the full reference, see
 [Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md).
 
-## Complete Template Example
+## Simplified Template Example
 
 Here's a simplified template example that uses Dev Containers with manual
 configuration:
@@ -216,8 +219,9 @@ resource "coder_devcontainer" "my-repository" {
 ### Alternative: Project Discovery with Autostart
 
 By default, discovered containers appear in the dashboard but developers must
-manually start them. To have them start automatically, enable autostart:
+manually start them. To have them start automatically, enable autostart by setting the `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE` environment to `true` within the workspace.
 
+For example, with a Docker-based template:
 ```terraform
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
@@ -236,24 +240,24 @@ With autostart enabled:
 
 - Discovered containers automatically build and start during workspace
   initialization
-- The `coder_devcontainer` resource is not required
+- The [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) resource is not required
 - Developers can work with multiple projects seamlessly
 
 > [!NOTE]
 >
-> When using project discovery, you still need to install the devcontainers CLI
+> When using project discovery, you still need to install the `devcontainer` CLI
 > using the module or in your base image.
 
 ## Example Template
 
 The [Docker (Dev Containers)](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)
-starter template demonstrates Dev Containers integration using Docker-in-Docker.
-It includes the `devcontainers-cli` module, `git-clone` module, and the
-`coder_devcontainer` resource.
+starter template demonstrates the Dev Containers CLI Integration using Docker-in-Docker.
+It includes the [`devcontainers-cli`](https://registry.coder.com/modules/coder/devcontainers-cli) module, [`git-clone`](https://registry.coder.com/modules/git-clone) module, and the
+[`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) resource.
 
 ## Next Steps
 
-- [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
+- [Dev Containers CLI Integration user guide](../../../user-guides/devcontainers/index.md)
 - [Customizing Dev Containers](../../../user-guides/devcontainers/customizing-dev-containers.md)
 - [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
 - [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)

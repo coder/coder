@@ -19,10 +19,10 @@ your infrastructure and workflow requirements.
 
 ## Comparison
 
-| Feature                            | Dev Container CLI                                      | Envbuilder                            | CI/CD Pre-built                                           |
+| Method                            | Dev Container CLI                                      | Envbuilder                            | CI/CD Pre-built                                           |
 |------------------------------------|--------------------------------------------------------|---------------------------------------|-----------------------------------------------------------|
-| **Official MS Support**            | ✅ Yes                                                  | ❌ No                                  | ✅ Yes                                                     |
-| **Full DevContainer Spec Support** | ✅ All options                                          | ❌ Limited options                     | \~ Most options                                           |
+| **Standard Dev Container implementation**            | ✅ Yes                                                  | ❌ No                                  | ✅ Yes                                                     |
+| **Full Dev Container Spec Support** | ✅ All options                                          | ❌ Limited options                     | \~ Most options                                           |
 | **Startup Time**                   | Build at runtime, faster with caching                  | Build at runtime, faster with caching | Fast (pre-built)                                          |
 | **Docker Required**                | ❌ Yes                                                  | ✅ No                                  | ✅ No                                                      |
 | **Caching**                        | More difficult                                         | ✅ Yes                                 | ✅ Yes                                                     |
