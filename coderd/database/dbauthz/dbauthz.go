@@ -6423,6 +6423,27 @@ func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUI
 	return q.db.GetChatDiffStatusByChatID(ctx, chatID)
 }
 
+func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]database.ChatDiffStatus, error) {
+	if len(chatIDs) == 0 {
+		return []database.ChatDiffStatus{}, nil
+	}
+
+	actor, ok := ActorFromContext(ctx)
+	if ok && actor.Type == rbac.SubjectTypeSystemRestricted {
+		return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
+	}
+
+	for _, chatID := range chatIDs {
+		// Authorize read on each parent chat.
+		_, err := q.GetChatByID(ctx, chatID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
+}
+
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	// ChatMessages are authorized through their parent Chat.
 	// We need to fetch the message first to get its chat_id.

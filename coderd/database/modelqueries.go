@@ -62,6 +62,7 @@ type chatQuerier interface {
 	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
+	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]ChatDiffStatus, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error)

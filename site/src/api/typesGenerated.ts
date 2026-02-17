@@ -594,6 +594,7 @@ export interface Chat {
     readonly workspace_agent_id?: string;
     readonly title: string;
     readonly status: ChatStatus;
+    readonly diff_status?: ChatDiffStatus;
     readonly model_config?: Record<string, string>;
     readonly created_at: string;
     readonly updated_at: string;

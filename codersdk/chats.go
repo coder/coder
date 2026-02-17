@@ -30,6 +30,7 @@ type Chat struct {
 	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
 	Title            string          `json:"title"`
 	Status           ChatStatus      `json:"status"`
+	DiffStatus       *ChatDiffStatus `json:"diff_status,omitempty"`
 	ModelConfig      json.RawMessage `json:"model_config,omitempty"`
 	CreatedAt        time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt        time.Time       `json:"updated_at" format:"date-time"`

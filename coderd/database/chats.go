@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -432,6 +433,52 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
+SELECT chat_id, github_pr_url, pull_request_state, pull_request_open, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at
+FROM chat_diff_statuses
+WHERE chat_id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]ChatDiffStatus, error) {
+	if len(chatIDs) == 0 {
+		return []ChatDiffStatus{}, nil
+	}
+
+	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatIDs, pq.Array(chatIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatDiffStatus
+	for rows.Next() {
+		var i ChatDiffStatus
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.GithubPrUrl,
+			&i.PullRequestState,
+			&i.PullRequestOpen,
+			&i.ChangesRequested,
+			&i.Additions,
+			&i.Deletions,
+			&i.ChangedFiles,
+			&i.RefreshedAt,
+			&i.StaleAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertChatDiffStatusReference = `-- name: UpsertChatDiffStatusReference :one

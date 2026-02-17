@@ -42,6 +42,14 @@ const (
 	chatRepositoryRefResolveTimeout  = 8 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
 	chatGitReferenceCommandBody      = `branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; origin="$(git config --get remote.origin.url 2>/dev/null || true)"; if [ -n "$branch" ] && [ -n "$origin" ]; then printf "%s\n%s\n" "$branch" "$origin"; fi`
+
+	// chatDiffRefreshInitialDelay is the delay before the first background
+	// diff refresh attempt. This gives the agent time to complete its git
+	// push and any PR creation before we query the GitHub API.
+	chatDiffRefreshInitialDelay = 10 * time.Second
+	// chatDiffRefreshRetryDelay is the delay before a retry attempt when
+	// the first refresh didn't find a PR (e.g. slower CI/PR workflows).
+	chatDiffRefreshRetryDelay = 20 * time.Second
 )
 
 type chatWorkingDirectoryContextKey struct{}
@@ -134,7 +142,41 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChats(chats))
+	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, chats)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chats.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertChats(chats, diffStatusesByChatID))
+}
+
+func (api *API) getChatDiffStatusesByChatID(
+	ctx context.Context,
+	chats []database.Chat,
+) (map[uuid.UUID]database.ChatDiffStatus, error) {
+	if len(chats) == 0 {
+		return map[uuid.UUID]database.ChatDiffStatus{}, nil
+	}
+
+	chatIDs := make([]uuid.UUID, 0, len(chats))
+	for _, chat := range chats {
+		chatIDs = append(chatIDs, chat.ID)
+	}
+
+	statuses, err := api.Database.GetChatDiffStatusesByChatIDs(dbauthz.AsSystemRestricted(ctx), chatIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat diff statuses: %w", err)
+	}
+
+	statusesByChatID := make(map[uuid.UUID]database.ChatDiffStatus, len(statuses))
+	for _, status := range statuses {
+		statusesByChatID[status.ChatID] = status
+	}
+	return statusesByChatID, nil
 }
 
 // @Summary Create a chat
@@ -288,7 +330,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
 }
 
 // @Summary List chat models
@@ -363,7 +405,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWithMessages{
-		Chat:     convertChat(chat),
+		Chat:     convertChat(chat, nil),
 		Messages: convertChatMessages(messages),
 	})
 }
@@ -663,7 +705,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
 }
 
 // @Summary Get diff status for a chat
@@ -953,31 +995,61 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, works
 			ctx = contextWithChatWorkingDirectory(ctx, workingDirectory)
 		}
 
-		chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
+		// Wait before the first attempt. This trigger fires when the
+		// agent obtains a GitHub token, which typically happens right
+		// before a git push or PR creation. Without the delay we'd
+		// query the GitHub API before the push has landed.
+		initialTimer := api.Clock.NewTimer(chatDiffRefreshInitialDelay, "chat_diff_refresh_initial")
+		defer initialTimer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-initialTimer.C:
+		}
+
+		api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID)
+
+		// Retry once after an additional delay to cover slower
+		// workflows (e.g. CI-triggered PR creation).
+		retryTimer := api.Clock.NewTimer(chatDiffRefreshRetryDelay, "chat_diff_refresh_retry")
+		defer retryTimer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-retryTimer.C:
+		}
+
+		api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID)
+	}(workspace.ID, workspace.OwnerID, workingDirectory)
+}
+
+// refreshWorkspaceChatDiffStatuses refreshes the diff status for all
+// chats associated with the given workspace.
+func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID) {
+	chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to list workspace owner chats for diff refresh",
+			slog.F("workspace_id", workspaceID),
+			slog.F("workspace_owner_id", workspaceOwnerID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	for _, chat := range filterChatsByWorkspaceID(chats, workspaceID) {
+		refreshCtx, cancel := context.WithTimeout(ctx, chatDiffBackgroundRefreshTimeout)
+		_, err := api.resolveChatDiffStatusWithOptions(refreshCtx, chat, true)
+		cancel()
 		if err != nil {
-			api.Logger.Warn(ctx, "failed to list workspace owner chats for diff refresh",
+			api.Logger.Warn(ctx, "failed to refresh chat diff status after workspace external auth",
 				slog.F("workspace_id", workspaceID),
-				slog.F("workspace_owner_id", workspaceOwnerID),
+				slog.F("chat_id", chat.ID),
 				slog.Error(err),
 			)
-			return
 		}
 
-		for _, chat := range filterChatsByWorkspaceID(chats, workspaceID) {
-			refreshCtx, cancel := context.WithTimeout(ctx, chatDiffBackgroundRefreshTimeout)
-			_, err := api.resolveChatDiffStatusWithOptions(refreshCtx, chat, true)
-			cancel()
-			if err != nil {
-				api.Logger.Warn(ctx, "failed to refresh chat diff status after workspace external auth",
-					slog.F("workspace_id", workspaceID),
-					slog.F("chat_id", chat.ID),
-					slog.Error(err),
-				)
-			}
-
-			api.publishChatStatusEvent(chat)
-		}
-	}(workspace.ID, workspace.OwnerID, workingDirectory)
+		api.publishChatStatusEvent(chat)
+	}
 }
 
 func filterChatsByWorkspaceID(chats []database.Chat, workspaceID uuid.UUID) []database.Chat {
@@ -1901,7 +1973,7 @@ func chatTitleFromMessage(message string) string {
 	return chatd.TruncateRunes(title, maxRunes)
 }
 
-func convertChat(c database.Chat) codersdk.Chat {
+func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	chat := codersdk.Chat{
 		ID:          c.ID,
 		OwnerID:     c.OwnerID,
@@ -1917,13 +1989,27 @@ func convertChat(c database.Chat) codersdk.Chat {
 	if c.WorkspaceAgentID.Valid {
 		chat.WorkspaceAgentID = &c.WorkspaceAgentID.UUID
 	}
+	if diffStatus != nil {
+		convertedDiffStatus := convertChatDiffStatus(c.ID, diffStatus)
+		chat.DiffStatus = &convertedDiffStatus
+	}
 	return chat
 }
 
-func convertChats(chats []database.Chat) []codersdk.Chat {
+func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(chats))
 	for i, c := range chats {
-		result[i] = convertChat(c)
+		diffStatus, ok := diffStatusesByChatID[c.ID]
+		if ok {
+			result[i] = convertChat(c, &diffStatus)
+			continue
+		}
+
+		result[i] = convertChat(c, nil)
+		if diffStatusesByChatID != nil {
+			emptyDiffStatus := convertChatDiffStatus(c.ID, nil)
+			result[i].DiffStatus = &emptyDiffStatus
+		}
 	}
 	return result
 }

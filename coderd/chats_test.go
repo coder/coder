@@ -56,19 +56,69 @@ func TestChats(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, _, api := coderdtest.NewWithAPI(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Create two chats.
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Message: "Chat 1"})
+		chatWithStatus, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Message: "Chat 1"})
 		require.NoError(t, err)
-		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{Message: "Chat 2"})
+		chatWithoutStatus, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Message: "Chat 2"})
+		require.NoError(t, err)
+
+		_, err = api.Database.UpsertChatDiffStatus(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusParams{
+				ChatID:           chatWithStatus.ID,
+				GithubPrUrl:      sql.NullString{String: "https://github.com/octocat/hello-world/pull/99", Valid: true},
+				PullRequestState: "open",
+				PullRequestOpen:  true,
+				ChangesRequested: true,
+				Additions:        17,
+				Deletions:        4,
+				ChangedFiles:     3,
+				RefreshedAt:      time.Now().UTC(),
+				StaleAt:          time.Now().UTC().Add(time.Minute),
+			},
+		)
 		require.NoError(t, err)
 
 		chats, err := client.ListChats(ctx)
 		require.NoError(t, err)
 		require.Len(t, chats, 2)
+
+		chatsByID := make(map[uuid.UUID]codersdk.Chat, len(chats))
+		for _, chat := range chats {
+			require.NotNil(t, chat.DiffStatus)
+			require.Equal(t, chat.ID, chat.DiffStatus.ChatID)
+			chatsByID[chat.ID] = chat
+		}
+
+		withStatus, ok := chatsByID[chatWithStatus.ID]
+		require.True(t, ok)
+		require.NotNil(t, withStatus.DiffStatus.PullRequestURL)
+		require.Equal(t, "https://github.com/octocat/hello-world/pull/99", *withStatus.DiffStatus.PullRequestURL)
+		require.NotNil(t, withStatus.DiffStatus.PullRequestState)
+		require.Equal(t, "open", *withStatus.DiffStatus.PullRequestState)
+		require.True(t, withStatus.DiffStatus.PullRequestOpen)
+		require.True(t, withStatus.DiffStatus.ChangesRequested)
+		require.EqualValues(t, 17, withStatus.DiffStatus.Additions)
+		require.EqualValues(t, 4, withStatus.DiffStatus.Deletions)
+		require.EqualValues(t, 3, withStatus.DiffStatus.ChangedFiles)
+		require.NotNil(t, withStatus.DiffStatus.RefreshedAt)
+		require.NotNil(t, withStatus.DiffStatus.StaleAt)
+
+		withoutStatus, ok := chatsByID[chatWithoutStatus.ID]
+		require.True(t, ok)
+		require.Nil(t, withoutStatus.DiffStatus.PullRequestURL)
+		require.Nil(t, withoutStatus.DiffStatus.PullRequestState)
+		require.False(t, withoutStatus.DiffStatus.PullRequestOpen)
+		require.False(t, withoutStatus.DiffStatus.ChangesRequested)
+		require.EqualValues(t, 0, withoutStatus.DiffStatus.Additions)
+		require.EqualValues(t, 0, withoutStatus.DiffStatus.Deletions)
+		require.EqualValues(t, 0, withoutStatus.DiffStatus.ChangedFiles)
+		require.Nil(t, withoutStatus.DiffStatus.RefreshedAt)
+		require.Nil(t, withoutStatus.DiffStatus.StaleAt)
 	})
 
 	t.Run("Get", func(t *testing.T) {
