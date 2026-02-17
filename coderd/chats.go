@@ -42,15 +42,20 @@ const (
 	chatRepositoryRefResolveTimeout  = 8 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
 	chatGitReferenceCommandBody      = `branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; origin="$(git config --get remote.origin.url 2>/dev/null || true)"; if [ -n "$branch" ] && [ -n "$origin" ]; then printf "%s\n%s\n" "$branch" "$origin"; fi`
-
-	// chatDiffRefreshInitialDelay is the delay before the first background
-	// diff refresh attempt. This gives the agent time to complete its git
-	// push and any PR creation before we query the GitHub API.
-	chatDiffRefreshInitialDelay = 10 * time.Second
-	// chatDiffRefreshRetryDelay is the delay before a retry attempt when
-	// the first refresh didn't find a PR (e.g. slower CI/PR workflows).
-	chatDiffRefreshRetryDelay = 20 * time.Second
 )
+
+// chatDiffRefreshBackoffSchedule defines the delays between successive
+// background diff refresh attempts. The trigger fires when the agent
+// obtains a GitHub token, which is typically right before a git push
+// or PR creation. The backoff gives progressively more time for the
+// push and any PR workflow to complete before querying the GitHub API.
+var chatDiffRefreshBackoffSchedule = []time.Duration{
+	1 * time.Second,
+	3 * time.Second,
+	5 * time.Second,
+	10 * time.Second,
+	20 * time.Second,
+}
 
 type chatWorkingDirectoryContextKey struct{}
 
@@ -995,31 +1000,17 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(ctx context.Context, works
 			ctx = contextWithChatWorkingDirectory(ctx, workingDirectory)
 		}
 
-		// Wait before the first attempt. This trigger fires when the
-		// agent obtains a GitHub token, which typically happens right
-		// before a git push or PR creation. Without the delay we'd
-		// query the GitHub API before the push has landed.
-		initialTimer := api.Clock.NewTimer(chatDiffRefreshInitialDelay, "chat_diff_refresh_initial")
-		defer initialTimer.Stop()
-		select {
-		case <-ctx.Done():
-			return
-		case <-initialTimer.C:
+		for _, delay := range chatDiffRefreshBackoffSchedule {
+			t := api.Clock.NewTimer(delay, "chat_diff_refresh")
+			select {
+			case <-ctx.Done():
+				t.Stop()
+				return
+			case <-t.C:
+			}
+
+			api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID)
 		}
-
-		api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID)
-
-		// Retry once after an additional delay to cover slower
-		// workflows (e.g. CI-triggered PR creation).
-		retryTimer := api.Clock.NewTimer(chatDiffRefreshRetryDelay, "chat_diff_refresh_retry")
-		defer retryTimer.Stop()
-		select {
-		case <-ctx.Done():
-			return
-		case <-retryTimer.C:
-		}
-
-		api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID)
 	}(workspace.ID, workspace.OwnerID, workingDirectory)
 }
 
@@ -1168,8 +1159,11 @@ func (api *API) resolveChatDiffReference(
 		reference.RepositoryRef = repoRef
 	}
 
-	if reference.PullRequestURL == "" &&
-		reference.RepositoryRef != nil &&
+	// Always try to resolve the current open PR from the branch when
+	// we have a repo ref. This ensures we pick up new PRs after the
+	// previous one was closed (the cached URL would still point to
+	// the old, closed PR otherwise).
+	if reference.RepositoryRef != nil &&
 		strings.EqualFold(reference.RepositoryRef.Provider, string(codersdk.EnhancedExternalAuthProviderGitHub)) {
 		pullRequestURL, lookupErr := api.resolveGitHubPullRequestURLFromRepositoryRef(ctx, chat.OwnerID, *reference.RepositoryRef)
 		if lookupErr != nil {
@@ -1180,7 +1174,7 @@ func (api *API) resolveChatDiffReference(
 				slog.F("branch", reference.RepositoryRef.Branch),
 				slog.Error(lookupErr),
 			)
-		} else {
+		} else if pullRequestURL != "" {
 			reference.PullRequestURL = pullRequestURL
 		}
 	}
