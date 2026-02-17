@@ -67,8 +67,9 @@ var ErrChatInterrupted = xerrors.New("chat interrupted")
 
 // Processor handles background processing of pending chats.
 type Processor struct {
-	cancel context.CancelFunc
-	closed chan struct{}
+	cancel   context.CancelFunc
+	closed   chan struct{}
+	inflight sync.WaitGroup
 
 	db       database.Store
 	workerID uuid.UUID
@@ -81,6 +82,7 @@ type Processor struct {
 	providerKeys     ProviderAPIKeys
 	providerKeysFn   ProviderAPIKeysResolver
 	titleGeneration  TitleGenerationConfig
+	titleModelLookup func(ProviderAPIKeys) (api.LanguageModel, error)
 
 	activeMu      sync.Mutex
 	activeCancels map[uuid.UUID]context.CancelCauseFunc
@@ -329,6 +331,7 @@ func NewProcessor(logger slog.Logger, db database.Store, opts ...Option) *Proces
 		titleGeneration: TitleGenerationConfig{
 			Prompt: defaultTitleGenerationPrompt,
 		}.withDefaults(),
+		titleModelLookup: anyAvailableModel,
 	}
 
 	for _, opt := range opts {
@@ -376,7 +379,11 @@ func (p *Processor) processOnce(ctx context.Context) {
 	}
 
 	// Process the chat (don't block the main loop).
-	go p.processChat(ctx, chat)
+	p.inflight.Add(1)
+	go func() {
+		defer p.inflight.Done()
+		p.processChat(ctx, chat)
+	}()
 }
 
 func (p *Processor) registerChat(chatID uuid.UUID, cancel context.CancelCauseFunc) {
@@ -797,7 +804,11 @@ func (p *Processor) generateChatTitle(ctx context.Context, input string) (string
 	if err != nil {
 		return "", xerrors.Errorf("resolve provider API keys: %w", err)
 	}
-	model, err := anyAvailableModel(keys)
+	modelLookup := p.titleModelLookup
+	if modelLookup == nil {
+		modelLookup = anyAvailableModel
+	}
+	model, err := modelLookup(keys)
 	if err != nil {
 		return "", xerrors.Errorf("resolve title generation model: %w", err)
 	}
@@ -1036,6 +1047,7 @@ func (p *Processor) recoverStaleChats(ctx context.Context) {
 func (p *Processor) Close() error {
 	p.cancel()
 	<-p.closed
+	p.inflight.Wait()
 	return nil
 }
 
@@ -1090,7 +1102,8 @@ func chatMessagesToPrompt(messages []database.ChatMessage) ([]api.Message, error
 // tool_result in the immediately following message.
 func injectMissingToolResults(prompt []api.Message) []api.Message {
 	result := make([]api.Message, 0, len(prompt))
-	for i, msg := range prompt {
+	for i := 0; i < len(prompt); i++ {
+		msg := prompt[i]
 		result = append(result, msg)
 
 		assistantMsg, ok := msg.(*api.AssistantMessage)
@@ -1105,7 +1118,8 @@ func injectMissingToolResults(prompt []api.Message) []api.Message {
 		// Collect the tool call IDs that have results in the
 		// following tool message(s).
 		answered := make(map[string]struct{})
-		for j := i + 1; j < len(prompt); j++ {
+		j := i + 1
+		for ; j < len(prompt); j++ {
 			toolMsg, ok := prompt[j].(*api.ToolMessage)
 			if !ok {
 				break
@@ -1113,6 +1127,12 @@ func injectMissingToolResults(prompt []api.Message) []api.Message {
 			for _, tr := range toolMsg.Content {
 				answered[tr.ToolCallID] = struct{}{}
 			}
+		}
+		if i+1 < j {
+			// Preserve persisted tool result ordering and inject any
+			// synthetic results after the existing contiguous tool messages.
+			result = append(result, prompt[i+1:j]...)
+			i = j - 1
 		}
 
 		// Build synthetic results for any unanswered tool calls.

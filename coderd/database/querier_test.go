@@ -7395,6 +7395,47 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 	}
 }
 
+func TestDeleteTaskDeletesTaskSnapshot(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	task := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		TemplateVersionID: templateVersion.ID,
+		Prompt:            "Test prompt",
+	})
+
+	err := db.UpsertTaskSnapshot(ctx, database.UpsertTaskSnapshotParams{
+		TaskID:               task.ID,
+		LogSnapshot:          json.RawMessage(`{"messages":[]}`),
+		LogSnapshotCreatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	_, err = db.DeleteTask(ctx, database.DeleteTaskParams{
+		ID:        task.ID,
+		DeletedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	_, err = db.GetTaskSnapshot(ctx, task.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func TestTaskNameUniqueness(t *testing.T) {
 	t.Parallel()
 

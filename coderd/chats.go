@@ -38,6 +38,8 @@ const (
 	chatDiffStatusTTL                = 120 * time.Second
 	chatDiffBackgroundRefreshTimeout = 20 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
+
+	chatWorkspaceRequestMetadataRole = "__chat_workspace_request_metadata"
 )
 
 // chatDiffRefreshBackoffSchedule defines the delays between successive
@@ -99,6 +101,12 @@ type chatDiffReference struct {
 	RepositoryRef  *chatRepositoryRef
 }
 
+type chatWorkspaceRequestMetadata struct {
+	Header     http.Header `json:"header,omitempty"`
+	RemoteAddr string      `json:"remote_addr,omitempty"`
+	RequestID  string      `json:"request_id,omitempty"`
+}
+
 // @Summary List chats
 // @ID list-chats
 // @Security CoderSessionToken
@@ -154,6 +162,129 @@ func (api *API) getChatDiffStatusesByChatID(
 		statusesByChatID[status.ChatID] = status
 	}
 	return statusesByChatID, nil
+}
+
+func chatWorkspaceRequestMetadataFromRequest(r *http.Request) chatWorkspaceRequestMetadata {
+	metadata := chatWorkspaceRequestMetadata{
+		RemoteAddr: strings.TrimSpace(r.RemoteAddr),
+	}
+
+	if requestID, ok := httpmw.RequestIDOptional(r); ok && requestID != uuid.Nil {
+		metadata.RequestID = requestID.String()
+	}
+
+	userAgent := strings.TrimSpace(r.UserAgent())
+	if userAgent != "" {
+		metadata.Header = make(http.Header, 1)
+		metadata.Header.Set("User-Agent", userAgent)
+	}
+
+	return metadata
+}
+
+func (m chatWorkspaceRequestMetadata) empty() bool {
+	return strings.TrimSpace(m.RequestID) == "" &&
+		strings.TrimSpace(m.RemoteAddr) == "" &&
+		len(m.Header) == 0
+}
+
+func (api *API) recordChatWorkspaceRequestMetadata(ctx context.Context, chatID uuid.UUID, r *http.Request) {
+	metadata := chatWorkspaceRequestMetadataFromRequest(r)
+	if metadata.empty() {
+		return
+	}
+
+	payload, err := json.Marshal(metadata)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to encode chat workspace request metadata",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	_, err = api.Database.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID: chatID,
+		Role:   chatWorkspaceRequestMetadataRole,
+		Content: pqtype.NullRawMessage{
+			RawMessage: payload,
+			Valid:      true,
+		},
+		ToolCallID: sql.NullString{Valid: false},
+		Thinking:   sql.NullString{Valid: false},
+		Hidden:     true,
+	})
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to persist chat workspace request metadata",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+func (api *API) latestChatWorkspaceRequestMetadata(
+	ctx context.Context,
+	chatID uuid.UUID,
+) (chatWorkspaceRequestMetadata, bool) {
+	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to load chat messages for workspace request metadata",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return chatWorkspaceRequestMetadata{}, false
+	}
+
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.Role != chatWorkspaceRequestMetadataRole || !message.Hidden || !message.Content.Valid {
+			continue
+		}
+
+		var metadata chatWorkspaceRequestMetadata
+		if err := json.Unmarshal(message.Content.RawMessage, &metadata); err != nil {
+			api.Logger.Warn(ctx, "failed to decode chat workspace request metadata",
+				slog.F("chat_id", chatID),
+				slog.F("message_id", message.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		if metadata.empty() {
+			continue
+		}
+		return metadata, true
+	}
+
+	return chatWorkspaceRequestMetadata{}, false
+}
+
+func synthesizeChatWorkspaceRequest(
+	ctx context.Context,
+	workspaceCreateURL string,
+	metadata chatWorkspaceRequestMetadata,
+) (*http.Request, error) {
+	requestID := uuid.New()
+	if parsedRequestID, err := uuid.Parse(strings.TrimSpace(metadata.RequestID)); err == nil && parsedRequestID != uuid.Nil {
+		requestID = parsedRequestID
+	}
+
+	req, err := http.NewRequestWithContext(
+		httpmw.WithRequestID(ctx, requestID),
+		http.MethodPost,
+		workspaceCreateURL,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(metadata.Header) > 0 {
+		req.Header = metadata.Header.Clone()
+	}
+	req.RemoteAddr = strings.TrimSpace(metadata.RemoteAddr)
+	return req, nil
 }
 
 // @Summary Create a chat
@@ -293,6 +424,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	api.recordChatWorkspaceRequestMetadata(ctx, chat.ID, r)
 
 	updatedChat, err := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:        chat.ID,
@@ -510,6 +642,8 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 	// If this is a user message, mark the chat as pending so the processor picks
 	// it up.
 	if req.Role == "user" {
+		api.recordChatWorkspaceRequestMetadata(ctx, chatID, r)
+
 		updatedChat, err := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 			ID:        chatID,
 			Status:    database.ChatStatusPending,
@@ -778,13 +912,15 @@ func (api *API) newChatWorkspaceCreator() chatd.WorkspaceCreator {
 
 func (api *API) prepareChatWorkspaceCreate(
 	ctx context.Context,
-	ownerID uuid.UUID,
+	chat database.Chat,
 ) (context.Context, *http.Request, string, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, chat.OwnerID, rbac.ScopeAll)
 	if err != nil {
 		return nil, nil, "", xerrors.Errorf("load chat owner authorization: %w", err)
 	}
 	ctx = dbauthz.As(ctx, actor)
+
+	metadata, _ := api.latestChatWorkspaceRequestMetadata(ctx, chat.ID)
 
 	accessURL := ""
 	workspaceCreateURL := "http://localhost/api/v2/chats/workspace"
@@ -793,10 +929,11 @@ func (api *API) prepareChatWorkspaceCreate(
 		workspaceCreateURL = accessURL + "/api/v2/chats/workspace"
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, workspaceCreateURL, nil)
+	req, err := synthesizeChatWorkspaceRequest(ctx, workspaceCreateURL, metadata)
 	if err != nil {
 		return nil, nil, "", xerrors.Errorf("create synthetic workspace request: %w", err)
 	}
+
 	return ctx, req, accessURL, nil
 }
 
@@ -857,6 +994,7 @@ func (api *API) createChatWorkspace(
 			WorkspaceOwner: owner.Username,
 		},
 	})
+	aReq.UserID = ownerID
 	defer commitAudit()
 
 	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, r, nil)
@@ -1904,9 +2042,12 @@ func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 }
 
 func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage {
-	result := make([]codersdk.ChatMessage, len(messages))
-	for i, m := range messages {
-		result[i] = convertChatMessage(m)
+	result := make([]codersdk.ChatMessage, 0, len(messages))
+	for _, m := range messages {
+		if m.Role == chatWorkspaceRequestMetadataRole {
+			continue
+		}
+		result = append(result, convertChatMessage(m))
 	}
 	return result
 }

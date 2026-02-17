@@ -464,6 +464,51 @@ func (m *panicStreamModel) Stream(_ context.Context, _ []api.Message, _ api.Call
 	panic(m.panicValue)
 }
 
+type blockingCloseModel struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (*blockingCloseModel) ProviderName() string {
+	return "fake"
+}
+
+func (*blockingCloseModel) ModelID() string {
+	return "fake"
+}
+
+func (*blockingCloseModel) SupportedUrls() []api.SupportedURL {
+	return nil
+}
+
+func (*blockingCloseModel) Generate(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
+	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
+}
+
+func (m *blockingCloseModel) Stream(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.StreamResponse, error) {
+	select {
+	case <-m.started:
+	default:
+		close(m.started)
+	}
+
+	<-m.release
+
+	return &api.StreamResponse{
+		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
+			events := []api.StreamEvent{
+				&api.TextDeltaEvent{TextDelta: "done"},
+				&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+			}
+			for _, event := range events {
+				if !yield(event) {
+					return
+				}
+			}
+		}),
+	}, nil
+}
+
 type workspaceCreatorFunc func(context.Context, chatd.CreateWorkspaceToolRequest) (chatd.CreateWorkspaceToolResult, error)
 
 func (f workspaceCreatorFunc) CreateWorkspace(
@@ -1394,6 +1439,64 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 
 	require.NotEqual(t, codersdk.ChatStatusRunning, lastStreamStatus)
 	require.GreaterOrEqual(t, model.CallCount(), 3)
+}
+
+func TestProcessorCloseWaitsForInFlightChatProcessing(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chat := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "close waits", "hello")
+	model := &blockingCloseModel{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+
+	processor := chatd.NewProcessor(
+		testutil.Logger(t).Named("chatd"),
+		db,
+		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(25*time.Millisecond),
+	)
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-model.started:
+	case <-time.After(testutil.WaitLong):
+		t.Fatal("timed out waiting for chat processing to start")
+	}
+
+	closeDone := make(chan struct{})
+	go func() {
+		_ = processor.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case <-closeDone:
+		t.Fatal("processor.Close returned before in-flight chat processing finished")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(model.release)
+
+	select {
+	case <-closeDone:
+	case <-time.After(testutil.WaitLong):
+		t.Fatal("processor.Close did not return after in-flight chat processing finished")
+	}
 }
 
 func TestRunChatLoop_PublishesStreamErrorOnProcessingFailure(t *testing.T) {

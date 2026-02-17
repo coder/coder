@@ -1141,7 +1141,7 @@ export const AgentDetail: FC = () => {
 					/>,
 					topBarActionsRef.current,
 				)}
-			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]">
+			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent] mx-4">
 				<div>
 					<div className="mx-auto w-full max-w-3xl py-6">
 						{parsedMessages.length === 0 && !hasStreamOutput ? (
@@ -1200,7 +1200,7 @@ export const AgentDetail: FC = () => {
 					<AgentChatInput
 						onSend={stableOnSend}
 						isDisabled={isInputDisabled}
-						isLoading={false}
+						isLoading={sendMutation.isPending}
 						isStreaming={isStreaming}
 						onInterrupt={stableOnInterrupt}
 						isInterruptPending={interruptMutation.isPending}

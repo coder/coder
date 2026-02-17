@@ -14307,13 +14307,31 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 }
 
 const deleteTask = `-- name: DeleteTask :one
-UPDATE tasks
-SET
-	deleted_at = $1::timestamptz
-WHERE
-	id = $2::uuid
-	AND deleted_at IS NULL
-RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name
+WITH deleted_task AS (
+	UPDATE
+		tasks
+	SET
+		deleted_at = $1::timestamptz
+	WHERE
+		id = $2::uuid
+		AND deleted_at IS NULL
+	RETURNING id
+), deleted_task_snapshot AS (
+	DELETE FROM
+		task_snapshots
+	USING
+		deleted_task
+	WHERE
+		task_snapshots.task_id = deleted_task.id
+)
+SELECT
+	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at, tasks.display_name
+FROM
+	tasks
+JOIN
+	deleted_task
+ON
+	tasks.id = deleted_task.id
 `
 
 type DeleteTaskParams struct {

@@ -33,9 +33,7 @@ interface AgentsSidebarProps {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
-	selectedChatId?: string;
 	logoUrl?: string;
-	onSelect: (chatId: string) => void;
 	onArchiveAgent: (chatId: string) => void;
 	onNewAgent: () => void;
 	isCreating: boolean;

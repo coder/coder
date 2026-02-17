@@ -46,8 +46,12 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 		if (!diff) {
 			return [];
 		}
-		const patches = parsePatchFiles(diff);
-		return patches.flatMap((p) => p.files);
+		try {
+			const patches = parsePatchFiles(diff);
+			return patches.flatMap((p) => p.files);
+		} catch {
+			return [];
+		}
 	}, [diffContentsQuery.data?.diff]);
 
 	const pullRequestUrl = diffStatusQuery.data?.url;
