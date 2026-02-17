@@ -30,7 +30,8 @@ Available query filters:
   <summary>Possible <code>client</code> values</summary>
 
   > [!NOTE]
-  > AI tools are not setting user agent reliably. Client classification is done on best effort basis.
+  > Client classification is done on best effort basis using the `User-Agent` header;
+  not all clients send these headers in an easily-identifiable manner.
 
   - `Claude Code`
   - `Codex`
