@@ -58,9 +58,12 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [themeQuery]);
 
 	// We might not be logged in yet, or the `theme_preference` could be an empty string.
+	// Prefer JS-fetched value, fall back to server-rendered meta tag, then default.
 	const themePreference =
-		appearanceSettingsQuery.data?.theme_preference || DEFAULT_THEME;
-	// The janky casting here is find because of the much more type safe fallback
+		appearanceSettingsQuery.data?.theme_preference ||
+		metadata.userAppearance?.value?.theme_preference ||
+		DEFAULT_THEME;
+	// The janky casting here is fine because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.
 
