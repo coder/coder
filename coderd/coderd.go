@@ -908,6 +908,7 @@ func New(options *Options) *API {
 		rolestore.CustomRoleMW,
 		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,
+		options.DeploymentValues.HTTPCookies.Middleware,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

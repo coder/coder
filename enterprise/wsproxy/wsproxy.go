@@ -337,6 +337,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		loggermw.Logger(s.Logger),
 		prometheusMW,
+		opts.CookieConfig.Middleware,
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.

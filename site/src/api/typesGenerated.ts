@@ -2341,6 +2341,7 @@ export interface GroupSyncSettings {
 export interface HTTPCookieConfig {
 	readonly secure_auth_cookie?: boolean;
 	readonly same_site?: string;
+	readonly host_prefix?: boolean;
 }
 
 // From health/model.go

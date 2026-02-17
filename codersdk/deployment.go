@@ -852,14 +852,39 @@ type TraceConfig struct {
 	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
+const cookieHostPrefix = "__HOST-"
+
 type HTTPCookieConfig struct {
-	Secure   serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
-	SameSite string       `json:"same_site,omitempty" typescript:",notnull"`
+	Secure           serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	SameSite         string       `json:"same_site,omitempty" typescript:",notnull"`
+	EnableHostPrefix bool         `json:"host_prefix,omitempty" typescript:",notnull"`
+}
+
+func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !cfg.EnableHostPrefix {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Instead of having everywhere in the code handle the possibly prefix'd cookie,
+		// we just strip them in a middleware. So the rest of the codebase is unaware of this.
+		for _, c := range r.Cookies() {
+			if strings.HasPrefix(c.Name, cookieHostPrefix) {
+				c.Name = strings.TrimPrefix(c.Name, cookieHostPrefix)
+			}
+		}
+		next.ServeHTTP(w, r)
+		return
+	})
 }
 
 func (cfg *HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
 	c.Secure = cfg.Secure.Value()
 	c.SameSite = cfg.HTTPSameSite()
+	if cfg.EnableHostPrefix {
+		c.Name = cookieHostPrefix + c.Name
+	}
 	return c
 }
 
@@ -1379,7 +1404,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Value:       &c.HTTPAddress,
 		Group:       &deploymentGroupNetworkingHTTP,
 		YAML:        "httpAddress",
-		Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		Annotations: serpent.Annotations{}.
+			Mark(annotationExternalProxies, "true"),
 	}
 	tlsBindAddress := serpent.Option{
 		Name:        "TLS Address",
@@ -2815,6 +2841,19 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default:     "lax",
 			Group:       &deploymentGroupNetworking,
 			YAML:        "sameSiteAuthCookie",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "__HOST Prefix Cookies",
+			Description: "Reccomended to be enabled. Enables `__HOST-` prefix for cookies to guarantee they are only set by the right domain.",
+			Flag:        "host-prefix-cookie",
+			Env:         "CODER_HOST_PREFIX_COOKIE",
+			Value:       serpent.BoolOf(&c.HTTPCookies.EnableHostPrefix),
+			// Ideally this is true, however any frontend interactions with the coder api would be broken.
+			// So for compatibility reasons, this is set to false.
+			Default:     "false",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "hostPrefixCookie",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
