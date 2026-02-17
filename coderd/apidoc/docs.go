@@ -15512,6 +15512,9 @@ const docTemplate = `{
         "codersdk.HTTPCookieConfig": {
             "type": "object",
             "properties": {
+                "host_prefix": {
+                    "type": "boolean"
+                },
                 "same_site": {
                     "type": "string"
                 },

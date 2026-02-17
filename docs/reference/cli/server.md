@@ -1058,6 +1058,17 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 Controls the 'SameSite' property is set on browser session cookies.
 
+### --host-prefix-cookie
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_HOST_PREFIX_COOKIE</code>   |
+| YAML        | <code>networking.hostPrefixCookie</code> |
+| Default     | <code>false</code>                       |
+
+Reccomended to be enabled. Enables `__HOST-` prefix for cookies to guarantee they are only set by the right domain.
+
 ### --terms-of-service-url
 
 |             |                                          |
