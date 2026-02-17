@@ -220,7 +220,7 @@ export const TaskPausedTimeout: Story = {
 			latest_build: {
 				...MockWorkspaceBuildStop,
 				status: "stopped",
-				reason: "autostop",
+				reason: "task_auto_pause",
 			},
 		});
 	},

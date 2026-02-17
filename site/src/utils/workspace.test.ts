@@ -93,6 +93,13 @@ describe("util > workspace", () => {
 				},
 				"Coder",
 			],
+			[
+				{
+					...Mocks.MockWorkspaceBuild,
+					reason: "task_auto_pause",
+				},
+				"Coder",
+			],
 		])(
 			"getDisplayWorkspaceBuildInitiatedBy(%p) returns %p",
 			(build, initiatedBy) => {

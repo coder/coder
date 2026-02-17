@@ -13553,7 +13553,10 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection"
+                "jetbrains_connection",
+                "task_auto_pause",
+                "task_manual_pause",
+                "task_resume"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -13564,7 +13567,10 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection"
+                "BuildReasonJetbrainsConnection",
+                "BuildReasonTaskAutoPause",
+                "BuildReasonTaskManualPause",
+                "BuildReasonTaskResume"
             ]
         },
         "codersdk.CORSBehavior": {
