@@ -3,6 +3,7 @@ package dbcrypt
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -80,6 +81,31 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			return xerrors.Errorf("update user links: %w", err)
 		}
 		log.Debug(ctx, "encrypted user tokens", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
+	providers, err := cryptDB.GetChatProviders(ctx)
+	if err != nil {
+		return xerrors.Errorf("get chat providers: %w", err)
+	}
+	log.Info(ctx, "encrypting chat provider keys", slog.F("provider_count", len(providers)))
+	for idx, provider := range providers {
+		if strings.TrimSpace(provider.APIKey) == "" {
+			continue
+		}
+		if provider.ApiKeyKeyID.Valid && provider.ApiKeyKeyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping chat provider", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			continue
+		}
+		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+			DisplayName: provider.DisplayName,
+			APIKey:      provider.APIKey,
+			ApiKeyKeyID: sql.NullString{}, // dbcrypt will update as required
+			Enabled:     provider.Enabled,
+			ID:          provider.ID,
+		}); err != nil {
+			return xerrors.Errorf("update chat provider id=%s provider=%s: %w", provider.ID, provider.Provider, err)
+		}
+		log.Debug(ctx, "encrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
 	// Revoke old keys
@@ -172,6 +198,27 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted user tokens", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	providers, err := cryptDB.GetChatProviders(ctx)
+	if err != nil {
+		return xerrors.Errorf("get chat providers: %w", err)
+	}
+	log.Info(ctx, "decrypting chat provider keys", slog.F("provider_count", len(providers)))
+	for idx, provider := range providers {
+		if !provider.ApiKeyKeyID.Valid {
+			continue
+		}
+		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+			DisplayName: provider.DisplayName,
+			APIKey:      provider.APIKey,
+			ApiKeyKeyID: sql.NullString{}, // we explicitly want to clear the key id
+			Enabled:     provider.Enabled,
+			ID:          provider.ID,
+		}); err != nil {
+			return xerrors.Errorf("update chat provider id=%s provider=%s: %w", provider.ID, provider.Provider, err)
+		}
+		log.Debug(ctx, "decrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -192,6 +239,10 @@ DELETE FROM user_links
 DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
+UPDATE chat_providers
+	SET api_key = '',
+		api_key_key_id = NULL
+	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
 `
 
@@ -203,9 +254,9 @@ func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
 	store := database.New(sqlDB)
 	_, err := sqlDB.ExecContext(ctx, sqlDeleteEncryptedUserTokens)
 	if err != nil {
-		return xerrors.Errorf("delete user links: %w", err)
+		return xerrors.Errorf("delete encrypted tokens and chat provider keys: %w", err)
 	}
-	log.Info(ctx, "deleted encrypted user tokens")
+	log.Info(ctx, "deleted encrypted user tokens and chat provider API keys")
 
 	log.Info(ctx, "revoking all active keys")
 	keys, err := store.GetDBCryptKeys(ctx)

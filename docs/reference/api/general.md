@@ -176,7 +176,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "bridge": {
         "anthropic": {
           "base_url": "string",
-          "key": "string"
+          "key": "string",
+          "models_url": "string"
         },
         "bedrock": {
           "access_key": "string",
@@ -194,14 +195,22 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
+        "models_allowlist": "string",
+        "models_denylist": "string",
         "openai": {
           "base_url": "string",
-          "key": "string"
+          "key": "string",
+          "models_url": "string"
         },
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
+      },
+      "chat": {
+        "system_prompt": "string",
+        "title_generation_model": "string",
+        "title_generation_prompt": "string"
       }
     },
     "allow_workspace_renames": true,
