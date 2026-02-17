@@ -99,6 +99,44 @@ export function relativeTime(date: DateTimeInput) {
 	return dayjs(date).fromNow();
 }
 
+/**
+ * Returns a compact relative time string like "now", "5m", "2h",
+ * "3d", "1w", "2mo", or "1y". Useful for tight UI spaces like
+ * sidebar timestamps.
+ */
+export function shortRelativeTime(date: DateTimeInput): string {
+	const now = dayjs();
+	const then = dayjs(date);
+	const diffSeconds = now.diff(then, "second");
+
+	if (diffSeconds < 60) {
+		return "now";
+	}
+	const diffMinutes = now.diff(then, "minute");
+	if (diffMinutes < 60) {
+		return `${diffMinutes}m`;
+	}
+	const diffHours = now.diff(then, "hour");
+	if (diffHours < 24) {
+		return `${diffHours}h`;
+	}
+	const diffDays = now.diff(then, "day");
+	if (diffDays < 7) {
+		return `${diffDays}d`;
+	}
+	const diffWeeks = now.diff(then, "week");
+	if (diffWeeks < 5) {
+		return `${diffWeeks}w`;
+	}
+	const diffMonths = now.diff(then, "month");
+	if (diffMonths < 12) {
+		return `${diffMonths}mo`;
+	}
+	const diffYears = now.diff(then, "year");
+	return `${diffYears}y`;
+}
+
+
 export function relativeTimeWithoutSuffix(date: DateTimeInput) {
 	return dayjs(date).fromNow(true);
 }

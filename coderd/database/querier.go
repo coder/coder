@@ -36,9 +36,6 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
-	// Acquires a pending chat for processing. Uses SKIP LOCKED to prevent
-	// multiple replicas from acquiring the same chat.
-	AcquireChat(ctx context.Context, arg AcquireChatParams) (Chat, error)
 	// Bumps the workspace deadline by the template's configured "activity_bump"
 	// duration (default 1h). If the workspace bump will cross an autostart
 	// threshold, then the bump is autostart + TTL. This is the deadline behavior if
@@ -93,9 +90,8 @@ type sqlcQuerier interface {
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	// Deletes boundary usage statistics for a specific replica.
 	DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error
-	DeleteChatByID(ctx context.Context, id uuid.UUID) error
-	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
-	DeleteChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) error
+	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -206,14 +202,11 @@ type sqlcQuerier interface {
 	// include data where window_start is within the given interval to exclude
 	// stale data.
 	GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error)
-	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
-	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
-	GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
-	GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error)
-	GetChatGitChangesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error)
-	// Find chats that appear stuck (running but no heartbeat).
-	// Used for recovery after coderd crashes.
-	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
+	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
+	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
+	GetChatProviderByID(ctx context.Context, id uuid.UUID) (ChatProvider, error)
+	GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
+	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
@@ -229,6 +222,8 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
+	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
+	GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error)
 	GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error)
@@ -564,9 +559,8 @@ type sqlcQuerier interface {
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
-	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
-	InsertChatGitChange(ctx context.Context, arg InsertChatGitChangeParams) (ChatGitChange, error)
-	InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error)
+	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
+	InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -688,8 +682,8 @@ type sqlcQuerier interface {
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
-	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
-	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
+	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
+	UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)

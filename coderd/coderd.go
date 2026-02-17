@@ -13,6 +13,7 @@ import (
 	"net/http"
 	httppprof "net/http/pprof"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime/pprof"
@@ -50,7 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
-	"github.com/coder/coder/v2/coderd/chats"
+	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -267,7 +268,7 @@ type Options struct {
 	// stats. This is used to provide insights in the WebUI.
 	DatabaseRolluper *dbrollup.Rolluper
 	// ChatProcessor handles background processing of pending chats.
-	ChatProcessor *chats.Processor
+	ChatProcessor *chatd.Processor
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
 	// BoundaryUsageTracker tracks boundary usage for telemetry.
@@ -490,10 +491,6 @@ func New(options *Options) *API {
 		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
 	}
 
-	if options.ChatProcessor == nil {
-		options.ChatProcessor = chats.NewProcessor(options.Logger.Named("chats"), options.Database)
-	}
-
 	if options.WorkspaceUsageTracker == nil {
 		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
 			workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
@@ -600,6 +597,41 @@ func New(options *Options) *API {
 	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
 	buildUsageChecker.Store(&noopUsageChecker)
 
+	chatProviderAPIKeys := chatd.ProviderAPIKeys{
+		OpenAI:    options.DeploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
+		Anthropic: options.DeploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
+	}
+	if value := strings.TrimSpace(os.Getenv("OPENAI_API_KEY")); value != "" {
+		chatProviderAPIKeys.OpenAI = value
+	}
+	if value := strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY")); value != "" {
+		chatProviderAPIKeys.Anthropic = value
+	}
+
+	chatModelCatalogConfig := chatd.ModelCatalogConfig{
+		OpenAIModelsURL:    options.DeploymentValues.AI.BridgeConfig.OpenAI.ModelsURL.Value(),
+		AnthropicModelsURL: options.DeploymentValues.AI.BridgeConfig.Anthropic.ModelsURL.Value(),
+		Allowlist:          options.DeploymentValues.AI.BridgeConfig.ModelsAllowlist.Value(),
+		Denylist:           options.DeploymentValues.AI.BridgeConfig.ModelsDenylist.Value(),
+	}
+
+	chatProviderAPIKeysResolver := func(ctx context.Context) (chatd.ProviderAPIKeys, error) {
+		providers, err := options.Database.GetEnabledChatProviders(ctx)
+		if err != nil {
+			return chatd.ProviderAPIKeys{}, err
+		}
+
+		configuredProviders := make([]chatd.ConfiguredProvider, 0, len(providers))
+		for _, provider := range providers {
+			configuredProviders = append(configuredProviders, chatd.ConfiguredProvider{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+			})
+		}
+
+		return chatd.MergeProviderAPIKeys(chatProviderAPIKeys, configuredProviders), nil
+	}
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -632,8 +664,16 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper:    options.DatabaseRolluper,
-		chatProcessor: options.ChatProcessor,
+		dbRolluper:          options.DatabaseRolluper,
+		chatStreamManager:   chatd.NewStreamManager(options.Logger.Named("chat-streams")),
+		chatProcessor:       options.ChatProcessor,
+		chatProviderAPIKeys: chatProviderAPIKeys,
+		chatModelCatalog: chatd.NewModelCatalog(
+			options.Logger.Named("chats"),
+			options.HTTPClient,
+			chatProviderAPIKeys,
+			chatModelCatalogConfig,
+		),
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -764,6 +804,22 @@ func New(options *Options) *API {
 		panic("failed to setup server tailnet: " + err.Error())
 	}
 	api.agentProvider = stn
+	if options.ChatProcessor == nil {
+		options.ChatProcessor = chatd.NewProcessor(
+			options.Logger.Named("chats"),
+			options.Database,
+			chatd.WithProviderAPIKeys(chatProviderAPIKeys),
+			chatd.WithProviderAPIKeysResolver(chatProviderAPIKeysResolver),
+			chatd.WithTitleGenerationConfig(chatd.TitleGenerationConfig{
+				Prompt: options.DeploymentValues.AI.Chat.TitleGenerationPrompt.Value(),
+				Model:  options.DeploymentValues.AI.Chat.TitleGenerationModel.Value(),
+			}),
+			chatd.WithAgentConnector(api.agentProvider),
+			chatd.WithWorkspaceCreator(api.newChatWorkspaceCreator()),
+			chatd.WithStreamManager(api.chatStreamManager),
+		)
+	}
+	api.chatProcessor = options.ChatProcessor
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 	}
@@ -1170,11 +1226,31 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.listChats)
 			r.Post("/", api.createChat)
+			r.Get("/models", api.listChatModels)
+			r.Route("/providers", func(r chi.Router) {
+				r.Get("/", api.listChatProviders)
+				r.Post("/", api.createChatProvider)
+				r.Route("/{providerConfig}", func(r chi.Router) {
+					r.Put("/", api.updateChatProvider)
+					r.Delete("/", api.deleteChatProvider)
+				})
+			})
+			r.Route("/model-configs", func(r chi.Router) {
+				r.Get("/", api.listChatModelConfigs)
+				r.Post("/", api.createChatModelConfig)
+				r.Route("/{modelConfig}", func(r chi.Router) {
+					r.Put("/", api.updateChatModelConfig)
+					r.Delete("/", api.deleteChatModelConfig)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Get("/", api.getChat)
 				r.Delete("/", api.deleteChat)
 				r.Post("/messages", api.createChatMessage)
-				r.Get("/git-changes", api.getChatGitChanges)
+				r.Get("/stream", api.streamChat)
+				r.Post("/interrupt", api.interruptChat)
+				r.Get("/diff-status", api.getChatDiffStatus)
+				r.Get("/diff", api.getChatDiffContents)
 			})
 		})
 		r.Route("/files", func(r chi.Router) {
@@ -1917,8 +1993,14 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+	// chatStreamManager broadcasts in-flight chat updates.
+	chatStreamManager *chatd.StreamManager
 	// chatProcessor handles background processing of pending chats.
-	chatProcessor *chats.Processor
+	chatProcessor *chatd.Processor
+	// chatProviderAPIKeys contains deployment-config fallback provider API keys.
+	chatProviderAPIKeys chatd.ProviderAPIKeys
+	// chatModelCatalog lists available provider models for chats.
+	chatModelCatalog *chatd.ModelCatalog
 }
 
 // Close waits for all WebSocket connections to drain before returning.

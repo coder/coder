@@ -1150,14 +1150,19 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
-CREATE TABLE chat_git_changes (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+CREATE TABLE chat_diff_statuses (
     chat_id uuid NOT NULL,
-    file_path text NOT NULL,
-    change_type text NOT NULL,
-    old_path text,
-    diff_summary text,
-    detected_at timestamp with time zone DEFAULT now() NOT NULL
+    github_pr_url text,
+    pull_request_state text DEFAULT ''::text NOT NULL,
+    pull_request_open boolean DEFAULT false NOT NULL,
+    changes_requested boolean DEFAULT false NOT NULL,
+    additions integer DEFAULT 0 NOT NULL,
+    deletions integer DEFAULT 0 NOT NULL,
+    changed_files integer DEFAULT 0 NOT NULL,
+    refreshed_at timestamp with time zone,
+    stale_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE chat_messages (
@@ -1166,7 +1171,6 @@ CREATE TABLE chat_messages (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     role text NOT NULL,
     content jsonb,
-    tool_calls jsonb,
     tool_call_id text,
     thinking text,
     hidden boolean DEFAULT false NOT NULL
@@ -1180,6 +1184,30 @@ CREATE SEQUENCE chat_messages_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_messages_id_seq OWNED BY chat_messages.id;
+
+CREATE TABLE chat_model_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    provider text NOT NULL,
+    model text NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE chat_providers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    provider text NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
+    api_key text DEFAULT ''::text NOT NULL,
+    api_key_key_id text,
+    enabled boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_providers_provider_check CHECK ((provider = ANY (ARRAY['openai'::text, 'anthropic'::text])))
+);
+
+COMMENT ON COLUMN chat_providers.api_key_key_id IS 'The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted';
 
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3031,14 +3059,23 @@ ALTER TABLE ONLY audit_logs
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
-ALTER TABLE ONLY chat_git_changes
-    ADD CONSTRAINT chat_git_changes_chat_id_file_path_key UNIQUE (chat_id, file_path);
-
-ALTER TABLE ONLY chat_git_changes
-    ADD CONSTRAINT chat_git_changes_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY chat_diff_statuses
+    ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_provider_model_key UNIQUE (provider, model);
+
+ALTER TABLE ONLY chat_providers
+    ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_providers
+    ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -3368,11 +3405,17 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
-CREATE INDEX idx_chat_git_changes_chat ON chat_git_changes USING btree (chat_id);
+CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
+
+CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
+
+CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
+
+CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
@@ -3626,11 +3669,17 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY chat_git_changes
-    ADD CONSTRAINT chat_git_changes_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+ALTER TABLE ONLY chat_diff_statuses
+    ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_provider_fkey FOREIGN KEY (provider) REFERENCES chat_providers(provider) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_providers
+    ADD CONSTRAINT chat_providers_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;

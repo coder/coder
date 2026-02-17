@@ -1691,6 +1691,39 @@ How often to reconcile workspace prebuilds state.
 
 Hide AI tasks from the dashboard.
 
+### --chat-system-prompt
+
+|             |                                                                                                                                           |
+|-------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| Type        | <code>string</code>                                                                                                                       |
+| Environment | <code>$CODER_CHAT_SYSTEM_PROMPT</code>                                                                                                    |
+| YAML        | <code>aibridge.chat_system_prompt</code>                                                                                                  |
+| Default     | <code>You are Coder's AI software engineering assistant. Provide practical, accurate guidance and use available tools when needed.</code> |
+
+Default system prompt inserted into new chats.
+
+### --chat-title-generation-prompt
+
+|             |                                                                                                                                       |
+|-------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| Type        | <code>string</code>                                                                                                                   |
+| Environment | <code>$CODER_CHAT_TITLE_GENERATION_PROMPT</code>                                                                                      |
+| YAML        | <code>aibridge.chat_title_generation_prompt</code>                                                                                    |
+| Default     | <code>Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.</code> |
+
+Prompt used to generate chat titles from the first user message.
+
+### --chat-title-generation-model
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_CHAT_TITLE_GENERATION_MODEL</code>   |
+| YAML        | <code>aibridge.chat_title_generation_model</code> |
+| Default     | <code>gpt-5.2</code>                              |
+
+Model used to generate chat titles.
+
 ### --aibridge-enabled
 
 |             |                                      |
@@ -1713,6 +1746,16 @@ Whether to start an in-memory aibridged instance.
 
 The base URL of the OpenAI API.
 
+### --chat-openai-models-url
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_CHAT_OPENAI_MODELS_URL</code>   |
+| YAML        | <code>aibridge.chat_openai_models_url</code> |
+
+Override URL used to list OpenAI models for the chat model catalog.
+
 ### --aibridge-openai-key
 
 |             |                                         |
@@ -1733,6 +1776,16 @@ The key to authenticate against the OpenAI API.
 
 The base URL of the Anthropic API.
 
+### --chat-anthropic-models-url
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_CHAT_ANTHROPIC_MODELS_URL</code>   |
+| YAML        | <code>aibridge.chat_anthropic_models_url</code> |
+
+Override URL used to list Anthropic models for the chat model catalog.
+
 ### --aibridge-anthropic-key
 
 |             |                                            |
@@ -1741,6 +1794,26 @@ The base URL of the Anthropic API.
 | Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_KEY</code> |
 
 The key to authenticate against the Anthropic API.
+
+### --chat-models-allowlist
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_CHAT_MODELS_ALLOWLIST</code>   |
+| YAML        | <code>aibridge.chat_models_allowlist</code> |
+
+Comma-separated allowlist of models for the chat model catalog.
+
+### --chat-models-denylist
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_CHAT_MODELS_DENYLIST</code>   |
+| YAML        | <code>aibridge.chat_models_denylist</code> |
+
+Comma-separated denylist of models for the chat model catalog.
 
 ### --aibridge-bedrock-base-url
 

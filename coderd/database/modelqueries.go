@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -52,6 +53,27 @@ type customQuerier interface {
 	auditLogQuerier
 	connectionLogQuerier
 	aibridgeQuerier
+	chatQuerier
+}
+
+// chatQuerier groups the manually implemented chat helpers.
+type chatQuerier interface {
+	DeleteChatByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
+	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
+	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
+	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
+	GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
+	GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error)
+	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error)
+	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
+	UpdateChatWorkspace(ctx context.Context, arg UpdateChatWorkspaceParams) (Chat, error)
+	AcquireChat(ctx context.Context, arg AcquireChatParams) (Chat, error)
+	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
+	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
+	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
+	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 }
 
 type templateQuerier interface {

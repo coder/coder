@@ -739,15 +739,38 @@ workspace_prebuilds:
   # (default: 3, type: int)
   failure_hard_limit: 3
 aibridge:
+  # Default system prompt inserted into new chats.
+  # (default: You are Coder's AI software engineering assistant. Provide practical,
+  # accurate guidance and use available tools when needed., type: string)
+  chat_system_prompt: You are Coder's AI software engineering assistant. Provide practical, accurate guidance and use available tools when needed.
+  # Prompt used to generate chat titles from the first user message.
+  # (default: Generate a concise title (max 8 words) for the user's first message.
+  # Return plain text only, with no surrounding quotes., type: string)
+  chat_title_generation_prompt: Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.
+  # Model used to generate chat titles.
+  # (default: gpt-5.2, type: string)
+  chat_title_generation_model: gpt-5.2
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)
   enabled: false
   # The base URL of the OpenAI API.
   # (default: https://api.openai.com/v1/, type: string)
   openai_base_url: https://api.openai.com/v1/
+  # Override URL used to list OpenAI models for the chat model catalog.
+  # (default: <unset>, type: string)
+  chat_openai_models_url: ""
   # The base URL of the Anthropic API.
   # (default: https://api.anthropic.com/, type: string)
   anthropic_base_url: https://api.anthropic.com/
+  # Override URL used to list Anthropic models for the chat model catalog.
+  # (default: <unset>, type: string)
+  chat_anthropic_models_url: ""
+  # Comma-separated allowlist of models for the chat model catalog.
+  # (default: <unset>, type: string)
+  chat_models_allowlist: ""
+  # Comma-separated denylist of models for the chat model catalog.
+  # (default: <unset>, type: string)
+  chat_models_denylist: ""
   # The base URL to use for the AWS Bedrock API. Use this setting to specify an
   # exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
   # (default: <unset>, type: string)

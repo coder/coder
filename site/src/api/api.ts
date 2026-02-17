@@ -138,6 +138,14 @@ export const watchWorkspace = (
 	});
 };
 
+export const watchChat = (
+	chatId: string,
+): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/chats/${chatId}/stream`,
+	});
+};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
@@ -324,6 +332,97 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
+export interface ChatModelCatalogModel {
+	readonly id: string;
+	readonly provider: string;
+	readonly model: string;
+	readonly display_name: string;
+}
+
+export interface ChatModelCatalogProvider {
+	readonly provider: string;
+	readonly available: boolean;
+	readonly unavailable_reason?: string;
+	readonly models: readonly ChatModelCatalogModel[];
+}
+
+export interface ChatModelsResponse {
+	readonly providers: readonly ChatModelCatalogProvider[];
+}
+
+export type ChatProviderConfig = Readonly<
+	{
+		id: string;
+		provider: string;
+		display_name?: string;
+		enabled?: boolean;
+		api_key_set?: boolean;
+		base_url?: string;
+		models_url?: string;
+		created_at?: string;
+		updated_at?: string;
+	} & Record<string, unknown>
+>;
+
+export type CreateChatProviderConfigRequest = {
+	provider: string;
+	display_name?: string;
+	api_key?: string;
+	base_url?: string;
+	models_url?: string;
+	enabled?: boolean;
+} & Record<string, unknown>;
+
+export type UpdateChatProviderConfigRequest =
+	Partial<CreateChatProviderConfigRequest>;
+
+export type ChatModelConfig = Readonly<
+	{
+		id: string;
+		provider: string;
+		model: string;
+		display_name?: string;
+		enabled?: boolean;
+		is_default?: boolean;
+		created_at?: string;
+		updated_at?: string;
+	} & Record<string, unknown>
+>;
+
+export type CreateChatModelConfigRequest = {
+	provider: string;
+	model: string;
+	display_name?: string;
+	enabled?: boolean;
+	is_default?: boolean;
+} & Record<string, unknown>;
+
+export type UpdateChatModelConfigRequest = Partial<CreateChatModelConfigRequest>;
+
+export interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
+	readonly patch?: string;
+	readonly diff_patch?: string;
+	readonly unified_diff?: string;
+	readonly diffs_url?: string;
+	readonly diff_url?: string;
+	readonly diffs_link?: string;
+}
+
+export type ChatDiffStatusResponse = Readonly<
+	{
+		chat_id: string;
+		pull_request_url?: string;
+		pull_request_state?: string;
+		pull_request_open: boolean;
+		changes_requested: boolean;
+		additions: number;
+		deletions: number;
+		changed_files: number;
+		refreshed_at?: string;
+		stale_at?: string;
+	} & Record<string, unknown>
+>;
+
 function normalizeGetTemplatesOptions(
 	options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {
@@ -356,6 +455,23 @@ export type DeploymentConfig = Readonly<{
 	config: TypesGen.DeploymentValues;
 	options: TypesGen.SerpentOption[];
 }>;
+
+const chatProviderConfigsPath = "/api/v2/chats/providers";
+const chatModelConfigsPath = "/api/v2/chats/model-configs";
+
+const isOptionalEndpointUnavailable = (error: unknown): boolean => {
+	if (!isAxiosError(error)) {
+		return false;
+	}
+
+	const status = error.response?.status;
+	return (
+		status === undefined ||
+		status === 404 ||
+		status === 405 ||
+		status === 501
+	);
+};
 
 type Claims = {
 	license_expires: number;
@@ -2844,13 +2960,138 @@ class ApiMethods {
 		return response.data;
 	};
 
+	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/v2/chats/${chatId}/interrupt`,
+		);
+		return response.data;
+	};
+
 	getChatGitChanges = async (
 		chatId: string,
-	): Promise<TypesGen.ChatGitChange[]> => {
-		const response = await this.axios.get<TypesGen.ChatGitChange[]>(
+	): Promise<ChatGitChangeResponse[]> => {
+		const response = await this.axios.get<ChatGitChangeResponse[]>(
 			`/api/v2/chats/${chatId}/git-changes`,
 		);
 		return response.data;
+	};
+
+	getChatDiffStatus = async (chatId: string): Promise<ChatDiffStatusResponse> => {
+		const response = await this.axios.get<ChatDiffStatusResponse>(
+			`/api/v2/chats/${chatId}/diff-status`,
+		);
+		return response.data;
+	};
+
+	getChatDiffContents = async (
+		chatId: string,
+	): Promise<TypesGen.ChatDiffContents> => {
+		const response = await this.axios.get<TypesGen.ChatDiffContents>(
+			`/api/v2/chats/${chatId}/diff`,
+		);
+		return response.data;
+	};
+
+	getChatModels = async (): Promise<ChatModelsResponse | null> => {
+		try {
+			const response = await this.axios.get<ChatModelsResponse>(
+				"/api/v2/chats/models",
+			);
+			return response.data;
+		} catch (error) {
+			// This endpoint is optional and may not exist on older deployments.
+			if (isOptionalEndpointUnavailable(error)) {
+				return null;
+			}
+
+			throw error;
+		}
+	};
+
+	getChatProviderConfigs = async (): Promise<ChatProviderConfig[] | null> => {
+		try {
+			const response = await this.axios.get<ChatProviderConfig[]>(
+				chatProviderConfigsPath,
+			);
+			return response.data;
+		} catch (error) {
+			// This endpoint is optional and may not exist on older deployments.
+			if (isOptionalEndpointUnavailable(error)) {
+				return null;
+			}
+
+			throw error;
+		}
+	};
+
+	createChatProviderConfig = async (
+		req: CreateChatProviderConfigRequest,
+	): Promise<ChatProviderConfig> => {
+		const response = await this.axios.post<ChatProviderConfig>(
+			chatProviderConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatProviderConfig = async (
+		providerConfigId: string,
+		req: UpdateChatProviderConfigRequest,
+	): Promise<ChatProviderConfig> => {
+		const response = await this.axios.patch<ChatProviderConfig>(
+			`${chatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProviderConfig = async (providerConfigId: string): Promise<void> => {
+		await this.axios.delete(
+			`${chatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
+		);
+	};
+
+	getChatModelConfigs = async (): Promise<ChatModelConfig[] | null> => {
+		try {
+			const response = await this.axios.get<ChatModelConfig[]>(
+				chatModelConfigsPath,
+			);
+			return response.data;
+		} catch (error) {
+			// This endpoint is optional and may not exist on older deployments.
+			if (isOptionalEndpointUnavailable(error)) {
+				return null;
+			}
+
+			throw error;
+		}
+	};
+
+	createChatModelConfig = async (
+		req: CreateChatModelConfigRequest,
+	): Promise<ChatModelConfig> => {
+		const response = await this.axios.post<ChatModelConfig>(
+			chatModelConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatModelConfig = async (
+		modelConfigId: string,
+		req: UpdateChatModelConfigRequest,
+	): Promise<ChatModelConfig> => {
+		const response = await this.axios.patch<ChatModelConfig>(
+			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatModelConfig = async (modelConfigId: string): Promise<void> => {
+		await this.axios.delete(
+			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+		);
 	};
 }
 

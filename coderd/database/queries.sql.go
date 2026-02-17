@@ -2083,6 +2083,455 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
+DELETE FROM
+    chat_model_configs
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatModelConfigByID, id)
+	return err
+}
+
+const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
+SELECT
+    id, provider, model, display_name, enabled, created_at, updated_at
+FROM
+    chat_model_configs
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigByID, id)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatModelConfigs = `-- name: GetChatModelConfigs :many
+SELECT
+    id, provider, model, display_name, enabled, created_at, updated_at
+FROM
+    chat_model_configs
+ORDER BY
+    provider ASC,
+    model ASC
+`
+
+func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.Model,
+			&i.DisplayName,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
+SELECT
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.enabled, cmc.created_at, cmc.updated_at
+FROM
+    chat_model_configs cmc
+JOIN
+    chat_providers cp ON cp.provider = cmc.provider
+WHERE
+    cmc.enabled = TRUE
+    AND cp.enabled = TRUE
+ORDER BY
+    cmc.provider ASC,
+    cmc.model ASC
+`
+
+func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.Model,
+			&i.DisplayName,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatModelConfig = `-- name: InsertChatModelConfig :one
+INSERT INTO chat_model_configs (
+    provider,
+    model,
+    display_name,
+    enabled
+) VALUES (
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::boolean
+)
+RETURNING
+    id, provider, model, display_name, enabled, created_at, updated_at
+`
+
+type InsertChatModelConfigParams struct {
+	Provider    string `db:"provider" json:"provider"`
+	Model       string `db:"model" json:"model"`
+	DisplayName string `db:"display_name" json:"display_name"`
+	Enabled     bool   `db:"enabled" json:"enabled"`
+}
+
+func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, insertChatModelConfig,
+		arg.Provider,
+		arg.Model,
+		arg.DisplayName,
+		arg.Enabled,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatModelConfig = `-- name: UpdateChatModelConfig :one
+UPDATE
+    chat_model_configs
+SET
+    provider = $1::text,
+    model = $2::text,
+    display_name = $3::text,
+    enabled = $4::boolean,
+    updated_at = NOW()
+WHERE
+    id = $5::uuid
+RETURNING
+    id, provider, model, display_name, enabled, created_at, updated_at
+`
+
+type UpdateChatModelConfigParams struct {
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Enabled     bool      `db:"enabled" json:"enabled"`
+	ID          uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateChatModelConfig,
+		arg.Provider,
+		arg.Model,
+		arg.DisplayName,
+		arg.Enabled,
+		arg.ID,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteChatProviderByID = `-- name: DeleteChatProviderByID :exec
+DELETE FROM
+    chat_providers
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProviderByID, id)
+	return err
+}
+
+const getChatProviderByID = `-- name: GetChatProviderByID :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+FROM
+    chat_providers
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByID, id)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+FROM
+    chat_providers
+WHERE
+    provider = $1::text
+`
+
+func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByProvider, provider)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatProviders = `-- name: GetChatProviders :many
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+FROM
+    chat_providers
+ORDER BY
+    provider ASC
+`
+
+func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProviders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProvider
+	for rows.Next() {
+		var i ChatProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.DisplayName,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+FROM
+    chat_providers
+WHERE
+    enabled = TRUE
+ORDER BY
+    provider ASC
+`
+
+func (q *sqlQuerier) GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatProviders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProvider
+	for rows.Next() {
+		var i ChatProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.DisplayName,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatProvider = `-- name: InsertChatProvider :one
+INSERT INTO chat_providers (
+    provider,
+    display_name,
+    api_key,
+    api_key_key_id,
+    enabled
+) VALUES (
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::text,
+    $5::boolean
+)
+RETURNING
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+`
+
+type InsertChatProviderParams struct {
+	Provider    string         `db:"provider" json:"provider"`
+	DisplayName string         `db:"display_name" json:"display_name"`
+	APIKey      string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+}
+
+func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, insertChatProvider,
+		arg.Provider,
+		arg.DisplayName,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.Enabled,
+	)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatProvider = `-- name: UpdateChatProvider :one
+UPDATE
+    chat_providers
+SET
+    display_name = $1::text,
+    api_key = $2::text,
+    api_key_key_id = $3::text,
+    enabled = $4::boolean,
+    updated_at = NOW()
+WHERE
+    id = $5::uuid
+RETURNING
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+`
+
+type UpdateChatProviderParams struct {
+	DisplayName string         `db:"display_name" json:"display_name"`
+	APIKey      string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, updateChatProvider,
+		arg.DisplayName,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.Enabled,
+		arg.ID,
+	)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count
@@ -23049,7 +23498,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $24 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $24) THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND

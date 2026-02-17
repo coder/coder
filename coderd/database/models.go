@@ -3816,16 +3816,52 @@ type Chat struct {
 	UpdatedAt        time.Time       `db:"updated_at" json:"updated_at"`
 }
 
+type ChatDiffStatus struct {
+	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
+	GithubPrUrl      sql.NullString `db:"github_pr_url" json:"github_pr_url"`
+	PullRequestState string         `db:"pull_request_state" json:"pull_request_state"`
+	PullRequestOpen  bool           `db:"pull_request_open" json:"pull_request_open"`
+	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
+	Additions        int32          `db:"additions" json:"additions"`
+	Deletions        int32          `db:"deletions" json:"deletions"`
+	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
+	RefreshedAt      sql.NullTime   `db:"refreshed_at" json:"refreshed_at"`
+	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID         int64                 `db:"id" json:"id"`
 	ChatID     uuid.UUID             `db:"chat_id" json:"chat_id"`
 	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
 	Role       string                `db:"role" json:"role"`
 	Content    pqtype.NullRawMessage `db:"content" json:"content"`
-	ToolCalls  pqtype.NullRawMessage `db:"tool_calls" json:"tool_calls"`
 	ToolCallID sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
 	Thinking   sql.NullString        `db:"thinking" json:"thinking"`
 	Hidden     bool                  `db:"hidden" json:"hidden"`
+}
+
+type ChatModelConfig struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Enabled     bool      `db:"enabled" json:"enabled"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ChatProvider struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Provider    string    `db:"provider" json:"provider"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	APIKey      string    `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type ConnectionLog struct {

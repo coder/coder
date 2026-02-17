@@ -453,6 +453,316 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chats",
+                "operationId": "list-chats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Chat"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create a chat",
+                "operationId": "create-chat",
+                "parameters": [
+                    {
+                        "description": "Create chat request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/models": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat models",
+                "operationId": "list-chat-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get a chat",
+                "operationId": "get-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatWithMessages"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete a chat",
+                "operationId": "delete-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/git-changes": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get git changes for a chat",
+                "operationId": "get-chat-git-changes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatGitChange"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/interrupt": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Interrupt a chat",
+                "operationId": "interrupt-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/messages": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create a chat message",
+                "operationId": "create-chat-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatMessage"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/stream": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Stream chat updates",
+                "operationId": "stream-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ServerSentEvent"
+                        }
+                    }
+                }
+            }
+        },
         "/connectionlog": {
             "get": {
                 "security": [
@@ -12057,6 +12367,9 @@ const docTemplate = `{
                 },
                 "key": {
                     "type": "string"
+                },
+                "models_url": {
+                    "type": "string"
                 }
             }
         },
@@ -12116,6 +12429,12 @@ const docTemplate = `{
                 },
                 "max_concurrency": {
                     "type": "integer"
+                },
+                "models_allowlist": {
+                    "type": "string"
+                },
+                "models_denylist": {
+                    "type": "string"
                 },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
@@ -12206,6 +12525,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
+                    "type": "string"
+                },
+                "models_url": {
                     "type": "string"
                 }
             }
@@ -12335,6 +12657,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIChatConfig": {
+            "type": "object",
+            "properties": {
+                "system_prompt": {
+                    "type": "string"
+                },
+                "title_generation_model": {
+                    "type": "string"
+                },
+                "title_generation_prompt": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
@@ -12343,6 +12679,9 @@ const docTemplate = `{
                 },
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
+                },
+                "chat": {
+                    "$ref": "#/definitions/codersdk.AIChatConfig"
                 }
             }
         },
@@ -12471,6 +12810,11 @@ const docTemplate = `{
                 "boundary_usage:delete",
                 "boundary_usage:read",
                 "boundary_usage:update",
+                "chat:*",
+                "chat:create",
+                "chat:delete",
+                "chat:read",
+                "chat:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -12673,6 +13017,11 @@ const docTemplate = `{
                 "APIKeyScopeBoundaryUsageDelete",
                 "APIKeyScopeBoundaryUsageRead",
                 "APIKeyScopeBoundaryUsageUpdate",
+                "APIKeyScopeChatAll",
+                "APIKeyScopeChatCreate",
+                "APIKeyScopeChatDelete",
+                "APIKeyScopeChatRead",
+                "APIKeyScopeChatUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -13380,6 +13729,240 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Chat": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "model_config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatStatus"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatGitChange": {
+            "type": "object",
+            "properties": {
+                "change_type": {
+                    "description": "added, modified, deleted, renamed",
+                    "type": "string"
+                },
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "detected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "diff_summary": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "old_path": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatInput": {
+            "type": "object",
+            "properties": {
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatInputPart": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatInputPartType"
+                }
+            }
+        },
+        "codersdk.ChatInputPartType": {
+            "type": "string",
+            "enum": [
+                "text"
+            ],
+            "x-enum-varnames": [
+                "ChatInputPartTypeText"
+            ]
+        },
+        "codersdk.ChatMessage": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "thinking": {
+                    "type": "string"
+                },
+                "tool_call_id": {
+                    "type": "string"
+                },
+                "tool_calls": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatModel": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelProvider": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModel"
+                    }
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "unavailable_reason": {
+                    "$ref": "#/definitions/codersdk.ChatModelProviderUnavailableReason"
+                }
+            }
+        },
+        "codersdk.ChatModelProviderUnavailableReason": {
+            "type": "string",
+            "enum": [
+                "missing_api_key",
+                "fetch_failed"
+            ],
+            "x-enum-varnames": [
+                "ChatModelProviderUnavailableMissingAPIKey",
+                "ChatModelProviderUnavailableFetchFailed"
+            ]
+        },
+        "codersdk.ChatModelsResponse": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelProvider"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatStatus": {
+            "type": "string",
+            "enum": [
+                "waiting",
+                "pending",
+                "running",
+                "paused",
+                "completed",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "ChatStatusWaiting",
+                "ChatStatusPending",
+                "ChatStatusRunning",
+                "ChatStatusPaused",
+                "ChatStatusCompleted",
+                "ChatStatusError"
+            ]
+        },
+        "codersdk.ChatWithMessages": {
+            "type": "object",
+            "properties": {
+                "chat": {
+                    "$ref": "#/definitions/codersdk.Chat"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -13543,6 +14126,63 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateChatMessageRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "role": {
+                    "type": "string"
+                },
+                "thinking": {
+                    "type": "string"
+                },
+                "tool_call_id": {
+                    "type": "string"
+                },
+                "tool_calls": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "codersdk.CreateChatRequest": {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "$ref": "#/definitions/codersdk.ChatInput"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "system_prompt": {
+                    "type": "string"
+                },
+                "workspace_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -17749,6 +18389,7 @@ const docTemplate = `{
                 "assign_role",
                 "audit_log",
                 "boundary_usage",
+                "chat",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -17794,6 +18435,7 @@ const docTemplate = `{
                 "ResourceAssignRole",
                 "ResourceAuditLog",
                 "ResourceBoundaryUsage",
+                "ResourceChat",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
