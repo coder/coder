@@ -47,7 +47,6 @@ Since the VM is ephemeral, any tools or files outside of the home directory are 
 > [!NOTE]
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
-
 ### Persistent VM
 
 > [!IMPORTANT]  
