@@ -1047,6 +1047,169 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 	}
 }
 
+func TestSkippingValidationFailedPresets(t *testing.T) {
+	t.Parallel()
+
+	// Test that reconciliation skips presets with validation_failed status.
+	// Once a preset is marked as validation_failed (due to parameter/tag validation errors),
+	// it should not attempt to create new prebuilds until the template is updated.
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	// Set up test environment.
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, false)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+
+	// Create preset with desired instances > 0.
+	preset := setupTestDBPreset(t, db, templateVersionID, 2, uuid.New().String())
+
+	// Mark the preset as validation_failed.
+	err := db.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
+		PresetID: preset.ID,
+		Status:   database.PrebuildStatusValidationFailed,
+	})
+	require.NoError(t, err)
+
+	// Verify the preset is marked as validation_failed.
+	updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusValidationFailed, updatedPreset.PrebuildStatus)
+
+	// Verify initial state: no workspaces exist.
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0)
+
+	// Run reconciliation multiple times.
+	for i := 0; i < 3; i++ {
+		_, err = controller.ReconcileAll(ctx)
+		require.NoError(t, err)
+	}
+
+	// Verify no workspaces were created because the preset has validation_failed status.
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0, "no workspaces should be created for presets with validation_failed status")
+
+	// Verify the preset status is still validation_failed.
+	finalPreset, err := db.GetPresetByID(ctx, preset.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusValidationFailed, finalPreset.PrebuildStatus)
+}
+
+func TestPresetMarkedValidationFailedOnBuildError(t *testing.T) {
+	t.Parallel()
+
+	// Test that a preset is marked as validation_failed when a 400 BuildError occurs
+	// during prebuild creation (e.g., missing required parameter, invalid workspace tags).
+	// This prevents endless retries on every reconciliation loop.
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	// Set up test environment.
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, false)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+
+	// Add a required parameter with no default value that is NOT set in the preset.
+	// This will cause a 400 BuildError when trying to create a prebuild.
+	// Using type "bool" but the preset will have a string value that fails validation.
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: templateVersionID,
+		Name:              "required-param",
+		Description:       "required param to trigger validation failure",
+		Type:              "bool",
+		DefaultValue:      "",
+		Required:          true,
+	})
+
+	// Create preset with desired instances > 0 but without the required parameter.
+	preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+
+	// Verify the preset starts with healthy status.
+	initialPreset, err := db.GetPresetByID(ctx, preset.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusHealthy, initialPreset.PrebuildStatus)
+
+	// Verify initial state: no workspaces exist.
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0)
+
+	// Run reconciliation - this should attempt to create a prebuild, fail with 400,
+	// and mark the preset as validation_failed.
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify the preset is now marked as validation_failed.
+	updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusValidationFailed, updatedPreset.PrebuildStatus,
+		"preset should be marked as validation_failed after 400 BuildError")
+
+	// Count workspaces created. Due to the break after marking validation_failed,
+	// only one creation attempt should have been made.
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	initialWorkspaceCount := len(workspaces)
+
+	// Run reconciliation again - should skip the preset now.
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify no additional workspaces were created.
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, initialWorkspaceCount,
+		"no additional workspaces should be created after preset is marked validation_failed")
+
+	// Verify the status is still validation_failed.
+	finalPreset, err := db.GetPresetByID(ctx, preset.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusValidationFailed, finalPreset.PrebuildStatus)
+}
+
 func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 	t.Parallel()
 
