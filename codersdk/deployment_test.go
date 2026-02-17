@@ -5,6 +5,8 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"strings"
 	"testing"
@@ -879,6 +881,218 @@ func TestComputeMaxIdleConns(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedIdle, result)
+			}
+		})
+	}
+}
+
+func TestHTTPCookieConfigMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// Realistic cookies that are always present in production.
+	// These cookies are added to every test.
+	baseCookies := []*http.Cookie{
+		{Name: "_ga", Value: "GA1.1.661026807.1770083336"},
+		{Name: "_ga_G0Q1B9GRC0", Value: "GS2.1.s1771343727$o49$g1$t1771343993$j48$l0$h0"},
+		{Name: "csrf_token", Value: "gDiKk8GjTM2iCUHAPfN9GlC+DGjzAprlLi2vJ+5TBU0="},
+	}
+
+	cases := []struct {
+		name            string
+		cfg             codersdk.HTTPCookieConfig
+		extraCookies    []*http.Cookie
+		expectedCookies map[string]string // cookie name -> value that handler should see
+		expectedDeleted []string          // if any cookies are supposed to be deleted via Set-Cookie
+	}{
+		{
+			name: "Disabled_PassesThrough",
+			cfg:  codersdk.HTTPCookieConfig{},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "token123"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "token123",
+			},
+		},
+		{
+			name: "Enabled_StripsPrefixFromCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "token123"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "token123",
+			},
+		},
+		{
+			name: "Enabled_DeletesUnprefixedCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				// Unprefixed cookie that should be in the "to prefix" list.
+				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
+			},
+			expectedCookies: map[string]string{
+				// Session token should NOT be present - it was deleted.
+			},
+			expectedDeleted: []string{codersdk.SessionTokenCookie},
+		},
+		{
+			name: "Enabled_BothPrefixedAndUnprefixed",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				// Browser might send both during migration.
+				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
+				{Name: codersdk.PathAppSessionTokenCookie, Value: "unprefixed-token"},
+				{Name: codersdk.SubdomainAppSessionTokenCookie, Value: "unprefixed-token"},
+				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "prefixed-token"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "prefixed-token", // Prefixed wins.
+			},
+			expectedDeleted: []string{codersdk.SessionTokenCookie, codersdk.PathAppSessionTokenCookie, codersdk.SubdomainAppSessionTokenCookie},
+		},
+		{
+			name: "Enabled_MultiplePrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__HOST-" + codersdk.PathAppSessionTokenCookie, Value: "path-app"},
+				{Name: "__HOST-" + codersdk.SubdomainAppSessionTokenCookie, Value: "subdomain-app"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie:             "session",
+				codersdk.PathAppSessionTokenCookie:      "path-app",
+				codersdk.SubdomainAppSessionTokenCookie: "subdomain-app",
+			},
+		},
+		{
+			name: "Enabled_UnrelatedCookiesUnchanged",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "custom_cookie", Value: "custom-value"},
+				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "session"},
+			},
+			expectedCookies: map[string]string{
+				"custom_cookie":             "custom-value",
+				codersdk.SessionTokenCookie: "session",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var handlerCookies []*http.Cookie
+			handler := tc.cfg.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handlerCookies = r.Cookies()
+			}))
+
+			req := httptest.NewRequest("GET", "/", nil)
+			for _, c := range baseCookies {
+				req.AddCookie(c)
+			}
+			for _, c := range tc.extraCookies {
+				req.AddCookie(c)
+			}
+
+			rw := httptest.NewRecorder()
+			handler.ServeHTTP(rw, req)
+
+			// Verify cookies seen by handler.
+			gotCookies := make(map[string]string)
+			for _, c := range handlerCookies {
+				gotCookies[c.Name] = c.Value
+			}
+
+			for _, v := range baseCookies {
+				tc.expectedCookies[v.Name] = v.Value
+			}
+			assert.Equal(t, tc.expectedCookies, gotCookies)
+
+			// Verify Set-Cookie header for deletion.
+			setCookies := rw.Result().Cookies()
+			if len(tc.expectedDeleted) > 0 {
+				assert.NotEmpty(t, setCookies, "expected Set-Cookie header for cookie deletion")
+				expDel := make(map[string]struct{})
+				for _, name := range tc.expectedDeleted {
+					expDel[name] = struct{}{}
+				}
+				// Verify it's a deletion (MaxAge < 0).
+				for _, c := range setCookies {
+					assert.Less(t, c.MaxAge, 0, "Set-Cookie should have MaxAge < 0 for deletion")
+					delete(expDel, c.Name)
+				}
+				require.Empty(t, expDel, "expected Set-Cookie header for deletion")
+			} else {
+				assert.Empty(t, setCookies, "did not expect Set-Cookie header")
+			}
+		})
+	}
+}
+
+func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
+	noop := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+
+	// Realistic cookies that are always present in production.
+	baseCookies := []*http.Cookie{
+		{Name: "_ga", Value: "GA1.1.661026807.1770083336"},
+		{Name: "_ga_G0Q1B9GRC0", Value: "GS2.1.s1771343727$o49$g1$t1771343993$j48$l0$h0"},
+		{Name: "csrf_token", Value: "gDiKk8GjTM2iCUHAPfN9GlC+DGjzAprlLi2vJ+5TBU0="},
+	}
+
+	cases := []struct {
+		name         string
+		cfg          codersdk.HTTPCookieConfig
+		extraCookies []*http.Cookie
+	}{
+		{
+			name: "Disabled",
+			cfg:  codersdk.HTTPCookieConfig{},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_NoPrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_WithPrefixedCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_MultiplePrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+				{Name: "__HOST-" + codersdk.PathAppSessionTokenCookie, Value: "xyz123"},
+				{Name: "__HOST-" + codersdk.SubdomainAppSessionTokenCookie, Value: "abc456"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			handler := tc.cfg.Middleware(noop)
+			rw := httptest.NewRecorder()
+
+			// Combine base cookies with test-specific cookies.
+			allCookies := append(baseCookies, tc.extraCookies...)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				req := httptest.NewRequest("GET", "/", nil)
+				for _, c := range allCookies {
+					req.AddCookie(c)
+				}
+				handler.ServeHTTP(rw, req)
 			}
 		})
 	}

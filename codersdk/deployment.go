@@ -860,21 +860,55 @@ type HTTPCookieConfig struct {
 	EnableHostPrefix bool         `json:"host_prefix,omitempty" typescript:",notnull"`
 }
 
+// cookiesToPrefix is the set of cookies that should be prefixed with the host prefix if EnableHostPrefix is true.
+var cookiesToPrefix = map[string]struct{}{
+	SessionTokenCookie:             {},
+	PathAppSessionTokenCookie:      {},
+	SubdomainAppSessionTokenCookie: {},
+}
+
 func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if !cfg.EnableHostPrefix {
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(rw, r)
 			return
 		}
 
 		// Instead of having everywhere in the code handle the possibly prefix'd cookie,
 		// we just strip them in a middleware. So the rest of the codebase is unaware of this.
-		for _, c := range r.Cookies() {
+		modified := false
+		cookies := r.Cookies()
+		for i, c := range cookies {
+			if _, ok := cookiesToPrefix[c.Name]; ok {
+				// Remove the cookie from the client
+				http.SetCookie(rw, &http.Cookie{
+					// MaxAge < 0 means to delete the cookie now.
+					MaxAge: -1,
+					Name:   c.Name,
+					Path:   "/",
+				})
+				// And remove it from the request so the rest of the code doesn't see it.
+				cookies[i] = nil
+				modified = true
+			}
+
 			if strings.HasPrefix(c.Name, cookieHostPrefix) {
 				c.Name = strings.TrimPrefix(c.Name, cookieHostPrefix)
+				modified = true
 			}
 		}
-		next.ServeHTTP(w, r)
+
+		// r.Cookies() returns copies, so we need to rebuild the header.
+		if modified {
+			r.Header.Del("Cookie")
+			for _, c := range cookies {
+				if c != nil {
+					r.AddCookie(c)
+				}
+			}
+		}
+
+		next.ServeHTTP(rw, r)
 		return
 	})
 }
@@ -883,7 +917,9 @@ func (cfg *HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
 	c.Secure = cfg.Secure.Value()
 	c.SameSite = cfg.HTTPSameSite()
 	if cfg.EnableHostPrefix {
-		c.Name = cookieHostPrefix + c.Name
+		if _, ok := cookiesToPrefix[c.Name]; ok {
+			c.Name = cookieHostPrefix + c.Name
+		}
 	}
 	return c
 }
