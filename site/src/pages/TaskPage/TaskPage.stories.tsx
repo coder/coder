@@ -31,6 +31,7 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { taskLogsKey } from "api/queries/tasks";
 import type {
 	Task,
 	TaskLogsResponse,
@@ -225,6 +226,19 @@ export const FailedBuild: Story = {
 	},
 };
 
+export const FailedBuildNoSnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockFailedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			logs: [],
+		});
+	},
+};
+
 export const TerminatedBuild: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue(MockTask);
@@ -277,6 +291,39 @@ export const TaskPaused: Story = {
 			MockStoppedWorkspace,
 		);
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const TaskPausedNoSnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			logs: [],
+		});
+	},
+};
+
+export const TaskPausedSingleMessage: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+			logs: [MockTaskLogsResponse.logs[0]],
+		});
 	},
 };
 
@@ -610,7 +657,7 @@ export const TaskPausedOutdated: Story = {
 				data: [],
 			},
 			{
-				key: ["tasks", MockTask.owner_name, MockTask.id, "logs"],
+				key: taskLogsKey(MockTask.owner_name, MockTask.id),
 				data: MockTaskLogsResponse,
 			},
 		],

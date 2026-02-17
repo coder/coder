@@ -304,26 +304,19 @@ const TaskDeleted: FC = () => {
 
 /**
  * Auto-scrolls a ScrollArea to the bottom whenever deps change.
- * Shared by BuildingWorkspace (build logs) and TaskLogPreview (chat logs).
  */
-function useScrollAreaAutoScroll(deps: DependencyList) {
-	const scrollAreaRef = useRef<HTMLDivElement>(null);
+function useAutoScrollToBottom(deps: DependencyList) {
+	const ref = useRef<HTMLDivElement>(null);
 
 	useLayoutEffect(() => {
 		if (isChromatic()) {
 			return;
 		}
-		const scrollAreaEl = scrollAreaRef.current;
-		const scrollAreaViewportEl = scrollAreaEl?.querySelector<HTMLDivElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (scrollAreaViewportEl) {
-			scrollAreaViewportEl.scrollTop = scrollAreaViewportEl.scrollHeight;
-		}
+		ref.current?.scrollIntoView({ block: "end" });
 		// biome-ignore lint/correctness/useExhaustiveDependencies: caller controls deps
 	}, deps);
 
-	return scrollAreaRef;
+	return ref;
 }
 
 type TaskLogPreviewProps = {
@@ -333,6 +326,16 @@ type TaskLogPreviewProps = {
 	snapshotAt?: string;
 };
 
+function logPreviewLabel(count: number): string {
+	if (count === 0) {
+		return "AI chat logs";
+	}
+	if (count === 1) {
+		return "Last message of AI chat logs";
+	}
+	return `Last ${count} messages of AI chat logs`;
+}
+
 const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	logs,
 	maxMessages = 30,
@@ -340,14 +343,15 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	snapshotAt,
 }) => {
 	const visibleLogs = logs.slice(-maxMessages);
-	const scrollAreaRef = useScrollAreaAutoScroll([visibleLogs]);
+	const ref = useAutoScrollToBottom([visibleLogs]);
+	const hasLogs = visibleLogs.length > 0;
 
 	return (
 		<div className="w-full max-w-screen-lg mx-auto px-16">
 			<div className="border border-solid border-border rounded-lg overflow-hidden">
-				<div className="flex items-center justify-between px-4 py-2 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
+				<div className="flex items-center justify-between px-4 py-2 border-b border-b-solid border-b-border bg-surface-secondary text-sm text-content-secondary">
 					<span className="flex items-center gap-1.5">
-						Last {maxMessages} messages of AI chat logs
+						{logPreviewLabel(visibleLogs.length)}
 						{snapshotAt && (
 							<InfoTooltip
 								type="info"
@@ -357,30 +361,42 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 					</span>
 					{headerAction}
 				</div>
-				<ScrollArea ref={scrollAreaRef} className="h-96">
-					<div className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words">
-						{visibleLogs.map((entry, index) => {
-							const prev = visibleLogs[index - 1];
-							const isNewGroup = !prev || prev.type !== entry.type;
-							return (
-								<div
-									key={entry.id}
-									className={cn(
-										"pl-3 border-0 border-l-2 border-solid border-l-content-secondary",
-										isNewGroup && index > 0 && "mt-4",
-									)}
-								>
-									{isNewGroup && (
-										<div className="text-content-primary font-semibold mb-1">
-											{entry.type === "input" ? "[user]" : "[agent]"}
-										</div>
-									)}
-									{entry.content || "\u00A0"}
-								</div>
-							);
-						})}
-					</div>
-				</ScrollArea>
+				{hasLogs ? (
+					<ScrollArea className="h-96">
+						<div
+							ref={ref}
+							className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
+						>
+							{visibleLogs.map((entry, index) => {
+								const prev = visibleLogs[index - 1];
+								const isNewGroup = !prev || prev.type !== entry.type;
+								return (
+									<div
+										key={entry.id}
+										className={cn(
+											"pl-3 border-0 border-l-2 border-solid",
+											entry.type === "input"
+												? "border-l-border-pending"
+												: "border-l-border-purple",
+											isNewGroup && index > 0 && "mt-4",
+										)}
+									>
+										{isNewGroup && (
+											<div className="text-content-primary font-semibold mb-1">
+												{entry.type === "input" ? "[user]" : "[agent]"}
+											</div>
+										)}
+										{entry.content || "\u00A0"}
+									</div>
+								);
+							})}
+						</div>
+					</ScrollArea>
+				) : (
+					<p className="px-4 py-3 text-sm text-content-secondary m-0">
+						No log snapshot available. Resume your task to view logs.
+					</p>
+				)}
 			</div>
 		</div>
 	);
@@ -398,7 +414,6 @@ const TaskBuildFailed: FC<TaskBuildFailedProps> = ({ task, workspace }) => {
 	});
 
 	const buildLogsLink = `/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`;
-	const hasLogs = logsData && logsData.logs.length > 0;
 
 	return (
 		<>
@@ -412,7 +427,7 @@ const TaskBuildFailed: FC<TaskBuildFailedProps> = ({ task, workspace }) => {
 					</Button>
 				}
 			/>
-			{hasLogs && (
+			{logsData && (
 				<TaskLogPreview
 					logs={logsData.logs}
 					snapshotAt={logsData.snapshot_at}
@@ -463,8 +478,6 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 		? resumeMutation.error
 		: undefined;
 
-	const hasLogs = logsData && logsData.logs.length > 0;
-
 	return (
 		<>
 			<TaskStateMessage
@@ -503,7 +516,7 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 					</div>
 				}
 			/>
-			{hasLogs && (
+			{logsData && (
 				<TaskLogPreview
 					logs={logsData.logs}
 					snapshotAt={logsData.snapshot_at}
@@ -557,8 +570,6 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 		P95: null,
 	};
 
-	const scrollAreaRef = useScrollAreaAutoScroll([buildLogs]);
-
 	return (
 		<section className="p-16 overflow-y-auto">
 			<div className="flex justify-center items-center w-full">
@@ -579,10 +590,7 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 							variant="task"
 						/>
 
-						<ScrollArea
-							ref={scrollAreaRef}
-							className="h-96 border border-solid border-border rounded-lg"
-						>
+						<ScrollArea className="h-96 border border-solid border-border rounded-lg">
 							<WorkspaceBuildLogs
 								sticky
 								className="border-0 rounded-none"
