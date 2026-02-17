@@ -17,9 +17,11 @@ const RequestLogsPage: FC = () => {
 
 	// Users are allowed to view their own request logs via the API,
 	// but this page is only visible if the feature is enabled and the user
-	// has the necessary permission (as its found in the Admin settings dropdown).
-	const canViewRequestLogs =
-		Boolean(feats.aibridge) && permissions.viewAnyAIBridgeInterception;
+	// has the `viewAnyAIBridgeInterception` permission.
+	// (as its defined in the Admin settings dropdown).
+	const isEntitled = Boolean(feats.aibridge);
+	const hasPermission = permissions.viewAnyAIBridgeInterception;
+	const canViewRequestLogs = isEntitled && hasPermission;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const interceptionsQuery = usePaginatedQuery({
@@ -51,12 +53,12 @@ const RequestLogsPage: FC = () => {
 	});
 
 	return (
-		<RequirePermission isFeatureVisible={canViewRequestLogs}>
+		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}
-				isRequestLogsVisible={canViewRequestLogs}
+				isRequestLogsVisible={isEntitled}
 				interceptions={interceptionsQuery.data?.results}
 				interceptionsQuery={interceptionsQuery}
 				filterProps={{
