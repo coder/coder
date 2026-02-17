@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # tokens remove
 
-Delete a token
+Expire or delete a token
 
 Aliases:
 
@@ -17,7 +17,7 @@ coder tokens remove [flags] <name|id|token>
 ## Description
 
 ```console
-Remove a token by expiring it. Use --delete to permanently delete the token instead, which removes the audit trail.
+Remove a token by expiring it. Use --delete to permanently hard-delete the token instead.
 ```
 
 ## Options
