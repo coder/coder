@@ -6,11 +6,16 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const LicensesSettingsPage: FC = () => {
 	const queryClient = useQueryClient();
+
+	const [searchParams, setSearchParams] = useSearchParams();
+	const isSuccess = searchParams.get("success") === "true";
+	const licenseTier = searchParams.get("tier");
 
 	const { metadata } = useEmbeddedMetadata();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
@@ -54,7 +59,9 @@ const LicensesSettingsPage: FC = () => {
 			<title>{pageTitle("License Settings")}</title>
 
 			<LicensesSettingsPageView
+				isSuccess={isSuccess}
 				isLoading={isLoading}
+				licenseTier={licenseTier}
 				isRefreshing={refreshEntitlementsMutation.isPending}
 				userLimitActual={entitlementsQuery.data?.features.user_limit?.actual}
 				userLimitLimit={entitlementsQuery.data?.features.user_limit?.limit}
@@ -76,6 +83,7 @@ const LicensesSettingsPage: FC = () => {
 						displayError(getErrorMessage(error, "Failed to remove license"));
 					}
 				}}
+				onCloseSuccess={() => setSearchParams()}
 			/>
 		</>
 	);

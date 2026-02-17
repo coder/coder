@@ -1,9 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import type { GetLicensesResponse } from "api/api";
 import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -17,15 +17,18 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
+import { LicenseSuccessDialog } from "modules/management/LicenseSuccessDialog/LicenseSuccessDialog";
 import type { FC } from "react";
-import { Link } from "react-router";
+import { Link as RouterLink } from "react-router";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 
 type Props = {
+	isSuccess: boolean;
 	isLoading: boolean;
+	licenseTier: string | null;
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	licenses?: GetLicensesResponse[];
@@ -36,10 +39,13 @@ type Props = {
 	activeUsers: UserStatusChangeCount[] | undefined;
 	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
+	onCloseSuccess: () => void;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
+	isSuccess,
 	isLoading,
+	licenseTier,
 	userLimitActual,
 	userLimitLimit,
 	licenses,
@@ -50,6 +56,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	activeUsers,
 	managedAgentFeature,
 	aiGovernanceUserFeature,
+	onCloseSuccess,
 }) => {
 	return (
 		<>
@@ -67,10 +74,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 
 				<Stack direction="row" spacing={2}>
 					<Button variant="outline" asChild>
-						<Link to="/deployment/licenses/add">
+						<RouterLink className="px-0" to="/deployment/licenses/add">
 							<PlusIcon />
 							Add a license
-						</Link>
+						</RouterLink>
 					</Button>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -129,10 +136,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 								<span css={styles.description}>
 									You&apos;re missing out on high availability, RBAC, quotas,
 									and much more. Contact{" "}
-									<MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
-									<MuiLink href="https://coder.com/trial">
+									<Link href="mailto:sales@coder.com">sales</Link> or{" "}
+									<Link href="https://coder.com/trial">
 										request a trial license
-									</MuiLink>{" "}
+									</Link>{" "}
 									to get started.
 								</span>
 							</Stack>
@@ -162,6 +169,12 @@ const LicensesSettingsPageView: FC<Props> = ({
 					</>
 				)}
 			</div>
+
+			<LicenseSuccessDialog
+				open={isSuccess}
+				onClose={onCloseSuccess}
+				licenseTier={licenseTier}
+			/>
 		</>
 	);
 };

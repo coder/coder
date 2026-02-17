@@ -2256,7 +2256,7 @@ class ApiMethods {
 
 	createLicense = async (
 		data: TypesGen.AddLicenseRequest,
-	): Promise<TypesGen.AddLicenseRequest> => {
+	): Promise<GetLicensesResponse> => {
 		const response = await this.axios.post("/api/v2/licenses", data);
 		return response.data;
 	};
