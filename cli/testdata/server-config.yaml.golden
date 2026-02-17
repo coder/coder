@@ -181,7 +181,7 @@ networking:
   # Controls the 'SameSite' property is set on browser session cookies.
   # (default: lax, type: enum[lax\|none])
   sameSiteAuthCookie: lax
-  # Reccomended to be enabled. Enables `__HOST-` prefix for cookies to guarantee
+  # Recommended to be enabled. Enables `__HOST-` prefix for cookies to guarantee
   # they are only set by the right domain.
   # (default: false, type: bool)
   hostPrefixCookie: false
