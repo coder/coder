@@ -924,7 +924,6 @@ func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(rw, r)
-		return
 	})
 }
 

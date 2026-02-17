@@ -1093,8 +1093,9 @@ func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
 			handler := tc.cfg.Middleware(noop)
 			rw := httptest.NewRecorder()
 
+			allCookies := make([]*http.Cookie, 0, len(baseCookies)+len(tc.extraCookies))
 			// Combine base cookies with test-specific cookies.
-			allCookies := append(baseCookies, tc.extraCookies...)
+			allCookies = append(baseCookies, tc.extraCookies...)
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
