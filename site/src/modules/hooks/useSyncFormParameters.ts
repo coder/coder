@@ -28,14 +28,19 @@ export function useSyncFormParameters({
 		if (!parameters) return;
 		const currentFormValues = formValuesRef.current;
 
-		const newParameterValues = parameters.map((param) => ({
-			name: param.name,
-			value: param.value.valid ? param.value.value : "",
-		}));
-
 		const currentFormValuesMap = new Map(
 			currentFormValues.map((value) => [value.name, value.value]),
 		);
+
+		// When the backend has no definitive value (valid=false), preserve
+		// the existing form value (e.g. from autofill) instead of clobbering
+		// it with an empty string.
+		const newParameterValues = parameters.map((param) => ({
+			name: param.name,
+			value: param.value.valid
+				? param.value.value
+				: currentFormValuesMap.get(param.name) ?? "",
+		}));
 
 		const isChanged =
 			currentFormValues.length !== newParameterValues.length ||
