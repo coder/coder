@@ -185,7 +185,7 @@ WITH task_event_data AS (
         SELECT COALESCE(
             SUM(EXTRACT(EPOCH FROM (interval_end - interval_start)) * 1000)::bigint,
             0
-        ) AS total_working_ms
+        )::bigint AS total_working_ms
         FROM (
             SELECT
                 was.created_at AS interval_start,

@@ -985,8 +985,8 @@ func buildTaskEvent(
 	}
 
 	// Active duration: from SQL calculation.
-	if activeDurationMs, ok := row.ActiveDurationMs.(int64); ok && activeDurationMs > 0 {
-		event.ActiveDurationMS = ptr.Ref(activeDurationMs)
+	if row.ActiveDurationMs > 0 {
+		event.ActiveDurationMS = ptr.Ref(row.ActiveDurationMs)
 	}
 
 	return event

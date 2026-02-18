@@ -13364,7 +13364,7 @@ WITH task_event_data AS (
         SELECT COALESCE(
             SUM(EXTRACT(EPOCH FROM (interval_end - interval_start)) * 1000)::bigint,
             0
-        ) AS total_working_ms
+        )::bigint AS total_working_ms
         FROM (
             SELECT
                 was.created_at AS interval_start,
@@ -13404,7 +13404,7 @@ type GetTelemetryTaskEventsRow struct {
 	StartBuildCreatedAt      sql.NullTime    `db:"start_build_created_at" json:"start_build_created_at"`
 	LastWorkingStatusAt      sql.NullTime    `db:"last_working_status_at" json:"last_working_status_at"`
 	FirstStatusAfterResumeAt sql.NullTime    `db:"first_status_after_resume_at" json:"first_status_after_resume_at"`
-	ActiveDurationMs         interface{}     `db:"active_duration_ms" json:"active_duration_ms"`
+	ActiveDurationMs         int64           `db:"active_duration_ms" json:"active_duration_ms"`
 }
 
 // Returns all data needed to build task lifecycle events for telemetry
