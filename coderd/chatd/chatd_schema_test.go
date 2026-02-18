@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -106,4 +107,51 @@ func requiredStrings(t *testing.T, schema map[string]any, path string) []string 
 	required, ok := schema["required"].([]string)
 	require.True(t, ok, "required at %s has unexpected type %T", path, schema["required"])
 	return required
+}
+
+func schemaMap(schema *jsonschema.Schema) map[string]any {
+	data, err := json.Marshal(schema)
+	if err != nil {
+		return map[string]any{}
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return map[string]any{}
+	}
+	normalizeRequiredArrays(out)
+	return out
+}
+
+func normalizeRequiredArrays(value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		normalizeMap(v)
+	case []any:
+		for _, item := range v {
+			normalizeRequiredArrays(item)
+		}
+	}
+}
+
+func normalizeMap(m map[string]any) {
+	if req, ok := m["required"]; ok {
+		if arr, ok := req.([]any); ok {
+			converted := make([]string, 0, len(arr))
+			for _, item := range arr {
+				s, isString := item.(string)
+				if !isString {
+					converted = nil
+					break
+				}
+				converted = append(converted, s)
+			}
+			if converted != nil {
+				m["required"] = converted
+			}
+		}
+	}
+	for _, v := range m {
+		normalizeRequiredArrays(v)
+	}
 }

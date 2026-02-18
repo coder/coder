@@ -311,6 +311,12 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, req)
+	if validationError != nil {
+		httpapi.Write(ctx, rw, validationStatus, *validationError)
+		return
+	}
+
 	systemPrompt := defaultChatSystemPrompt(api)
 	if override := strings.TrimSpace(req.SystemPrompt); override != "" {
 		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -1908,6 +1914,50 @@ func stringOrEmpty(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func (api *API) validateCreateChatWorkspaceSelection(
+	ctx context.Context,
+	req codersdk.CreateChatRequest,
+) (int, *codersdk.Response) {
+	var workspaceID uuid.UUID
+	if req.WorkspaceID != nil {
+		workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				return http.StatusBadRequest, &codersdk.Response{
+					Message: "Workspace not found or you do not have access to this resource",
+				}
+			}
+			return http.StatusInternalServerError, &codersdk.Response{
+				Message: "Failed to get workspace.",
+				Detail:  err.Error(),
+			}
+		}
+		workspaceID = workspace.ID
+	}
+
+	if req.WorkspaceAgentID != nil {
+		workspaceAgent, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(ctx, *req.WorkspaceAgentID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				return http.StatusBadRequest, &codersdk.Response{
+					Message: "Workspace agent not found or you do not have access to this resource",
+				}
+			}
+			return http.StatusInternalServerError, &codersdk.Response{
+				Message: "Failed to get workspace agent.",
+				Detail:  err.Error(),
+			}
+		}
+		if req.WorkspaceID != nil && workspaceAgent.WorkspaceTable.ID != workspaceID {
+			return http.StatusBadRequest, &codersdk.Response{
+				Message: "Workspace agent does not belong to the selected workspace.",
+			}
+		}
+	}
+
+	return 0, nil
 }
 
 func defaultChatSystemPrompt(api *API) string {
