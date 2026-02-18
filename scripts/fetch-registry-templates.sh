@@ -17,10 +17,7 @@ REGISTRY_REPO="coder/registry"
 REGISTRY_BRANCH="main"
 REGISTRY_BASE_URL="https://github.com/${REGISTRY_REPO}"
 REGISTRY_TEMPLATES_PATH="registry/coder/templates"
-REGISTRY_ICONS_PATH=".icons"
-
 EXAMPLES_DIR="examples/templates"
-ICONS_DIR="site/static/icon"
 
 # Templates to fetch from the registry. This list should be a superset of
 # the //go:embed directives in examples/examples.go (embedded templates),
@@ -48,15 +45,6 @@ TEMPLATES=(
 	tasks-docker
 )
 
-# Icon files to copy from the registry's .icons/ directory into
-# site/static/icon/. These are icons that exist in the registry but not
-# (under the same name) in coder/coder.
-ICONS_TO_COPY=(
-	digital-ocean.svg
-	kubernetes.svg
-	box-emoji.svg
-)
-
 log() {
 	echo "==> $*" >&2
 }
@@ -76,18 +64,6 @@ if [[ ! -d "$registry_root" ]]; then
 	ls -la "$tmpdir" >&2
 	exit 1
 fi
-
-# Copy icons that don't exist in coder/coder under the same name.
-for icon in "${ICONS_TO_COPY[@]}"; do
-	src="${registry_root}/${REGISTRY_ICONS_PATH}/${icon}"
-	dst="${ICONS_DIR}/${icon}"
-	if [[ ! -f "$src" ]]; then
-		echo "ERROR: Icon ${src} not found in registry" >&2
-		exit 1
-	fi
-	log "Copying icon: ${icon}"
-	cp "$src" "$dst"
-done
 
 # Fetch each template from the registry.
 fetched=0
