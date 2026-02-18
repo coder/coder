@@ -318,12 +318,11 @@ export const startWorkspace = (
 				workspace.latest_build.transition === "start" &&
 				workspace.latest_build.status === "failed"
 			) {
-				await API.restartWorkspace({
+				return API.restartWorkspace({
 					workspace,
 					buildParameters,
 					logLevel,
 				});
-				return undefined;
 			}
 			return API.startWorkspace(
 				workspace.id,

@@ -1387,13 +1387,15 @@ class ApiMethods {
 		workspace,
 		buildParameters,
 		logLevel,
-	}: RestartWorkspaceParameters): Promise<void> => {
+	}: RestartWorkspaceParameters): Promise<
+		TypesGen.WorkspaceBuild | undefined
+	> => {
 		const stopBuild = await this.stopWorkspace(workspace.id, logLevel);
 		const awaitedStopBuild = await this.waitForBuild(stopBuild);
 
 		// If the restart is canceled halfway through, make sure we bail
 		if (awaitedStopBuild?.status === "canceled") {
-			return;
+			return undefined;
 		}
 
 		const startBuild = await this.startWorkspace(
@@ -1404,6 +1406,7 @@ class ApiMethods {
 		);
 
 		await this.waitForBuild(startBuild);
+		return startBuild;
 	};
 
 	cancelTemplateVersionBuild = async (
@@ -2236,7 +2239,7 @@ class ApiMethods {
 
 	updateWorkspaceVersion = async (
 		workspace: TypesGen.Workspace,
-	): Promise<TypesGen.WorkspaceBuild | void> => {
+	): Promise<TypesGen.WorkspaceBuild | undefined> => {
 		const template = await this.getTemplate(workspace.template_id);
 		if (
 			workspace.latest_build.status === "failed" &&
