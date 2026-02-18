@@ -1342,6 +1342,10 @@
 							"path": "./reference/api/builds.md"
 						},
 						{
+							"title": "Changelog",
+							"path": "./reference/api/changelog.md"
+						},
+						{
 							"title": "Debug",
 							"path": "./reference/api/debug.md"
 						},

@@ -2,11 +2,14 @@ import type { InboxNotification } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Link } from "components/Link/Link";
 import { SquareCheckBig } from "lucide-react";
+import { useChangelog } from "modules/changelog";
 import type { FC } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router";
 import { relativeTime } from "utils/time";
 import { InboxAvatar } from "./InboxAvatar";
+
+const CHANGELOG_ICON = "DEFAULT_ICON_CHANGELOG";
 
 type InboxItemProps = {
 	notification: InboxNotification;
@@ -17,6 +20,9 @@ export const InboxItem: FC<InboxItemProps> = ({
 	notification,
 	onMarkNotificationAsRead,
 }) => {
+	const isChangelog = notification.icon === CHANGELOG_ICON;
+	const { openChangelog } = useChangelog();
+
 	return (
 		<div
 			className="flex items-stretch gap-3 p-3 group"
@@ -28,18 +34,46 @@ export const InboxItem: FC<InboxItemProps> = ({
 			</div>
 
 			<div className="flex flex-col gap-3 flex-1">
-				<Markdown
-					className="text-content-secondary prose-sm font-medium [overflow-wrap:anywhere]"
-					components={{
-						a: ({ node, ...props }) => {
-							return <Link {...props} />;
-						},
-					}}
-				>
-					{notification.content}
-				</Markdown>
+				<div>
+					{isChangelog && (
+						<div className="flex items-center gap-2 mb-1">
+							<span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400 border border-violet-300 dark:border-violet-500/30">
+								Changelog
+							</span>
+							<span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-surface-secondary text-content-secondary border border-default">
+								{notification.title}
+							</span>
+						</div>
+					)}
+					<Markdown
+						className="text-content-secondary prose-sm font-medium [overflow-wrap:anywhere]"
+						components={{
+							a: ({ node, ...props }) => {
+								return <Link {...props} />;
+							},
+						}}
+					>
+						{notification.content}
+					</Markdown>
+				</div>
 				<div className="flex items-center gap-1">
 					{notification.actions.map((action) => {
+						if (isChangelog) {
+							return (
+								<Button
+									variant="outline"
+									size="sm"
+									key={action.label}
+									onClick={() => {
+										openChangelog(notification.title);
+										onMarkNotificationAsRead(notification.id);
+									}}
+								>
+									{action.label}
+								</Button>
+							);
+						}
+
 						return (
 							<Button variant="outline" size="sm" key={action.label} asChild>
 								<RouterLink

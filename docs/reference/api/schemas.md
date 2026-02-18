@@ -1547,6 +1547,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ChangelogEntry
+
+```json
+{
+  "content": "string",
+  "date": "string",
+  "image_url": "string",
+  "summary": "string",
+  "title": "string",
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `content`   | string | false    |              |             |
+| `date`      | string | false    |              |             |
+| `image_url` | string | false    |              |             |
+| `summary`   | string | false    |              |             |
+| `title`     | string | false    |              |             |
+| `version`   | string | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -4735,6 +4759,29 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |------------|-------------------------------|
 | `icon`     | `bug`, `chat`, `docs`, `star` |
 | `location` | `dropdown`, `navbar`          |
+
+## codersdk.ListChangelogEntriesResponse
+
+```json
+{
+  "entries": [
+    {
+      "content": "string",
+      "date": "string",
+      "image_url": "string",
+      "summary": "string",
+      "title": "string",
+      "version": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                        | Required | Restrictions | Description |
+|-----------|-------------------------------------------------------------|----------|--------------|-------------|
+| `entries` | array of [codersdk.ChangelogEntry](#codersdkchangelogentry) | false    |              |             |
 
 ## codersdk.ListInboxNotificationsResponse
 
@@ -9370,6 +9417,38 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------|---------|----------|--------------|-------------|
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UnreadChangelogNotificationResponse
+
+```json
+{
+  "notification": {
+    "actions": [
+      {
+        "label": "string",
+        "url": "string"
+      }
+    ],
+    "content": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "read_at": "string",
+    "targets": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "title": "string",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                     | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------|----------|--------------|-------------|
+| `notification` | [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
 
 ## codersdk.UpdateActiveTemplateVersion
 

@@ -60,3 +60,8 @@ var (
 	TemplateTaskCompleted = uuid.MustParse("8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c")
 	TemplateTaskFailed    = uuid.MustParse("3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e")
 )
+
+// Changelog-related events.
+var (
+	TemplateChangelog = uuid.MustParse("b02d53fd-477d-4a65-8d42-1b7e4b38f8c3")
+)

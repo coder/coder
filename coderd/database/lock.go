@@ -15,6 +15,7 @@ const (
 	LockIDReconcilePrebuilds
 	LockIDReconcileSystemRoles
 	LockIDBoundaryUsageStats
+	LockIDChangelogBroadcast
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.
