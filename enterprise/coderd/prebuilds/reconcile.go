@@ -414,6 +414,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 		}
 
 		c.reportHardLimitedPresets(snapshot)
+		c.reportValidationFailedPresets(snapshot)
 
 		if len(snapshot.Presets) == 0 {
 			logger.Debug(ctx, "no templates found with prebuilds configured")
@@ -513,6 +514,42 @@ func (c *StoreReconciler) reportHardLimitedPresets(snapshot *prebuilds.GlobalSna
 	}
 
 	c.metrics.registerHardLimitedPresets(isPresetHardLimited)
+}
+
+func (c *StoreReconciler) reportValidationFailedPresets(snapshot *prebuilds.GlobalSnapshot) {
+	// presetsMap is a map from key (orgName:templateName:presetName) to list of corresponding presets.
+	// Multiple versions of a preset can exist with the same orgName, templateName, and presetName,
+	// because templates can have multiple versions - or deleted templates can share the same name.
+	presetsMap := make(map[hardLimitedPresetKey][]database.GetTemplatePresetsWithPrebuildsRow)
+	for _, preset := range snapshot.Presets {
+		key := hardLimitedPresetKey{
+			orgName:      preset.OrganizationName,
+			templateName: preset.TemplateName,
+			presetName:   preset.Name,
+		}
+
+		presetsMap[key] = append(presetsMap[key], preset)
+	}
+
+	// Report a preset as validation-failed only if all the following conditions are met:
+	// - The preset has PrebuildStatus == PrebuildStatusValidationFailed
+	// - The preset is using the active version of its template, and the template has not been deleted
+	//
+	// The second condition is important because a validation-failed preset that has become outdated is no longer relevant.
+	// Its associated prebuilt workspaces were likely deleted, and it's not meaningful to continue reporting it
+	// as validation-failed to the admin.
+	isPresetValidationFailed := make(map[hardLimitedPresetKey]bool)
+	for key, presets := range presetsMap {
+		for _, preset := range presets {
+			if preset.UsingActiveVersion && !preset.Deleted &&
+				preset.PrebuildStatus == database.PrebuildStatusValidationFailed {
+				isPresetValidationFailed[key] = true
+				break
+			}
+		}
+	}
+
+	c.metrics.registerValidationFailedPresets(isPresetValidationFailed)
 }
 
 // SnapshotState captures the current state of all prebuilds across templates.
