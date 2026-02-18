@@ -141,6 +141,7 @@ type templateVersionRow struct {
 	TemplateVersion codersdk.TemplateVersion `table:"-"`
 
 	// For table format:
+	ID        string    `json:"-" table:"id"`
 	Name      string    `json:"-" table:"name,default_sort"`
 	CreatedAt time.Time `json:"-" table:"created at"`
 	CreatedBy string    `json:"-" table:"created by"`
@@ -166,6 +167,7 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 
 		rows[i] = templateVersionRow{
 			TemplateVersion: templateVersion,
+			ID:              templateVersion.ID.String(),
 			Name:            templateVersion.Name,
 			CreatedAt:       templateVersion.CreatedAt,
 			CreatedBy:       templateVersion.CreatedBy.Username,
