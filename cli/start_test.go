@@ -586,4 +586,3 @@ func TestStart_FailedStartCleansUp(t *testing.T) {
 
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }
-
