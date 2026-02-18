@@ -71,6 +71,55 @@ coder aibridge interceptions list \
 
 See `coder aibridge interceptions list --help` for all options.
 
+### Structured logging
+
+AI Bridge can emit structured log entries for every interception record. This is
+the primary mechanism for streaming data into external SIEM or observability
+systems (Splunk, Elastic, Grafana Loki, etc.).
+
+Enable structured logging with the server flag:
+
+```bash
+CODER_AIBRIDGE_STRUCTURED_LOGS=true
+```
+
+When enabled, each interception produces a structured log entry containing the
+user, model, provider, token usage, prompt content, and tool invocations. These
+entries can be collected by any log aggregation system that reads server logs.
+
+## Integration with external systems
+
+Coder positions AI Bridge as a **signal source**, not a data warehouse.
+Enterprise deployments are expected to export AI Bridge data into their existing
+SIEM/analytics platforms for correlation, alerting, and long-term retention.
+
+### Recommended integration pattern
+
+1. **Enable structured logging** to emit per-request records to your log
+   aggregation system.
+2. **Configure OTEL tracing** (see [below](#tracing)) to send traces to your
+   collector.
+3. **Scrape Prometheus metrics** from the Coder server for aggregate dashboards.
+4. **Import the Grafana dashboard** as a starting point for visualization.
+5. **Correlate with Agent Boundaries logs** in your SIEM by joining on shared
+   fields (user, workspace ID, timestamp) for a complete picture of AI
+   interactions and network access.
+
+### What to monitor
+
+| Category | Examples |
+|----------|----------|
+| **Adoption** | Active AI users, requests per day, model distribution |
+| **Cost** | Token usage by user, team, model, provider |
+| **Compliance** | Prompt audit trails, tool invocation history |
+| **Security** | Unusual usage patterns, unexpected model access, anomalous request volume |
+
+> **Note:** Correlating AI Bridge interceptions with
+> [Agent Boundaries audit logs](../agent-boundaries/index.md#audit-logs)
+> currently requires exporting both log streams to an external analytics
+> platform and joining on shared fields (user, workspace, timestamp). Built-in
+> cross-referencing is planned for a future release.
+
 ## Data Retention
 
 AI Bridge data is retained for **60 days by default**. Configure the retention
@@ -84,7 +133,8 @@ in the AI Bridge setup guide.
 
 AI Bridge supports tracing via [OpenTelemetry](https://opentelemetry.io/),
 providing visibility into request processing, upstream API calls, and MCP server
-interactions.
+interactions. Traces can be exported to any OTEL-compatible backend: Grafana
+Tempo, Datadog, New Relic, Jaeger, or any other collector.
 
 ### Enabling Tracing
 
@@ -98,6 +148,12 @@ export CODER_TRACE_ENABLE=true
 
 ```sh
 coder server --trace
+```
+To configure a specific trace endpoint:
+
+```bash
+export CODER_TRACE_ENABLE=true
+export CODER_TRACE_ENDPOINT=<your-otel-collector-endpoint>
 ```
 
 ### What is Traced
@@ -141,3 +197,31 @@ export CODER_TRACE_LOGS=true
 ```sh
 coder server --trace --trace-logs
 ```
+## Prometheus metrics
+
+AI Bridge exposes metrics via the Coder server's Prometheus endpoint. When
+Prometheus is enabled on your deployment (`CODER_PROMETHEUS_ENABLE=true`), AI
+Bridge metrics are included automatically.
+
+Metrics include request counts, token usage, latency histograms, and error
+rates — all labeled by user, model, and provider.
+
+For general Prometheus setup, see the
+[Coder Prometheus documentation](https://coder.com/docs/admin/integrations/prometheus).
+
+## Rate limiting
+
+AI Bridge supports rate limiting to protect upstream providers and your
+deployment:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `CODER_AIBRIDGE_MAX_RPS` | Maximum requests per second per replica. Set to `0` to disable. | `0` |
+| `CODER_AIBRIDGE_MAX_CONCURRENT` | Maximum concurrent requests per replica. Set to `0` to disable. | `0` |
+
+## Next steps
+
+- [Setup](./setup.md) — Enable AI Bridge and configure providers.
+- [Reference](./reference.md) — Full list of configuration options.
+- [Agent Boundaries audit logs](../agent-boundaries/index.md#audit-logs) —
+  Correlate network-level logs with AI Bridge data.
