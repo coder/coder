@@ -2050,6 +2050,12 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Persist git refs as soon as the agent requests external auth so branch
+	// context is retained even if the flow requires an out-of-band login.
+	if gitRef.Branch != "" || gitRef.RemoteOrigin != "" {
+		api.storeChatGitRef(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, gitRef)
+	}
+
 	var previousToken *database.ExternalAuthLink
 	// handleRetrying will attempt to continually check for a new token
 	// if listen is true. This is useful if an error is encountered in the

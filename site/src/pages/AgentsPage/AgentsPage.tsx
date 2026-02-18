@@ -78,6 +78,9 @@ export interface AgentsOutletContext {
 	clearChatErrorReason: (chatId: string) => void;
 	topBarTitleRef: React.RefObject<HTMLDivElement | null>;
 	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
+	rightPanelRef: React.RefObject<HTMLDivElement | null>;
+	setRightPanelOpen: (isOpen: boolean) => void;
+	requestArchiveAgent: (chatId: string) => void;
 }
 
 export const AgentsPage: FC = () => {
@@ -94,6 +97,7 @@ export const AgentsPage: FC = () => {
 	const [archiveTargetChatId, setArchiveTargetChatId] = useState<string | null>(
 		null,
 	);
+	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
 	>({});
@@ -131,12 +135,19 @@ export const AgentsPage: FC = () => {
 	}, []);
 	const topBarTitleRef = useRef<HTMLDivElement>(null);
 	const topBarActionsRef = useRef<HTMLDivElement>(null);
+	const rightPanelRef = useRef<HTMLDivElement>(null);
+	const requestArchiveAgent = useCallback((chatId: string) => {
+		setArchiveTargetChatId(chatId);
+	}, []);
 	const outletContext: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
 		topBarTitleRef,
 		topBarActionsRef,
+		rightPanelRef,
+		setRightPanelOpen: setIsRightPanelOpen,
+		requestArchiveAgent,
 	};
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
@@ -173,14 +184,16 @@ export const AgentsPage: FC = () => {
 		document.title = pageTitle("Agents");
 	}, []);
 
+	useEffect(() => {
+		if (!agentId) {
+			setIsRightPanelOpen(false);
+		}
+	}, [agentId]);
+
 	const chatList = chatsQuery.data ?? [];
 	const archiveTargetChat = archiveTargetChatId
 		? chatList.find((chat) => chat.id === archiveTargetChatId)
 		: undefined;
-
-	const handleArchiveAgent = (chatId: string) => {
-		setArchiveTargetChatId(chatId);
-	};
 
 	const handleCloseArchiveDialog = () => {
 		if (archiveMutation.isPending) {
@@ -226,7 +239,7 @@ export const AgentsPage: FC = () => {
 					chatErrorReasons={chatErrorReasons}
 					modelOptions={catalogModelOptions}
 					logoUrl={appearance.logo_url}
-					onArchiveAgent={handleArchiveAgent}
+					onArchiveAgent={requestArchiveAgent}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}
 					isArchiving={archiveMutation.isPending}
@@ -237,40 +250,54 @@ export const AgentsPage: FC = () => {
 				/>
 			</div>
 
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
-				<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-					<div
-						ref={topBarTitleRef}
-						className="flex min-w-0 flex-1 items-center"
-					/>
-					<div ref={topBarActionsRef} className="flex items-center gap-2" />
-					<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
-						<UserDropdown
-							user={user}
-							buildInfo={buildInfo}
-							supportLinks={
-								appearance.support_links?.filter(
-									(link) => link.location !== "navbar",
-								) ?? []
-							}
-							onSignOut={signOut}
+			<div
+				className={cn(
+					"flex min-h-0 min-w-0 flex-1 bg-surface-primary",
+					isRightPanelOpen && "flex-col xl:flex-row",
+				)}
+			>
+				<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
+					<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+						<div
+							ref={topBarTitleRef}
+							className="flex min-w-0 flex-1 items-center"
 						/>
+						<div ref={topBarActionsRef} className="flex items-center gap-2" />
+						<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
+							<UserDropdown
+								user={user}
+								buildInfo={buildInfo}
+								supportLinks={
+									appearance.support_links?.filter(
+										(link) => link.location !== "navbar",
+									) ?? []
+								}
+								onSignOut={signOut}
+							/>
+						</div>
 					</div>
+					{agentId ? (
+						<Outlet context={outletContext} />
+					) : (
+						<AgentsEmptyState
+							onCreateChat={handleCreateChat}
+							isCreating={createMutation.isPending}
+							createError={createMutation.error}
+							modelCatalog={chatModelsQuery.data}
+							modelOptions={catalogModelOptions}
+							isModelCatalogLoading={chatModelsQuery.isLoading}
+							modelCatalogError={chatModelsQuery.error}
+							canSetSystemPrompt={canSetSystemPrompt}
+							canManageChatModelConfigs={isAgentsAdmin}
+							topBarActionsRef={topBarActionsRef}
+						/>
+					)}
 				</div>
-				{agentId ? (
-					<Outlet context={outletContext} />
-				) : (
-					<AgentsEmptyState
-						onCreateChat={handleCreateChat}
-						isCreating={createMutation.isPending}
-						createError={createMutation.error}
-						modelCatalog={chatModelsQuery.data}
-						modelOptions={catalogModelOptions}
-						isModelCatalogLoading={chatModelsQuery.isLoading}
-						modelCatalogError={chatModelsQuery.error}
-						canSetSystemPrompt={canSetSystemPrompt}
-						canManageChatModelConfigs={isAgentsAdmin}
-						topBarActionsRef={topBarActionsRef}
+				{agentId && isRightPanelOpen && (
+					<div
+						ref={rightPanelRef}
+						data-testid="agents-detail-right-panel"
+						className="min-h-0 min-w-0 border-t border-border-default bg-surface-primary h-[42dvh] min-h-[260px] max-h-[56dvh] xl:h-auto xl:max-h-none xl:w-[40%] xl:min-w-[360px] xl:max-w-[720px] xl:border-l xl:border-t-0"
 					/>
 				)}
 			</div>

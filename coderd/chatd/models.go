@@ -9,7 +9,13 @@ import (
 	"time"
 
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyazure "charm.land/fantasy/providers/azure"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
+	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
+	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
+	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -22,10 +28,68 @@ const (
 	anthropicAPIVersion       = "2023-06-01"
 )
 
+var supportedProviderNames = []string{
+	fantasyanthropic.Name,
+	fantasyazure.Name,
+	fantasybedrock.Name,
+	fantasygoogle.Name,
+	fantasyopenai.Name,
+	fantasyopenaicompat.Name,
+	fantasyopenrouter.Name,
+	fantasyvercel.Name,
+}
+
+var envPresetProviderNames = []string{
+	fantasyopenai.Name,
+	fantasyanthropic.Name,
+}
+
+var providerDisplayNameByName = map[string]string{
+	fantasyanthropic.Name:    "Anthropic",
+	fantasyazure.Name:        "Azure OpenAI",
+	fantasybedrock.Name:      "AWS Bedrock",
+	fantasygoogle.Name:       "Google",
+	fantasyopenai.Name:       "OpenAI",
+	fantasyopenaicompat.Name: "OpenAI Compatible",
+	fantasyopenrouter.Name:   "OpenRouter",
+	fantasyvercel.Name:       "Vercel AI Gateway",
+}
+
+// SupportedProviders returns all chat providers supported by Fantasy.
+func SupportedProviders() []string {
+	return append([]string(nil), supportedProviderNames...)
+}
+
+// EnvPresetProviders returns providers that can be represented as env presets.
+func EnvPresetProviders() []string {
+	return append([]string(nil), envPresetProviderNames...)
+}
+
+// IsEnvPresetProvider reports whether provider supports env presets.
+func IsEnvPresetProvider(provider string) bool {
+	normalized := NormalizeProvider(provider)
+	for _, candidate := range envPresetProviderNames {
+		if candidate == normalized {
+			return true
+		}
+	}
+	return false
+}
+
+// ProviderDisplayName returns a default display name for a provider.
+func ProviderDisplayName(provider string) string {
+	normalized := NormalizeProvider(provider)
+	if displayName, ok := providerDisplayNameByName[normalized]; ok {
+		return displayName
+	}
+	return normalized
+}
+
 // ProviderAPIKeys contains API keys for provider calls.
 type ProviderAPIKeys struct {
-	OpenAI    string
-	Anthropic string
+	OpenAI     string
+	Anthropic  string
+	ByProvider map[string]string
 }
 
 // ConfiguredProvider is an enabled provider loaded from database config.
@@ -41,8 +105,20 @@ type ConfiguredModel struct {
 	DisplayName string
 }
 
-func (k ProviderAPIKeys) apiKey(provider string) string {
-	switch normalizeProvider(provider) {
+// APIKey returns the effective API key for a provider.
+func (k ProviderAPIKeys) APIKey(provider string) string {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" {
+		return ""
+	}
+
+	if k.ByProvider != nil {
+		if key := strings.TrimSpace(k.ByProvider[normalized]); key != "" {
+			return key
+		}
+	}
+
+	switch normalized {
 	case fantasyopenai.Name:
 		return strings.TrimSpace(k.OpenAI)
 	case fantasyanthropic.Name:
@@ -52,15 +128,45 @@ func (k ProviderAPIKeys) apiKey(provider string) string {
 	}
 }
 
+func (k ProviderAPIKeys) apiKey(provider string) string {
+	return k.APIKey(provider)
+}
+
 // MergeProviderAPIKeys overlays configured provider keys over fallback keys.
 func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
-		OpenAI:    strings.TrimSpace(fallback.OpenAI),
-		Anthropic: strings.TrimSpace(fallback.Anthropic),
+		OpenAI:     strings.TrimSpace(fallback.OpenAI),
+		Anthropic:  strings.TrimSpace(fallback.Anthropic),
+		ByProvider: map[string]string{},
+	}
+	for provider, apiKey := range fallback.ByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if key := strings.TrimSpace(apiKey); key != "" {
+			merged.ByProvider[normalizedProvider] = key
+		}
+	}
+
+	if merged.OpenAI != "" {
+		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
+	}
+	if merged.Anthropic != "" {
+		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
 	}
 
 	for _, provider := range providers {
-		switch normalizeProvider(provider.Provider) {
+		normalizedProvider := NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+
+		if key := strings.TrimSpace(provider.APIKey); key != "" {
+			merged.ByProvider[normalizedProvider] = key
+		}
+
+		switch normalizedProvider {
 		case fantasyopenai.Name:
 			if key := strings.TrimSpace(provider.APIKey); key != "" {
 				merged.OpenAI = key
@@ -241,10 +347,10 @@ func (c *ModelCatalog) ListConfiguredProviderAvailability(
 ) codersdk.ChatModelsResponse {
 	keys := MergeProviderAPIKeys(c.keys, configuredProviders)
 	response := codersdk.ChatModelsResponse{
-		Providers: make([]codersdk.ChatModelProvider, 0, 2),
+		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
 	}
 
-	for _, provider := range []string{fantasyopenai.Name, fantasyanthropic.Name} {
+	for _, provider := range supportedProviderNames {
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
 			Models:   []codersdk.ChatModel{},
@@ -398,7 +504,7 @@ func sortChatModels(models []codersdk.ChatModel) {
 }
 
 func canonicalModelID(provider, modelID string) string {
-	return normalizeProvider(provider) + ":" + strings.TrimSpace(modelID)
+	return NormalizeProvider(provider) + ":" + strings.TrimSpace(modelID)
 }
 
 func orderProviders(providerSet map[string]struct{}) []string {
@@ -407,7 +513,7 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	}
 
 	ordered := make([]string, 0, len(providerSet))
-	for _, provider := range []string{fantasyopenai.Name, fantasyanthropic.Name} {
+	for _, provider := range supportedProviderNames {
 		if _, ok := providerSet[provider]; ok {
 			ordered = append(ordered, provider)
 		}
@@ -415,7 +521,7 @@ func orderProviders(providerSet map[string]struct{}) []string {
 
 	extras := make([]string, 0, len(providerSet))
 	for provider := range providerSet {
-		if provider == fantasyopenai.Name || provider == fantasyanthropic.Name {
+		if NormalizeProvider(provider) != "" {
 			continue
 		}
 		extras = append(extras, provider)
@@ -425,15 +531,32 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	return append(ordered, extras...)
 }
 
-func normalizeProvider(provider string) string {
+// NormalizeProvider canonicalizes a provider name.
+func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case fantasyopenai.Name:
-		return fantasyopenai.Name
 	case fantasyanthropic.Name:
 		return fantasyanthropic.Name
+	case fantasyazure.Name:
+		return fantasyazure.Name
+	case fantasybedrock.Name:
+		return fantasybedrock.Name
+	case fantasygoogle.Name:
+		return fantasygoogle.Name
+	case fantasyopenai.Name:
+		return fantasyopenai.Name
+	case fantasyopenaicompat.Name:
+		return fantasyopenaicompat.Name
+	case fantasyopenrouter.Name:
+		return fantasyopenrouter.Name
+	case fantasyvercel.Name:
+		return fantasyvercel.Name
 	default:
 		return ""
 	}
+}
+
+func normalizeProvider(provider string) string {
+	return NormalizeProvider(provider)
 }
 
 func resolveModel(modelName string) (string, string, error) {
@@ -460,6 +583,8 @@ func resolveModelWithProviderHint(modelName, providerHint string) (string, strin
 		return fantasyanthropic.Name, "claude-opus-4-6", nil
 	case "gpt-5.2":
 		return fantasyopenai.Name, "gpt-5.2", nil
+	case "gemini-2.5-flash":
+		return fantasygoogle.Name, "gemini-2.5-flash", nil
 	}
 
 	if isChatModelForProvider(fantasyanthropic.Name, normalized) {
@@ -504,6 +629,9 @@ func isChatModelForProvider(provider, modelID string) bool {
 			isOpenAIReasoningModel(normalizedModel)
 	case fantasyanthropic.Name:
 		return strings.HasPrefix(normalizedModel, "claude-")
+	case fantasygoogle.Name:
+		return strings.HasPrefix(normalizedModel, "gemini-") ||
+			strings.HasPrefix(normalizedModel, "gemma-")
 	default:
 		return false
 	}

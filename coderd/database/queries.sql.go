@@ -24134,14 +24134,14 @@ WHERE
 					workspace_agents.resource_id = workspace_resources.id
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
-					latest_build.transition = 'start'::workspace_transition AND
-					-- Filter out deleted sub agents.
-					workspace_agents.deleted = FALSE AND
-					(
-						CASE
-							WHEN workspace_agents.first_connected_at IS NULL THEN
-								CASE
-									WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+						latest_build.transition = 'start'::workspace_transition AND
+						-- Filter out deleted sub agents.
+						workspace_agents.deleted = FALSE AND
+						(
+							CASE
+								WHEN workspace_agents.first_connected_at IS NULL THEN
+									CASE
+										WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
 										'timeout'
 									ELSE
 										'connecting'
@@ -24152,12 +24152,12 @@ WHERE
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
-							ELSE
-								NULL
-						END
-					) = ANY($13 :: text[])
-			) > 0
-		ELSE true
+								ELSE
+									NULL
+							END
+						) = ANY($13 :: text[])
+				) > 0
+			ELSE true
 	END
 	-- Filter by dormant workspaces.
 	AND CASE
@@ -24229,9 +24229,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN favorite AND $24 = (
-			SELECT workspaces.owner_id FROM workspaces WHERE workspaces.id = fw.id
-		) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $24) THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND

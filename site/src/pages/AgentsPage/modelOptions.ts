@@ -39,7 +39,8 @@ export const hasConfiguredModelsInCatalog = (
 export const getModelOptionsFromCatalog = (
 	catalog: ChatModelsResponse | null | undefined,
 ): readonly ModelSelectorOption[] => {
-	const options: ModelSelectorOption[] = [];
+	const optionsByID = new Map<string, ModelSelectorOption>();
+
 	for (const provider of getCatalogProviders(catalog)) {
 		const models = getProviderModels(provider);
 		if (!provider.available || models.length === 0) {
@@ -49,15 +50,36 @@ export const getModelOptionsFromCatalog = (
 			if (!model) {
 				continue;
 			}
-			options.push({
-				id: model.id,
-				provider: model.provider,
-				model: model.model,
-				displayName: model.display_name,
+
+			const modelID = model.id.trim();
+			const modelProvider = model.provider.trim();
+			const modelRef = model.model.trim();
+			if (!modelID || !modelProvider || !modelRef) {
+				continue;
+			}
+			if (optionsByID.has(modelID)) {
+				continue;
+			}
+
+			optionsByID.set(modelID, {
+				id: modelID,
+				provider: modelProvider,
+				model: modelRef,
+				displayName:
+					(typeof model.display_name === "string" &&
+						model.display_name.trim()) ||
+					modelRef,
 			});
 		}
 	}
-	return options;
+
+	return Array.from(optionsByID.values()).sort((a, b) => {
+		const providerCompare = a.provider.localeCompare(b.provider);
+		if (providerCompare !== 0) {
+			return providerCompare;
+		}
+		return a.displayName.localeCompare(b.displayName);
+	});
 };
 
 export const formatProviderLabel = (provider: string): string => {
@@ -67,9 +89,19 @@ export const formatProviderLabel = (provider: string): string => {
 			return "OpenAI";
 		case "anthropic":
 			return "Anthropic";
+		case "azure":
+			return "Azure OpenAI";
+		case "bedrock":
+			return "AWS Bedrock";
+		case "google":
+			return "Google";
 		case "openai-compatible":
 		case "openai_compatible":
 			return "OpenAI-compatible";
+		case "openrouter":
+			return "OpenRouter";
+		case "vercel":
+			return "Vercel AI Gateway";
 		default:
 			if (!normalized) {
 				return "Unknown";

@@ -2765,6 +2765,52 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentExternalAuthStoresGitRef(t *testing.T) {
+	t.Parallel()
+
+	const providerID = "github"
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		ExternalAuthConfigs: []*externalauth.Config{
+			{
+				ID:   providerID,
+				Type: codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			},
+		},
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	tmpDir := t.TempDir()
+
+	r := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Directory = tmpDir
+		return agents
+	}).Do()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	workspaceID := r.Workspace.ID
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message:     "Track branch status from external auth.",
+		WorkspaceID: &workspaceID,
+	})
+	require.NoError(t, err)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	_, err = agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+		ID:              providerID,
+		GitBranch:       "feature/cache-git-ref",
+		GitRemoteOrigin: "https://github.com/coder/coder.git",
+	})
+	require.NoError(t, err)
+
+	status, err := api.Database.GetChatDiffStatusByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, "feature/cache-git-ref", status.GitBranch)
+	require.Equal(t, "https://github.com/coder/coder.git", status.GitRemoteOrigin)
+}
+
 func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	t.Parallel()
 

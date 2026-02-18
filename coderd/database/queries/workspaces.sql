@@ -292,7 +292,7 @@ WHERE
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN @has_agent :: text != '' THEN
+		WHEN array_length(@has_agent_statuses :: text[], 1) > 0 THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -303,14 +303,14 @@ WHERE
 					workspace_agents.resource_id = workspace_resources.id
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
-					latest_build.transition = 'start'::workspace_transition AND
-					-- Filter out deleted sub agents.
-					workspace_agents.deleted = FALSE AND
-					@has_agent = (
-						CASE
-							WHEN workspace_agents.first_connected_at IS NULL THEN
-								CASE
-									WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+						latest_build.transition = 'start'::workspace_transition AND
+						-- Filter out deleted sub agents.
+						workspace_agents.deleted = FALSE AND
+						(
+							CASE
+								WHEN workspace_agents.first_connected_at IS NULL THEN
+									CASE
+										WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
 										'timeout'
 									ELSE
 										'connecting'
@@ -321,12 +321,12 @@ WHERE
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
-							ELSE
-								NULL
-						END
-					)
-			) > 0
-		ELSE true
+								ELSE
+									NULL
+							END
+						) = ANY(@has_agent_statuses :: text[])
+				) > 0
+			ELSE true
 	END
 	-- Filter by dormant workspaces.
 	AND CASE

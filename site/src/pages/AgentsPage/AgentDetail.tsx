@@ -1,4 +1,4 @@
-import { type ChatDiffStatusResponse, watchChat } from "api/api";
+import { API, type ChatDiffStatusResponse, watchChat } from "api/api";
 import {
 	chat,
 	chatDiffContentsKey,
@@ -20,8 +20,24 @@ import {
 	Thinking,
 	Tool,
 } from "components/ai-elements";
+import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import { PanelRightCloseIcon, PanelRightOpenIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	EllipsisIcon,
+	ExternalLinkIcon,
+	MonitorIcon,
+	PanelRightCloseIcon,
+	PanelRightOpenIcon,
+} from "lucide-react";
+import { SESSION_TOKEN_PLACEHOLDER, getVSCodeHref } from "modules/apps/apps";
 import {
 	type FC,
 	memo,
@@ -34,8 +50,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { useOutletContext, useParams } from "react-router";
+import { useNavigate, useOutletContext, useParams } from "react-router";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
 import type { AgentsOutletContext } from "./AgentsPage";
@@ -416,6 +431,10 @@ const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
 const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
 	() => {};
+const noopSetRightPanelOpen: AgentsOutletContext["setRightPanelOpen"] =
+	() => {};
+const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
+	() => {};
 
 interface DiffStatsBadgeProps {
 	status: ChatDiffStatusResponse;
@@ -579,6 +598,7 @@ StreamingOutput.displayName = "StreamingOutput";
 // ---------------------------------------------------------------------------
 
 export const AgentDetail: FC = () => {
+	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
 	const queryClient = useQueryClient();
@@ -596,11 +616,22 @@ export const AgentDetail: FC = () => {
 		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
 	const clearChatErrorReason =
 		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
+	const setRightPanelOpen =
+		outletContext?.setRightPanelOpen ?? noopSetRightPanelOpen;
+	const requestArchiveAgent =
+		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
 	const streamResetFrameRef = useRef<number | null>(null);
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
+	});
+	const workspaceId = chatQuery.data?.chat.workspace_id;
+	const workspaceAgentId = chatQuery.data?.chat.workspace_agent_id;
+	const workspaceQuery = useQuery({
+		queryKey: ["workspace", "agent-detail", workspaceId ?? ""],
+		queryFn: () => API.getWorkspace(workspaceId ?? ""),
+		enabled: Boolean(workspaceId),
 	});
 	const diffStatusQuery = useQuery({
 		...chatDiffStatus(agentId ?? ""),
@@ -610,12 +641,36 @@ export const AgentDetail: FC = () => {
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
 
+	const workspaceAgent = useMemo(() => {
+		const workspace = workspaceQuery.data;
+		if (!workspace) {
+			return undefined;
+		}
+		const agents = workspace.latest_build.resources.flatMap(
+			(resource) => resource.agents ?? [],
+		);
+		if (agents.length === 0) {
+			return undefined;
+		}
+		return (
+			agents.find((agent) => agent.id === workspaceAgentId) ??
+			agents[0]
+		);
+	}, [workspaceAgentId, workspaceQuery.data]);
+
 	// Auto-open the diff panel when diff status becomes available.
 	useEffect(() => {
 		if (hasDiffStatus) {
 			setShowDiffPanel(true);
 		}
 	}, [hasDiffStatus]);
+
+	useEffect(() => {
+		setRightPanelOpen(hasDiffStatus && showDiffPanel);
+		return () => {
+			setRightPanelOpen(false);
+		};
+	}, [hasDiffStatus, setRightPanelOpen, showDiffPanel]);
 
 	const catalogModelOptions = useMemo(
 		() => getModelOptionsFromCatalog(chatModelsQuery.data),
@@ -1147,7 +1202,73 @@ export const AgentDetail: FC = () => {
 
 	const topBarTitleRef = outletContext?.topBarTitleRef;
 	const topBarActionsRef = outletContext?.topBarActionsRef;
+	const rightPanelRef = outletContext?.rightPanelRef;
 	const chatTitle = chatQuery.data?.chat.title;
+	const workspace = workspaceQuery.data;
+	const workspaceRoute = workspace
+		? `/@${workspace.owner_name}/${workspace.name}`
+		: null;
+	const canOpenWorkspace = Boolean(workspaceRoute);
+	const canOpenEditors = Boolean(workspace && workspaceAgent);
+	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
+
+	const handleOpenInEditor = useCallback(
+		async (editor: "cursor" | "vscode") => {
+			if (!workspace || !workspaceAgent) {
+				return;
+			}
+
+			try {
+				const { key } = await API.getApiKey();
+				const vscodeHref = getVSCodeHref("vscode", {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					token: key,
+					agent: workspaceAgent.name,
+					folder: workspaceAgent.expanded_directory,
+				});
+
+				if (editor === "cursor") {
+					const cursorApp = workspaceAgent.apps.find((app) => {
+						const name = (app.display_name ?? app.slug).toLowerCase();
+						return app.slug.toLowerCase() === "cursor" || name === "cursor";
+					});
+					if (cursorApp?.external && cursorApp.url) {
+						const href = cursorApp.url.includes(SESSION_TOKEN_PLACEHOLDER)
+							? cursorApp.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, key)
+							: cursorApp.url;
+						window.location.assign(href);
+						return;
+					}
+					window.location.assign(vscodeHref.replace(/^vscode:/, "cursor:"));
+					return;
+				}
+
+				window.location.assign(vscodeHref);
+			} catch {
+				displayError(
+					editor === "cursor"
+						? "Failed to open in Cursor."
+						: "Failed to open in VS Code.",
+				);
+			}
+		},
+		[workspace, workspaceAgent],
+	);
+
+	const handleViewWorkspace = useCallback(() => {
+		if (!workspaceRoute) {
+			return;
+		}
+		navigate(workspaceRoute);
+	}, [navigate, workspaceRoute]);
+
+	const handleArchiveAgentAction = useCallback(() => {
+		if (!agentId) {
+			return;
+		}
+		requestArchiveAgent(agentId);
+	}, [agentId, requestArchiveAgent]);
 
 	const chatContent = (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -1170,6 +1291,59 @@ export const AgentDetail: FC = () => {
 					/>,
 					topBarActionsRef.current,
 				)}
+			{topBarActionsRef?.current &&
+				createPortal(
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className="h-7 w-7 text-content-secondary hover:text-content-primary"
+								aria-label="Open agent actions"
+							>
+								<EllipsisIcon className="h-4 w-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								disabled={!canOpenEditors}
+								onSelect={() => {
+									void handleOpenInEditor("cursor");
+								}}
+							>
+								<ExternalLinkIcon className="h-3.5 w-3.5" />
+								Open in Cursor
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={!canOpenEditors}
+								onSelect={() => {
+									void handleOpenInEditor("vscode");
+								}}
+							>
+								<ExternalLinkIcon className="h-3.5 w-3.5" />
+								Open in VS Code
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={!canOpenWorkspace}
+								onSelect={handleViewWorkspace}
+							>
+								<MonitorIcon className="h-3.5 w-3.5" />
+								View Workspace
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onSelect={handleArchiveAgentAction}
+							>
+								<ArchiveIcon className="h-3.5 w-3.5" />
+								Archive Agent
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>,
+					topBarActionsRef.current,
+				)}
+			{shouldShowDiffPanel &&
+				rightPanelRef?.current &&
+				createPortal(<FilesChangedPanel chatId={agentId} />, rightPanelRef.current)}
 			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]">
 				<div>
 					<div className="mx-auto w-full max-w-3xl py-6">
@@ -1248,26 +1422,6 @@ export const AgentDetail: FC = () => {
 			</div>
 		</div>
 	);
-
-	if (hasDiffStatus && showDiffPanel) {
-		return (
-			<PanelGroup
-				autoSaveId="agent-diff"
-				direction="horizontal"
-				className="h-full min-h-0"
-			>
-				<Panel defaultSize={65} minSize={40}>
-					{chatContent}
-				</Panel>
-				<PanelResizeHandle className="group flex w-0 items-stretch">
-					<div className="w-[3px] bg-border-default transition-colors group-hover:bg-content-link group-data-[resize-handle-active]:bg-content-link" />
-				</PanelResizeHandle>
-				<Panel defaultSize={35} minSize={20} className="hidden xl:block">
-					<FilesChangedPanel chatId={agentId} />
-				</Panel>
-			</PanelGroup>
-		);
-	}
 
 	return chatContent;
 };

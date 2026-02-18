@@ -1476,6 +1476,22 @@ func parseGitHubRepositoryOrigin(raw string) (owner string, repo string, normali
 	return owner, repo, fmt.Sprintf("https://github.com/%s/%s", owner, repo), true
 }
 
+func buildGitHubBranchURL(owner string, repo string, branch string) string {
+	owner = strings.TrimSpace(owner)
+	repo = strings.TrimSpace(repo)
+	branch = strings.TrimSpace(branch)
+	if owner == "" || repo == "" || branch == "" {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"https://github.com/%s/%s/tree/%s",
+		owner,
+		repo,
+		url.PathEscape(branch),
+	)
+}
+
 func chatDiffStatusIsStale(status database.ChatDiffStatus, now time.Time) bool {
 	if !status.RefreshedAt.Valid {
 		return true
@@ -2117,6 +2133,15 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 			result.URL = &u
 		}
 	}
+	if result.URL == nil {
+		owner, repo, _, ok := parseGitHubRepositoryOrigin(status.GitRemoteOrigin)
+		if ok {
+			branchURL := buildGitHubBranchURL(owner, repo, status.GitBranch)
+			if branchURL != "" {
+				result.URL = &branchURL
+			}
+		}
+	}
 	if status.PullRequestState.Valid {
 		pullRequestState := strings.TrimSpace(status.PullRequestState.String)
 		if pullRequestState != "" {
@@ -2153,9 +2178,54 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]codersdk.ChatProviderConfig, 0, len(providers))
+	providersByName := make(map[string]database.ChatProvider, len(providers))
+	configuredProviders := make([]chatd.ConfiguredProvider, 0, len(providers))
 	for _, provider := range providers {
-		resp = append(resp, convertChatProviderConfig(provider))
+		normalizedProvider := normalizeChatProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		provider.Provider = normalizedProvider
+		providersByName[normalizedProvider] = provider
+		configuredProviders = append(configuredProviders, chatd.ConfiguredProvider{
+			Provider: normalizedProvider,
+			APIKey:   provider.APIKey,
+		})
+	}
+	effectiveKeys := chatd.MergeProviderAPIKeys(api.chatProviderAPIKeys, configuredProviders)
+
+	supportedProviders := chatd.SupportedProviders()
+	resp := make([]codersdk.ChatProviderConfig, 0, len(supportedProviders))
+	for _, provider := range supportedProviders {
+		configured, ok := providersByName[provider]
+		if ok {
+			resp = append(
+				resp,
+				convertChatProviderConfig(
+					configured,
+					effectiveKeys.APIKey(provider) != "",
+					codersdk.ChatProviderConfigSourceDatabase,
+				),
+			)
+			continue
+		}
+
+		source := codersdk.ChatProviderConfigSourceSupported
+		hasAPIKey := effectiveKeys.APIKey(provider) != ""
+		enabled := false
+		if chatd.IsEnvPresetProvider(provider) && hasAPIKey {
+			source = codersdk.ChatProviderConfigSourceEnvPreset
+			enabled = true
+		}
+
+		resp = append(resp, codersdk.ChatProviderConfig{
+			ID:          uuid.Nil,
+			Provider:    provider,
+			DisplayName: chatd.ProviderDisplayName(provider),
+			Enabled:     enabled,
+			HasAPIKey:   hasAPIKey,
+			Source:      source,
+		})
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -2177,7 +2247,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	if provider == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid provider.",
-			Detail:  "Provider must be one of: openai, anthropic.",
+			Detail:  chatProviderValidationDetail(),
 		})
 		return
 	}
@@ -2217,7 +2287,16 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatProviderConfig(inserted))
+	httpapi.Write(
+		ctx,
+		rw,
+		http.StatusCreated,
+		convertChatProviderConfig(
+			inserted,
+			api.hasEffectiveProviderAPIKey(inserted),
+			codersdk.ChatProviderConfigSourceDatabase,
+		),
+	)
 }
 
 func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
@@ -2282,7 +2361,16 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatProviderConfig(updated))
+	httpapi.Write(
+		ctx,
+		rw,
+		http.StatusOK,
+		convertChatProviderConfig(
+			updated,
+			api.hasEffectiveProviderAPIKey(updated),
+			codersdk.ChatProviderConfigSourceDatabase,
+		),
+	)
 }
 
 func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
@@ -2360,7 +2448,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	if provider == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid provider.",
-			Detail:  "Provider must be one of: openai, anthropic.",
+			Detail:  chatProviderValidationDetail(),
 		})
 		return
 	}
@@ -2446,7 +2534,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if provider == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid provider.",
-				Detail:  "Provider must be one of: openai, anthropic.",
+				Detail:  chatProviderValidationDetail(),
 			})
 			return
 		}
@@ -2591,13 +2679,23 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return modelConfigID, true
 }
 
-func convertChatProviderConfig(provider database.ChatProvider) codersdk.ChatProviderConfig {
+func convertChatProviderConfig(
+	provider database.ChatProvider,
+	hasAPIKey bool,
+	source codersdk.ChatProviderConfigSource,
+) codersdk.ChatProviderConfig {
+	displayName := strings.TrimSpace(provider.DisplayName)
+	if displayName == "" {
+		displayName = chatd.ProviderDisplayName(provider.Provider)
+	}
+
 	return codersdk.ChatProviderConfig{
 		ID:          provider.ID,
 		Provider:    provider.Provider,
-		DisplayName: provider.DisplayName,
+		DisplayName: displayName,
 		Enabled:     provider.Enabled,
-		HasAPIKey:   strings.TrimSpace(provider.APIKey) != "",
+		HasAPIKey:   hasAPIKey,
+		Source:      source,
 		CreatedAt:   provider.CreatedAt,
 		UpdatedAt:   provider.UpdatedAt,
 	}
@@ -2616,12 +2714,16 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 }
 
 func normalizeChatProvider(provider string) string {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "openai":
-		return "openai"
-	case "anthropic":
-		return "anthropic"
-	default:
-		return ""
+	return chatd.NormalizeProvider(provider)
+}
+
+func chatProviderValidationDetail() string {
+	return "Provider must be one of: " + strings.Join(chatd.SupportedProviders(), ", ") + "."
+}
+
+func (api *API) hasEffectiveProviderAPIKey(provider database.ChatProvider) bool {
+	if strings.TrimSpace(provider.APIKey) != "" {
+		return true
 	}
+	return api.chatProviderAPIKeys.APIKey(provider.Provider) != ""
 }
