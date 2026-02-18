@@ -715,7 +715,6 @@ func PprofInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) *P
 	}
 
 	for endpoint, setter := range endpoints {
-		endpoint, setter := endpoint, setter
 		eg.Go(func() error {
 			timeout := 10 * time.Second
 			if strings.Contains(endpoint, "seconds=30") {
@@ -822,7 +821,6 @@ func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log sl
 
 	// Collect each endpoint in parallel
 	for endpoint, setter := range endpoints {
-		endpoint, setter := endpoint, setter // capture loop variables
 		eg.Go(func() error {
 			// Set longer timeout for profile and trace endpoints (they take 30 seconds)
 			timeout := 10 * time.Second

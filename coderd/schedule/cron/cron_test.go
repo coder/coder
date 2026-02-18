@@ -253,7 +253,6 @@ func TestIsWithinRange(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			sched, err := cron.Weekly(testCase.spec)

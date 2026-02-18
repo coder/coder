@@ -2567,7 +2567,6 @@ func TestPauseTask(t *testing.T) {
 		}
 
 		for _, tc := range cases {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				task, _ := setupWorkspaceTask(t, db, owner)
 				userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, tc.roles...)
