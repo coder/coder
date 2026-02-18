@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"go.jetify.com/ai/api"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
@@ -18,37 +19,39 @@ import (
 )
 
 type titleTestModel struct {
-	generateFn func(context.Context, []api.Message, api.CallOptions) (*api.Response, error)
+	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
 }
 
-func (*titleTestModel) ProviderName() string {
+func (*titleTestModel) Provider() string {
 	return "fake"
 }
 
-func (*titleTestModel) ModelID() string {
+func (*titleTestModel) Model() string {
 	return "fake"
-}
-
-func (*titleTestModel) SupportedUrls() []api.SupportedURL {
-	return nil
 }
 
 func (m *titleTestModel) Generate(
 	ctx context.Context,
-	prompt []api.Message,
-	opts api.CallOptions,
-) (*api.Response, error) {
+	call fantasy.Call,
+) (*fantasy.Response, error) {
 	if m.generateFn != nil {
-		return m.generateFn(ctx, prompt, opts)
+		return m.generateFn(ctx, call)
 	}
-	return &api.Response{}, nil
+	return &fantasy.Response{}, nil
 }
 
 func (*titleTestModel) Stream(
 	_ context.Context,
-	_ []api.Message,
-	_ api.CallOptions,
-) (*api.StreamResponse, error) {
+	_ fantasy.Call,
+) (fantasy.StreamResponse, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+func (*titleTestModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+func (*titleTestModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
 	return nil, xerrors.New("not implemented")
 }
 
@@ -60,8 +63,8 @@ func TestAnyAvailableModel(t *testing.T) {
 
 		model, err := anyAvailableModel(ProviderAPIKeys{OpenAI: "openai-key"})
 		require.NoError(t, err)
-		require.Equal(t, "openai", model.ProviderName())
-		require.Equal(t, "gpt-4o-mini", model.ModelID())
+		require.Equal(t, "openai", model.Provider())
+		require.Equal(t, "gpt-4o-mini", model.Model())
 	})
 
 	t.Run("AnthropicOnly", func(t *testing.T) {
@@ -69,8 +72,8 @@ func TestAnyAvailableModel(t *testing.T) {
 
 		model, err := anyAvailableModel(ProviderAPIKeys{Anthropic: "anthropic-key"})
 		require.NoError(t, err)
-		require.Equal(t, "anthropic", model.ProviderName())
-		require.Equal(t, "claude-haiku-4-5", model.ModelID())
+		require.Equal(t, "anthropic", model.Provider())
+		require.Equal(t, "claude-haiku-4-5", model.Model())
 	})
 
 	t.Run("None", func(t *testing.T) {
@@ -88,13 +91,15 @@ func TestGenerateChatTitle(t *testing.T) {
 	t.Run("SuccessNormalizesOutput", func(t *testing.T) {
 		t.Parallel()
 
-		var capturedPrompt []api.Message
+		var capturedPrompt []fantasy.Message
+		var capturedToolChoice *fantasy.ToolChoice
 		model := &titleTestModel{
-			generateFn: func(_ context.Context, prompt []api.Message, _ api.CallOptions) (*api.Response, error) {
-				capturedPrompt = append([]api.Message(nil), prompt...)
-				return &api.Response{
-					Content: []api.ContentBlock{
-						&api.TextBlock{Text: `  " Debugging   Flaky   Go Tests "  `},
+			generateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+				capturedPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				capturedToolChoice = call.ToolChoice
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: `  " Debugging   Flaky   Go Tests "  `},
 					},
 				}, nil
 			},
@@ -105,7 +110,7 @@ func TestGenerateChatTitle(t *testing.T) {
 			titleGeneration: TitleGenerationConfig{
 				Prompt: "custom title prompt",
 			},
-			titleModelLookup: func(ProviderAPIKeys) (api.LanguageModel, error) {
+			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return model, nil
 			},
 		}
@@ -114,24 +119,30 @@ func TestGenerateChatTitle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Debugging Flaky Go Tests", title)
 		require.Len(t, capturedPrompt, 2)
+		require.NotNil(t, capturedToolChoice)
+		require.Equal(t, fantasy.ToolChoiceNone, *capturedToolChoice)
 
-		system, ok := capturedPrompt[0].(*api.SystemMessage)
+		require.Equal(t, fantasy.MessageRoleSystem, capturedPrompt[0].Role)
+		require.Len(t, capturedPrompt[0].Content, 1)
+		systemPart, ok := fantasy.AsMessagePart[fantasy.TextPart](capturedPrompt[0].Content[0])
 		require.True(t, ok)
-		require.Equal(t, "custom title prompt", system.Content)
+		require.Equal(t, "custom title prompt", systemPart.Text)
 
-		user, ok := capturedPrompt[1].(*api.UserMessage)
+		require.Equal(t, fantasy.MessageRoleUser, capturedPrompt[1].Role)
+		require.Len(t, capturedPrompt[1].Content, 1)
+		userPart, ok := fantasy.AsMessagePart[fantasy.TextPart](capturedPrompt[1].Content[0])
 		require.True(t, ok)
-		require.Equal(t, "How can I debug this flaky Go test?", contentBlocksToText(user.Content))
+		require.Equal(t, "How can I debug this flaky Go test?", userPart.Text)
 	})
 
 	t.Run("EmptyOutput", func(t *testing.T) {
 		t.Parallel()
 
 		model := &titleTestModel{
-			generateFn: func(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-				return &api.Response{
-					Content: []api.ContentBlock{
-						&api.TextBlock{Text: "   "},
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: "   "},
 					},
 				}, nil
 			},
@@ -139,7 +150,7 @@ func TestGenerateChatTitle(t *testing.T) {
 
 		p := &Processor{
 			providerKeys: ProviderAPIKeys{OpenAI: "openai-key"},
-			titleModelLookup: func(ProviderAPIKeys) (api.LanguageModel, error) {
+			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return model, nil
 			},
 		}
@@ -153,14 +164,14 @@ func TestGenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		model := &titleTestModel{
-			generateFn: func(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 				return nil, xerrors.New("model failed")
 			},
 		}
 
 		p := &Processor{
 			providerKeys: ProviderAPIKeys{OpenAI: "openai-key"},
-			titleModelLookup: func(ProviderAPIKeys) (api.LanguageModel, error) {
+			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return model, nil
 			},
 		}
@@ -194,12 +205,12 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		p := &Processor{
 			db:           db,
 			providerKeys: ProviderAPIKeys{OpenAI: "openai-key"},
-			titleModelLookup: func(ProviderAPIKeys) (api.LanguageModel, error) {
+			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return &titleTestModel{
-					generateFn: func(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-						return &api.Response{
-							Content: []api.ContentBlock{
-								&api.TextBlock{Text: "Debugging Flaky Go Tests"},
+					generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+						return &fantasy.Response{
+							Content: []fantasy.Content{
+								fantasy.TextContent{Text: "Debugging Flaky Go Tests"},
 							},
 						}, nil
 					},
@@ -219,12 +230,12 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		p := &Processor{
 			db:           db,
 			providerKeys: ProviderAPIKeys{OpenAI: "openai-key"},
-			titleModelLookup: func(ProviderAPIKeys) (api.LanguageModel, error) {
+			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return &titleTestModel{
-					generateFn: func(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-						return &api.Response{
-							Content: []api.ContentBlock{
-								&api.TextBlock{Text: "   "},
+					generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+						return &fantasy.Response{
+							Content: []fantasy.Content{
+								fantasy.TextContent{Text: "   "},
 							},
 						}, nil
 					},
@@ -244,9 +255,9 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		p := &Processor{
 			db:           db,
 			providerKeys: ProviderAPIKeys{OpenAI: "openai-key"},
-			titleModelLookup: func(ProviderAPIKeys) (api.LanguageModel, error) {
+			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return &titleTestModel{
-					generateFn: func(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
+					generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 						return nil, xerrors.New("title model failed")
 					},
 				}, nil
@@ -265,12 +276,12 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		p := &Processor{
 			db:           db,
 			providerKeys: ProviderAPIKeys{OpenAI: "openai-key"},
-			titleModelLookup: func(ProviderAPIKeys) (api.LanguageModel, error) {
+			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return &titleTestModel{
-					generateFn: func(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-						return &api.Response{
-							Content: []api.ContentBlock{
-								&api.TextBlock{Text: chat.Title},
+					generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+						return &fantasy.Response{
+							Content: []fantasy.Content{
+								fantasy.TextContent{Text: chat.Title},
 							},
 						}, nil
 					},
@@ -285,11 +296,11 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 func mustUserChatMessage(t *testing.T, text string) database.ChatMessage {
 	t.Helper()
 
-	raw, err := json.Marshal(api.ContentFromText(text))
+	raw, err := json.Marshal(contentFromText(text))
 	require.NoError(t, err)
 
 	return database.ChatMessage{
-		Role: string(api.MessageRoleUser),
+		Role: string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{
 			RawMessage: raw,
 			Valid:      true,

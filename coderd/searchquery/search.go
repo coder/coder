@@ -253,7 +253,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.TemplateName = parser.String(values, "", "template")
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
-	filter.HasAgent = parser.String(values, "", "has-agent")
+	filter.HasAgentStatuses = parser.Strings(values, nil, "has-agent")
 	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
@@ -272,6 +272,15 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	// TODO: support "me" by passing in the actorID
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
+	// Translate healthy filter to has-agent statuses.
+	// healthy:true = connected, healthy:false = disconnected or timeout.
+	if healthy := parser.NullableBoolean(values, sql.NullBool{}, "healthy"); healthy.Valid {
+		if healthy.Bool {
+			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "connected")
+		} else {
+			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "disconnected", "timeout")
+		}
+	}
 
 	type paramMatch struct {
 		name  string

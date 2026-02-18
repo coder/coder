@@ -12,9 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"go.jetify.com/ai"
-	aiapi "go.jetify.com/ai/api"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -440,7 +439,7 @@ func SearchPromptTemplates(
 
 func selectTemplateWithModel(
 	ctx context.Context,
-	model aiapi.LanguageModel,
+	model fantasy.LanguageModel,
 	prompt string,
 	candidates []database.Template,
 ) (database.Template, error) {
@@ -463,14 +462,28 @@ func selectTemplateWithModel(
 		strings.Join(candidateLines, "\n"),
 	))
 
-	response, err := ai.GenerateText(ctx, []aiapi.Message{
-		&aiapi.SystemMessage{
-			Content: "Select exactly one template for workspace creation. " +
-				"Respond only with JSON: {\"template_id\":\"<uuid>\",\"reason\":\"<short reason>\"}. " +
-				"Use only candidate IDs listed in the prompt.",
+	toolChoice := fantasy.ToolChoiceNone
+	response, err := model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleSystem,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{
+						Text: "Select exactly one template for workspace creation. " +
+							"Respond only with JSON: {\"template_id\":\"<uuid>\",\"reason\":\"<short reason>\"}. " +
+							"Use only candidate IDs listed in the prompt.",
+					},
+				},
+			},
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: modelPrompt},
+				},
+			},
 		},
-		&aiapi.UserMessage{Content: aiapi.ContentFromText(modelPrompt)},
-	}, ai.WithModel(model))
+		ToolChoice: &toolChoice,
+	})
 	if err != nil {
 		return database.Template{}, newTemplateSelectionReasonError("multiple templates matched and model disambiguation failed")
 	}
@@ -489,7 +502,7 @@ func selectTemplateWithModel(
 	return database.Template{}, newTemplateSelectionReasonError("model selected an unknown template")
 }
 
-func parseTemplateSelection(content []aiapi.ContentBlock, candidates []database.Template) (uuid.UUID, bool) {
+func parseTemplateSelection(content []fantasy.Content, candidates []database.Template) (uuid.UUID, bool) {
 	text := extractResponseText(content)
 	if text == "" {
 		return uuid.Nil, false
@@ -565,11 +578,10 @@ func parseSelectionIDFromJSON(text string) string {
 	return ""
 }
 
-func extractResponseText(content []aiapi.ContentBlock) string {
+func extractResponseText(content []fantasy.Content) string {
 	var builder strings.Builder
 	for _, block := range content {
-		switch payload := block.(type) {
-		case *aiapi.TextBlock:
+		if payload, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
 			if strings.TrimSpace(payload.Text) == "" {
 				continue
 			}
@@ -577,7 +589,9 @@ func extractResponseText(content []aiapi.ContentBlock) string {
 				builder.WriteString("\n")
 			}
 			builder.WriteString(payload.Text)
-		case *aiapi.ReasoningBlock:
+			continue
+		}
+		if payload, ok := fantasy.AsContentType[fantasy.ReasoningContent](block); ok {
 			if strings.TrimSpace(payload.Text) == "" {
 				continue
 			}

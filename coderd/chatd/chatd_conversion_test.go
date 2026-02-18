@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
+
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"go.jetify.com/ai/api"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -17,18 +18,18 @@ func TestChatMessagesToPrompt(t *testing.T) {
 	systemContent, err := json.Marshal("system")
 	require.NoError(t, err)
 
-	userContent, err := json.Marshal(api.ContentFromText("hello"))
+	userContent, err := json.Marshal(contentFromText("hello"))
 	require.NoError(t, err)
 
-	assistantBlocks := append(api.ContentFromText("working"), &api.ToolCallBlock{
+	assistantBlocks := append(contentFromText("working"), fantasy.ToolCallContent{
 		ToolCallID: "tool-1",
 		ToolName:   toolReadFile,
-		Args:       json.RawMessage(`{"path":"hello.txt"}`),
+		Input:      `{"path":"hello.txt"}`,
 	})
 	assistantContent, err := json.Marshal(assistantBlocks)
 	require.NoError(t, err)
 
-	toolResults, err := json.Marshal([]api.ToolResultBlock{{
+	toolResults, err := json.Marshal([]ToolResultBlock{{
 		ToolCallID: "tool-1",
 		ToolName:   toolReadFile,
 		Result:     map[string]any{"content": "hello"},
@@ -37,19 +38,19 @@ func TestChatMessagesToPrompt(t *testing.T) {
 
 	messages := []database.ChatMessage{
 		{
-			Role:    string(api.MessageRoleSystem),
+			Role:    string(fantasy.MessageRoleSystem),
 			Content: pqtype.NullRawMessage{RawMessage: systemContent, Valid: true},
 		},
 		{
-			Role:    string(api.MessageRoleUser),
+			Role:    string(fantasy.MessageRoleUser),
 			Content: pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
 		},
 		{
-			Role:    string(api.MessageRoleAssistant),
+			Role:    string(fantasy.MessageRoleAssistant),
 			Content: pqtype.NullRawMessage{RawMessage: assistantContent, Valid: true},
 		},
 		{
-			Role:    string(api.MessageRoleTool),
+			Role:    string(fantasy.MessageRoleTool),
 			Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
 		},
 	}
@@ -57,10 +58,8 @@ func TestChatMessagesToPrompt(t *testing.T) {
 	prompt, err := chatMessagesToPrompt(messages)
 	require.NoError(t, err)
 	require.Len(t, prompt, 4)
-
-	assistantMsg, ok := prompt[2].(*api.AssistantMessage)
-	require.True(t, ok)
-	require.Len(t, extractToolCalls(assistantMsg.Content), 1)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	require.Len(t, extractToolCallsFromMessageParts(prompt[2].Content), 1)
 }
 
 func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
@@ -69,22 +68,21 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 	t.Run("InterruptedAfterToolCall", func(t *testing.T) {
 		t.Parallel()
 
-		// Simulate an interrupted chat: assistant made tool calls
-		// but the processing was interrupted before tool results
-		// were saved.
-		userContent, err := json.Marshal(api.ContentFromText("hello"))
+		// Simulate an interrupted chat: assistant made tool calls but
+		// the processing was interrupted before tool results were saved.
+		userContent, err := json.Marshal(contentFromText("hello"))
 		require.NoError(t, err)
 
-		assistantBlocks := append(api.ContentFromText("let me check"),
-			&api.ToolCallBlock{
+		assistantBlocks := append(contentFromText("let me check"),
+			fantasy.ToolCallContent{
 				ToolCallID: "call-1",
 				ToolName:   toolReadFile,
-				Args:       json.RawMessage(`{"path":"main.go"}`),
+				Input:      `{"path":"main.go"}`,
 			},
-			&api.ToolCallBlock{
+			fantasy.ToolCallContent{
 				ToolCallID: "call-2",
 				ToolName:   toolExecute,
-				Args:       json.RawMessage(`{"command":"ls"}`),
+				Input:      `{"command":"ls"}`,
 			},
 		)
 		assistantContent, err := json.Marshal(assistantBlocks)
@@ -92,11 +90,11 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 
 		messages := []database.ChatMessage{
 			{
-				Role:    string(api.MessageRoleUser),
+				Role:    string(fantasy.MessageRoleUser),
 				Content: pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
 			},
 			{
-				Role:    string(api.MessageRoleAssistant),
+				Role:    string(fantasy.MessageRoleAssistant),
 				Content: pqtype.NullRawMessage{RawMessage: assistantContent, Valid: true},
 			},
 		}
@@ -107,41 +105,43 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 		// Should have injected a tool message after the assistant.
 		require.Len(t, prompt, 3, "expected injected tool result message")
 
-		toolMsg, ok := prompt[2].(*api.ToolMessage)
-		require.True(t, ok, "third message should be a tool message")
-		require.Len(t, toolMsg.Content, 2, "should have results for both tool calls")
+		toolMsg := prompt[2]
+		require.Equal(t, fantasy.MessageRoleTool, toolMsg.Role)
+		toolResults := messageToolResultParts(toolMsg)
+		require.Len(t, toolResults, 2, "should have results for both tool calls")
 
-		for _, result := range toolMsg.Content {
-			require.True(t, result.IsError, "injected result should be an error")
+		for _, result := range toolResults {
+			_, ok := result.Output.(fantasy.ToolResultOutputContentError)
+			require.True(t, ok, "injected result should be an error")
 		}
-		require.Equal(t, "call-1", toolMsg.Content[0].ToolCallID)
-		require.Equal(t, "call-2", toolMsg.Content[1].ToolCallID)
+		require.Equal(t, "call-1", toolResults[0].ToolCallID)
+		require.Equal(t, "call-2", toolResults[1].ToolCallID)
 	})
 
 	t.Run("PartialToolResults", func(t *testing.T) {
 		t.Parallel()
 
-		// Assistant made two tool calls but only one result was
-		// saved before interruption.
-		userContent, err := json.Marshal(api.ContentFromText("hello"))
+		// Assistant made two tool calls but only one result was saved
+		// before interruption.
+		userContent, err := json.Marshal(contentFromText("hello"))
 		require.NoError(t, err)
 
-		assistantBlocks := append(api.ContentFromText("working"),
-			&api.ToolCallBlock{
+		assistantBlocks := append(contentFromText("working"),
+			fantasy.ToolCallContent{
 				ToolCallID: "call-1",
 				ToolName:   toolReadFile,
-				Args:       json.RawMessage(`{"path":"a.go"}`),
+				Input:      `{"path":"a.go"}`,
 			},
-			&api.ToolCallBlock{
+			fantasy.ToolCallContent{
 				ToolCallID: "call-2",
 				ToolName:   toolReadFile,
-				Args:       json.RawMessage(`{"path":"b.go"}`),
+				Input:      `{"path":"b.go"}`,
 			},
 		)
 		assistantContent, err := json.Marshal(assistantBlocks)
 		require.NoError(t, err)
 
-		toolResults, err := json.Marshal([]api.ToolResultBlock{{
+		toolResults, err := json.Marshal([]ToolResultBlock{{
 			ToolCallID: "call-1",
 			ToolName:   toolReadFile,
 			Result:     map[string]any{"content": "file a"},
@@ -150,15 +150,15 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 
 		messages := []database.ChatMessage{
 			{
-				Role:    string(api.MessageRoleUser),
+				Role:    string(fantasy.MessageRoleUser),
 				Content: pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
 			},
 			{
-				Role:    string(api.MessageRoleAssistant),
+				Role:    string(fantasy.MessageRoleAssistant),
 				Content: pqtype.NullRawMessage{RawMessage: assistantContent, Valid: true},
 			},
 			{
-				Role:    string(api.MessageRoleTool),
+				Role:    string(fantasy.MessageRoleTool),
 				Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
 			},
 		}
@@ -169,31 +169,32 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 		// Original 3 messages + 1 injected tool message for call-2.
 		require.Len(t, prompt, 4)
 
-		injectedMsg, ok := prompt[3].(*api.ToolMessage)
-		require.True(t, ok, "fourth message should be injected tool message")
-		require.Len(t, injectedMsg.Content, 1)
-		require.Equal(t, "call-2", injectedMsg.Content[0].ToolCallID)
-		require.True(t, injectedMsg.Content[0].IsError)
+		injectedMsg := prompt[3]
+		require.Equal(t, fantasy.MessageRoleTool, injectedMsg.Role)
+		injectedParts := messageToolResultParts(injectedMsg)
+		require.Len(t, injectedParts, 1)
+		require.Equal(t, "call-2", injectedParts[0].ToolCallID)
+		_, ok := injectedParts[0].Output.(fantasy.ToolResultOutputContentError)
+		require.True(t, ok)
 	})
 
 	t.Run("NoToolCalls", func(t *testing.T) {
 		t.Parallel()
 
-		// Assistant message with no tool calls should not inject
-		// anything.
-		userContent, err := json.Marshal(api.ContentFromText("hi"))
+		// Assistant message with no tool calls should not inject anything.
+		userContent, err := json.Marshal(contentFromText("hi"))
 		require.NoError(t, err)
 
-		assistantContent, err := json.Marshal(api.ContentFromText("hello back"))
+		assistantContent, err := json.Marshal(contentFromText("hello back"))
 		require.NoError(t, err)
 
 		messages := []database.ChatMessage{
 			{
-				Role:    string(api.MessageRoleUser),
+				Role:    string(fantasy.MessageRoleUser),
 				Content: pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
 			},
 			{
-				Role:    string(api.MessageRoleAssistant),
+				Role:    string(fantasy.MessageRoleAssistant),
 				Content: pqtype.NullRawMessage{RawMessage: assistantContent, Valid: true},
 			},
 		}
@@ -207,18 +208,18 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 		t.Parallel()
 
 		// All tool calls already have results; nothing to inject.
-		userContent, err := json.Marshal(api.ContentFromText("hello"))
+		userContent, err := json.Marshal(contentFromText("hello"))
 		require.NoError(t, err)
 
-		assistantBlocks := append(api.ContentFromText("working"), &api.ToolCallBlock{
+		assistantBlocks := append(contentFromText("working"), fantasy.ToolCallContent{
 			ToolCallID: "call-1",
 			ToolName:   toolReadFile,
-			Args:       json.RawMessage(`{"path":"x.go"}`),
+			Input:      `{"path":"x.go"}`,
 		})
 		assistantContent, err := json.Marshal(assistantBlocks)
 		require.NoError(t, err)
 
-		toolResults, err := json.Marshal([]api.ToolResultBlock{{
+		toolResults, err := json.Marshal([]ToolResultBlock{{
 			ToolCallID: "call-1",
 			ToolName:   toolReadFile,
 			Result:     map[string]any{"content": "data"},
@@ -227,15 +228,15 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 
 		messages := []database.ChatMessage{
 			{
-				Role:    string(api.MessageRoleUser),
+				Role:    string(fantasy.MessageRoleUser),
 				Content: pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
 			},
 			{
-				Role:    string(api.MessageRoleAssistant),
+				Role:    string(fantasy.MessageRoleAssistant),
 				Content: pqtype.NullRawMessage{RawMessage: assistantContent, Valid: true},
 			},
 			{
-				Role:    string(api.MessageRoleTool),
+				Role:    string(fantasy.MessageRoleTool),
 				Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
 			},
 		}
@@ -244,4 +245,22 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, prompt, 3, "no injection when all results present")
 	})
+}
+
+func contentFromText(text string) []fantasy.Content {
+	return []fantasy.Content{
+		fantasy.TextContent{Text: text},
+	}
+}
+
+func messageToolResultParts(message fantasy.Message) []fantasy.ToolResultPart {
+	results := make([]fantasy.ToolResultPart, 0, len(message.Content))
+	for _, part := range message.Content {
+		result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+		if !ok {
+			continue
+		}
+		results = append(results, result)
+	}
+	return results
 }

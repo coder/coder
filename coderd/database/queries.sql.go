@@ -24123,7 +24123,7 @@ WHERE
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN $13 :: text != '' THEN
+		WHEN array_length($13 :: text[], 1) > 0 THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -24137,7 +24137,7 @@ WHERE
 					latest_build.transition = 'start'::workspace_transition AND
 					-- Filter out deleted sub agents.
 					workspace_agents.deleted = FALSE AND
-					$13 = (
+					(
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -24155,7 +24155,7 @@ WHERE
 							ELSE
 								NULL
 						END
-					)
+					) = ANY($13 :: text[])
 			) > 0
 		ELSE true
 	END
@@ -24229,7 +24229,9 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $24) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND $24 = (
+			SELECT workspaces.owner_id FROM workspaces WHERE workspaces.id = fw.id
+		) THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -24323,7 +24325,7 @@ type GetWorkspacesParams struct {
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
 	WorkspaceIds                          []uuid.UUID  `db:"workspace_ids" json:"workspace_ids"`
 	Name                                  string       `db:"name" json:"name"`
-	HasAgent                              string       `db:"has_agent" json:"has_agent"`
+	HasAgentStatuses                      []string     `db:"has_agent_statuses" json:"has_agent_statuses"`
 	AgentInactiveDisconnectTimeoutSeconds int64        `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 	Dormant                               bool         `db:"dormant" json:"dormant"`
 	LastUsedBefore                        time.Time    `db:"last_used_before" json:"last_used_before"`
@@ -24401,7 +24403,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.TemplateIDs),
 		pq.Array(arg.WorkspaceIds),
 		arg.Name,
-		arg.HasAgent,
+		pq.Array(arg.HasAgentStatuses),
 		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.Dormant,
 		arg.LastUsedBefore,
