@@ -1839,9 +1839,8 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion1.Name)
-		require.NoError(t, err)
-		require.Nil(t, result)
+		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion1.Name)
+		require.ErrorIs(t, err, codersdk.ErrNoPreviousVersion)
 	})
 
 	t.Run("Previous version found", func(t *testing.T) {
@@ -1867,7 +1866,6 @@ func TestPreviousTemplateVersion(t *testing.T) {
 
 		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion2.Name)
 		require.NoError(t, err)
-		require.NotNil(t, result)
 		require.Equal(t, templateBVersion1.ID, result.ID)
 	})
 }

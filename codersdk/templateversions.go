@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 type TemplateVersionWarning string
@@ -280,20 +281,24 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 	return nil
 }
 
-func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (*TemplateVersion, error) {
+// ErrNoPreviousVersion is returned when no previous template version
+// exists (the server responds with 204 No Content).
+var ErrNoPreviousVersion = xerrors.New("no previous template version")
+
+func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s/previous", organization, templateName, versionName), nil)
 	if err != nil {
-		return nil, err
+		return TemplateVersion{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNoContent {
-		return nil, nil
+		return TemplateVersion{}, ErrNoPreviousVersion
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
-	return &version, json.NewDecoder(res.Body).Decode(&version)
+	return version, json.NewDecoder(res.Body).Decode(&version)
 }
 
 func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
