@@ -19,17 +19,17 @@ import (
 const (
 	namespace = "coderd_prebuilt_workspaces_"
 
-	MetricCreatedCount              = namespace + "created_total"
-	MetricFailedCount               = namespace + "failed_total"
-	MetricClaimedCount              = namespace + "claimed_total"
-	MetricResourceReplacementsCount = namespace + "resource_replacements_total"
-	MetricDesiredGauge              = namespace + "desired"
-	MetricRunningGauge              = namespace + "running"
-	MetricEligibleGauge             = namespace + "eligible"
-	MetricPresetHardLimitedGauge    = namespace + "preset_hard_limited"
+	MetricCreatedCount                = namespace + "created_total"
+	MetricFailedCount                 = namespace + "failed_total"
+	MetricClaimedCount                = namespace + "claimed_total"
+	MetricResourceReplacementsCount   = namespace + "resource_replacements_total"
+	MetricDesiredGauge                = namespace + "desired"
+	MetricRunningGauge                = namespace + "running"
+	MetricEligibleGauge               = namespace + "eligible"
+	MetricPresetHardLimitedGauge      = namespace + "preset_hard_limited"
 	MetricPresetValidationFailedGauge = namespace + "preset_validation_failed"
-	MetricLastUpdatedGauge          = namespace + "metrics_last_updated"
-	MetricReconciliationPausedGauge = namespace + "reconciliation_paused"
+	MetricLastUpdatedGauge            = namespace + "metrics_last_updated"
+	MetricReconciliationPausedGauge   = namespace + "reconciliation_paused"
 )
 
 var (
@@ -141,9 +141,9 @@ func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter preb
 	log := logger.Named("prebuilds_metrics_collector")
 
 	return &MetricsCollector{
-		database:            db,
-		logger:              log,
-		snapshotter:         snapshotter,
+		database:                 db,
+		logger:                   log,
+		snapshotter:              snapshotter,
 		replacementsCounter:      make(map[replacementKey]float64),
 		isPresetHardLimited:      make(map[hardLimitedPresetKey]bool),
 		isPresetValidationFailed: make(map[hardLimitedPresetKey]bool),

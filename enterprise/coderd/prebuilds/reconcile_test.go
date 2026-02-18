@@ -510,7 +510,8 @@ func (*brokenPublisher) Publish(event string, _ []byte) error {
 // prebuildStoreWrapper wraps database.Store to inject errors for testing.
 type prebuildStoreWrapper struct {
 	database.Store
-	insertProvisionerJobErr error
+	insertProvisionerJobErr  error
+	errorOnTemplateVersionID uuid.UUID
 }
 
 func (s prebuildStoreWrapper) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -520,11 +521,19 @@ func (s prebuildStoreWrapper) InsertProvisionerJob(ctx context.Context, arg data
 	return s.Store.InsertProvisionerJob(ctx, arg)
 }
 
+func (s prebuildStoreWrapper) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
+	if s.errorOnTemplateVersionID != uuid.Nil && arg.TemplateVersionID == s.errorOnTemplateVersionID {
+		return xerrors.Errorf("injected internal server error for template version %s", s.errorOnTemplateVersionID)
+	}
+	return s.Store.InsertWorkspaceBuild(ctx, arg)
+}
+
 func (s prebuildStoreWrapper) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
 		return fn(prebuildStoreWrapper{
-			Store:                   tx,
-			insertProvisionerJobErr: s.insertProvisionerJobErr,
+			Store:                    tx,
+			insertProvisionerJobErr:  s.insertProvisionerJobErr,
+			errorOnTemplateVersionID: s.errorOnTemplateVersionID,
 		})
 	}, opts)
 }
@@ -1005,9 +1014,9 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			mf, err := registry.Gather()
 			require.NoError(t, err)
 			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
-				"template_name": template.Name,
-				"preset_name":   preset.Name,
-				"org_name":      org.Name,
+				"template_name":     template.Name,
+				"preset_name":       preset.Name,
+				"organization_name": org.Name,
 			})
 			require.Nil(t, metric)
 
@@ -1042,9 +1051,9 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				mf, err = registry.Gather()
 				require.NoError(t, err)
 				metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
-					"template_name": template.Name,
-					"preset_name":   preset.Name,
-					"org_name":      org.Name,
+					"template_name":     template.Name,
+					"preset_name":       preset.Name,
+					"organization_name": org.Name,
 				})
 				require.Nil(t, metric)
 				return
@@ -1058,9 +1067,9 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			mf, err = registry.Gather()
 			require.NoError(t, err)
 			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
-				"template_name": template.Name,
-				"preset_name":   preset.Name,
-				"org_name":      org.Name,
+				"template_name":     template.Name,
+				"preset_name":       preset.Name,
+				"organization_name": org.Name,
 			})
 			require.NotNil(t, metric)
 			require.NotNil(t, metric.GetGauge())
@@ -1072,171 +1081,185 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 func TestValidationFailedPresets(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name                     string
-		startWithValidationFailed bool
-		useMissingParameter      bool
-		useWrappedStore          bool
-		desiredInstances         int32
-		expectValidationFailed   bool
-		expectWorkspaceCount     int
-		expectMetricSet          bool
-	}{
-		{
-			name:                      "preset already marked validation_failed is skipped",
-			startWithValidationFailed: true,
-			useMissingParameter:       false,
-			useWrappedStore:           false,
-			desiredInstances:          2,
-			expectValidationFailed:    true,
-			expectWorkspaceCount:      0,
-			expectMetricSet:           true,
-		},
-		{
-			name:                      "preset marked validation_failed on 400 error",
-			startWithValidationFailed: false,
-			useMissingParameter:       true,
-			useWrappedStore:           false,
-			desiredInstances:          1,
-			expectValidationFailed:    true,
-			expectWorkspaceCount:      0,
-			expectMetricSet:           true,
-		},
-		{
-			name:                      "break prevents multiple creation attempts on 400 error",
-			startWithValidationFailed: false,
-			useMissingParameter:       true,
-			useWrappedStore:           false,
-			desiredInstances:          3,
-			expectValidationFailed:    true,
-			// Even with 3 desired instances, only 1 creation attempt should be made
-			// before break stops further attempts.
-			expectWorkspaceCount: 0,
-			expectMetricSet:      true,
-		},
-		{
-			name:                      "non-400 error does not mark preset as validation_failed",
-			startWithValidationFailed: false,
-			useMissingParameter:       false,
-			useWrappedStore:           true,
-			desiredInstances:          1,
-			expectValidationFailed:    false,
-			expectWorkspaceCount:      0,
-			expectMetricSet:           false,
-		},
-	}
+	// This test uses 4 presets sharing one DB to verify validation_failed behavior:
+	// | Preset | Setup                                   | Expected After Reconcile                  |
+	// |--------|-----------------------------------------|-------------------------------------------|
+	// | A      | Already validation_failed, desired=2   | Stays validation_failed, 0 workspaces     |
+	// | B      | Healthy, required param missing         | Marked validation_failed, 0 workspaces    |
+	// | C      | Healthy, desired=3, required param      | Marked validation_failed, 0 workspaces    |
+	// | D      | Healthy, DB wrapper injects 500         | Stays healthy, 0 workspaces               |
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	registry := prometheus.NewRegistry()
 
-			clock := quartz.NewMock(t)
-			ctx := testutil.Context(t, testutil.WaitShort)
-			cfg := codersdk.PrebuildsConfig{}
-			logger := slogtest.Make(
-				t, &slogtest.Options{IgnoreErrors: true},
-			).Leveled(slog.LevelDebug)
-			db, pubSub := dbtestutil.NewDB(t)
-			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			registry := prometheus.NewRegistry()
+	// Set up shared test environment.
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         ownerID,
+	})
 
-			var store database.Store = db
-			if tc.useWrappedStore {
-				store = prebuildStoreWrapper{
-					Store:                   db,
-					insertProvisionerJobErr: xerrors.Errorf("internal server error"),
-				}
-			}
-
-			controller := prebuilds.NewStoreReconciler(
-				store, pubSub, cache, cfg, logger,
-				clock,
-				registry,
-				newNoopEnqueuer(),
-				newNoopUsageCheckerPtr(),
-				noop.NewTracerProvider(),
-				10,
-				nil,
-			)
-
-			// Set up test environment.
-			ownerID := uuid.New()
-			dbgen.User(t, db, database.User{
-				ID: ownerID,
-			})
-			org, template := setupTestDBTemplate(t, db, ownerID, false)
-			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
-
-			// Add a required parameter to trigger 400 error if useMissingParameter is true.
-			if tc.useMissingParameter {
-				dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
-					TemplateVersionID: templateVersionID,
-					Name:              "required-param",
-					Description:       "required param to trigger validation failure",
-					Type:              "bool",
-					DefaultValue:      "",
-					Required:          true,
-				})
-			}
-
-			// Create preset with desired instances.
-			preset := setupTestDBPreset(t, db, templateVersionID, tc.desiredInstances, uuid.New().String())
-
-			// Mark preset as validation_failed if starting in that state.
-			if tc.startWithValidationFailed {
-				err := db.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
-					PresetID: preset.ID,
-					Status:   database.PrebuildStatusValidationFailed,
-				})
-				require.NoError(t, err)
-			}
-
-			// Verify initial state: no workspaces exist.
-			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
-			require.NoError(t, err)
-			require.Len(t, workspaces, 0)
-
-			// Run reconciliation multiple times to verify no retry loops.
-			for i := 0; i < 3; i++ {
-				_, err = controller.ReconcileAll(ctx)
-				require.NoError(t, err)
-			}
-
-			// Verify preset status.
-			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
-			require.NoError(t, err)
-			if tc.expectValidationFailed {
-				require.Equal(t, database.PrebuildStatusValidationFailed, updatedPreset.PrebuildStatus,
-					"preset should be marked as validation_failed")
-			} else {
-				require.Equal(t, database.PrebuildStatusHealthy, updatedPreset.PrebuildStatus,
-					"preset should remain healthy on non-400 errors")
-			}
-
-			// Verify workspace count.
-			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
-			require.NoError(t, err)
-			require.Len(t, workspaces, tc.expectWorkspaceCount,
-				"workspace count should match expected")
-
-			// Verify metric.
-			require.NoError(t, controller.ForceMetricsUpdate(ctx))
-			mf, err := registry.Gather()
-			require.NoError(t, err)
-			metric := findMetric(mf, prebuilds.MetricPresetValidationFailedGauge, map[string]string{
-				"template_name": template.Name,
-				"preset_name":   preset.Name,
-				"org_name":      org.Name,
-			})
-			if tc.expectMetricSet {
-				require.NotNil(t, metric)
-				require.NotNil(t, metric.GetGauge())
-				require.EqualValues(t, 1, metric.GetGauge().GetValue())
-			} else {
-				require.Nil(t, metric)
-			}
+	// Helper to create template + version + optional required param.
+	createTemplate := func(name string, addRequiredParam bool) (database.Template, database.TemplateVersion) {
+		// First create the template (with a placeholder ActiveVersionID that we'll update).
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      ownerID,
+			Name:           name,
 		})
+
+		// Now create the provisioner job and template version linked to the template.
+		job := dbgen.ProvisionerJob(t, db, pubSub, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			CompletedAt:    sql.NullTime{Time: clock.Now().Add(earlier), Valid: true},
+			InitiatorID:    ownerID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			OrganizationID: org.ID,
+			JobID:          job.ID,
+			CreatedBy:      ownerID,
+		})
+
+		// Update template to point to this version as active.
+		require.NoError(t, db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+			ID:              tpl.ID,
+			ActiveVersionID: tv.ID,
+		}))
+
+		if addRequiredParam {
+			dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+				TemplateVersionID: tv.ID,
+				Name:              "required_param",
+				Description:       "required param to trigger validation failure",
+				Type:              "bool",
+				DefaultValue:      "",
+				Required:          true,
+			})
+		}
+		return tpl, tv
 	}
+
+	// Create templates.
+	tplA, tvA := createTemplate("tpl-already-failed", false)
+	tplB, tvB := createTemplate("tpl-will-400", true)
+	tplC, tvC := createTemplate("tpl-multi-create", true)
+	tplD, tvD := createTemplate("tpl-will-500", false)
+
+	// Create presets.
+	presetA := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tvA.ID,
+		Name:              "preset-already-failed",
+		DesiredInstances:  sql.NullInt32{Int32: 2, Valid: true},
+	})
+	// Mark preset A as validation_failed from the start.
+	err := db.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
+		PresetID: presetA.ID,
+		Status:   database.PrebuildStatusValidationFailed,
+	})
+	require.NoError(t, err)
+
+	presetB := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tvB.ID,
+		Name:              "preset-will-400",
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+	presetC := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tvC.ID,
+		Name:              "preset-multi-create",
+		DesiredInstances:  sql.NullInt32{Int32: 3, Valid: true},
+	})
+	presetD := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tvD.ID,
+		Name:              "preset-will-500",
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+
+	// Wrap DB to inject 500 error for template D's version.
+	wrappedDB := prebuildStoreWrapper{
+		Store:                    db,
+		errorOnTemplateVersionID: tvD.ID,
+	}
+
+	controller := prebuilds.NewStoreReconciler(
+		wrappedDB, pubSub, cache, cfg, logger,
+		clock,
+		registry,
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	// First reconcile: marks B, C as validation_failed.
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Second reconcile: updates metrics with newly-failed presets
+	// (metrics are updated based on snapshot taken at the START of ReconcileAll).
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify preset states.
+	verifyPreset := func(presetID uuid.UUID, expectedStatus database.PrebuildStatus, templateID uuid.UUID, expectWorkspaces int) {
+		preset, err := db.GetPresetByID(ctx, presetID)
+		require.NoError(t, err)
+		require.Equal(t, expectedStatus, preset.PrebuildStatus,
+			"preset %s should have status %s", preset.Name, expectedStatus)
+
+		workspaces, err := db.GetWorkspacesByTemplateID(ctx, templateID)
+		require.NoError(t, err)
+		require.Len(t, workspaces, expectWorkspaces,
+			"template %s should have %d workspaces", templateID, expectWorkspaces)
+	}
+
+	// Preset A: already validation_failed, stays that way, no workspaces.
+	verifyPreset(presetA.ID, database.PrebuildStatusValidationFailed, tplA.ID, 0)
+	// Preset B: healthy -> validation_failed due to 400 (missing required param).
+	verifyPreset(presetB.ID, database.PrebuildStatusValidationFailed, tplB.ID, 0)
+	// Preset C: healthy -> validation_failed due to 400 (missing required param), even with 3 desired instances.
+	verifyPreset(presetC.ID, database.PrebuildStatusValidationFailed, tplC.ID, 0)
+	// Preset D: stays healthy because 500 error does not mark as validation_failed.
+	verifyPreset(presetD.ID, database.PrebuildStatusHealthy, tplD.ID, 0)
+
+	// Verify metrics: A, B, C should have validation_failed metric set to 1.
+	require.NoError(t, controller.ForceMetricsUpdate(ctx))
+	mf, err := registry.Gather()
+	require.NoError(t, err)
+
+	// Helper to check metric value.
+	checkMetric := func(templateName, presetName string, expectSet bool) {
+		metric := findMetric(mf, prebuilds.MetricPresetValidationFailedGauge, map[string]string{
+			"template_name":     templateName,
+			"preset_name":       presetName,
+			"organization_name": org.Name,
+		})
+		if expectSet {
+			require.NotNil(t, metric, "metric should be set for preset %s", presetName)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue(),
+				"metric value should be 1 for preset %s", presetName)
+		} else {
+			require.Nil(t, metric, "metric should not be set for preset %s", presetName)
+		}
+	}
+
+	checkMetric(tplA.Name, presetA.Name, true)
+	checkMetric(tplB.Name, presetB.Name, true)
+	checkMetric(tplC.Name, presetC.Name, true)
+	checkMetric(tplD.Name, presetD.Name, false)
 }
 
 func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
@@ -1364,9 +1387,9 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			mf, err := registry.Gather()
 			require.NoError(t, err)
 			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
-				"template_name": template.Name,
-				"preset_name":   preset.Name,
-				"org_name":      org.Name,
+				"template_name":     template.Name,
+				"preset_name":       preset.Name,
+				"organization_name": org.Name,
 			})
 			require.Nil(t, metric)
 
@@ -1404,9 +1427,9 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			mf, err = registry.Gather()
 			require.NoError(t, err)
 			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
-				"template_name": template.Name,
-				"preset_name":   preset.Name,
-				"org_name":      org.Name,
+				"template_name":     template.Name,
+				"preset_name":       preset.Name,
+				"organization_name": org.Name,
 			})
 			require.NotNil(t, metric)
 			require.NotNil(t, metric.GetGauge())
@@ -1455,9 +1478,9 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			mf, err = registry.Gather()
 			require.NoError(t, err)
 			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
-				"template_name": template.Name,
-				"preset_name":   preset.Name,
-				"org_name":      org.Name,
+				"template_name":     template.Name,
+				"preset_name":       preset.Name,
+				"organization_name": org.Name,
 			})
 			require.Nil(t, metric)
 		})
@@ -1860,9 +1883,9 @@ func TestTrackResourceReplacement(t *testing.T) {
 	mf, err := registry.Gather()
 	require.NoError(t, err)
 	require.Nil(t, findMetric(mf, prebuilds.MetricResourceReplacementsCount, map[string]string{
-		"template_name": template.Name,
-		"preset_name":   preset.Name,
-		"org_name":      org.Name,
+		"template_name":     template.Name,
+		"preset_name":       preset.Name,
+		"organization_name": org.Name,
 	}))
 
 	// When: a claim occurred and resource replacements are detected (_how_ is out of scope of this test).
@@ -1903,9 +1926,9 @@ func TestTrackResourceReplacement(t *testing.T) {
 	mf, err = registry.Gather()
 	require.NoError(t, err)
 	metric := findMetric(mf, prebuilds.MetricResourceReplacementsCount, map[string]string{
-		"template_name": template.Name,
-		"preset_name":   preset.Name,
-		"org_name":      org.Name,
+		"template_name":     template.Name,
+		"preset_name":       preset.Name,
+		"organization_name": org.Name,
 	})
 	require.NotNil(t, metric)
 	require.NotNil(t, metric.GetCounter())

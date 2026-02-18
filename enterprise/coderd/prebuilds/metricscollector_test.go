@@ -432,6 +432,7 @@ func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, 
 			continue
 		}
 
+	metricLoop:
 		for _, metric := range metricFamily.GetMetric() {
 			labelPairs := metric.GetLabel()
 
@@ -444,7 +445,7 @@ func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, 
 			// Check if all requested labels match
 			for wantName, wantValue := range labels {
 				if metricLabels[wantName] != wantValue {
-					continue
+					continue metricLoop
 				}
 			}
 
@@ -458,6 +459,7 @@ func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, 
 func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labels map[string]string) map[string]*prometheus_client.Metric {
 	series := make(map[string]*prometheus_client.Metric)
 	for _, metricFamily := range metricsFamilies {
+	metricLoop:
 		for _, metric := range metricFamily.GetMetric() {
 			labelPairs := metric.GetLabel()
 
@@ -474,7 +476,7 @@ func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labe
 			// Check if all requested labels match
 			for wantName, wantValue := range labels {
 				if metricLabels[wantName] != wantValue {
-					continue
+					continue metricLoop
 				}
 			}
 
