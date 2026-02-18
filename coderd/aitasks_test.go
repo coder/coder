@@ -45,7 +45,7 @@ import (
 )
 
 // createTaskInState is a helper to create a task in the desired state.
-// It returns a function that takes context, test, and status, and returns the task ID.
+// It returns a function that takes context, test, and status, and returns the task.
 // The caller is responsible for setting up the database, owner, and user.
 func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID, userID uuid.UUID) func(context.Context, *testing.T, database.TaskStatus) database.Task {
 	return func(ctx context.Context, t *testing.T, status database.TaskStatus) database.Task {
