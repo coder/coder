@@ -43,7 +43,7 @@ var (
 	//go:embed templates/tasks-docker
 	files embed.FS
 
-	exampleBasePath = "https://github.com/coder/coder/tree/main/examples/templates/"
+	exampleBasePath = "https://github.com/coder/registry/tree/main/registry/coder/templates/"
 	examplesJSON    = "examples.gen.json"
 	parsedExamples  []codersdk.TemplateExample
 	parseExamples   sync.Once
