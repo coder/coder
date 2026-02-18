@@ -892,12 +892,11 @@ func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
 		// feature.
 		//
 		// This code also handles any unprefixed cookies that are now invalid.
-		cookies := r.Cookies() // r.Cookies() returns a parsed copy of the cookies
+		cookies := r.Cookies()
 		for i, c := range cookies {
 			// If any cookies that should be prefixed are found without the prefix, remove
 			// them from the client and the request. This is usually from a migration where
-			// the prefix was just turned on. In the ignorant or malicious scenario, these
-			// cookies MUST be dropped.
+			// the prefix was just turned on. In any case, these cookies MUST be dropped
 			if _, ok := cookiesToPrefix[c.Name]; ok {
 				// Remove the cookie from the client to prevent any future requests from sending it.
 				http.SetCookie(rw, &http.Cookie{
@@ -909,7 +908,7 @@ func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
 				cookies[i] = nil
 			}
 
-			// Only strip from the cookies we care about. Let other `__HOST-` cookies be.
+			// Only strip prefix's from the cookies we care about. Let other `__HOST-` cookies be
 			if _, ok := prefixed[c.Name]; ok {
 				c.Name = strings.TrimPrefix(c.Name, cookieHostPrefix)
 			}
