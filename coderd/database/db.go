@@ -152,9 +152,10 @@ func DefaultTXOptions() *TxOptions {
 func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 	now := time.Now()
 	id := uuid.New().String()
-	q.log.Critical(context.Background(), "scaletest: starting transaction", slog.F("stack", string(debug.Stack())), slog.F("id", id))
+	stack := string(debug.Stack())
+	q.log.Critical(context.Background(), "scaletest: starting transaction", slog.F("id", id))
 	defer func() {
-		q.log.Critical(context.Background(), "scaletest: finished transaction", slog.F("duration", time.Since(now)), slog.F("duration_ms", time.Since(now).Milliseconds()), slog.F("id", id))
+		q.log.Critical(context.Background(), "scaletest: finished transaction", slog.F("duration", time.Since(now)), slog.F("duration_ms", time.Since(now).Milliseconds()), slog.F("stack", stack), slog.F("id", id))
 	}()
 
 	_, inTx := q.db.(*sqlx.Tx)
