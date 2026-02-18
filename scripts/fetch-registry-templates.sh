@@ -90,13 +90,16 @@ for icon in "${ICONS_TO_COPY[@]}"; do
 done
 
 # Fetch each template from the registry.
+fetched=0
+missing=0
 for template in "${TEMPLATES[@]}"; do
 	src_dir="${registry_root}/${REGISTRY_TEMPLATES_PATH}/${template}"
 	dst_dir="${EXAMPLES_DIR}/${template}"
 
 	if [[ ! -d "$src_dir" ]]; then
-		echo "ERROR: Template ${template} not found in registry at ${REGISTRY_TEMPLATES_PATH}/${template}" >&2
-		exit 1
+		log "WARNING: Template ${template} not found in registry, keeping local version"
+		((missing++)) || true
+		continue
 	fi
 
 	log "Fetching template: ${template}"
@@ -111,6 +114,7 @@ for template in "${TEMPLATES[@]}"; do
 	if [[ -f "${dst_dir}/README.md" ]]; then
 		sed -i 's|icon: ../../../../\.icons/|icon: ../../../site/static/icon/|' "${dst_dir}/README.md"
 	fi
+	((fetched++)) || true
 done
 
-log "Done. Fetched ${#TEMPLATES[@]} templates from registry."
+log "Done. Fetched ${fetched} templates from registry (${missing} not yet available)."
