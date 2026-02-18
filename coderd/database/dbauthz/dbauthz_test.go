@@ -3521,9 +3521,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetReplicaByID(gomock.Any(), id).Return(database.Replica{}, sql.ErrNoRows).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
-	s.Run("GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetWorkspaceAgentAndLatestBuildByAuthToken", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		tok := uuid.New()
-		dbm.EXPECT().GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(gomock.Any(), tok).Return(database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, sql.ErrNoRows).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentAndLatestBuildByAuthToken(gomock.Any(), tok).Return(database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows).AnyTimes()
 		check.Args(tok).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetUserLinksByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

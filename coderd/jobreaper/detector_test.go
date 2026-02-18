@@ -126,9 +126,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	previousBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
-		ProvisionerState: expectedWorkspaceBuildState,
-	}).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{}).ProvisionerState(expectedWorkspaceBuildState).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
 		Do()
 
 	// Current build (hung - running job with UpdatedAt > 5 min ago).
@@ -163,7 +161,9 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	// Check that the provisioner state was copied.
 	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
+	provisionerState, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
+	require.NoError(t, err)
+	require.Equal(t, expectedWorkspaceBuildState, provisionerState)
 
 	detector.Close()
 	detector.Wait()
@@ -194,9 +194,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	previousBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
-		ProvisionerState: []byte(`{"dean":"NOT cool","colin":"also NOT cool"}`),
-	}).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{}).ProvisionerState([]byte(`{"dean":"NOT cool","colin":"also NOT cool"}`)).Succeeded(dbfake.WithJobCompletedAt(twentyMinAgo)).
 		Do()
 
 	// Current build (hung - running job with UpdatedAt > 5 min ago).
@@ -204,9 +202,8 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	currentBuild := dbfake.WorkspaceBuild(t, db, previousBuild.Workspace).
 		Pubsub(pubsub).
 		Seed(database.WorkspaceBuild{
-			BuildNumber:      2,
-			ProvisionerState: expectedWorkspaceBuildState,
-		}).
+			BuildNumber: 2,
+		}).ProvisionerState(expectedWorkspaceBuildState).
 		Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
 		Do()
 
@@ -235,7 +232,9 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	// Check that the provisioner state was NOT copied.
 	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
+	provisionerState, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
+	require.NoError(t, err)
+	require.Equal(t, expectedWorkspaceBuildState, provisionerState)
 
 	detector.Close()
 	detector.Wait()
@@ -266,9 +265,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	currentBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
-		ProvisionerState: expectedWorkspaceBuildState,
-	}).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{}).ProvisionerState(expectedWorkspaceBuildState).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
 		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
@@ -295,7 +292,9 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	// Check that the provisioner state was NOT updated.
 	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
+	provisionerState, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
+	require.NoError(t, err)
+	require.Equal(t, expectedWorkspaceBuildState, provisionerState)
 
 	detector.Close()
 	detector.Wait()
@@ -325,9 +324,7 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	currentBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
-	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
-		ProvisionerState: expectedWorkspaceBuildState,
-	}).Pending(dbfake.WithJobCreatedAt(thirtyFiveMinAgo), dbfake.WithJobUpdatedAt(thirtyFiveMinAgo)).
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{}).ProvisionerState(expectedWorkspaceBuildState).Pending(dbfake.WithJobCreatedAt(thirtyFiveMinAgo), dbfake.WithJobUpdatedAt(thirtyFiveMinAgo)).
 		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
@@ -356,7 +353,9 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	// Check that the provisioner state was NOT updated.
 	build, err := db.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
+	provisionerState, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
+	require.NoError(t, err)
+	require.Equal(t, expectedWorkspaceBuildState, provisionerState)
 
 	detector.Close()
 	detector.Wait()
@@ -398,9 +397,7 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 			Time:  now.Add(-time.Hour),
 			Valid: true,
 		},
-	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{
-		ProvisionerState: expectedWorkspaceBuildState,
-	}).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
+	}).Pubsub(pubsub).Seed(database.WorkspaceBuild{}).ProvisionerState(expectedWorkspaceBuildState).Starting(dbfake.WithJobStartedAt(tenMinAgo), dbfake.WithJobUpdatedAt(sixMinAgo)).
 		Do()
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)

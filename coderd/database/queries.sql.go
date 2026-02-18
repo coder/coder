@@ -17951,11 +17951,11 @@ func (q *sqlQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UU
 	return err
 }
 
-const getAuthenticatedWorkspaceAgentAndBuildByAuthToken = `-- name: GetAuthenticatedWorkspaceAgentAndBuildByAuthToken :one
+const getWorkspaceAgentAndLatestBuildByAuthToken = `-- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
-	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.provisioner_state, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_ai_task, workspace_build_with_user.has_external_agent, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name,
+	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_ai_task, workspace_build_with_user.has_external_agent, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name,
 	tasks.id AS task_id
 FROM
 	workspace_agents
@@ -18017,21 +18017,21 @@ WHERE
 	END
 `
 
-type GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow struct {
+type GetWorkspaceAgentAndLatestBuildByAuthTokenRow struct {
 	WorkspaceTable WorkspaceTable `db:"workspace_table" json:"workspace_table"`
 	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
 	WorkspaceBuild WorkspaceBuild `db:"workspace_build" json:"workspace_build"`
 	TaskID         uuid.NullUUID  `db:"task_id" json:"task_id"`
 }
 
-// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
-// workspace agent and its associated build. During normal operation, this is
+// GetWorkspaceAgentAndLatestBuildByAuthToken returns a workspace agent and its
+// associated build by the agent's auth token. During normal operation, this is
 // the latest build. During shutdown, this may be the previous START build while
 // the STOP build is executing, allowing shutdown scripts to authenticate (see
 // issue #19467).
-func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
-	row := q.db.QueryRowContext(ctx, getAuthenticatedWorkspaceAgentAndBuildByAuthToken, authToken)
-	var i GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow
+func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndLatestBuildByAuthToken, authToken)
+	var i GetWorkspaceAgentAndLatestBuildByAuthTokenRow
 	err := row.Scan(
 		&i.WorkspaceTable.ID,
 		&i.WorkspaceTable.CreatedAt,
@@ -18093,7 +18093,6 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 		&i.WorkspaceBuild.BuildNumber,
 		&i.WorkspaceBuild.Transition,
 		&i.WorkspaceBuild.InitiatorID,
-		&i.WorkspaceBuild.ProvisionerState,
 		&i.WorkspaceBuild.JobID,
 		&i.WorkspaceBuild.Deadline,
 		&i.WorkspaceBuild.Reason,
@@ -21007,7 +21006,7 @@ func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg Ins
 }
 
 const getActiveWorkspaceBuildsByTemplateID = `-- name: GetActiveWorkspaceBuildsByTemplateID :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_ai_task, wb.has_external_agent, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_ai_task, wb.has_external_agent, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -21055,7 +21054,6 @@ func (q *sqlQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, t
 			&i.BuildNumber,
 			&i.Transition,
 			&i.InitiatorID,
-			&i.ProvisionerState,
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
@@ -21163,7 +21161,7 @@ func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, a
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -21186,7 +21184,6 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
-		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
@@ -21205,7 +21202,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
 SELECT
 	DISTINCT ON (workspace_id)
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -21232,7 +21229,6 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.BuildNumber,
 			&i.Transition,
 			&i.InitiatorID,
-			&i.ProvisionerState,
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
@@ -21260,7 +21256,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -21281,7 +21277,6 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
-		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
@@ -21299,7 +21294,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -21320,7 +21315,6 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
-		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
@@ -21338,7 +21332,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 
 const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -21363,7 +21357,6 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
-		&i.ProvisionerState,
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
@@ -21435,6 +21428,26 @@ func (q *sqlQuerier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, i
 	return i, err
 }
 
+const getWorkspaceBuildProvisionerStateByID = `-- name: GetWorkspaceBuildProvisionerStateByID :one
+SELECT
+	provisioner_state
+FROM
+	workspace_builds
+WHERE
+	id = $1
+`
+
+// Fetches the provisioner state of a workspace build directly from the
+// workspace_builds table. This is used by callers that need the full
+// Terraform state, which is excluded from workspace_build_with_user to
+// avoid loading it on hot paths.
+func (q *sqlQuerier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildProvisionerStateByID, workspaceBuildID)
+	var provisioner_state []byte
+	err := row.Scan(&provisioner_state)
+	return provisioner_state, err
+}
+
 const getWorkspaceBuildStatsByTemplates = `-- name: GetWorkspaceBuildStatsByTemplates :many
 SELECT
     w.template_id,
@@ -21504,7 +21517,7 @@ func (q *sqlQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, sinc
 
 const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -21568,7 +21581,6 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 			&i.BuildNumber,
 			&i.Transition,
 			&i.InitiatorID,
-			&i.ProvisionerState,
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
@@ -21595,7 +21607,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 }
 
 const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name FROM workspace_build_with_user WHERE created_at > $1
+SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name FROM workspace_build_with_user WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
@@ -21616,7 +21628,6 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, created
 			&i.BuildNumber,
 			&i.Transition,
 			&i.InitiatorID,
-			&i.ProvisionerState,
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
