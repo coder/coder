@@ -113,6 +113,8 @@ for template in "${TEMPLATES[@]}"; do
 	# Required format:  icon: ../../../site/static/icon/foo.svg
 	if [[ -f "${dst_dir}/README.md" ]]; then
 		sed -i 's|icon: ../../../../\.icons/|icon: ../../../site/static/icon/|' "${dst_dir}/README.md"
+		# Format markdown tables to match project style.
+		pnpm exec markdown-table-formatter "${dst_dir}/README.md" 2>/dev/null || true
 	fi
 	((fetched++)) || true
 done
