@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"cdr.dev/slog/v3/sloggers/slogstackdriver"
 )
 
 // Store contains all queryable database functions.
@@ -68,7 +69,7 @@ func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 		sdb: dbx,
 		// This is an arbitrary number.
 		serialRetryCount: 3,
-		log:              slog.Make(sloghuman.Sink(os.Stderr)),
+		log:              slog.Make(slogstackdriver.Sink(os.Stderr), sloghuman.Sink(os.Stderr)),
 	}
 
 	for _, opt := range opts {
