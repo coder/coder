@@ -879,9 +879,18 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	provisionerState, err := api.Database.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuild.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner state.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(workspaceBuild.ProvisionerState)
+	_, _ = rw.Write(provisionerState)
 }
 
 // @Summary Update workspace build state

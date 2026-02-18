@@ -8188,7 +8188,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	require.Len(t, remaining, len(unexpiredTimes))
 }
 
-func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *testing.T) {
+func TestGetWorkspaceAgentAndLatestBuildByAuthToken_ShutdownScripts(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -8264,7 +8264,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should still authenticate during stop build execution.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		row, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
 		require.NoError(t, err, "agent should authenticate during stop build execution")
 		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not stop build")
@@ -8322,7 +8322,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate after stop job completes.
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		_, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate after stop job completes")
 	})
 
@@ -8376,7 +8376,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate (start build failed).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		_, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from failed start build should not authenticate")
 	})
 
@@ -8431,7 +8431,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should authenticate during pending stop build.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		row, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
 		require.NoError(t, err, "agent should authenticate during pending stop build")
 		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build")
@@ -8528,13 +8528,13 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 3 should authenticate.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent2.AuthToken)
+		row, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent2.AuthToken)
 		require.NoError(t, err, "agent from most recent start should authenticate during stop")
 		require.Equal(t, agent2.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild2.ID, row.WorkspaceBuild.ID)
 
 		// Agent from build 1 should NOT authenticate.
-		_, err = db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
+		_, err = db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from old cycle should not authenticate")
 	})
 
@@ -8588,7 +8588,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 1 should NOT authenticate (latest is not STOP).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
+		_, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate when latest build is not STOP")
 	})
 }

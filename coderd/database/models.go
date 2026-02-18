@@ -4983,7 +4983,6 @@ type WorkspaceBuild struct {
 	BuildNumber             int32               `db:"build_number" json:"build_number"`
 	Transition              WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
 	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
 	Deadline                time.Time           `db:"deadline" json:"deadline"`
 	Reason                  BuildReason         `db:"reason" json:"reason"`

@@ -1378,9 +1378,12 @@ func withLastBuildFound(mTx *dbmock.MockStore) {
 			Transition:        database.WorkspaceTransitionStart,
 			InitiatorID:       userID,
 			JobID:             lastBuildJobID,
-			ProvisionerState:  []byte("last build state"),
 			Reason:            database.BuildReasonInitiator,
 		}, nil)
+
+	mTx.EXPECT().GetWorkspaceBuildProvisionerStateByID(gomock.Any(), lastBuildID).
+		AnyTimes().
+		Return([]byte("last build state"), nil)
 
 	mTx.EXPECT().GetProvisionerJobByID(gomock.Any(), lastBuildJobID).
 		Times(1).

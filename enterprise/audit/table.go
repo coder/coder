@@ -190,7 +190,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"build_number":               ActionIgnore,
 		"transition":                 ActionIgnore,
 		"initiator_id":               ActionIgnore,
-		"provisioner_state":          ActionIgnore,
 		"job_id":                     ActionIgnore,
 		"deadline":                   ActionIgnore,
 		"reason":                     ActionIgnore,

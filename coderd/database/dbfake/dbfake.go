@@ -67,6 +67,8 @@ type WorkspaceBuildBuilder struct {
 
 	jobError     string // Error message for failed jobs
 	jobErrorCode string // Error code for failed jobs
+
+	provisionerState []byte
 }
 
 // BuilderOption is a functional option for customizing job timestamps
@@ -135,6 +137,15 @@ func (b WorkspaceBuildBuilder) Pubsub(ps pubsub.Pubsub) WorkspaceBuildBuilder {
 func (b WorkspaceBuildBuilder) Seed(seed database.WorkspaceBuild) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.seed = seed
+	return b
+}
+
+// ProvisionerState sets the provisioner state for the workspace build.
+// This is stored separately from the seed because ProvisionerState is
+// not part of the WorkspaceBuild view struct.
+func (b WorkspaceBuildBuilder) ProvisionerState(state []byte) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.provisionerState = state
 	return b
 }
 
@@ -464,6 +475,14 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	}
 
 	resp.Build = dbgen.WorkspaceBuild(b.t, b.db, b.seed)
+	if len(b.provisionerState) > 0 {
+		err = b.db.UpdateWorkspaceBuildProvisionerStateByID(ownerCtx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               resp.Build.ID,
+			UpdatedAt:        dbtime.Now(),
+			ProvisionerState: b.provisionerState,
+		})
+		require.NoError(b.t, err, "update provisioner state")
+	}
 	b.logger.Debug(context.Background(), "created workspace build",
 		slog.F("build_id", resp.Build.ID),
 		slog.F("workspace_id", resp.Workspace.ID),

@@ -271,3 +271,15 @@ JOIN workspace_resources wr ON wr.job_id = wb.job_id
 JOIN workspace_agents wa ON wa.resource_id = wr.id
 WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
+
+-- name: GetWorkspaceBuildProvisionerStateByID :one
+-- Fetches the provisioner state of a workspace build directly from the
+-- workspace_builds table. This is used by callers that need the full
+-- Terraform state, which is excluded from workspace_build_with_user to
+-- avoid loading it on hot paths.
+SELECT
+	provisioner_state
+FROM
+	workspace_builds
+WHERE
+	id = @workspace_build_id;

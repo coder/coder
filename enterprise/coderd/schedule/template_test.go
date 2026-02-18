@@ -253,11 +253,13 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 				TemplateID:     template.ID,
 			}).Seed(database.WorkspaceBuild{
 				TemplateVersionID: templateVersion.ID,
-				ProvisionerState:  []byte(must(cryptorand.String(64))),
-			}).Succeeded(dbfake.WithJobCompletedAt(buildTime)).Do()
+			}).ProvisionerState([]byte(must(cryptorand.String(64)))).Succeeded(dbfake.WithJobCompletedAt(buildTime)).Do()
 
 			// Assert test invariant: workspace build state must not be empty
-			require.NotEmpty(t, buildResp.Build.ProvisionerState, "provisioner state must not be empty")
+			var buildProvisionerState []byte
+			buildProvisionerState, err = db.GetWorkspaceBuildProvisionerStateByID(ctx, buildResp.Build.ID)
+			require.NoError(t, err)
+			require.NotEmpty(t, buildProvisionerState, "provisioner state must not be empty")
 
 			err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 				ID:          buildResp.Build.ID,
@@ -310,7 +312,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second, "max_deadline")
 
 			// Check that the new build has the same state as before.
-			require.Equal(t, wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")
+			newBuildProvisionerState, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, newBuild.ID)
+			require.NoError(t, err)
+			require.Equal(t, buildProvisionerState, newBuildProvisionerState, "provisioner state mismatch")
 		})
 	}
 }
@@ -388,7 +392,8 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		shouldBeUpdated bool
 
 		// Set below:
-		wsBuild database.WorkspaceBuild
+		wsBuild                 database.WorkspaceBuild
+		wsBuildProvisionerState []byte
 	}{
 		{
 			name:            "DifferentTemplate",
@@ -483,19 +488,25 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			},
 			OrganizationID: templateJob.OrganizationID,
 		})
+		wsBuildProvisionerState := []byte(must(cryptorand.String(64)))
 		wsBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			WorkspaceID:       wsID,
 			BuildNumber:       b.buildNumber,
 			JobID:             job.ID,
 			InitiatorID:       user.ID,
 			TemplateVersionID: templateVersion.ID,
-			ProvisionerState:  []byte(must(cryptorand.String(64))),
 		})
+		err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               wsBuild.ID,
+			UpdatedAt:        wsBuild.UpdatedAt,
+			ProvisionerState: wsBuildProvisionerState,
+		})
+		require.NoError(t, err)
 
 		// Assert test invariant: workspace build state must not be empty
-		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
+		require.NotEmpty(t, wsBuildProvisionerState, "provisioner state must not be empty")
 
-		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          wsBuild.ID,
 			UpdatedAt:   buildTime,
 			Deadline:    originalMaxDeadline,
@@ -507,8 +518,9 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert test invariant: workspace build state must not be empty
-		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
+		require.NotEmpty(t, wsBuildProvisionerState, "provisioner state must not be empty")
 
+		builds[i].wsBuildProvisionerState = wsBuildProvisionerState
 		builds[i].wsBuild = wsBuild
 
 		if !b.buildStarted {
@@ -595,7 +607,9 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			assert.WithinDuration(t, originalMaxDeadline, newBuild.MaxDeadline, time.Second, msg)
 		}
 
-		assert.Equal(t, builds[i].wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")
+		newBuildProvisionerState, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, newBuild.ID)
+		require.NoError(t, err)
+		assert.Equal(t, builds[i].wsBuildProvisionerState, newBuildProvisionerState, "provisioner state mismatch")
 	}
 }
 
@@ -1322,7 +1336,7 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
 			// nolint:gocritic
 			agentCtx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-			agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(agentCtx, uuid.MustParse(workspaceBuild.AgentToken))
+			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(agentCtx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
 			err = db.UpdateWorkspaceAgentLifecycleStateByID(agentCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 				ID:             agent.WorkspaceAgent.ID,
