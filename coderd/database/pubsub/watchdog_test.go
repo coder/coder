@@ -41,7 +41,7 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 	require.Equal(t, pubsub.EventPubsubWatchdog, sub.event)
 
 	// 5 min / 15 sec = 20, so do 21 ticks
-	for i := 0; i < 21; i++ {
+	for range 21 {
 		d, w := mClock.AdvanceNext()
 		w.MustWait(ctx)
 		require.LessOrEqual(t, d, 15*time.Second)
@@ -97,7 +97,7 @@ func TestWatchdog_Timeout(t *testing.T) {
 	require.Equal(t, pubsub.EventPubsubWatchdog, sub.event)
 
 	// 5 min / 15 sec = 20, so do 19 ticks without timing out
-	for i := 0; i < 19; i++ {
+	for range 19 {
 		d, w := mClock.AdvanceNext()
 		w.MustWait(ctx)
 		require.LessOrEqual(t, d, 15*time.Second)

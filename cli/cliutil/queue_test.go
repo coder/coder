@@ -18,7 +18,7 @@ func TestQueue(t *testing.T) {
 		q := cliutil.NewQueue[int](10)
 		require.Equal(t, 0, q.Len())
 
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			err := q.Push(i)
 			require.NoError(t, err)
 			if i < 10 {
@@ -38,13 +38,13 @@ func TestQueue(t *testing.T) {
 		t.Parallel()
 
 		q := cliutil.NewQueue[int](10)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			err := q.Push(i)
 			require.NoError(t, err)
 		}
 
 		// No blocking, should pop immediately.
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			val, ok := q.Pop()
 			require.True(t, ok)
 			require.Equal(t, i, val)
@@ -94,13 +94,13 @@ func TestQueue(t *testing.T) {
 			return n + 1, true
 		})
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			err := q.Push(i)
 			require.NoError(t, err)
 		}
 
 		got := []int{}
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			val, ok := q.Pop()
 			require.True(t, ok)
 			got = append(got, val)

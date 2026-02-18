@@ -106,7 +106,7 @@ func fuzzAuthzPrep(t *testing.T, prep rbac.PreparedAuthorized, n int, action pol
 	t.Helper()
 	pairs := make([]coderdtest.ActionObjectPair, 0, n)
 
-	for i := 0; i < n; i++ {
+	for range n {
 		obj := coderdtest.RandomRBACObject()
 		obj.Type = objectType
 		p := coderdtest.ActionObjectPair{Action: action, Object: obj}
@@ -120,7 +120,7 @@ func fuzzAuthz(t *testing.T, sub rbac.Subject, rec rbac.Authorizer, n int) []cod
 	t.Helper()
 	pairs := make([]coderdtest.ActionObjectPair, 0, n)
 
-	for i := 0; i < n; i++ {
+	for range n {
 		p := coderdtest.ActionObjectPair{Action: coderdtest.RandomRBACAction(), Object: coderdtest.RandomRBACObject()}
 		_ = rec.Authorize(context.Background(), sub, p.Action, p.Object)
 		pairs = append(pairs, p)

@@ -175,7 +175,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 			assert.Error(t, err) // Server is closed.
 		}()
 
-		for i := 0; i < len(waitConns); i++ {
+		for i := range waitConns {
 			waitConns[i] = make(chan struct{})
 			go func(ch chan struct{}) {
 				defer wg.Done()

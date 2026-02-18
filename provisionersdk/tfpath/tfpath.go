@@ -188,7 +188,7 @@ func (l Layout) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
 	var err error
 	path := l.WorkDirectory()
 
-	for attempt := 0; attempt < 5; attempt++ {
+	for range 5 {
 		err := fs.RemoveAll(path)
 		if err != nil {
 			// On Windows, open files cannot be removed.

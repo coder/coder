@@ -606,7 +606,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	}()
 	agent1 := agpltest.NewAgent(ctx, t, uut, "agent1")
 	defer agent1.Close(ctx)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		select {
 		case <-ctx.Done():
 			t.Fatalf("timeout waiting for call %d", i+1)
@@ -623,7 +623,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	agent2.AssertEventuallyResponsesClosed(tailnet.CloseErrUnhealthy)
 
 	// next heartbeats succeed, so we are healthy
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-ctx.Done():
 			t.Fatal("timeout")

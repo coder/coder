@@ -199,7 +199,7 @@ func newTunnelServer(t *testing.T) *tunnelServer {
 	// passed an active listener (because wireguard needs to make the listener),
 	// so we may need to try a few times to get a free port.
 	var td *tunneld.API
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wireguardPort := freeUDPPort(t)
 		options := &tunneld.Options{
 			BaseURL:                baseURLParsed,

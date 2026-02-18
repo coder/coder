@@ -1601,7 +1601,7 @@ func TestUsersFilter(t *testing.T) {
 	lastSeenNow := time.Date(2023, 1, 18, 12, 0, 0, 0, time.UTC)
 	users := make([]codersdk.User, 0)
 	users = append(users, firstUser)
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		roles := []rbac.RoleIdentifier{}
 		if i%2 == 0 {
 			roles = append(roles, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
@@ -1637,7 +1637,7 @@ func TestUsersFilter(t *testing.T) {
 	}
 
 	// Add users with different creation dates for testing date filters
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		user1, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("before%d@coder.com", i),
@@ -2543,7 +2543,7 @@ func TestSuspendedPagination(t *testing.T) {
 	total := 10
 	users := make([]codersdk.User, 0, total)
 	// Create users
-	for i := 0; i < total; i++ {
+	for i := range total {
 		email := fmt.Sprintf("%d@coder.com", i)
 		username := fmt.Sprintf("user%d", i)
 		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
@@ -2719,7 +2719,7 @@ func TestPaginatedUsers(t *testing.T) {
 
 	eg, _ := errgroup.WithContext(ctx)
 	// Create users
-	for i := 0; i < total; i++ {
+	for i := range total {
 		eg.Go(func() error {
 			email := fmt.Sprintf("%d@coder.com", i)
 			username := fmt.Sprintf("user%d", i)

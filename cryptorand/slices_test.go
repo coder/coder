@@ -41,7 +41,7 @@ func TestRandomElement(t *testing.T) {
 		}
 
 		// Get a random value from each 20 times.
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			iv, err := cryptorand.Element(ints)
 			require.NoError(t, err, "unexpected error from Element(ints)")
 			t.Logf("random int slice element: %v", iv)

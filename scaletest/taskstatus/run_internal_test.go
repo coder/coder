@@ -228,7 +228,7 @@ func TestRunner_Run(t *testing.T) {
 	require.Equal(t, testAgentToken, fPatcher.agentToken)
 
 	updateDelay := time.Duration(0)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		tickWaiter := mClock.Advance((10 * time.Second) - updateDelay)
 
 		patchCall := testutil.RequireReceive(ctx, t, fPatcher.patchStatusCalls)
@@ -347,7 +347,7 @@ func TestRunner_RunMissedUpdate(t *testing.T) {
 	tickerTrap.MustWait(testCtx).MustRelease(testCtx)
 
 	updateDelay := time.Duration(0)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		tickWaiter := mClock.Advance((10 * time.Second) - updateDelay)
 		patchCall := testutil.RequireReceive(testCtx, t, fPatcher.patchStatusCalls)
 		require.Equal(t, appSlug, patchCall.AppSlug)
@@ -465,7 +465,7 @@ func TestRunner_Run_WithErrors(t *testing.T) {
 	// Wait for the initial TickerFunc call before advancing time, otherwise our ticks will be off.
 	tickerTrap.MustWait(testCtx).MustRelease(testCtx)
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		tickWaiter := mClock.Advance(10 * time.Second)
 		testutil.RequireSend(testCtx, t, fPatcher.patchStatusErrors, xerrors.New("a bad thing happened"))
 		_ = testutil.RequireReceive(testCtx, t, fPatcher.patchStatusCalls)

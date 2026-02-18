@@ -103,7 +103,7 @@ func WeekdaysToBitmap(days []string) (uint8, error) {
 // the schedule package's rules (see above).
 func BitmapToWeekdays(bitmap uint8) []string {
 	days := []string{}
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		if bitmap&(1<<i) != 0 {
 			switch i {
 			case 0:

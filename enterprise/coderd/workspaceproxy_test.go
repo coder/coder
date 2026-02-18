@@ -574,9 +574,9 @@ func TestProxyRegisterDeregister(t *testing.T) {
 
 		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			ok := false
-			for j := 0; j < 2; j++ {
+			for range 2 {
 				registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 					AccessURL:           "https://proxy.coder.test",
 					WildcardHostname:    "*.proxy.coder.test",

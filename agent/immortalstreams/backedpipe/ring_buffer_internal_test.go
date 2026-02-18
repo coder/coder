@@ -247,7 +247,7 @@ func BenchmarkRingBuffer_Write(b *testing.B) {
 func BenchmarkRingBuffer_ReadLast(b *testing.B) {
 	rb := newRingBuffer(64 * 1024 * 1024) // 64MB for benchmarks
 	// Fill buffer with test data
-	for i := 0; i < 64; i++ {
+	for range 64 {
 		rb.Write(bytes.Repeat([]byte("x"), 1024))
 	}
 

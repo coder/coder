@@ -1689,7 +1689,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	require.NoError(t, err)
 	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
-	for i := 0; i < total; i++ {
+	for i := range total {
 		eg.Go(func() error {
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 				Name:          uuid.NewString(),
@@ -2340,7 +2340,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	allFailed := make([]uuid.UUID, 0)
 	expArchived := make([]uuid.UUID, 0)
 	// create some failed versions
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		failed := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanFailed,
@@ -2354,7 +2354,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	}
 
 	// Create some unused versions
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
@@ -2363,7 +2363,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	}
 
 	// Create some used template versions
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})

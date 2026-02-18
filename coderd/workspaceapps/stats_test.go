@@ -369,7 +369,7 @@ func TestStatsCollector_backlog(t *testing.T) {
 	// The first collected stat is "rolled up" and moved into the
 	// backlog during the first flush. On the second flush nothing is
 	// rolled up due to being unable to report the backlog.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		collector.Collect(workspaceapps.StatsReport{
 			SessionID:        uuid.New(),
 			SessionStartedAt: start,

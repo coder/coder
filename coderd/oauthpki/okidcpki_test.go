@@ -177,7 +177,7 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 	user, _ := helper.Login(t, claims)
 
 	// Try refreshing the token more than once.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		helper.ForceRefresh(t, api.Database, user, claims)
 	}
 }

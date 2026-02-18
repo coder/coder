@@ -84,21 +84,21 @@ func TestAcquirer_MultipleSameDomain(t *testing.T) {
 	tags := provisionerdserver.Tags{
 		"environment": "on-prem",
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wID := uuid.New()
 		workerIDs[wID] = true
 		a := newTestAcquiree(t, orgID, wID, pt, tags)
 		acquirees = append(acquirees, a)
 		a.startAcquire(ctx, uut)
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		jobID := uuid.New()
 		jobIDs[jobID] = true
 		err := fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
 		require.NoError(t, err)
 	}
 	gotJobIDs := make(map[uuid.UUID]bool)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		j := acquirees[i].success(ctx)
 		gotJobIDs[j.ID] = true
 	}
@@ -310,7 +310,7 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 
 	// queue up 2 responses --- we may not need both, since acquiree0 will
 	// usually cancel before calling, but cancel is async, so it might call.
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		err := fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
 		require.NoError(t, err)
 	}

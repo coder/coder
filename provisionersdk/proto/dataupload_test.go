@@ -52,7 +52,7 @@ func FuzzBytesToDataUpload(f *testing.F) {
 func TestBytesToDataUpload(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		// Generate random data
 		//nolint:gosec // Just a unit test
 		chunkCount := 1 + rand.Intn(3)

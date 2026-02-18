@@ -2,6 +2,7 @@ package agentapi_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,7 +120,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 
 		now := dbtime.Now()
 		almostLongValue := ""
-		for i := 0; i < 2048; i++ {
+		for range 2048 {
 			almostLongValue += "a"
 		}
 		req := &agentproto.BatchUpdateMetadataRequest{
@@ -206,11 +207,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				},
 				{
 					Key: func() string {
-						key := "key 3 "
-						for i := 0; i < (6144 - len("key 1") - len("key 2") - len("key 3") - 1); i++ {
-							key += "a"
+						var key strings.Builder
+						key.WriteString("key 3 ")
+						for range 6144 - len("key 1") - len("key 2") - len("key 3") - 1 {
+							key.WriteString("a")
 						}
-						return key
+						return key.String()
 					}(),
 					Result: &agentproto.WorkspaceAgentMetadata_Result{
 						Value: "value 3",

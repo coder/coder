@@ -317,7 +317,7 @@ func TestScim(t *testing.T) {
 			})
 
 			sUser := makeScimUser(t)
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 				require.NoError(t, err)
 				_ = res.Body.Close()

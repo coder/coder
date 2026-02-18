@@ -38,7 +38,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	pingCount := 5
 	pings := make([]time.Duration, 0, pingCount)
 	// Ping 5 times and average the latency.
-	for i := 0; i < pingCount; i++ {
+	for range pingCount {
 		pong, err := opts.DB.Ping(ctx)
 		if err != nil {
 			r.Error = health.Errorf(health.CodeDatabasePingFailed, "ping database: %s", err)

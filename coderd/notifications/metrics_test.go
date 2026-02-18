@@ -353,7 +353,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	user := createSampleUser(t, store)
 
 	// WHEN: notifications are enqueued which will succeed (and be delayed during dispatch)
-	for i := 0; i < msgCount; i++ {
+	for i := range msgCount {
 		_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success", "i": strconv.Itoa(i)}, "test")
 		require.NoError(t, err)
 	}
@@ -366,7 +366,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), tmpl.String())) == msgCount
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	for i := 0; i < msgCount; i++ {
+	for range msgCount {
 		barrier.wg.Done()
 	}
 

@@ -2846,7 +2846,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		}()
 
 		// Send off 10 ticks to cause 10 validate calls
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			ticks <- time.Now()
 		}
 		cancel()

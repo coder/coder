@@ -243,12 +243,12 @@ func TestGraphThreadSafety(t *testing.T) {
 
 		barrier := make(chan struct{})
 		// Launch writers
-		for i := 0; i < numWriters; i++ {
+		for i := range numWriters {
 			wg.Add(1)
 			go func(writerID int) {
 				defer wg.Done()
 				<-barrier
-				for j := 0; j < operationsPerWriter; j++ {
+				for j := range operationsPerWriter {
 					from := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j)}
 					to := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j+1)}
 					graph.AddEdge(from, to, testEdgeCompleted)
@@ -262,7 +262,7 @@ func TestGraphThreadSafety(t *testing.T) {
 			readCount int
 		}, numReaders)
 
-		for i := 0; i < numReaders; i++ {
+		for i := range numReaders {
 			wg.Add(1)
 			go func(readerID int) {
 				defer wg.Done()
@@ -274,7 +274,7 @@ func TestGraphThreadSafety(t *testing.T) {
 				}()
 
 				readCount := 0
-				for j := 0; j < operationsPerReader; j++ {
+				for j := range operationsPerReader {
 					// Create a test vertex and read
 					testUnit := &testGraphVertex{Name: fmt.Sprintf("test-reader-%d-%d", readerID, j)}
 					forwardEdges := graph.GetForwardAdjacentVertices(testUnit)
@@ -323,7 +323,7 @@ func TestGraphThreadSafety(t *testing.T) {
 		cycleErrors := make([]error, numGoroutines)
 
 		// Launch goroutines trying to add D→A (creates cycle)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
@@ -354,7 +354,7 @@ func TestGraphThreadSafety(t *testing.T) {
 		graph := &testGraph{}
 
 		// Pre-populate graph
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			from := &testGraphVertex{Name: fmt.Sprintf("dot-unit-%d", i)}
 			to := &testGraphVertex{Name: fmt.Sprintf("dot-unit-%d", i+1)}
 			err := graph.AddEdge(from, to, testEdgeCompleted)
@@ -369,7 +369,7 @@ func TestGraphThreadSafety(t *testing.T) {
 
 		// Launch readers calling ToDOT
 		dotErrors := make([]error, numReaders)
-		for i := 0; i < numReaders; i++ {
+		for i := range numReaders {
 			wg.Add(1)
 			go func(readerID int) {
 				defer wg.Done()
@@ -383,7 +383,7 @@ func TestGraphThreadSafety(t *testing.T) {
 		}
 
 		// Launch writers adding edges
-		for i := 0; i < numWriters; i++ {
+		for i := range numWriters {
 			wg.Add(1)
 			go func(writerID int) {
 				defer wg.Done()
@@ -417,7 +417,7 @@ func BenchmarkGraph_ConcurrentMixedOperations(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Launch goroutines performing random operations
-		for j := 0; j < numGoroutines; j++ {
+		for j := range numGoroutines {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()

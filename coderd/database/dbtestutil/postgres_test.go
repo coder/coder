@@ -80,7 +80,7 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	require.NoError(t, rows.Close())
 	require.NoError(t, db.Close())
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		db, err := sql.Open("postgres", dsn)
 		require.NoError(t, err)
 		require.NoError(t, db.Ping())

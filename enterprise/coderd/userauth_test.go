@@ -752,7 +752,7 @@ func TestUserOIDC(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// Refresh multiple times.
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				runner.ForceRefresh(t, client, claims)
 			}
 		})

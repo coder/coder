@@ -857,7 +857,7 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 	// not increase test times needlessly).
 	// Limit GOMAXPROCS (e.g. `export GOMAXPROCS=1`) to further increase
 	// chance of failure. Also -race helps.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		func() {
 			stdout.Reset()
 
@@ -906,7 +906,7 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 	// not increase test times needlessly). Run with -race and do not
 	// limit parallelism (`export GOMAXPROCS=10`) to increase the chance
 	// of failure.
-	for i := 0; i < 1; i++ {
+	for range 1 {
 		func() {
 			stdout.Reset()
 

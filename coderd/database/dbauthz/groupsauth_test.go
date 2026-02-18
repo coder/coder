@@ -41,7 +41,7 @@ func TestGroupsAuth(t *testing.T) {
 	})
 
 	var users []database.User
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		user := dbgen.User(t, db, database.User{})
 		users = append(users, user)
 		err := db.InsertGroupMember(ownerCtx, database.InsertGroupMemberParams{

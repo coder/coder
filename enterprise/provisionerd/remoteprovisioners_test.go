@@ -356,7 +356,7 @@ func (e *fuzzExecutor) Execute(
 			}
 			// replace newlines so the Connector doesn't think we are done
 			// with the JobID
-			for i := 0; i < len(rb); i++ {
+			for i := range rb {
 				if rb[i] == '\n' || rb[i] == '\r' {
 					rb[i] = 'A'
 				}

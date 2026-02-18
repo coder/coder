@@ -285,7 +285,7 @@ func TestLogSender_Batch(t *testing.T) {
 	t0 := dbtime.Now()
 	ls1 := uuid.UUID{0x11}
 	var logs []Log
-	for i := 0; i < 60000; i++ {
+	for range 60000 {
 		logs = append(logs, Log{
 			CreatedAt: t0,
 			Output:    "r",
@@ -340,7 +340,7 @@ func TestLogSender_MaxQueuedLogs(t *testing.T) {
 		hugeLog[i] = 'q'
 	}
 	var logs []Log
-	for i := 0; i < n; i++ {
+	for range n {
 		logs = append(logs, Log{
 			CreatedAt: t0,
 			Output:    string(hugeLog),
@@ -366,7 +366,7 @@ func TestLogSender_MaxQueuedLogs(t *testing.T) {
 	// limit. These come over a total of 3 updates, because due to overhead, the n logs from source
 	// #1 come in 2 updates, plus 1 update for source #2.
 	logsBySource := make(map[uuid.UUID]int)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		req := testutil.TryReceive(ctx, t, fDest.reqs)
 		require.NotNil(t, req)
 		srcID, err := uuid.FromBytes(req.LogSourceId)

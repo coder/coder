@@ -421,7 +421,7 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 		errors := make([]error, numGoroutines)
 
 		// Launch concurrent attempts to access the client configuration
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
@@ -448,7 +448,7 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 		statusCodes := make([]int, numGoroutines)
 
 		// Launch concurrent attempts with invalid tokens
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
@@ -494,7 +494,7 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 		deleteResults := make([]error, numGoroutines)
 
 		// Launch concurrent deletion attempts
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()

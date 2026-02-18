@@ -882,7 +882,7 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 	writeResults := make([]error, numWriters)
 	writesStarted := make(chan struct{}, numWriters)
 
-	for i := 0; i < numWriters; i++ {
+	for i := range numWriters {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -895,7 +895,7 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 
 	// Wait for all writes to start
 	ctx := testutil.Context(t, testutil.WaitLong)
-	for i := 0; i < numWriters; i++ {
+	for range numWriters {
 		testutil.RequireReceive(ctx, t, writesStarted)
 	}
 
@@ -980,7 +980,7 @@ func BenchmarkBackedWriter_Reconnect(b *testing.B) {
 
 	// Fill buffer with data
 	data := bytes.Repeat([]byte("x"), 1024)
-	for i := 0; i < 32; i++ {
+	for range 32 {
 		bw.Write(data)
 	}
 
