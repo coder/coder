@@ -489,7 +489,7 @@ const ChatMessageItem = memo<{
 		parsed.reasoning !== "" ||
 		parsed.tools.length > 0;
 	const conversationItemProps = {
-		role: (isUser ? "user" : "assistant") as const,
+		role: (isUser ? "user" as const : "assistant" as const),
 	};
 
 	return (
@@ -1170,7 +1170,7 @@ export const AgentDetail: FC = () => {
 					/>,
 					topBarActionsRef.current,
 				)}
-			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent] mx-4">
+			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]">
 				<div>
 					<div className="mx-auto w-full max-w-3xl py-6">
 						{parsedMessages.length === 0 && !hasStreamOutput ? (

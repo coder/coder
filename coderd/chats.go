@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"charm.land/fantasy"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -17,7 +18,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
-	aiapi "go.jetify.com/ai/api"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -1918,7 +1918,7 @@ func defaultChatSystemPrompt(api *API) string {
 }
 
 func createChatInputFromRequest(req codersdk.CreateChatRequest) (
-	[]aiapi.ContentBlock,
+	[]fantasy.Content,
 	string,
 	*codersdk.Response,
 ) {
@@ -1930,7 +1930,7 @@ func createChatInputFromRequest(req codersdk.CreateChatRequest) (
 			}
 		}
 
-		content := make([]aiapi.ContentBlock, 0, len(req.Input.Parts))
+		content := make([]fantasy.Content, 0, len(req.Input.Parts))
 		textParts := make([]string, 0, len(req.Input.Parts))
 		for i, part := range req.Input.Parts {
 			switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
@@ -1942,7 +1942,7 @@ func createChatInputFromRequest(req codersdk.CreateChatRequest) (
 						Detail:  fmt.Sprintf("input.parts[%d].text cannot be empty.", i),
 					}
 				}
-				content = append(content, &aiapi.TextBlock{Text: text})
+				content = append(content, fantasy.TextContent{Text: text})
 				textParts = append(textParts, text)
 			default:
 				return nil, "", &codersdk.Response{
@@ -1974,7 +1974,7 @@ func createChatInputFromRequest(req codersdk.CreateChatRequest) (
 		}
 	}
 
-	return aiapi.ContentFromText(message), message, nil
+	return []fantasy.Content{fantasy.TextContent{Text: message}}, message, nil
 }
 
 func chatTitleFromMessage(message string) string {

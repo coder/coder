@@ -12,17 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
-	"github.com/openai/openai-go/v2"
-	openaioption "github.com/openai/openai-go/v2/option"
 	"github.com/sqlc-dev/pqtype"
-	"go.jetify.com/ai"
-	"go.jetify.com/ai/api"
-	aianthropic "go.jetify.com/ai/provider/anthropic"
-	aiopenai "go.jetify.com/ai/provider/openai"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
@@ -81,7 +76,7 @@ type Processor struct {
 	providerKeys     ProviderAPIKeys
 	providerKeysFn   ProviderAPIKeysResolver
 	titleGeneration  TitleGenerationConfig
-	titleModelLookup func(ProviderAPIKeys) (api.LanguageModel, error)
+	titleModelLookup func(ProviderAPIKeys) (fantasy.LanguageModel, error)
 
 	activeMu      sync.Mutex
 	activeCancels map[uuid.UUID]context.CancelCauseFunc
@@ -104,7 +99,7 @@ type WorkspaceCreator interface {
 // CreateWorkspaceToolRequest is the request payload for the create_workspace tool.
 type CreateWorkspaceToolRequest struct {
 	Chat            database.Chat
-	Model           api.LanguageModel
+	Model           fantasy.LanguageModel
 	Prompt          string
 	Spec            json.RawMessage
 	BuildLogHandler CreateWorkspaceBuildLogHandler
@@ -129,8 +124,16 @@ type CreateWorkspaceToolResult struct {
 	Reason           string
 }
 
+// ToolResultBlock is the persisted chat tool result shape.
+type ToolResultBlock struct {
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Result     any    `json:"result"`
+	IsError    bool   `json:"is_error,omitempty"`
+}
+
 // ModelResolver resolves a model for a chat.
-type ModelResolver func(chat database.Chat) (api.LanguageModel, error)
+type ModelResolver func(chat database.Chat) (fantasy.LanguageModel, error)
 
 // ProviderAPIKeysResolver resolves provider API keys for chat model calls.
 type ProviderAPIKeysResolver func(context.Context) (ProviderAPIKeys, error)
@@ -444,8 +447,8 @@ func processingFailureReason(err error) (string, bool) {
 		return "", false
 	}
 
-	var streamErr *api.ErrorEvent
-	// streamChatResponse already publishes stream error events for api.ErrorEvent.
+	var streamErr *streamErrorReported
+	// streamChatResponse already publishes stream error events for stream errors.
 	if errors.As(err, &streamErr) {
 		return "", false
 	}
@@ -455,6 +458,24 @@ func processingFailureReason(err error) (string, bool) {
 		return "", false
 	}
 	return reason, true
+}
+
+type streamErrorReported struct {
+	err error
+}
+
+func (e *streamErrorReported) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e *streamErrorReported) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
 }
 
 func panicFailureReason(recovered any) string {
@@ -566,190 +587,332 @@ func (p *Processor) runChat(ctx context.Context, chat database.Chat, logger slog
 		prompt = prependSystemInstruction(prompt, defaultNoWorkspaceInstruction)
 	}
 
-	tools := toolDefinitions()
-	var streamHandler StreamEventHandler
 	if p.streamManager != nil {
 		p.streamManager.StartStream(chat.ID)
 		defer p.streamManager.StopStream(chat.ID)
-		streamHandler = func(event codersdk.ChatStreamEvent) {
-			p.publishEvent(chat.ID, event)
-		}
 	}
 
-	for step := 0; step < maxChatSteps; step++ {
-		if err := ctx.Err(); err != nil {
-			if errors.Is(context.Cause(ctx), ErrChatInterrupted) {
-				return ErrChatInterrupted
-			}
-			return err
-		}
+	model, err := p.resolveChatModel(ctx, chat)
+	if err != nil {
+		return err
+	}
 
-		var (
-			model api.LanguageModel
-			err   error
-		)
-		if p.modelResolver != nil {
-			model, err = p.modelResolver(chat)
-		} else {
-			keys, keyErr := p.resolveProviderAPIKeys(ctx)
-			if keyErr != nil {
-				return xerrors.Errorf("resolve provider API keys: %w", keyErr)
-			}
-			model, err = modelFromChat(chat, keys)
+	result, err := p.runChatWithAgent(ctx, chat, model, prompt)
+	if err != nil {
+		return err
+	}
+	if result != nil && len(result.Steps) >= maxChatSteps {
+		lastStep := result.Steps[len(result.Steps)-1]
+		if lastStep.FinishReason == fantasy.FinishReasonToolCalls &&
+			len(lastStep.Content.ToolCalls()) > 0 {
+			return xerrors.Errorf("chat exceeded %d tool steps", maxChatSteps)
 		}
+	}
+	return nil
+}
+
+func (p *Processor) resolveChatModel(ctx context.Context, chat database.Chat) (fantasy.LanguageModel, error) {
+	if p.modelResolver != nil {
+		model, err := p.modelResolver(chat)
 		if err != nil {
-			return xerrors.Errorf("resolve model: %w", err)
+			return nil, xerrors.Errorf("resolve model: %w", err)
+		}
+		return model, nil
+	}
+
+	keys, err := p.resolveProviderAPIKeys(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("resolve provider API keys: %w", err)
+	}
+	model, err := modelFromChat(chat, keys)
+	if err != nil {
+		return nil, xerrors.Errorf("resolve model: %w", err)
+	}
+	return model, nil
+}
+
+func (p *Processor) runChatWithAgent(
+	ctx context.Context,
+	chat database.Chat,
+	model fantasy.LanguageModel,
+	prompt []fantasy.Message,
+) (*fantasy.AgentResult, error) {
+	currentChat := chat
+	var (
+		chatStateMu sync.Mutex
+		conn        workspacesdk.AgentConn
+		releaseConn func()
+	)
+	closeConn := func() {
+		if releaseConn != nil {
+			releaseConn()
+			releaseConn = nil
+		}
+	}
+	defer closeConn()
+
+	getWorkspaceConn := func(ctx context.Context) (workspacesdk.AgentConn, error) {
+		chatStateMu.Lock()
+		if conn != nil {
+			currentConn := conn
+			chatStateMu.Unlock()
+			return currentConn, nil
+		}
+		chatSnapshot := currentChat
+		chatStateMu.Unlock()
+
+		if p.agentConnector == nil {
+			return nil, xerrors.New("workspace agent connector is not configured")
 		}
 
-		response, toolCalls, assistantMessage, done, err := func() (streamResult, []*api.ToolCallBlock, database.ChatMessage, bool, error) {
-			response, err := streamChatResponse(ctx, model, prompt, tools, streamHandler)
-			if err != nil {
-				if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ctx), ErrChatInterrupted) {
-					return streamResult{}, nil, database.ChatMessage{}, false, ErrChatInterrupted
-				}
-				return streamResult{}, nil, database.ChatMessage{}, false, xerrors.Errorf("stream response: %w", err)
-			}
-
-			if len(response.Content) == 0 {
-				return streamResult{}, nil, database.ChatMessage{}, true, nil
-			}
-
-			assistantContent, err := marshalContentBlocks(response.Content)
-			if err != nil {
-				return streamResult{}, nil, database.ChatMessage{}, false, err
-			}
-
-			assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-				ChatID:  chat.ID,
-				Role:    string(api.MessageRoleAssistant),
-				Content: assistantContent,
-				ToolCallID: sql.NullString{
-					Valid: false,
-				},
-				Thinking: sql.NullString{
-					Valid: false,
-				},
-				Hidden: false,
-			})
-			if err != nil {
-				return streamResult{}, nil, database.ChatMessage{}, false, xerrors.Errorf("insert assistant message: %w", err)
-			}
-
-			return response, extractToolCalls(response.Content), assistantMessage, false, nil
-		}()
+		agentID, err := p.resolveAgentID(ctx, chatSnapshot)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if done {
+
+		agentConn, agentRelease, err := p.agentConnector.AgentConn(ctx, agentID)
+		if err != nil {
+			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
+		}
+
+		chatStateMu.Lock()
+		if conn == nil {
+			conn = agentConn
+			releaseConn = agentRelease
+			chatStateMu.Unlock()
+			return agentConn, nil
+		}
+		currentConn := conn
+		chatStateMu.Unlock()
+
+		agentRelease()
+		return currentConn, nil
+	}
+
+	persistAssistant := func(content []fantasy.Content) error {
+		if len(content) == 0 {
 			return nil
 		}
 
+		assistantContent, err := marshalContentBlocks(content)
+		if err != nil {
+			return err
+		}
+
+		assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:  chat.ID,
+			Role:    string(fantasy.MessageRoleAssistant),
+			Content: assistantContent,
+			ToolCallID: sql.NullString{
+				Valid: false,
+			},
+			Thinking: sql.NullString{
+				Valid: false,
+			},
+			Hidden: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert assistant message: %w", err)
+		}
 		p.publishMessage(chat.ID, assistantMessage)
+		return nil
+	}
 
-		prompt = append(prompt, &api.AssistantMessage{Content: response.Content})
+	persistToolResult := func(result ToolResultBlock) error {
+		resultContent, err := marshalToolResults([]ToolResultBlock{result})
+		if err != nil {
+			return err
+		}
 
-		if len(toolCalls) == 0 {
+		toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:  chat.ID,
+			Role:    string(fantasy.MessageRoleTool),
+			Content: resultContent,
+			ToolCallID: sql.NullString{
+				String: result.ToolCallID,
+				Valid:  result.ToolCallID != "",
+			},
+			Hidden: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert tool result: %w", err)
+		}
+
+		p.publishMessage(chat.ID, toolMessage)
+		return nil
+	}
+
+	var (
+		stepStateMu     sync.Mutex
+		streamToolNames map[string]string
+		stepToolResults []ToolResultBlock
+	)
+	resetStepState := func() {
+		stepStateMu.Lock()
+		streamToolNames = make(map[string]string)
+		stepToolResults = nil
+		stepStateMu.Unlock()
+	}
+	resetStepState()
+
+	agent := fantasy.NewAgent(
+		model,
+		fantasy.WithTools(p.agentTools(model, &currentChat, &chatStateMu, getWorkspaceConn)...),
+		fantasy.WithStopConditions(fantasy.StepCountIs(maxChatSteps)),
+	)
+	sentinelPrompt := "__chatd_agent_prompt_sentinel_" + uuid.NewString()
+
+	result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
+		Prompt:   sentinelPrompt,
+		Messages: prompt,
+		PrepareStep: func(
+			stepCtx context.Context,
+			options fantasy.PrepareStepFunctionOptions,
+		) (context.Context, fantasy.PrepareStepResult, error) {
+			return stepCtx, fantasy.PrepareStepResult{
+				Messages: stripAgentPromptSentinel(options.Messages, sentinelPrompt),
+			}, nil
+		},
+		OnStepStart: func(_ int) error {
+			resetStepState()
 			return nil
-		}
+		},
+		OnTextDelta: func(_ string, text string) error {
+			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: text,
+			})
+			return nil
+		},
+		OnReasoningDelta: func(_ string, text string) error {
+			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeReasoning,
+				Text: text,
+			})
+			return nil
+		},
+		OnToolInputStart: func(id, toolName string) error {
+			stepStateMu.Lock()
+			streamToolNames[id] = toolName
+			stepStateMu.Unlock()
+			return nil
+		},
+		OnToolInputDelta: func(id, delta string) error {
+			stepStateMu.Lock()
+			toolName := streamToolNames[id]
+			stepStateMu.Unlock()
+			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: id,
+				ToolName:   toolName,
+				ArgsDelta:  delta,
+			})
+			return nil
+		},
+		OnToolCall: func(toolCall fantasy.ToolCallContent) error {
+			stepStateMu.Lock()
+			streamToolNames[toolCall.ToolCallID] = toolCall.ToolName
+			stepStateMu.Unlock()
+			p.publishMessagePart(
+				chat.ID,
+				string(fantasy.MessageRoleAssistant),
+				contentBlockToPart(toolCall),
+			)
+			return nil
+		},
+		OnSource: func(source fantasy.SourceContent) error {
+			p.publishMessagePart(
+				chat.ID,
+				string(fantasy.MessageRoleAssistant),
+				contentBlockToPart(source),
+			)
+			return nil
+		},
+		OnToolResult: func(result fantasy.ToolResultContent) error {
+			toolResult := toolResultBlockFromAgentToolResult(result)
+			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleTool), toolResultToPart(toolResult))
 
-		var (
-			conn    workspacesdk.AgentConn
-			release func()
-		)
-		releaseConn := func() {
-			if release != nil {
-				release()
-				release = nil
-			}
-		}
+			stepStateMu.Lock()
+			stepToolResults = append(stepToolResults, toolResult)
+			stepStateMu.Unlock()
 
-		for _, toolCall := range toolCalls {
-			var toolResult api.ToolResultBlock
+			return nil
+		},
+		OnStepFinish: func(stepResult fantasy.StepResult) error {
+			stepStateMu.Lock()
+			toolResults := append([]ToolResultBlock(nil), stepToolResults...)
+			stepStateMu.Unlock()
 
-			switch toolCall.ToolName {
-			case toolCreateWorkspace:
-				wsResult := CreateWorkspaceToolResult{}
-				toolResult, wsResult = p.executeCreateWorkspaceTool(ctx, chat, model, toolCall)
-				if wsResult.Created {
-					if wsResult.WorkspaceID == uuid.Nil {
-						toolResult = toolError(api.ToolResultBlock{
-							ToolCallID: toolCall.ToolCallID,
-							ToolName:   toolCall.ToolName,
-						}, xerrors.New("workspace creator returned a created workspace without an ID"))
-						break
-					}
-
-					updatedChat, err := p.persistChatWorkspace(ctx, chat, wsResult)
-					if err != nil {
-						toolResult = toolError(api.ToolResultBlock{
-							ToolCallID: toolCall.ToolCallID,
-							ToolName:   toolCall.ToolName,
-						}, err)
-						break
-					}
-					chat = updatedChat
-				}
-			default:
-				base := api.ToolResultBlock{
-					ToolCallID: toolCall.ToolCallID,
-					ToolName:   toolCall.ToolName,
-				}
-
-				if p.agentConnector == nil {
-					toolResult = toolError(base, xerrors.New("workspace agent connector is not configured"))
-					break
-				}
-
-				if conn == nil {
-					agentID, err := p.resolveAgentID(ctx, chat)
-					if err != nil {
-						toolResult = toolError(base, err)
-						break
-					}
-					agentConn, agentRelease, err := p.agentConnector.AgentConn(ctx, agentID)
-					if err != nil {
-						toolResult = toolError(base, xerrors.Errorf("connect to workspace agent: %w", err))
-						break
-					}
-					conn = agentConn
-					release = agentRelease
-				}
-
-				toolResult = executeTool(ctx, conn, toolCall)
-			}
-
-			p.publishMessagePart(chat.ID, string(api.MessageRoleTool), toolResultToPart(toolResult))
-
-			resultContent, err := marshalToolResults([]api.ToolResultBlock{toolResult})
-			if err != nil {
-				releaseConn()
+			if err := persistAssistant(stepAssistantContent(stepResult.Content, toolResults)); err != nil {
 				return err
 			}
-
-			toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-				ChatID:  chat.ID,
-				Role:    string(api.MessageRoleTool),
-				Content: resultContent,
-				ToolCallID: sql.NullString{
-					String: toolResult.ToolCallID,
-					Valid:  toolResult.ToolCallID != "",
-				},
-				Hidden: false,
-			})
-			if err != nil {
-				releaseConn()
-				return xerrors.Errorf("insert tool result: %w", err)
+			for _, toolResult := range toolResults {
+				if err := persistToolResult(toolResult); err != nil {
+					return err
+				}
 			}
-
-			p.publishMessage(chat.ID, toolMessage)
-
-			prompt = append(prompt, &api.ToolMessage{Content: []api.ToolResultBlock{toolResult}})
+			return nil
+		},
+	})
+	if err != nil {
+		if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ctx), ErrChatInterrupted) {
+			return nil, ErrChatInterrupted
 		}
-
-		releaseConn()
+		return nil, xerrors.Errorf("stream response: %w", err)
 	}
 
-	return xerrors.Errorf("chat exceeded %d tool steps", maxChatSteps)
+	return result, nil
+}
+
+func stripAgentPromptSentinel(messages []fantasy.Message, sentinel string) []fantasy.Message {
+	filtered := make([]fantasy.Message, 0, len(messages))
+	removed := false
+	for _, message := range messages {
+		if !removed && isAgentPromptSentinelMessage(message, sentinel) {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, message)
+	}
+	return filtered
+}
+
+func isAgentPromptSentinelMessage(message fantasy.Message, sentinel string) bool {
+	if message.Role != fantasy.MessageRoleUser {
+		return false
+	}
+	if len(message.Content) != 1 {
+		return false
+	}
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
+	if !ok {
+		return false
+	}
+	return textPart.Text == sentinel
+}
+
+func stepAssistantContent(content []fantasy.Content, toolResults []ToolResultBlock) []fantasy.Content {
+	toolResultIDs := make(map[string]struct{}, len(toolResults))
+	for _, toolResult := range toolResults {
+		if toolResult.ToolCallID == "" {
+			continue
+		}
+		toolResultIDs[toolResult.ToolCallID] = struct{}{}
+	}
+
+	filtered := make([]fantasy.Content, 0, len(content))
+	for _, block := range content {
+		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok {
+			filtered = append(filtered, block)
+			continue
+		}
+		if _, tracked := toolResultIDs[toolResult.ToolCallID]; tracked {
+			continue
+		}
+		filtered = append(filtered, block)
+	}
+	return filtered
 }
 
 func (p *Processor) maybeGenerateChatTitle(
@@ -812,11 +975,25 @@ func (p *Processor) generateChatTitle(ctx context.Context, input string) (string
 		return "", xerrors.Errorf("resolve title generation model: %w", err)
 	}
 
-	prompt := []api.Message{
-		&api.SystemMessage{Content: config.Prompt},
-		&api.UserMessage{Content: api.ContentFromText(input)},
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: config.Prompt},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: input},
+			},
+		},
 	}
-	response, err := ai.GenerateText(ctx, prompt, ai.WithModel(model))
+	toolChoice := fantasy.ToolChoiceNone
+	response, err := model.Generate(ctx, fantasy.Call{
+		Prompt:     prompt,
+		ToolChoice: &toolChoice,
+	})
 	if err != nil {
 		return "", xerrors.Errorf("generate title text: %w", err)
 	}
@@ -838,9 +1015,9 @@ func chatTitleInput(chat database.Chat, messages []database.ChatMessage) (string
 		}
 
 		switch message.Role {
-		case string(api.MessageRoleAssistant), string(api.MessageRoleTool):
+		case string(fantasy.MessageRoleAssistant), string(fantasy.MessageRoleTool):
 			return "", false, nil
-		case string(api.MessageRoleUser):
+		case string(fantasy.MessageRoleUser):
 			userCount++
 			if firstUserText == "" {
 				text, err := userMessageText(message.Content)
@@ -876,17 +1053,17 @@ func (p *Processor) resolveProviderAPIKeys(ctx context.Context) (ProviderAPIKeys
 }
 
 func userMessageText(raw pqtype.NullRawMessage) (string, error) {
-	content, err := parseContentBlocks(string(api.MessageRoleUser), raw)
+	content, err := parseContentBlocks(string(fantasy.MessageRoleUser), raw)
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(contentBlocksToText(content)), nil
 }
 
-func contentBlocksToText(content []api.ContentBlock) string {
+func contentBlocksToText(content []fantasy.Content) string {
 	parts := make([]string, 0, len(content))
 	for _, block := range content {
-		textBlock, ok := block.(*api.TextBlock)
+		textBlock, ok := fantasy.AsContentType[fantasy.TextContent](block)
 		if !ok {
 			continue
 		}
@@ -1050,41 +1227,55 @@ func (p *Processor) Close() error {
 	return nil
 }
 
-func chatMessagesToPrompt(messages []database.ChatMessage) ([]api.Message, error) {
-	prompt := make([]api.Message, 0, len(messages))
+func chatMessagesToPrompt(messages []database.ChatMessage) ([]fantasy.Message, error) {
+	prompt := make([]fantasy.Message, 0, len(messages))
 	for _, message := range messages {
 		// System messages are always included in the prompt even when
 		// hidden, because the system prompt must reach the LLM. Other
 		// hidden messages (e.g. internal bookkeeping) are skipped.
-		if message.Hidden && message.Role != string(api.MessageRoleSystem) {
+		if message.Hidden && message.Role != string(fantasy.MessageRoleSystem) {
 			continue
 		}
 
 		switch message.Role {
-		case string(api.MessageRoleSystem):
+		case string(fantasy.MessageRoleSystem):
 			content, err := parseSystemContent(message.Content)
 			if err != nil {
 				return nil, err
 			}
-			prompt = append(prompt, &api.SystemMessage{Content: content})
-		case string(api.MessageRoleUser):
-			content, err := parseContentBlocks(string(api.MessageRoleUser), message.Content)
+			if strings.TrimSpace(content) == "" {
+				continue
+			}
+			prompt = append(prompt, fantasy.Message{
+				Role: fantasy.MessageRoleSystem,
+				Content: []fantasy.MessagePart{
+					fantasy.TextPart{Text: content},
+				},
+			})
+		case string(fantasy.MessageRoleUser):
+			content, err := parseContentBlocks(string(fantasy.MessageRoleUser), message.Content)
 			if err != nil {
 				return nil, err
 			}
-			prompt = append(prompt, &api.UserMessage{Content: content})
-		case string(api.MessageRoleAssistant):
-			content, err := parseContentBlocks(string(api.MessageRoleAssistant), message.Content)
+			prompt = append(prompt, fantasy.Message{
+				Role:    fantasy.MessageRoleUser,
+				Content: contentToMessageParts(content),
+			})
+		case string(fantasy.MessageRoleAssistant):
+			content, err := parseContentBlocks(string(fantasy.MessageRoleAssistant), message.Content)
 			if err != nil {
 				return nil, err
 			}
-			prompt = append(prompt, &api.AssistantMessage{Content: content})
-		case string(api.MessageRoleTool):
+			prompt = append(prompt, fantasy.Message{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: contentToMessageParts(content),
+			})
+		case string(fantasy.MessageRoleTool):
 			results, err := parseToolResults(message.Content)
 			if err != nil {
 				return nil, err
 			}
-			prompt = append(prompt, &api.ToolMessage{Content: results})
+			prompt = append(prompt, toolMessageFromResults(results))
 		default:
 			return nil, xerrors.Errorf("unsupported chat message role %q", message.Role)
 		}
@@ -1099,17 +1290,16 @@ func chatMessagesToPrompt(messages []database.ChatMessage) ([]api.Message, error
 // with tool_use blocks is persisted but the tool results are not.
 // The Anthropic API requires every tool_use to have a matching
 // tool_result in the immediately following message.
-func injectMissingToolResults(prompt []api.Message) []api.Message {
-	result := make([]api.Message, 0, len(prompt))
+func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
+	result := make([]fantasy.Message, 0, len(prompt))
 	for i := 0; i < len(prompt); i++ {
 		msg := prompt[i]
 		result = append(result, msg)
 
-		assistantMsg, ok := msg.(*api.AssistantMessage)
-		if !ok {
+		if msg.Role != fantasy.MessageRoleAssistant {
 			continue
 		}
-		toolCalls := extractToolCalls(assistantMsg.Content)
+		toolCalls := extractToolCallsFromMessageParts(msg.Content)
 		if len(toolCalls) == 0 {
 			continue
 		}
@@ -1119,11 +1309,14 @@ func injectMissingToolResults(prompt []api.Message) []api.Message {
 		answered := make(map[string]struct{})
 		j := i + 1
 		for ; j < len(prompt); j++ {
-			toolMsg, ok := prompt[j].(*api.ToolMessage)
-			if !ok {
+			if prompt[j].Role != fantasy.MessageRoleTool {
 				break
 			}
-			for _, tr := range toolMsg.Content {
+			for _, part := range prompt[j].Content {
+				tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+				if !ok {
+					continue
+				}
 				answered[tr.ToolCallID] = struct{}{}
 			}
 		}
@@ -1135,10 +1328,10 @@ func injectMissingToolResults(prompt []api.Message) []api.Message {
 		}
 
 		// Build synthetic results for any unanswered tool calls.
-		var missing []api.ToolResultBlock
+		var missing []ToolResultBlock
 		for _, tc := range toolCalls {
 			if _, ok := answered[tc.ToolCallID]; !ok {
-				missing = append(missing, api.ToolResultBlock{
+				missing = append(missing, ToolResultBlock{
 					ToolCallID: tc.ToolCallID,
 					ToolName:   tc.ToolName,
 					Result:     map[string]any{"error": "tool call was interrupted and did not receive a result"},
@@ -1147,29 +1340,39 @@ func injectMissingToolResults(prompt []api.Message) []api.Message {
 			}
 		}
 		if len(missing) > 0 {
-			result = append(result, &api.ToolMessage{Content: missing})
+			result = append(result, toolMessageFromResults(missing))
 		}
 	}
 	return result
 }
 
-func prependSystemInstruction(prompt []api.Message, instruction string) []api.Message {
+func prependSystemInstruction(prompt []fantasy.Message, instruction string) []fantasy.Message {
 	instruction = strings.TrimSpace(instruction)
 	if instruction == "" {
 		return prompt
 	}
 	for _, message := range prompt {
-		systemMessage, ok := message.(*api.SystemMessage)
-		if !ok {
+		if message.Role != fantasy.MessageRoleSystem {
 			continue
 		}
-		if strings.Contains(strings.ToLower(systemMessage.Content), "create_workspace") {
-			return prompt
+		for _, part := range message.Content {
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+			if !ok {
+				continue
+			}
+			if strings.Contains(strings.ToLower(textPart.Text), "create_workspace") {
+				return prompt
+			}
 		}
 	}
 
-	out := make([]api.Message, 0, len(prompt)+1)
-	out = append(out, &api.SystemMessage{Content: instruction})
+	out := make([]fantasy.Message, 0, len(prompt)+1)
+	out = append(out, fantasy.Message{
+		Role: fantasy.MessageRoleSystem,
+		Content: []fantasy.MessagePart{
+			fantasy.TextPart{Text: instruction},
+		},
+	})
 	out = append(out, prompt...)
 	return out
 }
@@ -1186,71 +1389,148 @@ func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
 	return content, nil
 }
 
-func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]api.ContentBlock, error) {
+func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, error) {
 	if !raw.Valid || len(raw.RawMessage) == 0 {
 		return nil, nil
 	}
 
 	var text string
 	if err := json.Unmarshal(raw.RawMessage, &text); err == nil {
-		return api.ContentFromText(text), nil
+		return []fantasy.Content{fantasy.TextContent{Text: text}}, nil
 	}
 
-	payload := struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content,omitempty"`
-	}{
-		Role:    role,
-		Content: raw.RawMessage,
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, xerrors.Errorf("encode content payload: %w", err)
+	var rawBlocks []json.RawMessage
+	if err := json.Unmarshal(raw.RawMessage, &rawBlocks); err != nil {
+		return nil, xerrors.Errorf("parse %s content: %w", role, err)
 	}
 
-	switch role {
-	case string(api.MessageRoleUser):
-		var message api.UserMessage
-		if err := json.Unmarshal(data, &message); err != nil {
-			return nil, xerrors.Errorf("parse user content: %w", err)
+	content := make([]fantasy.Content, 0, len(rawBlocks))
+	for i, rawBlock := range rawBlocks {
+		block, err := fantasy.UnmarshalContent(rawBlock)
+		if err != nil {
+			return nil, xerrors.Errorf("parse %s content block %d: %w", role, i, err)
 		}
-		return message.Content, nil
-	case string(api.MessageRoleAssistant):
-		var message api.AssistantMessage
-		if err := json.Unmarshal(data, &message); err != nil {
-			return nil, xerrors.Errorf("parse assistant content: %w", err)
-		}
-		return message.Content, nil
-	default:
-		return nil, xerrors.Errorf("unsupported role for content blocks %q", role)
+		content = append(content, block)
 	}
+	return content, nil
 }
 
-func parseToolResults(raw pqtype.NullRawMessage) ([]api.ToolResultBlock, error) {
+func parseToolResults(raw pqtype.NullRawMessage) ([]ToolResultBlock, error) {
 	if !raw.Valid || len(raw.RawMessage) == 0 {
 		return nil, nil
 	}
 
-	payload := struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content,omitempty"`
-	}{
-		Role:    string(api.MessageRoleTool),
-		Content: raw.RawMessage,
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, xerrors.Errorf("encode tool content payload: %w", err)
-	}
-
-	var message api.ToolMessage
-	if err := json.Unmarshal(data, &message); err != nil {
+	var results []ToolResultBlock
+	if err := json.Unmarshal(raw.RawMessage, &results); err != nil {
 		return nil, xerrors.Errorf("parse tool content: %w", err)
 	}
-	return message.Content, nil
+	return results, nil
 }
 
-func marshalContentBlocks(blocks []api.ContentBlock) (pqtype.NullRawMessage, error) {
+func contentToMessageParts(content []fantasy.Content) []fantasy.MessagePart {
+	parts := make([]fantasy.MessagePart, 0, len(content))
+	for _, block := range content {
+		switch value := block.(type) {
+		case fantasy.TextContent:
+			parts = append(parts, fantasy.TextPart{Text: value.Text})
+		case *fantasy.TextContent:
+			parts = append(parts, fantasy.TextPart{Text: value.Text})
+		case fantasy.ReasoningContent:
+			parts = append(parts, fantasy.ReasoningPart{Text: value.Text})
+		case *fantasy.ReasoningContent:
+			parts = append(parts, fantasy.ReasoningPart{Text: value.Text})
+		case fantasy.ToolCallContent:
+			parts = append(parts, fantasy.ToolCallPart{
+				ToolCallID:       value.ToolCallID,
+				ToolName:         value.ToolName,
+				Input:            value.Input,
+				ProviderExecuted: value.ProviderExecuted,
+			})
+		case *fantasy.ToolCallContent:
+			parts = append(parts, fantasy.ToolCallPart{
+				ToolCallID:       value.ToolCallID,
+				ToolName:         value.ToolName,
+				Input:            value.Input,
+				ProviderExecuted: value.ProviderExecuted,
+			})
+		case fantasy.FileContent:
+			parts = append(parts, fantasy.FilePart{
+				Data:      value.Data,
+				MediaType: value.MediaType,
+			})
+		case *fantasy.FileContent:
+			parts = append(parts, fantasy.FilePart{
+				Data:      value.Data,
+				MediaType: value.MediaType,
+			})
+		}
+	}
+	return parts
+}
+
+func toolMessageFromResults(results []ToolResultBlock) fantasy.Message {
+	parts := make([]fantasy.MessagePart, 0, len(results))
+	for _, result := range results {
+		parts = append(parts, toolResultToMessagePart(result))
+	}
+	return fantasy.Message{
+		Role:    fantasy.MessageRoleTool,
+		Content: parts,
+	}
+}
+
+func toolResultToMessagePart(result ToolResultBlock) fantasy.ToolResultPart {
+	payload := result.Result
+	if payload == nil {
+		payload = map[string]any{}
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		raw = []byte(`{}`)
+	}
+
+	if result.IsError {
+		message := strings.TrimSpace(string(raw))
+		if fields, ok := payload.(map[string]any); ok {
+			if extracted, ok := fields["error"].(string); ok && strings.TrimSpace(extracted) != "" {
+				message = extracted
+			}
+		}
+		return fantasy.ToolResultPart{
+			ToolCallID: result.ToolCallID,
+			Output: fantasy.ToolResultOutputContentError{
+				Error: xerrors.New(message),
+			},
+		}
+	}
+
+	return fantasy.ToolResultPart{
+		ToolCallID: result.ToolCallID,
+		Output: fantasy.ToolResultOutputContentText{
+			Text: string(raw),
+		},
+	}
+}
+
+func extractToolCallsFromMessageParts(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
+	toolCalls := make([]fantasy.ToolCallContent, 0, len(parts))
+	for _, part := range parts {
+		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		if !ok {
+			continue
+		}
+		toolCalls = append(toolCalls, fantasy.ToolCallContent{
+			ToolCallID:       toolCall.ToolCallID,
+			ToolName:         toolCall.ToolName,
+			Input:            toolCall.Input,
+			ProviderExecuted: toolCall.ProviderExecuted,
+		})
+	}
+	return toolCalls
+}
+
+func marshalContentBlocks(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
 	if len(blocks) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
@@ -1261,7 +1541,7 @@ func marshalContentBlocks(blocks []api.ContentBlock) (pqtype.NullRawMessage, err
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
-func marshalToolResults(results []api.ToolResultBlock) (pqtype.NullRawMessage, error) {
+func marshalToolResults(results []ToolResultBlock) (pqtype.NullRawMessage, error) {
 	if len(results) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
@@ -1274,7 +1554,7 @@ func marshalToolResults(results []api.ToolResultBlock) (pqtype.NullRawMessage, e
 
 func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
 	switch role {
-	case string(api.MessageRoleSystem):
+	case string(fantasy.MessageRoleSystem):
 		content, err := parseSystemContent(raw)
 		if err != nil {
 			return nil, err
@@ -1286,7 +1566,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 			Type: codersdk.ChatMessagePartTypeText,
 			Text: content,
 		}}, nil
-	case string(api.MessageRoleUser), string(api.MessageRoleAssistant):
+	case string(fantasy.MessageRoleUser), string(fantasy.MessageRoleAssistant):
 		content, err := parseContentBlocks(role, raw)
 		if err != nil {
 			return nil, err
@@ -1300,7 +1580,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 			parts = append(parts, part)
 		}
 		return parts, nil
-	case string(api.MessageRoleTool):
+	case string(fantasy.MessageRoleTool):
 		results, err := parseToolResults(raw)
 		if err != nil {
 			return nil, err
@@ -1319,47 +1599,110 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 	}
 }
 
-func contentBlockToPart(block api.ContentBlock) codersdk.ChatMessagePart {
+func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 	switch value := block.(type) {
-	case *api.TextBlock:
+	case fantasy.TextContent:
 		return codersdk.ChatMessagePart{
 			Type: codersdk.ChatMessagePartTypeText,
 			Text: value.Text,
 		}
-	case *api.ReasoningBlock:
+	case *fantasy.TextContent:
 		return codersdk.ChatMessagePart{
-			Type:      codersdk.ChatMessagePartTypeReasoning,
-			Text:      value.Text,
-			Signature: value.Signature,
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: value.Text,
 		}
-	case *api.ToolCallBlock:
+	case fantasy.ReasoningContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
+		}
+	case *fantasy.ReasoningContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
+		}
+	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
 			Type:       codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID: value.ToolCallID,
 			ToolName:   value.ToolName,
-			Args:       value.Args,
+			Args:       []byte(value.Input),
 		}
-	case *api.ToolResultBlock:
-		return toolResultToPart(*value)
-	case *api.SourceBlock:
+	case *fantasy.ToolCallContent:
+		return codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: value.ToolCallID,
+			ToolName:   value.ToolName,
+			Args:       []byte(value.Input),
+		}
+	case fantasy.SourceContent:
 		return codersdk.ChatMessagePart{
 			Type:     codersdk.ChatMessagePartTypeSource,
 			SourceID: value.ID,
 			URL:      value.URL,
 			Title:    value.Title,
 		}
-	case *api.FileBlock:
+	case *fantasy.SourceContent:
+		return codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeSource,
+			SourceID: value.ID,
+			URL:      value.URL,
+			Title:    value.Title,
+		}
+	case fantasy.FileContent:
 		return codersdk.ChatMessagePart{
 			Type:      codersdk.ChatMessagePartTypeFile,
 			MediaType: value.MediaType,
 			Data:      value.Data,
 		}
+	case *fantasy.FileContent:
+		return codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeFile,
+			MediaType: value.MediaType,
+			Data:      value.Data,
+		}
+	case fantasy.ToolResultContent:
+		return toolResultToPart(toolResultBlockFromContent(value))
+	case *fantasy.ToolResultContent:
+		return toolResultToPart(toolResultBlockFromContent(*value))
 	default:
 		return codersdk.ChatMessagePart{}
 	}
 }
 
-func toolResultToPart(result api.ToolResultBlock) codersdk.ChatMessagePart {
+func toolResultBlockFromContent(content fantasy.ToolResultContent) ToolResultBlock {
+	result := ToolResultBlock{
+		ToolCallID: content.ToolCallID,
+		ToolName:   content.ToolName,
+	}
+	switch output := content.Result.(type) {
+	case fantasy.ToolResultOutputContentError:
+		result.IsError = true
+		if output.Error != nil {
+			result.Result = map[string]any{"error": output.Error.Error()}
+		} else {
+			result.Result = map[string]any{"error": ""}
+		}
+	case fantasy.ToolResultOutputContentText:
+		decoded := map[string]any{}
+		if err := json.Unmarshal([]byte(output.Text), &decoded); err == nil {
+			result.Result = decoded
+		} else {
+			result.Result = map[string]any{"output": output.Text}
+		}
+	case fantasy.ToolResultOutputContentMedia:
+		result.Result = map[string]any{
+			"data":      output.Data,
+			"mime_type": output.MediaType,
+			"text":      output.Text,
+		}
+	default:
+		result.Result = map[string]any{}
+	}
+	return result
+}
+
+func toolResultToPart(result ToolResultBlock) codersdk.ChatMessagePart {
 	return codersdk.ChatMessagePart{
 		Type:       codersdk.ChatMessagePartTypeToolResult,
 		ToolCallID: result.ToolCallID,
@@ -1487,7 +1830,7 @@ type chatModelConfig struct {
 	Model    string `json:"model"`
 }
 
-func modelFromChat(chat database.Chat, providerKeys ProviderAPIKeys) (api.LanguageModel, error) {
+func modelFromChat(chat database.Chat, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
 	config := chatModelConfig{}
 	if len(chat.ModelConfig) > 0 {
 		if err := json.Unmarshal(chat.ModelConfig, &config); err != nil {
@@ -1500,46 +1843,74 @@ func modelFromChat(chat database.Chat, providerKeys ProviderAPIKeys) (api.Langua
 	return modelFromConfig(config, providerKeys)
 }
 
-func modelFromName(modelName string, providerKeys ProviderAPIKeys) (api.LanguageModel, error) {
+func modelFromName(modelName string, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
 	return modelFromConfig(chatModelConfig{Model: modelName}, providerKeys)
 }
 
 // anyAvailableModel returns a language model from whichever provider
 // has an API key configured. This is used for lightweight tasks like
 // title generation where we don't need a specific model.
-func anyAvailableModel(keys ProviderAPIKeys) (api.LanguageModel, error) {
-	if key := keys.apiKey(aiopenai.ProviderName); key != "" {
-		client := openai.NewClient(openaioption.WithAPIKey(key))
-		return aiopenai.NewLanguageModel("gpt-4o-mini", aiopenai.WithClient(client)), nil
+func anyAvailableModel(keys ProviderAPIKeys) (fantasy.LanguageModel, error) {
+	if key := keys.apiKey(fantasyopenai.Name); key != "" {
+		provider, err := fantasyopenai.New(fantasyopenai.WithAPIKey(key))
+		if err != nil {
+			return nil, xerrors.Errorf("create openai provider: %w", err)
+		}
+		model, err := provider.LanguageModel(context.Background(), "gpt-4o-mini")
+		if err != nil {
+			return nil, xerrors.Errorf("load openai model: %w", err)
+		}
+		return model, nil
 	}
-	if key := keys.apiKey(aianthropic.ProviderName); key != "" {
-		client := anthropic.NewClient(anthropicoption.WithAPIKey(key))
-		return aianthropic.NewLanguageModel("claude-haiku-4-5", aianthropic.WithClient(client)), nil
+	if key := keys.apiKey(fantasyanthropic.Name); key != "" {
+		provider, err := fantasyanthropic.New(fantasyanthropic.WithAPIKey(key))
+		if err != nil {
+			return nil, xerrors.Errorf("create anthropic provider: %w", err)
+		}
+		model, err := provider.LanguageModel(context.Background(), "claude-haiku-4-5")
+		if err != nil {
+			return nil, xerrors.Errorf("load anthropic model: %w", err)
+		}
+		return model, nil
 	}
 	return nil, xerrors.New("no AI provider API keys are configured")
 }
 
-func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (api.LanguageModel, error) {
+func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
 	provider, modelID, err := resolveModelWithProviderHint(config.Model, config.Provider)
 	if err != nil {
 		return nil, err
 	}
 
 	switch provider {
-	case aianthropic.ProviderName:
+	case fantasyanthropic.Name:
 		apiKey := providerKeys.apiKey(provider)
 		if apiKey == "" {
 			return nil, xerrors.New("ANTHROPIC_API_KEY is not set")
 		}
-		client := anthropic.NewClient(anthropicoption.WithAPIKey(apiKey))
-		return aianthropic.NewLanguageModel(modelID, aianthropic.WithClient(client)), nil
-	case aiopenai.ProviderName:
+		providerClient, err := fantasyanthropic.New(fantasyanthropic.WithAPIKey(apiKey))
+		if err != nil {
+			return nil, xerrors.Errorf("create anthropic provider: %w", err)
+		}
+		model, err := providerClient.LanguageModel(context.Background(), modelID)
+		if err != nil {
+			return nil, xerrors.Errorf("load anthropic model: %w", err)
+		}
+		return model, nil
+	case fantasyopenai.Name:
 		apiKey := providerKeys.apiKey(provider)
 		if apiKey == "" {
 			return nil, xerrors.New("OPENAI_API_KEY is not set")
 		}
-		client := openai.NewClient(openaioption.WithAPIKey(apiKey))
-		return aiopenai.NewLanguageModel(modelID, aiopenai.WithClient(client)), nil
+		providerClient, err := fantasyopenai.New(fantasyopenai.WithAPIKey(apiKey))
+		if err != nil {
+			return nil, xerrors.Errorf("create openai provider: %w", err)
+		}
+		model, err := providerClient.LanguageModel(context.Background(), modelID)
+		if err != nil {
+			return nil, xerrors.Errorf("load openai model: %w", err)
+		}
+		return model, nil
 	default:
 		return nil, xerrors.Errorf("unsupported model provider %q", provider)
 	}
@@ -1571,101 +1942,155 @@ type createWorkspaceArgs struct {
 	Request   json.RawMessage `json:"request,omitempty"`
 }
 
-func toolDefinitions() []api.ToolDefinition {
-	return []api.ToolDefinition{
-		&api.FunctionTool{
-			Name: toolCreateWorkspace,
-			Description: "Create a workspace when no workspace is selected, or when you need a different template. " +
-				"Accepts a natural-language prompt and/or a workspace request object.",
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"prompt":    {Type: "string"},
-					"workspace": {Type: "object"},
-					"request":   {Type: "object"},
-				},
+func (p *Processor) agentTools(
+	model fantasy.LanguageModel,
+	chatState *database.Chat,
+	chatStateMu *sync.Mutex,
+	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
+) []fantasy.AgentTool {
+	return []fantasy.AgentTool{
+		fantasy.NewAgentTool(
+			toolCreateWorkspace,
+			"Create a workspace when no workspace is selected, or when you need "+
+				"a different template. Accepts a natural-language prompt and/or a "+
+				"workspace request object.",
+			func(ctx context.Context, _ createWorkspaceArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				toolCall := toolCallContentFromAgentToolCall(call)
+
+				chatStateMu.Lock()
+				chatSnapshot := *chatState
+				chatStateMu.Unlock()
+
+				toolResult, wsResult := p.executeCreateWorkspaceTool(ctx, chatSnapshot, model, toolCall)
+				if wsResult.Created {
+					if wsResult.WorkspaceID == uuid.Nil {
+						toolResult = toolError(ToolResultBlock{
+							ToolCallID: toolCall.ToolCallID,
+							ToolName:   toolCall.ToolName,
+						}, xerrors.New("workspace creator returned a created workspace without an ID"))
+					} else {
+						updatedChat, err := p.persistChatWorkspace(ctx, chatSnapshot, wsResult)
+						if err != nil {
+							toolResult = toolError(ToolResultBlock{
+								ToolCallID: toolCall.ToolCallID,
+								ToolName:   toolCall.ToolName,
+							}, err)
+						} else {
+							chatStateMu.Lock()
+							*chatState = updatedChat
+							chatStateMu.Unlock()
+						}
+					}
+				}
+				return toolResultBlockToAgentResponse(toolResult), nil
 			},
-		},
-		&api.FunctionTool{
-			Name:        toolReadFile,
-			Description: "Read a file from the workspace.",
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"path":   {Type: "string"},
-					"offset": {Type: "integer"},
-					"limit":  {Type: "integer"},
-				},
-				Required: []string{"path"},
+		),
+		fantasy.NewAgentTool(
+			toolReadFile,
+			"Read a file from the workspace.",
+			func(ctx context.Context, args readFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				conn, err := getWorkspaceConn(ctx)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+				return toolResultBlockToAgentResponse(executeReadFileTool(ctx, conn, call.ID, args)), nil
 			},
-		},
-		&api.FunctionTool{
-			Name:        toolWriteFile,
-			Description: "Write a file to the workspace.",
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"path":    {Type: "string"},
-					"content": {Type: "string"},
-				},
-				Required: []string{"path", "content"},
+		),
+		fantasy.NewAgentTool(
+			toolWriteFile,
+			"Write a file to the workspace.",
+			func(ctx context.Context, args writeFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				conn, err := getWorkspaceConn(ctx)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+				return toolResultBlockToAgentResponse(executeWriteFileTool(ctx, conn, call.ID, args)), nil
 			},
-		},
-		&api.FunctionTool{
-			Name:        toolEditFiles,
-			Description: "Perform search-and-replace edits on one or more files in the workspace. Each file can have multiple edits applied atomically.",
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"files": {
-						Type:        "array",
-						Description: "An array of file edit operations.",
-						Items: &jsonschema.Schema{
-							Type: "object",
-							Properties: map[string]*jsonschema.Schema{
-								"path": {Type: "string", Description: "The absolute path of the file to edit."},
-								"edits": {
-									Type:        "array",
-									Description: "An array of search/replace pairs to apply to the file.",
-									Items: &jsonschema.Schema{
-										Type: "object",
-										Properties: map[string]*jsonschema.Schema{
-											"search":  {Type: "string", Description: "The exact string to search for."},
-											"replace": {Type: "string", Description: "The string to replace it with."},
-										},
-										Required: []string{"search", "replace"},
-									},
-								},
-							},
-							Required: []string{"path", "edits"},
-						},
-					},
-				},
-				Required: []string{"files"},
+		),
+		fantasy.NewAgentTool(
+			toolEditFiles,
+			"Perform search-and-replace edits on one or more files in the workspace."+
+				" Each file can have multiple edits applied atomically.",
+			func(ctx context.Context, args editFilesArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				conn, err := getWorkspaceConn(ctx)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+				return toolResultBlockToAgentResponse(executeEditFilesTool(ctx, conn, call.ID, args)), nil
 			},
-		},
-		&api.FunctionTool{
-			Name:        toolExecute,
-			Description: "Execute a shell command in the workspace.",
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"command":         {Type: "string"},
-					"timeout_seconds": {Type: "integer"},
-				},
-				Required: []string{"command"},
+		),
+		fantasy.NewAgentTool(
+			toolExecute,
+			"Execute a shell command in the workspace.",
+			func(ctx context.Context, args executeArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				conn, err := getWorkspaceConn(ctx)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+				return toolResultBlockToAgentResponse(executeExecuteTool(ctx, conn, call.ID, args)), nil
 			},
-		},
+		),
+	}
+}
+
+func schemaMap(schema *jsonschema.Schema) map[string]any {
+	data, err := json.Marshal(schema)
+	if err != nil {
+		return map[string]any{}
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return map[string]any{}
+	}
+	normalizeRequiredArrays(out)
+	return out
+}
+
+func normalizeRequiredArrays(value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		normalizeMap(v)
+	case []any:
+		for _, item := range v {
+			normalizeRequiredArrays(item)
+		}
+	}
+}
+
+func normalizeMap(m map[string]any) {
+	if req, ok := m["required"]; ok {
+		if arr, ok := req.([]any); ok {
+			converted := make([]string, 0, len(arr))
+			for _, item := range arr {
+				s, isString := item.(string)
+				if !isString {
+					converted = nil
+					break
+				}
+				converted = append(converted, s)
+			}
+			if converted != nil {
+				m["required"] = converted
+			}
+		}
+	}
+	for _, v := range m {
+		normalizeRequiredArrays(v)
 	}
 }
 
 func (p *Processor) executeCreateWorkspaceTool(
 	ctx context.Context,
 	chat database.Chat,
-	model api.LanguageModel,
-	toolCall *api.ToolCallBlock,
-) (api.ToolResultBlock, CreateWorkspaceToolResult) {
-	base := api.ToolResultBlock{
+	model fantasy.LanguageModel,
+	toolCall fantasy.ToolCallContent,
+) (ToolResultBlock, CreateWorkspaceToolResult) {
+	base := ToolResultBlock{
 		ToolCallID: toolCall.ToolCallID,
 		ToolName:   toolCall.ToolName,
 	}
@@ -1675,7 +2100,7 @@ func (p *Processor) executeCreateWorkspaceTool(
 	}
 
 	args := createWorkspaceArgs{}
-	if err := json.Unmarshal(toolCall.Args, &args); err != nil {
+	if err := json.Unmarshal([]byte(toolCall.Input), &args); err != nil {
 		return toolError(base, err), CreateWorkspaceToolResult{}
 	}
 
@@ -1683,7 +2108,7 @@ func (p *Processor) executeCreateWorkspaceTool(
 		Chat:   chat,
 		Model:  model,
 		Prompt: strings.TrimSpace(args.Prompt),
-		Spec:   toolCall.Args,
+		Spec:   json.RawMessage(toolCall.Input),
 	}
 	logEmitter := newCreateWorkspaceBuildLogEmitter(p, chat.ID, toolCall.ToolCallID, toolCall.ToolName)
 	if logEmitter != nil {
@@ -1724,7 +2149,7 @@ func (p *Processor) executeCreateWorkspaceTool(
 		payload["reason"] = wsResult.Reason
 	}
 
-	return api.ToolResultBlock{
+	return ToolResultBlock{
 		ToolCallID: toolCall.ToolCallID,
 		ToolName:   toolCall.ToolName,
 		Result:     payload,
@@ -1829,7 +2254,7 @@ func (e *createWorkspaceBuildLogEmitter) publishDelta(delta string) {
 		return
 	}
 
-	e.processor.publishMessagePart(e.chatID, string(api.MessageRoleTool), codersdk.ChatMessagePart{
+	e.processor.publishMessagePart(e.chatID, string(fantasy.MessageRoleTool), codersdk.ChatMessagePart{
 		Type:        codersdk.ChatMessagePartTypeToolResult,
 		ToolCallID:  e.toolCallID,
 		ToolName:    e.toolName,
@@ -1837,104 +2262,115 @@ func (e *createWorkspaceBuildLogEmitter) publishDelta(delta string) {
 	})
 }
 
-func executeTool(ctx context.Context, conn workspacesdk.AgentConn, toolCall *api.ToolCallBlock) api.ToolResultBlock {
-	result := api.ToolResultBlock{
-		ToolCallID: toolCall.ToolCallID,
-		ToolName:   toolCall.ToolName,
+func executeReadFileTool(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	toolCallID string,
+	args readFileArgs,
+) ToolResultBlock {
+	result := toolResultBlockBase(toolCallID, toolReadFile)
+	if args.Path == "" {
+		return toolError(result, xerrors.New("path is required"))
 	}
 
-	switch toolCall.ToolName {
-	case toolReadFile:
-		args := readFileArgs{}
-		if err := json.Unmarshal(toolCall.Args, &args); err != nil {
-			return toolError(result, err)
-		}
-		if args.Path == "" {
-			return toolError(result, xerrors.New("path is required"))
-		}
+	offset := int64(0)
+	limit := int64(0)
+	if args.Offset != nil {
+		offset = *args.Offset
+	}
+	if args.Limit != nil {
+		limit = *args.Limit
+	}
 
-		offset := int64(0)
-		limit := int64(0)
-		if args.Offset != nil {
-			offset = *args.Offset
-		}
-		if args.Limit != nil {
-			limit = *args.Limit
-		}
+	reader, mimeType, err := conn.ReadFile(ctx, args.Path, offset, limit)
+	if err != nil {
+		return toolError(result, err)
+	}
+	defer reader.Close()
 
-		reader, mimeType, err := conn.ReadFile(ctx, args.Path, offset, limit)
-		if err != nil {
-			return toolError(result, err)
-		}
-		defer reader.Close()
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return toolError(result, err)
+	}
 
-		data, err := io.ReadAll(reader)
-		if err != nil {
-			return toolError(result, err)
-		}
+	result.Result = map[string]any{
+		"content":   string(data),
+		"mime_type": mimeType,
+	}
+	return result
+}
 
-		result.Result = map[string]any{
-			"content":   string(data),
-			"mime_type": mimeType,
-		}
-		return result
-	case toolWriteFile:
-		args := writeFileArgs{}
-		if err := json.Unmarshal(toolCall.Args, &args); err != nil {
-			return toolError(result, err)
-		}
-		if args.Path == "" {
-			return toolError(result, xerrors.New("path is required"))
-		}
+func executeWriteFileTool(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	toolCallID string,
+	args writeFileArgs,
+) ToolResultBlock {
+	result := toolResultBlockBase(toolCallID, toolWriteFile)
+	if args.Path == "" {
+		return toolError(result, xerrors.New("path is required"))
+	}
 
-		if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {
-			return toolError(result, err)
-		}
-		result.Result = map[string]any{"ok": true}
-		return result
-	case toolEditFiles:
-		args := editFilesArgs{}
-		if err := json.Unmarshal(toolCall.Args, &args); err != nil {
-			return toolError(result, err)
-		}
-		if len(args.Files) == 0 {
-			return toolError(result, xerrors.New("files is required"))
-		}
+	if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {
+		return toolError(result, err)
+	}
+	result.Result = map[string]any{"ok": true}
+	return result
+}
 
-		if err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files}); err != nil {
-			return toolError(result, err)
-		}
-		result.Result = map[string]any{"ok": true}
-		return result
-	case toolExecute:
-		args := executeArgs{}
-		if err := json.Unmarshal(toolCall.Args, &args); err != nil {
-			return toolError(result, err)
-		}
-		if args.Command == "" {
-			return toolError(result, xerrors.New("command is required"))
-		}
+func executeEditFilesTool(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	toolCallID string,
+	args editFilesArgs,
+) ToolResultBlock {
+	result := toolResultBlockBase(toolCallID, toolEditFiles)
+	if len(args.Files) == 0 {
+		return toolError(result, xerrors.New("files is required"))
+	}
 
-		timeout := defaultExecuteTimeout
-		if args.TimeoutSeconds != nil {
-			timeout = time.Duration(*args.TimeoutSeconds) * time.Second
-		}
-		cmdCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
+	if err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files}); err != nil {
+		return toolError(result, err)
+	}
+	result.Result = map[string]any{"ok": true}
+	return result
+}
 
-		output, exitCode, err := runCommand(cmdCtx, conn, args.Command)
-		resultPayload := map[string]any{
-			"output":    output,
-			"exit_code": exitCode,
-		}
-		if err != nil {
-			resultPayload["error"] = err.Error()
-			result.IsError = true
-		}
-		result.Result = resultPayload
-		return result
-	default:
-		return toolError(result, xerrors.Errorf("unsupported tool %q", toolCall.ToolName))
+func executeExecuteTool(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	toolCallID string,
+	args executeArgs,
+) ToolResultBlock {
+	result := toolResultBlockBase(toolCallID, toolExecute)
+	if args.Command == "" {
+		return toolError(result, xerrors.New("command is required"))
+	}
+
+	timeout := defaultExecuteTimeout
+	if args.TimeoutSeconds != nil {
+		timeout = time.Duration(*args.TimeoutSeconds) * time.Second
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	output, exitCode, err := runCommand(cmdCtx, conn, args.Command)
+	resultPayload := map[string]any{
+		"output":    output,
+		"exit_code": exitCode,
+	}
+	if err != nil {
+		resultPayload["error"] = err.Error()
+		result.IsError = true
+	}
+	result.Result = resultPayload
+	return result
+}
+
+func toolResultBlockBase(toolCallID string, toolName string) ToolResultBlock {
+	return ToolResultBlock{
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
 	}
 }
 
@@ -1988,10 +2424,74 @@ func runCommand(ctx context.Context, conn workspacesdk.AgentConn, command string
 	}
 }
 
-func toolError(result api.ToolResultBlock, err error) api.ToolResultBlock {
+func toolError(result ToolResultBlock, err error) ToolResultBlock {
 	result.IsError = true
 	result.Result = map[string]any{"error": err.Error()}
 	return result
+}
+
+func toolResultBlockBaseFromAgentToolCall(call fantasy.ToolCall) ToolResultBlock {
+	return toolResultBlockBase(call.ID, call.Name)
+}
+
+func toolCallContentFromAgentToolCall(call fantasy.ToolCall) fantasy.ToolCallContent {
+	return fantasy.ToolCallContent{
+		ToolCallID: call.ID,
+		ToolName:   call.Name,
+		Input:      call.Input,
+	}
+}
+
+func toolResultBlockToAgentResponse(result ToolResultBlock) fantasy.ToolResponse {
+	content := ""
+	if result.IsError {
+		content = toolResultErrorMessage(result.Result)
+	} else if payload, err := json.Marshal(result.Result); err == nil {
+		content = string(payload)
+	}
+
+	metadata := ""
+	if encoded, err := json.Marshal(result); err == nil {
+		metadata = string(encoded)
+	}
+
+	return fantasy.ToolResponse{
+		Type:     "text",
+		Content:  content,
+		Metadata: metadata,
+		IsError:  result.IsError,
+	}
+}
+
+func toolResultBlockFromAgentToolResult(content fantasy.ToolResultContent) ToolResultBlock {
+	if strings.TrimSpace(content.ClientMetadata) != "" {
+		var block ToolResultBlock
+		if err := json.Unmarshal([]byte(content.ClientMetadata), &block); err == nil {
+			if block.ToolCallID == "" {
+				block.ToolCallID = content.ToolCallID
+			}
+			if block.ToolName == "" {
+				block.ToolName = content.ToolName
+			}
+			return block
+		}
+	}
+
+	return toolResultBlockFromContent(content)
+}
+
+func toolResultErrorMessage(payload any) string {
+	if fields, ok := payload.(map[string]any); ok {
+		if extracted, ok := fields["error"].(string); ok && strings.TrimSpace(extracted) != "" {
+			return extracted
+		}
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(raw))
 }
 
 func SDKChatMessage(m database.ChatMessage) codersdk.ChatMessage {
@@ -2019,8 +2519,8 @@ func SDKChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 }
 
 type streamResult struct {
-	Content []api.ContentBlock
-	Usage   api.Usage
+	Content []fantasy.Content
+	Usage   fantasy.Usage
 }
 
 type StreamEventHandler func(event codersdk.ChatStreamEvent)
@@ -2032,44 +2532,33 @@ type toolCallDelta struct {
 
 func streamChatResponse(
 	ctx context.Context,
-	model api.LanguageModel,
-	prompt []api.Message,
-	tools []api.ToolDefinition,
+	model fantasy.LanguageModel,
+	prompt []fantasy.Message,
+	tools []fantasy.Tool,
 	handler StreamEventHandler,
 ) (streamResult, error) {
-	response, err := ai.StreamText(ctx, prompt, ai.WithModel(model), ai.WithTools(tools...))
+	toolChoice := fantasy.ToolChoiceNone
+	if len(tools) > 0 {
+		toolChoice = fantasy.ToolChoiceAuto
+	}
+
+	response, err := model.Stream(ctx, fantasy.Call{
+		Prompt:     prompt,
+		Tools:      tools,
+		ToolChoice: &toolChoice,
+	})
 	if err != nil {
-		var unsupported *api.UnsupportedFunctionalityError
-		if errors.As(err, &unsupported) {
-			generated, genErr := generateChatResponse(ctx, model, prompt, tools)
-			if genErr != nil {
-				return streamResult{}, genErr
-			}
-			if handler != nil {
-				for _, block := range generated.Content {
-					part := contentBlockToPart(block)
-					if part.Type == "" {
-						continue
-					}
-					handler(codersdk.ChatStreamEvent{
-						Type: codersdk.ChatStreamEventTypeMessagePart,
-						MessagePart: &codersdk.ChatStreamMessagePart{
-							Role: string(api.MessageRoleAssistant),
-							Part: part,
-						},
-					})
-				}
-			}
-			return generated, nil
-		}
 		return streamResult{}, err
 	}
 
 	var result streamResult
-	var currentText *api.TextBlock
-	var currentReasoning *api.ReasoningBlock
 	toolCallDeltas := map[string]*toolCallDelta{}
+	toolCallDeltaOrder := make([]string, 0)
 	toolCallIDs := map[string]struct{}{}
+	activeText := map[string]*fantasy.TextContent{}
+	activeTextOrder := make([]string, 0)
+	activeReasoning := map[string]*fantasy.ReasoningContent{}
+	activeReasoningOrder := make([]string, 0)
 
 	emit := func(event codersdk.ChatStreamEvent) {
 		if handler != nil {
@@ -2089,126 +2578,181 @@ func streamChatResponse(
 		})
 	}
 
-	for event := range response.Stream {
-		switch payload := event.(type) {
-		case *api.TextDeltaEvent:
-			if currentText == nil {
-				currentText = &api.TextBlock{}
-				result.Content = append(result.Content, currentText)
+	finalized := false
+	finalizeResult := func() {
+		if finalized {
+			return
+		}
+		finalized = true
+
+		for _, textID := range activeTextOrder {
+			if text := activeText[textID]; text != nil {
+				result.Content = append(result.Content, *text)
 			}
-			currentText.Text += payload.TextDelta
-			emitPart(string(api.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeText,
-				Text: payload.TextDelta,
-			})
-		case *api.ReasoningEvent:
-			if currentReasoning == nil {
-				currentReasoning = &api.ReasoningBlock{}
-				result.Content = append(result.Content, currentReasoning)
+		}
+		for _, reasoningID := range activeReasoningOrder {
+			if reasoning := activeReasoning[reasoningID]; reasoning != nil {
+				result.Content = append(result.Content, *reasoning)
 			}
-			currentReasoning.Text += payload.TextDelta
-			emitPart(string(api.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeReasoning,
-				Text: payload.TextDelta,
-			})
-		case *api.ReasoningSignatureEvent:
-			if currentReasoning != nil {
-				currentReasoning.Signature = payload.Signature
-				emitPart(string(api.MessageRoleAssistant), codersdk.ChatMessagePart{
-					Type:      codersdk.ChatMessagePartTypeReasoning,
-					Signature: payload.Signature,
-				})
-			}
-		case *api.SourceEvent:
-			source := &api.SourceBlock{
-				ID:    payload.Source.ID,
-				URL:   payload.Source.URL,
-				Title: payload.Source.Title,
-			}
-			result.Content = append(result.Content, source)
-			emitPart(string(api.MessageRoleAssistant), contentBlockToPart(source))
-		case *api.FileEvent:
-			file := &api.FileBlock{
-				Data:      payload.Data,
-				MediaType: payload.MediaType,
-			}
-			result.Content = append(result.Content, file)
-			emitPart(string(api.MessageRoleAssistant), contentBlockToPart(file))
-		case *api.ToolCallDeltaEvent:
-			delta := toolCallDeltas[payload.ToolCallID]
+		}
+
+		for _, toolCallID := range toolCallDeltaOrder {
+			delta := toolCallDeltas[toolCallID]
 			if delta == nil {
-				delta = &toolCallDelta{name: payload.ToolName}
-				toolCallDeltas[payload.ToolCallID] = delta
+				continue
 			}
-			delta.args.Write(payload.ArgsDelta)
-			emitPart(string(api.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: payload.ToolCallID,
-				ToolName:   payload.ToolName,
-				ArgsDelta:  string(payload.ArgsDelta),
-			})
-		case *api.ToolCallEvent:
-			call := &api.ToolCallBlock{
-				ToolCallID: payload.ToolCallID,
-				ToolName:   payload.ToolName,
-				Args:       payload.Args,
+			if _, ok := toolCallIDs[toolCallID]; ok {
+				continue
+			}
+			call := fantasy.ToolCallContent{
+				ToolCallID: toolCallID,
+				ToolName:   delta.name,
+				Input:      delta.args.String(),
 			}
 			result.Content = append(result.Content, call)
-			toolCallIDs[payload.ToolCallID] = struct{}{}
-			emitPart(string(api.MessageRoleAssistant), contentBlockToPart(call))
-		case *api.ResponseMetadataEvent:
-			continue
-		case *api.FinishEvent:
+			emitPart(string(fantasy.MessageRoleAssistant), contentBlockToPart(call))
+		}
+	}
+
+	for payload := range response {
+		switch payload.Type {
+		case fantasy.StreamPartTypeTextStart:
+			if _, ok := activeText[payload.ID]; !ok {
+				activeText[payload.ID] = &fantasy.TextContent{}
+				activeTextOrder = append(activeTextOrder, payload.ID)
+			}
+		case fantasy.StreamPartTypeTextDelta:
+			current := activeText[payload.ID]
+			if current == nil {
+				current = &fantasy.TextContent{}
+				activeText[payload.ID] = current
+				activeTextOrder = append(activeTextOrder, payload.ID)
+			}
+			current.Text += payload.Delta
+			emitPart(string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: payload.Delta,
+			})
+		case fantasy.StreamPartTypeTextEnd:
+			if text := activeText[payload.ID]; text != nil {
+				result.Content = append(result.Content, *text)
+				delete(activeText, payload.ID)
+			}
+		case fantasy.StreamPartTypeReasoningStart:
+			current := activeReasoning[payload.ID]
+			if current == nil {
+				current = &fantasy.ReasoningContent{}
+				activeReasoning[payload.ID] = current
+				activeReasoningOrder = append(activeReasoningOrder, payload.ID)
+			}
+			if payload.Delta != "" {
+				current.Text += payload.Delta
+			}
+		case fantasy.StreamPartTypeReasoningDelta:
+			current := activeReasoning[payload.ID]
+			if current == nil {
+				current = &fantasy.ReasoningContent{}
+				activeReasoning[payload.ID] = current
+				activeReasoningOrder = append(activeReasoningOrder, payload.ID)
+			}
+			current.Text += payload.Delta
+			emitPart(string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeReasoning,
+				Text: payload.Delta,
+			})
+		case fantasy.StreamPartTypeReasoningEnd:
+			if reasoning := activeReasoning[payload.ID]; reasoning != nil {
+				result.Content = append(result.Content, *reasoning)
+				delete(activeReasoning, payload.ID)
+			}
+		case fantasy.StreamPartTypeSource:
+			source := fantasy.SourceContent{
+				SourceType: payload.SourceType,
+				ID:         payload.ID,
+				URL:        payload.URL,
+				Title:      payload.Title,
+			}
+			result.Content = append(result.Content, source)
+			emitPart(string(fantasy.MessageRoleAssistant), contentBlockToPart(source))
+		case fantasy.StreamPartTypeToolInputStart:
+			delta := toolCallDeltas[payload.ID]
+			if delta == nil {
+				delta = &toolCallDelta{name: payload.ToolCallName}
+				toolCallDeltas[payload.ID] = delta
+				toolCallDeltaOrder = append(toolCallDeltaOrder, payload.ID)
+			}
+		case fantasy.StreamPartTypeToolInputDelta:
+			delta := toolCallDeltas[payload.ID]
+			if delta == nil {
+				delta = &toolCallDelta{name: payload.ToolCallName}
+				toolCallDeltas[payload.ID] = delta
+				toolCallDeltaOrder = append(toolCallDeltaOrder, payload.ID)
+			}
+			delta.args.WriteString(payload.Delta)
+			emitPart(string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: payload.ID,
+				ToolName:   payload.ToolCallName,
+				ArgsDelta:  payload.Delta,
+			})
+		case fantasy.StreamPartTypeToolCall:
+			call := fantasy.ToolCallContent{
+				ToolCallID:       payload.ID,
+				ToolName:         payload.ToolCallName,
+				Input:            payload.ToolCallInput,
+				ProviderExecuted: payload.ProviderExecuted,
+				ProviderMetadata: payload.ProviderMetadata,
+			}
+			result.Content = append(result.Content, call)
+			toolCallIDs[payload.ID] = struct{}{}
+			emitPart(string(fantasy.MessageRoleAssistant), contentBlockToPart(call))
+		case fantasy.StreamPartTypeToolResult:
+			toolResult := fantasy.ToolResultContent{
+				ToolCallID:       payload.ID,
+				ToolName:         payload.ToolCallName,
+				Result:           streamToolResultOutput(payload),
+				ProviderExecuted: payload.ProviderExecuted,
+				ProviderMetadata: payload.ProviderMetadata,
+			}
+			result.Content = append(result.Content, toolResult)
+			emitPart(string(fantasy.MessageRoleAssistant), contentBlockToPart(toolResult))
+		case fantasy.StreamPartTypeFinish:
 			result.Usage = payload.Usage
-		case *api.ErrorEvent:
+		case fantasy.StreamPartTypeError:
+			streamErr := payload.Error
+			if streamErr == nil {
+				streamErr = xerrors.New("model stream error")
+			}
+			finalizeResult()
 			emit(codersdk.ChatStreamEvent{
 				Type:  codersdk.ChatStreamEventTypeError,
-				Error: &codersdk.ChatStreamError{Message: payload.Error()},
+				Error: &codersdk.ChatStreamError{Message: streamErr.Error()},
 			})
-			return streamResult{}, payload
+			return result, &streamErrorReported{err: streamErr}
 		}
 	}
 
-	for toolCallID, delta := range toolCallDeltas {
-		if _, ok := toolCallIDs[toolCallID]; ok {
-			continue
-		}
-		call := &api.ToolCallBlock{
-			ToolCallID: toolCallID,
-			ToolName:   delta.name,
-			Args:       delta.args.Bytes(),
-		}
-		result.Content = append(result.Content, call)
-		emitPart(string(api.MessageRoleAssistant), contentBlockToPart(call))
-	}
+	finalizeResult()
 
 	return result, nil
 }
 
-func generateChatResponse(
-	ctx context.Context,
-	model api.LanguageModel,
-	prompt []api.Message,
-	tools []api.ToolDefinition,
-) (streamResult, error) {
-	response, err := ai.GenerateText(ctx, prompt, ai.WithModel(model), ai.WithTools(tools...))
+func streamToolResultOutput(part fantasy.StreamPart) fantasy.ToolResultOutputContent {
+	if part.Error != nil {
+		return fantasy.ToolResultOutputContentError{Error: part.Error}
+	}
+
+	raw := part.ToolCallInput
+	if strings.TrimSpace(raw) == "" {
+		raw = part.Delta
+	}
+	if strings.TrimSpace(raw) == "" {
+		return fantasy.ToolResultOutputContentText{Text: ""}
+	}
+
+	output, err := fantasy.UnmarshalToolResultOutputContent([]byte(raw))
 	if err != nil {
-		return streamResult{}, err
+		return fantasy.ToolResultOutputContentText{Text: raw}
 	}
-
-	result := streamResult{
-		Content: response.Content,
-		Usage:   response.Usage,
-	}
-	return result, nil
-}
-
-func extractToolCalls(content []api.ContentBlock) []*api.ToolCallBlock {
-	var toolCalls []*api.ToolCallBlock
-	for _, block := range content {
-		if call, ok := block.(*api.ToolCallBlock); ok {
-			toolCalls = append(toolCalls, call)
-		}
-	}
-	return toolCalls
+	return output
 }

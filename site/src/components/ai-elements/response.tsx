@@ -3,7 +3,7 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { forwardRef } from "react";
-import { Streamdown } from "streamdown";
+import { Components, Streamdown } from "streamdown";
 import { cn } from "utils/cn";
 
 interface ResponseProps
@@ -43,10 +43,7 @@ const getHastText = (node: HastNode | null | undefined): string => {
 	return "";
 };
 
-const components: Record<
-	string,
-	React.ComponentType<MarkdownComponentProps>
-> = {
+const components: Components = {
 	a: ({ href, children }: MarkdownComponentProps) => (
 		<a
 			href={href}

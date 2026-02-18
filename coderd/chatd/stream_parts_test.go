@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
+	"golang.org/x/xerrors"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"go.jetify.com/ai/api"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
@@ -20,65 +22,79 @@ import (
 
 type scriptedModel struct {
 	streamErr      error
-	streamEvents   []api.StreamEvent
-	generateBlocks []api.ContentBlock
+	streamEvents   []fantasy.StreamPart
+	generateBlocks []fantasy.Content
+	streamCall     *fantasy.Call
+	generateCall   *fantasy.Call
 }
 
-func (m *scriptedModel) ProviderName() string {
+func (m *scriptedModel) Provider() string {
 	return "fake"
 }
 
-func (m *scriptedModel) ModelID() string {
+func (m *scriptedModel) Model() string {
 	return "fake"
 }
 
-func (m *scriptedModel) SupportedUrls() []api.SupportedURL {
-	return nil
+func (m *scriptedModel) Generate(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+	captured := call
+	m.generateCall = &captured
+	return &fantasy.Response{Content: m.generateBlocks}, nil
 }
 
-func (m *scriptedModel) Generate(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-	return &api.Response{Content: m.generateBlocks}, nil
-}
-
-func (m *scriptedModel) Stream(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.StreamResponse, error) {
+func (m *scriptedModel) Stream(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+	captured := call
+	m.streamCall = &captured
 	if m.streamErr != nil {
 		return nil, m.streamErr
 	}
-	return &api.StreamResponse{
-		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
-			for _, event := range m.streamEvents {
-				if !yield(event) {
-					return
-				}
+	return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+		for _, event := range m.streamEvents {
+			if !yield(event) {
+				return
 			}
-		}),
-	}, nil
+		}
+	}), nil
+}
+
+func (*scriptedModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+func (*scriptedModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+	return nil, xerrors.New("not implemented")
 }
 
 func TestStreamChatResponse_EmitsMessageParts(t *testing.T) {
 	t.Parallel()
 
 	model := &scriptedModel{
-		streamEvents: []api.StreamEvent{
-			&api.TextDeltaEvent{TextDelta: "hel"},
-			&api.TextDeltaEvent{TextDelta: "lo"},
-			&api.ReasoningEvent{TextDelta: "thinking"},
-			&api.ToolCallDeltaEvent{
-				ToolCallID: "call-1",
-				ToolName:   toolExecute,
-				ArgsDelta:  []byte(`{"command":"echo`),
+		streamEvents: []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hel"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "lo"},
+			{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reasoning-1", Delta: "thinking"},
+			{
+				Type:         fantasy.StreamPartTypeToolInputDelta,
+				ID:           "call-1",
+				ToolCallName: toolExecute,
+				Delta:        `{"command":"echo`,
 			},
-			&api.ToolCallDeltaEvent{
-				ToolCallID: "call-1",
-				ToolName:   toolExecute,
-				ArgsDelta:  []byte(` hi"}`),
+			{
+				Type:         fantasy.StreamPartTypeToolInputDelta,
+				ID:           "call-1",
+				ToolCallName: toolExecute,
+				Delta:        ` hi"}`,
 			},
-			&api.ToolCallEvent{
-				ToolCallID: "call-1",
-				ToolName:   toolExecute,
-				Args:       json.RawMessage(`{"command":"echo hi"}`),
+			{
+				Type:          fantasy.StreamPartTypeToolCall,
+				ID:            "call-1",
+				ToolCallName:  toolExecute,
+				ToolCallInput: `{"command":"echo hi"}`,
 			},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 2, TotalTokens: 3}},
+			{
+				Type:  fantasy.StreamPartTypeFinish,
+				Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 2, TotalTokens: 3},
+			},
 		},
 	}
 
@@ -95,10 +111,13 @@ func TestStreamChatResponse_EmitsMessageParts(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, events, 6)
 	require.Len(t, result.Content, 3)
+	require.NotNil(t, model.streamCall)
+	require.NotNil(t, model.streamCall.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *model.streamCall.ToolChoice)
 
 	require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, events[0].Type)
 	require.NotNil(t, events[0].MessagePart)
-	require.Equal(t, string(api.MessageRoleAssistant), events[0].MessagePart.Role)
+	require.Equal(t, string(fantasy.MessageRoleAssistant), events[0].MessagePart.Role)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, events[0].MessagePart.Part.Type)
 	require.Equal(t, "hel", events[0].MessagePart.Part.Text)
 
@@ -114,17 +133,20 @@ func TestStreamChatResponse_EmitsMessageParts(t *testing.T) {
 	require.Equal(t, json.RawMessage(`{"command":"echo hi"}`), events[5].MessagePart.Part.Args)
 }
 
-func TestStreamChatResponse_UnsupportedStreamingStillEmitsParts(t *testing.T) {
+func TestStreamChatResponse_EmitsToolResultPartFromStreamChunk(t *testing.T) {
 	t.Parallel()
 
 	model := &scriptedModel{
-		streamErr: api.NewUnsupportedFunctionalityError("stream", ""),
-		generateBlocks: []api.ContentBlock{
-			&api.TextBlock{Text: "fallback"},
-			&api.ToolCallBlock{
-				ToolCallID: "call-2",
-				ToolName:   toolReadFile,
-				Args:       json.RawMessage(`{"path":"README.md"}`),
+		streamEvents: []fantasy.StreamPart{
+			{
+				Type:         fantasy.StreamPartTypeToolResult,
+				ID:           "call-5",
+				ToolCallName: toolExecute,
+				Delta:        `{"output":"done","exit_code":0}`,
+			},
+			{
+				Type:  fantasy.StreamPartTypeFinish,
+				Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
 			},
 		},
 	}
@@ -140,23 +162,154 @@ func TestStreamChatResponse_UnsupportedStreamingStillEmitsParts(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.Len(t, result.Content, 2)
-	require.Len(t, events, 2)
+	require.Len(t, events, 1)
+	require.Len(t, result.Content, 1)
 
 	require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, events[0].Type)
 	require.NotNil(t, events[0].MessagePart)
-	require.Equal(t, codersdk.ChatMessagePartTypeText, events[0].MessagePart.Part.Type)
-	require.Equal(t, "fallback", events[0].MessagePart.Part.Text)
+	require.Equal(t, string(fantasy.MessageRoleAssistant), events[0].MessagePart.Role)
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, events[0].MessagePart.Part.Type)
+	require.Equal(t, "call-5", events[0].MessagePart.Part.ToolCallID)
+	require.Equal(t, toolExecute, events[0].MessagePart.Part.ToolName)
+	require.JSONEq(t, `{"output":"done","exit_code":0}`, string(events[0].MessagePart.Part.Result))
+	require.NotNil(t, events[0].MessagePart.Part.ResultMeta)
+	require.Equal(t, "done", events[0].MessagePart.Part.ResultMeta.Output)
+	require.NotNil(t, events[0].MessagePart.Part.ResultMeta.ExitCode)
+	require.Equal(t, 0, *events[0].MessagePart.Part.ResultMeta.ExitCode)
 
+	toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](result.Content[0])
+	require.True(t, ok)
+	require.Equal(t, "call-5", toolResult.ToolCallID)
+	require.Equal(t, toolExecute, toolResult.ToolName)
+
+	output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](toolResult.Result)
+	require.True(t, ok)
+	require.Equal(t, `{"output":"done","exit_code":0}`, output.Text)
+}
+
+func TestStreamChatResponse_UnsupportedStreamingReturnsError(t *testing.T) {
+	t.Parallel()
+
+	model := &scriptedModel{
+		streamErr: xerrors.New("stream is not supported"),
+		generateBlocks: []fantasy.Content{
+			fantasy.TextContent{Text: "fallback"},
+			fantasy.ToolCallContent{
+				ToolCallID: "call-2",
+				ToolName:   toolReadFile,
+				Input:      `{"path":"README.md"}`,
+			},
+		},
+	}
+
+	var events []codersdk.ChatStreamEvent
+	result, err := streamChatResponse(
+		context.Background(),
+		model,
+		nil,
+		nil,
+		func(event codersdk.ChatStreamEvent) {
+			events = append(events, event)
+		},
+	)
+	require.Error(t, err)
+	require.Empty(t, result.Content)
+	require.Empty(t, events)
+	require.NotNil(t, model.streamCall)
+	require.NotNil(t, model.streamCall.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *model.streamCall.ToolChoice)
+	require.Nil(t, model.generateCall)
+}
+
+func TestStreamChatResponse_StreamErrorFinalizesToolInputDeltas(t *testing.T) {
+	t.Parallel()
+
+	model := &scriptedModel{
+		streamEvents: []fantasy.StreamPart{
+			{
+				Type:         fantasy.StreamPartTypeToolInputStart,
+				ID:           "call-error-1",
+				ToolCallName: toolReadFile,
+			},
+			{
+				Type:         fantasy.StreamPartTypeToolInputDelta,
+				ID:           "call-error-1",
+				ToolCallName: toolReadFile,
+				Delta:        `{"path":"README.md"}`,
+			},
+			{
+				Type:  fantasy.StreamPartTypeError,
+				Error: xerrors.New("stream failed"),
+			},
+		},
+	}
+
+	var events []codersdk.ChatStreamEvent
+	result, err := streamChatResponse(
+		context.Background(),
+		model,
+		nil,
+		nil,
+		func(event codersdk.ChatStreamEvent) {
+			events = append(events, event)
+		},
+	)
+	require.Error(t, err)
+	var streamErr *streamErrorReported
+	require.ErrorAs(t, err, &streamErr)
+
+	require.Len(t, result.Content, 1)
+	toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](result.Content[0])
+	require.True(t, ok)
+	require.Equal(t, "call-error-1", toolCall.ToolCallID)
+	require.Equal(t, toolReadFile, toolCall.ToolName)
+	require.JSONEq(t, `{"path":"README.md"}`, toolCall.Input)
+
+	require.Len(t, events, 3)
+	require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, events[0].Type)
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, events[0].MessagePart.Part.Type)
+	require.Equal(t, `{"path":"README.md"}`, events[0].MessagePart.Part.ArgsDelta)
+
+	require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, events[1].Type)
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, events[1].MessagePart.Part.Type)
-	require.Equal(t, "call-2", events[1].MessagePart.Part.ToolCallID)
-	require.Equal(t, toolReadFile, events[1].MessagePart.Part.ToolName)
+	require.Equal(t, json.RawMessage(`{"path":"README.md"}`), events[1].MessagePart.Part.Args)
+
+	require.Equal(t, codersdk.ChatStreamEventTypeError, events[2].Type)
+	require.NotNil(t, events[2].Error)
+	require.Contains(t, events[2].Error.Message, "stream failed")
+}
+
+func TestStreamChatResponse_SetsToolChoiceAutoWhenToolsProvided(t *testing.T) {
+	t.Parallel()
+
+	model := &scriptedModel{
+		streamEvents: []fantasy.StreamPart{
+			{
+				Type:  fantasy.StreamPartTypeFinish,
+				Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+			},
+		},
+	}
+
+	_, err := streamChatResponse(
+		context.Background(),
+		model,
+		nil,
+		[]fantasy.Tool{
+			fantasy.FunctionTool{Name: "noop"},
+		},
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model.streamCall)
+	require.NotNil(t, model.streamCall.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceAuto, *model.streamCall.ToolChoice)
 }
 
 func TestSDKChatMessage_ToolResultPartMetadata(t *testing.T) {
 	t.Parallel()
 
-	content, err := marshalToolResults([]api.ToolResultBlock{{
+	content, err := marshalToolResults([]ToolResultBlock{{
 		ToolCallID: "call-3",
 		ToolName:   toolExecute,
 		Result: map[string]any{
@@ -170,7 +323,7 @@ func TestSDKChatMessage_ToolResultPartMetadata(t *testing.T) {
 		ID:        42,
 		ChatID:    uuid.New(),
 		CreatedAt: time.Now(),
-		Role:      string(api.MessageRoleTool),
+		Role:      string(fantasy.MessageRoleTool),
 		Content:   content,
 		ToolCallID: sql.NullString{
 			String: "call-3",
@@ -205,7 +358,7 @@ func TestStreamManager_SnapshotBuffersOnlyMessageParts(t *testing.T) {
 	manager.Publish(chatID, codersdk.ChatStreamEvent{
 		Type: codersdk.ChatStreamEventTypeMessagePart,
 		MessagePart: &codersdk.ChatStreamMessagePart{
-			Role: string(api.MessageRoleAssistant),
+			Role: string(fantasy.MessageRoleAssistant),
 			Part: codersdk.ChatMessagePart{
 				Type: codersdk.ChatMessagePartTypeText,
 				Text: "chunk",
@@ -231,7 +384,7 @@ func TestStreamManager_SnapshotBuffersOnlyMessageParts(t *testing.T) {
 func TestToolResultMetadata_ReadFileFields(t *testing.T) {
 	t.Parallel()
 
-	raw, err := json.Marshal([]api.ToolResultBlock{{
+	raw, err := json.Marshal([]ToolResultBlock{{
 		ToolCallID: "call-4",
 		ToolName:   toolReadFile,
 		Result: map[string]any{
@@ -242,7 +395,7 @@ func TestToolResultMetadata_ReadFileFields(t *testing.T) {
 	require.NoError(t, err)
 
 	message := SDKChatMessage(database.ChatMessage{
-		Role: string(api.MessageRoleTool),
+		Role: string(fantasy.MessageRoleTool),
 		Content: pqtype.NullRawMessage{
 			RawMessage: raw,
 			Valid:      true,

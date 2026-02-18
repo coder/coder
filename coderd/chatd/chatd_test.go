@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
+
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"go.jetify.com/ai/api"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -42,63 +43,91 @@ const (
 	executeToolName         = "execute"
 )
 
+type fakeLanguageModelBase struct{}
+
+func (fakeLanguageModelBase) Provider() string {
+	return "fake"
+}
+
+func (fakeLanguageModelBase) Model() string {
+	return "fake"
+}
+
+func (fakeLanguageModelBase) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+func (fakeLanguageModelBase) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+func fallbackResponse() *fantasy.Response {
+	return &fantasy.Response{
+		Content: []fantasy.Content{
+			fantasy.TextContent{Text: "fallback"},
+		},
+	}
+}
+
+func streamFromParts(parts []fantasy.StreamPart) fantasy.StreamResponse {
+	return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+		for _, part := range parts {
+			if !yield(part) {
+				return
+			}
+		}
+	})
+}
+
 type fakeModel struct {
+	fakeLanguageModelBase
 	mu    sync.Mutex
 	calls int
 }
 
-func (f *fakeModel) ProviderName() string {
-	return "fake"
+func (*fakeModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
 }
 
-func (f *fakeModel) ModelID() string {
-	return "fake"
-}
-
-func (f *fakeModel) SupportedUrls() []api.SupportedURL {
-	return nil
-}
-
-func (f *fakeModel) Generate(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
-}
-
-func (f *fakeModel) Stream(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.StreamResponse, error) {
+func (f *fakeModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 	f.mu.Lock()
 	f.calls++
 	call := f.calls
 	f.mu.Unlock()
 
-	var events []api.StreamEvent
+	var parts []fantasy.StreamPart
 	if call == 1 {
 		args, err := json.Marshal(map[string]string{"path": "/hello.txt"})
 		if err != nil {
 			return nil, err
 		}
-		events = []api.StreamEvent{
-			&api.ToolCallEvent{
-				ToolCallID: "call-1",
-				ToolName:   readFileToolName,
-				Args:       args,
+		parts = []fantasy.StreamPart{
+			{
+				Type:          fantasy.StreamPartTypeToolCall,
+				ID:            "call-1",
+				ToolCallName:  readFileToolName,
+				ToolCallInput: string(args),
 			},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	} else {
-		events = []api.StreamEvent{
-			&api.TextDeltaEvent{TextDelta: "done"},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+		parts = []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	}
 
-	return &api.StreamResponse{
-		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
-			for _, event := range events {
-				if !yield(event) {
-					return
-				}
-			}
-		}),
-	}, nil
+	return streamFromParts(parts), nil
 }
 
 type testAgentConnector struct {
@@ -116,179 +145,176 @@ func (c testAgentConnector) AgentConn(ctx context.Context, agentID uuid.UUID) (w
 	}, nil
 }
 
-func parseAssistantContent(raw pqtype.NullRawMessage) ([]api.ContentBlock, error) {
-	payload := struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content,omitempty"`
-	}{
-		Role:    string(api.MessageRoleAssistant),
-		Content: raw.RawMessage,
+func parseAssistantContent(raw pqtype.NullRawMessage) ([]fantasy.Content, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil, nil
 	}
-	data, err := json.Marshal(payload)
-	if err != nil {
+
+	var rawBlocks []json.RawMessage
+	if err := json.Unmarshal(raw.RawMessage, &rawBlocks); err != nil {
 		return nil, err
 	}
-	var message api.AssistantMessage
-	if err := json.Unmarshal(data, &message); err != nil {
-		return nil, err
+
+	content := make([]fantasy.Content, 0, len(rawBlocks))
+	for _, rawBlock := range rawBlocks {
+		block, err := fantasy.UnmarshalContent(rawBlock)
+		if err != nil {
+			return nil, err
+		}
+		content = append(content, block)
 	}
-	return message.Content, nil
+
+	return content, nil
+}
+
+func contentFromText(text string) []fantasy.Content {
+	return []fantasy.Content{
+		fantasy.TextContent{Text: text},
+	}
 }
 
 type createWorkspaceToolModel struct {
+	fakeLanguageModelBase
 	mu          sync.Mutex
 	calls       int
-	firstPrompt []api.Message
+	firstPrompt []fantasy.Message
 	args        json.RawMessage
 }
 
-func (m *createWorkspaceToolModel) ProviderName() string {
-	return "fake"
+func (*createWorkspaceToolModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
 }
 
-func (m *createWorkspaceToolModel) ModelID() string {
-	return "fake"
-}
-
-func (m *createWorkspaceToolModel) SupportedUrls() []api.SupportedURL {
-	return nil
-}
-
-func (m *createWorkspaceToolModel) Generate(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
-}
-
-func (m *createWorkspaceToolModel) Stream(_ context.Context, prompt []api.Message, _ api.CallOptions) (*api.StreamResponse, error) {
+func (m *createWorkspaceToolModel) Stream(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 	m.mu.Lock()
 	m.calls++
-	call := m.calls
-	if call == 1 {
-		m.firstPrompt = append([]api.Message(nil), prompt...)
+	callNum := m.calls
+	if callNum == 1 {
+		m.firstPrompt = append([]fantasy.Message(nil), call.Prompt...)
 	}
 	m.mu.Unlock()
 
-	var events []api.StreamEvent
-	if call == 1 {
+	var parts []fantasy.StreamPart
+	if callNum == 1 {
 		args := m.args
 		if len(args) == 0 {
 			args = json.RawMessage(`{}`)
 		}
-		events = []api.StreamEvent{
-			&api.ToolCallEvent{
-				ToolCallID: "ws-call-1",
-				ToolName:   createWorkspaceToolName,
-				Args:       args,
+		parts = []fantasy.StreamPart{
+			{
+				Type:          fantasy.StreamPartTypeToolCall,
+				ID:            "ws-call-1",
+				ToolCallName:  createWorkspaceToolName,
+				ToolCallInput: string(args),
 			},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	} else {
-		events = []api.StreamEvent{
-			&api.TextDeltaEvent{TextDelta: "done"},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+		parts = []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	}
 
-	return &api.StreamResponse{
-		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
-			for _, event := range events {
-				if !yield(event) {
-					return
-				}
-			}
-		}),
-	}, nil
+	return streamFromParts(parts), nil
 }
 
-func (m *createWorkspaceToolModel) FirstPrompt() []api.Message {
+func (m *createWorkspaceToolModel) FirstPrompt() []fantasy.Message {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append([]api.Message(nil), m.firstPrompt...)
+	return append([]fantasy.Message(nil), m.firstPrompt...)
 }
 
 type executeTimeoutToolModel struct {
+	fakeLanguageModelBase
 	mu    sync.Mutex
 	calls int
 }
 
 type createWorkspaceExecuteModel struct {
+	fakeLanguageModelBase
 	mu    sync.Mutex
 	calls int
 }
 
-func (*createWorkspaceExecuteModel) ProviderName() string {
-	return "fake"
-}
-
-func (*createWorkspaceExecuteModel) ModelID() string {
-	return "fake"
-}
-
-func (*createWorkspaceExecuteModel) SupportedUrls() []api.SupportedURL {
-	return nil
-}
-
 func (*createWorkspaceExecuteModel) Generate(
 	_ context.Context,
-	_ []api.Message,
-	_ api.CallOptions,
-) (*api.Response, error) {
-	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
+	_ fantasy.Call,
+) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
 }
 
 func (m *createWorkspaceExecuteModel) Stream(
 	_ context.Context,
-	_ []api.Message,
-	_ api.CallOptions,
-) (*api.StreamResponse, error) {
+	_ fantasy.Call,
+) (fantasy.StreamResponse, error) {
 	m.mu.Lock()
 	m.calls++
 	call := m.calls
 	m.mu.Unlock()
 
-	var events []api.StreamEvent
+	var parts []fantasy.StreamPart
 	switch call {
 	case 1:
 		args, err := json.Marshal(map[string]any{"prompt": "workspace for execute test"})
 		if err != nil {
 			return nil, err
 		}
-		events = []api.StreamEvent{
-			&api.ToolCallEvent{
-				ToolCallID: "create-workspace-call-1",
-				ToolName:   createWorkspaceToolName,
-				Args:       args,
+		parts = []fantasy.StreamPart{
+			{
+				Type:          fantasy.StreamPartTypeToolCall,
+				ID:            "create-workspace-call-1",
+				ToolCallName:  createWorkspaceToolName,
+				ToolCallInput: string(args),
 			},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	case 2:
 		args, err := json.Marshal(map[string]any{"command": "echo test"})
 		if err != nil {
 			return nil, err
 		}
-		events = []api.StreamEvent{
-			&api.ToolCallEvent{
-				ToolCallID: "execute-call-1",
-				ToolName:   executeToolName,
-				Args:       args,
+		parts = []fantasy.StreamPart{
+			{
+				Type:          fantasy.StreamPartTypeToolCall,
+				ID:            "execute-call-1",
+				ToolCallName:  executeToolName,
+				ToolCallInput: string(args),
 			},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	default:
-		events = []api.StreamEvent{
-			&api.TextDeltaEvent{TextDelta: "done"},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+		parts = []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	}
 
-	return &api.StreamResponse{
-		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
-			for _, event := range events {
-				if !yield(event) {
-					return
-				}
-			}
-		}),
-	}, nil
+	return streamFromParts(parts), nil
 }
 
 func (m *createWorkspaceExecuteModel) CallCount() int {
@@ -297,29 +323,17 @@ func (m *createWorkspaceExecuteModel) CallCount() int {
 	return m.calls
 }
 
-func (*executeTimeoutToolModel) ProviderName() string {
-	return "fake"
+func (*executeTimeoutToolModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
 }
 
-func (*executeTimeoutToolModel) ModelID() string {
-	return "fake"
-}
-
-func (*executeTimeoutToolModel) SupportedUrls() []api.SupportedURL {
-	return nil
-}
-
-func (*executeTimeoutToolModel) Generate(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
-}
-
-func (m *executeTimeoutToolModel) Stream(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.StreamResponse, error) {
+func (m *executeTimeoutToolModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 	m.mu.Lock()
 	m.calls++
 	call := m.calls
 	m.mu.Unlock()
 
-	var events []api.StreamEvent
+	var parts []fantasy.StreamPart
 	if call == 1 {
 		args, err := json.Marshal(map[string]any{
 			"command":         "sh -c 'while :; do :; done'",
@@ -328,30 +342,37 @@ func (m *executeTimeoutToolModel) Stream(_ context.Context, _ []api.Message, _ a
 		if err != nil {
 			return nil, err
 		}
-		events = []api.StreamEvent{
-			&api.ToolCallEvent{
-				ToolCallID: fmt.Sprintf("exec-timeout-%d", call),
-				ToolName:   executeToolName,
-				Args:       args,
+		parts = []fantasy.StreamPart{
+			{
+				Type:          fantasy.StreamPartTypeToolCall,
+				ID:            fmt.Sprintf("exec-timeout-%d", call),
+				ToolCallName:  executeToolName,
+				ToolCallInput: string(args),
 			},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	} else {
-		events = []api.StreamEvent{
-			&api.TextDeltaEvent{TextDelta: "continued after tool error"},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+		parts = []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{
+				Type:  fantasy.StreamPartTypeTextDelta,
+				ID:    "text-1",
+				Delta: "continued after tool error",
+			},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	}
 
-	return &api.StreamResponse{
-		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
-			for _, event := range events {
-				if !yield(event) {
-					return
-				}
-			}
-		}),
-	}, nil
+	return streamFromParts(parts), nil
 }
 
 func (m *executeTimeoutToolModel) CallCount() int {
@@ -361,6 +382,7 @@ func (m *executeTimeoutToolModel) CallCount() int {
 }
 
 type singleToolThenTextModel struct {
+	fakeLanguageModelBase
 	mu       sync.Mutex
 	calls    int
 	toolName string
@@ -368,70 +390,58 @@ type singleToolThenTextModel struct {
 	final    string
 }
 
-func (*singleToolThenTextModel) ProviderName() string {
-	return "fake"
-}
-
-func (*singleToolThenTextModel) ModelID() string {
-	return "fake"
-}
-
-func (*singleToolThenTextModel) SupportedUrls() []api.SupportedURL {
-	return nil
-}
-
 func (*singleToolThenTextModel) Generate(
 	_ context.Context,
-	_ []api.Message,
-	_ api.CallOptions,
-) (*api.Response, error) {
-	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
+	_ fantasy.Call,
+) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
 }
 
 func (m *singleToolThenTextModel) Stream(
 	_ context.Context,
-	_ []api.Message,
-	_ api.CallOptions,
-) (*api.StreamResponse, error) {
+	_ fantasy.Call,
+) (fantasy.StreamResponse, error) {
 	m.mu.Lock()
 	m.calls++
 	call := m.calls
 	m.mu.Unlock()
 
-	var events []api.StreamEvent
+	var parts []fantasy.StreamPart
 	if call == 1 {
 		args := m.args
 		if len(args) == 0 {
 			args = json.RawMessage(`{}`)
 		}
-		events = []api.StreamEvent{
-			&api.ToolCallEvent{
-				ToolCallID: fmt.Sprintf("%s-call-1", m.toolName),
-				ToolName:   m.toolName,
-				Args:       args,
+		parts = []fantasy.StreamPart{
+			{
+				Type:          fantasy.StreamPartTypeToolCall,
+				ID:            fmt.Sprintf("%s-call-1", m.toolName),
+				ToolCallName:  m.toolName,
+				ToolCallInput: string(args),
 			},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+			{
+				Type:         fantasy.StreamPartTypeFinish,
+				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				FinishReason: fantasy.FinishReasonToolCalls,
+			},
 		}
 	} else {
 		final := m.final
 		if final == "" {
 			final = "done"
 		}
-		events = []api.StreamEvent{
-			&api.TextDeltaEvent{TextDelta: final},
-			&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+		parts = []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: final},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+			{
+				Type:  fantasy.StreamPartTypeFinish,
+				Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+			},
 		}
 	}
 
-	return &api.StreamResponse{
-		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
-			for _, event := range events {
-				if !yield(event) {
-					return
-				}
-			}
-		}),
-	}, nil
+	return streamFromParts(parts), nil
 }
 
 func (m *singleToolThenTextModel) CallCount() int {
@@ -440,52 +450,129 @@ func (m *singleToolThenTextModel) CallCount() int {
 	return m.calls
 }
 
+type streamErrorToolInputModel struct {
+	fakeLanguageModelBase
+	mu    sync.Mutex
+	calls int
+}
+
+func (*streamErrorToolInputModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
+}
+
+func (m *streamErrorToolInputModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	m.mu.Lock()
+	m.calls++
+	call := m.calls
+	m.mu.Unlock()
+
+	if call == 1 {
+		return streamFromParts([]fantasy.StreamPart{
+			{
+				Type:         fantasy.StreamPartTypeToolInputStart,
+				ID:           "stream-error-tool-1",
+				ToolCallName: createWorkspaceToolName,
+			},
+			{
+				Type:         fantasy.StreamPartTypeToolInputDelta,
+				ID:           "stream-error-tool-1",
+				ToolCallName: createWorkspaceToolName,
+				Delta:        `{"prompt":"workspace from stream error"}`,
+			},
+			{
+				Type:  fantasy.StreamPartTypeError,
+				Error: xerrors.New("stream failed after tool input"),
+			},
+		}), nil
+	}
+
+	return streamFromParts([]fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+		{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "continued after stream error"},
+		{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+		{
+			Type:  fantasy.StreamPartTypeFinish,
+			Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+		},
+	}), nil
+}
+
+func (m *streamErrorToolInputModel) CallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+type streamErrorNoToolModel struct {
+	fakeLanguageModelBase
+}
+
+func (*streamErrorNoToolModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
+}
+
+func (*streamErrorNoToolModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	return streamFromParts([]fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+		{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "partial"},
+		{
+			Type:  fantasy.StreamPartTypeError,
+			Error: xerrors.New("stream failed without tool call"),
+		},
+	}), nil
+}
+
+type unsupportedStreamModel struct {
+	fakeLanguageModelBase
+	mu            sync.Mutex
+	streamCalls   int
+	generateCalls int
+}
+
+func (m *unsupportedStreamModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	m.mu.Lock()
+	m.generateCalls++
+	m.mu.Unlock()
+	return fallbackResponse(), nil
+}
+
+func (m *unsupportedStreamModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	m.mu.Lock()
+	m.streamCalls++
+	m.mu.Unlock()
+	return nil, xerrors.New("stream is not supported")
+}
+
+func (m *unsupportedStreamModel) CallCounts() (streamCalls int, generateCalls int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.streamCalls, m.generateCalls
+}
+
 type panicStreamModel struct {
+	fakeLanguageModelBase
 	panicValue any
 }
 
-func (*panicStreamModel) ProviderName() string {
-	return "fake"
+func (*panicStreamModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
 }
 
-func (*panicStreamModel) ModelID() string {
-	return "fake"
-}
-
-func (*panicStreamModel) SupportedUrls() []api.SupportedURL {
-	return nil
-}
-
-func (*panicStreamModel) Generate(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
-}
-
-func (m *panicStreamModel) Stream(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.StreamResponse, error) {
+func (m *panicStreamModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 	panic(m.panicValue)
 }
 
 type blockingCloseModel struct {
+	fakeLanguageModelBase
 	started chan struct{}
 	release chan struct{}
 }
 
-func (*blockingCloseModel) ProviderName() string {
-	return "fake"
+func (*blockingCloseModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
 }
 
-func (*blockingCloseModel) ModelID() string {
-	return "fake"
-}
-
-func (*blockingCloseModel) SupportedUrls() []api.SupportedURL {
-	return nil
-}
-
-func (*blockingCloseModel) Generate(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.Response, error) {
-	return &api.Response{Content: []api.ContentBlock{&api.TextBlock{Text: "fallback"}}}, nil
-}
-
-func (m *blockingCloseModel) Stream(_ context.Context, _ []api.Message, _ api.CallOptions) (*api.StreamResponse, error) {
+func (m *blockingCloseModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 	select {
 	case <-m.started:
 	default:
@@ -494,19 +581,16 @@ func (m *blockingCloseModel) Stream(_ context.Context, _ []api.Message, _ api.Ca
 
 	<-m.release
 
-	return &api.StreamResponse{
-		Stream: iter.Seq[api.StreamEvent](func(yield func(api.StreamEvent) bool) {
-			events := []api.StreamEvent{
-				&api.TextDeltaEvent{TextDelta: "done"},
-				&api.FinishEvent{Usage: api.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
-			}
-			for _, event := range events {
-				if !yield(event) {
-					return
-				}
-			}
-		}),
-	}, nil
+	parts := []fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+		{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+		{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+		{
+			Type:  fantasy.StreamPartTypeFinish,
+			Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+		},
+	}
+	return streamFromParts(parts), nil
 }
 
 type workspaceCreatorFunc func(context.Context, chatd.CreateWorkspaceToolRequest) (chatd.CreateWorkspaceToolResult, error)
@@ -535,11 +619,11 @@ func insertChatWithUserMessage(
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText(message))
+	content, err := json.Marshal(contentFromText(message))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -604,11 +688,11 @@ func TestRunChatLoop(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText("read file"))
+	content, err := json.Marshal(contentFromText("read file"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -620,7 +704,7 @@ func TestRunChatLoop(t *testing.T) {
 		logger,
 		db,
 		chatd.WithAgentConnector(testAgentConnector{client: workspacesdk.New(client), logger: logger}),
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithPollInterval(50*time.Millisecond),
@@ -648,8 +732,8 @@ func TestRunChatLoop(t *testing.T) {
 	require.Len(t, stored, 4)
 
 	toolMessage := stored[2]
-	require.Equal(t, string(api.MessageRoleTool), toolMessage.Role)
-	var toolResults []api.ToolResultBlock
+	require.Equal(t, string(fantasy.MessageRoleTool), toolMessage.Role)
+	var toolResults []chatd.ToolResultBlock
 	require.NoError(t, json.Unmarshal(toolMessage.Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
 	resultMap, ok := toolResults[0].Result.(map[string]any)
@@ -660,7 +744,7 @@ func TestRunChatLoop(t *testing.T) {
 	finalContent, err := parseAssistantContent(finalMessage.Content)
 	require.NoError(t, err)
 	require.Len(t, finalContent, 1)
-	textBlock, ok := finalContent[0].(*api.TextBlock)
+	textBlock, ok := fantasy.AsContentType[fantasy.TextContent](finalContent[0])
 	require.True(t, ok)
 	require.Equal(t, "done", textBlock.Text)
 }
@@ -715,11 +799,11 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText("run command"))
+	content, err := json.Marshal(contentFromText("run command"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -732,7 +816,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 		logger.Named("processor"),
 		db,
 		chatd.WithAgentConnector(testAgentConnector{client: workspacesdk.New(client), logger: logger}),
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithStreamManager(manager),
@@ -785,7 +869,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 4)
 
-	var toolResults []api.ToolResultBlock
+	var toolResults []chatd.ToolResultBlock
 	require.NoError(t, json.Unmarshal(messages[2].Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
 	require.Equal(t, executeToolName, toolResults[0].ToolName)
@@ -800,7 +884,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 	finalContent, err := parseAssistantContent(messages[3].Content)
 	require.NoError(t, err)
 	require.Len(t, finalContent, 1)
-	textBlock, ok := finalContent[0].(*api.TextBlock)
+	textBlock, ok := fantasy.AsContentType[fantasy.TextContent](finalContent[0])
 	require.True(t, ok)
 	require.Equal(t, "continued after tool error", textBlock.Text)
 
@@ -844,7 +928,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 				logger.Named("processor"),
 				db,
 				chatd.WithStreamManager(manager),
-				chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+				chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 					return model, nil
 				}),
 				chatd.WithPollInterval(50*time.Millisecond),
@@ -896,7 +980,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, messages, 4)
 
-			var toolResults []api.ToolResultBlock
+			var toolResults []chatd.ToolResultBlock
 			require.NoError(t, json.Unmarshal(messages[2].Content.RawMessage, &toolResults))
 			require.Len(t, toolResults, 1)
 			require.Equal(t, tc.toolName, toolResults[0].ToolName)
@@ -910,13 +994,198 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 			finalContent, err := parseAssistantContent(messages[3].Content)
 			require.NoError(t, err)
 			require.Len(t, finalContent, 1)
-			textBlock, ok := finalContent[0].(*api.TextBlock)
+			textBlock, ok := fantasy.AsContentType[fantasy.TextContent](finalContent[0])
 			require.True(t, ok)
 			require.Equal(t, "done after tool error", textBlock.Text)
 
 			require.Equal(t, 2, model.CallCount())
 		})
 	}
+}
+
+func TestRunChatLoop_StreamErrorWithToolInputDeltaErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
+
+	chat := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "stream error tool delta", "create a workspace")
+	model := &streamErrorToolInputModel{}
+
+	var (
+		creatorMu     sync.Mutex
+		creatorCalls  int
+		creatorPrompt string
+	)
+	creator := workspaceCreatorFunc(func(_ context.Context, req chatd.CreateWorkspaceToolRequest) (chatd.CreateWorkspaceToolResult, error) {
+		creatorMu.Lock()
+		creatorCalls++
+		creatorPrompt = req.Prompt
+		creatorMu.Unlock()
+
+		return chatd.CreateWorkspaceToolResult{
+			Created: false,
+			Reason:  "declined for test",
+		}, nil
+	})
+
+	processor := chatd.NewProcessor(
+		logger.Named("processor"),
+		db,
+		chatd.WithWorkspaceCreator(creator),
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(50*time.Millisecond),
+	)
+	defer processor.Close()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
+		return err == nil && storedChat.Status == database.ChatStatusError
+	}, testutil.WaitLong, 50*time.Millisecond)
+
+	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+
+	creatorMu.Lock()
+	creatorCallsValue := creatorCalls
+	creatorPromptValue := strings.TrimSpace(creatorPrompt)
+	creatorMu.Unlock()
+	require.Equal(t, 0, creatorCallsValue)
+	require.Equal(t, "", creatorPromptValue)
+	require.Equal(t, 1, model.CallCount())
+
+	storedChat, err := db.GetChatByID(dbCtx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusError, storedChat.Status)
+}
+
+func TestRunChatLoop_UnsupportedStreamingDoesNotFallbackToGenerate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
+
+	chat := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "unsupported stream", "hello")
+	model := &unsupportedStreamModel{}
+
+	processor := chatd.NewProcessor(
+		logger.Named("processor"),
+		db,
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(50*time.Millisecond),
+	)
+	defer processor.Close()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
+		return err == nil && storedChat.Status == database.ChatStatusError
+	}, testutil.WaitLong, 50*time.Millisecond)
+
+	streamCalls, generateCalls := model.CallCounts()
+	require.Equal(t, 1, streamCalls)
+	require.Equal(t, 0, generateCalls)
+
+	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+}
+
+func TestRunChatLoop_StreamErrorWithoutToolCallsErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chat := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "stream error no tool", "hello")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
+	manager := chatd.NewStreamManager(logger)
+	model := &streamErrorNoToolModel{}
+
+	processor := chatd.NewProcessor(
+		logger.Named("processor"),
+		db,
+		chatd.WithStreamManager(manager),
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(50*time.Millisecond),
+	)
+	defer processor.Close()
+
+	_, events, cancel := manager.Subscribe(chat.ID)
+	defer cancel()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	var streamErr string
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			if event.Type == codersdk.ChatStreamEventTypeError && event.Error != nil {
+				streamErr = strings.TrimSpace(event.Error.Message)
+				if streamErr != "" {
+					return true
+				}
+			}
+		default:
+		}
+
+		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
+		if err != nil {
+			return false
+		}
+		return storedChat.Status == database.ChatStatusError
+	}, testutil.WaitLong, 25*time.Millisecond)
+
+	if streamErr != "" {
+		require.Contains(t, streamErr, "stream failed without tool call")
+	}
+
+	storedChat, err := db.GetChatByID(dbCtx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusError, storedChat.Status)
+
+	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
 }
 
 func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
@@ -934,11 +1203,11 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText("create a workspace"))
+	content, err := json.Marshal(contentFromText("create a workspace"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -950,7 +1219,7 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 	processor := chatd.NewProcessor(
 		testutil.Logger(t).Named("chatd"),
 		db,
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithPollInterval(50*time.Millisecond),
@@ -974,7 +1243,7 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 4)
 
-	var toolResults []api.ToolResultBlock
+	var toolResults []chatd.ToolResultBlock
 	require.NoError(t, json.Unmarshal(messages[2].Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
 	require.True(t, toolResults[0].IsError)
@@ -989,9 +1258,11 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 
 	prompt := model.FirstPrompt()
 	require.NotEmpty(t, prompt)
-	systemMessage, ok := prompt[0].(*api.SystemMessage)
+	require.Equal(t, fantasy.MessageRoleSystem, prompt[0].Role)
+	require.NotEmpty(t, prompt[0].Content)
+	systemPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
 	require.True(t, ok)
-	require.True(t, strings.Contains(strings.ToLower(systemMessage.Content), "create_workspace"))
+	require.True(t, strings.Contains(strings.ToLower(systemPart.Text), "create_workspace"))
 }
 
 func TestCreateWorkspaceTool_StreamSnapshotIncludesBuildLogDeltas(t *testing.T) {
@@ -1009,11 +1280,11 @@ func TestCreateWorkspaceTool_StreamSnapshotIncludesBuildLogDeltas(t *testing.T) 
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText("create a workspace"))
+	content, err := json.Marshal(contentFromText("create a workspace"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -1045,7 +1316,7 @@ func TestCreateWorkspaceTool_StreamSnapshotIncludesBuildLogDeltas(t *testing.T) 
 		testutil.Logger(t).Named("chatd"),
 		db,
 		chatd.WithWorkspaceCreator(creator),
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithStreamManager(manager),
@@ -1076,7 +1347,7 @@ func TestCreateWorkspaceTool_StreamSnapshotIncludesBuildLogDeltas(t *testing.T) 
 		if event.Type != codersdk.ChatStreamEventTypeMessagePart || event.MessagePart == nil {
 			continue
 		}
-		if event.MessagePart.Role != string(api.MessageRoleTool) {
+		if event.MessagePart.Role != string(fantasy.MessageRoleTool) {
 			continue
 		}
 		if event.MessagePart.Part.Type != codersdk.ChatMessagePartTypeToolResult {
@@ -1131,11 +1402,11 @@ func TestRunChatLoop_MissingWorkspaceRecovery(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText("create workspace"))
+	content, err := json.Marshal(contentFromText("create workspace"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -1147,7 +1418,7 @@ func TestRunChatLoop_MissingWorkspaceRecovery(t *testing.T) {
 	processor := chatd.NewProcessor(
 		testutil.Logger(t).Named("chatd"),
 		db,
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithPollInterval(50*time.Millisecond),
@@ -1174,9 +1445,11 @@ func TestRunChatLoop_MissingWorkspaceRecovery(t *testing.T) {
 
 	prompt := model.FirstPrompt()
 	require.NotEmpty(t, prompt)
-	systemMessage, ok := prompt[0].(*api.SystemMessage)
+	require.Equal(t, fantasy.MessageRoleSystem, prompt[0].Role)
+	require.NotEmpty(t, prompt[0].Content)
+	systemPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
 	require.True(t, ok)
-	require.True(t, strings.Contains(strings.ToLower(systemMessage.Content), "create_workspace"))
+	require.True(t, strings.Contains(strings.ToLower(systemPart.Text), "create_workspace"))
 }
 
 func TestCreateWorkspaceTool_PersistsWorkspaceIDs(t *testing.T) {
@@ -1194,11 +1467,11 @@ func TestCreateWorkspaceTool_PersistsWorkspaceIDs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText("create workspace"))
+	content, err := json.Marshal(contentFromText("create workspace"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -1228,7 +1501,7 @@ func TestCreateWorkspaceTool_PersistsWorkspaceIDs(t *testing.T) {
 		testutil.Logger(t).Named("chatd"),
 		db,
 		chatd.WithWorkspaceCreator(creator),
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithPollInterval(50*time.Millisecond),
@@ -1275,11 +1548,11 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	content, err := json.Marshal(api.ContentFromText("create workspace then run echo test"))
+	content, err := json.Marshal(contentFromText("create workspace then run echo test"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
 		ChatID:  chat.ID,
-		Role:    string(api.MessageRoleUser),
+		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
 	})
@@ -1327,7 +1600,7 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 		db,
 		chatd.WithWorkspaceCreator(creator),
 		chatd.WithAgentConnector(testAgentConnector{client: workspacesdk.New(client), logger: logger}),
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithStreamManager(manager),
@@ -1364,10 +1637,10 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 		}
 
 		for _, message := range messages {
-			if message.Role != string(api.MessageRoleTool) {
+			if message.Role != string(fantasy.MessageRoleTool) {
 				continue
 			}
-			var toolResults []api.ToolResultBlock
+			var toolResults []chatd.ToolResultBlock
 			if err := json.Unmarshal(message.Content.RawMessage, &toolResults); err != nil {
 				return false
 			}
@@ -1456,7 +1729,7 @@ func TestProcessorCloseWaitsForInFlightChatProcessing(t *testing.T) {
 	processor := chatd.NewProcessor(
 		testutil.Logger(t).Named("chatd"),
 		db,
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithPollInterval(25*time.Millisecond),
@@ -1513,7 +1786,7 @@ func TestRunChatLoop_PublishesStreamErrorOnProcessingFailure(t *testing.T) {
 		logger.Named("processor"),
 		db,
 		chatd.WithStreamManager(manager),
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return nil, xerrors.New("model resolver failed")
 		}),
 		chatd.WithPollInterval(50*time.Millisecond),
@@ -1569,7 +1842,7 @@ func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
 		logger.Named("processor"),
 		db,
 		chatd.WithStreamManager(manager),
-		chatd.WithModelResolver(func(_ database.Chat) (api.LanguageModel, error) {
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
 		chatd.WithPollInterval(50*time.Millisecond),

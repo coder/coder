@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	aianthropic "go.jetify.com/ai/provider/anthropic"
-	aiopenai "go.jetify.com/ai/provider/openai"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -43,9 +43,9 @@ type ConfiguredModel struct {
 
 func (k ProviderAPIKeys) apiKey(provider string) string {
 	switch normalizeProvider(provider) {
-	case aiopenai.ProviderName:
+	case fantasyopenai.Name:
 		return strings.TrimSpace(k.OpenAI)
-	case aianthropic.ProviderName:
+	case fantasyanthropic.Name:
 		return strings.TrimSpace(k.Anthropic)
 	default:
 		return ""
@@ -61,11 +61,11 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 
 	for _, provider := range providers {
 		switch normalizeProvider(provider.Provider) {
-		case aiopenai.ProviderName:
+		case fantasyopenai.Name:
 			if key := strings.TrimSpace(provider.APIKey); key != "" {
 				merged.OpenAI = key
 			}
-		case aianthropic.ProviderName:
+		case fantasyanthropic.Name:
 			if key := strings.TrimSpace(provider.APIKey); key != "" {
 				merged.Anthropic = key
 			}
@@ -122,7 +122,7 @@ func NewModelCatalog(logger slog.Logger, client *http.Client, keys ProviderAPIKe
 func (c *ModelCatalog) ListModels(ctx context.Context) codersdk.ChatModelsResponse {
 	filter := parseModelFilter(c.config.Allowlist, c.config.Denylist)
 
-	providers := []string{aiopenai.ProviderName, aianthropic.ProviderName}
+	providers := []string{fantasyopenai.Name, fantasyanthropic.Name}
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
 	}
@@ -244,7 +244,7 @@ func (c *ModelCatalog) ListConfiguredProviderAvailability(
 		Providers: make([]codersdk.ChatModelProvider, 0, 2),
 	}
 
-	for _, provider := range []string{aiopenai.ProviderName, aianthropic.ProviderName} {
+	for _, provider := range []string{fantasyopenai.Name, fantasyanthropic.Name} {
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
 			Models:   []codersdk.ChatModel{},
@@ -264,9 +264,9 @@ func (c *ModelCatalog) ListConfiguredProviderAvailability(
 
 func (c *ModelCatalog) fetchProviderModels(ctx context.Context, provider, apiKey string) ([]codersdk.ChatModel, error) {
 	switch normalizeProvider(provider) {
-	case aiopenai.ProviderName:
+	case fantasyopenai.Name:
 		return c.fetchOpenAIModels(ctx, apiKey)
-	case aianthropic.ProviderName:
+	case fantasyanthropic.Name:
 		return c.fetchAnthropicModels(ctx, apiKey)
 	default:
 		return nil, xerrors.Errorf("unsupported provider %q", provider)
@@ -309,7 +309,7 @@ func (c *ModelCatalog) fetchOpenAIModels(ctx context.Context, apiKey string) ([]
 	seen := make(map[string]struct{}, len(payload.Data))
 	for _, item := range payload.Data {
 		modelID := strings.TrimSpace(item.ID)
-		if modelID == "" || !isChatModelForProvider(aiopenai.ProviderName, modelID) {
+		if modelID == "" || !isChatModelForProvider(fantasyopenai.Name, modelID) {
 			continue
 		}
 		key := strings.ToLower(modelID)
@@ -317,7 +317,7 @@ func (c *ModelCatalog) fetchOpenAIModels(ctx context.Context, apiKey string) ([]
 			continue
 		}
 		seen[key] = struct{}{}
-		models = append(models, newChatModel(aiopenai.ProviderName, modelID, ""))
+		models = append(models, newChatModel(fantasyopenai.Name, modelID, ""))
 	}
 
 	sortChatModels(models)
@@ -362,7 +362,7 @@ func (c *ModelCatalog) fetchAnthropicModels(ctx context.Context, apiKey string) 
 	seen := make(map[string]struct{}, len(payload.Data))
 	for _, item := range payload.Data {
 		modelID := strings.TrimSpace(item.ID)
-		if modelID == "" || !isChatModelForProvider(aianthropic.ProviderName, modelID) {
+		if modelID == "" || !isChatModelForProvider(fantasyanthropic.Name, modelID) {
 			continue
 		}
 		key := strings.ToLower(modelID)
@@ -370,7 +370,7 @@ func (c *ModelCatalog) fetchAnthropicModels(ctx context.Context, apiKey string) 
 			continue
 		}
 		seen[key] = struct{}{}
-		models = append(models, newChatModel(aianthropic.ProviderName, modelID, item.DisplayName))
+		models = append(models, newChatModel(fantasyanthropic.Name, modelID, item.DisplayName))
 	}
 
 	sortChatModels(models)
@@ -407,7 +407,7 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	}
 
 	ordered := make([]string, 0, len(providerSet))
-	for _, provider := range []string{aiopenai.ProviderName, aianthropic.ProviderName} {
+	for _, provider := range []string{fantasyopenai.Name, fantasyanthropic.Name} {
 		if _, ok := providerSet[provider]; ok {
 			ordered = append(ordered, provider)
 		}
@@ -415,7 +415,7 @@ func orderProviders(providerSet map[string]struct{}) []string {
 
 	extras := make([]string, 0, len(providerSet))
 	for provider := range providerSet {
-		if provider == aiopenai.ProviderName || provider == aianthropic.ProviderName {
+		if provider == fantasyopenai.Name || provider == fantasyanthropic.Name {
 			continue
 		}
 		extras = append(extras, provider)
@@ -427,10 +427,10 @@ func orderProviders(providerSet map[string]struct{}) []string {
 
 func normalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case aiopenai.ProviderName:
-		return aiopenai.ProviderName
-	case aianthropic.ProviderName:
-		return aianthropic.ProviderName
+	case fantasyopenai.Name:
+		return fantasyopenai.Name
+	case fantasyanthropic.Name:
+		return fantasyanthropic.Name
 	default:
 		return ""
 	}
@@ -457,16 +457,16 @@ func resolveModelWithProviderHint(modelName, providerHint string) (string, strin
 	normalized := strings.ToLower(modelName)
 	switch normalized {
 	case "claude-opus-4-6":
-		return aianthropic.ProviderName, "claude-opus-4-6", nil
+		return fantasyanthropic.Name, "claude-opus-4-6", nil
 	case "gpt-5.2":
-		return aiopenai.ProviderName, "gpt-5.2", nil
+		return fantasyopenai.Name, "gpt-5.2", nil
 	}
 
-	if isChatModelForProvider(aianthropic.ProviderName, normalized) {
-		return aianthropic.ProviderName, modelName, nil
+	if isChatModelForProvider(fantasyanthropic.Name, normalized) {
+		return fantasyanthropic.Name, modelName, nil
 	}
-	if isChatModelForProvider(aiopenai.ProviderName, normalized) {
-		return aiopenai.ProviderName, modelName, nil
+	if isChatModelForProvider(fantasyopenai.Name, normalized) {
+		return fantasyopenai.Name, modelName, nil
 	}
 
 	return "", "", xerrors.Errorf("unknown model %q", modelName)
@@ -498,11 +498,11 @@ func isChatModelForProvider(provider, modelID string) bool {
 	normalizedProvider := normalizeProvider(provider)
 	normalizedModel := strings.ToLower(strings.TrimSpace(modelID))
 	switch normalizedProvider {
-	case aiopenai.ProviderName:
+	case fantasyopenai.Name:
 		return strings.HasPrefix(normalizedModel, "gpt-") ||
 			strings.HasPrefix(normalizedModel, "chatgpt-") ||
 			isOpenAIReasoningModel(normalizedModel)
-	case aianthropic.ProviderName:
+	case fantasyanthropic.Name:
 		return strings.HasPrefix(normalizedModel, "claude-")
 	default:
 		return false
