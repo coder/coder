@@ -112,12 +112,11 @@ module "code-server" {
 
 # See https://registry.coder.com/modules/coder/jetbrains
 module "jetbrains" {
-  count      = data.coder_workspace.me.start_count
-  source     = "registry.coder.com/coder/jetbrains/coder"
-  version    = "~> 1.0"
-  agent_id   = coder_agent.main.id
-  agent_name = "main"
-  folder     = "/home/coder"
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/jetbrains/coder"
+  version  = "~> 1.0"
+  agent_id = coder_agent.main.id
+  folder   = "/home/coder"
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "home" {
@@ -151,7 +150,7 @@ resource "kubernetes_pod_v1" "main" {
       name = "dev"
       # We highly recommend pinning this to a specific release of envbox, as the latest tag may change.
       image             = "ghcr.io/coder/envbox:latest"
-      image_pull_policy = "Always"
+      image_pull_policy = "IfNotPresent"
       command           = ["/envbox", "docker"]
 
       security_context {

@@ -1,13 +1,14 @@
 ---
 display_name: Google Compute Engine (VM Container)
 description: Provision Google Compute Engine instances as Coder workspaces
-icon: ../../../site/static/icon/gcp.png
-maintainer_github: coder
+icon: ../../../site/static/icon/gcp.svg
 verified: true
 tags: [vm-container, linux, gcp]
 ---
 
 # Remote Development on Google Compute Engine (VM Container)
+
+Provision Google Compute Engine instances as Coder workspaces.
 
 ## Prerequisites
 
@@ -32,7 +33,6 @@ a service account:
 
 1. Click **Create and continue**, and choose the following IAM roles to grant to
    the service account:
-
    - Compute Admin
    - Service Account User
 

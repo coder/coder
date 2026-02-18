@@ -2,7 +2,6 @@
 display_name: Incus System Container with Docker
 description: Develop in an Incus System Container with Docker using incus
 icon: ../../../site/static/icon/lxc.svg
-maintainer_github: coder
 verified: true
 tags: [local, incus, lxc, lxd]
 ---
@@ -15,7 +14,6 @@ Develop in an Incus System Container and run nested Docker containers using Incu
 
 1. Install [Incus](https://linuxcontainers.org/incus/) on the same machine as Coder.
 2. Allow Coder to access the Incus socket.
-
    - If you're running Coder as system service, run `sudo usermod -aG incus-admin coder` and restart the Coder service.
    - If you're running Coder as a Docker Compose service, get the group ID of the `incus-admin` group by running `getent group incus-admin` and add the following to your `compose.yaml` file:
 

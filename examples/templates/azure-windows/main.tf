@@ -36,7 +36,8 @@ module "windows_rdp" {
   admin_username = local.admin_username
   admin_password = random_password.admin_password.result
 
-  agent_id    = resource.coder_agent.main.id
+  agent_id    = coder_agent.main.id
+  agent_name  = "main"
   resource_id = null # Unused, to be removed in a future version
 }
 

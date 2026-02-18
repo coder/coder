@@ -1,13 +1,14 @@
 ---
 display_name: Kubernetes (Envbox)
 description: Provision envbox pods as Coder workspaces
-icon: ../../../site/static/icon/k8s.png
-maintainer_github: coder
+icon: ../../../site/static/icon/kubernetes.svg
 verified: true
 tags: [kubernetes, containers, docker-in-docker]
 ---
 
 # envbox
+
+Provision envbox pods as Coder workspaces
 
 ## Introduction
 
@@ -20,7 +21,7 @@ It mainly acts as a wrapper for the excellent [sysbox runtime](https://github.co
 The following environment variables can be used to configure various aspects of the inner and outer container.
 
 | env                        | usage                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | required |
-|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | `CODER_INNER_IMAGE`        | The image to use for the inner container.                                                                                                                                                                                                                                                                                                                                                                                                                                       | True     |
 | `CODER_INNER_USERNAME`     | The username to use for the inner container.                                                                                                                                                                                                                                                                                                                                                                                                                                    | True     |
 | `CODER_AGENT_TOKEN`        | The [Coder Agent](https://coder.com/docs/about/architecture#agents) token to pass to the inner container.                                                                                                                                                                                                                                                                                                                                                                       | True     |

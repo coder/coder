@@ -2,7 +2,6 @@
 display_name: Nomad
 description: Provision Nomad Jobs as Coder workspaces
 icon: ../../../site/static/icon/nomad.svg
-maintainer_github: coder
 verified: true
 tags: [nomad, container]
 ---
@@ -48,31 +47,31 @@ The CSI Host Volume plugin is used to mount host volumes into Nomad tasks. This 
    ```tf
    job "hostpath-csi-plugin" {
      datacenters = ["dc1"]
-     type = "system"
-
+     type        = "system"
+   
      group "csi" {
        task "plugin" {
          driver = "docker"
-
+   
          config {
            image = "registry.k8s.io/sig-storage/hostpathplugin:v1.10.0"
-
+   
            args = [
              "--drivername=csi-hostpath",
              "--v=5",
              "--endpoint=${CSI_ENDPOINT}",
              "--nodeid=node-${NOMAD_ALLOC_INDEX}",
            ]
-
+   
            privileged = true
          }
-
+   
          csi_plugin {
-           id   = "hostpath"
-           type = "monolith"
+           id        = "hostpath"
+           type      = "monolith"
            mount_dir = "/csi"
          }
-
+   
          resources {
            cpu    = 256
            memory = 128
