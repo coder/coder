@@ -58,7 +58,7 @@ services:
     environment:
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
-      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
     volumes:
       - .:/app
       - go_cache:/go-cache
@@ -97,7 +97,7 @@ services:
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
       CODER_CACHE_DIRECTORY: /cache
-      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
     # Add the Docker group so coderd can access the Docker socket.
     # Override DOCKER_GROUP if your host's docker group is not 999.
     group_add:
@@ -162,7 +162,7 @@ services:
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
-      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
+      CODER_DEV_MEMBER_PASSWORD: "${CODER_DEV_MEMBER_PASSWORD:-SomeSecurePassword!}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
@@ -184,7 +184,7 @@ services:
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
-      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
@@ -266,7 +266,8 @@ services:
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
-      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      LICENSE_FILE: "${CODER_DEV_LICENSE_FILE:-./license.txt}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
@@ -274,9 +275,45 @@ services:
       - go_cache:/go-cache
       - bootstrap_token:/bootstrap:ro
       - ./scripts/docker-dev:/scripts:ro
+      - "${CODER_DEV_LICENSE_FILE:-./license.txt}:/license.txt:ro"
     command: ["sh", "/scripts/setup-multi-org.sh"]
 
   ext-provisioner:
+    profiles: ["multi-org"]
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:2112"]
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-multi-org:
+        condition: service_completed_successfully
+    group_add:
+      - "${DOCKER_GROUP:-999}"
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+      CODER_PROMETHEUS_ENABLE: "1"
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap:ro
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+    command: >
+      sh -c '
+        export CODER_SESSION_TOKEN=$$(cat /bootstrap/token) &&
+        exec go run ./enterprise/cmd/coder provisionerd start \
+          --tag "scope=organization" \
+          --name second-org-daemon \
+          --org second-organization
+      '
+
+  setup-multi-org-template:
     profiles: ["multi-org"]
     labels:
       - "com.coder.dev"
@@ -286,6 +323,8 @@ services:
     depends_on:
       setup-multi-org:
         condition: service_completed_successfully
+      ext-provisioner:
+        condition: service_healthy
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
@@ -295,14 +334,9 @@ services:
       - .:/app
       - go_cache:/go-cache
       - bootstrap_token:/bootstrap:ro
-    command: >
-      sh -c '
-        export CODER_SESSION_TOKEN=$$(cat /bootstrap/token) &&
-        exec go run ./cmd/coder provisionerd start \
-          --tag "scope=organization" \
-          --name second-org-daemon \
-          --org second-organization
-      '
+      - ./scripts/docker-dev:/scripts:ro
+    command: ["sh", "-c", "/scripts/setup-template.sh second-organization"]
+
 
 volumes:
   coder_dev_data:

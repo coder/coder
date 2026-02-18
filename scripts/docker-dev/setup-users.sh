@@ -2,7 +2,7 @@
 set -e
 
 CODER="go run ./cmd/coder"
-PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
+PASSWORD="${CODER_DEV_MEMBER_PASSWORD:-SomeSecurePassword!}"
 TOKEN_FILE="/bootstrap/token"
 
 echo "=== Setting up users ==="
