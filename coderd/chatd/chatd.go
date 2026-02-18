@@ -13,7 +13,13 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyazure "charm.land/fantasy/providers/azure"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
+	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
+	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
+	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/crypto/ssh"
@@ -1825,28 +1831,41 @@ func modelFromName(modelName string, providerKeys ProviderAPIKeys) (fantasy.Lang
 // has an API key configured. This is used for lightweight tasks like
 // title generation where we don't need a specific model.
 func anyAvailableModel(keys ProviderAPIKeys) (fantasy.LanguageModel, error) {
-	if key := keys.apiKey(fantasyopenai.Name); key != "" {
-		provider, err := fantasyopenai.New(fantasyopenai.WithAPIKey(key))
-		if err != nil {
-			return nil, xerrors.Errorf("create openai provider: %w", err)
+	candidates := []chatModelConfig{
+		{Provider: fantasyopenai.Name, Model: "gpt-4o-mini"},
+		{Provider: fantasyanthropic.Name, Model: "claude-haiku-4-5"},
+		{Provider: fantasyazure.Name, Model: "gpt-4o-mini"},
+		{Provider: fantasyopenrouter.Name, Model: "gpt-4o-mini"},
+		{Provider: fantasyvercel.Name, Model: "gpt-4o-mini"},
+		{Provider: fantasygoogle.Name, Model: "gemini-2.5-flash"},
+		{Provider: fantasybedrock.Name, Model: "anthropic.claude-haiku-4-5-20251001-v1:0"},
+		{Provider: fantasyopenaicompat.Name, Model: "gpt-4o-mini"},
+	}
+
+	var firstErr error
+	for _, candidate := range candidates {
+		if keys.apiKey(candidate.Provider) == "" {
+			continue
 		}
-		model, err := provider.LanguageModel(context.Background(), "gpt-4o-mini")
+
+		model, err := modelFromConfig(candidate, keys)
 		if err != nil {
-			return nil, xerrors.Errorf("load openai model: %w", err)
+			if firstErr == nil {
+				firstErr = xerrors.Errorf(
+					"initialize title model for provider %q: %w",
+					candidate.Provider,
+					err,
+				)
+			}
+			continue
 		}
 		return model, nil
 	}
-	if key := keys.apiKey(fantasyanthropic.Name); key != "" {
-		provider, err := fantasyanthropic.New(fantasyanthropic.WithAPIKey(key))
-		if err != nil {
-			return nil, xerrors.Errorf("create anthropic provider: %w", err)
-		}
-		model, err := provider.LanguageModel(context.Background(), "claude-haiku-4-5")
-		if err != nil {
-			return nil, xerrors.Errorf("load anthropic model: %w", err)
-		}
-		return model, nil
+
+	if firstErr != nil {
+		return nil, firstErr
 	}
+
 	return nil, xerrors.New("no AI provider API keys are configured")
 }
 
@@ -1856,37 +1875,65 @@ func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (fant
 		return nil, err
 	}
 
+	apiKey := providerKeys.apiKey(provider)
+	if apiKey == "" {
+		return nil, missingProviderAPIKeyError(provider)
+	}
+
+	var providerClient fantasy.Provider
 	switch provider {
 	case fantasyanthropic.Name:
-		apiKey := providerKeys.apiKey(provider)
-		if apiKey == "" {
-			return nil, xerrors.New("ANTHROPIC_API_KEY is not set")
-		}
-		providerClient, err := fantasyanthropic.New(fantasyanthropic.WithAPIKey(apiKey))
-		if err != nil {
-			return nil, xerrors.Errorf("create anthropic provider: %w", err)
-		}
-		model, err := providerClient.LanguageModel(context.Background(), modelID)
-		if err != nil {
-			return nil, xerrors.Errorf("load anthropic model: %w", err)
-		}
-		return model, nil
+		providerClient, err = fantasyanthropic.New(fantasyanthropic.WithAPIKey(apiKey))
+	case fantasyazure.Name:
+		return nil, xerrors.New(
+			"azure provider requires a base URL, but chat provider configs do not support base URLs yet",
+		)
+	case fantasybedrock.Name:
+		providerClient, err = fantasybedrock.New(fantasybedrock.WithAPIKey(apiKey))
+	case fantasygoogle.Name:
+		providerClient, err = fantasygoogle.New(fantasygoogle.WithGeminiAPIKey(apiKey))
 	case fantasyopenai.Name:
-		apiKey := providerKeys.apiKey(provider)
-		if apiKey == "" {
-			return nil, xerrors.New("OPENAI_API_KEY is not set")
-		}
-		providerClient, err := fantasyopenai.New(fantasyopenai.WithAPIKey(apiKey))
-		if err != nil {
-			return nil, xerrors.Errorf("create openai provider: %w", err)
-		}
-		model, err := providerClient.LanguageModel(context.Background(), modelID)
-		if err != nil {
-			return nil, xerrors.Errorf("load openai model: %w", err)
-		}
-		return model, nil
+		providerClient, err = fantasyopenai.New(fantasyopenai.WithAPIKey(apiKey))
+	case fantasyopenaicompat.Name:
+		providerClient, err = fantasyopenaicompat.New(fantasyopenaicompat.WithAPIKey(apiKey))
+	case fantasyopenrouter.Name:
+		providerClient, err = fantasyopenrouter.New(fantasyopenrouter.WithAPIKey(apiKey))
+	case fantasyvercel.Name:
+		providerClient, err = fantasyvercel.New(fantasyvercel.WithAPIKey(apiKey))
 	default:
 		return nil, xerrors.Errorf("unsupported model provider %q", provider)
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("create %s provider: %w", provider, err)
+	}
+
+	model, err := providerClient.LanguageModel(context.Background(), modelID)
+	if err != nil {
+		return nil, xerrors.Errorf("load %s model: %w", provider, err)
+	}
+	return model, nil
+}
+
+func missingProviderAPIKeyError(provider string) error {
+	switch provider {
+	case fantasyanthropic.Name:
+		return xerrors.New("ANTHROPIC_API_KEY is not set")
+	case fantasyazure.Name:
+		return xerrors.New("AZURE_OPENAI_API_KEY is not set")
+	case fantasybedrock.Name:
+		return xerrors.New("BEDROCK_API_KEY is not set")
+	case fantasygoogle.Name:
+		return xerrors.New("GOOGLE_API_KEY is not set")
+	case fantasyopenai.Name:
+		return xerrors.New("OPENAI_API_KEY is not set")
+	case fantasyopenaicompat.Name:
+		return xerrors.New("OPENAI_COMPAT_API_KEY is not set")
+	case fantasyopenrouter.Name:
+		return xerrors.New("OPENROUTER_API_KEY is not set")
+	case fantasyvercel.Name:
+		return xerrors.New("VERCEL_API_KEY is not set")
+	default:
+		return xerrors.Errorf("API key for provider %q is not set", provider)
 	}
 }
 

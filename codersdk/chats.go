@@ -173,15 +173,25 @@ type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 }
 
+// ChatProviderConfigSource describes how a provider entry is sourced.
+type ChatProviderConfigSource string
+
+const (
+	ChatProviderConfigSourceDatabase  ChatProviderConfigSource = "database"
+	ChatProviderConfigSourceEnvPreset ChatProviderConfigSource = "env_preset"
+	ChatProviderConfigSourceSupported ChatProviderConfigSource = "supported"
+)
+
 // ChatProviderConfig is an admin-managed provider configuration.
 type ChatProviderConfig struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Provider    string    `json:"provider"`
-	DisplayName string    `json:"display_name"`
-	Enabled     bool      `json:"enabled"`
-	HasAPIKey   bool      `json:"has_api_key"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+	ID          uuid.UUID                `json:"id" format:"uuid"`
+	Provider    string                   `json:"provider"`
+	DisplayName string                   `json:"display_name"`
+	Enabled     bool                     `json:"enabled"`
+	HasAPIKey   bool                     `json:"has_api_key"`
+	Source      ChatProviderConfigSource `json:"source"`
+	CreatedAt   time.Time                `json:"created_at,omitempty" format:"date-time"`
+	UpdatedAt   time.Time                `json:"updated_at,omitempty" format:"date-time"`
 }
 
 // CreateChatProviderConfigRequest creates a chat provider config.

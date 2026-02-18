@@ -218,6 +218,71 @@ func TestChatDiffStatus(t *testing.T) {
 		require.Nil(t, status.StaleAt)
 	})
 
+	t.Run("BranchRefWithoutPullRequest", func(t *testing.T) {
+		t.Parallel()
+		client, _, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		githubServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/repos/octocat/hello-world/pulls" {
+				http.NotFound(rw, r)
+				return
+			}
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`[]`))
+		}))
+		t.Cleanup(githubServer.Close)
+
+		githubURL, err := url.Parse(githubServer.URL)
+		require.NoError(t, err)
+
+		rewriteTransport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.Host == "api.github.com" {
+				cloned := req.Clone(req.Context())
+				cloned.URL = &url.URL{
+					Scheme:   githubURL.Scheme,
+					Host:     githubURL.Host,
+					Path:     req.URL.Path,
+					RawPath:  req.URL.RawPath,
+					RawQuery: req.URL.RawQuery,
+				}
+				return http.DefaultTransport.RoundTrip(cloned)
+			}
+			return http.DefaultTransport.RoundTrip(req)
+		})
+		api.HTTPClient = &http.Client{Transport: rewriteTransport}
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message: "Show me branch-only diff status.",
+		})
+		require.NoError(t, err)
+
+		_, err = api.Database.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chat.ID,
+				GitBranch:       "feature/branch-only",
+				GitRemoteOrigin: "https://github.com/octocat/hello-world.git",
+				StaleAt:         time.Now().UTC().Add(-time.Minute),
+			},
+		)
+		require.NoError(t, err)
+
+		status, err := client.GetChatDiffStatus(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, status.ChatID)
+		require.NotNil(t, status.URL)
+		require.Equal(t, "https://github.com/octocat/hello-world/tree/feature%2Fbranch-only", *status.URL)
+		require.Nil(t, status.PullRequestState)
+		require.False(t, status.ChangesRequested)
+		require.EqualValues(t, 0, status.Additions)
+		require.EqualValues(t, 0, status.Deletions)
+		require.EqualValues(t, 0, status.ChangedFiles)
+		require.Nil(t, status.RefreshedAt)
+		require.NotNil(t, status.StaleAt)
+	})
+
 	t.Run("RefreshAndCache", func(t *testing.T) {
 		t.Parallel()
 		client, _, api := coderdtest.NewWithAPI(t, nil)
@@ -389,6 +454,92 @@ func TestChatDiffContents(t *testing.T) {
 		require.Equal(t, chat.ID, diff.ChatID)
 		require.NotNil(t, diff.PullRequestURL)
 		require.Equal(t, "https://github.com/octocat/hello-world/pull/42", *diff.PullRequestURL)
+		require.Equal(t, expectedDiff, diff.Diff)
+	})
+
+	t.Run("FromBranchReferenceWithoutPullRequest", func(t *testing.T) {
+		t.Parallel()
+		client, _, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		const expectedDiff = "diff --git a/main.go b/main.go\n+fmt.Println(\"branch\")\n"
+
+		githubServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.URL.Path == "/repos/octocat/hello-world/pulls":
+				rw.Header().Set("Content-Type", "application/json")
+				_, _ = rw.Write([]byte(`[]`))
+				return
+			case r.URL.Path == "/repos/octocat/hello-world":
+				rw.Header().Set("Content-Type", "application/json")
+				_, _ = rw.Write([]byte(`{"default_branch":"main"}`))
+				return
+			case strings.HasPrefix(r.URL.Path, "/repos/octocat/hello-world/compare/"):
+				if strings.Contains(r.Header.Get("Accept"), "application/vnd.github.diff") {
+					rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					_, _ = rw.Write([]byte(expectedDiff))
+					return
+				}
+			}
+
+			http.NotFound(rw, r)
+		}))
+		t.Cleanup(githubServer.Close)
+
+		githubURL, err := url.Parse(githubServer.URL)
+		require.NoError(t, err)
+
+		rewriteTransport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.Host == "api.github.com" {
+				cloned := req.Clone(req.Context())
+				cloned.URL = &url.URL{
+					Scheme:   githubURL.Scheme,
+					Host:     githubURL.Host,
+					Path:     req.URL.Path,
+					RawPath:  req.URL.RawPath,
+					RawQuery: req.URL.RawQuery,
+				}
+				return http.DefaultTransport.RoundTrip(cloned)
+			}
+			return http.DefaultTransport.RoundTrip(req)
+		})
+		api.HTTPClient = &http.Client{
+			Transport: rewriteTransport,
+		}
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message: "Please inspect branch changes.",
+		})
+		require.NoError(t, err)
+
+		_, err = api.Database.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chat.ID,
+				GitBranch:       "feature/branch-only",
+				GitRemoteOrigin: "https://github.com/octocat/hello-world.git",
+				StaleAt:         time.Now().UTC().Add(-time.Minute),
+			},
+		)
+		require.NoError(t, err)
+
+		status, err := client.GetChatDiffStatus(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotNil(t, status.URL)
+		require.Equal(t, "https://github.com/octocat/hello-world/tree/feature%2Fbranch-only", *status.URL)
+		require.Nil(t, status.PullRequestState)
+
+		diff, err := client.GetChatDiffContents(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, diff.ChatID)
+		require.NotNil(t, diff.Provider)
+		require.Equal(t, "github", *diff.Provider)
+		require.NotNil(t, diff.RemoteOrigin)
+		require.Equal(t, "https://github.com/octocat/hello-world", *diff.RemoteOrigin)
+		require.NotNil(t, diff.Branch)
+		require.Equal(t, "feature/branch-only", *diff.Branch)
+		require.Nil(t, diff.PullRequestURL)
 		require.Equal(t, expectedDiff, diff.Diff)
 	})
 }
@@ -601,20 +752,12 @@ func TestChatModels_NoEnabledModels(t *testing.T) {
 
 	catalog, err := client.ListChatModels(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []codersdk.ChatModelProvider{
-		{
-			Provider:          "openai",
-			Available:         false,
-			UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
-			Models:            []codersdk.ChatModel{},
-		},
-		{
-			Provider:          "anthropic",
-			Available:         false,
-			UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
-			Models:            []codersdk.ChatModel{},
-		},
-	}, catalog.Providers)
+	require.Len(t, catalog.Providers, 8)
+	for _, provider := range catalog.Providers {
+		require.False(t, provider.Available)
+		require.Equal(t, codersdk.ChatModelProviderUnavailableMissingAPIKey, provider.UnavailableReason)
+		require.Empty(t, provider.Models)
+	}
 }
 
 func TestChatModels_NoEnabledModelsUsesMergedProviderKeys(t *testing.T) {
@@ -633,18 +776,34 @@ func TestChatModels_NoEnabledModelsUsesMergedProviderKeys(t *testing.T) {
 
 	catalog, err := client.ListChatModels(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []codersdk.ChatModelProvider{
-		{
-			Provider:  "openai",
-			Available: true,
-			Models:    []codersdk.ChatModel{},
-		},
-		{
-			Provider:  "anthropic",
-			Available: true,
-			Models:    []codersdk.ChatModel{},
-		},
-	}, catalog.Providers)
+	require.Len(t, catalog.Providers, 8)
+
+	byProvider := make(map[string]codersdk.ChatModelProvider, len(catalog.Providers))
+	for _, provider := range catalog.Providers {
+		byProvider[provider.Provider] = provider
+	}
+
+	require.True(t, byProvider["openai"].Available)
+	require.Empty(t, byProvider["openai"].UnavailableReason)
+	require.Empty(t, byProvider["openai"].Models)
+
+	require.True(t, byProvider["anthropic"].Available)
+	require.Empty(t, byProvider["anthropic"].UnavailableReason)
+	require.Empty(t, byProvider["anthropic"].Models)
+
+	for _, provider := range []string{
+		"azure",
+		"bedrock",
+		"google",
+		"openai-compat",
+		"openrouter",
+		"vercel",
+	} {
+		entry := byProvider[provider]
+		require.False(t, entry.Available)
+		require.Equal(t, codersdk.ChatModelProviderUnavailableMissingAPIKey, entry.UnavailableReason)
+		require.Empty(t, entry.Models)
+	}
 }
 
 func TestChatProviders(t *testing.T) {
@@ -773,7 +932,10 @@ func TestChatProviders(t *testing.T) {
 
 		providers, err := client.ListChatProviders(ctx)
 		require.NoError(t, err)
-		require.Len(t, providers, 0)
+		require.Len(t, providers, 8)
+		for _, provider := range providers {
+			require.NotEqual(t, codersdk.ChatProviderConfigSourceDatabase, provider.Source)
+		}
 	})
 
 	t.Run("DeleteNonAdminForbidden", func(t *testing.T) {
@@ -794,6 +956,57 @@ func TestChatProviders(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
 	})
+
+}
+
+func TestChatProviders_ListIncludesSupportedProvidersAndEnvPresets(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "env-openai-key")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	providers, err := client.ListChatProviders(ctx)
+	require.NoError(t, err)
+	require.Len(t, providers, 8)
+
+	byProvider := make(map[string]codersdk.ChatProviderConfig, len(providers))
+	for _, provider := range providers {
+		byProvider[provider.Provider] = provider
+	}
+
+	openai := byProvider["openai"]
+	require.Equal(t, codersdk.ChatProviderConfigSourceEnvPreset, openai.Source)
+	require.Equal(t, uuid.Nil, openai.ID)
+	require.True(t, openai.Enabled)
+	require.True(t, openai.HasAPIKey)
+
+	anthropic := byProvider["anthropic"]
+	require.Equal(t, codersdk.ChatProviderConfigSourceSupported, anthropic.Source)
+	require.Equal(t, uuid.Nil, anthropic.ID)
+	require.False(t, anthropic.Enabled)
+	require.False(t, anthropic.HasAPIKey)
+
+	_, err = client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openrouter",
+		APIKey:   "openrouter-key",
+	})
+	require.NoError(t, err)
+
+	providers, err = client.ListChatProviders(ctx)
+	require.NoError(t, err)
+	require.Len(t, providers, 8)
+	byProvider = make(map[string]codersdk.ChatProviderConfig, len(providers))
+	for _, provider := range providers {
+		byProvider[provider.Provider] = provider
+	}
+
+	openrouter := byProvider["openrouter"]
+	require.Equal(t, codersdk.ChatProviderConfigSourceDatabase, openrouter.Source)
+	require.NotEqual(t, uuid.Nil, openrouter.ID)
+	require.True(t, openrouter.Enabled)
+	require.True(t, openrouter.HasAPIKey)
 }
 
 func TestChatModelConfigs(t *testing.T) {
