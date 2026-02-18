@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
@@ -466,17 +467,11 @@ func TestCreateChat_StructuredInput(t *testing.T) {
 
 	userMessage, ok := firstChatMessageByRole(result.Messages, "user")
 	require.True(t, ok)
-
-	var parts []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
-	require.NoError(t, json.Unmarshal(userMessage.Content, &parts))
-	require.Len(t, parts, 2)
-	require.Equal(t, "text", parts[0].Type)
-	require.Equal(t, "Plan rollout", parts[0].Text)
-	require.Equal(t, "text", parts[1].Type)
-	require.Equal(t, "for chat defaults", parts[1].Text)
+	require.Len(t, userMessage.Parts, 2)
+	require.Equal(t, codersdk.ChatMessagePartTypeText, userMessage.Parts[0].Type)
+	require.Equal(t, "Plan rollout", userMessage.Parts[0].Text)
+	require.Equal(t, codersdk.ChatMessagePartTypeText, userMessage.Parts[1].Type)
+	require.Equal(t, "for chat defaults", userMessage.Parts[1].Text)
 }
 
 func TestCreateChat_StructuredInputUnsupportedType(t *testing.T) {
@@ -528,6 +523,72 @@ func TestCreateChat_SystemPromptAuthorized(t *testing.T) {
 	var gotSystemPrompt string
 	require.NoError(t, json.Unmarshal(result.Messages[0].Content, &gotSystemPrompt))
 	require.Equal(t, systemPrompt, gotSystemPrompt)
+}
+
+func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	workspace, workspaceAgentID := createWorkspaceWithAgent(t, ownerClient, owner.OrganizationID)
+
+	t.Run("WorkspaceIDAuthorized", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		workspaceID := workspace.ID
+		chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:     "Use my workspace.",
+			WorkspaceID: &workspaceID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, chat.WorkspaceID)
+		require.Equal(t, workspaceID, *chat.WorkspaceID)
+	})
+
+	t.Run("WorkspaceIDUnauthorized", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		workspaceID := workspace.ID
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:     "Try to use someone else's workspace.",
+			WorkspaceID: &workspaceID,
+		})
+		require.Error(t, err)
+
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
+	})
+
+	t.Run("WorkspaceAgentIDAuthorized", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		workspaceID := workspace.ID
+		agentID := workspaceAgentID
+		chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:          "Use my workspace agent.",
+			WorkspaceID:      &workspaceID,
+			WorkspaceAgentID: &agentID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, chat.WorkspaceAgentID)
+		require.Equal(t, agentID, *chat.WorkspaceAgentID)
+	})
+
+	t.Run("WorkspaceAgentIDUnauthorized", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agentID := workspaceAgentID
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:          "Try to use someone else's workspace agent.",
+			WorkspaceAgentID: &agentID,
+		})
+		require.Error(t, err)
+
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, "Workspace agent not found or you do not have access to this resource", sdkErr.Message)
+	})
 }
 
 func TestChatModels_NoEnabledModels(t *testing.T) {
@@ -584,6 +645,337 @@ func TestChatModels_NoEnabledModelsUsesMergedProviderKeys(t *testing.T) {
 			Models:    []codersdk.ChatModel{},
 		},
 	}, catalog.Providers)
+}
+
+func TestChatProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+			APIKey:      "openai-key",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "openai", provider.Provider)
+		require.Equal(t, "OpenAI", provider.DisplayName)
+		require.True(t, provider.Enabled)
+		require.True(t, provider.HasAPIKey)
+	})
+
+	t.Run("CreateNonAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := memberClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
+	})
+
+	t.Run("CreateConflict", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key-2",
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusConflict, coderdtest.SDKError(t, err).StatusCode())
+	})
+
+	t.Run("UpdateAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+			APIKey:      "openai-key",
+		})
+		require.NoError(t, err)
+
+		enabled := false
+		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			DisplayName: "OpenAI Updated",
+			Enabled:     &enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, provider.ID, updated.ID)
+		require.Equal(t, "OpenAI Updated", updated.DisplayName)
+		require.False(t, updated.Enabled)
+		require.True(t, updated.HasAPIKey)
+	})
+
+	t.Run("UpdateNonAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider, err := ownerClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		enabled := false
+		_, err = memberClient.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			DisplayName: "Should Fail",
+			Enabled:     &enabled,
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
+	})
+
+	t.Run("DeleteAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteChatProvider(ctx, provider.ID)
+		require.NoError(t, err)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+		require.Len(t, providers, 0)
+	})
+
+	t.Run("DeleteNonAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider, err := ownerClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		err = memberClient.DeleteChatProvider(ctx, provider.ID)
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
+	})
+}
+
+func TestChatModelConfigs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:    "openai",
+			Model:       "gpt-4.1",
+			DisplayName: "GPT 4.1",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "openai", config.Provider)
+		require.Equal(t, "gpt-4.1", config.Model)
+		require.Equal(t, "GPT 4.1", config.DisplayName)
+		require.True(t, config.Enabled)
+	})
+
+	t.Run("CreateNonAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := memberClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider: "openai",
+			Model:    "gpt-4.1",
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
+	})
+
+	t.Run("UpdateAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:    "openai",
+			Model:       "gpt-4.1",
+			DisplayName: "GPT 4.1",
+		})
+		require.NoError(t, err)
+
+		enabled := false
+		updated, err := client.UpdateChatModelConfig(ctx, config.ID, codersdk.UpdateChatModelConfigRequest{
+			Model:       "gpt-4.1-mini",
+			DisplayName: "GPT 4.1 Mini",
+			Enabled:     &enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, config.ID, updated.ID)
+		require.Equal(t, "openai", updated.Provider)
+		require.Equal(t, "gpt-4.1-mini", updated.Model)
+		require.Equal(t, "GPT 4.1 Mini", updated.DisplayName)
+		require.False(t, updated.Enabled)
+	})
+
+	t.Run("UpdateNonAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := ownerClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		config, err := ownerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider: "openai",
+			Model:    "gpt-4.1",
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.UpdateChatModelConfig(ctx, config.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "Should Fail",
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
+	})
+
+	t.Run("DeleteAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider: "openai",
+			Model:    "gpt-4.1",
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteChatModelConfig(ctx, config.ID)
+		require.NoError(t, err)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 0)
+	})
+
+	t.Run("DeleteNonAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := ownerClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		config, err := ownerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider: "openai",
+			Model:    "gpt-4.1",
+		})
+		require.NoError(t, err)
+
+		err = memberClient.DeleteChatModelConfig(ctx, config.ID)
+		require.Error(t, err)
+		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
+	})
+}
+
+func createWorkspaceWithAgent(
+	t *testing.T,
+	client *codersdk.Client,
+	organizationID uuid.UUID,
+) (codersdk.Workspace, uuid.UUID) {
+	t.Helper()
+
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, organizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, organizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	workspace.LatestBuild = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	require.NotEmpty(t, workspace.LatestBuild.Resources)
+	require.NotEmpty(t, workspace.LatestBuild.Resources[0].Agents)
+
+	return workspace, workspace.LatestBuild.Resources[0].Agents[0].ID
 }
 
 func firstChatMessageByRole(messages []codersdk.ChatMessage, role string) (codersdk.ChatMessage, bool) {
