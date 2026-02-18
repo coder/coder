@@ -8,7 +8,7 @@ TOKEN_NAME="bootstrap"
 
 echo "=== Coder Dev Environment Init ==="
 
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/v2/users/first | grep -q "200"; then
+if curl -s -o /dev/null -w "%{http_code}" http://coderd:3000/api/v2/users/first | grep -q "200"; then
     echo "First user already exists, skipping setup"
     exit 0
 fi
