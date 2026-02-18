@@ -2082,6 +2082,6 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		require.Equal(t, task.Name, sent[0].Labels["task"])
 		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
 		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
-		require.Equal(t, "idle timeout", sent[0].Labels["pause_reason"])
+		require.Equal(t, "inactivity exceeded the dormancy threshold", sent[0].Labels["pause_reason"])
 	})
 }
