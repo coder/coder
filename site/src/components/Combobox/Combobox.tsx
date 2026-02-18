@@ -81,7 +81,10 @@ export const ComboboxButton = ({
 }: ComboboxButtonProps) => {
 	return (
 		<Button
-			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
+			className={cn(
+				"flex items-center justify-between shrink-0 grow gap-2 pr-1.5",
+				className,
+			)}
 			style={{ flexBasis: width }}
 			variant="outline"
 			ref={ref}
