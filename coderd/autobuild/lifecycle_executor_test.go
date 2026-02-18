@@ -2080,6 +2080,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		require.Len(t, sent, 1)
 		require.Equal(t, workspace.OwnerID, sent[0].UserID)
 		require.Equal(t, task.Name, sent[0].Labels["task"])
+		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
 		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 		require.Equal(t, "idle timeout", sent[0].Labels["pause_reason"])
 	})

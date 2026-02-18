@@ -12,12 +12,12 @@ INSERT INTO notification_templates (
 ) VALUES (
 			 '2a74f3d3-ab09-4123-a4a5-ca238f4f65a1',
 			 'Task Paused',
-			 E'Task ''{{.Labels.workspace}}'' is paused',
+			 E'Task ''{{.Labels.task}}'' is paused',
 			 E'The task ''{{.Labels.task}}'' was paused ({{.Labels.pause_reason}}).',
 			 '[
 				 {
 					 "label": "View task",
-					 "url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}"
+					 "url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.task_id}}"
 				 },
 				 {
 					 "label": "View workspace",
@@ -44,12 +44,12 @@ INSERT INTO notification_templates (
 ) VALUES (
 			 '843ee9c3-a8fb-4846-afa9-977bec578649',
 			 'Task Resumed',
-			 E'Task ''{{.Labels.workspace}}'' has resumed',
+			 E'Task ''{{.Labels.task}}'' has resumed',
 			 E'The task ''{{.Labels.task}}'' has resumed.',
 			 '[
 				 {
 					 "label": "View task",
-					 "url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}"
+					 "url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.task_id}}"
 				 },
 				 {
 					 "label": "View workspace",

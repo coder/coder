@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: Task 'my-workspace' is paused
+Subject: Task 'my-task' is paused
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -15,7 +15,7 @@ Hi Bobby,
 The task 'my-task' was paused (idle timeout).
 
 
-View task: http://test.com/tasks/bobby/my-workspace
+View task: http://test.com/tasks/bobby/00000000-0000-0000-0000-000000000000
 
 View workspace: http://test.com/@bobby/my-workspace
 
@@ -29,7 +29,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Task 'my-workspace' is paused</title>
+    <title>Task 'my-task' is paused</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -44,7 +44,7 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Task 'my-workspace' is paused
+        Task 'my-task' is paused
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
@@ -52,9 +52,10 @@ argin: 8px 0 32px; line-height: 1.5;">
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/tasks/bobby/my-workspace" style=3D"displ=
-ay: inline-block; padding: 13px 24px; background-color: #020617; color: #f8=
-fafc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
+        <a href=3D"http://test.com/tasks/bobby/00000000-0000-0000-0000-0000=
+00000000" style=3D"display: inline-block; padding: 13px 24px; background-co=
+lor: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; ma=
+rgin: 0 4px;">
           View task
         </a>
        =20

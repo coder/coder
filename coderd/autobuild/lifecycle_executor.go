@@ -498,6 +498,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							notifications.TemplateTaskPaused,
 							map[string]string{
 								"task":         task.Name,
+								"task_id":      task.ID.String(),
 								"workspace":    ws.Name,
 								"pause_reason": "idle timeout",
 							},

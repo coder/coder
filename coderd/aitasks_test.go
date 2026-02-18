@@ -2822,6 +2822,7 @@ func TestPauseTask(t *testing.T) {
 		require.Len(t, sent, 1)
 		require.Equal(t, owner.UserID, sent[0].UserID)
 		require.Equal(t, task.Name, sent[0].Labels["task"])
+		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
 		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 		require.Equal(t, "manual", sent[0].Labels["pause_reason"])
 	})
@@ -3185,6 +3186,7 @@ func TestResumeTask(t *testing.T) {
 		require.Len(t, sent, 1)
 		require.Equal(t, owner.UserID, sent[0].UserID)
 		require.Equal(t, task.Name, sent[0].Labels["task"])
+		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
 		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 	})
 }

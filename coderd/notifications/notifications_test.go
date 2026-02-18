@@ -1311,6 +1311,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"task":         "my-task",
+					"task_id":      "00000000-0000-0000-0000-000000000000",
 					"workspace":    "my-workspace",
 					"pause_reason": "idle timeout",
 				},
@@ -1326,6 +1327,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"task":      "my-task",
+					"task_id":   "00000000-0000-0000-0000-000000000001",
 					"workspace": "my-workspace",
 				},
 				Data: map[string]any{},

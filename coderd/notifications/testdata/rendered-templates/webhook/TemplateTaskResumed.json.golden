@@ -12,7 +12,7 @@
     "actions": [
       {
         "label": "View task",
-        "url": "http://test.com/tasks/bobby/my-workspace"
+        "url": "http://test.com/tasks/bobby/00000000-0000-0000-0000-000000000000"
       },
       {
         "label": "View workspace",
@@ -21,13 +21,14 @@
     ],
     "labels": {
       "task": "my-task",
+      "task_id": "00000000-0000-0000-0000-000000000000",
       "workspace": "my-workspace"
     },
     "data": {},
     "targets": null
   },
-  "title": "Task 'my-workspace' has resumed",
-  "title_markdown": "Task 'my-workspace' has resumed",
+  "title": "Task 'my-task' has resumed",
+  "title_markdown": "Task 'my-task' has resumed",
   "body": "The task 'my-task' has resumed.",
   "body_markdown": "The task 'my-task' has resumed."
 }

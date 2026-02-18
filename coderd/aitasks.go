@@ -1309,6 +1309,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 		notifications.TemplateTaskPaused,
 		map[string]string{
 			"task":         task.Name,
+			"task_id":      task.ID.String(),
 			"workspace":    workspace.Name,
 			"pause_reason": "manual",
 		},
@@ -1412,6 +1413,7 @@ func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 		notifications.TemplateTaskResumed,
 		map[string]string{
 			"task":      task.Name,
+			"task_id":   task.ID.String(),
 			"workspace": workspace.Name,
 		},
 		"api-task-resume",
