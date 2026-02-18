@@ -293,6 +293,11 @@
 							"title": "Windsurf",
 							"description": "Access your workspace with Windsurf",
 							"path": "./user-guides/workspace-access/windsurf.md"
+						},
+						{
+							"title": "Antigravity",
+							"description": "Access your workspace with Antigravity",
+							"path": "./user-guides/workspace-access/antigravity.md"
 						}
 					]
 				},
