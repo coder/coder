@@ -244,7 +244,7 @@ const ContainerBody: FC<ContainerBodyProps> = ({
 		// Have to subtract parent padding via margin values and then add it
 		// back as child padding so that there's no risk of the scrollbar
 		// covering up content when the container gets tall enough to overflow
-		<div className="overflow-y-auto flex flex-col gap-3 -mx-8 -mt-8 p-8">
+		<div className="overflow-y-auto flex flex-col gap-3 -mx-6 -mt-6 p-8">
 			<div className="flex flex-col gap-3">
 				<DialogTitle asChild>
 					<h3 className="text-3xl font-semibold m-0 leading-tight">
@@ -276,7 +276,7 @@ const ContainerFooter: FC<ContainerFooterProps> = ({ children, className }) => {
 				// Also have to subtract padding here to make sure footer is
 				// full-bleed, and there's no risk of the border getting
 				// confused for the outline of one of the panels
-				"border-0 border-t border-solid border-t-border pt-8 -mx-8 px-8",
+				"border-0 border-t border-solid border-t-border pt-6 -mx-6 px-6",
 				className,
 			)}
 		>
@@ -299,7 +299,7 @@ const WorkspacesListSection: FC<WorkspacesListSectionProps> = ({
 	return (
 		<section className="flex flex-col gap-3.5">
 			<div className="max-w-prose">
-				<h4 className="m-0">{headerText}</h4>
+				<h4 className="font-semibold m-0">{headerText}</h4>
 				<p className="m-0 text-sm leading-snug text-content-secondary">
 					{description}
 				</p>
