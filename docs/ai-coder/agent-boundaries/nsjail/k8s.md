@@ -40,7 +40,7 @@ spec:
 
 On **Bottlerocket** nodes, the default seccomp profile often blocks the `clone`
 syscalls required for unprivileged user namespaces. You must either disable or
-modify seccomp for the pod (see [Docker Seccomp Profile Considerations](../docker.md#docker-seccomp-profile-considerations)) or grant `SYS_ADMIN`.
+modify seccomp for the pod (see [Docker Seccomp Profile Considerations](./docker.md#docker-seccomp-profile-considerations)) or grant `SYS_ADMIN`.
 
 **Option A: `NET_ADMIN` + disable seccomp**
 
