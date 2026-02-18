@@ -5,7 +5,7 @@ Boundaries with the **nsjail** jail type on **Docker**.
 
 For an overview of nsjail, see [nsjail](./index.md).
 
-## Runtime & Permission Requirements for Running Agent Boundaries in Docker
+## Runtime & Permission Requirements for Running Boundary in Docker
 
 This section describes the Linux capabilities and runtime configurations
 required to run Agent Boundaries with nsjail inside a Docker container.
