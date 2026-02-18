@@ -1008,7 +1008,19 @@
 								{
 									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
-									"path": "./ai-coder/agent-boundaries/nsjail.md"
+									"path": "./ai-coder/agent-boundaries/nsjail/index.md",
+									"children": [
+										{
+											"title": "NS Jail on Docker",
+											"description": "Runtime and permission requirements for running NS Jail on Docker",
+											"path": "./ai-coder/agent-boundaries/nsjail/docker.md"
+										},
+										{
+											"title": "NS Jail on Kubernetes",
+											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
+											"path": "./ai-coder/agent-boundaries/nsjail/k8s.md"
+										}
+									]
 								},
 								{
 									"title": "LandJail",
