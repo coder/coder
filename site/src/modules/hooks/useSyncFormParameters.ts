@@ -16,8 +16,9 @@ export function useSyncFormParameters({
 	formValues,
 	setFieldValue,
 }: UseSyncFormParametersProps) {
-	// Form values only needs to be updated when parameters change
-	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
+	// Form values only needs to be updated when parameters change.
+	// Keep track of form values in a ref to avoid unnecessary
+	// updates to rich_parameter_values.
 	const formValuesRef = useRef(formValues);
 
 	useEffect(() => {
@@ -27,15 +28,27 @@ export function useSyncFormParameters({
 	useEffect(() => {
 		if (!parameters) return;
 		const currentFormValues = formValuesRef.current;
-
-		const newParameterValues = parameters.map((param) => ({
-			name: param.name,
-			value: param.value.valid ? param.value.value : "",
-		}));
-
 		const currentFormValuesMap = new Map(
 			currentFormValues.map((value) => [value.name, value.value]),
 		);
+
+		const newParameterValues = parameters.map((param) => {
+			// When the server has not evaluated this parameter yet
+			// (valid=false), its value is meaningless — preserve
+			// whatever the form already holds (e.g. autofill or
+			// previous build values). When valid=true, the server
+			// has intentionally set this value and we respect it.
+			if (!param.value.valid) {
+				const currentValue = currentFormValuesMap.get(param.name);
+				if (currentValue) {
+					return { name: param.name, value: currentValue };
+				}
+			}
+			return {
+				name: param.name,
+				value: param.value.valid ? param.value.value : "",
+			};
+		});
 
 		const isChanged =
 			currentFormValues.length !== newParameterValues.length ||
