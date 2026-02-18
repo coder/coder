@@ -77,20 +77,20 @@ export const ChangeWorkspaceVersionDialog: FC<
 											variant="outline"
 											className="h-16 w-full justify-between"
 										>
-											{newVersion ? (
+											{selectedVersion ? (
 												<div className="text-left justify-between flex-1">
 													<AvatarData
 														avatar={
 															<Avatar
-																src={newVersion.created_by.avatar_url}
-																fallback={newVersion.name}
+																src={selectedVersion.created_by.avatar_url}
+																fallback={selectedVersion.name}
 															/>
 														}
 														title={
 															<div className="flex flex-row justify-between w-full gap-2">
 																<div className="flex flex-row items-center gap-2">
-																	{newVersion.name}
-																	{newVersion.message && (
+																	{selectedVersion.name}
+																	{selectedVersion.message && (
 																		<InfoIcon
 																			aria-hidden="true"
 																			className="size-icon-xs"
@@ -98,17 +98,17 @@ export const ChangeWorkspaceVersionDialog: FC<
 																	)}
 																</div>
 																{workspace.template_active_version_id ===
-																	newVersion.id && (
+																	selectedVersion.id && (
 																	<Badge variant="green">Active</Badge>
 																)}
 															</div>
 														}
-														subtitle={createDayString(newVersion.created_at)}
+														subtitle={createDayString(
+															selectedVersion.created_at,
+														)}
 													/>
 												</div>
-											) : (
-												<span>Select a version</span>
-											)}
+											) : null}
 											<ChevronDownIcon />
 										</Button>
 									</ComboboxTrigger>
