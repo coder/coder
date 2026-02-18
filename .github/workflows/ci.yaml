@@ -489,6 +489,14 @@ jobs:
           # macOS will output "The default interactive shell is now zsh" intermittently in CI.
           touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
 
+      - name: Increase PTY limit (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Increase PTY limit to avoid exhaustion during tests.
+          # Default is 511; 999 is the maximum value on CI runner.
+          sudo sysctl -w kern.tty.ptmx_max=999
+
       - name: Test with PostgreSQL Database (Linux)
         if: runner.os == 'Linux'
         uses: ./.github/actions/test-go-pg
