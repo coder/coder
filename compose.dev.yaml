@@ -51,13 +51,14 @@ services:
         condition: service_healthy
     working_dir: /app
     # Add the Docker group so coderd can access the Docker socket.
-    # Override DOCKER_GROUP if your host's docker group is not 999.
+    # If your Docker group is not 999, the below should work:
+    # export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
     group_add:
       - "${DOCKER_GROUP:-999}"
     environment:
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
-      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
     volumes:
       - .:/app
       - go_cache:/go-cache
@@ -96,7 +97,7 @@ services:
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
       CODER_CACHE_DIRECTORY: /cache
-      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
     # Add the Docker group so coderd can access the Docker socket.
     # Override DOCKER_GROUP if your host's docker group is not 999.
     group_add:
@@ -183,7 +184,7 @@ services:
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
-      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
@@ -265,7 +266,7 @@ services:
     working_dir: /app
     environment:
       CODER_URL: "http://coderd:3000"
-      DOCKER_HOST: "${DOCKER_HOST:-unix:///var/run/docker.sock}"
+      DOCKER_HOST: "${DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
     volumes:
