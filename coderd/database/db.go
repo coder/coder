@@ -64,18 +64,69 @@ func WithSerialRetryCount(count int) func(*sqlQuerier) {
 // New creates a new database store using a SQL database connection.
 func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 	dbx := sqlx.NewDb(sdb, "postgres")
+	logger := slog.Make(slogstackdriver.Sink(os.Stderr), sloghuman.Sink(os.Stderr))
 	q := &sqlQuerier{
 		db:  dbx,
 		sdb: dbx,
 		// This is an arbitrary number.
 		serialRetryCount: 3,
-		log:              slog.Make(slogstackdriver.Sink(os.Stderr), sloghuman.Sink(os.Stderr)),
+		log:              logger,
 	}
 
 	for _, opt := range opts {
 		opt(q)
 	}
+
+	// Periodically log idle-in-transaction connections to help debug
+	// connection pool exhaustion.
+	go monitorIdleInTransaction(dbx, logger)
+
 	return q
+}
+
+// monitorIdleInTransaction periodically queries pg_stat_activity for
+// connections that are idle in transaction and logs them.
+func monitorIdleInTransaction(db *sqlx.DB, logger slog.Logger) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	type idleTx struct {
+		PID          int            `db:"pid"`
+		State        string         `db:"state"`
+		XactDuration string         `db:"xact_duration"`
+		IdleDuration string         `db:"idle_duration"`
+		Query        string         `db:"query"`
+		AppName      sql.NullString `db:"application_name"`
+	}
+
+	for range ticker.C {
+		rows := []idleTx{}
+		err := db.Select(&rows, `
+			SELECT pid,
+			       state,
+			       (now() - xact_start)::text AS xact_duration,
+			       (now() - state_change)::text AS idle_duration,
+			       query,
+			       application_name
+			FROM pg_stat_activity
+			WHERE state = 'idle in transaction'
+			  AND now() - xact_start > interval '500 milliseconds'
+			ORDER BY xact_start
+		`)
+		if err != nil {
+			logger.Error(context.Background(), "scaletest: failed to query idle transactions", slog.Error(err))
+			continue
+		}
+		for _, row := range rows {
+			logger.Warn(context.Background(), "scaletest: idle in transaction",
+				slog.F("pid", row.PID),
+				slog.F("xact_duration", row.XactDuration),
+				slog.F("idle_duration", row.IdleDuration),
+				slog.F("query", row.Query),
+				slog.F("application_name", row.AppName.String),
+			)
+		}
+	}
 }
 
 // TxOptions is used to pass some execution metadata to the callers.
@@ -215,6 +266,7 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) er
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}
+
 	defer func() {
 		rerr := transaction.Rollback()
 		if rerr == nil || errors.Is(rerr, sql.ErrTxDone) {
