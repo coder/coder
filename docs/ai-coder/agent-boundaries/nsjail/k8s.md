@@ -87,7 +87,7 @@ spec:
       # ... rest of container spec
 ```
 
-**User namespaces on Bottlerocket**
+### User namespaces on Bottlerocket
 
 User namespaces are often disabled (`user.max_user_namespaces=0`) on Bottlerocket
 nodes. Check and enable user namespaces:
