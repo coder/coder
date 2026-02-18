@@ -7,6 +7,7 @@ import {
 } from "api/queries/organizations";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
@@ -18,6 +19,7 @@ import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 const OrganizationSettingsPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const { experiments } = useDashboard();
 	const { organization, organizationPermissions } = useOrganizationSettings();
 
 	const updateOrganizationMutation = useMutation(
@@ -29,7 +31,7 @@ const OrganizationSettingsPage: FC = () => {
 
 	const sharingSettingsQuery = useQuery({
 		...workspaceSharingSettings(organization?.id ?? ""),
-		enabled: !!organization,
+		enabled: !!organization && experiments.includes("workspace-sharing"),
 	});
 
 	const patchSharingSettingsMutation = useMutation(

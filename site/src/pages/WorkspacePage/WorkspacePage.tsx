@@ -12,6 +12,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
@@ -23,6 +24,7 @@ const WorkspacePage: FC = () => {
 		username: string;
 		workspace: string;
 	};
+	const { experiments } = useDashboard();
 	const workspaceName = params.workspace;
 	const username = params.username.replace("@", "");
 
@@ -47,7 +49,7 @@ const WorkspacePage: FC = () => {
 
 	const sharingSettingsQuery = useQuery({
 		...workspaceSharingSettings(workspace?.organization_id ?? ""),
-		enabled: !!workspace,
+		enabled: !!workspace && experiments.includes("workspace-sharing"),
 	});
 	const sharingDisabled = sharingSettingsQuery.data?.sharing_disabled ?? false;
 
