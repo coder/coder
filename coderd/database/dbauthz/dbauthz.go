@@ -3915,12 +3915,16 @@ func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, wor
 }
 
 func (q *querier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) ([]byte, error) {
-	// Authorize by fetching the build and its workspace.
+	// Fetch the build to find the workspace, then authorize.
 	build, err := q.db.GetWorkspaceBuildByID(ctx, workspaceBuildID)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := q.GetWorkspaceByID(ctx, build.WorkspaceID); err != nil {
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuildID)
