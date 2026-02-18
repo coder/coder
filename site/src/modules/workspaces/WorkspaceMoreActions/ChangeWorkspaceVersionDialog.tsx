@@ -1,6 +1,4 @@
-import { css } from "@emotion/css";
 import Autocomplete from "@mui/material/Autocomplete";
-import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { templateVersions } from "api/queries/templates";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
@@ -8,18 +6,18 @@ import { Alert, AlertTitle } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
+import { Spinner } from "components/Spinner/Spinner";
 import { InfoIcon } from "lucide-react";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { createDayString } from "utils/createDayString";
 
-type ChangeWorkspaceVersionDialogProps = DialogProps & {
+type ChangeWorkspaceVersionDialogProps = {
+	open: boolean;
 	workspace: Workspace;
 	onClose: () => void;
 	onConfirm: (version: TemplateVersion) => void;
@@ -27,7 +25,7 @@ type ChangeWorkspaceVersionDialogProps = DialogProps & {
 
 export const ChangeWorkspaceVersionDialog: FC<
 	ChangeWorkspaceVersionDialogProps
-> = ({ workspace, onClose, onConfirm, ...dialogProps }) => {
+> = ({ workspace, onClose, onConfirm, open }) => {
 	const { data: versions } = useQuery({
 		...templateVersions(workspace.template_id),
 		select: (data) => [...data].reverse(),
@@ -42,7 +40,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 
 	return (
 		<ConfirmDialog
-			{...dialogProps}
+			open={open}
 			onClose={onClose}
 			onConfirm={() => {
 				if (newVersion) {
@@ -55,7 +53,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 			confirmText="Change"
 			title="Change version"
 			description={
-				<Stack>
+				<div className="flex flex-col gap-4">
 					<p>You are about to change the version of this workspace.</p>
 					{validVersions ? (
 						<>
@@ -90,16 +88,8 @@ export const ChangeWorkspaceVersionDialog: FC<
 													/>
 												}
 												title={
-													<Stack
-														direction="row"
-														justifyContent="space-between"
-														style={{ width: "100%" }}
-													>
-														<Stack
-															direction="row"
-															alignItems="center"
-															spacing={1}
-														>
+													<div className="flex flex-row justify-between w-full">
+														<div className="flex flex-row items-center gap-2">
 															{option.name}
 															{option.message && (
 																<InfoIcon
@@ -107,33 +97,31 @@ export const ChangeWorkspaceVersionDialog: FC<
 																	className="size-icon-xs"
 																/>
 															)}
-														</Stack>
+														</div>
 														{workspace.template_active_version_id ===
 															option.id && <Pill type="success">Active</Pill>}
-													</Stack>
+													</div>
 												}
 												subtitle={createDayString(option.created_at)}
 											/>
 										</li>
 									)}
 									renderInput={(params) => (
-										<>
-											<TextField
-												{...params}
-												fullWidth
-												placeholder="Template version name"
-												InputProps={{
-													...params.InputProps,
-													endAdornment: (
-														<>
-															{!versions && <CircularProgress size={16} />}
-															{params.InputProps.endAdornment}
-														</>
-													),
-													classes: { root: classNames.root },
-												}}
-											/>
-										</>
+										<TextField
+											{...params}
+											fullWidth
+											placeholder="Template version name"
+											InputProps={{
+												...params.InputProps,
+												endAdornment: (
+													<>
+														{!versions && <Spinner loading size="sm" />}
+														{params.InputProps.endAdornment}
+													</>
+												),
+												sx: { pl: "14px !important" },
+											}}
+										/>
 									)}
 								/>
 							</FormFields>
@@ -155,15 +143,8 @@ export const ChangeWorkspaceVersionDialog: FC<
 					) : (
 						<Loader />
 					)}
-				</Stack>
+				</div>
 			}
 		/>
 	);
-};
-
-const classNames = {
-	// Same `padding-left` as input
-	root: css`
-    padding-left: 14px !important;
-  `,
 };

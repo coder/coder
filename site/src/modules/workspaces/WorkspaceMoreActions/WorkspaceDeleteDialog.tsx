@@ -1,14 +1,14 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Checkbox from "@mui/material/Checkbox";
-import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
 import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
 } from "api/typesGenerated";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
 interface WorkspaceDeleteDialogProps {
@@ -42,7 +42,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 
 	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
 	const displayErrorMessage = hasError && !isFocused;
-	const inputColor = hasError ? "error" : "primary";
 	// Orphaning is sort of a "last resort" that should really only
 	// be used under the following circumstances:
 	// a) Terraform is failing to apply while deleting, which
@@ -69,14 +68,18 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			disabled={!deletionConfirmed}
 			description={
 				<>
-					<div css={styles.workspaceInfo}>
+					<div className="flex justify-between rounded-md p-4 mb-5 leading-snug border border-solid border-border">
 						<div>
-							<p className="name">{workspace.name}</p>
-							<p className="label">workspace</p>
+							<p className="text-base font-semibold text-content-primary m-0">
+								{workspace.name}
+							</p>
+							<p className="text-xs text-content-secondary m-0">workspace</p>
 						</div>
-						<div css={{ textAlign: "right" }}>
-							<p className="info">{dayjs(workspace.created_at).fromNow()}</p>
-							<p className="label">created</p>
+						<div className="text-right">
+							<p className="text-xs font-medium text-content-primary m-0">
+								{dayjs(workspace.created_at).fromNow()}
+							</p>
+							<p className="text-xs text-content-secondary m-0">created</p>
 						</div>
 					</div>
 
@@ -87,77 +90,86 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 					</p>
 
 					<form onSubmit={onSubmit}>
-						<TextField
-							fullWidth
-							autoFocus
-							css={{ marginTop: 32 }}
-							name="confirmation"
-							autoComplete="off"
-							id={`${hookId}-confirm`}
-							placeholder={workspace.name}
-							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
-							onFocus={() => setIsFocused(true)}
-							onBlur={() => setIsFocused(false)}
-							label="Workspace name"
-							color={inputColor}
-							error={displayErrorMessage}
-							helperText={
-								displayErrorMessage &&
-								`${userConfirmationText} does not match the name of this workspace`
-							}
-							InputProps={{ color: inputColor }}
-							inputProps={{
-								"data-testid": "delete-dialog-name-confirmation",
-							}}
-						/>
+						<div className="mt-8 flex flex-col gap-2">
+							<Label htmlFor={`${hookId}-confirm`}>Workspace name</Label>
+							<Input
+								autoFocus
+								name="confirmation"
+								autoComplete="off"
+								id={`${hookId}-confirm`}
+								placeholder={workspace.name}
+								value={userConfirmationText}
+								onChange={(event) =>
+									setUserConfirmationText(event.target.value)
+								}
+								onFocus={() => setIsFocused(true)}
+								onBlur={() => setIsFocused(false)}
+								aria-invalid={displayErrorMessage || undefined}
+								data-testid="delete-dialog-name-confirmation"
+							/>
+							{displayErrorMessage && (
+								<p className="text-xs text-content-destructive m-0">
+									{userConfirmationText} does not match the name of this
+									workspace
+								</p>
+							)}
+						</div>
 						{hasTask && (
-							<div css={styles.warnContainer}>
-								<div css={{ flexDirection: "column" }}>
-									<p className="info">This workspace is related to a task</p>
-									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
+							<div className="mt-6 flex bg-surface-destructive border border-solid border-border-destructive rounded-lg p-3 gap-2 leading-[18px]">
+								<div className="flex flex-col">
+									<p className="text-sm font-semibold text-content-destructive m-0">
+										This workspace is related to a task
+									</p>
+									<span className="text-xs mt-1 block">
 										Deleting this workspace will also delete{" "}
-										<Link
+										<a
 											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+											className="text-content-link hover:underline"
 										>
 											this task
-										</Link>
+										</a>
 										.
 									</span>
 								</div>
 							</div>
 						)}
 						{canOrphan && (
-							<div css={styles.warnContainer}>
-								<div css={{ flexDirection: "column" }}>
+							<div className="mt-6 flex bg-surface-destructive border border-solid border-border-destructive rounded-lg p-3 gap-2 leading-[18px]">
+								<div className="flex flex-col items-start pt-0.5">
 									<Checkbox
 										id="orphan_resources"
-										size="small"
-										color="warning"
-										onChange={() => {
-											setOrphanWorkspace(!orphanWorkspace);
+										checked={orphanWorkspace || false}
+										onCheckedChange={(checked) => {
+											setOrphanWorkspace(checked === true);
 										}}
-										className="option"
-										name="orphan_resources"
-										checked={orphanWorkspace}
+										className={cn(
+											"border-content-destructive",
+											"data-[state=checked]:bg-content-destructive data-[state=checked]:text-white",
+										)}
 										data-testid="orphan-checkbox"
 									/>
 								</div>
-								<div css={{ flexDirection: "column" }}>
-									<p className="info">Orphan Resources</p>
-									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
+								<div className="flex flex-col">
+									<label
+										htmlFor="orphan_resources"
+										className="text-sm font-semibold text-content-destructive cursor-pointer"
+									>
+										Orphan Resources
+									</label>
+									<span className="text-xs mt-1 block">
 										As a Template Admin, you may skip resource cleanup to delete
 										a failed workspace. Resources such as volumes and virtual
 										machines will not be destroyed.&nbsp;
-										<Link
+										<a
 											href={docs(
 												"/user-guides/workspace-management#workspace-resources",
 											)}
 											target="_blank"
 											rel="noreferrer"
+											className="text-content-link hover:underline"
 										>
 											Learn more...
-										</Link>
+										</a>
 									</span>
 								</div>
 							</div>
@@ -168,56 +180,3 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	workspaceInfo: (theme) => ({
-		display: "flex",
-		justifyContent: "space-between",
-		borderRadius: 6,
-		padding: 16,
-		marginBottom: 20,
-		lineHeight: "1.3em",
-		border: `1px solid ${theme.palette.divider}`,
-
-		"& .name": {
-			fontSize: 16,
-			fontWeight: 600,
-			color: theme.palette.text.primary,
-		},
-
-		"& .label": {
-			fontSize: 12,
-			color: theme.palette.text.secondary,
-		},
-
-		"& .info": {
-			fontSize: 12,
-			fontWeight: 500,
-			color: theme.palette.text.primary,
-		},
-	}),
-	warnContainer: (theme) => ({
-		marginTop: 24,
-		display: "flex",
-		backgroundColor: theme.roles.danger.background,
-		justifyContent: "space-between",
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: 8,
-		padding: 12,
-		gap: 8,
-		lineHeight: "18px",
-
-		"& .option": {
-			color: theme.roles.danger.fill.solid,
-			"&.Mui-checked": {
-				color: theme.roles.danger.fill.solid,
-			},
-		},
-
-		"& .info": {
-			fontSize: 14,
-			fontWeight: 600,
-			color: theme.roles.danger.text,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
