@@ -280,17 +280,20 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 	return nil
 }
 
-func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
+func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (*TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s/previous", organization, templateName, versionName), nil)
 	if err != nil {
-		return TemplateVersion{}, err
+		return nil, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
 	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, ReadBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
-	return version, json.NewDecoder(res.Body).Decode(&version)
+	return &version, json.NewDecoder(res.Body).Decode(&version)
 }
 
 func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
