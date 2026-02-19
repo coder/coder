@@ -324,8 +324,6 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	headerAction,
 	snapshotAt,
 }) => {
-	const hasLogs = logs.length > 0;
-
 	// Scroll to the bottom on mount since snapshot logs are static.
 	const scrollToBottom = useCallback((el: HTMLDivElement | null) => {
 		if (!isChromatic() && el) {
@@ -348,37 +346,43 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 					</span>
 					{headerAction}
 				</div>
-				{hasLogs ? (
-					<ScrollArea className="h-96">
-						<div
-							ref={scrollToBottom}
-							className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
-						>
-							{logs.map((entry, index) => {
-								const prev = index === 0 ? undefined : logs[index - 1];
-								const isNewGroup = !prev || prev.type !== entry.type;
-								return (
-									<div
-										key={entry.id}
-										className={cn(
-											"pl-3 border-0 border-l-2 border-solid",
-											entry.type === "input"
-												? "border-l-border-pending"
-												: "border-l-border-purple",
-											isNewGroup && index > 0 && "mt-4",
-										)}
-									>
-										{isNewGroup && (
-											<div className="text-content-primary font-semibold mb-1">
-												{entry.type === "input" ? "[user]" : "[agent]"}
-											</div>
-										)}
-										{entry.content || "\u00A0"}
-									</div>
-								);
-							})}
-						</div>
-					</ScrollArea>
+				{snapshotAt ? (
+					logs.length > 0 ? (
+						<ScrollArea className="h-96">
+							<div
+								ref={scrollToBottom}
+								className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
+							>
+								{logs.map((entry, index) => {
+									const prev = index === 0 ? undefined : logs[index - 1];
+									const isNewGroup = !prev || prev.type !== entry.type;
+									return (
+										<div
+											key={entry.id}
+											className={cn(
+												"pl-3 border-0 border-l-2 border-solid",
+												entry.type === "input"
+													? "border-l-border-pending"
+													: "border-l-border-purple",
+												isNewGroup && index > 0 && "mt-4",
+											)}
+										>
+											{isNewGroup && (
+												<div className="text-content-primary font-semibold mb-1">
+													{entry.type === "input" ? "[user]" : "[agent]"}
+												</div>
+											)}
+											{entry.content || "\u00A0"}
+										</div>
+									);
+								})}
+							</div>
+						</ScrollArea>
+					) : (
+						<p className="px-4 py-3 text-sm text-content-secondary m-0">
+							No log messages in this snapshot.
+						</p>
+					)
 				) : (
 					<p className="px-4 py-3 text-sm text-content-secondary m-0">
 						No log snapshot available. Resume your task to view logs.
