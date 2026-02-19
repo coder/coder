@@ -2646,7 +2646,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
 			Flag:        "experiments",
 			Env:         "CODER_EXPERIMENTS",
-			Value:       &c.Experiments,
+			Value: &c.Experiments,
 			YAML:        "experiments",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
@@ -4158,8 +4158,7 @@ const (
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
-	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
-	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	ExperimentMCPServerHTTP Experiment = "mcp-server-http" // Enables the MCP HTTP server functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -4178,8 +4177,6 @@ func (e Experiment) DisplayName() string {
 		return "OAuth2 Provider Functionality"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
-	case ExperimentWorkspaceSharing:
-		return "Workspace Sharing"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4197,7 +4194,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentWebPush,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
-	ExperimentWorkspaceSharing,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

@@ -20,6 +20,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {
@@ -147,7 +148,12 @@ export const OrganizationSettingsPageView: FC<
 			{onToggleWorkspaceSharing && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
-						title="Workspace Sharing"
+						title={
+							<span className="flex items-center gap-2">
+								Workspace Sharing
+								<FeatureStageBadge contentType="beta" size="sm" />
+							</span>
+						}
 						description="Control whether workspace owners can share their workspaces."
 					>
 						<div className="flex items-start gap-3">

@@ -108,7 +108,7 @@ func TestList(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					
 				}),
 			})
 			orgOwner             = coderdtest.CreateFirstUser(t, client)

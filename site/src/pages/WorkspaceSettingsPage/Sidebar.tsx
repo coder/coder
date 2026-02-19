@@ -5,13 +5,13 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	SettingsIcon as GeneralIcon,
 	CodeIcon as ParameterIcon,
 	TimerIcon as ScheduleIcon,
 	Users as SharingIcon,
 } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 
 interface SidebarProps {
@@ -25,8 +25,6 @@ export const Sidebar: FC<SidebarProps> = ({
 	workspace,
 	sharingDisabled,
 }) => {
-	const { experiments } = useDashboard();
-
 	return (
 		<BaseSidebar>
 			<SidebarHeader
@@ -51,9 +49,10 @@ export const Sidebar: FC<SidebarProps> = ({
 			<SidebarNavItem href="schedule" icon={ScheduleIcon}>
 				Schedule
 			</SidebarNavItem>
-			{experiments.includes("workspace-sharing") && !sharingDisabled && (
+			{!sharingDisabled && (
 				<SidebarNavItem href="sharing" icon={SharingIcon}>
 					Sharing
+					<FeatureStageBadge contentType="beta" size="sm" />
 				</SidebarNavItem>
 			)}
 		</BaseSidebar>

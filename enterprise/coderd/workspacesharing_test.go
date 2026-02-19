@@ -25,7 +25,7 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -45,7 +45,7 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -77,7 +77,7 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -101,7 +101,7 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 
 		auditor := audit.NewMock()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging: true,
@@ -131,23 +131,6 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 		require.Equal(t, database.ResourceTypeOrganization, alog.ResourceType)
 		require.Equal(t, first.OrganizationID, alog.ResourceID)
 	})
-
-	t.Run("ExperimentDisabled", func(t *testing.T) {
-		t.Parallel()
-
-		// Note: NOT setting the experiment flag.
-		client, first := coderdenttest.New(t, &coderdenttest.Options{})
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		_, err := memberClient.WorkspaceSharingSettings(ctx, first.OrganizationID.String())
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "requires enabling")
-		require.Contains(t, apiErr.Message, "workspace-sharing")
-	})
 }
 
 func TestWorkspaceSharingDisabled(t *testing.T) {
@@ -157,7 +140,7 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		
 
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -211,7 +194,7 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		
 
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{

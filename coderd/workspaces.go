@@ -2752,20 +2752,15 @@ func convertWorkspace(
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
 		TaskID:           workspace.TaskID,
-		SharedWith:       sharedWorkspaceActors(ctx, experiments, logger, workspace),
+		SharedWith:       sharedWorkspaceActors(ctx, logger, workspace),
 	}, nil
 }
 
 func sharedWorkspaceActors(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	workspace database.Workspace,
 ) []codersdk.SharedWorkspaceActor {
-	if !experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
-		return nil
-	}
-
 	out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
 
 	// Users
