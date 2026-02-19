@@ -15,51 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-)
-
-const (
-	// These features are only included in the license and are not actually
-	// entitlements after the licenses are processed. These values will be
-	// merged into the codersdk.FeatureManagedAgentLimit feature.
-	//
-	// The reason we need two separate features is because the License v3 format
-	// uses map[string]int64 for features, so we're unable to use a single value
-	// with a struct like `{"soft": 100, "hard": 200}`. This is unfortunate and
-	// we should fix this with a new license format v4 in the future.
-	//
-	// These are intentionally not exported as they should not be used outside
-	// of this package (except tests).
-	featureManagedAgentLimitHard codersdk.FeatureName = "managed_agent_limit_hard"
-	featureManagedAgentLimitSoft codersdk.FeatureName = "managed_agent_limit_soft"
-)
-
-var (
-	// Mapping of license feature names to the SDK feature name.
-	// This is used to map from multiple usage period features into a single SDK
-	// feature.
-	featureGrouping = map[codersdk.FeatureName]struct {
-		// The parent feature.
-		sdkFeature codersdk.FeatureName
-		// Whether the value of the license feature is the soft limit or the hard
-		// limit.
-		isSoft bool
-	}{
-		// Map featureManagedAgentLimitHard and featureManagedAgentLimitSoft to
-		// codersdk.FeatureManagedAgentLimit.
-		featureManagedAgentLimitHard: {
-			sdkFeature: codersdk.FeatureManagedAgentLimit,
-			isSoft:     false,
-		},
-		featureManagedAgentLimitSoft: {
-			sdkFeature: codersdk.FeatureManagedAgentLimit,
-			isSoft:     true,
-		},
-	}
-
-	// Features that are forbidden to be set directly in a license.
-	licenseForbiddenFeatures = map[codersdk.FeatureName]struct{}{}
 )
 
 // Entitlements processes licenses to return whether features are enabled or not.
@@ -301,15 +257,6 @@ func LicensesEntitlements(
 
 		// Add all features from the feature set.
 		for _, featureName := range claims.FeatureSet.Features() {
-			if _, ok := licenseForbiddenFeatures[featureName]; ok {
-				// Ignore any FeatureSet features that are forbidden to be set in a license.
-				continue
-			}
-			if _, ok := featureGrouping[featureName]; ok {
-				// These features need very special handling due to merging
-				// multiple feature values into a single SDK feature.
-				continue
-			}
 			if featureName.UsesLimit() || featureName.UsesUsagePeriod() {
 				// Limit and usage period features are handled below.
 				// They don't provide default values as they are always enabled
@@ -326,30 +273,24 @@ func LicensesEntitlements(
 			})
 		}
 
-		// A map of SDK feature name to the uncommitted usage feature.
-		uncommittedUsageFeatures := map[codersdk.FeatureName]usageLimit{}
-
 		// Features al-la-carte
 		for featureName, featureValue := range claims.Features {
-			if _, ok := licenseForbiddenFeatures[featureName]; ok {
-				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Feature %s is forbidden to be set in a license.", featureName))
-				continue
+			// Old-style licenses encode the managed agent limit as
+			// separate soft/hard features.
+			//
+			// This could be removed in a future release, but can only be
+			// done once all old licenses containing this are no longer in use.
+			if featureName == "managed_agent_limit_soft" {
+				// Maps the soft limit to the canonical feature name
+				featureName = codersdk.FeatureManagedAgentLimit
 			}
-			if featureValue < 0 {
-				// We currently don't use negative values for features.
+			if featureName == "managed_agent_limit_hard" {
+				// We can safely ignore the hard limit as it is no longer used.
 				continue
 			}
 
-			// Special handling for grouped (e.g. usage period) features.
-			if grouping, ok := featureGrouping[featureName]; ok {
-				ul := uncommittedUsageFeatures[grouping.sdkFeature]
-				if grouping.isSoft {
-					ul.Soft = &featureValue
-				} else {
-					ul.Hard = &featureValue
-				}
-				uncommittedUsageFeatures[grouping.sdkFeature] = ul
+			if featureValue < 0 {
+				// We currently don't use negative values for features.
 				continue
 			}
 
@@ -364,13 +305,8 @@ func LicensesEntitlements(
 			// Handling for limit features.
 			switch {
 			case featureName.UsesUsagePeriod():
-				// New-style license: managed_agent_limit set directly
-				// as a single value instead of separate soft/hard keys.
-				if featureValue <= 0 {
-					continue
-				}
 				entitlements.AddFeature(featureName, codersdk.Feature{
-					Enabled:     true,
+					Enabled:     featureValue > 0,
 					Entitlement: entitlement,
 					Limit:       &featureValue,
 					UsagePeriod: &codersdk.UsagePeriod{
@@ -407,47 +343,6 @@ func LicensesEntitlements(
 					Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
 				}
 			}
-		}
-
-		// Apply uncommitted usage features to the entitlements.
-		// Old licenses encode soft and hard limits as separate features.
-		// We use the soft limit as the single Limit value and discard
-		// the hard limit, since limits are now advisory only.
-		for featureName, ul := range uncommittedUsageFeatures {
-			if ul.Soft == nil || ul.Hard == nil {
-				// Invalid license.
-				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Invalid license (%s): feature %s has missing soft or hard limit values", license.UUID.String(), featureName))
-				continue
-			}
-			if *ul.Hard < *ul.Soft {
-				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Invalid license (%s): feature %s has a hard limit less than the soft limit", license.UUID.String(), featureName))
-				continue
-			}
-			if *ul.Soft < 0 || *ul.Hard < 0 {
-				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Invalid license (%s): feature %s has a soft or hard limit less than 0", license.UUID.String(), featureName))
-				continue
-			}
-
-			feature := codersdk.Feature{
-				Enabled:     true,
-				Entitlement: entitlement,
-				Limit:       ul.Soft,
-				// `Actual` will be populated below when warnings are generated.
-				UsagePeriod: &codersdk.UsagePeriod{
-					IssuedAt: claims.IssuedAt.Time,
-					Start:    usagePeriodStart,
-					End:      usagePeriodEnd,
-				},
-			}
-			// If both limits are 0, the feature is disabled.
-			if *ul.Soft <= 0 && *ul.Hard <= 0 {
-				feature.Enabled = false
-				feature.Limit = ptr.Ref(int64(0))
-			}
-			entitlements.AddFeature(featureName, feature)
 		}
 
 		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
@@ -567,7 +462,7 @@ func LicensesEntitlements(
 			// Only issue warnings if the feature is enabled.
 			if agentLimit.Enabled && agentLimit.Limit != nil && managedAgentCount >= *agentLimit.Limit {
 				entitlements.Warnings = append(entitlements.Warnings,
-					codersdk.LicenseManagedAgentLimitExceededErrorText)
+					codersdk.LicenseManagedAgentLimitExceededWarningText)
 			}
 		}
 	}
@@ -667,11 +562,6 @@ var (
 )
 
 type Features map[codersdk.FeatureName]int64
-
-type usageLimit struct {
-	Soft *int64
-	Hard *int64 // 0 means "disabled"
-}
 
 // Claims is the full set of claims in a license.
 type Claims struct {
