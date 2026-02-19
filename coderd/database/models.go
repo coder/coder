@@ -3776,6 +3776,7 @@ type ConnectionLog struct {
 	SessionID        uuid.NullUUID  `db:"session_id" json:"session_id"`
 	ClientHostname   sql.NullString `db:"client_hostname" json:"client_hostname"`
 	ShortDescription sql.NullString `db:"short_description" json:"short_description"`
+	Os               sql.NullString `db:"os" json:"os"`
 }
 
 type CryptoKey struct {

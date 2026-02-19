@@ -2476,7 +2476,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.agent_id, connection_logs.updated_at, connection_logs.session_id, connection_logs.client_hostname, connection_logs.short_description,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.agent_id, connection_logs.updated_at, connection_logs.session_id, connection_logs.client_hostname, connection_logs.short_description, connection_logs.os,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -2692,6 +2692,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.SessionID,
 			&i.ConnectionLog.ClientHostname,
 			&i.ConnectionLog.ShortDescription,
+			&i.ConnectionLog.Os,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -2746,6 +2747,7 @@ WITH ranked AS (
 		session_id,
 		client_hostname,
 		short_description,
+		os,
 		row_number() OVER (
 			PARTITION BY workspace_id, agent_name
 			ORDER BY connect_time DESC
@@ -2920,44 +2922,46 @@ INSERT INTO connection_logs (
 	updated_at,
 	session_id,
 	client_hostname,
-	short_description
+	short_description,
+	os
 ) VALUES
-	($1, $19, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+	($1, $20, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 	-- If we've only received a disconnect event, mark the event as immediately
 	-- closed.
 	 CASE
-		 WHEN $20::connection_status = 'disconnected'
-		 THEN $19 :: timestamp with time zone
+		 WHEN $21::connection_status = 'disconnected'
+		 THEN $20 :: timestamp with time zone
 		 ELSE NULL
 	 END,
-	 $19, $16, $17, $18)
+	 $20, $16, $17, $18, $19)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
-	updated_at = $19,
+	updated_at = $20,
 	-- No-op if the connection is still open.
 	disconnect_time = CASE
-		WHEN $20::connection_status = 'disconnected'
+		WHEN $21::connection_status = 'disconnected'
 		-- Can only be set once
 		AND connection_logs.disconnect_time IS NULL
 		THEN EXCLUDED.connect_time
 		ELSE connection_logs.disconnect_time
 	END,
 	disconnect_reason = CASE
-		WHEN $20::connection_status = 'disconnected'
+		WHEN $21::connection_status = 'disconnected'
 		-- Can only be set once
 		AND connection_logs.disconnect_reason IS NULL
 		THEN EXCLUDED.disconnect_reason
 		ELSE connection_logs.disconnect_reason
 	END,
 	code = CASE
-		WHEN $20::connection_status = 'disconnected'
+		WHEN $21::connection_status = 'disconnected'
 		-- Can only be set once
 		AND connection_logs.code IS NULL
 		THEN EXCLUDED.code
 		ELSE connection_logs.code
 	END,
-	agent_id = COALESCE(connection_logs.agent_id, EXCLUDED.agent_id)
-RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at, session_id, client_hostname, short_description
+	agent_id = COALESCE(connection_logs.agent_id, EXCLUDED.agent_id),
+	os = COALESCE(EXCLUDED.os, connection_logs.os)
+RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at, session_id, client_hostname, short_description, os
 `
 
 type UpsertConnectionLogParams struct {
@@ -2979,6 +2983,7 @@ type UpsertConnectionLogParams struct {
 	SessionID        uuid.NullUUID    `db:"session_id" json:"session_id"`
 	ClientHostname   sql.NullString   `db:"client_hostname" json:"client_hostname"`
 	ShortDescription sql.NullString   `db:"short_description" json:"short_description"`
+	Os               sql.NullString   `db:"os" json:"os"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
 }
@@ -3003,6 +3008,7 @@ func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnecti
 		arg.SessionID,
 		arg.ClientHostname,
 		arg.ShortDescription,
+		arg.Os,
 		arg.Time,
 		arg.ConnectionStatus,
 	)
@@ -3029,6 +3035,7 @@ func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnecti
 		&i.SessionID,
 		&i.ClientHostname,
 		&i.ShortDescription,
+		&i.Os,
 	)
 	return i, err
 }
@@ -24970,7 +24977,7 @@ func (q *sqlQuerier) FindOrCreateSessionForDisconnect(ctx context.Context, arg F
 }
 
 const getConnectionLogByConnectionID = `-- name: GetConnectionLogByConnectionID :one
-SELECT id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at, session_id, client_hostname, short_description FROM connection_logs
+SELECT id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at, session_id, client_hostname, short_description, os FROM connection_logs
 WHERE connection_id = $1
   AND workspace_id = $2
   AND agent_name = $3
@@ -25008,12 +25015,13 @@ func (q *sqlQuerier) GetConnectionLogByConnectionID(ctx context.Context, arg Get
 		&i.SessionID,
 		&i.ClientHostname,
 		&i.ShortDescription,
+		&i.Os,
 	)
 	return i, err
 }
 
 const getConnectionLogsBySessionIDs = `-- name: GetConnectionLogsBySessionIDs :many
-SELECT id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at, session_id, client_hostname, short_description FROM connection_logs
+SELECT id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason, agent_id, updated_at, session_id, client_hostname, short_description, os FROM connection_logs
 WHERE session_id = ANY($1::uuid[])
 ORDER BY session_id, connect_time DESC
 `
@@ -25049,6 +25057,7 @@ func (q *sqlQuerier) GetConnectionLogsBySessionIDs(ctx context.Context, sessionI
 			&i.SessionID,
 			&i.ClientHostname,
 			&i.ShortDescription,
+			&i.Os,
 		); err != nil {
 			return nil, err
 		}

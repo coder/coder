@@ -1170,7 +1170,8 @@ CREATE TABLE connection_logs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     session_id uuid,
     client_hostname text,
-    short_description text
+    short_description text,
+    os text
 );
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
