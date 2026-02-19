@@ -291,7 +291,6 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			authError: "Invalid query params:",
 		},
 		{
-			// TODO: This is valid for now, but should it be?
 			name: "DifferentProtocol",
 			app:  apps.Default,
 			preAuth: func(valid *oauth2.Config) {
@@ -299,6 +298,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Scheme = "https"
 				valid.RedirectURL = newURL.String()
 			},
+			authError: "Invalid query params:",
 		},
 		{
 			name: "NestedPath",
