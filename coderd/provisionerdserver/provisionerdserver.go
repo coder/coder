@@ -725,7 +725,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
-		provisionerState, err := s.Database.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuild.ID)
+		provisionerStateRow, err := s.Database.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuild.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build provisioner state: %s", err))
 		}
@@ -734,7 +734,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
 				WorkspaceName:           workspace.Name,
-				State:                   provisionerState,
+				State:                   provisionerStateRow.ProvisionerState,
 				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),

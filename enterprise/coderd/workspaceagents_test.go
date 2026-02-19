@@ -187,7 +187,7 @@ func TestReinitializeAgent(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			var prebuildID uuid.UUID
 			require.Eventually(t, func() bool {
-				agentAndBuild, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, agentToken)
+				agentAndBuild, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agentToken)
 				if err != nil {
 					return false
 				}

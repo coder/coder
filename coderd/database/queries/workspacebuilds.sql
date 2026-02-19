@@ -273,13 +273,21 @@ WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resour
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
 
 -- name: GetWorkspaceBuildProvisionerStateByID :one
--- Fetches the provisioner state of a workspace build directly from the
--- workspace_builds table. This is used by callers that need the full
--- Terraform state, which is excluded from workspace_build_with_user to
--- avoid loading it on hot paths.
+-- Fetches the provisioner state of a workspace build, joined through to the
+-- template so that dbauthz can enforce policy.ActionUpdate on the template.
+-- Provisioner state contains sensitive Terraform state and should only be
+-- accessible to template administrators.
 SELECT
-	provisioner_state
+	workspace_builds.provisioner_state,
+	templates.id AS template_id,
+	templates.organization_id AS template_organization_id,
+	templates.user_acl,
+	templates.group_acl
 FROM
 	workspace_builds
+INNER JOIN
+	workspaces ON workspaces.id = workspace_builds.workspace_id
+INNER JOIN
+	templates ON templates.id = workspaces.template_id
 WHERE
-	id = @workspace_build_id;
+	workspace_builds.id = @workspace_build_id;
