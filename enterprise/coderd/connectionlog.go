@@ -297,5 +297,6 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		IP:                     ip,
 		WebInfo:                webInfo,
 		SSHInfo:                sshInfo,
+		OS:                     dblog.ConnectionLog.Os.String,
 	}
 }

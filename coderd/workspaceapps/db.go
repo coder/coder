@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/useragent"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -553,6 +554,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			SessionID:        uuid.NullUUID{},
 			ClientHostname:   sql.NullString{},
 			ShortDescription: sql.NullString{},
+			Os:               sql.NullString{Valid: userAgent != "", String: useragent.ParseOS(userAgent)},
 		}
 
 		if !result.NewOrStale {

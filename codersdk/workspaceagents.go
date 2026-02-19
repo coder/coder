@@ -215,6 +215,9 @@ type WorkspaceConnection struct {
 	ExitCode *int32 `json:"exit_code,omitempty"`
 	// UserAgent is the HTTP user agent string from web connections.
 	UserAgent string `json:"user_agent,omitempty"`
+	// OS is the operating system of the connecting client
+	// (e.g. "windows", "linux", "macOS").
+	OS string `json:"os,omitempty"`
 }
 
 // WorkspaceSession represents a client's session containing one or more connections.

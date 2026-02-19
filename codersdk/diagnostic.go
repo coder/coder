@@ -157,6 +157,7 @@ type DiagnosticSessionConn struct {
 	Status         WorkspaceConnectionStatus `json:"status"`
 	ExitCode       *int32                    `json:"exit_code"`
 	Explanation    string                    `json:"explanation"`
+	OS             string                    `json:"os,omitempty"`
 }
 
 // DiagnosticTimelineEventKind enumerates timeline event types.

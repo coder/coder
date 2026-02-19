@@ -96,7 +96,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 
 	// At connect time, look up the tailnet peer to capture the
 	// client hostname and description for session grouping later.
-	var clientHostname, shortDescription sql.NullString
+	var clientHostname, shortDescription, clientOS sql.NullString
 	if action == database.ConnectionStatusConnected && a.TailnetCoordinator != nil {
 		if coord := a.TailnetCoordinator.Load(); coord != nil {
 			for _, peer := range (*coord).TunnelPeers(workspaceAgent.ID) {
@@ -114,6 +114,9 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 							}
 							if peer.Node.ShortDescription != "" {
 								shortDescription = sql.NullString{String: peer.Node.ShortDescription, Valid: true}
+							}
+							if peer.Node.Os != "" {
+								clientOS = sql.NullString{String: peer.Node.Os, Valid: true}
 							}
 							break
 						}
@@ -161,6 +164,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		UserAgent:        sql.NullString{},
 		ClientHostname:   clientHostname,
 		ShortDescription: shortDescription,
+		Os:               clientOS,
 		SlugOrPort: sql.NullString{
 			String: req.GetConnection().GetSlugOrPort(),
 			Valid:  req.GetConnection().GetSlugOrPort() != "",

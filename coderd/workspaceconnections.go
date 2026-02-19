@@ -275,6 +275,7 @@ func connectionFromRecord(record *peeringRecord, derpMap *tailcfg.DERPMap) coder
 				if err := gProto.Unmarshal(ce.Node, pNode); err == nil {
 					conn.ClientHostname = pNode.Hostname
 					conn.ShortDescription = pNode.ShortDescription
+					conn.OS = pNode.Os
 				}
 			}
 		}

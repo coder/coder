@@ -34,6 +34,8 @@ type ConnectionLog struct {
 	// - `ConnectionTypeVSCode`
 	// - `ConnectionTypeJetBrains`
 	SSHInfo *ConnectionLogSSHInfo `json:"ssh_info,omitempty"`
+	// OS is the connecting client's operating system.
+	OS string `json:"os,omitempty"`
 }
 
 // ConnectionType is the type of connection that the agent is receiving.

@@ -653,6 +653,11 @@ func convertSessionConnection(cl database.ConnectionLog) codersdk.DiagnosticSess
 
 	explanation := generateExplanation(cl.DisconnectReason.String, strings.Contains(strings.ToLower(cl.DisconnectReason.String), "control"))
 
+	var os string
+	if cl.Os.Valid {
+		os = cl.Os.String
+	}
+
 	return codersdk.DiagnosticSessionConn{
 		ID:             cl.ID,
 		Type:           codersdk.ConnectionType(cl.Type),
@@ -662,6 +667,7 @@ func convertSessionConnection(cl database.ConnectionLog) codersdk.DiagnosticSess
 		Status:         status,
 		ExitCode:       exitCode,
 		Explanation:    explanation,
+		OS:             os,
 	}
 }
 

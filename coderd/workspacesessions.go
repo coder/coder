@@ -184,6 +184,9 @@ func ConvertConnectionLogToSDK(conn database.ConnectionLog) codersdk.WorkspaceCo
 	if conn.UserAgent.Valid {
 		wc.UserAgent = conn.UserAgent.String
 	}
+	if conn.Os.Valid {
+		wc.OS = conn.Os.String
+	}
 	if conn.ClientHostname.Valid {
 		wc.ClientHostname = conn.ClientHostname.String
 	}
