@@ -6,17 +6,10 @@ AI Bridge is a smart AI gateway. It sits as an intermediary between your users' 
 
 AI Bridge solves four key problems:
 
-1. **Centralized authentication**: Replace per-developer API key distribution
-   with a single enterprise key per provider. Developers authenticate via their
-   existing Coder session tokens — they never hold provider API keys.
-1. **Auditing and attribution**: Every prompt, token usage, tool invocation, and
-   model selection is logged and attributed to a specific user, whether the
-   interaction is human-initiated or autonomous.
-1. **Cost attribution**: Track token usage per user, per model, per provider for
-   chargeback, optimization, and spend visibility.
-1. **Centralized MCP administration**: Define approved MCP servers and tools
-   centrally. Agents receive tools automatically — no per-developer MCP
-   configuration required.
+1. **Centralized authentication**: Replace per-developer API key distribution with a single enterprise key per provider. Developers authenticate via their existing Coder session tokens — they never hold provider API keys.
+1. **Auditing**: Every prompt, tool invocation, and model selection is logged and attributed to a specific user, whether the interaction is human-initiated or autonomous.
+1. **Cost attribution**: Track token usage per user, per model, per provider for chargeback, optimization, and spend visibility.
+1. **Centralized MCP administration**: Define approved MCP servers and tools centrally. Agents receive tools automatically — no per-developer MCP configuration required.
 
 ## When to use AI Bridge
 
@@ -25,13 +18,10 @@ As LLM adoption grows, administrators need centralized auditing, monitoring, and
 Common scenarios include:
 
 - **Measuring AI adoption** across teams, projects, or the entire organization
-- **Establishing an audit trail** of prompts, tool invocations, and model usage
-  for compliance and incident investigation
+- **Establishing an audit trail** of prompts, tool invocations, and model usage for compliance and incident investigation
 - **Managing token spend** with per-user, per-model cost attribution
 - **Eliminating shadow AI** by routing all AI traffic through a governed gateway
-  and blocking direct access to provider APIs
-- **Standardizing AI tooling** across engineering teams with consistent
-  configuration and approved models
+- **Standardizing AI tooling** across engineering teams with consistent configuration and approved models
 
 ### Multi-provider and existing gateway integration
 
@@ -55,16 +45,13 @@ features that deliver maximum value when deployed together:
 Together, they provide defense-in-depth:
 
 - Bridge ensures all AI traffic is authenticated, logged, and attributed.
-- Boundaries prevent agents from reaching unauthorized endpoints (e.g., blocking
-  direct access to `api.openai.com` or `api.anthropic.com` to force traffic
-  through Bridge).
+- Boundaries prevent agents from reaching unauthorized endpoints. 
 - Both produce structured logs that can be exported to your SIEM for correlated
   analysis.
 
 > **Note:** Correlating Bridge and Boundary log streams currently requires
 > exporting both to an external analytics platform and joining on shared fields
-> (user, workspace, timestamp). Built-in cross-referencing is planned for a
-> future release.
+> (user, workspace, timestamp). 
 
 ## Current scope and limitations
 
@@ -74,7 +61,7 @@ to help you plan your deployment:
 - **Supported clients**: AI Bridge works with any client that supports base URL
   overrides. See the [client compatibility table](./clients/index.md#compatibility)
   for the full list. Some tools (Cursor, Windsurf, Sourcegraph Amp) do not
-  currently support the required base URL override and authentication model.
+  currently support the required base URL override and authentication model. In these cases, we recommend usage of the [AI Bridge Proxy](./ai-bridge-proxy/index.md).
 - **RBAC**: All users with the `member` role can currently use AI Bridge.
   Fine-grained role-based access control (e.g., `AI Bridge User` permissions)
   is planned.
