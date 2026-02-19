@@ -1,3 +1,5 @@
+// biome-ignore lint/correctness/noUnusedImports: resolves TS2686 UMD global reference in module context
+import React from "react";
 import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -33,7 +35,7 @@ export const parameters: Parameters = {
 		},
 	},
 	viewport: {
-		viewports: {
+		options: {
 			ipad: {
 				name: "iPad Mini",
 				styles: {
@@ -86,8 +88,9 @@ const withQuery: Decorator = (Story, { parameters }) => {
 
 const withTheme: Decorator = (Story, context) => {
 	const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
-	const { themeOverride } = DecoratorHelpers.useThemeParameters();
-	const selected = themeOverride || selectedTheme || "dark";
+	const parameters = DecoratorHelpers.useThemeParameters();
+
+	const selected = parameters?.themeOverride || selectedTheme || "dark";
 
 	// Ensure the correct theme is applied to Tailwind CSS classes by adding the
 	// theme to the HTML class list. This approach is necessary because Tailwind
