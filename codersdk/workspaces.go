@@ -809,7 +809,7 @@ func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (<-chan WorkspaceB
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	//nolint:bodyclose
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/watch-all-workspacebuilds", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/watch-all-workspacebuilds", nil)
 	if err != nil {
 		return nil, err
 	}

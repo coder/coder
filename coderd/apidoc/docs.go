@@ -1041,6 +1041,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/experimental/watch-all-workspacebuilds": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Watch all workspace builds",
+                "operationId": "watch-all-workspace-builds",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ServerSentEvent"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/experiments": {
             "get": {
                 "security": [
@@ -9281,34 +9309,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
-                }
-            }
-        },
-        "/watch-all-workspacebuilds": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Watch all workspace builds",
-                "operationId": "watch-all-workspace-builds",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ServerSentEvent"
-                        }
-                    }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },

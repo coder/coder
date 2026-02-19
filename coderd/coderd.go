@@ -1092,6 +1092,13 @@ func New(options *Options) *API {
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Mount("/http", api.mcpHTTPHandler())
 		})
+		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceBuildUpdates),
+			)
+			r.Get("/", api.watchAllWorkspaceBuilds)
+		})
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {
@@ -1531,10 +1538,6 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteWorkspaceACL)
 				})
 			})
-		})
-		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/", api.watchAllWorkspaceBuilds)
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(

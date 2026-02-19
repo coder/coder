@@ -2180,18 +2180,10 @@ func (api *API) watchWorkspace(
 // @Produce json
 // @Tags Workspaces
 // @Success 200 {object} codersdk.ServerSentEvent
-// @Router /watch-all-workspacebuilds [get]
+// @Router /experimental/watch-all-workspacebuilds [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	// This endpoint requires the experiment to be enabled.
-	if !api.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "This endpoint requires the 'workspace-build-updates' experiment to be enabled.",
-		})
-		return
-	}
 
 	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
 	if err != nil {
