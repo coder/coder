@@ -2389,42 +2389,21 @@ class ApiMethods {
 
 		const activeVersionId = template.active_version_id;
 
-		if (isDynamicParametersEnabled) {
-			try {
-				return await this.postWorkspaceBuild(workspace.id, {
-					transition: "start",
-					template_version_id: activeVersionId,
-					rich_parameter_values: newBuildParameters,
-				});
-			} catch (error) {
-				// If the build failed because of a parameter validation error, then we
-				// throw a special sentinel error that can be caught by the caller.
-				if (
-					isApiError(error) &&
-					error.response.status === 400 &&
-					error.response.data.validations &&
-					error.response.data.validations.length > 0
-				) {
-					throw new ParameterValidationError(
-						activeVersionId,
-						error.response.data.validations,
-					);
-				}
-				throw error;
+		if(!isDynamicParametersEnabled) {
+			// Dynamic templates rely on the backend to fully validate parameters.
+			// Legacy templates do not, so do an additional check for any missing params.
+			const templateParameters =
+				await this.getTemplateVersionRichParameters(activeVersionId);
+
+			const missingParameters = getMissingParameters(
+				oldBuildParameters,
+				newBuildParameters,
+				templateParameters,
+			);
+
+			if (missingParameters.length > 0) {
+				throw new MissingBuildParameters(missingParameters, activeVersionId);
 			}
-		}
-
-		const templateParameters =
-			await this.getTemplateVersionRichParameters(activeVersionId);
-
-		const missingParameters = getMissingParameters(
-			oldBuildParameters,
-			newBuildParameters,
-			templateParameters,
-		);
-
-		if (missingParameters.length > 0) {
-			throw new MissingBuildParameters(missingParameters, activeVersionId);
 		}
 
 		// Stop the workspace if it is already running.
@@ -2440,11 +2419,29 @@ class ApiMethods {
 			}
 		}
 
-		return this.postWorkspaceBuild(workspace.id, {
-			transition: "start",
-			template_version_id: activeVersionId,
-			rich_parameter_values: newBuildParameters,
-		});
+		try {
+			return await this.postWorkspaceBuild(workspace.id, {
+				transition: "start",
+				template_version_id: activeVersionId,
+				rich_parameter_values: newBuildParameters,
+			});
+		} catch (error) {
+			// If the build failed because of a parameter validation error, then we
+			// throw a special sentinel error that can be caught by the caller.
+			if (
+				isDynamicParametersEnabled &&
+				isApiError(error) &&
+				error.response.status === 400 &&
+				error.response.data.validations &&
+				error.response.data.validations.length > 0
+			) {
+				throw new ParameterValidationError(
+					activeVersionId,
+					error.response.data.validations,
+				);
+			}
+			throw error;
+		}
 	};
 
 	getWorkspaceResolveAutostart = async (
