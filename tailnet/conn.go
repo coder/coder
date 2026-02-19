@@ -138,6 +138,8 @@ type Options struct {
 	ShortDescription string
 	// Hostname is the peer's self-reported hostname. For informational / display purposes only
 	Hostname string
+	// OS is the operating system of the client (e.g., runtime.GOOS).
+	OS string
 
 	// TCPConnCallback is called when a TCP connection is accepted on a
 	// port that has no registered listener. The connection is proxied
@@ -330,6 +332,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		magicConn.DiscoPublicKey(),
 		options.ShortDescription,
 		options.Hostname,
+		options.OS,
 	)
 	nodeUp.setAddresses(options.Addresses)
 	nodeUp.setBlockEndpoints(options.BlockEndpoints)

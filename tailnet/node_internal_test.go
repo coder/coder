@@ -33,7 +33,7 @@ func TestNodeUpdater_setNetInfo_different(t *testing.T) {
 			<-goCh
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -87,7 +87,7 @@ func TestNodeUpdater_setNetInfo_same(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -129,7 +129,7 @@ func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -169,7 +169,7 @@ func TestNodeUpdater_setDERPForcedWebsocket_same(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -208,7 +208,7 @@ func TestNodeUpdater_setStatus_different(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -259,7 +259,7 @@ func TestNodeUpdater_setStatus_same(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -300,7 +300,7 @@ func TestNodeUpdater_setStatus_error(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -339,7 +339,7 @@ func TestNodeUpdater_setStatus_outdated(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -382,7 +382,7 @@ func TestNodeUpdater_setAddresses_different(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -424,7 +424,7 @@ func TestNodeUpdater_setAddresses_same(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -461,7 +461,7 @@ func TestNodeUpdater_setCallback(t *testing.T) {
 		logger,
 		nil,
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -506,7 +506,7 @@ func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -556,7 +556,7 @@ func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
 			nodeCh <- n
 		},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -592,7 +592,7 @@ func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
 		logger,
 		func(n *Node) {},
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 
@@ -641,7 +641,7 @@ func TestNodeUpdater_fillPeerDiagnostics_noCallback(t *testing.T) {
 		logger,
 		nil,
 		id, nodeKey, discoKey,
-		"test", "test-hostname",
+		"test", "test-hostname", "linux",
 	)
 	defer uut.close()
 

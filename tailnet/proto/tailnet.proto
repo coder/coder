@@ -59,6 +59,8 @@ message Node {
 	string short_description = 11;
 	// Peer's self-reported hostname. For informational / display purposes only
 	string hostname = 12;
+	// Client operating system (e.g., "linux", "darwin", "windows").
+	string os = 13;
 }
 
 message RefreshResumeTokenRequest {}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"runtime"
 	"time"
 
 	"github.com/google/uuid"
@@ -167,6 +168,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		WireguardMonitor:    options.WireguardMonitor,
 		DNSMatchDomain:      dnsMatch,
 		ShortDescription:    "Coder Desktop",
+		OS:                  runtime.GOOS,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

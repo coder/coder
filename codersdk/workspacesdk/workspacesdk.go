@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -297,6 +298,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		ClientType:          proto.TelemetryEvent_CLI,
 		TelemetrySink:       telemetrySink,
 		ShortDescription:    options.ShortDescription,
+		OS:                  runtime.GOOS,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

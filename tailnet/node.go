@@ -28,6 +28,7 @@ type nodeUpdater struct {
 	discoKey         key.DiscoPublic
 	shortDescription string
 	hostname         string
+	os               string
 	callback         func(n *Node)
 
 	// dynamic
@@ -99,7 +100,7 @@ func (u *nodeUpdater) close() {
 
 func newNodeUpdater(
 	logger slog.Logger, callback func(n *Node),
-	id tailcfg.NodeID, np key.NodePublic, dp key.DiscoPublic, shortDescription string, hostname string,
+	id tailcfg.NodeID, np key.NodePublic, dp key.DiscoPublic, shortDescription string, hostname string, os string,
 ) *nodeUpdater {
 	u := &nodeUpdater{
 		phased:               phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
@@ -109,6 +110,7 @@ func newNodeUpdater(
 		discoKey:             dp,
 		shortDescription:     shortDescription,
 		hostname:             hostname,
+		os:                   os,
 		derpForcedWebsockets: make(map[int]string),
 		callback:             callback,
 	}
@@ -135,6 +137,7 @@ func (u *nodeUpdater) nodeLocked() *Node {
 		DERPForcedWebsocket: maps.Clone(u.derpForcedWebsockets),
 		ShortDescription:    u.shortDescription,
 		Hostname:            u.hostname,
+		OS:                  u.os,
 	}
 }
 

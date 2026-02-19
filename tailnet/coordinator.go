@@ -97,6 +97,8 @@ type Node struct {
 	ShortDescription string `json:"short_description"`
 	// Hostname is the peer's self-reported hostname. For informational / display purposes only
 	Hostname string `json:"hostname"`
+	// OS is the client's operating system (e.g., "linux", "darwin", "windows").
+	OS string `json:"os"`
 }
 
 // Coordinatee is something that can be coordinated over the Coordinate protocol.  Usually this is a
