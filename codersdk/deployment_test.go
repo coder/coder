@@ -942,27 +942,25 @@ func TestHTTPCookieConfigMiddleware(t *testing.T) {
 			extraCookies: []*http.Cookie{
 				// Browser might send both during migration.
 				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
-				{Name: codersdk.PathAppSessionTokenCookie, Value: "unprefixed-token"},
-				{Name: codersdk.SubdomainAppSessionTokenCookie, Value: "unprefixed-token"},
 				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "prefixed-token"},
 			},
 			expectedCookies: map[string]string{
 				codersdk.SessionTokenCookie: "prefixed-token", // Prefixed wins.
 			},
-			expectedDeleted: []string{codersdk.SessionTokenCookie, codersdk.PathAppSessionTokenCookie, codersdk.SubdomainAppSessionTokenCookie},
+			expectedDeleted: []string{codersdk.SessionTokenCookie},
 		},
 		{
 			name: "Enabled_MultiplePrefixedCookies",
 			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
 			extraCookies: []*http.Cookie{
 				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "session"},
-				{Name: "__Host-" + codersdk.PathAppSessionTokenCookie, Value: "path-app"},
-				{Name: "__Host-" + codersdk.SubdomainAppSessionTokenCookie, Value: "subdomain-app"},
+				{Name: "__Host-SomeOtherCookie", Value: "other-cookie"},
+				{Name: "__Host-Santa", Value: "santa"},
 			},
 			expectedCookies: map[string]string{
-				codersdk.SessionTokenCookie:             "session",
-				codersdk.PathAppSessionTokenCookie:      "path-app",
-				codersdk.SubdomainAppSessionTokenCookie: "subdomain-app",
+				codersdk.SessionTokenCookie: "session",
+				"__Host-SomeOtherCookie":    "other-cookie",
+				"__Host-Santa":              "santa",
 			},
 		},
 		{
