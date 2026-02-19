@@ -175,6 +175,7 @@ func TestSubAgentAPI(t *testing.T) {
 		}
 	})
 
+	// Context: https://github.com/coder/coder/pull/22196
 	t.Run("CreateSubAgentDoesNotInheritAuthInstanceID", func(t *testing.T) {
 		t.Parallel()
 
@@ -208,10 +209,6 @@ func TestSubAgentAPI(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: The sub-agent must NOT re-use the parent's AuthInstanceID.
-		// Re-using instance IDs would allow a sub-agent to hijack the
-		// parent's instance identity authentication, since
-		// GetWorkspaceAgentByInstanceID returns the most recently
-		// created agent with that instance ID.
 		subAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID)
 		require.NoError(t, err)
 		assert.False(t, subAgent.AuthInstanceID.Valid, "sub-agent should not have an AuthInstanceID")
