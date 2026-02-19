@@ -707,7 +707,7 @@ func (h *taskTelemetryHelper) createBuild(
 	createdAt time.Time,
 	transition database.WorkspaceTransition,
 	reason database.BuildReason,
-) database.WorkspaceBuild {
+) (database.WorkspaceBuild, *database.WorkspaceApp) {
 	job := dbgen.ProvisionerJob(h.t, h.db, nil, database.ProvisionerJob{
 		Provisioner:    database.ProvisionerTypeTerraform,
 		StorageMethod:  database.ProvisionerStorageMethodFile,
@@ -736,13 +736,14 @@ func (h *taskTelemetryHelper) createBuild(
 		})
 		_, err := h.db.UpsertTaskWorkspaceApp(h.ctx, database.UpsertTaskWorkspaceAppParams{
 			TaskID:               resp.Task.ID,
-			WorkspaceBuildNumber: resp.Build.BuildNumber,
+			WorkspaceBuildNumber: buildNumber,
 			WorkspaceAgentID:     uuid.NullUUID{UUID: agt.ID, Valid: true},
 			WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
 		})
 		require.NoError(h.t, err, "failed to upsert task app")
+		return bld, &app
 	}
-	return bld
+	return bld, nil
 }
 
 // nolint: dupl // Test code is better WET than DRY.
@@ -772,17 +773,18 @@ func TestTasksTelemetry(t *testing.T) {
 		return apps[0]
 	}
 
+	type statusSpec struct {
+		state   database.WorkspaceAppStatusState
+		message string
+		offset  time.Duration
+	}
+
 	type buildSpec struct {
 		buildNumber int32
 		offset      time.Duration
 		transition  database.WorkspaceTransition
 		reason      database.BuildReason
-	}
-
-	type statusSpec struct {
-		state   database.WorkspaceAppStatusState
-		message string
-		offset  time.Duration
+		statuses    []statusSpec // created after this build, using this build's app
 	}
 
 	tests := []struct {
@@ -833,7 +835,7 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "auto paused - LastPausedAt and PauseReason=auto",
 			createdOffset: -3 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -20 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+				{2, -20 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-20 * time.Minute),
@@ -844,7 +846,7 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "manual paused - LastPausedAt and PauseReason=manual",
 			createdOffset: -4 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -15 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause},
+				{2, -15 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-15 * time.Minute),
@@ -859,7 +861,7 @@ func TestTasksTelemetry(t *testing.T) {
 				{database.WorkspaceAppStatusStateIdle, "Idle now", -35 * time.Minute},
 			},
 			extraBuilds: []buildSpec{
-				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-25 * time.Minute),
@@ -875,7 +877,7 @@ func TestTasksTelemetry(t *testing.T) {
 				{database.WorkspaceAppStatusStateWorking, "Working after pause", -20 * time.Minute},
 			},
 			extraBuilds: []buildSpec{
-				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-25 * time.Minute),
@@ -888,8 +890,8 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "recently resumed - PausedDurationMS calculated",
 			createdOffset: -6 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -50 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
-				{3, -10 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
+				{2, -50 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+				{3, -10 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, nil},
 			},
 			expectEvent:       true,
 			lastPausedOffset:  ptr.Ref(-50 * time.Minute),
@@ -903,8 +905,8 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "resumed long ago - PausedDurationMS nil",
 			createdOffset: -10 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -5 * time.Hour, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
-				{3, -2 * time.Hour, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
+				{2, -5 * time.Hour, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+				{3, -2 * time.Hour, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, nil},
 			},
 			expectEvent: false,
 		},
@@ -912,9 +914,9 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "multiple cycles - captures latest pause/resume",
 			createdOffset: -8 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -3 * time.Hour, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
-				{3, -150 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
-				{4, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause},
+				{2, -3 * time.Hour, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+				{3, -150 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, nil},
+				{4, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-30 * time.Minute),
@@ -925,9 +927,9 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "currently paused after recent resume - reports ongoing pause",
 			createdOffset: -6 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -50 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
-				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
-				{4, -10 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause},
+				{2, -50 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, nil},
+				{4, -10 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-10 * time.Minute),
@@ -937,12 +939,14 @@ func TestTasksTelemetry(t *testing.T) {
 		{
 			name:          "multiple cycles with recent resume - pairs with preceding pause",
 			createdOffset: -6 * time.Hour,
-			extraBuilds: []buildSpec{
-				{2, -50 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
-				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
-			},
 			appStatuses: []statusSpec{
-				{database.WorkspaceAppStatusStateComplete, "resumed work", -25 * time.Minute},
+				{database.WorkspaceAppStatusStateWorking, "started work", -6 * time.Hour},
+			},
+			extraBuilds: []buildSpec{
+				{2, -50 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, []statusSpec{
+					{database.WorkspaceAppStatusStateWorking, "resumed work", -25 * time.Minute},
+				}},
 			},
 			expectEvent:       true,
 			lastPausedOffset:  ptr.Ref(-50 * time.Minute),
@@ -958,11 +962,12 @@ func TestTasksTelemetry(t *testing.T) {
 			appStatuses: []statusSpec{
 				{database.WorkspaceAppStatusStateWorking, "Started working", -390 * time.Minute},
 				{database.WorkspaceAppStatusStateWorking, "Still working", -45 * time.Minute},
-				{database.WorkspaceAppStatusStateComplete, "Resumed working", -2 * time.Minute},
 			},
 			extraBuilds: []buildSpec{
-				{2, -35 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
-				{3, -5 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
+				{2, -35 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+				{3, -5 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, []statusSpec{
+					{database.WorkspaceAppStatusStateIdle, "Finished work", -2 * time.Minute},
+				}},
 			},
 			expectEvent:       true,
 			lastPausedOffset:  ptr.Ref(-35 * time.Minute),
@@ -979,8 +984,8 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "non-task_resume builds are tracked as other",
 			createdOffset: -4 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -60 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
-				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator},
+				{2, -60 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator, nil},
 			},
 			expectEvent:       true,
 			lastPausedOffset:  ptr.Ref(-60 * time.Minute),
@@ -995,7 +1000,7 @@ func TestTasksTelemetry(t *testing.T) {
 			name:          "simple ongoing pause reports duration",
 			createdOffset: -3 * time.Hour,
 			extraBuilds: []buildSpec{
-				{2, -45 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+				{2, -45 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-45 * time.Minute),
@@ -1014,7 +1019,7 @@ func TestTasksTelemetry(t *testing.T) {
 				{database.WorkspaceAppStatusStateComplete, "Done", -30 * time.Minute}, // 15min working
 			},
 			extraBuilds: []buildSpec{
-				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-25 * time.Minute),
@@ -1040,7 +1045,7 @@ func TestTasksTelemetry(t *testing.T) {
 			createdOffset: -7 * 24 * time.Hour,
 			buildOffset:   ptr.Ref(-7 * 24 * time.Hour),
 			extraBuilds: []buildSpec{
-				{2, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
+				{2, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-30 * time.Minute),
@@ -1141,7 +1146,13 @@ func TestTasksTelemetry(t *testing.T) {
 				}
 
 				for _, b := range tt.extraBuilds {
-					_ = h.createBuild(resp, b.buildNumber, now.Add(b.offset), b.transition, b.reason)
+					bld, bldApp := h.createBuild(resp, b.buildNumber, now.Add(b.offset), b.transition, b.reason)
+					_ = bld
+					if bldApp != nil {
+						for _, s := range b.statuses {
+							createAppStatus(h.ctx, h.db, resp.Workspace.ID, resp.Agents[0].ID, bldApp.ID, s.state, s.message, now.Add(s.offset))
+						}
+					}
 				}
 
 				// Refresh the task
