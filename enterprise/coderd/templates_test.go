@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -2325,4 +2327,130 @@ func TestInvalidateTemplatePrebuilds_LicenseFeatureDisabled(t *testing.T) {
 	require.True(t, errors.As(err, &sdkError))
 	require.ErrorAs(t, err, &sdkError)
 	require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+}
+
+func TestTemplateACLBlocksWorkspaceAppAccess(t *testing.T) {
+	// Verify that revoking a user's template ACL access also blocks access to
+	// workspace apps served via the app proxy.
+	t.Parallel()
+
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+
+	// Create a member user who will own the workspace.
+	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleMember())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create a template with a workspace app.
+	agentAuthToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id:   uuid.NewString(),
+							Name: "agent",
+							Auth: &proto.Agent_Token{
+								Token: agentAuthToken,
+							},
+							Apps: []*proto.App{{
+								Slug:         "test-app",
+								DisplayName:  "Test App",
+								SharingLevel: proto.AppSharingLevel_OWNER,
+								Url:          "http://localhost:8080",
+							}},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
+
+	// Member creates a workspace from the template.
+	workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
+
+	// Start the agent so the workspace app can be resolved.
+	_ = agenttest.New(t, ownerClient.URL, agentAuthToken)
+	_ = coderdtest.NewWorkspaceAgentWaiter(t, memberClient, workspace.ID).AgentNames([]string{"agent"}).Wait()
+
+	me, err := memberClient.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+
+	// Verify the member can access the workspace app before ACL change.
+	appURL := fmt.Sprintf("/@%s/%s/apps/test-app/", me.Username, workspace.Name)
+	resp, err := requestWithRetries(ctx, t, memberClient, http.MethodGet, appURL, nil)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	// The app server isn't actually running, but a successful auth check
+	// results in a 502 (bad gateway) since the agent can't reach
+	// localhost:8080. A 404 or 403 would indicate authorization failure.
+	require.NotEqual(t, http.StatusBadGateway, resp.StatusCode,
+		"expected app to be accessible before template ACL revocation")
+
+	// Revoke the member's template access by removing the everyone group.
+	//nolint:gocritic // Using ownerClient is required to manage template ACLs.
+	acl, err := ownerClient.TemplateACL(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, acl.Groups, 1, "expected exactly one group")
+	require.Equal(t, acl.Groups[0].IsEveryone(), true, "expected everyone group")
+
+	//nolint:gocritic // Using ownerClient is required to manage template ACLs.
+	err = ownerClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+		GroupPerms: map[string]codersdk.TemplateRole{
+			acl.Groups[0].ID.String(): codersdk.TemplateRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	// Verify the member can no longer see the template.
+	_, err = memberClient.Template(ctx, template.ID)
+	require.Error(t, err, "member should not be able to see template after ACL revocation")
+
+	// Verify the member can no longer access the workspace app. The app proxy
+	// should check template ACL and block access after the template permission
+	// is revoked.
+	resp, err = requestWithRetries(ctx, t, memberClient, http.MethodGet, appURL, nil)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNotFound, resp.StatusCode,
+		"workspace app should return 404 after template ACL revocation")
+}
+
+// requestWithRetries makes an HTTP request using the codersdk client,
+// retrying on 502 (bad gateway) which indicates the agent is still starting.
+func requestWithRetries(ctx context.Context, t testing.TB, client *codersdk.Client, method, path string, body interface{}) (*http.Response, error) {
+	t.Helper()
+	var resp *http.Response
+	var err error
+	require.Eventually(t, func() bool {
+		// nolint:bodyclose // The caller is responsible for closing the
+		// response body on the final successful response.
+		resp, err = client.Request(ctx, method, path, body)
+		if err != nil {
+			return false
+		}
+		if resp.StatusCode == http.StatusBadGateway {
+			_ = resp.Body.Close()
+			return false
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast)
+	return resp, err
 }

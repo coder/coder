@@ -299,6 +299,30 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		return sharingLevel == database.AppSharingLevelPublic, warnings, nil
 	}
 
+	// Verify the workspace owner can read the template. Template ACLs control
+	// which users can access workspaces from a given template. When the owner's
+	// template access is revoked (e.g., their group is removed from the template
+	// ACL), workspace app access should also be blocked, matching the behavior
+	// of the dashboard UI and terminal.
+	if dbReq.Workspace.OwnerID.String() == roles.ID {
+		// Build a new Subject with ScopeAll to ignore API key scope restrictions.
+		// The user's roles determine template access, not the API key scope. We
+		// must construct a new Subject rather than copying because Subject has an
+		// unexported cachedASTValue field that would retain the original scope.
+		unscopedRoles := rbac.Subject{
+			Type:         roles.Type,
+			FriendlyName: roles.FriendlyName,
+			Email:        roles.Email,
+			ID:           roles.ID,
+			Roles:        roles.Roles,
+			Groups:       roles.Groups,
+			Scope:        rbac.ScopeAll,
+		}
+		if err := p.Authorizer.Authorize(ctx, unscopedRoles, policy.ActionRead, dbReq.Template.RBACObject()); err != nil {
+			return false, warnings, nil
+		}
+	}
+
 	// Block anyone from accessing workspaces they don't own in path-based apps
 	// unless the admin disables this security feature. This blocks site-owners
 	// from accessing any apps from any user's workspaces.

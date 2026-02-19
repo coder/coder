@@ -196,6 +196,9 @@ type databaseRequest struct {
 	Agent database.WorkspaceAgent
 	// App is the app that the user is trying to access.
 	App database.WorkspaceApp
+	// Template is the template that the workspace was created from.
+	// Used to enforce template-level ACL checks.
+	Template database.Template
 
 	// AppURL is the resolved URL to the workspace app. This is only set for non
 	// terminal requests.
@@ -424,6 +427,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		Workspace:       workspace.WorkspaceTable(),
 		Agent:           agent,
 		App:             app,
+		Template:        tmpl,
 		AppURL:          appURLParsed,
 		AppSharingLevel: appSharingLevel,
 		CorsBehavior:    corsBehavior,
@@ -448,11 +452,17 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 		return nil, xerrors.Errorf("get workspace agent %q with workspace: %w", agentID, err)
 	}
 
+	tmpl, err := db.GetTemplateByID(ctx, aw.WorkspaceTable.TemplateID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template %q: %w", aw.WorkspaceTable.TemplateID, err)
+	}
+
 	return &databaseRequest{
 		Request:         r,
 		UserID:          aw.WorkspaceTable.OwnerID,
 		Workspace:       aw.WorkspaceTable,
 		Agent:           aw.WorkspaceAgent,
+		Template:        tmpl,
 		AppURL:          nil,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil
