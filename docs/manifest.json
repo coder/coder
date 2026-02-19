@@ -293,6 +293,11 @@
 							"title": "Windsurf",
 							"description": "Access your workspace with Windsurf",
 							"path": "./user-guides/workspace-access/windsurf.md"
+						},
+						{
+							"title": "Antigravity",
+							"description": "Access your workspace with Antigravity",
+							"path": "./user-guides/workspace-access/antigravity.md"
 						}
 					]
 				},
@@ -1008,7 +1013,19 @@
 								{
 									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
-									"path": "./ai-coder/agent-boundaries/nsjail.md"
+									"path": "./ai-coder/agent-boundaries/nsjail/index.md",
+									"children": [
+										{
+											"title": "NS Jail on Docker",
+											"description": "Runtime and permission requirements for running NS Jail on Docker",
+											"path": "./ai-coder/agent-boundaries/nsjail/docker.md"
+										},
+										{
+											"title": "NS Jail on Kubernetes",
+											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
+											"path": "./ai-coder/agent-boundaries/nsjail/k8s.md"
+										}
+									]
 								},
 								{
 									"title": "LandJail",
@@ -1192,6 +1209,11 @@
 					"title": "JFrog Artifactory Integration",
 					"description": "Integrate Coder with JFrog Artifactory",
 					"path": "./admin/integrations/jfrog-artifactory.md"
+				},
+				{
+					"title": "Mirror Coder Registry with Artifactory",
+					"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
+					"path": "./install/registry-mirror-artifactory.md"
 				},
 				{
 					"title": "Istio Integration",
@@ -2015,6 +2037,11 @@
 							"path": "reference/cli/task_pause.md"
 						},
 						{
+							"title": "task resume",
+							"description": "Resume a task",
+							"path": "reference/cli/task_resume.md"
+						},
+						{
 							"title": "task send",
 							"description": "Send input to a task",
 							"path": "reference/cli/task_send.md"
@@ -2121,7 +2148,7 @@
 						},
 						{
 							"title": "tokens remove",
-							"description": "Delete a token",
+							"description": "Expire or delete a token",
 							"path": "reference/cli/tokens_remove.md"
 						},
 						{

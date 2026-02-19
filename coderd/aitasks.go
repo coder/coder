@@ -21,10 +21,12 @@ import (
 	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -1300,6 +1302,23 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := api.NotificationsEnqueuer.Enqueue(
+		// nolint:gocritic // Need notifier actor to enqueue notifications.
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateTaskPaused,
+		map[string]string{
+			"task":         task.Name,
+			"task_id":      task.ID.String(),
+			"workspace":    workspace.Name,
+			"pause_reason": "manual",
+		},
+		"api-task-pause",
+		workspace.ID, workspace.OwnerID, workspace.OrganizationID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of task paused", slog.Error(err), slog.F("task_id", task.ID), slog.F("workspace_id", workspace.ID))
+	}
+
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.PauseTaskResponse{
 		WorkspaceBuild: &build,
 	})
@@ -1387,6 +1406,22 @@ func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 		httperror.WriteWorkspaceBuildError(ctx, rw, err)
 		return
 	}
+	if _, err := api.NotificationsEnqueuer.Enqueue(
+		// nolint:gocritic // Need notifier actor to enqueue notifications.
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateTaskResumed,
+		map[string]string{
+			"task":      task.Name,
+			"task_id":   task.ID.String(),
+			"workspace": workspace.Name,
+		},
+		"api-task-resume",
+		workspace.ID, workspace.OwnerID, workspace.OrganizationID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of task resumed", slog.Error(err), slog.F("task_id", task.ID), slog.F("workspace_id", workspace.ID))
+	}
+
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ResumeTaskResponse{
 		WorkspaceBuild: &build,
 	})

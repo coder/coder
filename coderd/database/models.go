@@ -3642,6 +3642,7 @@ type AIBridgeInterception struct {
 	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
 	APIKeyID    sql.NullString        `db:"api_key_id" json:"api_key_id"`
+	Client      sql.NullString        `db:"client" json:"client"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge

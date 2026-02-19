@@ -5,11 +5,112 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule"
 )
+
+func Test_getNextTransition_TaskAutoPause(t *testing.T) {
+	t.Parallel()
+
+	// Set up a workspace that is eligible for autostop (past deadline).
+	now := time.Now()
+	pastDeadline := now.Add(-time.Hour)
+
+	okUser := database.User{Status: database.UserStatusActive}
+	okBuild := database.WorkspaceBuild{
+		Transition: database.WorkspaceTransitionStart,
+		Deadline:   pastDeadline,
+	}
+	okJob := database.ProvisionerJob{
+		JobStatus: database.ProvisionerJobStatusSucceeded,
+	}
+	okTemplateSchedule := schedule.TemplateScheduleOptions{}
+
+	// Failed build setup for failedstop tests.
+	failedBuild := database.WorkspaceBuild{
+		Transition: database.WorkspaceTransitionStart,
+	}
+	failedJob := database.ProvisionerJob{
+		JobStatus:   database.ProvisionerJobStatusFailed,
+		CompletedAt: sql.NullTime{Time: now.Add(-time.Hour), Valid: true},
+	}
+	failedTemplateSchedule := schedule.TemplateScheduleOptions{
+		FailureTTL: time.Minute, // TTL already elapsed since job completed an hour ago.
+	}
+
+	testCases := []struct {
+		Name             string
+		Workspace        database.Workspace
+		Build            database.WorkspaceBuild
+		Job              database.ProvisionerJob
+		TemplateSchedule schedule.TemplateScheduleOptions
+		ExpectedReason   database.BuildReason
+	}{
+		{
+			Name: "RegularWorkspace_Autostop",
+			Workspace: database.Workspace{
+				DormantAt: sql.NullTime{Valid: false},
+			},
+			Build:            okBuild,
+			Job:              okJob,
+			TemplateSchedule: okTemplateSchedule,
+			ExpectedReason:   database.BuildReasonAutostop,
+		},
+		{
+			Name: "TaskWorkspace_Autostop_UsesTaskAutoPause",
+			Workspace: database.Workspace{
+				DormantAt: sql.NullTime{Valid: false},
+				TaskID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			},
+			Build:            okBuild,
+			Job:              okJob,
+			TemplateSchedule: okTemplateSchedule,
+			ExpectedReason:   database.BuildReasonTaskAutoPause,
+		},
+		{
+			Name: "RegularWorkspace_FailedStop",
+			Workspace: database.Workspace{
+				DormantAt: sql.NullTime{Valid: false},
+			},
+			Build:            failedBuild,
+			Job:              failedJob,
+			TemplateSchedule: failedTemplateSchedule,
+			ExpectedReason:   database.BuildReasonAutostop,
+		},
+		{
+			Name: "TaskWorkspace_FailedStop_UsesTaskAutoPause",
+			Workspace: database.Workspace{
+				DormantAt: sql.NullTime{Valid: false},
+				TaskID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			},
+			Build:            failedBuild,
+			Job:              failedJob,
+			TemplateSchedule: failedTemplateSchedule,
+			ExpectedReason:   database.BuildReasonTaskAutoPause,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			transition, reason, err := getNextTransition(
+				okUser,
+				tc.Workspace,
+				tc.Build,
+				tc.Job,
+				tc.TemplateSchedule,
+				now,
+			)
+			require.NoError(t, err)
+			require.Equal(t, database.WorkspaceTransitionStop, transition)
+			require.Equal(t, tc.ExpectedReason, reason)
+		})
+	}
+}
 
 func Test_isEligibleForAutostart(t *testing.T) {
 	t.Parallel()

@@ -74,9 +74,6 @@ If you encounter issues connecting to your Coder workspace via JetBrains Toolbox
 2. Locate the log file named `jetbrains-toolbox.log` and attach it to your support ticket.
 3. If you need to capture logs for a specific workspace, you can also generate a ZIP file using the Workspace action menu, available either on the main Workspaces page in Coder view or within the individual workspace view, under the option labeled **Collect logs**.
 
-> [!WARNING]
-> Toolbox does not persist log level configuration between restarts.
-
 ## Additional Resources
 
 - [JetBrains Toolbox documentation](https://www.jetbrains.com/help/toolbox-app)
