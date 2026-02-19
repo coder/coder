@@ -56,14 +56,14 @@ const statusBorderClassByStatus: Partial<
 	Record<WorkspaceAgent["status"], string>
 > = {
 	connected: "border-border-success",
-	connecting: "border-border-primary",
+	connecting: "border-border-pending",
 	timeout: "border-border-warning",
 };
 
 const statusBorderClassByLifecycle: Partial<
 	Record<WorkspaceAgent["lifecycle_state"], string>
 > = {
-	starting: "border-border-primary",
+	starting: "border-border-pending",
 	shutting_down: "border-border-primary",
 	ready: "border-border-success",
 	start_timeout: "border-border-warning",
