@@ -181,6 +181,55 @@ func TestConvertChatMessagesSkipsWorkspaceMetadata(t *testing.T) {
 	require.Equal(t, int64(1), converted[0].ID)
 }
 
+func TestConvertChatIncludesHierarchyMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ChildChatMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		parentID := uuid.New()
+		rootID := uuid.New()
+		workspaceID := uuid.New()
+		workspaceAgentID := uuid.New()
+
+		converted := convertChat(database.Chat{
+			ID:               uuid.New(),
+			OwnerID:          uuid.New(),
+			WorkspaceID:      uuid.NullUUID{UUID: workspaceID, Valid: true},
+			WorkspaceAgentID: uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
+			ParentChatID:     uuid.NullUUID{UUID: parentID, Valid: true},
+			RootChatID:       uuid.NullUUID{UUID: rootID, Valid: true},
+			TaskStatus:       database.ChatTaskStatusQueued,
+			Title:            "Child Chat",
+		}, nil)
+
+		require.NotNil(t, converted.ParentChatID)
+		require.Equal(t, parentID, *converted.ParentChatID)
+		require.NotNil(t, converted.RootChatID)
+		require.Equal(t, rootID, *converted.RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusQueued, converted.TaskStatus)
+		require.NotNil(t, converted.WorkspaceID)
+		require.Equal(t, workspaceID, *converted.WorkspaceID)
+		require.NotNil(t, converted.WorkspaceAgentID)
+		require.Equal(t, workspaceAgentID, *converted.WorkspaceAgentID)
+	})
+
+	t.Run("RootFallbackMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		rootID := uuid.New()
+		converted := convertChat(database.Chat{
+			ID:    rootID,
+			Title: "Root Chat",
+		}, nil)
+
+		require.Nil(t, converted.ParentChatID)
+		require.NotNil(t, converted.RootChatID)
+		require.Equal(t, rootID, *converted.RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusReported, converted.TaskStatus)
+	})
+}
+
 func TestChatWorkspaceRequestMetadataFromRequest(t *testing.T) {
 	t.Parallel()
 

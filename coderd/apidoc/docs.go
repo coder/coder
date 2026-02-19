@@ -14082,8 +14082,19 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "parent_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "root_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
+                },
+                "task_status": {
+                    "$ref": "#/definitions/codersdk.ChatTaskStatus"
                 },
                 "title": {
                     "type": "string"
@@ -14391,6 +14402,21 @@ const docTemplate = `{
                 "ChatStatusError"
             ]
         },
+        "codersdk.ChatTaskStatus": {
+            "type": "string",
+            "enum": [
+                "queued",
+                "running",
+                "awaiting_report",
+                "reported"
+            ],
+            "x-enum-varnames": [
+                "ChatTaskStatusQueued",
+                "ChatTaskStatusRunning",
+                "ChatTaskStatusAwaitingReport",
+                "ChatTaskStatusReported"
+            ]
+        },
         "codersdk.ChatToolResultMetadata": {
             "type": "object",
             "properties": {
@@ -14646,6 +14672,10 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "parent_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "system_prompt": {
                     "type": "string"

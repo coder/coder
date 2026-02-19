@@ -4,6 +4,7 @@ import {
 	chatDiffContentsKey,
 	chatDiffStatus,
 	chatDiffStatusKey,
+	chats,
 	chatModels,
 	chatsKey,
 	createChatMessage,
@@ -31,6 +32,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	ArchiveIcon,
+	ChevronRightIcon,
 	EllipsisIcon,
 	ExternalLinkIcon,
 	MonitorIcon,
@@ -73,6 +75,21 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 
 const asString = (value: unknown): string => {
 	return typeof value === "string" ? value : "";
+};
+
+const asNonEmptyString = (value: unknown): string | undefined => {
+	const next = asString(value).trim();
+	return next.length > 0 ? next : undefined;
+};
+
+type ChatWithHierarchyMetadata = TypesGen.Chat & {
+	readonly parent_chat_id?: string;
+};
+
+const getParentChatID = (chat: TypesGen.Chat | undefined): string | undefined => {
+	return asNonEmptyString(
+		(chat as ChatWithHierarchyMetadata | undefined)?.parent_chat_id,
+	);
 };
 
 const appendText = (current: string, next: string): string => {
@@ -626,6 +643,7 @@ export const AgentDetail: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const chatsQuery = useQuery(chats());
 	const workspaceId = chatQuery.data?.chat.workspace_id;
 	const workspaceAgentId = chatQuery.data?.chat.workspace_agent_id;
 	const workspaceQuery = useQuery({
@@ -1163,32 +1181,6 @@ export const AgentDetail: FC = () => {
 		return sections;
 	}, [parsedMessages]);
 
-	if (chatQuery.isLoading) {
-		return (
-			<div className="mx-auto w-full max-w-3xl space-y-6 py-6">
-				{/* User message skeleton */}
-				<div className="flex justify-end">
-					<Skeleton className="h-10 w-2/3 rounded-xl" />
-				</div>
-				{/* Assistant response skeleton */}
-				<div className="space-y-3">
-					<Skeleton className="h-4 w-full" />
-					<Skeleton className="h-4 w-5/6" />
-					<Skeleton className="h-4 w-4/6" />
-					<Skeleton className="h-4 w-full" />
-					<Skeleton className="h-4 w-3/5" />
-				</div>
-			</div>
-		);
-	}
-
-	if (!chatQuery.data || !agentId) {
-		return (
-			<div className="flex flex-1 items-center justify-center text-content-secondary">
-				Chat not found
-			</div>
-		);
-	}
 	const persistedErrorReason = agentId ? chatErrorReasons[agentId] : undefined;
 	const detailErrorMessage =
 		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
@@ -1204,6 +1196,10 @@ export const AgentDetail: FC = () => {
 	const topBarActionsRef = outletContext?.topBarActionsRef;
 	const rightPanelRef = outletContext?.rightPanelRef;
 	const chatTitle = chatQuery.data?.chat.title;
+	const parentChatID = getParentChatID(chatQuery.data?.chat);
+	const parentChat = parentChatID
+		? chatsQuery.data?.find((chat) => chat.id === parentChatID)
+		: undefined;
 	const workspace = workspaceQuery.data;
 	const workspaceRoute = workspace
 		? `/@${workspace.owner_name}/${workspace.name}`
@@ -1270,14 +1266,56 @@ export const AgentDetail: FC = () => {
 		requestArchiveAgent(agentId);
 	}, [agentId, requestArchiveAgent]);
 
+	if (chatQuery.isLoading) {
+		return (
+			<div className="mx-auto w-full max-w-3xl space-y-6 py-6">
+				{/* User message skeleton */}
+				<div className="flex justify-end">
+					<Skeleton className="h-10 w-2/3 rounded-xl" />
+				</div>
+				{/* Assistant response skeleton */}
+				<div className="space-y-3">
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-4 w-5/6" />
+					<Skeleton className="h-4 w-4/6" />
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-4 w-3/5" />
+				</div>
+			</div>
+		);
+	}
+
+	if (!chatQuery.data || !agentId) {
+		return (
+			<div className="flex flex-1 items-center justify-center text-content-secondary">
+				Chat not found
+			</div>
+		);
+	}
+
 	const chatContent = (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
 			{chatTitle &&
 				topBarTitleRef?.current &&
 				createPortal(
-					<span className="truncate text-sm text-content-primary">
-						{chatTitle}
-					</span>,
+					<div className="flex min-w-0 items-center gap-1.5">
+						{parentChat && (
+							<>
+								<Button
+									size="sm"
+									variant="subtle"
+									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-xs text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+									onClick={() => navigate(`/agents/${parentChat.id}`)}
+								>
+									<span className="truncate">{parentChat.title}</span>
+								</Button>
+								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70" />
+							</>
+						)}
+						<span className="truncate text-sm text-content-primary">
+							{chatTitle}
+						</span>
+					</div>,
 					topBarTitleRef.current,
 				)}
 			{hasDiffStatus &&

@@ -62,6 +62,81 @@ func TestChatMessagesToPrompt(t *testing.T) {
 	require.Len(t, extractToolCallsFromMessageParts(prompt[2].Content), 1)
 }
 
+func TestChatMessagesToPrompt_SanitizesToolCallIDs(t *testing.T) {
+	t.Parallel()
+
+	const (
+		legacyToolCallID    = "task_report:123e4567-e89b-12d3-a456-426614174000"
+		sanitizedToolCallID = "task_report_123e4567-e89b-12d3-a456-426614174000"
+		compliantToolCallID = "task_report_123e4567-e89b-12d3-a456-426614174000"
+	)
+
+	tests := []struct {
+		name       string
+		toolCallID string
+		wantID     string
+	}{
+		{
+			name:       "LegacyInvalidID",
+			toolCallID: legacyToolCallID,
+			wantID:     sanitizedToolCallID,
+		},
+		{
+			name:       "AlreadyCompliantID",
+			toolCallID: compliantToolCallID,
+			wantID:     compliantToolCallID,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assistantBlocks := append(contentFromText("working"), fantasy.ToolCallContent{
+				ToolCallID: tt.toolCallID,
+				ToolName:   toolReadFile,
+				Input:      `{"path":"hello.txt"}`,
+			})
+			assistantContent, err := json.Marshal(assistantBlocks)
+			require.NoError(t, err)
+
+			toolResults, err := json.Marshal([]ToolResultBlock{{
+				ToolCallID: tt.toolCallID,
+				ToolName:   toolReadFile,
+				Result:     map[string]any{"content": "hello"},
+			}})
+			require.NoError(t, err)
+
+			messages := []database.ChatMessage{
+				{
+					Role:    string(fantasy.MessageRoleAssistant),
+					Content: pqtype.NullRawMessage{RawMessage: assistantContent, Valid: true},
+				},
+				{
+					Role:    string(fantasy.MessageRoleTool),
+					Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
+				},
+			}
+
+			prompt, err := chatMessagesToPrompt(messages)
+			require.NoError(t, err)
+			require.Len(t, prompt, 2)
+
+			assistantToolCalls := extractToolCallsFromMessageParts(prompt[0].Content)
+			require.Len(t, assistantToolCalls, 1)
+			require.Equal(t, tt.wantID, assistantToolCalls[0].ToolCallID)
+
+			toolResultParts := messageToolResultParts(prompt[1])
+			require.Len(t, toolResultParts, 1)
+			require.Equal(t, tt.wantID, toolResultParts[0].ToolCallID)
+
+			require.Contains(t, string(messages[0].Content.RawMessage), tt.toolCallID)
+			require.Contains(t, string(messages[1].Content.RawMessage), tt.toolCallID)
+		})
+	}
+}
+
 func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 	t.Parallel()
 

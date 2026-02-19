@@ -742,6 +742,156 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 }
 
+func TestCreateChat_HierarchyMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateRootChat", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		rootChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message: "Create a root chat.",
+		})
+		require.NoError(t, err)
+		require.Nil(t, rootChat.ParentChatID)
+		require.NotNil(t, rootChat.RootChatID)
+		require.Equal(t, rootChat.ID, *rootChat.RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusReported, rootChat.TaskStatus)
+
+		got, err := client.GetChat(ctx, rootChat.ID)
+		require.NoError(t, err)
+		require.Nil(t, got.Chat.ParentChatID)
+		require.NotNil(t, got.Chat.RootChatID)
+		require.Equal(t, rootChat.ID, *got.Chat.RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusReported, got.Chat.TaskStatus)
+
+		chats, err := client.ListChats(ctx)
+		require.NoError(t, err)
+		require.Len(t, chats, 1)
+		require.Nil(t, chats[0].ParentChatID)
+		require.NotNil(t, chats[0].RootChatID)
+		require.Equal(t, rootChat.ID, *chats[0].RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusReported, chats[0].TaskStatus)
+	})
+
+	t.Run("CreateChildChatWithValidParent", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		parent, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message: "Create a parent chat.",
+		})
+		require.NoError(t, err)
+
+		parentID := parent.ID
+		child, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:      "Create a child chat.",
+			ParentChatID: &parentID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, child.ParentChatID)
+		require.Equal(t, parent.ID, *child.ParentChatID)
+		require.NotNil(t, child.RootChatID)
+		require.Equal(t, parent.ID, *child.RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusQueued, child.TaskStatus)
+
+		gotChild, err := client.GetChat(ctx, child.ID)
+		require.NoError(t, err)
+		require.NotNil(t, gotChild.Chat.ParentChatID)
+		require.Equal(t, parent.ID, *gotChild.Chat.ParentChatID)
+		require.NotNil(t, gotChild.Chat.RootChatID)
+		require.Equal(t, parent.ID, *gotChild.Chat.RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusQueued, gotChild.Chat.TaskStatus)
+
+		chats, err := client.ListChats(ctx)
+		require.NoError(t, err)
+		require.Len(t, chats, 2)
+
+		byID := make(map[uuid.UUID]codersdk.Chat, len(chats))
+		for _, chat := range chats {
+			byID[chat.ID] = chat
+		}
+
+		require.Contains(t, byID, parent.ID)
+		require.Contains(t, byID, child.ID)
+		require.Nil(t, byID[parent.ID].ParentChatID)
+		require.NotNil(t, byID[parent.ID].RootChatID)
+		require.Equal(t, parent.ID, *byID[parent.ID].RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusReported, byID[parent.ID].TaskStatus)
+		require.NotNil(t, byID[child.ID].ParentChatID)
+		require.Equal(t, parent.ID, *byID[child.ID].ParentChatID)
+		require.NotNil(t, byID[child.ID].RootChatID)
+		require.Equal(t, parent.ID, *byID[child.ID].RootChatID)
+		require.Equal(t, codersdk.ChatTaskStatusQueued, byID[child.ID].TaskStatus)
+	})
+
+	t.Run("RejectParentFromAnotherOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		parent, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message: "Owner parent chat.",
+		})
+		require.NoError(t, err)
+
+		parentID := parent.ID
+		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:      "Attempt child chat.",
+			ParentChatID: &parentID,
+		})
+		require.Error(t, err)
+
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, "Parent chat not found or you do not have access to this resource", sdkErr.Message)
+	})
+
+	t.Run("RejectWorkspaceMismatch", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		parentWorkspace, parentWorkspaceAgentID := createWorkspaceWithAgent(t, client, user.OrganizationID)
+		otherWorkspace, _ := createWorkspaceWithAgent(t, client, user.OrganizationID)
+
+		parentWorkspaceID := parentWorkspace.ID
+		parentAgentID := parentWorkspaceAgentID
+		parent, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:          "Parent chat with workspace.",
+			WorkspaceID:      &parentWorkspaceID,
+			WorkspaceAgentID: &parentAgentID,
+		})
+		require.NoError(t, err)
+
+		parentID := parent.ID
+		otherWorkspaceID := otherWorkspace.ID
+		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message:      "Child chat with mismatched workspace.",
+			ParentChatID: &parentID,
+			WorkspaceID:  &otherWorkspaceID,
+		})
+		require.Error(t, err)
+
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, "Child chat workspace must match parent chat workspace.", sdkErr.Message)
+	})
+}
+
 func TestChatModels_NoEnabledModels(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("ANTHROPIC_API_KEY", "")
