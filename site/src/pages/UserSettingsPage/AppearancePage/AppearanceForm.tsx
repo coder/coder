@@ -179,6 +179,10 @@ const AutoThemePreviewButton: FC<AutoThemePreviewButtonProps> = ({
 					preview={preview}
 					displayName={displayName}
 					theme={rightTheme}
+					style={{
+						// Slightly past the bounding box to avoid cutting off the outline
+						clipPath: "polygon(50% -5%, 105% -5%, 105% 105%, 50% 105%)",
+					}}
 				/>
 			</label>
 		</>
@@ -248,7 +252,7 @@ const ThemePreview: FC<ThemePreviewProps> = ({
 				style={style}
 			>
 				<div className="bg-surface-primary text-content-primary">
-					<div className="bg-surface-secondary flex items-center justify-between px-2.5 py-1.5 mb-2 border-0 border-b border-border border-solid">
+					<div className="bg-surface-primary flex items-center justify-between px-2.5 py-1.5 mb-2 border-0 border-b border-border border-solid">
 						<div className="flex items-center gap-1.5">
 							<div className="bg-content-primary h-1.5 w-5 rounded" />
 							<div className="bg-content-secondary h-1.5 w-5 rounded" />

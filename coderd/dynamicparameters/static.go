@@ -9,8 +9,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
@@ -27,7 +27,7 @@ func (r *loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 		return nil, xerrors.Errorf("template version parameters: %w", err)
 	}
 
-	params := db2sdk.List(dbTemplateVersionParameters, TemplateVersionParameter)
+	params := slice.List(dbTemplateVersionParameters, TemplateVersionParameter)
 
 	for i, param := range params {
 		// Update the diagnostics to validate the 'default' value.

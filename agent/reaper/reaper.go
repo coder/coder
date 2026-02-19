@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-reap"
+
+	"cdr.dev/slog/v3"
 )
 
 type Option func(o *options)
@@ -34,8 +36,15 @@ func WithCatchSignals(sigs ...os.Signal) Option {
 	}
 }
 
+func WithLogger(logger slog.Logger) Option {
+	return func(o *options) {
+		o.Logger = logger
+	}
+}
+
 type options struct {
 	ExecArgs     []string
 	PIDs         reap.PidCh
 	CatchSignals []os.Signal
+	Logger       slog.Logger
 }

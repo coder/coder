@@ -59,6 +59,17 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The role parameter distinguishes the real workspace agent from
+	// other clients using the same agent token (e.g. coder-logstream-kube).
+	// Only connections with the "agent" role trigger connection monitoring
+	// that updates first_connected_at/last_connected_at/disconnected_at.
+	// For backward compatibility, we default to monitoring when the role
+	// is omitted, since older agents don't send this parameter. In a
+	// future release, once all agents include role=agent, we can change
+	// this default to skip monitoring for unspecified roles.
+	role := r.URL.Query().Get("role")
+	monitorConnection := role == "" || role == "agent"
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -121,10 +132,15 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		slog.F("agent_api_version", workspaceAgent.APIVersion),
 		slog.F("agent_resource_id", workspaceAgent.ResourceID))
 
-	closeCtx, closeCtxCancel := context.WithCancel(ctx)
-	defer closeCtxCancel()
-	monitor := api.startAgentYamuxMonitor(closeCtx, workspace, workspaceAgent, build, mux)
-	defer monitor.close()
+	if monitorConnection {
+		closeCtx, closeCtxCancel := context.WithCancel(ctx)
+		defer closeCtxCancel()
+		monitor := api.startAgentYamuxMonitor(closeCtx, workspace, workspaceAgent, build, mux)
+		defer monitor.close()
+	} else {
+		logger.Debug(ctx, "skipping agent connection monitoring",
+			slog.F("role", role))
+	}
 
 	agentAPI := agentapi.New(agentapi.Options{
 		AgentID:           workspaceAgent.ID,
@@ -158,6 +174,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 		Experiments:               api.Experiments,
+		LifecycleMetrics:          api.lifecycleMetrics,
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,

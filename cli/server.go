@@ -95,6 +95,7 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -935,6 +936,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.StatsBatcher = batcher
 			defer closeBatcher()
 
+			wsBuilderMetrics, err := wsbuilder.NewMetrics(options.PrometheusRegistry)
+			if err != nil {
+				return xerrors.Errorf("failed to register workspace builder metrics: %w", err)
+			}
+			options.WorkspaceBuilderMetrics = wsBuilderMetrics
+
 			// Manage notifications.
 			var (
 				notificationsCfg     = options.DeploymentValues.Notifications
@@ -1118,7 +1125,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, coderAPI.BuildUsageChecker, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
+				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, coderAPI.BuildUsageChecker, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments, coderAPI.WorkspaceBuilderMetrics)
 			autobuildExecutor.Run()
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
@@ -2174,7 +2181,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// existing database
 	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
 	if retryPortDiscovery {
-		maxAttempts = 3
+		maxAttempts = 10
 	}
 
 	var startErr error

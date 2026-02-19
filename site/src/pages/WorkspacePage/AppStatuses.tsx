@@ -19,12 +19,10 @@ import {
 	ExternalLinkIcon,
 	FileIcon,
 	LayoutGridIcon,
-	SquareCheckBigIcon,
 } from "lucide-react";
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
 import { timeFrom } from "utils/time";
 import { truncateURI } from "utils/uri";
 
@@ -113,17 +111,6 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 								</a>
 							</Button>
 						))}
-
-					{workspace.task_id && (
-						<Button asChild size="sm" variant="outline">
-							<RouterLink
-								to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
-							>
-								<SquareCheckBigIcon />
-								View task
-							</RouterLink>
-						</Button>
-					)}
 
 					<Tooltip>
 						<TooltipTrigger asChild>

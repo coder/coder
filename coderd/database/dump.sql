@@ -208,7 +208,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'boundary_usage:*',
     'boundary_usage:delete',
     'boundary_usage:read',
-    'boundary_usage:update'
+    'boundary_usage:update',
+    'workspace:update_agent',
+    'workspace_dormant:update_agent'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1022,6 +1024,7 @@ CREATE TABLE aibridge_interceptions (
     metadata jsonb,
     ended_at timestamp with time zone,
     api_key_id text,
+    client character varying(64) DEFAULT 'Unknown'::character varying,
     parent_id uuid,
     ancestor_id uuid
 );
@@ -2009,7 +2012,7 @@ CREATE VIEW tasks_with_status AS
                     WHEN (latest_build_raw.job_status IS NULL) THEN 'pending'::task_status
                     WHEN (latest_build_raw.job_status = ANY (ARRAY['failed'::provisioner_job_status, 'canceling'::provisioner_job_status, 'canceled'::provisioner_job_status])) THEN 'error'::task_status
                     WHEN ((latest_build_raw.transition = ANY (ARRAY['stop'::workspace_transition, 'delete'::workspace_transition])) AND (latest_build_raw.job_status = 'succeeded'::provisioner_job_status)) THEN 'paused'::task_status
-                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = 'pending'::provisioner_job_status)) THEN 'initializing'::task_status
+                    WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = 'pending'::provisioner_job_status)) THEN 'pending'::task_status
                     WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN 'active'::task_status
                     ELSE 'unknown'::task_status
                 END AS status) build_status)
@@ -2295,7 +2298,8 @@ CREATE TABLE templates (
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     use_classic_parameter_flow boolean DEFAULT false NOT NULL,
-    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
+    disable_module_cache boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -2349,6 +2353,7 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
     templates.cors_behavior,
+    templates.disable_module_cache,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -2739,7 +2744,9 @@ CREATE TABLE workspaces (
     favorite boolean DEFAULT false NOT NULL,
     next_start_at timestamp with time zone,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
@@ -3276,6 +3283,8 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
 CREATE INDEX idx_aibridge_interceptions_ancestor_id ON aibridge_interceptions USING btree (ancestor_id);
+
+CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 

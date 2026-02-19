@@ -9,7 +9,7 @@ module.exports = {
 	theme: {
 		extend: {
 			fontFamily: {
-				sans: `"Inter Variable", system-ui, sans-serif`,
+				sans: `"Geist Variable", system-ui, sans-serif`,
 			},
 			size: {
 				"icon-lg": "1.5rem",
@@ -18,8 +18,9 @@ module.exports = {
 			},
 			fontSize: {
 				"2xs": ["0.625rem", "0.875rem"],
-				xs: ["0.75rem", "1rem"],
-				sm: ["0.875rem", "1.5rem"],
+				xs: ["0.75rem", { lineHeight: "1rem", fontWeight: "500" }],
+				sm: ["0.875rem", { lineHeight: "1.5rem", fontWeight: "500" }],
+				base: ["1rem", { lineHeight: "1.5rem", fontWeight: "400" }],
 				"3xl": ["2rem", "2.5rem"],
 			},
 			borderRadius: {
@@ -54,6 +55,7 @@ module.exports = {
 					sky: "hsl(var(--surface-sky))",
 					red: "hsl(var(--surface-red))",
 					purple: "hsl(var(--surface-purple))",
+					magenta: "hsl(var(--surface-magenta))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -64,6 +66,7 @@ module.exports = {
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",
 					purple: "hsl(var(--border-purple))",
+					magenta: "hsl(var(--border-magenta))",
 				},
 				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
@@ -74,6 +77,7 @@ module.exports = {
 					grey: "hsl(var(--highlight-grey))",
 					sky: "hsl(var(--highlight-sky))",
 					red: "hsl(var(--highlight-red))",
+					magenta: "hsl(var(--highlight-magenta))",
 				},
 			},
 			keyframes: {

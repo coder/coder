@@ -6,6 +6,9 @@ This article describes how to upgrade your Coder server.
 > Prior to upgrading a production Coder deployment, take a database snapshot since
 > Coder does not support rollbacks.
 
+For upgrade recommendations and troubleshooting, see
+[Upgrading Best Practices](./upgrade-best-practices.md).
+
 ## Reinstall Coder to upgrade
 
 To upgrade your Coder server, reinstall Coder using your original method

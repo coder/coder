@@ -242,73 +242,32 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			t.Log("newMaxDeadline", c.newMaxDeadline)
 			t.Log("ttl", c.ttl)
 
-			var (
-				template = dbgen.Template(t, db, database.Template{
-					OrganizationID:  organizationID,
-					ActiveVersionID: templateVersion.ID,
-					CreatedBy:       user.ID,
-				})
-				ws = dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: organizationID,
-					OwnerID:        user.ID,
-					TemplateID:     template.ID,
-				})
-				job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-					OrganizationID: organizationID,
-					FileID:         file.ID,
-					InitiatorID:    user.ID,
-					Provisioner:    database.ProvisionerTypeEcho,
-					Tags: database.StringMap{
-						c.name: "yeah",
-					},
-				})
-				wsBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       ws.ID,
-					BuildNumber:       1,
-					JobID:             job.ID,
-					InitiatorID:       user.ID,
-					TemplateVersionID: templateVersion.ID,
-					ProvisionerState:  []byte(must(cryptorand.String(64))),
-				})
-			)
+			template := dbgen.Template(t, db, database.Template{
+				OrganizationID:  organizationID,
+				ActiveVersionID: templateVersion.ID,
+				CreatedBy:       user.ID,
+			})
+			buildResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: organizationID,
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+			}).Seed(database.WorkspaceBuild{
+				TemplateVersionID: templateVersion.ID,
+				ProvisionerState:  []byte(must(cryptorand.String(64))),
+			}).Succeeded(dbfake.WithJobCompletedAt(buildTime)).Do()
 
 			// Assert test invariant: workspace build state must not be empty
-			require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
+			require.NotEmpty(t, buildResp.Build.ProvisionerState, "provisioner state must not be empty")
 
-			acquiredJob, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-				OrganizationID: job.OrganizationID,
-				StartedAt: sql.NullTime{
-					Time:  buildTime,
-					Valid: true,
-				},
-				WorkerID: uuid.NullUUID{
-					UUID:  uuid.New(),
-					Valid: true,
-				},
-				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
-				ProvisionerTags: json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, c.name)),
-			})
-			require.NoError(t, err)
-			require.Equal(t, job.ID, acquiredJob.ID)
-			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID: job.ID,
-				CompletedAt: sql.NullTime{
-					Time:  buildTime,
-					Valid: true,
-				},
-				UpdatedAt: buildTime,
-			})
-			require.NoError(t, err)
-
-			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-				ID:          wsBuild.ID,
+			err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          buildResp.Build.ID,
 				UpdatedAt:   buildTime,
 				Deadline:    c.deadline,
 				MaxDeadline: c.maxDeadline,
 			})
 			require.NoError(t, err)
 
-			wsBuild, err = db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
+			wsBuild, err := db.GetWorkspaceBuildByID(ctx, buildResp.Build.ID)
 			require.NoError(t, err)
 
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -1309,7 +1268,6 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

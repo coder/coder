@@ -54,32 +54,42 @@ For a full list of available modules please check
 
 ## Offline installations
 
-In offline and restricted deployments, there are two ways to fetch modules.
+In offline and restricted deployments, there are three ways to fetch modules.
 
-1. Artifactory
-2. Private git repository
+1. Artifactory Remote Terraform Repository (Recommended)
+2. Artifactory Local Repository (manual publishing)
+3. Private git repository
 
-### Artifactory
+### Artifactory Remote Terraform Repository (Recommended)
 
-Air gapped users can clone the [coder/registry](https://github.com/coder/registry/)
+Configure Artifactory as a **Remote Terraform Repository** that proxies and
+caches the Coder registry. This approach provides automatic updates and
+requires no manual synchronization.
+
+See [Mirror the Coder Registry with JFrog Artifactory](../../../install/registry-mirror-artifactory.md)
+for complete setup instructions.
+
+### Artifactory Local Repository
+
+Air-gapped users can clone the [coder/registry](https://github.com/coder/registry/)
 repo and publish a
 [local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
 to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 
 1. Create a local-terraform-repository with name `coder-modules-local`
-2. Create a virtual repository with name `tf`
-3. Follow the below instructions to publish coder modules to Artifactory
+1. Create a virtual repository with name `tf`
+1. Follow the below instructions to publish coder modules to Artifactory
 
    ```shell
    git clone https://github.com/coder/registry
-   cd registry/coder/modules
+   cd registry/registry/coder/modules
    jf tfc
    jf tf p --namespace="coder" --provider="coder" --tag="1.0.0"
    ```
 
-4. Generate a token with access to the `tf` repo and set an `ENV` variable
+1. Generate a token with access to the `tf` repo and set an `ENV` variable
    `TF_TOKEN_example.jfrog.io="XXXXXXXXXXXXXXX"` on the Coder provisioner.
-5. Create a file `.terraformrc` with following content and mount at
+1. Create a file `.terraformrc` with following content and mount at
    `/home/coder/.terraformrc` within the Coder provisioner.
 
    ```tf
@@ -93,7 +103,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    }
    ```
 
-6. Update module source as:
+1. Update module source as:
 
    ```tf
    module "module-name" {

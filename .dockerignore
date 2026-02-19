@@ -1,0 +1,4 @@
+# All artifacts of the build processed are dumped here.
+# Ignore it for docker context, as all Dockerfiles should build their own
+# binaries.
+build

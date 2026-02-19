@@ -31,7 +31,7 @@ terminal-based agent such as Claude Code or Codex's Open Source CLI.
 [Learn more about Coder Tasks](./tasks.md) for best practices and how to get
 started.
 
-## Secure Your Workflows with Agent Boundaries (Beta)
+## Secure Your Workflows with Agent Boundaries
 
 AI agents can be powerful teammates, but must be treated as untrusted and
 unpredictable interns as opposed to tools. Without the right controls, they can

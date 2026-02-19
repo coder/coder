@@ -473,6 +473,28 @@ export const CheckExternalAuthOnChangingVersions: Story = {
 	},
 };
 
+// Regression test introduced in https://github.com/coder/coder/pull/22032
+// A change was introduced that cause the focused selector to be mostly
+// hidden due to an introduced `overflow-hidden`. The change wasn't spotted
+// in the PR it was introduced as no stories triggered that behavior, so we
+// have added one to ensure the behavior doesn't regress.
+export const PresetSelectorFocused: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(
+			MockPresets.map((preset, i) => ({
+				...preset,
+				Icon: i === 0 ? "/icon/code.svg" : i === 1 ? "/icon/database.svg" : "",
+				Description: i === 0 ? "For everyday development work" : "",
+			})),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const presetSelect = await canvas.findByLabelText(/preset/i);
+		presetSelect.focus();
+	},
+};
+
 export const CheckPresetsWhenChangingTemplate: Story = {
 	args: {
 		templates: [

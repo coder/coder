@@ -852,9 +852,11 @@ export const MockTemplate: TypesGen.Template = {
 	require_active_version: false,
 	deprecated: false,
 	deprecation_message: "",
+	deleted: false,
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
+	disable_module_cache: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3082,6 +3084,10 @@ export const MockPermissions: Permissions = {
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
+	createOAuth2App: true,
+	editOAuth2App: true,
+	deleteOAuth2App: true,
+	viewOAuth2AppSecrets: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3111,6 +3117,10 @@ export const MockNoPermissions: Permissions = {
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: true,
+	createOAuth2App: false,
+	editOAuth2App: false,
+	deleteOAuth2App: false,
+	viewOAuth2AppSecrets: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -5195,7 +5205,51 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 		},
 	],
 	metadata: {},
-	user_prompts: [],
+	user_prompts: [
+		{
+			id: "85154044-818e-4ee4-bac2-87f3ac8f066b",
+			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+			provider_response_id: "res_1234567890",
+			prompt: "Hello OpenAI",
+			metadata: {},
+			created_at: "2022-05-17T17:39:01.382927298Z",
+		},
+	],
 	tool_usages: [],
 	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+	client: "Claude Code",
+};
+
+export const MockInterceptionAnthropic: TypesGen.AIBridgeInterception = {
+	...MockInterception,
+	id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
+	provider: "anthropic",
+	model: "claude-sonnet-4.5",
+	user_prompts: [
+		{
+			id: "c820f31f-0170-4044-8b7c-b1b18747b4fb",
+			interception_id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
+			provider_response_id: "res_2345678901",
+			prompt: "Hello Anthropic",
+			metadata: {},
+			created_at: "2022-05-17T17:39:01.382927298Z",
+		},
+	],
+};
+
+export const MockInterceptionCopilot: TypesGen.AIBridgeInterception = {
+	...MockInterception,
+	id: "22c9d31e-1a1f-464a-b397-562958599aa8",
+	provider: "copilot",
+	model: "claude-opus-4-5",
+	user_prompts: [
+		{
+			id: "c6c613d1-177e-416f-95b5-c7f0eeefb922",
+			interception_id: "22c9d31e-1a1f-464a-b397-562958599aa8",
+			provider_response_id: "res_3456789012",
+			prompt: "Hello Copilot",
+			metadata: {},
+			created_at: "2022-05-17T17:39:01.382927298Z",
+		},
+	],
 };

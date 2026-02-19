@@ -5,7 +5,7 @@
 Claude Code can be configured using environment variables.
 
 * **Base URL**: `ANTHROPIC_BASE_URL` should point to `https://coder.example.com/api/v2/aibridge/anthropic`
-* **API Key**: `ANTHROPIC_API_KEY` should be your [Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
+* **Auth Token**: `ANTHROPIC_AUTH_TOKEN` should be your [Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
 
 ### Pre-configuring in Templates
 

@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -1122,7 +1121,7 @@ func (r *oidcTestRunner) AssertOrganizations(t *testing.T, userIdent string, inc
 	cpy := make([]uuid.UUID, 0, len(expected))
 	cpy = append(cpy, expected...)
 	hasDefault := false
-	userOrgIDs := db2sdk.List(userOrgs, func(o codersdk.Organization) uuid.UUID {
+	userOrgIDs := slice.List(userOrgs, func(o codersdk.Organization) uuid.UUID {
 		if o.IsDefault {
 			hasDefault = true
 			cpy = append(cpy, o.ID)

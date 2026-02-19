@@ -14,13 +14,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -29,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -36,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -1358,12 +1364,19 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 		// Given: a coderd instance with a provisioner daemon
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
-		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:                 store,
 			Pubsub:                   ps,
-			IncludeProvisionerDaemon: true,
+			IncludeProvisionerDaemon: false,
 		})
-		defer closeDaemon.Close()
+
+		// Create a new provisioner with a heartbeater that does nothing.
+		provisioner := coderdtest.NewTaggedProvisionerDaemon(t, api, "test-provisioner", nil, coderd.MemoryProvisionerWithHeartbeatOverride(func(ctx context.Context) error {
+			// The default heartbeat updates the `last_seen_at` column in the database.
+			// By overriding it to do nothing, we can simulate a provisioner that is not sending heartbeats, and is therefore stale.
+			return nil
+		}))
+		defer provisioner.Close()
 
 		// Given: a user, template, and workspace
 		user := coderdtest.CreateFirstUser(t, client)
@@ -2510,6 +2523,152 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
+
+	t.Run("HealthyFilter", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Healthy", func(t *testing.T) {
+			t.Parallel()
+
+			// healthy:true should return workspaces with connected agents
+			// and exclude workspaces with disconnected agents
+			client, db := coderdtest.NewWithDatabase(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+
+			// Create a workspace with a connected agent
+			connectedBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "connected-workspace",
+			}).WithAgent().Do()
+
+			// Mark the agent as connected
+			now := time.Now()
+			require.Len(t, connectedBuild.Agents, 1)
+			//nolint:gocritic // This is a test, we need system context to update agent connection
+			ctx := dbauthz.AsSystemRestricted(context.Background())
+			err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     connectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: now, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: now, Valid: true},
+				DisconnectedAt:         sql.NullTime{},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			// Create a workspace with a disconnected agent
+			disconnectedBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "disconnected-workspace",
+			}).WithAgent().Do()
+
+			// Mark the agent as disconnected
+			require.Len(t, disconnectedBuild.Agents, 1)
+			disconnectedTime := now.Add(-time.Hour)
+			err = db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     disconnectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: disconnectedTime, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: disconnectedTime, Valid: true},
+				DisconnectedAt:         sql.NullTime{Time: now, Valid: true},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// healthy:true should only return the connected workspace
+			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: "healthy:true",
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Workspaces, 1)
+			require.Equal(t, connectedBuild.Workspace.ID, res.Workspaces[0].ID)
+		})
+
+		t.Run("Unhealthy", func(t *testing.T) {
+			t.Parallel()
+
+			// healthy:false should return workspaces with disconnected or timed out agents
+			// and exclude workspaces with connected agents
+			store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			client := coderdtest.New(t, &coderdtest.Options{
+				Database: store,
+				Pubsub:   ps,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			now := time.Now()
+
+			//nolint:gocritic // This is a test, we need system context to update agent connection
+			ctx := dbauthz.AsSystemRestricted(context.Background())
+
+			// Create a workspace with a connected agent (should be excluded)
+			connectedBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "connected-workspace",
+			}).WithAgent().Do()
+			require.Len(t, connectedBuild.Agents, 1)
+			err := store.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     connectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: now, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: now, Valid: true},
+				DisconnectedAt:         sql.NullTime{},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			// Create a workspace with a disconnected agent
+			disconnectedBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "disconnected-workspace",
+			}).WithAgent().Do()
+			require.Len(t, disconnectedBuild.Agents, 1)
+			disconnectedTime := now.Add(-time.Hour)
+			err = store.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     disconnectedBuild.Agents[0].ID,
+				FirstConnectedAt:       sql.NullTime{Time: disconnectedTime, Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: disconnectedTime, Valid: true},
+				DisconnectedAt:         sql.NullTime{Time: now, Valid: true},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			})
+			require.NoError(t, err)
+
+			// Create a workspace with a timed out agent (never connected, timeout exceeded)
+			timedOutBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "timeout-workspace",
+			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+				agents[0].ConnectionTimeoutSeconds = 1
+				return agents
+			}).Do()
+			require.Len(t, timedOutBuild.Agents, 1)
+			// Set created_at to the past so the timeout is exceeded
+			_, err = sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET created_at = $1 WHERE id = $2",
+				now.Add(-time.Hour), timedOutBuild.Agents[0].ID)
+			require.NoError(t, err)
+
+			testCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// healthy:false should return both disconnected and timed out workspaces
+			res, err := client.Workspaces(testCtx, codersdk.WorkspaceFilter{
+				FilterQuery: "healthy:false",
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Workspaces, 2)
+			workspaceIDs := []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID}
+			require.Contains(t, workspaceIDs, disconnectedBuild.Workspace.ID)
+			require.Contains(t, workspaceIDs, timedOutBuild.Workspace.ID)
+		})
 	})
 	t.Run("Params", func(t *testing.T) {
 		t.Parallel()
@@ -5746,4 +5905,136 @@ func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 		require.NotNil(t, ws2.LatestBuild.TemplateVersionPresetID)
 		require.Equal(t, preset2ID, *ws2.LatestBuild.TemplateVersionPresetID)
 	})
+}
+
+func TestProvisionerJobQueueWaitMetric(t *testing.T) {
+	t.Parallel()
+
+	logger := testutil.Logger(t)
+	reg := prometheus.NewRegistry()
+	metrics := provisionerdserver.NewMetrics(logger)
+	err := metrics.Register(reg)
+	require.NoError(t, err)
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:  true,
+		ProvisionerdServerMetrics: metrics,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a template version - this triggers a template_version_import job.
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	// Check that the queue wait metric was recorded for the template_version_import job.
+	importMetric := promhelp.MetricValue(t, reg, "coderd_provisioner_job_queue_wait_seconds", prometheus.Labels{
+		"provisioner_type": string(database.ProvisionerTypeEcho),
+		"job_type":         string(database.ProvisionerJobTypeTemplateVersionImport),
+		"transition":       "",
+		"build_reason":     "",
+	})
+	require.NotNil(t, importMetric, "import job metric should be recorded")
+	importHistogram := importMetric.GetHistogram()
+	require.NotNil(t, importHistogram)
+	require.Equal(t, uint64(1), importHistogram.GetSampleCount(), "import job should have 1 sample")
+	require.Greater(t, importHistogram.GetSampleSum(), 0.0, "import job queue wait should be non-zero")
+
+	// Create a template and workspace - this triggers a workspace_build job.
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Check that the queue wait metric was recorded for the workspace_build job.
+	buildMetric := promhelp.MetricValue(t, reg, "coderd_provisioner_job_queue_wait_seconds", prometheus.Labels{
+		"provisioner_type": string(database.ProvisionerTypeEcho),
+		"job_type":         string(database.ProvisionerJobTypeWorkspaceBuild),
+		"transition":       string(database.WorkspaceTransitionStart),
+		"build_reason":     string(database.BuildReasonInitiator),
+	})
+	require.NotNil(t, buildMetric, "workspace build job metric should be recorded")
+	buildHistogram := buildMetric.GetHistogram()
+	require.NotNil(t, buildHistogram)
+	require.Equal(t, uint64(1), buildHistogram.GetSampleCount(), "workspace build job should have 1 sample")
+	require.Greater(t, buildHistogram.GetSampleSum(), 0.0, "workspace build job queue wait should be non-zero")
+}
+
+func TestWorkspaceBuildsEnqueuedMetric(t *testing.T) {
+	t.Parallel()
+
+	var (
+		logger  = testutil.Logger(t)
+		reg     = prometheus.NewRegistry()
+		metrics = provisionerdserver.NewMetrics(logger)
+
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+	)
+
+	err := metrics.Register(reg)
+	require.NoError(t, err)
+
+	wsBuilderMetrics, err := wsbuilder.NewMetrics(reg)
+	require.NoError(t, err)
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:  true,
+		ProvisionerdServerMetrics: metrics,
+		WorkspaceBuilderMetrics:   wsBuilderMetrics,
+		AutobuildTicker:           tickCh,
+		AutobuildStats:            statsCh,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a template and workspace with autostart schedule.
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutostartSchedule = ptr.Ref(sched.String())
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Stop the workspace to prepare for autostart.
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+	// Trigger an autostart build via the autobuild ticker. This verifies that
+	// autostart builds are recorded with build_reason="autostart".
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+	require.NoError(t, err)
+
+	go func() {
+		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
+		close(tickCh)
+	}()
+
+	// Wait for the autostart to complete.
+	stats := <-statsCh
+	require.Len(t, stats.Errors, 0)
+	require.Len(t, stats.Transitions, 1)
+	require.Contains(t, stats.Transitions, workspace.ID)
+	require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
+
+	// Verify the workspace was autostarted.
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.BuildReasonAutostart, workspace.LatestBuild.Reason)
+
+	// Now check the autostart metric was recorded.
+	autostartCount := promhelp.CounterValue(t, reg, "coderd_workspace_builds_enqueued_total", prometheus.Labels{
+		"provisioner_type": string(database.ProvisionerTypeEcho),
+		"build_reason":     string(database.BuildReasonAutostart),
+		"transition":       string(database.WorkspaceTransitionStart),
+		"status":           wsbuilder.BuildStatusSuccess,
+	})
+	require.Equal(t, 1, autostartCount, "autostart should record 1 enqueue with build_reason=autostart")
+}
+
+func mustSchedule(t *testing.T, s string) *cron.Schedule {
+	t.Helper()
+	sched, err := cron.Weekly(s)
+	require.NoError(t, err)
+	return sched
 }

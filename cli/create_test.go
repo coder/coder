@@ -24,6 +24,309 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestCreateDynamic(t *testing.T) {
+	t.Parallel()
+	owner := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	first := coderdtest.CreateFirstUser(t, owner)
+	member, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+	// Terraform template with conditional parameters.
+	// The "region" parameter only appears when "enable_region" is true.
+	const conditionalParamTF = `
+		terraform {
+		  required_providers {
+		    coder = {
+		      source = "coder/coder"
+		    }
+		  }
+		}
+		data "coder_workspace_owner" "me" {}
+		data "coder_parameter" "enable_region" {
+		  name         = "enable_region"
+		  order        = 1
+		  type         = "bool"
+		  default      = "false"
+		}
+		data "coder_parameter" "region" {
+		  name         = "region"
+		  count        = data.coder_parameter.enable_region.value == "true" ? 1 : 0
+		  order        = 2
+		  type         = "string"
+		  # No default - this makes it required when it appears
+		}
+	`
+
+	// Test conditional parameters: a parameter that only appears when another
+	// parameter has a certain value.
+	t.Run("ConditionalParam", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: conditionalParamTF,
+		})
+
+		// Test 1: Create without enabling region - region param should not exist
+		args := []string{
+			"create", "ws-no-region",
+			"--template", template.Name,
+			"--parameter", "enable_region=false",
+			"-y",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		pty.ExpectMatchContext(ctx, "has been created")
+		err := testutil.RequireReceive(ctx, t, doneChan)
+		require.NoError(t, err)
+
+		// Verify workspace created with only enable_region parameter
+		ws, err := member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-no-region", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err := member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1, "expected only enable_region parameter when enable_region=false")
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "enable_region", Value: "false"})
+
+		// Test 2: Create with region enabled - region param should exist
+		args = []string{
+			"create", "ws-with-region",
+			"--template", template.Name,
+			"--parameter", "enable_region=true",
+			"--parameter", "region=us-east",
+			"-y",
+		}
+		inv, root = clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		pty = ptytest.New(t).Attach(inv)
+
+		doneChan = make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		pty.ExpectMatchContext(ctx, "has been created")
+
+		err = testutil.RequireReceive(ctx, t, doneChan)
+		require.NoError(t, err)
+
+		// Verify workspace created with both parameters
+		ws, err = member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-with-region", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err = member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 2, "expected both enable_region and region parameters when enable_region=true")
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "enable_region", Value: "true"})
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "us-east"})
+	})
+
+	// Test that the CLI prompts for missing conditional parameters.
+	// When enable_region=true, the region parameter becomes required and CLI should prompt.
+	t.Run("PromptForConditionalParam", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: conditionalParamTF,
+		})
+
+		// Only provide enable_region=true, don't provide region - CLI should prompt for it
+		args := []string{
+			"create", "ws-prompted",
+			"--template", template.Name,
+			"--parameter", "enable_region=true",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		// CLI should prompt for the region parameter since enable_region=true
+		pty.ExpectMatchContext(ctx, "region")
+		pty.WriteLine("eu-west")
+
+		// Confirm creation
+		pty.ExpectMatchContext(ctx, "Confirm create?")
+		pty.WriteLine("yes")
+
+		pty.ExpectMatchContext(ctx, "has been created")
+
+		err := <-doneChan
+		require.NoError(t, err)
+
+		// Verify workspace created with both parameters
+		ws, err := member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-prompted", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err := member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 2, "expected both enable_region and region parameters")
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "enable_region", Value: "true"})
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "eu-west"})
+	})
+
+	// Test that updating a template with a new required parameter causes start to fail
+	// when the user doesn't provide the new parameter value.
+	t.Run("UpdateTemplateRequiredParamStartFails", func(t *testing.T) {
+		t.Parallel()
+
+		// Initial template with just enable_region parameter (no default, so required)
+		const initialTF = `
+			terraform {
+			  required_providers {
+			    coder = {
+			      source = "coder/coder"
+			    }
+			  }
+			}
+			data "coder_workspace_owner" "me" {}
+			data "coder_parameter" "enable_region" {
+			  name         = "enable_region"
+			  type         = "bool"
+			}
+		`
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: initialTF,
+		})
+
+		// Create workspace with initial template
+		inv, root := clitest.New(t, "create", "ws-update-test",
+			"--template", template.Name,
+			"--parameter", "enable_region=false",
+			"-y",
+		)
+		clitest.SetupConfig(t, member, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Stop the workspace
+		inv, root = clitest.New(t, "stop", "ws-update-test", "-y")
+		clitest.SetupConfig(t, member, root)
+		err = inv.Run()
+		require.NoError(t, err)
+
+		const updatedTF = `
+			terraform {
+			  required_providers {
+			    coder = {
+			      source = "coder/coder"
+			    }
+			  }
+			}
+			data "coder_workspace_owner" "me" {}
+			data "coder_parameter" "enable_region" {
+			  name         = "enable_region"
+			  type         = "bool"
+			}
+			data "coder_parameter" "region" {
+			  count        = data.coder_parameter.enable_region.value == "true" ? 1 : 0
+			  name         = "region"
+			  type         = "string"
+			  # No default - required when enable_region is true
+			}
+		`
+
+		coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF:     updatedTF,
+			TemplateID: template.ID,
+		})
+
+		// Try to start the workspace with update - should fail because region is now required
+		// (enable_region defaults to true, making region appear, but no value provided)
+		// and we're using -y to skip prompts
+		inv, root = clitest.New(t, "start", "ws-update-test", "-y", "--parameter", "enable_region=true")
+		clitest.SetupConfig(t, member, root)
+		err = inv.Run()
+		require.Error(t, err, "start should fail because new required parameter 'region' is missing")
+		require.Contains(t, err.Error(), "region")
+	})
+
+	// Test that dynamic validation allows values that would be invalid with static validation.
+	// A slider's max value is determined by another parameter, so a value of 8 is invalid
+	// when max_slider=5, but valid when max_slider=10.
+	t.Run("DynamicValidation", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Template where slider's max is controlled by another parameter
+		const dynamicValidationTF = `
+			terraform {
+			  required_providers {
+			    coder = {
+			      source = "coder/coder"
+			    }
+			  }
+			}
+			data "coder_workspace_owner" "me" {}
+			data "coder_parameter" "max_slider" {
+			  name         = "max_slider"
+			  type         = "number"
+			  default      = 5
+			}
+			data "coder_parameter" "slider" {
+			  name         = "slider"
+			  type         = "number"
+			  default      = 1
+			  validation {
+			    min = 1
+			    max = data.coder_parameter.max_slider.value
+			  }
+			}
+		`
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: dynamicValidationTF,
+		})
+
+		// Test 1: slider=8 should fail when max_slider=5 (default)
+		inv, root := clitest.New(t, "create", "ws-validation-fail",
+			"--template", template.Name,
+			"--parameter", "slider=8",
+			"-y",
+		)
+		clitest.SetupConfig(t, member, root)
+		err := inv.Run()
+		require.Error(t, err, "slider=8 should fail when max_slider=5")
+
+		// Test 2: slider=8 should succeed when max_slider=10
+		inv, root = clitest.New(t, "create", "ws-validation-pass",
+			"--template", template.Name,
+			"--parameter", "max_slider=10",
+			"--parameter", "slider=8",
+			"-y",
+		)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan error)
+		go func() {
+			doneChan <- inv.Run()
+		}()
+
+		pty.ExpectMatchContext(ctx, "has been created")
+
+		err = <-doneChan
+		require.NoError(t, err, "slider=8 should succeed when max_slider=10")
+
+		// Verify workspace created with correct parameters
+		ws, err := member.WorkspaceByOwnerAndName(t.Context(), codersdk.Me, "ws-validation-pass", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		buildParams, err := member.WorkspaceBuildParameters(t.Context(), ws.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "max_slider", Value: "10"})
+		require.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "slider", Value: "8"})
+	})
+}
+
 func TestCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {

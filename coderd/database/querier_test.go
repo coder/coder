@@ -23,7 +23,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -2022,8 +2021,8 @@ func TestWorkspaceQuotas(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.ElementsMatch(t, db2sdk.List(everyoneMembers, groupMemberIDs),
-			db2sdk.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
+		require.ElementsMatch(t, slice.List(everyoneMembers, groupMemberIDs),
+			slice.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
 
 		// Check the quota is correct.
 		allowance, err := db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
@@ -2204,7 +2203,7 @@ func TestReadCustomRoles(t *testing.T) {
 		{
 			Name: "AllRolesByLookup",
 			Params: database.CustomRolesParams{
-				LookupRoles: db2sdk.List(allRoles, roleToLookup),
+				LookupRoles: slice.List(allRoles, roleToLookup),
 			},
 			Match: func(role database.CustomRole) bool {
 				return true
@@ -2270,8 +2269,8 @@ func TestReadCustomRoles(t *testing.T) {
 				}
 			}
 
-			a := db2sdk.List(filtered, normalizedRoleName)
-			b := db2sdk.List(found, normalizedRoleName)
+			a := slice.List(filtered, normalizedRoleName)
+			b := slice.List(found, normalizedRoleName)
 			require.Equal(t, a, b)
 		})
 	}
@@ -4260,7 +4259,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgA.ID, orgB.ID, // Everyone groups
 		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(userGroups, onlyGroupIDs))
+	}, slice.List(userGroups, onlyGroupIDs))
 
 	// Remove the user from org A
 	err = db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
@@ -4277,7 +4276,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgB.ID,                // Everyone group
 		groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(userGroups, onlyGroupIDs))
+	}, slice.List(userGroups, onlyGroupIDs))
 
 	// Verify extra user is unchanged
 	extraUserGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
@@ -4287,7 +4286,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{
 		orgA.ID, orgB.ID, // Everyone groups
 		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
-	}, db2sdk.List(extraUserGroups, onlyGroupIDs))
+	}, slice.List(extraUserGroups, onlyGroupIDs))
 }
 
 func TestGetUserStatusCounts(t *testing.T) {
@@ -6647,7 +6646,6 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
@@ -6764,6 +6762,65 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
 		}
 	}
+}
+
+func TestWorkspaceACLObjectConstraint(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Deleted:    false,
+	})
+
+	t.Run("GroupACLNull", func(t *testing.T) {
+		t.Parallel()
+
+		var nilACL database.WorkspaceACL
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: nilACL,
+			UserACL:  database.WorkspaceACL{},
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckGroupAclIsObject))
+	})
+
+	t.Run("UserACLNull", func(t *testing.T) {
+		t.Parallel()
+
+		var nilACL database.WorkspaceACL
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: database.WorkspaceACL{},
+			UserACL:  nilACL,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUserAclIsObject))
+	})
+
+	t.Run("ValidEmptyObjects", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: database.WorkspaceACL{},
+			UserACL:  database.WorkspaceACL{},
+		})
+		require.NoError(t, err)
+	})
 }
 
 // TestGetLatestWorkspaceBuildsByWorkspaceIDs populates the database with
@@ -7094,8 +7151,8 @@ func TestTasksWithStatusView(t *testing.T) {
 			name:                      "PendingStart",
 			buildStatus:               database.ProvisionerJobStatusPending,
 			buildTransition:           database.WorkspaceTransitionStart,
-			expectedStatus:            database.TaskStatusInitializing,
-			description:               "Workspace build is starting (pending)",
+			expectedStatus:            database.TaskStatusPending,
+			description:               "Workspace build pending (not yet picked up by provisioner)",
 			expectBuildNumberValid:    true,
 			expectBuildNumber:         1,
 			expectWorkspaceAgentValid: false,
@@ -7402,7 +7459,6 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -7942,7 +7998,6 @@ func TestUpdateTaskWorkspaceID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -8012,12 +8067,15 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 				ID:          uid,
 				InitiatorID: user.ID,
 				Metadata:    json.RawMessage("{}"),
+				Client:      sql.NullString{String: "client", Valid: true},
 			}
 
 			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
 			require.NoError(t, err)
 			require.Equal(t, uid, intc.ID)
 			require.False(t, intc.EndedAt.Valid)
+			require.True(t, intc.Client.Valid)
+			require.Equal(t, "client", intc.Client.String)
 			interceptions = append(interceptions, intc)
 		}
 

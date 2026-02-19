@@ -17,4 +17,6 @@ const (
 	CheckTelemetryLockEventTypeConstraint        CheckConstraint = "telemetry_lock_event_type_constraint"         // telemetry_locks
 	CheckValidationMonotonicOrder                CheckConstraint = "validation_monotonic_order"                   // template_version_parameters
 	CheckUsageEventTypeCheck                     CheckConstraint = "usage_event_type_check"                       // usage_events
+	CheckGroupAclIsObject                        CheckConstraint = "group_acl_is_object"                          // workspaces
+	CheckUserAclIsObject                         CheckConstraint = "user_acl_is_object"                           // workspaces
 )

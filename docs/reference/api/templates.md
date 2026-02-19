@@ -62,9 +62,11 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deleted": true,
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
+    "disable_module_cache": true,
     "display_name": "string",
     "failure_ttl_ms": 0,
     "icon": "string",
@@ -119,9 +121,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
 |`» default_ttl_ms`|integer|false|||
+|`» deleted`|boolean|false|||
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
@@ -244,9 +248,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -394,9 +400,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -810,9 +818,11 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deleted": true,
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
+    "disable_module_cache": true,
     "display_name": "string",
     "failure_ttl_ms": 0,
     "icon": "string",
@@ -867,9 +877,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
 |`» default_ttl_ms`|integer|false|||
+|`» deleted`|boolean|false|||
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
@@ -1010,9 +1022,11 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -1122,6 +1136,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "deprecation_message": "string",
   "description": "string",
   "disable_everyone_group_access": true,
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -1181,9 +1196,11 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",

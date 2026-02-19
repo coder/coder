@@ -169,7 +169,14 @@
 					"title": "Upgrading",
 					"description": "Learn how to upgrade Coder",
 					"path": "./install/upgrade.md",
-					"icon_path": "./images/icons/upgrade.svg"
+					"icon_path": "./images/icons/upgrade.svg",
+					"children": [
+						{
+							"title": "Upgrading Best Practices",
+							"description": "Best practices and troubleshooting for Coder upgrades",
+							"path": "./install/upgrade-best-practices.md"
+						}
+					]
 				},
 				{
 					"title": "Uninstall",
@@ -286,6 +293,11 @@
 							"title": "Windsurf",
 							"description": "Access your workspace with Windsurf",
 							"path": "./user-guides/workspace-access/windsurf.md"
+						},
+						{
+							"title": "Antigravity",
+							"description": "Access your workspace with Antigravity",
+							"path": "./user-guides/workspace-access/antigravity.md"
 						}
 					]
 				},
@@ -996,12 +1008,24 @@
 							"title": "Agent Boundaries",
 							"description": "Understanding Agent Boundaries in Coder Tasks",
 							"path": "./ai-coder/agent-boundaries/index.md",
-							"state": ["premium", "beta"],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "NS Jail",
 									"description": "Documentation for Namespace Jail",
-									"path": "./ai-coder/agent-boundaries/nsjail.md"
+									"path": "./ai-coder/agent-boundaries/nsjail/index.md",
+									"children": [
+										{
+											"title": "NS Jail on Docker",
+											"description": "Runtime and permission requirements for running NS Jail on Docker",
+											"path": "./ai-coder/agent-boundaries/nsjail/docker.md"
+										},
+										{
+											"title": "NS Jail on Kubernetes",
+											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
+											"path": "./ai-coder/agent-boundaries/nsjail/k8s.md"
+										}
+									]
 								},
 								{
 									"title": "LandJail",
@@ -1048,6 +1072,11 @@
 											"path": "./ai-coder/ai-bridge/clients/codex.md"
 										},
 										{
+											"title": "Mux",
+											"description": "Configure Mux to use AI Bridge",
+											"path": "./ai-coder/ai-bridge/clients/mux.md"
+										},
+										{
 											"title": "OpenCode",
 											"description": "Configure OpenCode to use AI Bridge",
 											"path": "./ai-coder/ai-bridge/clients/opencode.md"
@@ -1086,6 +1115,11 @@
 											"title": "Zed",
 											"description": "Configure Zed to use AI Bridge",
 											"path": "./ai-coder/ai-bridge/clients/zed.md"
+										},
+										{
+											"title": "GitHub Copilot",
+											"description": "Configure GitHub Copilot to use AI Bridge via AI Bridge Proxy",
+											"path": "./ai-coder/ai-bridge/clients/copilot.md"
 										}
 									]
 								},
@@ -1094,6 +1128,19 @@
 									"description": "How to configure MCP servers for tools injection through AI Bridge",
 									"path": "./ai-coder/ai-bridge/mcp.md",
 									"state": ["early access"]
+								},
+								{
+									"title": "AI Bridge Proxy",
+									"description": "Proxy for AI coding tools without base URL override support",
+									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
+									"state": ["premium"],
+									"children": [
+										{
+											"title": "Setup",
+											"description": "How to set up and configure AI Bridge Proxy",
+											"path": "./ai-coder/ai-bridge/ai-bridge-proxy/setup.md"
+										}
+									]
 								},
 								{
 									"title": "Monitoring",
@@ -1162,6 +1209,11 @@
 					"title": "JFrog Artifactory Integration",
 					"description": "Integrate Coder with JFrog Artifactory",
 					"path": "./admin/integrations/jfrog-artifactory.md"
+				},
+				{
+					"title": "Mirror Coder Registry with Artifactory",
+					"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
+					"path": "./install/registry-mirror-artifactory.md"
 				},
 				{
 					"title": "Istio Integration",
@@ -1610,6 +1662,16 @@
 							"path": "reference/cli/organizations_create.md"
 						},
 						{
+							"title": "organizations delete",
+							"description": "Delete an organization",
+							"path": "reference/cli/organizations_delete.md"
+						},
+						{
+							"title": "organizations list",
+							"description": "List all organizations",
+							"path": "reference/cli/organizations_list.md"
+						},
+						{
 							"title": "organizations members",
 							"description": "Manage organization members",
 							"path": "reference/cli/organizations_members.md"
@@ -1970,6 +2032,16 @@
 							"path": "reference/cli/task_logs.md"
 						},
 						{
+							"title": "task pause",
+							"description": "Pause a task",
+							"path": "reference/cli/task_pause.md"
+						},
+						{
+							"title": "task resume",
+							"description": "Resume a task",
+							"path": "reference/cli/task_resume.md"
+						},
+						{
 							"title": "task send",
 							"description": "Send input to a task",
 							"path": "reference/cli/task_send.md"
@@ -2076,7 +2148,7 @@
 						},
 						{
 							"title": "tokens remove",
-							"description": "Delete a token",
+							"description": "Expire or delete a token",
 							"path": "reference/cli/tokens_remove.md"
 						},
 						{

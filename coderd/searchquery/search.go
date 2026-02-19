@@ -254,7 +254,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.TemplateName = parser.String(values, "", "template")
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
-	filter.HasAgent = parser.String(values, "", "has-agent")
+	filter.HasAgentStatuses = parser.Strings(values, []string{}, "has-agent")
 	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
@@ -273,6 +273,15 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	// TODO: support "me" by passing in the actorID
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
+	// Translate healthy filter to has-agent statuses
+	// healthy:true = connected, healthy:false = disconnected or timeout
+	if healthy := parser.NullableBoolean(values, sql.NullBool{}, "healthy"); healthy.Valid {
+		if healthy.Bool {
+			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "connected")
+		} else {
+			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "disconnected", "timeout")
+		}
+	}
 
 	type paramMatch struct {
 		name  string
@@ -376,6 +385,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
 	filter.Model = parser.String(values, "", "model")
+	filter.Client = parser.String(values, "", "client")
 
 	// Time must be between started_after and started_before.
 	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")

@@ -25,7 +25,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
 	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
@@ -119,6 +119,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"activity_bump":                     ActionTrack,
 		"use_classic_parameter_flow":        ActionTrack,
 		"cors_behavior":                     ActionTrack,
+		"disable_module_cache":              ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,

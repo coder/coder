@@ -337,14 +337,14 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.3"
+  version  = "1.3.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-config" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-config/coder"
-  version  = "1.0.32"
+  version  = "1.0.33"
   agent_id = coder_agent.dev.id
   # If you prefer to commit with a different email, this allows you to do so.
   allow_email_change = true
@@ -375,10 +375,11 @@ module "personalize" {
 module "mux" {
   count        = data.coder_workspace.me.start_count
   source       = "registry.coder.com/coder/mux/coder"
-  version      = "1.0.8"
+  version      = "1.1.0"
   agent_id     = coder_agent.dev.id
   subdomain    = true
   display_name = "Mux"
+  add-project  = local.repo_dir
 }
 
 module "code-server" {
@@ -855,7 +856,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.7.2"
+  version             = "4.7.5"
   enable_boundary     = true
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir

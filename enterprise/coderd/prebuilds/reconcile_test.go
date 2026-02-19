@@ -61,6 +61,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	// given a template version with no presets
@@ -112,6 +113,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	// given there are presets, but no prebuilds
@@ -450,6 +452,7 @@ func (tc testCase) run(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 
 		// Run the reconciliation multiple times to ensure idempotency
@@ -527,6 +530,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	ownerID := uuid.New()
@@ -658,6 +662,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
 				10,
+				nil,
 			)
 
 			ownerID := uuid.New()
@@ -767,6 +772,7 @@ func TestInvalidPreset(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	ownerID := uuid.New()
@@ -837,6 +843,7 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	ownerID := uuid.New()
@@ -939,6 +946,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
 				10,
+				nil,
 			)
 
 			// Set up test environment with a template, version, and preset.
@@ -1090,6 +1098,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
 				10,
+				nil,
 			)
 
 			// Set up test environment with a template, version, and preset.
@@ -1279,9 +1288,8 @@ func TestRunLoop(t *testing.T) {
 		ReconciliationBackoffInterval: serpent.Duration(backoffInterval),
 		ReconciliationInterval:        serpent.Duration(time.Second),
 	}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	// Do not ignore errors as we want a graceful stop
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
@@ -1292,6 +1300,7 @@ func TestRunLoop(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	ownerID := uuid.New()
@@ -1424,6 +1433,7 @@ func TestReconcilerLifecycle(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	// When: the reconciler is stopped (simulating the prebuilds feature being disabled)
@@ -1439,6 +1449,7 @@ func TestReconcilerLifecycle(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	// Gracefully stop the reconciliation loop
@@ -1472,6 +1483,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	// Given: an active template version with presets and prebuilds configured.
@@ -1596,6 +1608,7 @@ func TestReconciliationLock(t *testing.T) {
 				newNoopEnqueuer(),
 				newNoopUsageCheckerPtr(), noop.NewTracerProvider(),
 				10,
+				nil,
 			)
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
@@ -1634,6 +1647,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	// Given: a template admin to receive a notification.
@@ -1794,6 +1808,7 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
 				10,
+				nil,
 			)
 
 			// Set up test environment with a template, version, and preset
@@ -1830,25 +1845,27 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 					expiredCount++
 				}
 
-				workspace, _ := setupTestDBPrebuild(
-					t,
-					clock,
-					db,
-					pubSub,
-					database.WorkspaceTransitionStart,
-					database.ProvisionerJobStatusSucceeded,
-					org.ID,
-					preset,
-					template.ID,
-					templateVersionID,
-					withCreatedAt(clock.Now().Add(createdAt)),
-				)
+				jobCreatedAt := clock.Now().Add(createdAt)
+				resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: org.ID,
+					TemplateID:     template.ID,
+					CreatedAt:      jobCreatedAt,
+				}).Pubsub(pubSub).Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+					Transition:              database.WorkspaceTransitionStart,
+				}).Params(database.WorkspaceBuildParameter{
+					Name:  "test",
+					Value: "test",
+				}).Do()
 				if isExpired {
-					expiredWorkspaces = append(expiredWorkspaces, workspace)
+					expiredWorkspaces = append(expiredWorkspaces, resp.Workspace)
 				} else {
-					nonExpiredWorkspaces = append(nonExpiredWorkspaces, workspace)
+					nonExpiredWorkspaces = append(nonExpiredWorkspaces, resp.Workspace)
 				}
-				runningWorkspaces[workspace.ID.String()] = workspace
+				runningWorkspaces[resp.Workspace.ID.String()] = resp.Workspace
 			}
 
 			getJobStatusMap := func(workspaces []database.WorkspaceTable) map[database.ProvisionerJobStatus]int {
@@ -2257,6 +2274,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 					newNoopUsageCheckerPtr(),
 					noop.NewTracerProvider(),
 					10,
+					nil,
 				)
 				owner := coderdtest.CreateFirstUser(t, client)
 
@@ -2502,6 +2520,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		owner := coderdtest.CreateFirstUser(t, client)
 
@@ -2575,6 +2594,7 @@ func TestReconciliationStats(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 	owner := coderdtest.CreateFirstUser(t, client)
 
@@ -2791,21 +2811,6 @@ func setupTestDBPresetWithScheduling(
 	return preset
 }
 
-// prebuildOptions holds optional parameters for creating a prebuild workspace.
-type prebuildOptions struct {
-	createdAt *time.Time
-}
-
-// prebuildOption defines a function type to apply optional settings to prebuildOptions.
-type prebuildOption func(*prebuildOptions)
-
-// withCreatedAt returns a prebuildOption that sets the CreatedAt timestamp.
-func withCreatedAt(createdAt time.Time) prebuildOption {
-	return func(opts *prebuildOptions) {
-		opts.createdAt = &createdAt
-	}
-}
-
 func setupTestDBPrebuild(
 	t *testing.T,
 	clock quartz.Clock,
@@ -2817,10 +2822,9 @@ func setupTestDBPrebuild(
 	preset database.TemplateVersionPreset,
 	templateID uuid.UUID,
 	templateVersionID uuid.UUID,
-	opts ...prebuildOption,
 ) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
-	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, database.PrebuildsSystemUserID, database.PrebuildsSystemUserID, opts...)
+	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, database.PrebuildsSystemUserID, database.PrebuildsSystemUserID)
 }
 
 func setupTestDBWorkspace(
@@ -2836,7 +2840,6 @@ func setupTestDBWorkspace(
 	templateVersionID uuid.UUID,
 	initiatorID uuid.UUID,
 	ownerID uuid.UUID,
-	opts ...prebuildOption,
 ) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
 	cancelledAt := sql.NullTime{}
@@ -2864,19 +2867,7 @@ func setupTestDBWorkspace(
 	default:
 	}
 
-	// Apply all provided prebuild options.
-	prebuiltOptions := &prebuildOptions{}
-	for _, opt := range opts {
-		opt(prebuiltOptions)
-	}
-
-	// Set createdAt to default value if not overridden by options.
 	createdAt := clock.Now().Add(muchEarlier)
-	if prebuiltOptions.createdAt != nil {
-		createdAt = *prebuiltOptions.createdAt
-		// Ensure startedAt matches createdAt for consistency.
-		startedAt = sql.NullTime{Time: createdAt, Valid: true}
-	}
 
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID:     templateID,
@@ -3094,6 +3085,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 
 	// Setup a template with a preset that should create prebuilds
@@ -3200,6 +3192,7 @@ func BenchmarkReconcileAll_NoOps(b *testing.B) {
 				newNoopUsageCheckerPtr(),
 				noop.NewTracerProvider(),
 				maxOpenConns,
+				nil,
 			)
 
 			org := dbgen.Organization(b, db, database.Organization{})
@@ -3311,6 +3304,7 @@ func BenchmarkReconcileAll_ConnectionContention(b *testing.B) {
 					newNoopUsageCheckerPtr(),
 					noop.NewTracerProvider(),
 					maxOpenConns,
+					nil,
 				)
 
 				// Create presets from active template versions that need reconciliation actions
@@ -3430,6 +3424,7 @@ func BenchmarkReconcileAll_Mix(b *testing.B) {
 					newNoopUsageCheckerPtr(),
 					noop.NewTracerProvider(),
 					maxOpenConns,
+					nil,
 				)
 
 				org := dbgen.Organization(b, db, database.Organization{})

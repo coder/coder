@@ -35,7 +35,9 @@ const LoginPage: FC = () => {
 		// Do nothing
 	}
 
-	const isApiRouteRedirect = redirectTo.startsWith("/api/v2");
+	const isApiRouteRedirect =
+		redirectTo.startsWith("/api/v2") ||
+		redirectTo.startsWith("/oauth2/authorize");
 
 	useEffect(() => {
 		if (!buildInfoQuery.data || isSignedIn) {

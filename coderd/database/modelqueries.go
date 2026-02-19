@@ -127,6 +127,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.MaxPortSharingLevel,
 			&i.UseClassicParameterFlow,
 			&i.CorsBehavior,
+			&i.DisableModuleCache,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -268,7 +269,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		pq.Array(arg.TemplateIDs),
 		pq.Array(arg.WorkspaceIds),
 		arg.Name,
-		arg.HasAgent,
+		pq.Array(arg.HasAgentStatuses),
 		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.Dormant,
 		arg.LastUsedBefore,
@@ -789,6 +790,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
+		arg.Client,
 		arg.AfterID,
 		arg.Offset,
 		arg.Limit,
@@ -810,6 +812,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 			&i.AIBridgeInterception.EndedAt,
 			&i.AIBridgeInterception.APIKeyID,
 			&i.AIBridgeInterception.ParentID,
+			&i.AIBridgeInterception.Client,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -847,6 +850,7 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, a
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
+		arg.Client,
 	)
 	if err != nil {
 		return 0, err
