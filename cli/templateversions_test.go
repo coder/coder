@@ -1,7 +1,9 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,6 +41,33 @@ func TestTemplateVersions(t *testing.T) {
 		pty.ExpectMatch(version.Name)
 		pty.ExpectMatch(version.CreatedBy.Username)
 		pty.ExpectMatch("Active")
+	})
+
+	t.Run("ListVersionsJSON", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		inv, root := clitest.New(t, "templates", "versions", "list", template.Name, "--output", "json")
+		clitest.SetupConfig(t, member, root)
+
+		var stdout bytes.Buffer
+		inv.Stdout = &stdout
+
+		require.NoError(t, inv.Run())
+
+		var rows []struct {
+			TemplateVersion codersdk.TemplateVersion `json:"TemplateVersion"`
+			Active          bool                     `json:"active"`
+		}
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &rows))
+		require.Len(t, rows, 1)
+		assert.Equal(t, version.ID, rows[0].TemplateVersion.ID)
+		assert.True(t, rows[0].Active)
 	})
 }
 

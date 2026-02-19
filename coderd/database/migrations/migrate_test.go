@@ -138,7 +138,6 @@ func TestCheckLatestVersion(t *testing.T) {
 	}
 
 	for i, tc := range tests {
-		i, tc := i, tc
 		t.Run(fmt.Sprintf("entry %d", i), func(t *testing.T) {
 			t.Parallel()
 
