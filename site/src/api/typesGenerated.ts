@@ -1043,6 +1043,28 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
+// From codersdk/deployment.go
+export type ConfigCondition = "when_https";
+
+export const ConfigConditions: ConfigCondition[] = ["when_https"];
+
+// From codersdk/deployment.go
+export interface ConfigOption {
+	readonly flag: string;
+	readonly env: string;
+	readonly yaml: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * ConfigWarning represents a configuration issue detected by the server.
+ */
+export interface ConfigWarning {
+	readonly option: ConfigOption;
+	readonly severity: string; // "error" or "warning"
+	readonly message: string;
+}
+
 // From codersdk/insights.go
 /**
  * ConnectionLatency shows the latency for a connection.

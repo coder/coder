@@ -9,6 +9,7 @@ import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
+import { computeConfigWarnings } from "../ConfigAuditPage/configWarnings";
 import { OverviewPageView } from "./OverviewPageView";
 
 const OverviewPage: FC = () => {
@@ -26,6 +27,12 @@ const OverviewPage: FC = () => {
 
 	const { data: dailyActiveUsers } = useQuery(deploymentDAUs());
 
+	// Compute config warnings based on browser context
+	const isHTTPS = window.location.protocol === "https:";
+	const configWarnings = computeConfigWarnings(deploymentConfig.options ?? [], {
+		isHTTPS,
+	});
+
 	return (
 		<>
 			<title>{pageTitle("Overview", "Deployment")}</title>
@@ -35,6 +42,7 @@ const OverviewPage: FC = () => {
 				dailyActiveUsers={dailyActiveUsers}
 				invalidExperiments={invalidExperiments}
 				safeExperiments={safeExperiments}
+				configWarnings={configWarnings}
 			/>
 		</>
 	);

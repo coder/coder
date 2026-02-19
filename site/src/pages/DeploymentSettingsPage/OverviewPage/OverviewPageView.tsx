@@ -15,6 +15,7 @@ import type { FC } from "react";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { Alert, AlertTitle } from "../../../components/Alert/Alert";
+import type { ConfigWarning } from "../ConfigAuditPage/configWarnings";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 
@@ -23,6 +24,7 @@ type OverviewPageViewProps = {
 	dailyActiveUsers: DAUsResponse | undefined;
 	readonly invalidExperiments: readonly string[];
 	readonly safeExperiments: readonly Experiment[];
+	readonly configWarnings: readonly ConfigWarning[];
 };
 
 export const OverviewPageView: FC<OverviewPageViewProps> = ({
@@ -30,7 +32,11 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 	dailyActiveUsers,
 	safeExperiments,
 	invalidExperiments,
+	configWarnings,
 }) => {
+	const errors = configWarnings.filter((w) => w.severity === "error");
+	const warnings = configWarnings.filter((w) => w.severity === "warning");
+
 	return (
 		<>
 			<SettingsHeader
@@ -43,6 +49,20 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 			</SettingsHeader>
 
 			<Stack spacing={4}>
+				{(errors.length > 0 || warnings.length > 0) && (
+					<div className="flex flex-col gap-2">
+						{errors.map((w) => (
+							<Alert key={w.option} severity="error" prominent>
+								<code className="font-semibold">{w.option}</code>: {w.message}
+							</Alert>
+						))}
+						{warnings.map((w) => (
+							<Alert key={w.option} severity="warning" prominent>
+								<code className="font-semibold">{w.option}</code>: {w.message}
+							</Alert>
+						))}
+					</div>
+				)}
 				<UserEngagementChart
 					data={dailyActiveUsers?.entries.map((i) => ({
 						date: i.date,

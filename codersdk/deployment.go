@@ -2,6 +2,8 @@ package codersdk
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -1113,6 +1115,113 @@ const (
 	// proxies. This is used to filter out options that are not relevant.
 	annotationExternalProxies = "external_workspace_proxies"
 )
+
+// ConfigCondition represents a condition under which a config recommendation applies.
+type ConfigCondition string
+
+const (
+	// WhenHTTPS applies when the deployment access URL uses HTTPS.
+	WhenHTTPS ConfigCondition = "when_https"
+)
+
+// Suggest returns an annotation key-value pair for a recommended (warning level)
+// config value under a specific condition.
+// Usage: Annotations: serpent.Annotations{}.Mark(Suggest(WhenHTTPS, "true", "Message"))
+func Suggest(condition ConfigCondition, expected, message string) (key, value string) {
+	return configAnnotation(condition, "suggest", expected, message)
+}
+
+// Require returns an annotation key-value pair for a required (error level)
+// config value under a specific condition.
+// Usage: Annotations: serpent.Annotations{}.Mark(Require(WhenHTTPS, "true", "Message"))
+func Require(condition ConfigCondition, expected, message string) (key, value string) {
+	return configAnnotation(condition, "require", expected, message)
+}
+
+func configAnnotation(condition ConfigCondition, severity, expected, message string) (key, value string) {
+	key = fmt.Sprintf("%s|%s", condition, severity)
+	value = fmt.Sprintf("%s|%s", expected, message)
+	return key, value
+}
+
+// ConfigWarning represents a configuration issue detected by the server.
+type ConfigWarning struct {
+	Option   ConfigOption `json:"option"`
+	Severity string `json:"severity"` // "error" or "warning"
+	Message  string `json:"message"`
+}
+
+type ConfigOption struct {
+	Flag 	  string `json:"flag"`
+	Env 	 string `json:"env"`
+	Yaml 	string `json:"yaml"`
+}
+
+// checkAnnotation parses an annotation and returns a warning if the condition
+// applies and the current value doesn't match the expected value.
+func checkAnnotation(key, value string, opt serpent.Option, isHTTPS bool) *ConfigWarning {
+	// Parse annotation key: "<condition>|<severity>|<hash>"
+	// e.g., "when_https|suggest|a1b2c3d4" or "when_https|require|e5f6g7h8"
+
+	var condition ConfigCondition
+	var severity string
+
+	parts := strings.Split(key, "|")
+	condition, severity, _ = ConfigCondition(parts[0]), parts[1], parts[2] // Ignore hash for logic
+
+
+	// Check if condition applies
+	switch condition {
+	case WhenHTTPS:
+		if !isHTTPS {
+			return nil
+		}
+	}
+
+	// Parse value: "<expected>|<message>"
+	parts := strings.SplitN(value, "|", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	expected, message := parts[0], parts[1]
+
+	// Get current value
+	currentValue := ""
+	if opt.Value != nil {
+		currentValue = opt.Value.String()
+	}
+
+	// Check if current value matches expected
+	if checkValueMatches(currentValue, expected) {
+		return nil
+	}
+
+	return &ConfigWarning{
+		Option:   ConfigOption{
+			Flag: opt.Flag,
+			Env:  opt.Env,
+			Yaml: opt.YAML,
+		},
+		Severity: severity,
+		Message:  message,
+	}
+}
+
+// checkValueMatches handles simple comparisons like "true", "false", ">0".
+func checkValueMatches(current, expected string) bool {
+	if strings.HasPrefix(expected, ">") {
+		threshold, err := strconv.ParseInt(expected[1:], 10, 64)
+		if err != nil {
+			return true // Can't parse, assume OK
+		}
+		val, err := strconv.ParseInt(current, 10, 64)
+		if err != nil {
+			return true
+		}
+		return val > threshold
+	}
+	return strings.EqualFold(current, expected)
+}
 
 // IsWorkspaceProxies returns true if the cli option is used by workspace proxies.
 func IsWorkspaceProxies(opt serpent.Option) bool {
@@ -2803,7 +2912,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.HTTPCookies.Secure,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
-			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.
+				Mark(annotationExternalProxies, "true").
+				Mark(Require(WhenHTTPS, "true",
+					"Secure cookies should be enabled when using HTTPS. "+
+						"Without this, authentication cookies may be transmitted insecurely.")),
 		},
 		{
 			Name:        "SameSite Auth Cookie",
@@ -2818,6 +2931,25 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
+<<<<<<< Updated upstream
+=======
+			Name:        "__HOST Prefix Cookies",
+			Description: "Reccomended to be enabled. Enables `__HOST-` prefix for cookies to guarantee they are only set by the right domain.",
+			Flag:        "host-prefix-cookie",
+			Env:         "CODER_HOST_PREFIX_COOKIE",
+			Value:       serpent.BoolOf(&c.HTTPCookies.EnableHostPrefix),
+			// Ideally this is true, however any frontend interactions with the coder api would be broken.
+			// So for compatibility reasons, this is set to false.
+			Default: "false",
+			Group:   &deploymentGroupNetworking,
+			YAML:    "hostPrefixCookie",
+			Annotations: serpent.Annotations{}.
+				Mark(annotationExternalProxies, "true").
+				Mark(Require(WhenHTTPS, "true",
+					"Cookies should have a '__HOST-' prefix if using HTTPS and secure cookies.")),
+		},
+		{
+>>>>>>> Stashed changes
 			Name:        "Terms of Service URL",
 			Description: "A URL to an external Terms of Service that must be accepted by users when logging in.",
 			Flag:        "terms-of-service-url",
@@ -2830,13 +2962,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
 				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
 				"the header.",
-			Default:     "0",
-			Flag:        "strict-transport-security",
-			Env:         "CODER_STRICT_TRANSPORT_SECURITY",
-			Value:       &c.StrictTransportSecurity,
-			Group:       &deploymentGroupNetworkingTLS,
-			YAML:        "strictTransportSecurity",
-			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Default: "0",
+			Flag:    "strict-transport-security",
+			Env:     "CODER_STRICT_TRANSPORT_SECURITY",
+			Value:   &c.StrictTransportSecurity,
+			Group:   &deploymentGroupNetworkingTLS,
+			YAML:    "strictTransportSecurity",
+			Annotations: serpent.Annotations{}.
+				Mark(annotationExternalProxies, "true").
+				Mark(Suggest(WhenHTTPS, ">0",
+					"HSTS should be enabled when using HTTPS to prevent downgrade attacks.")),
 		},
 		{
 			Name: "Strict-Transport-Security Options",
