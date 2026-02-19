@@ -2800,6 +2800,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
 			Env:         "CODER_SECURE_AUTH_COOKIE",
+			DefaultFn: func() string {
+				return strconv.FormatBool(c.AccessURL.Scheme == "https")
+			},
 			Value:       &c.HTTPCookies.Secure,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
