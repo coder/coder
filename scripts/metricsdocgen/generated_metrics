@@ -265,6 +265,9 @@ coderd_prebuilt_workspaces_metrics_last_updated 0
 # HELP coderd_prebuilt_workspaces_preset_hard_limited Indicates whether a given preset has reached the hard failure limit (1 = hard-limited). Metric is omitted otherwise.
 # TYPE coderd_prebuilt_workspaces_preset_hard_limited gauge
 coderd_prebuilt_workspaces_preset_hard_limited{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_preset_validation_failed Indicates whether a given preset has validation failures (1 = validation failed). Metric is omitted otherwise.
+# TYPE coderd_prebuilt_workspaces_preset_validation_failed gauge
+coderd_prebuilt_workspaces_preset_validation_failed{template_name="",preset_name="",organization_name=""} 0
 # HELP coderd_prebuilt_workspaces_reconciliation_paused Indicates whether prebuilds reconciliation is currently paused (1 = paused, 0 = not paused).
 # TYPE coderd_prebuilt_workspaces_reconciliation_paused gauge
 coderd_prebuilt_workspaces_reconciliation_paused 0
