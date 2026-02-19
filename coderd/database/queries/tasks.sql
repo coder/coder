@@ -125,6 +125,8 @@ WITH task_event_data AS (
         stop_build.reason AS stop_build_reason,
         -- Latest start build (task_resume only).
         start_build.created_at AS start_build_created_at,
+		start_build.reason AS start_build_reason,
+		start_build.build_number AS start_build_number,
         -- Last "working" app status (for idle duration).
         lws.created_at AS last_working_status_at,
         -- First app status after resume (for resume-to-status duration).
@@ -142,7 +144,7 @@ WITH task_event_data AS (
         LIMIT 1
     ) twa ON TRUE
     LEFT JOIN LATERAL (
-        SELECT wb.created_at, wb.reason
+        SELECT wb.created_at, wb.reason, wb.build_number
         FROM workspace_builds wb
         WHERE wb.workspace_id = t.workspace_id
             AND wb.transition = 'stop'
@@ -150,11 +152,10 @@ WITH task_event_data AS (
         LIMIT 1
     ) stop_build ON TRUE
     LEFT JOIN LATERAL (
-        SELECT wb.created_at
+        SELECT wb.created_at, wb.reason, wb.build_number
         FROM workspace_builds wb
         WHERE wb.workspace_id = t.workspace_id
             AND wb.transition = 'start'
-            AND wb.reason = 'task_resume'
         ORDER BY wb.build_number DESC
         LIMIT 1
     ) start_build ON TRUE

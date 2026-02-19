@@ -323,6 +323,7 @@ func TestTelemetry(t *testing.T) {
 		assert.Nil(t, taskEvent.LastResumedAt)
 		assert.Nil(t, taskEvent.LastPausedAt)
 		assert.Nil(t, taskEvent.PauseReason)
+		assert.Nil(t, taskEvent.ResumeReason)
 		assert.Nil(t, taskEvent.IdleDurationMS)
 		assert.Nil(t, taskEvent.PausedDurationMS)
 		assert.Nil(t, taskEvent.ResumeToStatusMS)
@@ -713,7 +714,7 @@ func (h *taskTelemetryHelper) createBuild(
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		OrganizationID: h.org.ID,
 	})
-	return dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
+	bld := dbgen.WorkspaceBuild(h.t, h.db, database.WorkspaceBuild{
 		WorkspaceID:       resp.Workspace.ID,
 		TemplateVersionID: resp.TemplateVersion.ID,
 		JobID:             job.ID,
@@ -783,6 +784,7 @@ func TestTasksTelemetry(t *testing.T) {
 		lastPausedOffset  *time.Duration
 		lastResumedOffset *time.Duration
 		pauseReason       *string
+		resumeReason      *string
 		idleDurationMS    *int64
 		pausedDurationMS  *int64
 		resumeToStatusMS  *int64
@@ -877,26 +879,18 @@ func TestTasksTelemetry(t *testing.T) {
 			lastPausedOffset:  ptr.Ref(-50 * time.Minute),
 			lastResumedOffset: ptr.Ref(-10 * time.Minute),
 			pauseReason:       ptr.Ref("auto"),
+			resumeReason:      ptr.Ref("manual"),
 			pausedDurationMS:  ptr.Ref(40 * time.Minute.Milliseconds()),
 		},
 		{
-			// This test verifies the Go-side createdAfter check for PausedDurationMS.
-			// The resume happened 2 hours ago (before the 1-hour createdAfter window),
-			// so PausedDurationMS should be nil even though the task is returned.
-			// A recent start build ensures the task passes the SQL filter.
+			// This test verifies that we do not double-report task events outside of the window.
 			name:          "resumed long ago - PausedDurationMS nil",
 			createdOffset: -10 * time.Hour,
 			extraBuilds: []buildSpec{
 				{2, -5 * time.Hour, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
 				{3, -2 * time.Hour, database.WorkspaceTransitionStart, database.BuildReasonTaskResume},
-				// Recent build ensures task matches the SQL filter.
-				{4, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator},
 			},
-			expectEvent:       true,
-			lastPausedOffset:  ptr.Ref(-5 * time.Hour),
-			lastResumedOffset: ptr.Ref(-2 * time.Hour),
-			pauseReason:       ptr.Ref("auto"),
-			// PausedDurationMS is nil because resume happened before createdAfter.
+			expectEvent: false,
 		},
 		{
 			name:          "multiple cycles - captures latest pause/resume",
@@ -938,6 +932,7 @@ func TestTasksTelemetry(t *testing.T) {
 			lastPausedOffset:  ptr.Ref(-50 * time.Minute),
 			lastResumedOffset: ptr.Ref(-30 * time.Minute),
 			pauseReason:       ptr.Ref("auto"),
+			resumeReason:      ptr.Ref("manual"),
 			pausedDurationMS:  ptr.Ref(20 * time.Minute.Milliseconds()),
 			resumeToStatusMS:  ptr.Ref((5 * time.Minute).Milliseconds()),
 		},
@@ -957,6 +952,7 @@ func TestTasksTelemetry(t *testing.T) {
 			lastPausedOffset:  ptr.Ref(-35 * time.Minute),
 			lastResumedOffset: ptr.Ref(-5 * time.Minute),
 			pauseReason:       ptr.Ref("auto"),
+			resumeReason:      ptr.Ref("manual"),
 			idleDurationMS:    ptr.Ref(10 * time.Minute.Milliseconds()),
 			pausedDurationMS:  ptr.Ref(30 * time.Minute.Milliseconds()),
 			resumeToStatusMS:  ptr.Ref((3 * time.Minute).Milliseconds()),
@@ -964,18 +960,20 @@ func TestTasksTelemetry(t *testing.T) {
 			activeDurationMS: ptr.Ref(388 * time.Minute.Milliseconds()),
 		},
 		{
-			name:          "only task_resume builds count for LastResumedAt",
+			name:          "non-task_resume builds are tracked as other",
 			createdOffset: -4 * time.Hour,
 			extraBuilds: []buildSpec{
 				{2, -60 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause},
 				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator},
 			},
-			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-60 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
+			expectEvent:       true,
+			lastPausedOffset:  ptr.Ref(-60 * time.Minute),
+			lastResumedOffset: ptr.Ref(-30 * time.Minute),
+			pauseReason:       ptr.Ref("auto"),
+			resumeReason:      ptr.Ref("other"),
 			// LastResumedAt is nil because start wasn't task_resume.
 			// PausedDurationMS reports ongoing pause: now - (-60min) = 60min.
-			pausedDurationMS: ptr.Ref(60 * time.Minute.Milliseconds()),
+			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
 		},
 		{
 			name:          "simple ongoing pause reports duration",
@@ -1152,7 +1150,7 @@ func TestTasksTelemetry(t *testing.T) {
 			require.Len(t, actualTasks, 1, "expected exactly one task")
 
 			if diff := cmp.Diff(expectedTask, actualTasks[0]); diff != "" {
-				t.Fatalf("task diff (-want +got):\n%s", diff)
+				t.Fatalf("test case %q: task diff (-want +got):\n%s", tt.name, diff)
 			}
 
 			actualEvents, err := telemetry.CollectTaskEvents(h.ctx, h.db, now.Add(-1*time.Hour), now)
@@ -1172,6 +1170,7 @@ func TestTasksTelemetry(t *testing.T) {
 					expectedEvent.LastResumedAt = &t
 				}
 				expectedEvent.PauseReason = tt.pauseReason
+				expectedEvent.ResumeReason = tt.resumeReason
 				expectedEvent.IdleDurationMS = tt.idleDurationMS
 				expectedEvent.PausedDurationMS = tt.pausedDurationMS
 				expectedEvent.ResumeToStatusMS = tt.resumeToStatusMS
@@ -1183,7 +1182,7 @@ func TestTasksTelemetry(t *testing.T) {
 				actual := actualEvents[0]
 
 				if diff := cmp.Diff(expectedEvent, actual); diff != "" {
-					t.Fatalf("event diff (-want +got):\n%s", diff)
+					t.Fatalf("test case %q: event diff (-want +got):\n%s", tt.name, diff)
 				}
 			}
 		})

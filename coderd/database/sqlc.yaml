@@ -126,6 +126,8 @@ sql:
               type: "NullWorkspaceAppHealth"
           # Workaround for sqlc not interpreting the left join correctly
           # in the combined telemetry query.
+          - column: "task_event_data.start_build_number"
+            go_type: "database/sql.NullInt32"
           - column: "task_event_data.stop_build_created_at"
             go_type: "database/sql.NullTime"
           - column: "task_event_data.stop_build_reason"

@@ -13304,6 +13304,8 @@ WITH task_event_data AS (
         stop_build.reason AS stop_build_reason,
         -- Latest start build (task_resume only).
         start_build.created_at AS start_build_created_at,
+		start_build.reason AS start_build_reason,
+		start_build.build_number AS start_build_number,
         -- Last "working" app status (for idle duration).
         lws.created_at AS last_working_status_at,
         -- First app status after resume (for resume-to-status duration).
@@ -13321,7 +13323,7 @@ WITH task_event_data AS (
         LIMIT 1
     ) twa ON TRUE
     LEFT JOIN LATERAL (
-        SELECT wb.created_at, wb.reason
+        SELECT wb.created_at, wb.reason, wb.build_number
         FROM workspace_builds wb
         WHERE wb.workspace_id = t.workspace_id
             AND wb.transition = 'stop'
@@ -13329,11 +13331,10 @@ WITH task_event_data AS (
         LIMIT 1
     ) stop_build ON TRUE
     LEFT JOIN LATERAL (
-        SELECT wb.created_at
+        SELECT wb.created_at, wb.reason, wb.build_number
         FROM workspace_builds wb
         WHERE wb.workspace_id = t.workspace_id
             AND wb.transition = 'start'
-            AND wb.reason = 'task_resume'
         ORDER BY wb.build_number DESC
         LIMIT 1
     ) start_build ON TRUE
@@ -13386,7 +13387,7 @@ WITH task_event_data AS (
               AND wb.created_at > $2
         )
 )
-SELECT task_id, workspace_id, workspace_app_id, stop_build_created_at, stop_build_reason, start_build_created_at, last_working_status_at, first_status_after_resume_at, active_duration_ms FROM task_event_data
+SELECT task_id, workspace_id, workspace_app_id, stop_build_created_at, stop_build_reason, start_build_created_at, start_build_reason, start_build_number, last_working_status_at, first_status_after_resume_at, active_duration_ms FROM task_event_data
 ORDER BY task_id
 `
 
@@ -13402,6 +13403,8 @@ type GetTelemetryTaskEventsRow struct {
 	StopBuildCreatedAt       sql.NullTime    `db:"stop_build_created_at" json:"stop_build_created_at"`
 	StopBuildReason          NullBuildReason `db:"stop_build_reason" json:"stop_build_reason"`
 	StartBuildCreatedAt      sql.NullTime    `db:"start_build_created_at" json:"start_build_created_at"`
+	StartBuildReason         BuildReason     `db:"start_build_reason" json:"start_build_reason"`
+	StartBuildNumber         sql.NullInt32   `db:"start_build_number" json:"start_build_number"`
 	LastWorkingStatusAt      sql.NullTime    `db:"last_working_status_at" json:"last_working_status_at"`
 	FirstStatusAfterResumeAt sql.NullTime    `db:"first_status_after_resume_at" json:"first_status_after_resume_at"`
 	ActiveDurationMs         int64           `db:"active_duration_ms" json:"active_duration_ms"`
@@ -13436,6 +13439,8 @@ func (q *sqlQuerier) GetTelemetryTaskEvents(ctx context.Context, arg GetTelemetr
 			&i.StopBuildCreatedAt,
 			&i.StopBuildReason,
 			&i.StartBuildCreatedAt,
+			&i.StartBuildReason,
+			&i.StartBuildNumber,
 			&i.LastWorkingStatusAt,
 			&i.FirstStatusAfterResumeAt,
 			&i.ActiveDurationMs,

@@ -935,11 +935,13 @@ func buildTaskEvent(
 		TaskID: row.TaskID.String(),
 	}
 
-	hasStartBuild := row.StartBuildCreatedAt.Valid
-	hasStopBuild := row.StopBuildCreatedAt.Valid
-	startedAfterStop := hasStartBuild && hasStopBuild &&
-		row.StartBuildCreatedAt.Time.After(row.StopBuildCreatedAt.Time)
-	currentlyPaused := hasStopBuild && !startedAfterStop
+	var (
+		hasStartBuild    = row.StartBuildCreatedAt.Valid
+		isResumed        = hasStartBuild && row.StartBuildNumber.Valid && row.StartBuildNumber.Int32 > 1
+		hasStopBuild     = row.StopBuildCreatedAt.Valid
+		startedAfterStop = hasStartBuild && hasStopBuild && row.StartBuildCreatedAt.Time.After(row.StopBuildCreatedAt.Time)
+		currentlyPaused  = hasStopBuild && !startedAfterStop
+	)
 
 	// Pause-related fields (requires a stop build).
 	if hasStopBuild {
@@ -963,12 +965,24 @@ func buildTaskEvent(
 
 	// Resume-related fields (requires task_resume start after stop).
 	if startedAfterStop {
-		event.LastResumedAt = &row.StartBuildCreatedAt.Time
-
 		// Paused duration: time between pause and resume.
 		if row.StartBuildCreatedAt.Time.After(createdAfter) {
 			paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
 			event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
+		}
+
+		// Below only relevant for "resumed" tasks, not when initially created.
+		if isResumed {
+			event.LastResumedAt = &row.StartBuildCreatedAt.Time
+			switch {
+			// TODO(Cian): will this exist? Future readers may know better than I.
+			// case row.StartBuildReason == database.BuildReasonTaskAutoResume:
+			//	event.ResumeReason = ptr.Ref("auto")
+			case row.StartBuildReason == database.BuildReasonTaskResume:
+				event.ResumeReason = ptr.Ref("manual")
+			default: // Task resumed by starting workspace?
+				event.ResumeReason = ptr.Ref("other")
+			}
 		}
 	}
 
@@ -979,7 +993,7 @@ func buildTaskEvent(
 	}
 
 	// Resume-to-status duration.
-	if row.FirstStatusAfterResumeAt.Valid {
+	if row.FirstStatusAfterResumeAt.Valid && isResumed {
 		delta := row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time)
 		event.ResumeToStatusMS = ptr.Ref(delta.Milliseconds())
 	}
@@ -2056,6 +2070,7 @@ type TaskEvent struct {
 	LastPausedAt     *time.Time `json:"last_paused_at"`
 	LastResumedAt    *time.Time `json:"last_resumed_at"`
 	PauseReason      *string    `json:"pause_reason"`
+	ResumeReason     *string    `json:"resume_reason"`
 	IdleDurationMS   *int64     `json:"idle_duration_ms"`
 	PausedDurationMS *int64     `json:"paused_duration_ms"`
 	ResumeToStatusMS *int64     `json:"resume_to_status_ms"`
