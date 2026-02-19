@@ -156,6 +156,7 @@
 		"@types/ua-parser-js": "0.7.36",
 		"@types/uuid": "9.0.2",
 		"@vitejs/plugin-react": "5.1.1",
+		"@vitest/browser-playwright": "4.0.14",
 		"autoprefixer": "10.4.22",
 		"chromatic": "11.29.0",
 		"dpdm": "3.14.0",
@@ -170,6 +171,7 @@
 		"jsdom": "27.2.0",
 		"knip": "5.71.0",
 		"msw": "2.4.8",
+		"playwright": "^1.58.2",
 		"postcss": "8.5.6",
 		"protobufjs": "7.5.4",
 		"rollup-plugin-visualizer": "5.14.0",
@@ -182,10 +184,7 @@
 		"typescript": "5.6.3",
 		"vite": "7.2.6",
 		"vite-plugin-checker": "0.11.0",
-		"vitest": "4.0.14",
-		"playwright": "^1.58.2",
-		"@vitest/browser-playwright": "4.0.14",
-		"@vitest/coverage-v8": "4.0.14"
+		"vitest": "4.0.14"
 	},
 	"browserslist": [
 		"chrome 110",
