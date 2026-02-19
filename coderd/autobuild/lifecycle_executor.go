@@ -48,9 +48,10 @@ type Executor struct {
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
-	notificationsEnqueuer notifications.Enqueuer
-	reg                   prometheus.Registerer
-	experiments           codersdk.Experiments
+	notificationsEnqueuer   notifications.Enqueuer
+	reg                     prometheus.Registerer
+	experiments             codersdk.Experiments
+	workspaceBuilderMetrics *wsbuilder.Metrics
 
 	metrics executorMetrics
 }
@@ -67,23 +68,24 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, workspaceBuilderMetrics *wsbuilder.Metrics) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
-		ctx:                   dbauthz.AsAutostart(ctx),
-		db:                    db,
-		ps:                    ps,
-		fileCache:             fc,
-		templateScheduleStore: tss,
-		tick:                  tick,
-		log:                   log.Named("autobuild"),
-		auditor:               auditor,
-		accessControlStore:    acs,
-		buildUsageChecker:     buildUsageChecker,
-		notificationsEnqueuer: enqueuer,
-		reg:                   reg,
-		experiments:           exp,
+		ctx:                     dbauthz.AsAutostart(ctx),
+		db:                      db,
+		ps:                      ps,
+		fileCache:               fc,
+		templateScheduleStore:   tss,
+		tick:                    tick,
+		log:                     log.Named("autobuild"),
+		auditor:                 auditor,
+		accessControlStore:      acs,
+		buildUsageChecker:       buildUsageChecker,
+		notificationsEnqueuer:   enqueuer,
+		reg:                     reg,
+		experiments:             exp,
+		workspaceBuilderMetrics: workspaceBuilderMetrics,
 		metrics: executorMetrics{
 			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
 				Namespace: "coderd",
@@ -335,7 +337,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
-							Reason(reason)
+							Reason(reason).
+							BuildMetrics(e.workspaceBuilderMetrics)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&
 							useActiveVersion(accessControl, ws) {
@@ -522,10 +525,18 @@ func getNextTransition(
 ) {
 	switch {
 	case isEligibleForAutostop(user, ws, latestBuild, latestJob, currentTick):
+		// Use task-specific reason for AI task workspaces.
+		if ws.TaskID.Valid {
+			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
+		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
+		// Use task-specific reason for AI task workspaces.
+		if ws.TaskID.Valid {
+			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
+		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.

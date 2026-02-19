@@ -11,6 +11,7 @@ import {
 	useRef,
 } from "react";
 import { BODY_FONT_FAMILY } from "theme/constants";
+import { cn } from "utils/cn";
 
 const Language = {
 	seconds: "seconds",
@@ -74,7 +75,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	return (
 		<div
 			ref={ref}
-			className="font-mono border border-border rounded-lg"
+			className={cn("font-mono border border-border rounded-lg", className)}
 			{...attrs}
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {

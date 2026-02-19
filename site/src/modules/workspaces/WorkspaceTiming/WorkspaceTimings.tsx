@@ -108,7 +108,6 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				onClick={() => setIsOpen((o) => !o)}
 			>
 				<ChevronDownIcon open={isOpen} className="size-4 mr-4" />
-
 				<span>Build timeline</span>
 				<span
 					css={(theme) => ({

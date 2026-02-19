@@ -852,6 +852,7 @@ export const MockTemplate: TypesGen.Template = {
 	require_active_version: false,
 	deprecated: false,
 	deprecation_message: "",
+	deleted: false,
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
@@ -5216,6 +5217,7 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 	],
 	tool_usages: [],
 	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+	client: "Claude Code",
 };
 
 export const MockInterceptionAnthropic: TypesGen.AIBridgeInterception = {

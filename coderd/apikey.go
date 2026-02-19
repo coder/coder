@@ -421,6 +421,69 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Expire API key
+// @ID expire-api-key
+// @Security CoderSessionToken
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyid path string true "Key ID" format(string)
+// @Success 204
+// @Failure 404 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Router /users/{user}/keys/{keyid}/expire [put]
+func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		keyID             = chi.URLParam(r, "keyid")
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
+	if err := api.Database.InTx(func(db database.Store) error {
+		key, err := db.GetAPIKeyByID(ctx, keyID)
+		if err != nil {
+			return xerrors.Errorf("fetch API key: %w", err)
+		}
+		if !key.ExpiresAt.After(api.Clock.Now()) {
+			return nil // Already expired
+		}
+		aReq.Old = key
+		if err := db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+			ID:        key.ID,
+			LastUsed:  key.LastUsed,
+			ExpiresAt: dbtime.Now(),
+			IPAddress: key.IPAddress,
+		}); err != nil {
+			return xerrors.Errorf("expire API key: %w", err)
+		}
+		// Fetch the updated key for audit log.
+		newKey, err := db.GetAPIKeyByID(ctx, keyID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to fetch updated API key for audit log", slog.Error(err))
+		} else {
+			aReq.New = newKey
+		}
+		return nil
+	}, nil); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error expiring API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Get token config
 // @ID get-token-config
 // @Security CoderSessionToken

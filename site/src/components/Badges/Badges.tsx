@@ -29,7 +29,7 @@ export const DisabledBadge: React.FC<React.ComponentPropsWithRef<"div">> = ({
 
 export const EnterpriseBadge: React.FC = () => {
 	return (
-		<Badge variant="info" border="solid">
+		<Badge variant="purple" border="solid">
 			Enterprise
 		</Badge>
 	);
@@ -43,7 +43,7 @@ export const PremiumBadge: React.FC<PremiumBadgeProps> = ({
 	children = "Premium",
 }) => {
 	return (
-		<Badge variant="purple" border="solid">
+		<Badge variant="magenta" border="solid">
 			{children}
 		</Badge>
 	);

@@ -32,7 +32,7 @@ export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 			<DropdownMenuTrigger asChild>
 				<Button variant="outline">
 					Last {numberOfWeeks} weeks
-					<ChevronDownIcon className="!size-icon-xs" />
+					<ChevronDownIcon />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">

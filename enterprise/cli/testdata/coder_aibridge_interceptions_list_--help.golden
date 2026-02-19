@@ -10,6 +10,9 @@ OPTIONS:
           The ID of the last result on the previous page to use as a pagination
           cursor.
 
+      --client string
+          Only return interceptions from this client.
+
       --initiator string
           Only return interceptions initiated by this user. Accepts a user ID,
           username, or "me".

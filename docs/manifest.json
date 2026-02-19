@@ -1194,6 +1194,11 @@
 					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
+					"title": "Mirror Coder Registry with Artifactory",
+					"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
+					"path": "./install/registry-mirror-artifactory.md"
+				},
+				{
 					"title": "Istio Integration",
 					"description": "Integrate Coder with Istio",
 					"path": "./admin/integrations/istio.md"
@@ -2010,6 +2015,16 @@
 							"path": "reference/cli/task_logs.md"
 						},
 						{
+							"title": "task pause",
+							"description": "Pause a task",
+							"path": "reference/cli/task_pause.md"
+						},
+						{
+							"title": "task resume",
+							"description": "Resume a task",
+							"path": "reference/cli/task_resume.md"
+						},
+						{
 							"title": "task send",
 							"description": "Send input to a task",
 							"path": "reference/cli/task_send.md"
@@ -2116,7 +2131,7 @@
 						},
 						{
 							"title": "tokens remove",
-							"description": "Delete a token",
+							"description": "Expire or delete a token",
 							"path": "reference/cli/tokens_remove.md"
 						},
 						{

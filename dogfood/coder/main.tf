@@ -337,7 +337,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.3"
+  version  = "1.3.0"
   agent_id = coder_agent.dev.id
 }
 
@@ -375,7 +375,7 @@ module "personalize" {
 module "mux" {
   count        = data.coder_workspace.me.start_count
   source       = "registry.coder.com/coder/mux/coder"
-  version      = "1.0.8"
+  version      = "1.1.0"
   agent_id     = coder_agent.dev.id
   subdomain    = true
   display_name = "Mux"

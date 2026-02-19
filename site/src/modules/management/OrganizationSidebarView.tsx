@@ -110,7 +110,7 @@ export const OrganizationSidebarView: FC<
 												{organization?.display_name || organization?.name}
 											</span>
 											{activeOrganization?.name === organization.name && (
-												<Check size={16} strokeWidth={2} className="ml-auto" />
+												<Check className="ml-auto" />
 											)}
 										</CommandItem>
 									))}

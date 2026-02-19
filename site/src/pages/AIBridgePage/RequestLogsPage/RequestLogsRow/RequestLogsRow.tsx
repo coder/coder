@@ -194,15 +194,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="w-full min-w-0 overflow-hidden">
-									<Badge className="gap-1.5 w-full">
+								<div className="min-w-0 overflow-hidden">
+									<Badge className="gap-1.5 max-w-full">
 										<div className="flex-shrink-0 flex items-center">
 											<AIBridgeModelIcon
 												model={interception.model}
 												className="size-icon-xs"
 											/>
 										</div>
-										<span className="truncate min-w-0 w-full">
+										<span className="truncate min-w-0">
 											{interception.model}
 										</span>
 									</Badge>
