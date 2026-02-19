@@ -4971,6 +4971,14 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
 }
 
+func (q *querier) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListChatsByRootID)(ctx, rootChatID)
+}
+
+func (q *querier) ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListChildChatsByParentID)(ctx, parentChatID)
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
@@ -5186,6 +5194,28 @@ func (q *querier) UpdateChatStatus(ctx context.Context, arg database.UpdateChatS
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatStatus(ctx, arg)
+}
+
+func (q *querier) UpdateChatTaskReport(ctx context.Context, arg database.UpdateChatTaskReportParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatTaskReport(ctx, arg)
+}
+
+func (q *querier) UpdateChatTaskStatus(ctx context.Context, arg database.UpdateChatTaskStatusParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatTaskStatus(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspace(ctx context.Context, arg database.UpdateChatWorkspaceParams) (database.Chat, error) {

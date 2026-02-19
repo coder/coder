@@ -3407,6 +3407,22 @@ func (m queryMetricsStore) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChatsByRootID(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("ListChatsByRootID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatsByRootID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChildChatsByParentID(ctx, parentChatID)
+	m.queryLatencies.WithLabelValues("ListChildChatsByParentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChildChatsByParentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)
@@ -3612,6 +3628,22 @@ func (m queryMetricsStore) UpdateChatStatus(ctx context.Context, arg database.Up
 	r0, r1 := m.s.UpdateChatStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatStatus").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatTaskReport(ctx context.Context, arg database.UpdateChatTaskReportParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatTaskReport(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatTaskReport").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatTaskReport").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatTaskStatus(ctx context.Context, arg database.UpdateChatTaskStatusParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatTaskStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatTaskStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatTaskStatus").Inc()
 	return r0, r1
 }
 

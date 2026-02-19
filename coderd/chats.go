@@ -311,7 +311,13 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, req)
+	chatHierarchy, hierarchyStatus, hierarchyError := api.resolveCreateChatHierarchy(ctx, apiKey.UserID, req)
+	if hierarchyError != nil {
+		httpapi.Write(ctx, rw, hierarchyStatus, *hierarchyError)
+		return
+	}
+
+	validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, chatHierarchy.Request)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
@@ -348,15 +354,18 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	chat, err := api.Database.InsertChat(ctx, database.InsertChatParams{
 		OwnerID: apiKey.UserID,
 		WorkspaceID: uuid.NullUUID{
-			UUID:  uuidOrNil(req.WorkspaceID),
-			Valid: req.WorkspaceID != nil,
+			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceID),
+			Valid: chatHierarchy.Request.WorkspaceID != nil,
 		},
 		WorkspaceAgentID: uuid.NullUUID{
-			UUID:  uuidOrNil(req.WorkspaceAgentID),
-			Valid: req.WorkspaceAgentID != nil,
+			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceAgentID),
+			Valid: chatHierarchy.Request.WorkspaceAgentID != nil,
 		},
-		Title:       title,
-		ModelConfig: modelConfig,
+		ParentChatID: chatHierarchy.ParentChatID,
+		RootChatID:   chatHierarchy.RootChatID,
+		TaskStatus:   chatHierarchy.TaskStatus,
+		Title:        title,
+		ModelConfig:  modelConfig,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -365,6 +374,13 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Root chats may not have root_chat_id persisted yet, but they are always
+	// their own root in API responses.
+	if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
+		chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
+	}
+
 	if systemPrompt != "" {
 		systemContent, err := json.Marshal(systemPrompt)
 		if err != nil {
@@ -1932,6 +1948,101 @@ func stringOrEmpty(s *string) string {
 	return *s
 }
 
+type createChatHierarchy struct {
+	Request      codersdk.CreateChatRequest
+	ParentChatID uuid.NullUUID
+	RootChatID   uuid.NullUUID
+	TaskStatus   database.NullChatTaskStatus
+}
+
+func (api *API) resolveCreateChatHierarchy(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	req codersdk.CreateChatRequest,
+) (createChatHierarchy, int, *codersdk.Response) {
+	hierarchy := createChatHierarchy{
+		Request: req,
+		TaskStatus: database.NullChatTaskStatus{
+			ChatTaskStatus: database.ChatTaskStatusReported,
+			Valid:          true,
+		},
+	}
+
+	if req.ParentChatID == nil {
+		return hierarchy, 0, nil
+	}
+
+	parentChat, err := api.Database.GetChatByID(ctx, *req.ParentChatID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
+				Message: "Parent chat not found or you do not have access to this resource",
+			}
+		}
+		return createChatHierarchy{}, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to get parent chat.",
+			Detail:  err.Error(),
+		}
+	}
+	if parentChat.OwnerID != ownerID {
+		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Parent chat not found or you do not have access to this resource",
+		}
+	}
+
+	if !createChatUUIDMatchesParent(req.WorkspaceID, parentChat.WorkspaceID) {
+		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Child chat workspace must match parent chat workspace.",
+		}
+	}
+	if !createChatUUIDMatchesParent(req.WorkspaceAgentID, parentChat.WorkspaceAgentID) {
+		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Child chat workspace agent must match parent chat workspace agent.",
+		}
+	}
+
+	resolvedReq := req
+	if resolvedReq.WorkspaceID == nil && parentChat.WorkspaceID.Valid {
+		inheritedWorkspaceID := parentChat.WorkspaceID.UUID
+		resolvedReq.WorkspaceID = &inheritedWorkspaceID
+	}
+	if resolvedReq.WorkspaceAgentID == nil && parentChat.WorkspaceAgentID.Valid {
+		inheritedWorkspaceAgentID := parentChat.WorkspaceAgentID.UUID
+		resolvedReq.WorkspaceAgentID = &inheritedWorkspaceAgentID
+	}
+
+	rootChatID := parentChat.ID
+	if parentChat.RootChatID.Valid {
+		rootChatID = parentChat.RootChatID.UUID
+	}
+
+	hierarchy.Request = resolvedReq
+	hierarchy.ParentChatID = uuid.NullUUID{
+		UUID:  parentChat.ID,
+		Valid: true,
+	}
+	hierarchy.RootChatID = uuid.NullUUID{
+		UUID:  rootChatID,
+		Valid: true,
+	}
+	hierarchy.TaskStatus = database.NullChatTaskStatus{
+		ChatTaskStatus: database.ChatTaskStatusQueued,
+		Valid:          true,
+	}
+
+	return hierarchy, 0, nil
+}
+
+func createChatUUIDMatchesParent(requested *uuid.UUID, parentValue uuid.NullUUID) bool {
+	if requested == nil {
+		return true
+	}
+	if !parentValue.Valid {
+		return false
+	}
+	return *requested == parentValue.UUID
+}
+
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
@@ -2063,14 +2174,34 @@ func chatTitleFromMessage(message string) string {
 }
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+	taskStatus := codersdk.ChatTaskStatus(c.TaskStatus)
+	if taskStatus == "" {
+		taskStatus = codersdk.ChatTaskStatusReported
+	}
+
 	chat := codersdk.Chat{
 		ID:          c.ID,
 		OwnerID:     c.OwnerID,
+		TaskStatus:  taskStatus,
 		Title:       c.Title,
 		Status:      codersdk.ChatStatus(c.Status),
 		ModelConfig: c.ModelConfig,
 		CreatedAt:   c.CreatedAt,
 		UpdatedAt:   c.UpdatedAt,
+	}
+	if c.ParentChatID.Valid {
+		parentChatID := c.ParentChatID.UUID
+		chat.ParentChatID = &parentChatID
+	}
+	if c.RootChatID.Valid {
+		rootChatID := c.RootChatID.UUID
+		chat.RootChatID = &rootChatID
+	} else if c.ParentChatID.Valid {
+		rootChatID := c.ParentChatID.UUID
+		chat.RootChatID = &rootChatID
+	} else {
+		rootChatID := c.ID
+		chat.RootChatID = &rootChatID
 	}
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID

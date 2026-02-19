@@ -9,7 +9,9 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import {
+	CheckIcon,
 	ChevronDownIcon,
+	ChevronRightIcon,
 	CircleAlertIcon,
 	FileIcon,
 	FilePenIcon,
@@ -19,7 +21,9 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import { forwardRef, useMemo, useRef, useState } from "react";
+import { Link } from "react-router";
 import { cn } from "utils/cn";
+import { Response } from "./response";
 
 type ToolStatus = "completed" | "error" | "running";
 
@@ -187,6 +191,12 @@ const ToolLabel: React.FC<{ name: string; args: unknown; result: unknown }> = ({
 				</span>
 			);
 		}
+		case "task_terminate":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Terminated sub-agent
+				</span>
+			);
 		default:
 			return (
 				<span className="truncate text-sm text-content-secondary">{name}</span>
@@ -904,6 +914,220 @@ const CreateWorkspaceTool: React.FC<{
 	);
 };
 
+/** Height for the collapsed report preview (~3 lines of rendered markdown). */
+const COLLAPSED_REPORT_HEIGHT = 72;
+
+/**
+ * Resolves a task status string and tool-level status into a display
+ * icon. The tool status represents whether the tool call itself has
+ * completed; the task status comes from the result payload.
+ */
+const TaskStatusIcon: React.FC<{
+	taskStatus: string;
+	toolStatus: ToolStatus;
+	isError: boolean;
+}> = ({ taskStatus, toolStatus, isError }) => {
+	if (isError) {
+		return (
+			<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-destructive" />
+		);
+	}
+	if (toolStatus === "running") {
+		return (
+			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin text-content-link" />
+		);
+	}
+	switch (taskStatus) {
+		case "reported":
+			return (
+				<CheckIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+			);
+		case "running":
+			return (
+				<LoaderIcon className="h-4 w-4 shrink-0 animate-spin text-content-link" />
+			);
+		default:
+			return (
+				<LoaderIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+			);
+	}
+};
+
+/**
+ * Specialized rendering for `task` and `task_await` tool calls.
+ * Shows a clickable card linking to the sub-agent chat with its
+ * title and current status. If a report is present, it can be
+ * expanded inline.
+ */
+const TaskTool: React.FC<{
+	title: string;
+	chatId: string;
+	taskStatus: string;
+	report?: string;
+	toolStatus: ToolStatus;
+	isError: boolean;
+}> = ({ title, chatId, taskStatus, report, toolStatus, isError }) => {
+	const [reportExpanded, setReportExpanded] = useState(false);
+	const reportRef = useRef<HTMLDivElement>(null);
+	const [reportOverflows, setReportOverflows] = useState(false);
+	const reportMeasureRef = (node: HTMLDivElement | null) => {
+		(reportRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+		if (node) {
+			setReportOverflows(node.scrollHeight > COLLAPSED_REPORT_HEIGHT);
+		}
+	};
+	const hasReport = Boolean(report?.trim());
+
+	return (
+		<div className="w-full overflow-hidden rounded-lg border border-solid border-border-default bg-surface-primary">
+			<Link
+				to={`/agents/${chatId}`}
+				className="flex items-center gap-2.5 px-3 py-2 text-inherit no-underline transition-colors hover:bg-surface-tertiary/50"
+			>
+				<TaskStatusIcon
+					taskStatus={taskStatus}
+					toolStatus={toolStatus}
+					isError={isError}
+				/>
+				<span className="min-w-0 flex-1 truncate text-sm font-medium text-content-primary">
+					{title}
+				</span>
+				<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+			</Link>
+			{hasReport && (
+				<>
+					<div
+						className="h-px"
+						style={{ background: "hsl(var(--border-default))" }}
+					/>
+					<div className="px-3 py-2">
+						<div
+							ref={reportMeasureRef}
+							style={
+								reportExpanded
+									? undefined
+									: {
+											maxHeight: COLLAPSED_REPORT_HEIGHT,
+											overflow: "hidden",
+										}
+							}
+						>
+							<Response>{report ?? ""}</Response>
+						</div>
+						{reportOverflows && (
+							<button
+								type="button"
+								onClick={() => setReportExpanded((v) => !v)}
+								className="mt-1 flex w-full cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent py-0.5 text-content-secondary transition-colors hover:text-content-primary"
+								aria-label={
+									reportExpanded ? "Collapse report" : "Expand report"
+								}
+							>
+								<ChevronDownIcon
+									className={cn(
+										"h-3 w-3 transition-transform",
+										reportExpanded && "rotate-180",
+									)}
+								/>
+							</button>
+						)}
+					</div>
+				</>
+			)}
+		</div>
+	);
+};
+
+/**
+ * Specialized rendering for `agent_report` tool calls. Shows the
+ * report as collapsible markdown with a short preview that users
+ * can expand.
+ */
+const AgentReportTool: React.FC<{
+	title: string;
+	report: string;
+	toolStatus: ToolStatus;
+	isError: boolean;
+}> = ({ title, report, toolStatus, isError }) => {
+	const [expanded, setExpanded] = useState(false);
+	const contentRef = useRef<HTMLDivElement>(null);
+	const [overflows, setOverflows] = useState(false);
+	const measureRef = (node: HTMLDivElement | null) => {
+		(contentRef as React.MutableRefObject<HTMLDivElement | null>).current =
+			node;
+		if (node) {
+			setOverflows(node.scrollHeight > COLLAPSED_REPORT_HEIGHT);
+		}
+	};
+	const isRunning = toolStatus === "running";
+
+	return (
+		<div className="w-full overflow-hidden rounded-lg border border-solid border-border-default bg-surface-primary">
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => overflows && setExpanded((v) => !v)}
+				onKeyDown={(e) => {
+					if ((e.key === "Enter" || e.key === " ") && overflows) {
+						setExpanded((v) => !v);
+					}
+				}}
+				className={cn(
+					"flex items-center gap-2 px-3 py-2",
+					overflows && "cursor-pointer",
+				)}
+			>
+				{isRunning ? (
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+				) : isError ? (
+					<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+				) : (
+					<CheckIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+				)}
+				<span
+					className={cn(
+						"min-w-0 flex-1 truncate text-sm",
+						isError ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
+					{title}
+				</span>
+				{overflows && (
+					<ChevronDownIcon
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
+				)}
+			</div>
+			{report.trim() && (
+				<>
+					<div
+						className="h-px"
+						style={{ background: "hsl(var(--border-default))" }}
+					/>
+					<div className="px-3 py-2">
+						<div
+							ref={measureRef}
+							style={
+								expanded
+									? undefined
+									: {
+											maxHeight: COLLAPSED_REPORT_HEIGHT,
+											overflow: "hidden",
+										}
+							}
+						>
+							<Response>{report}</Response>
+						</div>
+					</div>
+				</>
+			)}
+		</div>
+	);
+};
+
 export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 	(
 		{
@@ -1023,6 +1247,54 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 						status={status}
 						isError={isError}
 						errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render task and task_await as a pretty sub-agent link card.
+		if (name === "task" || name === "task_await") {
+			const parsed = parseArgs(args);
+			const rec = asRecord(result);
+			const chatId = rec ? asString(rec.chat_id) : "";
+			const taskStatus = rec ? asString(rec.status) : "";
+			const report = rec ? asString(rec.report) : "";
+			const title =
+				(parsed ? asString(parsed.title) : "") ||
+				(name === "task_await" ? "Sub-agent" : "Sub-agent");
+
+			if (chatId) {
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<TaskTool
+							title={title}
+							chatId={chatId}
+							taskStatus={taskStatus}
+							report={report || undefined}
+							toolStatus={status}
+							isError={isError}
+						/>
+					</div>
+				);
+			}
+		}
+
+		// Render agent_report as a collapsible markdown report.
+		if (name === "agent_report") {
+			const parsed = parseArgs(args);
+			const rec = asRecord(result);
+			const report =
+				(parsed ? asString(parsed.report) : "") ||
+				(rec ? asString(rec.report) : "");
+			const title = (rec ? asString(rec.title) : "") || "Status Report";
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<AgentReportTool
+						title={title}
+						report={report}
+						toolStatus={status}
+						isError={isError}
 					/>
 				</div>
 			);

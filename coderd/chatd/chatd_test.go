@@ -593,6 +593,43 @@ func (m *blockingCloseModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.
 	return streamFromParts(parts), nil
 }
 
+type fixedTextModel struct {
+	fakeLanguageModelBase
+	mu    sync.Mutex
+	calls int
+	text  string
+}
+
+func (*fixedTextModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
+}
+
+func (m *fixedTextModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	m.mu.Lock()
+	m.calls++
+	text := m.text
+	m.mu.Unlock()
+
+	if strings.TrimSpace(text) == "" {
+		text = "done"
+	}
+	return streamFromParts([]fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+		{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: text},
+		{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+		{
+			Type:  fantasy.StreamPartTypeFinish,
+			Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+		},
+	}), nil
+}
+
+func (m *fixedTextModel) CallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
 type workspaceCreatorFunc func(context.Context, chatd.CreateWorkspaceToolRequest) (chatd.CreateWorkspaceToolResult, error)
 
 func (f workspaceCreatorFunc) CreateWorkspace(
@@ -630,6 +667,50 @@ func insertChatWithUserMessage(
 	require.NoError(t, err)
 
 	return chat
+}
+
+func insertDelegatedChildChatWithUserMessage(
+	t *testing.T,
+	db database.Store,
+	dbCtx context.Context,
+	ownerID uuid.UUID,
+	parentID uuid.UUID,
+	title string,
+	message string,
+	taskStatus database.ChatTaskStatus,
+) database.Chat {
+	t.Helper()
+
+	child, err := db.InsertChat(dbCtx, database.InsertChatParams{
+		OwnerID: ownerID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  parentID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  parentID,
+			Valid: true,
+		},
+		TaskStatus: database.NullChatTaskStatus{
+			ChatTaskStatus: taskStatus,
+			Valid:          true,
+		},
+		Title:       title,
+		ModelConfig: json.RawMessage(`{"model":"fake"}`),
+	})
+	require.NoError(t, err)
+
+	content, err := json.Marshal(contentFromText(message))
+	require.NoError(t, err)
+	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
+		ChatID:  child.ID,
+		Role:    string(fantasy.MessageRoleUser),
+		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
+		Hidden:  false,
+	})
+	require.NoError(t, err)
+
+	return child
 }
 
 func TestRunChatLoop(t *testing.T) {
@@ -1880,4 +1961,138 @@ func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
 		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 		return err == nil && storedChat.Status == database.ChatStatusError
 	}, testutil.WaitLong, 50*time.Millisecond)
+}
+
+func TestRunChatLoop_DelegatedChildWithoutReportRequeuesForReportPass(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	parent := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "parent", "parent prompt")
+	child := insertDelegatedChildChatWithUserMessage(
+		t,
+		db,
+		dbCtx,
+		user.UserID,
+		parent.ID,
+		"child",
+		"run delegated task",
+		database.ChatTaskStatusQueued,
+	)
+
+	model := &fixedTextModel{text: "child completed without explicit report"}
+	processor := chatd.NewProcessor(
+		testutil.Logger(t).Named("chatd"),
+		db,
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(750*time.Millisecond),
+	)
+	defer processor.Close()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        child.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		storedChild, err := db.GetChatByID(dbCtx, child.ID)
+		if err != nil {
+			return false
+		}
+		return storedChild.TaskStatus == database.ChatTaskStatusAwaitingReport &&
+			storedChild.Status == database.ChatStatusPending
+	}, testutil.WaitLong, 25*time.Millisecond)
+}
+
+func TestRunChatLoop_ReportOnlyPassWithoutAgentReportFallsBack(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	parent := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "parent", "parent prompt")
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        parent.ID,
+		Status:    database.ChatStatusRunning,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	child := insertDelegatedChildChatWithUserMessage(
+		t,
+		db,
+		dbCtx,
+		user.UserID,
+		parent.ID,
+		"child report-only",
+		"finish delegated task",
+		database.ChatTaskStatusAwaitingReport,
+	)
+
+	const fallbackSummary = "summarized completion from report-only pass"
+	model := &fixedTextModel{text: fallbackSummary}
+	processor := chatd.NewProcessor(
+		testutil.Logger(t).Named("chatd"),
+		db,
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(750*time.Millisecond),
+	)
+	defer processor.Close()
+
+	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        child.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		storedChild, err := db.GetChatByID(dbCtx, child.ID)
+		if err != nil {
+			return false
+		}
+		return storedChild.TaskStatus == database.ChatTaskStatusReported &&
+			storedChild.TaskReport.Valid &&
+			storedChild.TaskReport.String == fallbackSummary
+	}, testutil.WaitLong, 25*time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		messages, msgErr := db.GetChatMessagesByChatID(dbCtx, parent.ID)
+		if msgErr != nil {
+			return false
+		}
+		for _, message := range messages {
+			if message.Role != string(fantasy.MessageRoleTool) {
+				continue
+			}
+			var blocks []chatd.ToolResultBlock
+			if err := json.Unmarshal(message.Content.RawMessage, &blocks); err != nil {
+				continue
+			}
+			if len(blocks) != 1 || blocks[0].ToolName != "agent_report" {
+				continue
+			}
+			payload, ok := blocks[0].Result.(map[string]any)
+			if !ok {
+				continue
+			}
+			report, ok := payload["report"].(string)
+			return ok && report == fallbackSummary
+		}
+		return false
+	}, testutil.WaitLong, 25*time.Millisecond)
 }

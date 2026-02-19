@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,10 @@ const (
 	toolWriteFile       = "write_file"
 	toolEditFiles       = "edit_files"
 	toolExecute         = "execute"
+	toolTask            = "task"
+	toolTaskAwait       = "task_await"
+	toolTaskTerminate   = "task_terminate"
+	toolAgentReport     = "agent_report"
 
 	defaultExecuteTimeout = 60 * time.Second
 	maxChatSteps          = 1200
@@ -59,9 +64,14 @@ const (
 		"quotes."
 
 	defaultNoWorkspaceInstruction = "No workspace is selected yet. Call the create_workspace tool first before using read_file, write_file, or execute. If create_workspace fails, ask the user to clarify the template or workspace request."
+	reportOnlyInstruction         = "Report-only follow-up pass. Call agent_report exactly once with a concise summary and nothing else."
 )
 
-var ErrChatInterrupted = xerrors.New("chat interrupted")
+var (
+	ErrChatInterrupted = xerrors.New("chat interrupted")
+
+	toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+)
 
 // Processor handles background processing of pending chats.
 type Processor struct {
@@ -77,6 +87,7 @@ type Processor struct {
 	workspaceCreator WorkspaceCreator
 	modelResolver    ModelResolver
 	streamManager    *StreamManager
+	taskService      *TaskService
 	providerKeys     ProviderAPIKeys
 	providerKeysFn   ProviderAPIKeysResolver
 	titleGeneration  TitleGenerationConfig
@@ -344,6 +355,8 @@ func NewProcessor(logger slog.Logger, db database.Store, opts ...Option) *Proces
 		opt(p)
 	}
 
+	p.taskService = newTaskService(p.db, p)
+
 	//nolint:gocritic // The chat processor is a system-level service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	go p.start(ctx)
@@ -499,11 +512,19 @@ func (p *Processor) publishMessagePart(chatID uuid.UUID, role string, part coder
 func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat")
+	reportOnly := chat.ParentChatID.Valid &&
+		chat.TaskStatus == database.ChatTaskStatusAwaitingReport
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	p.registerChat(chat.ID, cancel)
 	defer p.unregisterChat(chat.ID)
 	defer cancel(nil)
+
+	if chat.ParentChatID.Valid && p.taskService != nil {
+		if err := p.taskService.SetTaskRunning(chatCtx, chat.ID); err != nil {
+			logger.Warn(ctx, "failed to set delegated chat task running", slog.Error(err))
+		}
+	}
 
 	p.publishStatus(chat.ID, database.ChatStatusRunning)
 
@@ -516,6 +537,31 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 			logger.Error(ctx, "panic during chat processing", slog.F("panic", r))
 			p.publishError(chat.ID, panicFailureReason(r))
 			status = database.ChatStatusError
+		}
+
+		if chat.ParentChatID.Valid && p.taskService != nil {
+			hasActiveDescendants, err := p.taskService.HasActiveDescendants(ctx, chat.ID)
+			if err != nil {
+				logger.Warn(ctx, "failed to check delegated chat descendants", slog.Error(err))
+			} else if !hasActiveDescendants {
+				chatState, stateErr := p.db.GetChatByID(ctx, chat.ID)
+				if stateErr != nil {
+					logger.Warn(ctx, "failed to read delegated chat state", slog.Error(stateErr))
+				} else if chatState.TaskStatus != database.ChatTaskStatusReported {
+					if reportOnly {
+						report := p.taskService.SynthesizeFallbackTaskReport(ctx, chat.ID)
+						if err := p.taskService.MarkTaskReported(ctx, chat.ID, report); err != nil {
+							logger.Warn(ctx, "failed to mark delegated chat reported with fallback", slog.Error(err))
+						}
+					} else {
+						if err := p.taskService.SetTaskAwaitingReport(ctx, chat.ID); err != nil {
+							logger.Warn(ctx, "failed to set delegated chat awaiting report", slog.Error(err))
+						} else {
+							status = database.ChatStatusPending
+						}
+					}
+				}
+			}
 		}
 
 		// Release the chat when done.
@@ -532,7 +578,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 		p.publishStatus(chat.ID, status)
 	}()
 
-	if err := p.runChat(chatCtx, chat, logger); err != nil {
+	if err := p.runChat(chatCtx, chat, logger, reportOnly); err != nil {
 		if errors.Is(err, ErrChatInterrupted) || errors.Is(context.Cause(chatCtx), ErrChatInterrupted) {
 			logger.Info(ctx, "chat interrupted")
 			status = database.ChatStatusWaiting
@@ -547,7 +593,12 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	}
 }
 
-func (p *Processor) runChat(ctx context.Context, chat database.Chat, logger slog.Logger) error {
+func (p *Processor) runChat(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+	reportOnly bool,
+) error {
 	messages, err := p.db.GetChatMessagesByChatID(ctx, chat.ID)
 	if err != nil {
 		return xerrors.Errorf("get chat messages: %w", err)
@@ -563,7 +614,9 @@ func (p *Processor) runChat(ctx context.Context, chat database.Chat, logger slog
 	if err != nil {
 		return xerrors.Errorf("build chat prompt: %w", err)
 	}
-	if !chat.WorkspaceID.Valid {
+	if reportOnly {
+		prompt = appendSystemInstruction(prompt, reportOnlyInstruction)
+	} else if !chat.WorkspaceID.Valid {
 		prompt = prependSystemInstruction(prompt, defaultNoWorkspaceInstruction)
 	}
 
@@ -577,7 +630,7 @@ func (p *Processor) runChat(ctx context.Context, chat database.Chat, logger slog
 		return err
 	}
 
-	result, err := p.runChatWithAgent(ctx, chat, model, prompt)
+	result, err := p.runChatWithAgent(ctx, chat, model, prompt, reportOnly)
 	if err != nil {
 		return err
 	}
@@ -616,6 +669,7 @@ func (p *Processor) runChatWithAgent(
 	chat database.Chat,
 	model fantasy.LanguageModel,
 	prompt []fantasy.Message,
+	reportOnly bool,
 ) (*fantasy.AgentResult, error) {
 	currentChat := chat
 	var (
@@ -749,9 +803,7 @@ func (p *Processor) runChatWithAgent(
 			stepCtx context.Context,
 			options fantasy.PrepareStepFunctionOptions,
 		) (context.Context, fantasy.PrepareStepResult, error) {
-			return stepCtx, fantasy.PrepareStepResult{
-				Messages: stripAgentPromptSentinel(options.Messages, sentinelPrompt),
-			}, nil
+			return stepCtx, prepareAgentStepResult(options.Messages, sentinelPrompt, reportOnly), nil
 		},
 		OnStepStart: func(_ int) error {
 			resetStepState()
@@ -855,6 +907,20 @@ func stripAgentPromptSentinel(messages []fantasy.Message, sentinel string) []fan
 		filtered = append(filtered, message)
 	}
 	return filtered
+}
+
+func prepareAgentStepResult(
+	messages []fantasy.Message,
+	sentinel string,
+	reportOnly bool,
+) fantasy.PrepareStepResult {
+	result := fantasy.PrepareStepResult{
+		Messages: stripAgentPromptSentinel(messages, sentinel),
+	}
+	if reportOnly {
+		result.ActiveTools = []string{toolAgentReport}
+	}
+	return result
 }
 
 func isAgentPromptSentinelMessage(message fantasy.Message, sentinel string) bool {
@@ -1357,6 +1423,22 @@ func prependSystemInstruction(prompt []fantasy.Message, instruction string) []fa
 	return out
 }
 
+func appendSystemInstruction(prompt []fantasy.Message, instruction string) []fantasy.Message {
+	instruction = strings.TrimSpace(instruction)
+	if instruction == "" {
+		return prompt
+	}
+	out := make([]fantasy.Message, 0, len(prompt)+1)
+	out = append(out, prompt...)
+	out = append(out, fantasy.Message{
+		Role: fantasy.MessageRoleSystem,
+		Content: []fantasy.MessagePart{
+			fantasy.TextPart{Text: instruction},
+		},
+	})
+	return out
+}
+
 func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
 	if !raw.Valid || len(raw.RawMessage) == 0 {
 		return "", nil
@@ -1421,14 +1503,14 @@ func contentToMessageParts(content []fantasy.Content) []fantasy.MessagePart {
 			parts = append(parts, fantasy.ReasoningPart{Text: value.Text})
 		case fantasy.ToolCallContent:
 			parts = append(parts, fantasy.ToolCallPart{
-				ToolCallID:       value.ToolCallID,
+				ToolCallID:       sanitizeToolCallID(value.ToolCallID),
 				ToolName:         value.ToolName,
 				Input:            value.Input,
 				ProviderExecuted: value.ProviderExecuted,
 			})
 		case *fantasy.ToolCallContent:
 			parts = append(parts, fantasy.ToolCallPart{
-				ToolCallID:       value.ToolCallID,
+				ToolCallID:       sanitizeToolCallID(value.ToolCallID),
 				ToolName:         value.ToolName,
 				Input:            value.Input,
 				ProviderExecuted: value.ProviderExecuted,
@@ -1460,6 +1542,8 @@ func toolMessageFromResults(results []ToolResultBlock) fantasy.Message {
 }
 
 func toolResultToMessagePart(result ToolResultBlock) fantasy.ToolResultPart {
+	toolCallID := sanitizeToolCallID(result.ToolCallID)
+
 	payload := result.Result
 	if payload == nil {
 		payload = map[string]any{}
@@ -1478,7 +1562,7 @@ func toolResultToMessagePart(result ToolResultBlock) fantasy.ToolResultPart {
 			}
 		}
 		return fantasy.ToolResultPart{
-			ToolCallID: result.ToolCallID,
+			ToolCallID: toolCallID,
 			Output: fantasy.ToolResultOutputContentError{
 				Error: xerrors.New(message),
 			},
@@ -1486,11 +1570,18 @@ func toolResultToMessagePart(result ToolResultBlock) fantasy.ToolResultPart {
 	}
 
 	return fantasy.ToolResultPart{
-		ToolCallID: result.ToolCallID,
+		ToolCallID: toolCallID,
 		Output: fantasy.ToolResultOutputContentText{
 			Text: string(raw),
 		},
 	}
+}
+
+func sanitizeToolCallID(id string) string {
+	if id == "" {
+		return ""
+	}
+	return toolCallIDSanitizer.ReplaceAllString(id, "_")
 }
 
 func extractToolCallsFromMessageParts(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
@@ -1963,6 +2054,25 @@ type createWorkspaceArgs struct {
 	Request   json.RawMessage `json:"request,omitempty"`
 }
 
+type taskArgs struct {
+	Prompt     string `json:"prompt"`
+	Title      string `json:"title,omitempty"`
+	Background bool   `json:"background,omitempty"`
+}
+
+type taskAwaitArgs struct {
+	ChatID         string `json:"chat_id"`
+	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
+}
+
+type taskTerminateArgs struct {
+	ChatID string `json:"chat_id"`
+}
+
+type agentReportArgs struct {
+	Report string `json:"report"`
+}
+
 func (p *Processor) agentTools(
 	model fantasy.LanguageModel,
 	chatState *database.Chat,
@@ -2059,7 +2169,196 @@ func (p *Processor) agentTools(
 				return toolResultBlockToAgentResponse(executeExecuteTool(ctx, conn, call.ID, args)), nil
 			},
 		),
+		fantasy.NewAgentTool(
+			toolTask,
+			"Create a delegated child task chat. If background=false, this call waits for the child report.",
+			func(ctx context.Context, args taskArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				if p.taskService == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("task service is not configured"))), nil
+				}
+
+				chatStateMu.Lock()
+				chatSnapshot := *chatState
+				chatStateMu.Unlock()
+
+				if chatSnapshot.ParentChatID.Valid {
+					return toolResultBlockToAgentResponse(toolError(
+						base,
+						xerrors.New("delegated chats cannot create child tasks in phase-1"),
+					)), nil
+				}
+
+				childChat, err := p.taskService.CreateChildTaskChat(
+					ctx,
+					chatSnapshot,
+					args.Prompt,
+					args.Title,
+					args.Background,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				payload := map[string]any{
+					"chat_id":    childChat.ID.String(),
+					"background": args.Background,
+					"status":     string(childChat.TaskStatus),
+				}
+				if args.Background {
+					return toolResultBlockToAgentResponse(ToolResultBlock{
+						ToolCallID: call.ID,
+						ToolName:   call.Name,
+						Result:     payload,
+					}), nil
+				}
+
+				report, err := p.taskService.AwaitTaskReport(
+					ctx,
+					chatSnapshot.ID,
+					childChat.ID,
+					defaultTaskAwaitTimeout,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+				payload["report"] = report
+				payload["status"] = string(database.ChatTaskStatusReported)
+
+				return toolResultBlockToAgentResponse(ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result:     payload,
+				}), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			toolTaskAwait,
+			"Wait for a delegated descendant task chat to report completion.",
+			func(ctx context.Context, args taskAwaitArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				if p.taskService == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("task service is not configured"))), nil
+				}
+
+				chatID, err := parseTaskToolChatID(args.ChatID)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				timeout := defaultTaskAwaitTimeout
+				if args.TimeoutSeconds != nil {
+					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
+				}
+
+				chatStateMu.Lock()
+				chatSnapshot := *chatState
+				chatStateMu.Unlock()
+
+				report, err := p.taskService.AwaitTaskReport(
+					ctx,
+					chatSnapshot.ID,
+					chatID,
+					timeout,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				return toolResultBlockToAgentResponse(ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"chat_id": chatID.String(),
+						"report":  report,
+						"status":  string(database.ChatTaskStatusReported),
+					},
+				}), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			toolTaskTerminate,
+			"Terminate a delegated descendant task subtree.",
+			func(ctx context.Context, args taskTerminateArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				if p.taskService == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("task service is not configured"))), nil
+				}
+
+				chatID, err := parseTaskToolChatID(args.ChatID)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				chatStateMu.Lock()
+				chatSnapshot := *chatState
+				chatStateMu.Unlock()
+
+				if err := p.taskService.TerminateTaskSubtree(ctx, chatSnapshot.ID, chatID); err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				return toolResultBlockToAgentResponse(ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"chat_id":    chatID.String(),
+						"terminated": true,
+						"status":     string(database.ChatTaskStatusReported),
+					},
+				}), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			toolAgentReport,
+			"Mark the current delegated task chat as reported when all descendants are complete.",
+			func(ctx context.Context, args agentReportArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := toolResultBlockBaseFromAgentToolCall(call)
+				if p.taskService == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("task service is not configured"))), nil
+				}
+
+				chatStateMu.Lock()
+				chatSnapshot := *chatState
+				chatStateMu.Unlock()
+
+				hasActiveDescendants, err := p.taskService.HasActiveDescendants(ctx, chatSnapshot.ID)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+				if hasActiveDescendants {
+					return toolResultBlockToAgentResponse(toolError(
+						base,
+						xerrors.New("cannot report while active delegated descendants remain"),
+					)), nil
+				}
+
+				if err := p.taskService.MarkTaskReported(ctx, chatSnapshot.ID, args.Report); err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				return toolResultBlockToAgentResponse(ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"chat_id":  chatSnapshot.ID.String(),
+						"title":    chatSnapshot.Title,
+						"report":   args.Report,
+						"reported": true,
+						"status":   string(database.ChatTaskStatusReported),
+					},
+				}), nil
+			},
+		),
 	}
+}
+
+func parseTaskToolChatID(raw string) (uuid.UUID, error) {
+	chatID, err := uuid.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return uuid.Nil, xerrors.New("chat_id must be a valid UUID")
+	}
+	return chatID, nil
 }
 
 func (p *Processor) executeCreateWorkspaceTool(

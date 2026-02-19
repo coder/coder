@@ -1600,7 +1600,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     0
   ],
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "status": "waiting",
+  "task_status": "queued",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
@@ -1617,7 +1620,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`                 | string                                             | false    |              |             |
 | `model_config`       | array of integer                                   | false    |              |             |
 | `owner_id`           | string                                             | false    |              |             |
+| `parent_chat_id`     | string                                             | false    |              |             |
+| `root_chat_id`       | string                                             | false    |              |             |
 | `status`             | [codersdk.ChatStatus](#codersdkchatstatus)         | false    |              |             |
+| `task_status`        | [codersdk.ChatTaskStatus](#codersdkchattaskstatus) | false    |              |             |
 | `title`              | string                                             | false    |              |             |
 | `updated_at`         | string                                             | false    |              |             |
 | `workspace_agent_id` | string                                             | false    |              |             |
@@ -1974,6 +1980,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------------------------------------------------|
 | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
 
+## codersdk.ChatTaskStatus
+
+```json
+"queued"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                           |
+|----------------------------------------------------|
+| `awaiting_report`, `queued`, `reported`, `running` |
+
 ## codersdk.ChatToolResultMetadata
 
 ```json
@@ -2030,7 +2050,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       0
     ],
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "status": "waiting",
+    "task_status": "queued",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
@@ -2386,6 +2409,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "model_config": [
     0
   ],
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "system_prompt": "string",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
@@ -2400,6 +2424,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `message`            | string                                   | false    |              |             |
 | `model`              | string                                   | false    |              |             |
 | `model_config`       | array of integer                         | false    |              |             |
+| `parent_chat_id`     | string                                   | false    |              |             |
 | `system_prompt`      | string                                   | false    |              |             |
 | `workspace_agent_id` | string                                   | false    |              |             |
 | `workspace_id`       | string                                   | false    |              |             |

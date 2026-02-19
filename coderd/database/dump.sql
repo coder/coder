@@ -267,6 +267,13 @@ CREATE TYPE chat_status AS ENUM (
     'error'
 );
 
+CREATE TYPE chat_task_status AS ENUM (
+    'queued',
+    'running',
+    'awaiting_report',
+    'reported'
+);
+
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -1221,7 +1228,11 @@ CREATE TABLE chats (
     worker_id uuid,
     started_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    parent_chat_id uuid,
+    root_chat_id uuid,
+    task_status chat_task_status DEFAULT 'reported'::chat_task_status NOT NULL,
+    task_report text
 );
 
 CREATE TABLE connection_logs (
@@ -3420,7 +3431,11 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
+CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
+
 CREATE INDEX idx_chats_pending ON chats USING btree (status) WHERE (status = 'pending'::chat_status);
+
+CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
 
@@ -3684,6 +3699,12 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_parent_chat_id_fkey FOREIGN KEY (parent_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;

@@ -6382,6 +6382,36 @@ func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeInterceptions(ctx, arg, p
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeInterceptions", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeInterceptions), ctx, arg, prepared)
 }
 
+// ListChatsByRootID mocks base method.
+func (m *MockStore) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChatsByRootID", ctx, rootChatID)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChatsByRootID indicates an expected call of ListChatsByRootID.
+func (mr *MockStoreMockRecorder) ListChatsByRootID(ctx, rootChatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatsByRootID", reflect.TypeOf((*MockStore)(nil).ListChatsByRootID), ctx, rootChatID)
+}
+
+// ListChildChatsByParentID mocks base method.
+func (m *MockStore) ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChildChatsByParentID", ctx, parentChatID)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChildChatsByParentID indicates an expected call of ListChildChatsByParentID.
+func (mr *MockStoreMockRecorder) ListChildChatsByParentID(ctx, parentChatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChildChatsByParentID", reflect.TypeOf((*MockStore)(nil).ListChildChatsByParentID), ctx, parentChatID)
+}
+
 // ListProvisionerKeysByOrganization mocks base method.
 func (m *MockStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()
@@ -6792,6 +6822,36 @@ func (m *MockStore) UpdateChatStatus(ctx context.Context, arg database.UpdateCha
 func (mr *MockStoreMockRecorder) UpdateChatStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatStatus), ctx, arg)
+}
+
+// UpdateChatTaskReport mocks base method.
+func (m *MockStore) UpdateChatTaskReport(ctx context.Context, arg database.UpdateChatTaskReportParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatTaskReport", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatTaskReport indicates an expected call of UpdateChatTaskReport.
+func (mr *MockStoreMockRecorder) UpdateChatTaskReport(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTaskReport", reflect.TypeOf((*MockStore)(nil).UpdateChatTaskReport), ctx, arg)
+}
+
+// UpdateChatTaskStatus mocks base method.
+func (m *MockStore) UpdateChatTaskStatus(ctx context.Context, arg database.UpdateChatTaskStatusParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatTaskStatus", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatTaskStatus indicates an expected call of UpdateChatTaskStatus.
+func (mr *MockStoreMockRecorder) UpdateChatTaskStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTaskStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatTaskStatus), ctx, arg)
 }
 
 // UpdateChatWorkspace mocks base method.

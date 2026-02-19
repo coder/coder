@@ -46,17 +46,43 @@ WHERE
 ORDER BY
     updated_at DESC;
 
+-- name: ListChildChatsByParentID :many
+SELECT
+    *
+FROM
+    chats
+WHERE
+    parent_chat_id = @parent_chat_id::uuid
+ORDER BY
+    created_at ASC;
+
+-- name: ListChatsByRootID :many
+SELECT
+    *
+FROM
+    chats
+WHERE
+    root_chat_id = @root_chat_id::uuid
+ORDER BY
+    created_at ASC;
+
 -- name: InsertChat :one
 INSERT INTO chats (
     owner_id,
     workspace_id,
     workspace_agent_id,
+    parent_chat_id,
+    root_chat_id,
+    task_status,
     title,
     model_config
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('workspace_agent_id')::uuid,
+    sqlc.narg('parent_chat_id')::uuid,
+    sqlc.narg('root_chat_id')::uuid,
+    COALESCE(sqlc.narg('task_status')::chat_task_status, 'reported'::chat_task_status),
     @title::text,
     @model_config::jsonb
 )
@@ -140,6 +166,28 @@ SET
     status = @status::chat_status,
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatTaskStatus :one
+UPDATE
+    chats
+SET
+    task_status = @task_status::chat_task_status,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatTaskReport :one
+UPDATE
+    chats
+SET
+    task_report = sqlc.narg('task_report')::text,
     updated_at = NOW()
 WHERE
     id = @id::uuid
