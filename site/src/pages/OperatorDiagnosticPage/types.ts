@@ -115,7 +115,7 @@ export interface DiagnosticSessionConnection {
 	disconnected_at: string | null;
 	status: WorkspaceConnectionStatus;
 	exit_code: number | null;
-	os: string;
+	os?: string;
 	explanation: string;
 }
 
