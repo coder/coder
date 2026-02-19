@@ -54,7 +54,7 @@ message RecordInterceptionResponse {}
 message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
-  string tool_call_id = 3;
+  string correlating_tool_call_id = 3;
 }
 
 message RecordInterceptionEndedResponse {}

@@ -193,7 +193,7 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		)
 	}
 
-	parentID, ancestorID := s.findInterceptionLineage(ctx, in.GetToolCallId())
+	parentID, ancestorID := s.findInterceptionLineage(ctx, in.GetCorrelatingToolCallId())
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:                     intcID,
 		ParentInterceptionID:   uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
