@@ -51,6 +51,14 @@ Only return interceptions from this provider.
 
 Only return interceptions from this model.
 
+### --client
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Only return interceptions from this client.
+
 ### --after-id
 
 |      |                     |

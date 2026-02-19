@@ -231,6 +231,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					job                   *database.ProvisionerJob
 					auditLog              *auditParams
 					shouldNotifyDormancy  bool
+					shouldNotifyTaskPause bool
 					nextBuild             *database.WorkspaceBuild
 					activeTemplateVersion database.TemplateVersion
 					ws                    database.Workspace
@@ -314,6 +315,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						// doesn't matter since the transaction is  read-only up to
 						// this point.
 						return nil
+					}
+
+					if reason == database.BuildReasonTaskAutoPause {
+						shouldNotifyTaskPause = true
 					}
 
 					// Get the template version job to access tags
@@ -482,6 +487,28 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
 					}
 				}
+				if shouldNotifyTaskPause {
+					task, err := e.db.GetTaskByID(e.ctx, ws.TaskID.UUID)
+					if err != nil {
+						log.Warn(e.ctx, "failed to get task for pause notification", slog.Error(err), slog.F("task_id", ws.TaskID.UUID), slog.F("workspace_id", ws.ID))
+					} else {
+						if _, err := e.notificationsEnqueuer.Enqueue(
+							e.ctx,
+							ws.OwnerID,
+							notifications.TemplateTaskPaused,
+							map[string]string{
+								"task":         task.Name,
+								"task_id":      task.ID.String(),
+								"workspace":    ws.Name,
+								"pause_reason": "inactivity exceeded the dormancy threshold",
+							},
+							"lifecycle_executor",
+							ws.ID, ws.OwnerID, ws.OrganizationID,
+						); err != nil {
+							log.Warn(e.ctx, "failed to notify of task paused", slog.Error(err), slog.F("task_id", ws.TaskID.UUID), slog.F("workspace_id", ws.ID))
+						}
+					}
+				}
 				return nil
 			}()
 			if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -525,10 +552,18 @@ func getNextTransition(
 ) {
 	switch {
 	case isEligibleForAutostop(user, ws, latestBuild, latestJob, currentTick):
+		// Use task-specific reason for AI task workspaces.
+		if ws.TaskID.Valid {
+			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
+		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
+		// Use task-specific reason for AI task workspaces.
+		if ws.TaskID.Valid {
+			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
+		}
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.

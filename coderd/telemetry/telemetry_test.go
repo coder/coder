@@ -376,7 +376,7 @@ func TestTelemetry(t *testing.T) {
 
 		require.Equal(t, snapshot1.Provider, aiBridgeInterception1.Provider)
 		require.Equal(t, snapshot1.Model, aiBridgeInterception1.Model)
-		require.Equal(t, snapshot1.Client, "unknown") // no client info yet
+		require.Equal(t, snapshot1.Client, "Unknown") // no client info yet
 		require.EqualValues(t, snapshot1.InterceptionCount, 2)
 		require.EqualValues(t, snapshot1.InterceptionsByRoute, map[string]int64{}) // no route info yet
 		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P50, 90_000)
@@ -396,7 +396,7 @@ func TestTelemetry(t *testing.T) {
 
 		require.Equal(t, snapshot2.Provider, aiBridgeInterception3.Provider)
 		require.Equal(t, snapshot2.Model, aiBridgeInterception3.Model)
-		require.Equal(t, snapshot2.Client, "unknown") // no client info yet
+		require.Equal(t, snapshot2.Client, "Unknown") // no client info yet
 		require.EqualValues(t, snapshot2.InterceptionCount, 1)
 		require.EqualValues(t, snapshot2.InterceptionsByRoute, map[string]int64{}) // no route info yet
 		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P50, 180_000)

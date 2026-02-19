@@ -981,6 +981,9 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 	if interception.EndedAt.Valid {
 		intc.EndedAt = &interception.EndedAt.Time
 	}
+	if interception.Client.Valid {
+		intc.Client = &interception.Client.String
+	}
 	return intc
 }
 
