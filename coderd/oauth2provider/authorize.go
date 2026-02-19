@@ -1,7 +1,9 @@
 package oauth2provider
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/url"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/justinas/nosurf"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -122,6 +125,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			AppName:     app.Name,
 			CancelURI:   cancel.String(),
 			RedirectURI: r.URL.String(),
+			CSRFToken:   nosurf.Token(r),
 			Username:    ua.FriendlyName,
 		})
 	}
@@ -194,7 +198,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
-				StateHash:           sql.NullString{},
+				StateHash:           hashOAuth2State(params.state),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)
@@ -217,5 +221,18 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		// (ThomasK33): Use a 302 redirect as some (external) OAuth 2 apps and browsers
 		// do not work with the 307.
 		http.Redirect(rw, r, params.redirectURL.String(), http.StatusFound)
+	}
+}
+
+// hashOAuth2State returns a SHA-256 hash of the OAuth2 state parameter. If
+// the state is empty, it returns a null string.
+func hashOAuth2State(state string) sql.NullString {
+	if state == "" {
+		return sql.NullString{}
+	}
+	hash := sha256.Sum256([]byte(state))
+	return sql.NullString{
+		String: hex.EncodeToString(hash[:]),
+		Valid:  true,
 	}
 }
