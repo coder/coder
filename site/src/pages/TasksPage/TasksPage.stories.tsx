@@ -248,7 +248,7 @@ export const OpenKebabMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const kebabButtons = await canvas.findAllByRole("button", {
-			name: /open task actions/i,
+			name: /show task actions/i,
 		});
 		await userEvent.click(kebabButtons[0]);
 	},
@@ -262,7 +262,7 @@ export const OpenDeleteDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const kebabButtons = await canvas.findAllByRole("button", {
-			name: /open task actions/i,
+			name: /show task actions/i,
 		});
 		await userEvent.click(kebabButtons[0]);
 
