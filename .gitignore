@@ -98,3 +98,6 @@ AGENTS.local.md
 
 # Ignore plans written by AI agents.
 PLAN.md
+
+# Ignore any dev licenses
+license.txt
