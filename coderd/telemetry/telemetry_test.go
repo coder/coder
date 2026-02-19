@@ -727,6 +727,7 @@ func (h *taskTelemetryHelper) createBuild(
 			Valid: true,
 		},
 	})
+	return bld
 }
 
 // nolint: dupl // Test code is better WET than DRY.
