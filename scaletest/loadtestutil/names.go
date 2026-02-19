@@ -42,6 +42,15 @@ func GenerateWorkspaceName(id string) (name string, err error) {
 	return fmt.Sprintf("%s-%s-%s", ScaleTestPrefix, randStr, id), nil
 }
 
+// GenerateDeterministicWorkspaceName generates a deterministic workspace name
+// for scale testing without a random component. This is useful when the
+// workspace name needs to be known before the workspace is created, such as
+// for pre-creating channels keyed by workspace name.
+// The workspace name follows the pattern: scaletest-<id>
+func GenerateDeterministicWorkspaceName(id string) string {
+	return fmt.Sprintf("%s-%s", ScaleTestPrefix, id)
+}
+
 // IsScaleTestUser checks if a username indicates it was created for scale testing.
 func IsScaleTestUser(username, email string) bool {
 	return strings.HasPrefix(username, ScaleTestPrefix+"-") ||

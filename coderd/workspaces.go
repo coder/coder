@@ -2174,6 +2174,79 @@ func (api *API) watchWorkspace(
 	}
 }
 
+// @Summary Watch all workspace builds
+// @ID watch-all-workspace-builds
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Success 200 {object} codersdk.ServerSentEvent
+// @Router /watch-all-workspacebuilds [get]
+// @x-apidocgen {"skip": true}
+func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// This endpoint requires the experiment to be enabled.
+	if !api.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "This endpoint requires the 'workspace-build-updates' experiment to be enabled.",
+		})
+		return
+	}
+
+	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up server-sent events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		<-senderClosed
+	}()
+
+	// Subscribe to all workspace build updates.
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(wspubsub.AllWorkspaceEventChannel,
+		wspubsub.HandleWorkspaceBuildUpdate(
+			func(_ context.Context, update codersdk.WorkspaceBuildUpdate, err error) {
+				if err != nil {
+					api.Logger.Warn(ctx, "workspace build update subscription error", slog.Error(err))
+					return
+				}
+				_ = sendEvent(codersdk.ServerSentEvent{
+					Type: codersdk.ServerSentEventTypeData,
+					Data: update,
+				})
+			}))
+	if err != nil {
+		_ = sendEvent(codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: "Internal error subscribing to workspace build events.",
+				Detail:  err.Error(),
+			},
+		})
+		return
+	}
+	defer cancelSubscribe()
+
+	// An initial ping signals to the request that the server is now ready
+	// and the client can begin servicing a channel with data.
+	_ = sendEvent(codersdk.ServerSentEvent{
+		Type: codersdk.ServerSentEventTypePing,
+	})
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-senderClosed:
+			return
+		}
+	}
+}
+
 // @Summary Get workspace timings by ID
 // @ID get-workspace-timings-by-id
 // @Security CoderSessionToken

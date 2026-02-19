@@ -3955,9 +3955,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-sharing`, `workspace-usage` |
+| Value(s)                                                                                                                                                       |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-build-updates`, `workspace-sharing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

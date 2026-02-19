@@ -7,7 +7,51 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
+
+// AllWorkspaceEventChannel is a global channel that receives events for all
+// workspaces. This is useful when you need to watch N workspaces without
+// creating N separate subscriptions.
+const AllWorkspaceEventChannel = "workspace_updates:all"
+
+// HandleWorkspaceBuildUpdate wraps a callback to parse WorkspaceBuildUpdate
+// messages from the pubsub.
+func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload codersdk.WorkspaceBuildUpdate, err error)) func(ctx context.Context, message []byte, err error) {
+	return func(ctx context.Context, message []byte, err error) {
+		if err != nil {
+			cb(ctx, codersdk.WorkspaceBuildUpdate{}, xerrors.Errorf("workspace build update pubsub: %w", err))
+			return
+		}
+		var payload codersdk.WorkspaceBuildUpdate
+		if err := json.Unmarshal(message, &payload); err != nil {
+			cb(ctx, codersdk.WorkspaceBuildUpdate{}, xerrors.Errorf("unmarshal workspace build update: %w", err))
+			return
+		}
+		cb(ctx, payload, nil)
+	}
+}
+
+// PublishWorkspaceBuildUpdate is a helper to publish a workspace build update
+// to the AllWorkspaceEventChannel. This should be called when a build
+// completes (succeeds, fails, or is canceled).
+func PublishWorkspaceBuildUpdate(_ context.Context, ps Pubsub, update codersdk.WorkspaceBuildUpdate) error {
+	msg, err := json.Marshal(update)
+	if err != nil {
+		return xerrors.Errorf("marshal workspace build update: %w", err)
+	}
+	if err := ps.Publish(AllWorkspaceEventChannel, msg); err != nil {
+		return xerrors.Errorf("publish workspace build update: %w", err)
+	}
+	return nil
+}
+
+// Pubsub is an interface for publishing messages. This is a subset of the
+// full pubsub interface to avoid a circular import.
+type Pubsub interface {
+	Publish(event string, message []byte) error
+}
 
 // WorkspaceEventChannel can be used to subscribe to events for
 // workspaces owned by the provided user ID.

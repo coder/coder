@@ -29,15 +29,14 @@ type Config struct {
 	// to schedule them to be started again.
 	AutostartDelay time.Duration `json:"autostart_delay"`
 
-	// AutostartTimeout is how long to wait for the autostart build to be
-	// initiated after the scheduled time.
-	AutostartTimeout time.Duration `json:"autostart_timeout"`
-
-	Metrics *Metrics `json:"-"`
-
 	// SetupBarrier is used to ensure all runners own stopped workspaces
 	// before setting the autostart schedule on each.
 	SetupBarrier *sync.WaitGroup `json:"-"`
+
+	// BuildUpdates is a channel that receives workspace build updates for
+	// this specific workspace. The channel is pre-created and keyed by the
+	// deterministic workspace name.
+	BuildUpdates <-chan codersdk.WorkspaceBuildUpdate `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -55,20 +54,16 @@ func (c Config) Validate() error {
 		return xerrors.New("setup barrier must be set")
 	}
 
+	if c.BuildUpdates == nil {
+		return xerrors.New("build updates channel must be set")
+	}
+
 	if c.WorkspaceJobTimeout <= 0 {
 		return xerrors.New("workspace_job_timeout must be greater than 0")
 	}
 
 	if c.AutostartDelay < time.Minute*2 {
 		return xerrors.New("autostart_delay must be at least 2 minutes")
-	}
-
-	if c.AutostartTimeout <= 0 {
-		return xerrors.New("autostart_timeout must be greater than 0")
-	}
-
-	if c.Metrics == nil {
-		return xerrors.New("metrics must be set")
 	}
 
 	return nil

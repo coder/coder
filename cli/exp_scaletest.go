@@ -1735,7 +1735,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 		workspaceCount      int64
 		workspaceJobTimeout time.Duration
 		autostartDelay      time.Duration
-		autostartTimeout    time.Duration
 		template            string
 		noCleanup           bool
 
@@ -1743,8 +1742,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 		tracingFlags    = &scaletestTracingFlags{}
 		timeoutStrategy = &timeoutFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
-		output          = &scaletestOutputFlags{}
-		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
 	cmd := &serpent.Command{
@@ -1768,11 +1765,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 
 			if workspaceCount <= 0 {
 				return xerrors.Errorf("--workspace-count must be greater than zero")
-			}
-
-			outputs, err := output.parse()
-			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
 			}
 
 			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
@@ -1803,15 +1795,61 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			}
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
-			reg := prometheus.NewRegistry()
-			metrics := autostart.NewMetrics(reg)
-
 			setupBarrier := new(sync.WaitGroup)
 			setupBarrier.Add(int(workspaceCount))
 
-			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			// The workspace-build-updates experiment must be enabled to use
+			// the centralized pubsub channel for coordinating workspace builds.
+			experiments, err := client.Experiments(ctx)
+			if err != nil {
+				return xerrors.Errorf("get experiments: %w", err)
+			}
+			if !experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+				return xerrors.New("the workspace-build-updates experiment must be enabled to run the autostart scaletest")
+			}
+
+			// Map of workspace names to channels for dispatching updates.
+			// Pre-create all channels before starting the dispatcher to avoid races.
+			workspaceChannels := make(map[string]chan codersdk.WorkspaceBuildUpdate)
 			for i := range workspaceCount {
 				id := strconv.Itoa(int(i))
+				workspaceName := loadtestutil.GenerateDeterministicWorkspaceName(id)
+				// Buffer holds all expected job status updates during coordination:
+				// initial build (~3), stop build (~3), and autostart build (~3) = ~9
+				// updates. We use 16 to provide headroom for delivery timing variations.
+				workspaceChannels[workspaceName] = make(chan codersdk.WorkspaceBuildUpdate, 16)
+			}
+
+			// Start watching all workspace builds and dispatch updates.
+			buildUpdates, err := client.WatchAllWorkspaceBuilds(ctx)
+			if err != nil {
+				return xerrors.Errorf("watch all workspace builds: %w", err)
+			}
+
+			// Start the dispatcher goroutine. All channels are pre-created so the
+			// map is now read-only and safe for concurrent access.
+			go func() {
+				for update := range buildUpdates {
+					if ch, ok := workspaceChannels[update.WorkspaceName]; ok {
+						select {
+						case ch <- update:
+						case <-ctx.Done():
+							return
+						}
+					}
+				}
+				// Close all channels when the build updates channel closes.
+				for _, ch := range workspaceChannels {
+					close(ch)
+				}
+			}()
+
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			for workspaceName, buildUpdatesChannel := range workspaceChannels {
+				// Extract the numeric ID from the workspace name for use in user generation.
+				// The workspace name format is "scaletest-{id}", so we extract the suffix.
+				id := strings.TrimPrefix(workspaceName, loadtestutil.ScaleTestPrefix+"-")
+
 				config := autostart.Config{
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
@@ -1821,13 +1859,14 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 						Request: codersdk.CreateWorkspaceRequest{
 							TemplateID:          tpl.ID,
 							RichParameterValues: richParameters,
+							// Use deterministic workspace name so we can pre-create the channel.
+							Name: workspaceName,
 						},
 					},
 					WorkspaceJobTimeout: workspaceJobTimeout,
 					AutostartDelay:      autostartDelay,
-					AutostartTimeout:    autostartTimeout,
-					Metrics:             metrics,
 					SetupBarrier:        setupBarrier,
+					BuildUpdates:        buildUpdatesChannel,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -1849,18 +1888,11 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				th.AddRun(autostartTestName, id, runner)
 			}
 
-			logger := inv.Logger
-			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
-			defer prometheusSrvClose()
-
 			defer func() {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
 				if err := closeTracing(ctx); err != nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
 				}
-				// Wait for prometheus metrics to be scraped
-				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
-				<-time.After(prometheusFlags.Wait)
 			}()
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Running autostart load test...")
@@ -1871,31 +1903,24 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
 			}
 
-			// If the command was interrupted, skip stats.
-			if notifyCtx.Err() != nil {
-				return notifyCtx.Err()
+			res := th.Results()
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
 			}
 
-			res := th.Results()
-			for _, o := range outputs {
-				err = o.write(res, inv.Stdout)
-				if err != nil {
-					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
-				}
-			}
+			_, _ = fmt.Fprintf(inv.Stderr, "\nAll %d runners have scheduled autostart (elapsed: %s)\n", res.TotalRuns, time.Duration(res.Elapsed).Round(time.Millisecond))
+
+			_, _ = fmt.Fprintln(inv.Stderr, "\nSetup complete, waiting for signal (Ctrl+C) to clean up...")
+			<-notifyCtx.Done()
 
 			if !noCleanup {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
-				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.Background())
 				defer cleanupCancel()
 				err = th.Cleanup(cleanupCtx)
 				if err != nil {
 					return xerrors.Errorf("cleanup tests: %w", err)
 				}
-			}
-
-			if res.TotalFail > 0 {
-				return xerrors.New("load test failed, see above for more details")
 			}
 
 			return nil
@@ -1926,13 +1951,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			Value:       serpent.DurationOf(&autostartDelay),
 		},
 		{
-			Flag:        "autostart-timeout",
-			Env:         "CODER_SCALETEST_AUTOSTART_TIMEOUT",
-			Default:     "5m",
-			Description: "Timeout for the autostart build to be initiated after the scheduled start time.",
-			Value:       serpent.DurationOf(&autostartTimeout),
-		},
-		{
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_SCALETEST_TEMPLATE",
@@ -1952,8 +1970,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 	tracingFlags.attach(&cmd.Options)
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
-	output.attach(&cmd.Options)
-	prometheusFlags.attach(&cmd.Options)
 	return cmd
 }
 

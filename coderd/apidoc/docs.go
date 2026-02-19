@@ -9284,6 +9284,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/watch-all-workspacebuilds": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Watch all workspace builds",
+                "operationId": "watch-all-workspace-builds",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ServerSentEvent"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspace-quota/{user}": {
             "get": {
                 "security": [
@@ -15035,7 +15063,8 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing"
+                "workspace-sharing",
+                "workspace-build-updates"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -15044,6 +15073,7 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
@@ -15055,7 +15085,8 @@ const docTemplate = `{
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
-                "Enables updating workspace ACLs for sharing with users and groups."
+                "Enables updating workspace ACLs for sharing with users and groups.",
+                "Enables publishing workspace build updates to the all builds pubsub channel."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -15065,7 +15096,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing"
+                "ExperimentWorkspaceSharing",
+                "ExperimentWorkspaceBuildUpdates"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
