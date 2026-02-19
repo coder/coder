@@ -1081,13 +1081,14 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 func TestValidationFailedPresets(t *testing.T) {
 	t.Parallel()
 
-	// This test uses 4 presets sharing one DB to verify validation_failed behavior:
+	// This test uses 5 presets sharing one DB to verify validation_failed behavior:
 	// | Preset | Setup                                   | Expected After Reconcile                  |
 	// |--------|-----------------------------------------|-------------------------------------------|
-	// | A      | Already validation_failed, desired=2   | Stays validation_failed, 0 workspaces     |
+	// | A      | Already validation_failed, desired=2    | Stays validation_failed, 0 workspaces     |
 	// | B      | Healthy, required param missing         | Marked validation_failed, 0 workspaces    |
 	// | C      | Healthy, desired=3, required param      | Marked validation_failed, 0 workspaces    |
 	// | D      | Healthy, DB wrapper injects 500         | Stays healthy, 0 workspaces               |
+	// | E      | Healthy, desired=1 (control)            | Stays healthy, 1 workspaces               |
 
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
@@ -1156,6 +1157,7 @@ func TestValidationFailedPresets(t *testing.T) {
 	tplB, tvB := createTemplate("tpl-will-400", true)
 	tplC, tvC := createTemplate("tpl-multi-create", true)
 	tplD, tvD := createTemplate("tpl-will-500", false)
+	tplE, tvE := createTemplate("tpl-control", false)
 
 	// Create presets.
 	presetA := dbgen.Preset(t, db, database.InsertPresetParams{
@@ -1183,6 +1185,11 @@ func TestValidationFailedPresets(t *testing.T) {
 	presetD := dbgen.Preset(t, db, database.InsertPresetParams{
 		TemplateVersionID: tvD.ID,
 		Name:              "preset-will-500",
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+	presetE := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tvE.ID,
+		Name:              "preset-control",
 		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
 	})
 
@@ -1233,6 +1240,8 @@ func TestValidationFailedPresets(t *testing.T) {
 	verifyPreset(presetC.ID, database.PrebuildStatusValidationFailed, tplC.ID, 0)
 	// Preset D: stays healthy because 500 error does not mark as validation_failed.
 	verifyPreset(presetD.ID, database.PrebuildStatusHealthy, tplD.ID, 0)
+	// Preset E: stays healthy (control)
+	verifyPreset(presetE.ID, database.PrebuildStatusHealthy, tplE.ID, 1)
 
 	// Verify metrics: A, B, C should have validation_failed metric set to 1.
 	require.NoError(t, controller.ForceMetricsUpdate(ctx))
@@ -1260,6 +1269,7 @@ func TestValidationFailedPresets(t *testing.T) {
 	checkMetric(tplB.Name, presetB.Name, true)
 	checkMetric(tplC.Name, presetC.Name, true)
 	checkMetric(tplD.Name, presetD.Name, false)
+	checkMetric(tplE.Name, presetE.Name, false)
 }
 
 func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
