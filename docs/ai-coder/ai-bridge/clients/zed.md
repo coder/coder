@@ -56,7 +56,7 @@ You can set this in two ways:
 
 ### Environment Variables
 
-1. Set `ANTHROPIC_AUTH_TOKEN` and `OPENAI_API_KEY` to your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** in the environment where you launch Zed.
+1. Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to your **[Coder Session Token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** in the environment where you launch Zed.
 
 </div>
 

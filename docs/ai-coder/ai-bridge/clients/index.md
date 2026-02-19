@@ -23,7 +23,7 @@ Replace `coder.example.com` with your actual Coder deployment URL.
 Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Bridge using their **Coder session token** or **API key**:
 
 - **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
-- **Anthropic clients**: Users set `ANTHROPIC_AUTH_TOKEN` to their Coder session token or API key
+- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
 
 > [!NOTE]
 > Only Coder-issued tokens can authenticate users against AI Bridge.
@@ -37,7 +37,7 @@ If you're logged in with the Coder CLI, you can retrieve your current session
 token using [`coder login token`](../../../reference/cli/login_token.md):
 
 ```sh
-export ANTHROPIC_AUTH_TOKEN=$(coder login token)
+export ANTHROPIC_API_KEY=$(coder login token)
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 ```
 
