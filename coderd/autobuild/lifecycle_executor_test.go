@@ -2019,5 +2019,69 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
 		assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID], "should autostop the workspace")
 		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
+
+		// Then: The build reason should be TaskAutoPause (not regular Autostop)
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		assert.Equal(t, codersdk.BuildReasonTaskAutoPause, workspace.LatestBuild.Reason, "task workspace should use TaskAutoPause build reason")
+	})
+
+	t.Run("AutostopNotification", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			tickCh     = make(chan time.Time)
+			statsCh    = make(chan autobuild.Stats)
+			notifyEnq  = notificationstest.FakeEnqueuer{}
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				NotificationsEnqueuer:    &notifyEnq,
+			})
+			admin = coderdtest.CreateFirstUser(t, client)
+		)
+
+		// Given: A task workspace with an 8 hour deadline
+		ctx := testutil.Context(t, testutil.WaitShort)
+		template := createTaskTemplate(t, client, admin.OrganizationID, ctx, 8*time.Hour)
+		workspace := createTaskWorkspace(t, client, template, ctx, "test task for autostop notification")
+
+		// Given: The workspace is currently running
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+		require.NotZero(t, workspace.LatestBuild.Deadline, "workspace should have a deadline for autostop")
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+		require.NoError(t, err)
+
+		// When: the autobuild executor ticks after the deadline
+		go func() {
+			tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+			tickCh <- tickTime
+			close(tickCh)
+		}()
+
+		// Then: We expect to see a stop transition
+		stats := <-statsCh
+		require.Len(t, stats.Transitions, 1, "lifecycle executor should transition the task workspace")
+		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
+		assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID], "should autostop the workspace")
+		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
+
+		// Then: A task paused notification was sent with "idle timeout" reason
+		require.True(t, workspace.TaskID.Valid, "workspace should have a task ID")
+		task, err := db.GetTaskByID(dbauthz.AsSystemRestricted(ctx), workspace.TaskID.UUID)
+		require.NoError(t, err)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskPaused))
+		require.Len(t, sent, 1)
+		require.Equal(t, workspace.OwnerID, sent[0].UserID)
+		require.Equal(t, task.Name, sent[0].Labels["task"])
+		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
+		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
+		require.Equal(t, "inactivity exceeded the dormancy threshold", sent[0].Labels["pause_reason"])
 	})
 }
