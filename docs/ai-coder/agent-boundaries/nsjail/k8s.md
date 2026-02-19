@@ -117,3 +117,13 @@ This ensures Boundary can create user namespaces with nsjail.
 If the environment is restricted and you cannot enable user namespaces (e.g.
 Bottlerocket in EKS auto-mode), you can run Boundary with the
 `--no-user-namespace` flag. Use this when you have no way to allow user namespace creation.
+
+---
+
+### Example 3: EKS + Fargate (Firecracker VMs)
+
+nsjail is not currently supported on **EKS Fargate** (Firecracker-based VMs), which
+blocks the capabilities needed for nsjail.
+
+If you run on Fargate, we recommend using [landjail](../landjail.md) instead,
+provided kernel version supports it (Linux 6.7+).
