@@ -180,13 +180,13 @@ resource "coder_env" "my-var" {
 ```
 
 This also enables using [Coder registry](https://registry.coder.com) modules
-that depend on `coder_script` or `coder_app` inside dev containers, by passing
-the `subagent_id` as the module's `agent_id`.
+that depend on these resources inside dev containers, by passing the
+`subagent_id` as the module's `agent_id`.
 
 ### Terraform-managed dev containers
 
 When a `coder_devcontainer` has any `coder_app`, `coder_script`, or `coder_env`
-resources attached, it becomes a **terraform-managed** dev container. This
+resource attached, it becomes a **terraform-managed** dev container. This
 changes how Coder handles the sub-agent:
 
 - The sub-agent is pre-defined during Terraform provisioning rather than created
