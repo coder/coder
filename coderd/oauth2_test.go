@@ -896,9 +896,9 @@ func generatePKCE() (verifier, challenge string) {
 	return verifier, challenge
 }
 
-func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2.Config) (string, string, error) {
+func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2.Config) (code, codeVerifier string, err error) {
 	state := uuid.NewString()
-	verifier, challenge := generatePKCE()
+	codeVerifier, challenge := generatePKCE()
 	authURL := cfg.AuthCodeURL(state,
 		oauth2.SetAuthURLParam("code_challenge", challenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
@@ -906,7 +906,7 @@ func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2
 
 	// Make a POST request to simulate clicking "Allow" on the authorization page.
 	// This bypasses the HTML consent page and directly processes the authorization.
-	code, err := oidctest.OAuth2GetCode(
+	code, err = oidctest.OAuth2GetCode(
 		authURL,
 		func(req *http.Request) (*http.Response, error) {
 			// Change to POST to simulate the form submission.
@@ -919,7 +919,7 @@ func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2
 			return client.Request(ctx, req.Method, req.URL.String(), nil)
 		},
 	)
-	return code, verifier, err
+	return code, codeVerifier, err
 }
 
 func must[T any](value T, err error) T {
