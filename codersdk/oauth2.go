@@ -217,7 +217,7 @@ const (
 )
 
 func (e OAuth2ProviderResponseType) Valid() bool {
-	return e == OAuth2ProviderResponseTypeCode
+	return e == OAuth2ProviderResponseTypeCode || e == OAuth2ProviderResponseTypeToken
 }
 
 type OAuth2TokenEndpointAuthMethod string
