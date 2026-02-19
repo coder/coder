@@ -46,7 +46,7 @@ export OPENAI_API_KEY="<your-coder-session-token>"
 export OPENAI_BASE_URL="https://coder.example.com/api/v2/aibridge/openai/v1"
 
 # Anthropic-compatible traffic (Claude, etc.)
-export ANTHROPIC_API_KEY="<your-coder-session-token>"
+export ANTHROPIC_AUTH_TOKEN="<your-coder-session-token>"
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 ```
 
@@ -64,7 +64,7 @@ resource "coder_agent" "main" {
   env = {
     OPENAI_API_KEY     = data.coder_workspace_owner.me.session_token
     OPENAI_BASE_URL    = "${data.coder_workspace.me.access_url}/api/v2/aibridge/openai/v1"
-    ANTHROPIC_API_KEY  = data.coder_workspace_owner.me.session_token
+    ANTHROPIC_AUTH_TOKEN = data.coder_workspace_owner.me.session_token
     ANTHROPIC_BASE_URL = "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic"
   }
 }
