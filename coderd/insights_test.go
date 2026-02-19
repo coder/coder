@@ -2480,3 +2480,83 @@ func TestGenericInsights_Disabled(t *testing.T) {
 		})
 	}
 }
+
+func TestGetUserStatusCounts(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name          string
+		request       codersdk.GetUserStatusCountsRequest
+		checkError    func(t *testing.T, err error)
+		checkResponse func(t *testing.T, resp codersdk.GetUserStatusCountsResponse)
+	}
+
+	happyResponseCheck := func(t *testing.T, resp codersdk.GetUserStatusCountsResponse) {
+		require.Len(t, resp.StatusCounts, 1)
+		require.NotNil(t, resp.StatusCounts[codersdk.UserStatusActive])
+		require.Len(t, resp.StatusCounts[codersdk.UserStatusActive], 61)
+		for _, count := range resp.StatusCounts[codersdk.UserStatusActive] {
+			require.Zero(t, count.Count)
+		}
+	}
+	testcases := []testCase{
+		{
+			name: "OK when timezone and offset are provided",
+			request: codersdk.GetUserStatusCountsRequest{
+				Timezone: "America/St_Johns",
+				Offset:   -2,
+			},
+			checkError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+			checkResponse: happyResponseCheck,
+		},
+		{
+			name: "OK when timezone without offset",
+			request: codersdk.GetUserStatusCountsRequest{
+				Timezone: "America/St_Johns",
+			},
+			checkError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+			checkResponse: happyResponseCheck,
+		},
+		{
+			name: "OK when offset is provided without timezone",
+			request: codersdk.GetUserStatusCountsRequest{
+				Offset: -2,
+			},
+			checkError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+			checkResponse: happyResponseCheck,
+		},
+		{
+			name: "Error when timezone is invalid",
+			request: codersdk.GetUserStatusCountsRequest{
+				Timezone: "Invalid/Timezone",
+			},
+			checkError: func(t *testing.T, err error) {
+				require.Error(t, err)
+				cerr := coderdtest.SDKError(t, err)
+				assert.ErrorContains(t, cerr, "unknown time zone")
+				require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+			},
+			checkResponse: func(t *testing.T, resp codersdk.GetUserStatusCountsResponse) {
+				require.Empty(t, resp.StatusCounts)
+			},
+		},
+	}
+
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			resp, err := client.GetUserStatusCounts(ctx, tt.request)
+			tt.checkError(t, err)
+			tt.checkResponse(t, resp)
+		})
+	}
+}
