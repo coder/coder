@@ -878,14 +878,14 @@ func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if !cfg.EnableHostPrefix {
-			// If a deployment has this config on, then turned it off. Then some old __HOST-
+			// If a deployment has this config on, then turned it off. Then some old __Host-
 			// cookies could exist on the browsers of the clients. These cookies have no
 			// impact, so we are going to ignore them if they exist (niche scenario)
 			next.ServeHTTP(rw, r)
 			return
 		}
 
-		// When 'EnableHostPrefix', some cookies are set with a `__HOST-` prefix. This
+		// When 'EnableHostPrefix', some cookies are set with a `__Host-` prefix. This
 		// middleware will strip any prefixes, so the backend is unaware of this security
 		// feature.
 		//
@@ -906,7 +906,7 @@ func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
 				cookies[i] = nil
 			}
 
-			// Only strip prefix's from the cookies we care about. Let other `__HOST-` cookies be
+			// Only strip prefix's from the cookies we care about. Let other `__Host-` cookies be
 			if _, ok := prefixed[c.Name]; ok {
 				c.Name = strings.TrimPrefix(c.Name, cookieHostPrefix)
 			}

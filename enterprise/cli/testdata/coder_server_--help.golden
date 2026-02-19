@@ -98,7 +98,7 @@ OPTIONS:
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
-AI BRIDGE OPTIONS: 
+AI BRIDGE OPTIONS:
       --aibridge-anthropic-base-url string, $CODER_AIBRIDGE_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
           The base URL of the Anthropic API.
 
@@ -173,7 +173,7 @@ AI BRIDGE OPTIONS:
           Emit structured logs for AI Bridge interception records. Use this for
           exporting these records to external SIEM or observability systems.
 
-AI BRIDGE PROXY OPTIONS: 
+AI BRIDGE PROXY OPTIONS:
       --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
           Path to the CA certificate file for AI Bridge Proxy.
 
@@ -198,7 +198,7 @@ AI BRIDGE PROXY OPTIONS:
           certificates not trusted by the system. If not provided, the system
           certificate pool is used.
 
-CLIENT OPTIONS: 
+CLIENT OPTIONS:
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 
@@ -225,17 +225,17 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           Coder Desktop. By default it is coder, resulting in names like
           myworkspace.coder.
 
-CONFIG OPTIONS: 
+CONFIG OPTIONS:
 Use a YAML configuration file when your server launch become unwieldy.
 
   -c, --config yaml-config-path, $CODER_CONFIG_PATH
           Specify a YAML file to load configuration from.
 
       --write-config bool
-          
+
           Write out the current server config as YAML to stdout.
 
-EMAIL OPTIONS: 
+EMAIL OPTIONS:
 Configure how emails are sent.
 
       --email-force-tls bool, $CODER_EMAIL_FORCE_TLS (default: false)
@@ -250,7 +250,7 @@ Configure how emails are sent.
       --email-smarthost string, $CODER_EMAIL_SMARTHOST
           The intermediary SMTP host through which emails are sent.
 
-EMAIL / EMAIL AUTHENTICATION OPTIONS: 
+EMAIL / EMAIL AUTHENTICATION OPTIONS:
 Configure SMTP authentication options.
 
       --email-auth-identity string, $CODER_EMAIL_AUTH_IDENTITY
@@ -266,7 +266,7 @@ Configure SMTP authentication options.
       --email-auth-username string, $CODER_EMAIL_AUTH_USERNAME
           Username to use with PLAIN/LOGIN authentication.
 
-EMAIL / EMAIL TLS OPTIONS: 
+EMAIL / EMAIL TLS OPTIONS:
 Configure TLS for your SMTP server target.
 
       --email-tls-ca-cert-file string, $CODER_EMAIL_TLS_CACERTFILE
@@ -287,7 +287,7 @@ Configure TLS for your SMTP server target.
       --email-tls-starttls bool, $CODER_EMAIL_TLS_STARTTLS
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
-INTROSPECTION / HEALTH CHECK OPTIONS: 
+INTROSPECTION / HEALTH CHECK OPTIONS:
       --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
           Refresh interval for healthchecks.
 
@@ -296,7 +296,7 @@ INTROSPECTION / HEALTH CHECK OPTIONS:
           the database exceeds this threshold over 5 attempts, the database is
           considered unhealthy. The default value is 15ms.
 
-INTROSPECTION / LOGGING OPTIONS: 
+INTROSPECTION / LOGGING OPTIONS:
       --enable-terraform-debug-mode bool, $CODER_ENABLE_TERRAFORM_DEBUG_MODE (default: false)
           Allow administrators to enable Terraform debug output.
 
@@ -313,7 +313,7 @@ INTROSPECTION / LOGGING OPTIONS:
       --log-stackdriver string, $CODER_LOGGING_STACKDRIVER
           Output Stackdriver compatible logs to a given file.
 
-INTROSPECTION / PROMETHEUS OPTIONS: 
+INTROSPECTION / PROMETHEUS OPTIONS:
       --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
@@ -333,7 +333,7 @@ INTROSPECTION / PROMETHEUS OPTIONS:
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
 
-INTROSPECTION / STATS COLLECTION / USAGE STATS OPTIONS: 
+INTROSPECTION / STATS COLLECTION / USAGE STATS OPTIONS:
       --stats-collection-usage-stats-enable bool, $CODER_STATS_COLLECTION_USAGE_STATS_ENABLE (default: true)
           Enable the collection of application and workspace usage along with
           the associated API endpoints and the template insights page. Disabling
@@ -341,7 +341,7 @@ INTROSPECTION / STATS COLLECTION / USAGE STATS OPTIONS:
           deployment stats shown to admins in the bottom bar of the Coder UI,
           and will prevent Prometheus collection of these values.
 
-INTROSPECTION / TRACING OPTIONS: 
+INTROSPECTION / TRACING OPTIONS:
       --trace-logs bool, $CODER_TRACE_LOGS
           Enables capturing of logs as events in traces. This is useful for
           debugging, but may result in a very large amount of events being sent
@@ -355,14 +355,14 @@ INTROSPECTION / TRACING OPTIONS:
       --trace-honeycomb-api-key string, $CODER_TRACE_HONEYCOMB_API_KEY
           Enables trace exporting to Honeycomb.io using the provided API Key.
 
-INTROSPECTION / PPROF OPTIONS: 
+INTROSPECTION / PPROF OPTIONS:
       --pprof-address host:port, $CODER_PPROF_ADDRESS (default: 127.0.0.1:6060)
           The bind address to serve pprof.
 
       --pprof-enable bool, $CODER_PPROF_ENABLE
           Serve pprof metrics on the address defined by pprof address.
 
-NETWORKING OPTIONS: 
+NETWORKING OPTIONS:
       --access-url url, $CODER_ACCESS_URL
           The URL that users will use to access the Coder deployment.
 
@@ -392,10 +392,10 @@ NETWORKING OPTIONS:
           the form "*.example.com".
 
       --host-prefix-cookie bool, $CODER_HOST_PREFIX_COOKIE (default: false)
-          Recommended to be enabled. Enables `__HOST-` prefix for cookies to
+          Recommended to be enabled. Enables `__Host-` prefix for cookies to
           guarantee they are only set by the right domain.
 
-NETWORKING / DERP OPTIONS: 
+NETWORKING / DERP OPTIONS:
 Most Coder deployments never have to think about DERP because all connections
 between workspaces and users are peer-to-peer. However, when Coder cannot
 establish a peer to peer connection, Coder uses a distributed relay network
@@ -437,7 +437,7 @@ backed by Tailscale and WireGuard.
           own DERP region, with region IDs starting at `--derp-server-region-id
           + 1`. Use special value 'disable' to turn off STUN completely.
 
-NETWORKING / HTTP OPTIONS: 
+NETWORKING / HTTP OPTIONS:
       --additional-csp-policy string-array, $CODER_ADDITIONAL_CSP_POLICY
           Coder configures a Content Security Policy (CSP) to protect against
           XSS attacks. This setting allows you to add additional CSP directives,
@@ -479,7 +479,7 @@ NETWORKING / HTTP OPTIONS:
           longer if they are actively making requests, but this functionality
           can be disabled via --disable-session-expiry-refresh.
 
-NETWORKING / TLS OPTIONS: 
+NETWORKING / TLS OPTIONS:
 Configure TLS / HTTPS for your Coder deployment. If you're running Coder behind
 a TLS-terminating reverse proxy or are accessing Coder over a secure link, you
 can safely ignore these settings.
@@ -541,7 +541,7 @@ can safely ignore these settings.
           Minimum supported version of TLS. Accepted values are "tls10",
           "tls11", "tls12" or "tls13".
 
-NOTIFICATIONS OPTIONS: 
+NOTIFICATIONS OPTIONS:
 Configure how notifications are processed and delivered.
 
       --notifications-dispatch-timeout duration, $CODER_NOTIFICATIONS_DISPATCH_TIMEOUT (default: 1m0s)
@@ -553,7 +553,7 @@ Configure how notifications are processed and delivered.
       --notifications-method string, $CODER_NOTIFICATIONS_METHOD (default: smtp)
           Which delivery method to use (available options: 'smtp', 'webhook').
 
-NOTIFICATIONS / EMAIL OPTIONS: 
+NOTIFICATIONS / EMAIL OPTIONS:
 Configure how email notifications are sent.
 
       --notifications-email-force-tls bool, $CODER_NOTIFICATIONS_EMAIL_FORCE_TLS
@@ -572,7 +572,7 @@ Configure how email notifications are sent.
           The intermediary SMTP host through which emails are sent.
           DEPRECATED: Use --email-smarthost instead.
 
-NOTIFICATIONS / EMAIL / EMAIL AUTHENTICATION OPTIONS: 
+NOTIFICATIONS / EMAIL / EMAIL AUTHENTICATION OPTIONS:
 Configure SMTP authentication options.
 
       --notifications-email-auth-identity string, $CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY
@@ -592,7 +592,7 @@ Configure SMTP authentication options.
           Username to use with PLAIN/LOGIN authentication.
           DEPRECATED: Use --email-auth-username instead.
 
-NOTIFICATIONS / EMAIL / EMAIL TLS OPTIONS: 
+NOTIFICATIONS / EMAIL / EMAIL TLS OPTIONS:
 Configure TLS for your SMTP server target.
 
       --notifications-email-tls-ca-cert-file string, $CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE
@@ -619,15 +619,15 @@ Configure TLS for your SMTP server target.
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
           DEPRECATED: Use --email-tls-starttls instead.
 
-NOTIFICATIONS / INBOX OPTIONS: 
+NOTIFICATIONS / INBOX OPTIONS:
       --notifications-inbox-enabled bool, $CODER_NOTIFICATIONS_INBOX_ENABLED (default: true)
           Enable Coder Inbox.
 
-NOTIFICATIONS / WEBHOOK OPTIONS: 
+NOTIFICATIONS / WEBHOOK OPTIONS:
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT
           The endpoint to which to send webhooks.
 
-OAUTH2 / GITHUB OPTIONS: 
+OAUTH2 / GITHUB OPTIONS:
       --oauth2-github-allow-everyone bool, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
           Allow all logins, setting this option means allowed orgs and teams
           must be empty.
@@ -658,7 +658,7 @@ OAUTH2 / GITHUB OPTIONS:
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.
 
-OIDC OPTIONS: 
+OIDC OPTIONS:
       --oidc-group-auto-create bool, $CODER_OIDC_GROUP_AUTO_CREATE (default: false)
           Automatically creates missing groups from a user's groups claim.
 
@@ -758,7 +758,7 @@ OIDC OPTIONS:
           requirement, and can lead to an insecure OIDC configuration. It is not
           recommended to use this flag.
 
-PROVISIONING OPTIONS: 
+PROVISIONING OPTIONS:
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
 
@@ -779,7 +779,7 @@ updating, and deleting workspace resources.
           Number of provisioner daemons to create on start. If builds are stuck
           in queued state for a long time, consider increasing this.
 
-RETENTION OPTIONS: 
+RETENTION OPTIONS:
 Configure data retention policies for various database tables. Retention
 policies automatically purge old data to reduce database size and improve
 performance. Setting a retention duration to 0 disables automatic purging for
@@ -806,7 +806,7 @@ that data type.
           Logs from the latest build are always retained. Set to 0 to disable
           automatic deletion.
 
-TELEMETRY OPTIONS: 
+TELEMETRY OPTIONS:
 Telemetry is critical to our ability to improve Coder. We strip all personal
 information before sending data to our servers. Please only disable telemetry
 when required by your organization's security policy.
@@ -815,7 +815,7 @@ when required by your organization's security policy.
           Whether telemetry is enabled or not. Coder collects anonymized usage
           data to help improve our product.
 
-USER QUIET HOURS SCHEDULE OPTIONS: 
+USER QUIET HOURS SCHEDULE OPTIONS:
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template scheduling.
 
@@ -835,13 +835,13 @@ workspaces stopping during the day due to template scheduling.
           must be *. Only one hour and minute can be specified (ranges or comma
           separated values are not supported).
 
-WORKSPACE PREBUILDS OPTIONS: 
+WORKSPACE PREBUILDS OPTIONS:
 Configure how workspace prebuilds behave.
 
       --workspace-prebuilds-reconciliation-interval duration, $CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL (default: 1m0s)
           How often to reconcile workspace prebuilds state.
 
-⚠️ DANGEROUS OPTIONS: 
+⚠️ DANGEROUS OPTIONS:
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
           Allow workspace apps that are not served from subdomains to be shared.
           Path-based app sharing is DISABLED by default for security purposes.
@@ -858,7 +858,7 @@ Configure how workspace prebuilds behave.
           can be disabled entirely with --disable-path-apps for further
           security.
 
-ENTERPRISE OPTIONS: 
+ENTERPRISE OPTIONS:
 These options are only available in the Enterprise Edition.
 
       --browser-only bool, $CODER_BROWSER_ONLY
