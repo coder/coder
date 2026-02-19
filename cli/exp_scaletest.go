@@ -1732,11 +1732,12 @@ const (
 
 func (r *RootCmd) scaletestAutostart() *serpent.Command {
 	var (
-		workspaceCount      int64
-		workspaceJobTimeout time.Duration
-		autostartDelay      time.Duration
-		template            string
-		noCleanup           bool
+		workspaceCount        int64
+		workspaceJobTimeout   time.Duration
+		autostartBuildTimeout time.Duration
+		autostartDelay        time.Duration
+		template              string
+		noCleanup             bool
 
 		parameterFlags  workspaceParameterFlags
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1863,10 +1864,11 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 							Name: workspaceName,
 						},
 					},
-					WorkspaceJobTimeout: workspaceJobTimeout,
-					AutostartDelay:      autostartDelay,
-					SetupBarrier:        setupBarrier,
-					BuildUpdates:        buildUpdatesChannel,
+					WorkspaceJobTimeout:   workspaceJobTimeout,
+					AutostartBuildTimeout: autostartBuildTimeout,
+					AutostartDelay:        autostartDelay,
+					SetupBarrier:          setupBarrier,
+					BuildUpdates:          buildUpdatesChannel,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -1908,10 +1910,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.New("load test failed, see above for more details")
 			}
 
-			_, _ = fmt.Fprintf(inv.Stderr, "\nAll %d runners have scheduled autostart (elapsed: %s)\n", res.TotalRuns, time.Duration(res.Elapsed).Round(time.Millisecond))
-
-			_, _ = fmt.Fprintln(inv.Stderr, "\nSetup complete, waiting for signal (Ctrl+C) to clean up...")
-			<-notifyCtx.Done()
+			_, _ = fmt.Fprintf(inv.Stderr, "\nAll %d autostart builds completed successfully (elapsed: %s)\n", res.TotalRuns, time.Duration(res.Elapsed).Round(time.Millisecond))
 
 			if !noCleanup {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
@@ -1921,6 +1920,9 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("cleanup tests: %w", err)
 				}
+				_, _ = fmt.Fprintln(inv.Stderr, "Cleanup complete")
+			} else {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nSkipping cleanup (--no-cleanup specified). Resources left running.")
 			}
 
 			return nil
@@ -1942,6 +1944,13 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			Default:     "5m",
 			Description: "Timeout for workspace jobs (e.g. build, start).",
 			Value:       serpent.DurationOf(&workspaceJobTimeout),
+		},
+		{
+			Flag:        "autostart-build-timeout",
+			Env:         "CODER_SCALETEST_AUTOSTART_BUILD_TIMEOUT",
+			Default:     "15m",
+			Description: "Timeout for the autostart build to complete. Must be longer than workspace-job-timeout to account for queueing time in high-load scenarios.",
+			Value:       serpent.DurationOf(&autostartBuildTimeout),
 		},
 		{
 			Flag:        "autostart-delay",

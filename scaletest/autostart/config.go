@@ -29,6 +29,12 @@ type Config struct {
 	// to schedule them to be started again.
 	AutostartDelay time.Duration `json:"autostart_delay"`
 
+	// AutostartBuildTimeout is how long to wait for the autostart build to
+	// complete after it has been triggered. This should be longer than
+	// WorkspaceJobTimeout to account for potential queueing time in high-load
+	// scenarios where provisioner capacity is limited.
+	AutostartBuildTimeout time.Duration `json:"autostart_build_timeout"`
+
 	// SetupBarrier is used to ensure all runners own stopped workspaces
 	// before setting the autostart schedule on each.
 	SetupBarrier *sync.WaitGroup `json:"-"`
@@ -64,6 +70,15 @@ func (c Config) Validate() error {
 
 	if c.AutostartDelay < time.Minute*2 {
 		return xerrors.New("autostart_delay must be at least 2 minutes")
+	}
+
+	if c.AutostartBuildTimeout <= 0 {
+		return xerrors.New("autostart_build_timeout must be greater than 0")
+	}
+
+	if c.AutostartBuildTimeout <= c.WorkspaceJobTimeout {
+		return xerrors.Errorf("autostart_build_timeout (%s) must be greater than workspace_job_timeout (%s) to account for scheduling delay and queueing time",
+			c.AutostartBuildTimeout, c.WorkspaceJobTimeout)
 	}
 
 	return nil

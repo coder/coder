@@ -118,7 +118,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	logger.Info(ctx, "workspace stopped successfully", slog.F("workspace_name", workspace.Name))
 
-	// Wait for all runners to reach the barrier before scheduling autostart.
 	logger.Info(ctx, "waiting for all runners to reach barrier")
 	reachedBarrier = true
 	r.cfg.SetupBarrier.Done()
@@ -144,6 +143,23 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		slog.F("schedule", schedule),
 		slog.F("autostart_time", autostartTime),
 		slog.F("time_until_autostart", time.Until(autostartTime).Round(time.Second)))
+
+	// Wait for the autostart build to complete. The build won't start until
+	// the scheduled time, so we use AutostartBuildTimeout which should account
+	// for: time until scheduled start + queueing time + build execution time.
+	autostartBuildCtx, cancel := context.WithTimeout(ctx, r.cfg.AutostartBuildTimeout)
+	defer cancel()
+
+	logger.Info(ctx, "waiting for autostart build to trigger and complete",
+		slog.F("workspace_name", workspace.Name),
+		slog.F("timeout", r.cfg.AutostartBuildTimeout))
+
+	err = waitForBuild(autostartBuildCtx, logger, buildUpdates, codersdk.WorkspaceTransitionStart)
+	if err != nil {
+		return xerrors.Errorf("wait for autostart build: %w", err)
+	}
+
+	logger.Info(ctx, "autostart build completed successfully", slog.F("workspace_name", workspace.Name))
 
 	return nil
 }
