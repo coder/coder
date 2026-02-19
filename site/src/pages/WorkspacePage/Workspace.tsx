@@ -172,7 +172,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 					{selectedResource && (
 						<ResourceMetadata
 							resource={selectedResource}
-							className="-mx-6 -mt-6 mb-6"
+							className="-mx-8 -mt-8 mb-6"
 						/>
 					)}
 					<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
