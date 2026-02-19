@@ -1809,17 +1809,13 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.New("the workspace-build-updates experiment must be enabled to run the autostart scaletest")
 			}
 
-			// Map of workspace names to channels for dispatching updates.
-			// Pre-create all channels before starting the dispatcher to avoid races.
-			workspaceChannels := make(map[string]chan codersdk.WorkspaceBuildUpdate)
+			// Create dispatcher for coordinating build updates across workspaces.
+			workspaceNames := make([]string, 0, workspaceCount)
 			for i := range workspaceCount {
 				id := strconv.Itoa(int(i))
-				workspaceName := loadtestutil.GenerateDeterministicWorkspaceName(id)
-				// Buffer holds all expected job status updates during coordination:
-				// initial build (~3), stop build (~3), and autostart build (~3) = ~9
-				// updates. We use 16 to provide headroom for delivery timing variations.
-				workspaceChannels[workspaceName] = make(chan codersdk.WorkspaceBuildUpdate, 16)
+				workspaceNames = append(workspaceNames, loadtestutil.GenerateDeterministicWorkspaceName(id))
 			}
+			dispatcher := autostart.NewWorkspaceDispatcher(workspaceNames)
 
 			// Start watching all workspace builds and dispatch updates.
 			buildUpdates, err := client.WatchAllWorkspaceBuilds(ctx)
@@ -1827,26 +1823,12 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.Errorf("watch all workspace builds: %w", err)
 			}
 
-			// Start the dispatcher goroutine. All channels are pre-created so the
-			// map is now read-only and safe for concurrent access.
-			go func() {
-				for update := range buildUpdates {
-					if ch, ok := workspaceChannels[update.WorkspaceName]; ok {
-						select {
-						case ch <- update:
-						case <-ctx.Done():
-							return
-						}
-					}
-				}
-				// Close all channels when the build updates channel closes.
-				for _, ch := range workspaceChannels {
-					close(ch)
-				}
-			}()
+			// Start the dispatcher. It will run in a goroutine and automatically
+			// close all workspace channels when the build updates channel closes.
+			dispatcher.Start(ctx, buildUpdates)
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
-			for workspaceName, buildUpdatesChannel := range workspaceChannels {
+			for workspaceName, buildUpdatesChannel := range dispatcher.Channels {
 				// Extract the numeric ID from the workspace name for use in user generation.
 				// The workspace name format is "scaletest-{id}", so we extract the suffix.
 				id := strings.TrimPrefix(workspaceName, loadtestutil.ScaleTestPrefix+"-")
