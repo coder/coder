@@ -141,7 +141,8 @@ INSERT INTO oauth2_provider_app_codes (
     resource_uri,
     code_challenge,
     code_challenge_method,
-    state_hash
+    state_hash,
+    redirect_uri
 ) VALUES(
     $1,
     $2,
@@ -153,7 +154,8 @@ INSERT INTO oauth2_provider_app_codes (
     $8,
     $9,
     $10,
-    $11
+    $11,
+    $12
 ) RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodeByID :exec

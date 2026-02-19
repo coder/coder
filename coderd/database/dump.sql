@@ -1472,7 +1472,8 @@ CREATE TABLE oauth2_provider_app_codes (
     resource_uri text,
     code_challenge text,
     code_challenge_method text,
-    state_hash text
+    state_hash text,
+    redirect_uri text
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
@@ -1484,6 +1485,8 @@ COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge IS 'PKCE code challen
 COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge_method IS 'PKCE challenge method (S256)';
 
 COMMENT ON COLUMN oauth2_provider_app_codes.state_hash IS 'SHA-256 hash of the OAuth2 state parameter, stored to prevent state reflection attacks.';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.redirect_uri IS 'The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
