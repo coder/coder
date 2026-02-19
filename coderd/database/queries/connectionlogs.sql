@@ -269,7 +269,8 @@ INSERT INTO connection_logs (
 	updated_at,
 	session_id,
 	client_hostname,
-	short_description
+	short_description,
+	os
 ) VALUES
 	($1, @time, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 	-- If we've only received a disconnect event, mark the event as immediately
@@ -279,7 +280,7 @@ INSERT INTO connection_logs (
 		 THEN @time :: timestamp with time zone
 		 ELSE NULL
 	 END,
-	 @time, $16, $17, $18)
+	 @time, $16, $17, $18, $19)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
 	updated_at = @time,
@@ -305,7 +306,8 @@ DO UPDATE SET
 		THEN EXCLUDED.code
 		ELSE connection_logs.code
 	END,
-	agent_id = COALESCE(connection_logs.agent_id, EXCLUDED.agent_id)
+	agent_id = COALESCE(connection_logs.agent_id, EXCLUDED.agent_id),
+	os = COALESCE(EXCLUDED.os, connection_logs.os)
 RETURNING *;
 
 
@@ -343,6 +345,7 @@ WITH ranked AS (
 		session_id,
 		client_hostname,
 		short_description,
+		os,
 		row_number() OVER (
 			PARTITION BY workspace_id, agent_name
 			ORDER BY connect_time DESC
