@@ -3319,7 +3319,7 @@ func insertDevcontainerSubagent(
 		ResourceID:               resourceID,
 		Name:                     dc.GetName(),
 		AuthToken:                uuid.New(),
-		AuthInstanceID:           parentAgent.AuthInstanceID,
+		AuthInstanceID:           sql.NullString{},
 		Architecture:             parentAgent.Architecture,
 		EnvironmentVariables:     envJSON,
 		Directory:                dc.GetWorkspaceFolder(),
