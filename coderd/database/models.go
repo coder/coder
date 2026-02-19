@@ -4026,6 +4026,8 @@ type OAuth2ProviderAppCode struct {
 	CodeChallenge sql.NullString `db:"code_challenge" json:"code_challenge"`
 	// PKCE challenge method (S256)
 	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
+	// SHA-256 hash of the OAuth2 state parameter, stored to prevent state reflection attacks.
+	StateHash sql.NullString `db:"state_hash" json:"state_hash"`
 }
 
 type OAuth2ProviderAppSecret struct {

@@ -6768,7 +6768,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context
 }
 
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -6785,12 +6785,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		&i.ResourceUri,
 		&i.CodeChallenge,
 		&i.CodeChallengeMethod,
+		&i.StateHash,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
@@ -6807,6 +6808,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secre
 		&i.ResourceUri,
 		&i.CodeChallenge,
 		&i.CodeChallengeMethod,
+		&i.StateHash,
 	)
 	return i, err
 }
@@ -7210,7 +7212,8 @@ INSERT INTO oauth2_provider_app_codes (
     user_id,
     resource_uri,
     code_challenge,
-    code_challenge_method
+    code_challenge_method,
+    state_hash
 ) VALUES(
     $1,
     $2,
@@ -7221,8 +7224,9 @@ INSERT INTO oauth2_provider_app_codes (
     $7,
     $8,
     $9,
-    $10
-) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method
+    $10,
+    $11
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
@@ -7236,6 +7240,7 @@ type InsertOAuth2ProviderAppCodeParams struct {
 	ResourceUri         sql.NullString `db:"resource_uri" json:"resource_uri"`
 	CodeChallenge       sql.NullString `db:"code_challenge" json:"code_challenge"`
 	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
+	StateHash           sql.NullString `db:"state_hash" json:"state_hash"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
@@ -7250,6 +7255,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		arg.ResourceUri,
 		arg.CodeChallenge,
 		arg.CodeChallengeMethod,
+		arg.StateHash,
 	)
 	var i OAuth2ProviderAppCode
 	err := row.Scan(
@@ -7263,6 +7269,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		&i.ResourceUri,
 		&i.CodeChallenge,
 		&i.CodeChallengeMethod,
+		&i.StateHash,
 	)
 	return i, err
 }

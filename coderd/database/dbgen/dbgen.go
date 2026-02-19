@@ -1373,6 +1373,7 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		ResourceUri:         seed.ResourceUri,
 		CodeChallenge:       seed.CodeChallenge,
 		CodeChallengeMethod: seed.CodeChallengeMethod,
+		StateHash:           seed.StateHash,
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code

@@ -194,6 +194,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
+				StateHash:           sql.NullString{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)
