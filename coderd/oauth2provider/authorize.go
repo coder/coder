@@ -38,9 +38,8 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
-	// OAuth 2.1 requires PKCE (code_challenge) for authorization code
-	// flows. state remains optional for compatibility.
-	p.RequiredNotEmpty("response_type", "client_id", "code_challenge")
+	// response_type and client_id are always required.
+	p.RequiredNotEmpty("response_type", "client_id")
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
@@ -53,6 +52,15 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		codeChallenge:       p.String(vals, "", "code_challenge"),
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
 	}
+
+	// PKCE is required for authorization code flow requests.
+	if params.responseType == codersdk.OAuth2ProviderResponseTypeCode && params.codeChallenge == "" {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  "code_challenge",
+			Detail: `Query param "code_challenge" is required and cannot be empty`,
+		})
+	}
+
 	// Validate resource indicator syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
