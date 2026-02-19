@@ -218,7 +218,7 @@ const (
 
 func (e OAuth2ProviderResponseType) Valid() bool {
 	switch e {
-	case OAuth2ProviderResponseTypeCode, OAuth2ProviderResponseTypeToken:
+	case OAuth2ProviderResponseTypeCode:
 		return true
 	}
 	return false

@@ -37,7 +37,9 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
-	p.RequiredNotEmpty("response_type", "client_id")
+	// OAuth 2.1 requires state and PKCE (code_challenge) for all
+	// authorization code flows.
+	p.RequiredNotEmpty("response_type", "client_id", "state", "code_challenge")
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
@@ -151,16 +153,23 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 			return
 		}
 
-		// Validate PKCE for public clients (MCP requirement)
-		if params.codeChallenge != "" {
-			// If code_challenge is provided but method is not, default to S256
-			if params.codeChallengeMethod == "" {
-				params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
-			}
-			if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
-				return
-			}
+		// OAuth 2.1 removes the implicit grant. Only
+		// authorization code flow is supported.
+		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest,
+				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
+				"Only response_type=code is supported")
+			return
+		}
+
+		// code_challenge is required (enforced by RequiredNotEmpty above),
+		// but default the method to S256 if omitted.
+		if params.codeChallengeMethod == "" {
+			params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
+		}
+		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			return
 		}
 
 		// TODO: Ignoring scope for now, but should look into implementing.
@@ -199,6 +208,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 				StateHash:           hashOAuth2State(params.state),
+				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: true},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)
