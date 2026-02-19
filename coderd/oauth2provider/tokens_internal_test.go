@@ -318,6 +318,7 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			query.Set("response_type", "code")
 			query.Set("client_id", "test-client")
 			query.Set("redirect_uri", "http://localhost:3000/callback")
+			query.Set("code_challenge", "test-challenge")
 			if tc.scopeParam != "" {
 				query.Set("scope", tc.scopeParam)
 			}

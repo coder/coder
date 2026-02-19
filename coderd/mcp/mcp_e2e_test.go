@@ -898,6 +898,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		authReq, err := http.NewRequestWithContext(ctx, "GET", authURL, nil)
 		require.NoError(t, err)
 		authReq.Header.Set("Cookie", fmt.Sprintf("coder_session_token=%s", coderClient.SessionToken()))
+		authReq.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
 
 		authResp, err := authClient.Do(authReq)
 		require.NoError(t, err)
@@ -918,6 +919,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			consentReq, err := http.NewRequestWithContext(ctx, "POST", authURL, nil)
 			require.NoError(t, err)
 			consentReq.Header.Set("Cookie", fmt.Sprintf("coder_session_token=%s", coderClient.SessionToken()))
+			consentReq.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
 			consentReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			authResp, err = authClient.Do(consentReq)

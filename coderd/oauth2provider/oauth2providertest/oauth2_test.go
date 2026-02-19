@@ -347,26 +347,30 @@ func TestOAuth2ResourceParameter(t *testing.T) {
 	})
 
 	state := oauth2providertest.GenerateState(t)
+	codeVerifier, codeChallenge := oauth2providertest.GeneratePKCE(t)
 
-	// Perform authorization with resource parameter
+	// Perform authorization with resource parameter.
 	authParams := oauth2providertest.AuthorizeParams{
-		ClientID:     app.ID.String(),
-		ResponseType: "code",
-		RedirectURI:  oauth2providertest.TestRedirectURI,
-		State:        state,
-		Resource:     oauth2providertest.TestResourceURI,
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
+		Resource:            oauth2providertest.TestResourceURI,
 	}
 
 	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
 	require.NotEmpty(t, code, "should receive authorization code")
 
-	// Exchange code for token with resource parameter
+	// Exchange code for token with resource parameter.
 	tokenParams := oauth2providertest.TokenExchangeParams{
 		GrantType:    "authorization_code",
 		Code:         code,
 		ClientID:     app.ID.String(),
 		ClientSecret: clientSecret,
 		RedirectURI:  oauth2providertest.TestRedirectURI,
+		CodeVerifier: codeVerifier,
 		Resource:     oauth2providertest.TestResourceURI,
 	}
 
@@ -390,13 +394,16 @@ func TestOAuth2TokenRefresh(t *testing.T) {
 	})
 
 	state := oauth2providertest.GenerateState(t)
+	codeVerifier, codeChallenge := oauth2providertest.GeneratePKCE(t)
 
-	// Get initial token
+	// Get initial token.
 	authParams := oauth2providertest.AuthorizeParams{
-		ClientID:     app.ID.String(),
-		ResponseType: "code",
-		RedirectURI:  oauth2providertest.TestRedirectURI,
-		State:        state,
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
 	}
 
 	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
@@ -407,6 +414,7 @@ func TestOAuth2TokenRefresh(t *testing.T) {
 		ClientID:     app.ID.String(),
 		ClientSecret: clientSecret,
 		RedirectURI:  oauth2providertest.TestRedirectURI,
+		CodeVerifier: codeVerifier,
 	}
 
 	initialToken := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), tokenParams)
