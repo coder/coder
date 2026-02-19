@@ -254,14 +254,27 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
 
-	// Verify PKCE challenge if present
-	if dbCode.CodeChallenge.Valid && dbCode.CodeChallenge.String != "" {
-		if req.CodeVerifier == "" {
-			return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
+	// Verify redirect_uri matches the one used during authorization
+	// (RFC 6749 §4.1.3).
+	if dbCode.RedirectUri.Valid && dbCode.RedirectUri.String != "" {
+		if req.RedirectURI != dbCode.RedirectUri.String {
+			return codersdk.OAuth2TokenResponse{}, xerrors.New("redirect_uri mismatch")
 		}
-		if !VerifyPKCE(dbCode.CodeChallenge.String, req.CodeVerifier) {
-			return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
-		}
+	}
+
+	// PKCE is mandatory for all authorization code flows
+	// (OAuth 2.1). Verify the code verifier against the stored
+	// challenge.
+	if req.CodeVerifier == "" {
+		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
+	}
+	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
+		// Code was issued without a challenge — should not happen
+		// with authorize endpoint enforcement, but defend in depth.
+		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
+	}
+	if !VerifyPKCE(dbCode.CodeChallenge.String, req.CodeVerifier) {
+		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
 
 	// Verify resource parameter consistency (RFC 8707)
