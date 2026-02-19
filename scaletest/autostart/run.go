@@ -166,7 +166,8 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 // waitForBuild waits for a build with the given transition to reach a
 // terminal state. It returns nil on success, or an error if the build
-// fails, is canceled, or the context expires.
+// fails, is canceled, or the context expires. If an unexpected transition
+// is received, it returns an error immediately.
 func waitForBuild(ctx context.Context, logger slog.Logger, updates <-chan codersdk.WorkspaceBuildUpdate, transition codersdk.WorkspaceTransition) error {
 	for {
 		select {
@@ -182,7 +183,7 @@ func waitForBuild(ctx context.Context, logger slog.Logger, updates <-chan coders
 				slog.F("build_number", update.BuildNumber))
 
 			if update.Transition != string(transition) {
-				continue
+				return xerrors.Errorf("unexpected transition: expected %s, got %s (build_number=%d)", transition, update.Transition, update.BuildNumber)
 			}
 			switch codersdk.ProvisionerJobStatus(update.JobStatus) {
 			case codersdk.ProvisionerJobSucceeded:
