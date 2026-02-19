@@ -45,7 +45,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
 		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
-		redirectURIProvided: vals.Has("redirect_uri"),
+		redirectURIProvided: vals.Get("redirect_uri") != "",
 		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 		state:               p.String(vals, "", "state"),
