@@ -144,10 +144,12 @@ const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({
 }) => {
 	const isSystem = conn.type === "system";
 	return (
-		<div className={cn(
-			"flex items-center gap-3 py-1.5 px-3 text-xs border-t border-border",
-			isSystem && "opacity-50",
-		)}>
+		<div
+			className={cn(
+				"flex items-center gap-3 py-1.5 px-3 text-xs border-t border-border",
+				isSystem && "opacity-50",
+			)}
+		>
 			<StatusIndicatorDot variant={baseStatusVariant[conn.status]} size="sm" />
 			<Badge size="xs">{conn.type}</Badge>
 			<span className="text-content-secondary truncate">{conn.detail}</span>
@@ -156,9 +158,7 @@ const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({
 				{conn.disconnected_at && ` → ${formatTimeShort(conn.disconnected_at)}`}
 			</span>
 			{conn.os && (
-				<span className="text-2xs text-content-secondary">
-					{conn.os}
-				</span>
+				<span className="text-2xs text-content-secondary">{conn.os}</span>
 			)}
 			{conn.exit_code !== null && (
 				<span className="text-2xs text-content-secondary">

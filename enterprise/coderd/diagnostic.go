@@ -66,7 +66,7 @@ func (api *API) userDiagnostic(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Optional filters applied after session assembly.
-	statusFilter := r.URL.Query().Get("status")    // "all", "ongoing", "disconnected", "workspace_stopped"
+	statusFilter := r.URL.Query().Get("status")       // "all", "ongoing", "disconnected", "workspace_stopped"
 	workspaceFilter := r.URL.Query().Get("workspace") // workspace name or empty/"all"
 
 	// Look up the target user.
