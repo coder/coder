@@ -41,11 +41,11 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
-		inv, root := clitest.New(t, "task", "logs", task.Name, "--output", "json")
+		inv, root := clitest.New(t, "task", "logs", setup.task.Name, "--output", "json")
 		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
@@ -64,11 +64,11 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
-		inv, root := clitest.New(t, "task", "logs", task.ID.String(), "--output", "json")
+		inv, root := clitest.New(t, "task", "logs", setup.task.ID.String(), "--output", "json")
 		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
@@ -87,11 +87,11 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
-		inv, root := clitest.New(t, "task", "logs", task.ID.String())
+		inv, root := clitest.New(t, "task", "logs", setup.task.ID.String())
 		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
@@ -141,10 +141,10 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsErr(assert.AnError))
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsErr(assert.AnError))
 
-		inv, root := clitest.New(t, "task", "logs", task.ID.String())
-		clitest.SetupConfig(t, userClient, root)
+		inv, root := clitest.New(t, "task", "logs", setup.task.ID.String())
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
