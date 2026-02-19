@@ -4292,6 +4292,17 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
 
+	type testCase struct {
+		timezone    string
+		location    *time.Location
+		reportFrom  time.Time
+		reportUntil time.Time
+	}
+	testCases := []testCase{}
+
+	// GetUserStatusCounts is sensitive to DST transitions, because it generates timestamps exactly
+	// one day apart from one another, and specific days can have varying lengths depending on the timezone.
+	// Therefore, we test with a variety of timezones.
 	timezones := []string{
 		"America/St_Johns",
 		"Africa/Johannesburg",
@@ -4301,18 +4312,39 @@ func TestGetUserStatusCounts(t *testing.T) {
 		"Australia/Sydney",
 	}
 
+	// assemble test cases
 	for _, tz := range timezones {
-		t.Run(tz, func(t *testing.T) {
+		location, err := time.LoadLocation(tz)
+		if err != nil {
+			t.Fatalf("failed to load location: %v", err)
+		}
+
+		// Testing based on the current system date will flake due to DST transitions.
+		// Instead, we test with a fixed range of dates that is large enough to span multiple DST transitions.
+		startOfTestDateRange := time.Date(2025, 1, 1, 0, 0, 0, 0, location)
+		endOfTestDateRange := time.Date(2026, 1, 1, 0, 0, 0, 0, location)
+		// To keep the number of test cases manageable given the large date range,
+		// we test with a suitable large interval. This interval is also the length of each report.
+		// this ensures we have full coverage of the date range.
+		testDateRangeInterval := 60
+
+		for reportFrom := startOfTestDateRange; !reportFrom.After(endOfTestDateRange); reportFrom = reportFrom.AddDate(0, 0, testDateRangeInterval) {
+			testCases = append(testCases, testCase{
+				timezone:    tz,
+				location:    location,
+				reportFrom:  dbtime.Time(reportFrom),
+				reportUntil: dbtime.Time(reportFrom.AddDate(0, 0, testDateRangeInterval)),
+			})
+		}
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s/%s", tc.timezone, tc.reportUntil.Format("2006-01-02T15:04:05Z")), func(t *testing.T) {
 			t.Parallel()
 
-			location, err := time.LoadLocation(tz)
-			if err != nil {
-				t.Fatalf("failed to load location: %v", err)
-			}
-			today := dbtime.Now().In(location)
-			createdAt := today.Add(-5 * 24 * time.Hour)
-			firstTransitionTime := createdAt.Add(2 * 24 * time.Hour)
-			secondTransitionTime := firstTransitionTime.Add(2 * 24 * time.Hour)
+			userCreatedAt := tc.reportUntil.AddDate(0, 0, -60)
+			firstStatusChange := userCreatedAt.AddDate(0, 0, 29)
+			secondStatusChange := firstStatusChange.AddDate(0, 0, 29)
 
 			t.Run("No Users", func(t *testing.T) {
 				t.Parallel()
@@ -4320,8 +4352,9 @@ func TestGetUserStatusCounts(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				counts, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: createdAt,
-					EndTime:   today,
+					Tz:        tc.timezone,
+					StartTime: tc.reportFrom,
+					EndTime:   tc.reportUntil,
 				})
 				require.NoError(t, err)
 				require.Empty(t, counts, "should return no results when there are no users")
@@ -4330,7 +4363,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("One User/Creation Only", func(t *testing.T) {
 				t.Parallel()
 
-				testCases := []struct {
+				subTestCases := []struct {
 					name   string
 					status database.UserStatus
 				}{
@@ -4348,42 +4381,56 @@ func TestGetUserStatusCounts(t *testing.T) {
 					},
 				}
 
-				for _, tc := range testCases {
-					t.Run(tc.name, func(t *testing.T) {
+				for _, stc := range subTestCases {
+					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
-						// Create a user that's been in the specified status for the past 30 days
 						dbgen.User(t, db, database.User{
-							Status:    tc.status,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.status,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 
+						startTime := dbtime.StartOfDay(userCreatedAt)
+						endTime := dbtime.StartOfDay(tc.reportUntil)
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: dbtime.StartOfDay(createdAt),
-							EndTime:   dbtime.StartOfDay(today),
+							Tz:        tc.timezone,
+							StartTime: startTime,
+							EndTime:   endTime,
 						})
 						require.NoError(t, err)
 
-						numDays := int(dbtime.StartOfDay(today).Sub(dbtime.StartOfDay(createdAt)).Hours() / 24)
-						require.Len(t, userStatusChanges, numDays+1, "should have 1 entry per day between the start and end time, including the end time")
+						numDays := 0
+						for d := startTime; !d.After(endTime); d = d.AddDate(0, 0, 1) {
+							numDays++
+						}
+						assert.Len(
+							t,
+							userStatusChanges,
+							numDays,
+							"should have 1 entry per day between the start and end time, including the end time",
+						)
 
 						for i, row := range userStatusChanges {
-							require.Equal(t, tc.status, row.Status, "should have the correct status")
-							require.True(
+							require.Equal(t, stc.status, row.Status, "should have the correct status")
+
+							rowDate := row.Date.In(tc.location)
+							expectedDate := dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, i)
+							assert.True(
 								t,
-								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+								rowDate.Equal(expectedDate),
 								"expected date %s, but got %s for row %n",
-								dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
-								row.Date.In(location).String(),
+								expectedDate.String(),
+								rowDate.String(),
 								i,
 							)
-							if row.Date.Before(createdAt) {
-								require.Equal(t, int64(0), row.Count, "should have 0 users before creation")
+
+							if row.Date.Before(userCreatedAt) {
+								assert.Equal(t, int64(0), row.Count, "should have 0 users before creation")
 							} else {
-								require.Equal(t, int64(1), row.Count, "should have 1 user after creation")
+								assert.Equal(t, int64(1), row.Count, "should have 1 user after creation")
 							}
 						}
 					})
@@ -4393,7 +4440,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("One User/One Transition", func(t *testing.T) {
 				t.Parallel()
 
-				testCases := []struct {
+				subTestCases := []struct {
 					name           string
 					initialStatus  database.UserStatus
 					targetStatus   database.UserStatus
@@ -4404,15 +4451,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusActive,
 						targetStatus:  database.UserStatusDormant,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusActive:  1,
 								database.UserStatusDormant: 0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusDormant: 1,
 								database.UserStatusActive:  0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusDormant: 1,
 								database.UserStatusActive:  0,
 							},
@@ -4423,15 +4470,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusActive,
 						targetStatus:  database.UserStatusSuspended,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusActive:    1,
 								database.UserStatusSuspended: 0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusActive:    0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusActive:    0,
 							},
@@ -4442,15 +4489,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusDormant,
 						targetStatus:  database.UserStatusActive,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusDormant: 1,
 								database.UserStatusActive:  0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusActive:  1,
 								database.UserStatusDormant: 0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusActive:  1,
 								database.UserStatusDormant: 0,
 							},
@@ -4461,15 +4508,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusDormant,
 						targetStatus:  database.UserStatusSuspended,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusDormant:   1,
 								database.UserStatusSuspended: 0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusDormant:   0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusDormant:   0,
 							},
@@ -4480,15 +4527,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusSuspended,
 						targetStatus:  database.UserStatusActive,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusActive:    0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusActive:    1,
 								database.UserStatusSuspended: 0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusActive:    1,
 								database.UserStatusSuspended: 0,
 							},
@@ -4499,15 +4546,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusSuspended,
 						targetStatus:  database.UserStatusDormant,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusDormant:   0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusDormant:   1,
 								database.UserStatusSuspended: 0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusDormant:   1,
 								database.UserStatusSuspended: 0,
 							},
@@ -4515,60 +4562,60 @@ func TestGetUserStatusCounts(t *testing.T) {
 					},
 				}
 
-				for _, tc := range testCases {
-					t.Run(tc.name, func(t *testing.T) {
+				for _, stc := range subTestCases {
+					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
-						// Create a user that starts with initial status
 						user := dbgen.User(t, db, database.User{
-							Status:    tc.initialStatus,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.initialStatus,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 
-						// After 2 days, change status to target status
 						user, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 							ID:        user.ID,
-							Status:    tc.targetStatus,
-							UpdatedAt: firstTransitionTime,
+							Status:    stc.targetStatus,
+							UpdatedAt: firstStatusChange,
 						})
 						require.NoError(t, err)
 
-						// Query for the last 5 days
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: dbtime.StartOfDay(createdAt),
-							EndTime:   dbtime.StartOfDay(today),
+							Tz:        tc.timezone,
+							StartTime: dbtime.StartOfDay(userCreatedAt),
+							EndTime:   dbtime.StartOfDay(tc.reportUntil),
 						})
 						require.NoError(t, err)
 
 						for i, row := range userStatusChanges {
+							rowDate := row.Date.In(tc.location)
+							expectedDate := dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, i/2)
 							require.True(
 								t,
-								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2)),
+								rowDate.Equal(expectedDate),
 								"expected date %s, but got %s for row %n",
-								dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2),
-								row.Date.In(location).String(),
+								expectedDate.String(),
+								rowDate.String(),
 								i,
 							)
 							switch {
-							case row.Date.Before(createdAt):
+							case row.Date.Before(userCreatedAt):
 								require.Equal(t, int64(0), row.Count)
-							case row.Date.Before(firstTransitionTime):
-								if row.Status == tc.initialStatus {
+							case row.Date.Before(firstStatusChange):
+								if row.Status == stc.initialStatus {
 									require.Equal(t, int64(1), row.Count)
-								} else if row.Status == tc.targetStatus {
+								} else if row.Status == stc.targetStatus {
 									require.Equal(t, int64(0), row.Count)
 								}
-							case !row.Date.After(today):
-								if row.Status == tc.initialStatus {
+							case !row.Date.After(tc.reportUntil):
+								if row.Status == stc.initialStatus {
 									require.Equal(t, int64(0), row.Count)
-								} else if row.Status == tc.targetStatus {
+								} else if row.Status == stc.targetStatus {
 									require.Equal(t, int64(1), row.Count)
 								}
 							default:
-								t.Errorf("date %q beyond expected range end %q", row.Date, today)
+								t.Errorf("date %q beyond expected range end %q", row.Date, tc.reportUntil)
 							}
 						}
 					})
@@ -4589,7 +4636,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					user2Transition transition
 				}
 
-				testCases := []testCase{
+				subTestCases := []testCase{
 					{
 						name: "Active->Dormant and Dormant->Suspended",
 						user1Transition: transition{
@@ -4647,49 +4694,48 @@ func TestGetUserStatusCounts(t *testing.T) {
 					},
 				}
 
-				for _, tc := range testCases {
-					t.Run(tc.name, func(t *testing.T) {
+				for _, stc := range subTestCases {
+					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user1 := dbgen.User(t, db, database.User{
-							Status:    tc.user1Transition.from,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.user1Transition.from,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 						user2 := dbgen.User(t, db, database.User{
-							Status:    tc.user2Transition.from,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.user2Transition.from,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 
-						// First transition at 2 days
 						user1, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 							ID:        user1.ID,
-							Status:    tc.user1Transition.to,
-							UpdatedAt: firstTransitionTime,
+							Status:    stc.user1Transition.to,
+							UpdatedAt: firstStatusChange,
 						})
 						require.NoError(t, err)
 
-						// Second transition at 4 days
 						user2, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 							ID:        user2.ID,
-							Status:    tc.user2Transition.to,
-							UpdatedAt: secondTransitionTime,
+							Status:    stc.user2Transition.to,
+							UpdatedAt: secondStatusChange,
 						})
 						require.NoError(t, err)
 
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: dbtime.StartOfDay(createdAt),
-							EndTime:   dbtime.StartOfDay(today),
+							Tz:        tc.timezone,
+							StartTime: dbtime.StartOfDay(userCreatedAt),
+							EndTime:   dbtime.StartOfDay(tc.reportUntil),
 						})
 						require.NoError(t, err)
 						require.NotEmpty(t, userStatusChanges)
 						gotCounts := map[time.Time]map[database.UserStatus]int64{}
 						for _, row := range userStatusChanges {
-							dateInLocation := row.Date.In(location)
+							dateInLocation := row.Date.In(tc.location)
 							if gotCounts[dateInLocation] == nil {
 								gotCounts[dateInLocation] = map[database.UserStatus]int64{}
 							}
@@ -4697,30 +4743,30 @@ func TestGetUserStatusCounts(t *testing.T) {
 						}
 
 						expectedCounts := map[time.Time]map[database.UserStatus]int64{}
-						for d := dbtime.StartOfDay(createdAt); !d.After(dbtime.StartOfDay(today)); d = d.AddDate(0, 0, 1) {
+						for d := dbtime.StartOfDay(userCreatedAt); !d.After(dbtime.StartOfDay(tc.reportUntil)); d = d.AddDate(0, 0, 1) {
 							expectedCounts[d] = map[database.UserStatus]int64{}
 
 							// Default values
-							expectedCounts[d][tc.user1Transition.from] = 0
-							expectedCounts[d][tc.user1Transition.to] = 0
-							expectedCounts[d][tc.user2Transition.from] = 0
-							expectedCounts[d][tc.user2Transition.to] = 0
+							expectedCounts[d][stc.user1Transition.from] = 0
+							expectedCounts[d][stc.user1Transition.to] = 0
+							expectedCounts[d][stc.user2Transition.from] = 0
+							expectedCounts[d][stc.user2Transition.to] = 0
 
 							// Counted Values
 							switch {
-							case d.Before(createdAt):
+							case d.Before(userCreatedAt):
 								continue
-							case d.Before(firstTransitionTime):
-								expectedCounts[d][tc.user1Transition.from]++
-								expectedCounts[d][tc.user2Transition.from]++
-							case d.Before(secondTransitionTime):
-								expectedCounts[d][tc.user1Transition.to]++
-								expectedCounts[d][tc.user2Transition.from]++
-							case d.Before(today):
-								expectedCounts[d][tc.user1Transition.to]++
-								expectedCounts[d][tc.user2Transition.to]++
+							case d.Before(firstStatusChange):
+								expectedCounts[d][stc.user1Transition.from]++
+								expectedCounts[d][stc.user2Transition.from]++
+							case d.Before(secondStatusChange):
+								expectedCounts[d][stc.user1Transition.to]++
+								expectedCounts[d][stc.user2Transition.from]++
+							case !d.After(tc.reportUntil):
+								expectedCounts[d][stc.user1Transition.to]++
+								expectedCounts[d][stc.user2Transition.to]++
 							default:
-								t.Fatalf("date %q beyond expected range end %q", d, today)
+								t.Fatalf("date %q beyond expected range end %q", d, tc.reportUntil)
 							}
 						}
 
@@ -4736,23 +4782,24 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 				_ = dbgen.User(t, db, database.User{
 					Status:    database.UserStatusActive,
-					CreatedAt: createdAt,
-					UpdatedAt: createdAt,
+					CreatedAt: userCreatedAt,
+					UpdatedAt: userCreatedAt,
 				})
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: dbtime.StartOfDay(createdAt.Add(time.Hour * 24)),
-					EndTime:   dbtime.StartOfDay(today),
+					Tz:        tc.timezone,
+					StartTime: dbtime.StartOfDay(userCreatedAt.Add(time.Hour * 24)),
+					EndTime:   dbtime.StartOfDay(tc.reportUntil),
 				})
 				require.NoError(t, err)
 
 				for i, row := range userStatusChanges {
 					require.True(
 						t,
-						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i)),
+						row.Date.In(tc.location).Equal(dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, 1+i)),
 						"expected date %s, but got %s for row %n",
-						dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i),
-						row.Date.In(location).String(),
+						dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, 1+i),
+						row.Date.In(tc.location).String(),
 						i,
 					)
 					require.Equal(t, database.UserStatusActive, row.Status)
@@ -4762,21 +4809,25 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User deleted before query range", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
 					Status:    database.UserStatusActive,
-					CreatedAt: createdAt,
-					UpdatedAt: createdAt,
+					CreatedAt: userCreatedAt,
+					UpdatedAt: userCreatedAt,
 				})
 
-				err = db.UpdateUserDeletedByID(ctx, user.ID)
+				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				require.NoError(t, err)
+
+				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: today.Add(time.Hour * 24),
-					EndTime:   today.Add(time.Hour * 48),
+					Tz:        tc.timezone,
+					StartTime: tc.reportUntil.Add(time.Hour * 24),
+					EndTime:   tc.reportUntil.Add(time.Hour * 48),
 				})
 				require.NoError(t, err)
 				require.Empty(t, userStatusChanges)
@@ -4785,37 +4836,45 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("User deleted during query range", func(t *testing.T) {
 				t.Parallel()
 
-				db, _ := dbtestutil.NewDB(t)
+				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
 					Status:    database.UserStatusActive,
-					CreatedAt: createdAt,
-					UpdatedAt: createdAt,
+					CreatedAt: userCreatedAt,
+					UpdatedAt: userCreatedAt,
 				})
 
 				err := db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
+				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				require.NoError(t, err)
+
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: dbtime.StartOfDay(createdAt),
-					EndTime:   dbtime.StartOfDay(today.Add(time.Hour * 24)),
+					Tz:        tc.timezone,
+					StartTime: dbtime.StartOfDay(userCreatedAt),
+					EndTime:   dbtime.StartOfDay(tc.reportUntil.Add(time.Hour * 24)),
 				})
 				require.NoError(t, err)
 				for i, row := range userStatusChanges {
-					require.True(
+					row.Date = row.Date.In(tc.location)
+					userStatusChanges[i] = row
+					target := dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, i)
+					assert.True(
 						t,
-						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+						row.Date.Equal(target),
 						"expected date %s, but got %s for row %n",
-						dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
-						row.Date.In(location).String(),
+						target.String(),
+						row.Date.String(),
 						i,
 					)
 					require.Equal(t, database.UserStatusActive, row.Status)
 					switch {
-					case row.Date.Before(createdAt):
+					case row.Date.Before(userCreatedAt):
 						require.Equal(t, int64(0), row.Count)
-					case i == len(userStatusChanges)-1:
+					case !row.Date.Before(tc.reportUntil):
+						// On or after the deletion date, the user should not be counted.
 						require.Equal(t, int64(0), row.Count)
 					default:
 						require.Equal(t, int64(1), row.Count)
