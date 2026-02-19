@@ -107,10 +107,10 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 													<div>{connectionLog.ip}</div>
 												</div>
 											)}
-											{userAgent?.os.name && (
+											{(connectionLog.os || userAgent?.os.name) && (
 												<div>
 													<h4 css={styles.connectionLogInfoheader}>OS:</h4>
-													<div>{userAgent.os.name}</div>
+													<div>{connectionLog.os || userAgent.os.name}</div>
 												</div>
 											)}
 											{userAgent?.browser.name && (

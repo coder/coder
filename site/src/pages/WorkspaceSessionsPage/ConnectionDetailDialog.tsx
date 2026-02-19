@@ -131,6 +131,9 @@ export const ConnectionDetailDialog: FC<ConnectionDetailDialogProps> = ({
 					{connection.exit_code !== undefined && (
 						<DetailRow label="Exit code" value={connection.exit_code} />
 					)}
+					{connection.os && (
+						<DetailRow label="Operating system" value={connection.os} />
+					)}
 					{connection.user_agent && (
 						<DetailRow label="User agent" value={connection.user_agent} />
 					)}

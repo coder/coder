@@ -155,6 +155,11 @@ const ConnectionSubRow: FC<{ conn: DiagnosticSessionConnection }> = ({
 				{formatTimeShort(conn.connected_at)}
 				{conn.disconnected_at && ` → ${formatTimeShort(conn.disconnected_at)}`}
 			</span>
+			{conn.os && (
+				<span className="text-2xs text-content-secondary">
+					{conn.os}
+				</span>
+			)}
 			{conn.exit_code !== null && (
 				<span className="text-2xs text-content-secondary">
 					exit {conn.exit_code}

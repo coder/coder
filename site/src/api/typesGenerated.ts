@@ -1085,6 +1085,7 @@ export interface ConnectionLog {
 	 * - `ConnectionTypeJetBrains`
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
+	readonly os?: string;
 }
 
 // From codersdk/connectionlog.go
@@ -7104,6 +7105,7 @@ export interface WorkspaceConnection {
 	 * UserAgent is the HTTP user agent string from web connections.
 	 */
 	readonly user_agent?: string;
+	readonly os?: string;
 }
 
 // From codersdk/workspaceagents.go
