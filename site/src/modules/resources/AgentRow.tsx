@@ -194,10 +194,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 			)}
 		>
 			<header className="flex flex-wrap items-center justify-between gap-4 px-4 pt-4 pl-8 leading-normal md:gap-6 [&:has(+_[role='alert'])]:pb-4">
-				<div className="flex items-center gap-6 text-sm text-content-secondary">
-					<div className="flex w-full items-center gap-4 md:w-auto">
+				<div className="flex min-w-0 items-center gap-6 text-sm text-content-secondary">
+					<div className="flex min-w-0 w-full items-center gap-4 md:w-auto">
 						<AgentStatus agent={agent} />
-						<span className="w-fit max-w-[260px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary md:overflow-visible">
+						<span className="block max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary">
 							{agent.name}
 						</span>
 					</div>
