@@ -1691,7 +1691,7 @@ func (s *MethodTestSuite) TestUser() {
 		)
 	}))
 	s.Run("GetUserStatusCounts", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetUserStatusCountsParams{StartTime: time.Now().Add(-time.Hour * 24 * 30), EndTime: time.Now(), Interval: int32((time.Hour * 24).Seconds())}
+		arg := database.GetUserStatusCountsParams{StartTime: time.Now().Add(-time.Hour * 24 * 30), EndTime: time.Now(), Tz: "America/St_Johns"}
 		dbm.EXPECT().GetUserStatusCounts(gomock.Any(), arg).Return([]database.GetUserStatusCountsRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceUser, policy.ActionRead)
 	}))

@@ -2443,7 +2443,8 @@ func TestGenericInsights_Disabled(t *testing.T) {
 			name: "UserStatusCounts",
 			fn: func(ctx context.Context) error {
 				_, err := client.GetUserStatusCounts(ctx, codersdk.GetUserStatusCountsRequest{
-					Offset: 0,
+					Timezone: "America/St_Johns",
+					Offset:   -2,
 				})
 				return err
 			},

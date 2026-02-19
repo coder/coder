@@ -298,6 +298,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
+// @Param timezone query string true "IANA timezone name (e.g. America/St_Johns)"
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
 // @Router /insights/user-status-counts [get]
@@ -306,8 +307,8 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
+	timezone := p.String(vals, "", "timezone")
 	tzOffset := p.Int(vals, 0, "tz_offset")
-	interval := p.Int(vals, int((24 * time.Hour).Seconds()), "interval")
 	p.ErrorExcessParams(vals)
 
 	if len(p.Errors) > 0 {
@@ -318,16 +319,34 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	loc := time.FixedZone("", tzOffset*3600)
+	var loc *time.Location
+	if timezone == "" {
+		timezone = "UTC"
+		if tzOffset > 0 {
+			timezone = fmt.Sprintf("Etc/GMT-%d", tzOffset)
+		} else if tzOffset < 0 {
+			timezone = fmt.Sprintf("Etc/GMT+%d", -tzOffset)
+		}
+	}
+
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid timezone.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	nextHourInLoc := dbtime.Now().Truncate(time.Hour).Add(time.Hour).In(loc)
 	sixtyDaysAgo := dbtime.StartOfDay(nextHourInLoc).AddDate(0, 0, -60)
 
-	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+	queryParams := database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
-		// #nosec G115 - Interval value is small and fits in int32 (typically days or hours)
-		Interval: int32(interval),
-	})
+		Tz:        loc.String(),
+	}
+	rows, err := api.Database.GetUserStatusCounts(ctx, queryParams)
 	if err != nil {
 		if httpapi.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
