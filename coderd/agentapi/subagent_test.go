@@ -175,6 +175,55 @@ func TestSubAgentAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateSubAgentDoesNotInheritAuthInstanceID", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			log   = testutil.Logger(t)
+			clock = quartz.NewMock(t)
+
+			db, org     = newDatabaseWithOrg(t)
+			user, agent = newUserWithWorkspaceAgent(t, db, org)
+		)
+
+		// Given: The parent agent has an AuthInstanceID set
+		ctx := testutil.Context(t, testutil.WaitShort)
+		parentAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agent.ID)
+		require.NoError(t, err)
+		require.True(t, parentAgent.AuthInstanceID.Valid, "parent agent should have an AuthInstanceID")
+		require.NotEmpty(t, parentAgent.AuthInstanceID.String)
+
+		api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+		// When: We create a sub agent
+		createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+			Name:            "sub-agent",
+			Directory:       "/workspaces/test",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+		require.NoError(t, err)
+
+		subAgentID, err := uuid.FromBytes(createResp.Agent.Id)
+		require.NoError(t, err)
+
+		// Then: The sub-agent must NOT re-use the parent's AuthInstanceID.
+		// Re-using instance IDs would allow a sub-agent to hijack the
+		// parent's instance identity authentication, since
+		// GetWorkspaceAgentByInstanceID returns the most recently
+		// created agent with that instance ID.
+		subAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID)
+		require.NoError(t, err)
+		assert.False(t, subAgent.AuthInstanceID.Valid, "sub-agent should not have an AuthInstanceID")
+		assert.Empty(t, subAgent.AuthInstanceID.String, "sub-agent AuthInstanceID string should be empty")
+
+		// Double-check: looking up by the parent's instance ID must
+		// still return the parent, not the sub-agent.
+		lookedUp, err := db.GetWorkspaceAgentByInstanceID(dbauthz.AsSystemRestricted(ctx), parentAgent.AuthInstanceID.String)
+		require.NoError(t, err)
+		assert.Equal(t, parentAgent.ID, lookedUp.ID, "instance ID lookup should still return the parent agent")
+	})
+
 	type expectedAppError struct {
 		index int32
 		field string
