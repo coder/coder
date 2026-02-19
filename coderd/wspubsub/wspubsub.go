@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -36,7 +37,7 @@ func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload codersdk.Wo
 // PublishWorkspaceBuildUpdate is a helper to publish a workspace build update
 // to the AllWorkspaceEventChannel. This should be called when a build
 // completes (succeeds, fails, or is canceled).
-func PublishWorkspaceBuildUpdate(_ context.Context, ps Pubsub, update codersdk.WorkspaceBuildUpdate) error {
+func PublishWorkspaceBuildUpdate(_ context.Context, ps pubsub.Pubsub, update codersdk.WorkspaceBuildUpdate) error {
 	msg, err := json.Marshal(update)
 	if err != nil {
 		return xerrors.Errorf("marshal workspace build update: %w", err)
@@ -45,12 +46,6 @@ func PublishWorkspaceBuildUpdate(_ context.Context, ps Pubsub, update codersdk.W
 		return xerrors.Errorf("publish workspace build update: %w", err)
 	}
 	return nil
-}
-
-// Pubsub is an interface for publishing messages. This is a subset of the
-// full pubsub interface to avoid a circular import.
-type Pubsub interface {
-	Publish(event string, message []byte) error
 }
 
 // WorkspaceEventChannel can be used to subscribe to events for
