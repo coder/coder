@@ -719,6 +719,7 @@ type RenderOAuthAllowData struct {
 	AppName     string
 	CancelURI   string
 	RedirectURI string
+	CSRFToken   string
 	Username    string
 }
 
