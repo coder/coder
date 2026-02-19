@@ -39,7 +39,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 
 	// OAuth 2.1 requires state and PKCE (code_challenge) for all
 	// authorization code flows.
-	p.RequiredNotEmpty("response_type", "client_id", "state", "code_challenge")
+	p.RequiredNotEmpty("response_type", "client_id", "code_challenge")
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
