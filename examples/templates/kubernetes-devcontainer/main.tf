@@ -40,7 +40,7 @@ variable "use_kubeconfig" {
 
 variable "namespace" {
   type        = string
-  default     = "default"
+  default     = "coder"
   description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces). If the Coder host is itself running as a Pod on the same Kubernetes cluster as you are deploying workspaces to, set this to the same namespace."
 }
 
@@ -62,7 +62,7 @@ data "coder_parameter" "cpu" {
   display_name = "CPU"
   description  = "CPU limit (cores)."
   default      = "2"
-  icon         = "/emojis/1f5a5.png"
+  icon         = "/icon/memory.svg"
   mutable      = true
   validation {
     min = 1
@@ -161,6 +161,8 @@ locals {
     # ENVBUILDER_GIT_URL and ENVBUILDER_CACHE_REPO will be overridden by the provider
     # if the cache repo is enabled.
     "ENVBUILDER_GIT_URL" : var.cache_repo == "" ? local.repo_url : "",
+    # Used for when SSH is an available authentication mechanism for git providers
+    "ENVBUILDER_GIT_SSH_PRIVATE_KEY_BASE64" : base64encode(try(data.coder_workspace_owner.me.ssh_private_key, "")),
     # Use the docker gateway if the access URL is 127.0.0.1
     "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
     "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
@@ -262,9 +264,10 @@ resource "kubernetes_deployment_v1" "main" {
         container {
           name              = "dev"
           image             = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
-          image_pull_policy = "Always"
-          security_context {}
-
+          image_pull_policy = "IfNotPresent"
+          security_context {
+            privileged = true
+          }
           # Set the environment using cached_image.cached.0.env if the cache repo is enabled.
           # Otherwise, use the local.envbuilder_env.
           # You could alternatively write the environment variables to a ConfigMap or Secret
@@ -352,21 +355,22 @@ resource "coder_agent" "main" {
   # if you don't want to display any information.
   # For basic resources, you can use the `coder stat` command.
   # If you need more control, you can write your own script.
-  metadata {
-    display_name = "CPU Usage"
-    key          = "0_cpu_usage"
-    script       = "coder stat cpu"
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "RAM Usage"
-    key          = "1_ram_usage"
-    script       = "coder stat mem"
-    interval     = 10
-    timeout      = 1
-  }
+  # Note: May not work on AWS Linux Nodes See: https://github.com/coder/clistat/issues/17
+  # metadata {
+  #   display_name = "CPU Usage"
+  #   key          = "0_cpu_usage"
+  #   script       = "coder stat cpu"
+  #   interval     = 10
+  #   timeout      = 1
+  # }
+  # Note: May not work on AWS Linux Nodes
+  # metadata {
+  #   display_name = "RAM Usage"
+  #   key          = "1_ram_usage"
+  #   script       = "coder stat mem"
+  #   interval     = 10
+  #   timeout      = 1
+  # }
 
   metadata {
     display_name = "Workspaces Disk"

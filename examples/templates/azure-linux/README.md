@@ -1,8 +1,7 @@
 ---
 display_name: Azure VM (Linux)
 description: Provision Azure VMs as Coder workspaces
-icon: ../../../site/static/icon/azure.png
-maintainer_github: coder
+icon: ../../../site/static/icon/azure.svg
 verified: true
 tags: [vm, linux, azure]
 ---
@@ -28,16 +27,28 @@ This template provisions the following resources:
 
 - Azure VM (ephemeral, deleted on stop)
 - Managed disk (persistent, mounted to `/home/coder`)
+- Resource group, virtual network, subnet, and network interface (persistent, required by the managed disk and VM)
 
-This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the VM image, or use a [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script). Alternatively, individual developers can [personalize](https://coder.com/docs/dotfiles) their workspaces with dotfiles.
+### What happens on stop
+
+When a workspace is **stopped**, only the VM is destroyed. The managed disk, resource group, virtual network, subnet, and network interface all persist. This is by design — the managed disk retains your `/home/coder` data across workspace restarts, and the other resources remain because the disk depends on them.
+
+This means you will see these Azure resources in your subscription even when a workspace is stopped. This is expected behavior.
+
+### What happens on delete
+
+When a workspace is **deleted**, all resources are destroyed, including the resource group, networking resources, and managed disk.
+
+### Workspace restarts
+
+Since the VM is ephemeral, any tools or files outside of the home directory are not persisted across restarts. To pre-bake tools into the workspace (e.g. `python3`), modify the VM image, or use a [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script). Alternatively, individual developers can [personalize](https://coder.com/docs/dotfiles) their workspaces with dotfiles.
 
 > [!NOTE]
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
-
 ### Persistent VM
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > This approach requires the [`az` CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli#install) to be present in the PATH of your Coder Provisioner.
 > You will have to do this installation manually as it is not included in our official images.
 

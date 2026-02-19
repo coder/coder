@@ -1,15 +1,16 @@
 ---
 display_name: Google Compute Engine (Devcontainer)
 description: Provision a Devcontainer on Google Compute Engine instances as Coder workspaces
-icon: ../../../site/static/icon/gcp.png
-maintainer_github: coder
+icon: ../../../site/static/icon/gcp.svg
 verified: true
 tags: [vm, linux, gcp, devcontainer]
 ---
 
 # Remote Development in a Devcontainer on Google Compute Engine
 
-![Architecture Diagram](./architecture.svg)
+Provision a Devcontainer on Google Compute Engine instances as Coder workspaces
+
+![Architecture Diagram](../../.images/gcp-devcontainer-architecture.svg)
 
 ## Prerequisites
 
@@ -34,7 +35,6 @@ a service account:
 
 1. Click **Create and continue**, and choose the following IAM roles to grant to
    the service account:
-
    - Compute Admin
    - Service Account User
 

@@ -177,6 +177,7 @@ resource "coder_agent" "main" {
 # code-server
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
+  agent_name   = "main"
   slug         = "code-server"
   display_name = "code-server"
   icon         = "/icon/code.svg"
@@ -286,7 +287,7 @@ resource "kubernetes_deployment_v1" "main" {
         container {
           name              = "dev"
           image             = "codercom/enterprise-base:ubuntu"
-          image_pull_policy = "Always"
+          image_pull_policy = "IfNotPresent"
           command           = ["sh", "-c", coder_agent.main.init_script]
           security_context {
             run_as_user = "1000"

@@ -1,8 +1,7 @@
 ---
 display_name: Azure VM (Windows)
 description: Provision Azure VMs as Coder workspaces
-icon: ../../../site/static/icon/azure.png
-maintainer_github: coder
+icon: ../../../site/static/icon/azure.svg
 verified: true
 tags: [vm, windows, azure]
 ---
@@ -36,7 +35,7 @@ This means, when the workspace restarts, any tools or files outside of the data 
 
 ### Persistent VM
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > This approach requires the [`az` CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli#install) to be present in the PATH of your Coder Provisioner.
 > You will have to do this installation manually as it is not included in our official images.
 

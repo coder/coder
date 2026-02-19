@@ -149,10 +149,8 @@ func parseTemplateExample(projectFS, examplesFS fs.FS, name string) (te *codersd
 		errs = append(errs, err)
 	}
 
-	_, err = getString(frontMatter.FrontMatter, "maintainer_github")
-	if err != nil {
-		errs = append(errs, err)
-	}
+	// maintainer_github is optional — registry templates may not have it.
+	_, _ = getString(frontMatter.FrontMatter, "maintainer_github")
 
 	tags := []string{}
 	tagsRaw, exists := frontMatter.FrontMatter["tags"]

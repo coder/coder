@@ -866,7 +866,8 @@ site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensi
 	(cd site/ && pnpm exec biome format --write src/theme/icons.json)
 	touch "$@"
 
-examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
+examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go scripts/fetch-registry-templates.sh
+	bash scripts/fetch-registry-templates.sh
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 	touch "$@"
 

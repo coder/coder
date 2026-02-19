@@ -2,7 +2,6 @@
 display_name: AWS EC2 (Devcontainer)
 description: Provision AWS EC2 VMs with a devcontainer as Coder workspaces
 icon: ../../../site/static/icon/aws.svg
-maintainer_github: coder
 verified: true
 tags: [vm, linux, aws, persistent, devcontainer]
 ---
@@ -10,7 +9,7 @@ tags: [vm, linux, aws, persistent, devcontainer]
 # Remote Development on AWS EC2 VMs using a Devcontainer
 
 Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs) with this example template.
-![Architecture Diagram](./architecture.svg)
+![Architecture Diagram](../../.images/aws-devcontainer-architecture.svg)
 
 <!-- TODO: Add screenshot -->
 
@@ -31,51 +30,51 @@ instances provisioned by Coder:
 
 ```json
 {
-	"Version": "2012-10-17",
-	"Statement": [
-		{
-			"Sid": "VisualEditor0",
-			"Effect": "Allow",
-			"Action": [
-				"ec2:GetDefaultCreditSpecification",
-				"ec2:DescribeIamInstanceProfileAssociations",
-				"ec2:DescribeTags",
-				"ec2:DescribeInstances",
-				"ec2:DescribeInstanceTypes",
-				"ec2:DescribeInstanceStatus",
-				"ec2:CreateTags",
-				"ec2:RunInstances",
-				"ec2:DescribeInstanceCreditSpecifications",
-				"ec2:DescribeImages",
-				"ec2:ModifyDefaultCreditSpecification",
-				"ec2:DescribeVolumes"
-			],
-			"Resource": "*"
-		},
-		{
-			"Sid": "CoderResources",
-			"Effect": "Allow",
-			"Action": [
-				"ec2:DescribeInstanceAttribute",
-				"ec2:UnmonitorInstances",
-				"ec2:TerminateInstances",
-				"ec2:StartInstances",
-				"ec2:StopInstances",
-				"ec2:DeleteTags",
-				"ec2:MonitorInstances",
-				"ec2:CreateTags",
-				"ec2:RunInstances",
-				"ec2:ModifyInstanceAttribute",
-				"ec2:ModifyInstanceCreditSpecification"
-			],
-			"Resource": "arn:aws:ec2:*:*:instance/*",
-			"Condition": {
-				"StringEquals": {
-					"aws:ResourceTag/Coder_Provisioned": "true"
-				}
-			}
-		}
-	]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VisualEditor0",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:GetDefaultCreditSpecification",
+        "ec2:DescribeIamInstanceProfileAssociations",
+        "ec2:DescribeTags",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceTypes",
+        "ec2:DescribeInstanceStatus",
+        "ec2:CreateTags",
+        "ec2:RunInstances",
+        "ec2:DescribeInstanceCreditSpecifications",
+        "ec2:DescribeImages",
+        "ec2:ModifyDefaultCreditSpecification",
+        "ec2:DescribeVolumes"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CoderResources",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstanceAttribute",
+        "ec2:UnmonitorInstances",
+        "ec2:TerminateInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:DeleteTags",
+        "ec2:MonitorInstances",
+        "ec2:CreateTags",
+        "ec2:RunInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:ModifyInstanceCreditSpecification"
+      ],
+      "Resource": "arn:aws:ec2:*:*:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Coder_Provisioned": "true"
+        }
+      }
+    }
+  ]
 }
 ```
 
