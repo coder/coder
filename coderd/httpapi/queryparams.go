@@ -228,12 +228,11 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 		})
 	}
 
-	// It can be a sub-directory but not a sub-domain, as we have apps on
-	// sub-domains and that seems too dangerous.
-	if v.Host != base.Host || !strings.HasPrefix(v.Path, base.Path) {
+	// OAuth 2.1 requires exact redirect URI matching.
+	if v.Host != base.Host || v.Path != base.Path {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a subset of %s", queryParam, base),
+			Detail: fmt.Sprintf("Query param %q must exactly match %s", queryParam, base),
 		})
 	}
 
