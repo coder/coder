@@ -2,6 +2,8 @@ package mcp_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -23,6 +26,15 @@ import (
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// mcpGeneratePKCE creates a PKCE verifier and S256 challenge for MCP
+// e2e tests.
+func mcpGeneratePKCE() (verifier, challenge string) {
+	verifier = uuid.NewString() + uuid.NewString()
+	h := sha256.Sum256([]byte(verifier))
+	challenge = base64.RawURLEncoding.EncodeToString(h[:])
+	return verifier, challenge
+}
 
 func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 	t.Parallel()
@@ -553,31 +565,32 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		// In a real flow, this would be done through the browser consent page
 		// For testing, we'll create the code directly using the internal API
 
-		// First, we need to authorize the app (simulating user consent)
-		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=test_state",
-			api.AccessURL.String(), app.ID, "http://localhost:3000/callback")
+		// First, we need to authorize the app (simulating user consent).
+		staticVerifier, staticChallenge := mcpGeneratePKCE()
+		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=test_state&code_challenge=%s&code_challenge_method=S256",
+			api.AccessURL.String(), app.ID, "http://localhost:3000/callback", staticChallenge)
 
-		// Create an HTTP client that follows redirects but captures the final redirect
+		// Create an HTTP client that follows redirects but captures the final redirect.
 		client := &http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse // Stop following redirects
 			},
 		}
 
-		// Make the authorization request (this would normally be done in a browser)
+		// Make the authorization request (this would normally be done in a browser).
 		req, err := http.NewRequestWithContext(ctx, "GET", authURL, nil)
 		require.NoError(t, err)
-		// Use RFC 6750 Bearer token for authentication
+		// Use RFC 6750 Bearer token for authentication.
 		req.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		// The response should be a redirect to the consent page or directly to callback
-		// For testing purposes, let's simulate the POST consent approval
+		// The response should be a redirect to the consent page or directly to callback.
+		// For testing purposes, let's simulate the POST consent approval.
 		if resp.StatusCode == http.StatusOK {
-			// This means we got the consent page, now we need to POST consent
+			// This means we got the consent page, now we need to POST consent.
 			consentReq, err := http.NewRequestWithContext(ctx, "POST", authURL, nil)
 			require.NoError(t, err)
 			consentReq.Header.Set("Authorization", "Bearer "+coderClient.SessionToken())
@@ -588,7 +601,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			defer resp.Body.Close()
 		}
 
-		// Extract authorization code from redirect URL
+		// Extract authorization code from redirect URL.
 		require.True(t, resp.StatusCode >= 300 && resp.StatusCode < 400, "Expected redirect response")
 		location := resp.Header.Get("Location")
 		require.NotEmpty(t, location, "Expected Location header in redirect")
@@ -600,13 +613,14 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully obtained authorization code: %s", authCode[:10]+"...")
 
-		// Step 2: Exchange authorization code for access token and refresh token
+		// Step 2: Exchange authorization code for access token and refresh token.
 		tokenRequestBody := url.Values{
 			"grant_type":    {"authorization_code"},
 			"client_id":     {app.ID.String()},
 			"client_secret": {secret.ClientSecretFull},
 			"code":          {authCode},
 			"redirect_uri":  {"http://localhost:3000/callback"},
+			"code_verifier": {staticVerifier},
 		}
 
 		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
@@ -868,18 +882,19 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully registered dynamic client: %s", clientID)
 
-		// Step 3: Perform OAuth2 authorization code flow with dynamically registered client
-		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=dynamic_state",
-			api.AccessURL.String(), clientID, "http://localhost:3000/callback")
+		// Step 3: Perform OAuth2 authorization code flow with dynamically registered client.
+		dynamicVerifier, dynamicChallenge := mcpGeneratePKCE()
+		authURL := fmt.Sprintf("%s/oauth2/authorize?client_id=%s&response_type=code&redirect_uri=%s&state=dynamic_state&code_challenge=%s&code_challenge_method=S256",
+			api.AccessURL.String(), clientID, "http://localhost:3000/callback", dynamicChallenge)
 
-		// Create an HTTP client that captures redirects
+		// Create an HTTP client that captures redirects.
 		authClient := &http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse // Stop following redirects
 			},
 		}
 
-		// Make the authorization request with authentication
+		// Make the authorization request with authentication.
 		authReq, err := http.NewRequestWithContext(ctx, "GET", authURL, nil)
 		require.NoError(t, err)
 		authReq.Header.Set("Cookie", fmt.Sprintf("coder_session_token=%s", coderClient.SessionToken()))
@@ -888,18 +903,18 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		defer authResp.Body.Close()
 
-		// Handle the response - check for error first
+		// Handle the response - check for error first.
 		if authResp.StatusCode == http.StatusBadRequest {
-			// Read error response for debugging
+			// Read error response for debugging.
 			bodyBytes, err := io.ReadAll(authResp.Body)
 			require.NoError(t, err)
 			t.Logf("OAuth2 authorization error: %s", string(bodyBytes))
 			t.FailNow()
 		}
 
-		// Handle consent flow if needed
+		// Handle consent flow if needed.
 		if authResp.StatusCode == http.StatusOK {
-			// This means we got the consent page, now we need to POST consent
+			// This means we got the consent page, now we need to POST consent.
 			consentReq, err := http.NewRequestWithContext(ctx, "POST", authURL, nil)
 			require.NoError(t, err)
 			consentReq.Header.Set("Cookie", fmt.Sprintf("coder_session_token=%s", coderClient.SessionToken()))
@@ -910,7 +925,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			defer authResp.Body.Close()
 		}
 
-		// Extract authorization code from redirect
+		// Extract authorization code from redirect.
 		require.True(t, authResp.StatusCode >= 300 && authResp.StatusCode < 400,
 			"Expected redirect response, got %d", authResp.StatusCode)
 		location := authResp.Header.Get("Location")
@@ -923,13 +938,14 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 		t.Logf("Successfully obtained authorization code: %s", authCode[:10]+"...")
 
-		// Step 4: Exchange authorization code for access token
+		// Step 4: Exchange authorization code for access token.
 		tokenRequestBody := url.Values{
 			"grant_type":    {"authorization_code"},
 			"client_id":     {clientID},
 			"client_secret": {clientSecret},
 			"code":          {authCode},
 			"redirect_uri":  {"http://localhost:3000/callback"},
+			"code_verifier": {dynamicVerifier},
 		}
 
 		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",

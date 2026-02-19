@@ -158,7 +158,9 @@ func TestOAuth2InvalidPKCE(t *testing.T) {
 	)
 }
 
-func TestOAuth2WithoutPKCE(t *testing.T) {
+// TestOAuth2WithoutPKCEIsRejected verifies that authorization requests without
+// a code_challenge are rejected now that PKCE is mandatory.
+func TestOAuth2WithoutPKCEIsRejected(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -166,15 +168,15 @@ func TestOAuth2WithoutPKCE(t *testing.T) {
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	// Create OAuth2 app
-	app, clientSecret := oauth2providertest.CreateTestOAuth2App(t, client)
+	// Create OAuth2 app.
+	app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 	t.Cleanup(func() {
 		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
 	})
 
 	state := oauth2providertest.GenerateState(t)
 
-	// Perform authorization without PKCE
+	// Authorization without code_challenge should be rejected.
 	authParams := oauth2providertest.AuthorizeParams{
 		ClientID:     app.ID.String(),
 		ResponseType: "code",
@@ -182,21 +184,9 @@ func TestOAuth2WithoutPKCE(t *testing.T) {
 		State:        state,
 	}
 
-	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
-	require.NotEmpty(t, code, "should receive authorization code")
-
-	// Exchange code for token without PKCE
-	tokenParams := oauth2providertest.TokenExchangeParams{
-		GrantType:    "authorization_code",
-		Code:         code,
-		ClientID:     app.ID.String(),
-		ClientSecret: clientSecret,
-		RedirectURI:  oauth2providertest.TestRedirectURI,
-	}
-
-	token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), tokenParams)
-	require.NotEmpty(t, token.AccessToken, "should receive access token")
-	require.NotEmpty(t, token.RefreshToken, "should receive refresh token")
+	oauth2providertest.AuthorizeOAuth2AppExpectingError(
+		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+	)
 }
 
 func TestOAuth2TokenExchangeClientSecretBasic(t *testing.T) {
@@ -212,13 +202,16 @@ func TestOAuth2TokenExchangeClientSecretBasic(t *testing.T) {
 		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
 	})
 
+	codeVerifier, codeChallenge := oauth2providertest.GeneratePKCE(t)
 	state := oauth2providertest.GenerateState(t)
 
 	authParams := oauth2providertest.AuthorizeParams{
-		ClientID:     app.ID.String(),
-		ResponseType: "code",
-		RedirectURI:  oauth2providertest.TestRedirectURI,
-		State:        state,
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
 	}
 
 	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
@@ -229,6 +222,7 @@ func TestOAuth2TokenExchangeClientSecretBasic(t *testing.T) {
 	data.Set("grant_type", "authorization_code")
 	data.Set("code", code)
 	data.Set("redirect_uri", oauth2providertest.TestRedirectURI)
+	data.Set("code_verifier", codeVerifier)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", client.URL.String()+"/oauth2/tokens", strings.NewReader(data.Encode()))
 	require.NoError(t, err, "failed to create token request")
@@ -265,13 +259,16 @@ func TestOAuth2TokenExchangeClientSecretBasicInvalidSecret(t *testing.T) {
 		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
 	})
 
+	codeVerifier, codeChallenge := oauth2providertest.GeneratePKCE(t)
 	state := oauth2providertest.GenerateState(t)
 
 	authParams := oauth2providertest.AuthorizeParams{
-		ClientID:     app.ID.String(),
-		ResponseType: "code",
-		RedirectURI:  oauth2providertest.TestRedirectURI,
-		State:        state,
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               state,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
 	}
 
 	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
@@ -282,6 +279,7 @@ func TestOAuth2TokenExchangeClientSecretBasicInvalidSecret(t *testing.T) {
 	data.Set("grant_type", "authorization_code")
 	data.Set("code", code)
 	data.Set("redirect_uri", oauth2providertest.TestRedirectURI)
+	data.Set("code_verifier", codeVerifier)
 
 	wrongSecret := clientSecret + "x"
 

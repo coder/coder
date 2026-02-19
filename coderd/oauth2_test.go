@@ -2,6 +2,8 @@ package coderd_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -306,6 +308,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Path = path.Join(newURL.Path, "nested")
 				valid.RedirectURL = newURL.String()
 			},
+			authError: "Invalid query params:",
 		},
 		{
 			// Some oauth implementations allow this, but our users can host
@@ -481,11 +484,12 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			}
 
 			var code string
+			var verifier string
 			if test.defaultCode != nil {
 				code = *test.defaultCode
 			} else {
 				var err error
-				code, err = authorizationFlow(ctx, userClient, valid)
+				code, verifier, err = authorizationFlow(ctx, userClient, valid)
 				if test.authError != "" {
 					require.Error(t, err)
 					require.ErrorContains(t, err, test.authError)
@@ -500,8 +504,12 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				test.preToken(valid)
 			}
 
-			// Do the actual exchange.
-			token, err := valid.Exchange(ctx, code, test.exchangeMutate...)
+			// Do the actual exchange. Include PKCE code_verifier when
+			// we obtained a code through the authorization flow.
+			exchangeOpts := append([]oauth2.AuthCodeOption{
+				oauth2.SetAuthURLParam("code_verifier", verifier),
+			}, test.exchangeMutate...)
+			token, err := valid.Exchange(ctx, code, exchangeOpts...)
 			if test.tokenError != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, test.tokenError)
@@ -683,10 +691,11 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 }
 
 type exchangeSetup struct {
-	cfg    *oauth2.Config
-	app    codersdk.OAuth2ProviderApp
-	secret codersdk.OAuth2ProviderAppSecretFull
-	code   string
+	cfg      *oauth2.Config
+	app      codersdk.OAuth2ProviderApp
+	secret   codersdk.OAuth2ProviderAppSecretFull
+	code     string
+	verifier string
 }
 
 func TestOAuth2ProviderRevoke(t *testing.T) {
@@ -730,11 +739,13 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 			name: "OverrideCodeAndToken",
 			fn: func(ctx context.Context, client *codersdk.Client, s exchangeSetup) {
 				// Generating a new code should wipe out the old code.
-				code, err := authorizationFlow(ctx, client, s.cfg)
+				code, verifier, err := authorizationFlow(ctx, client, s.cfg)
 				require.NoError(t, err)
 
 				// Generating a new token should wipe out the old token.
-				_, err = s.cfg.Exchange(ctx, code)
+				_, err = s.cfg.Exchange(ctx, code,
+					oauth2.SetAuthURLParam("code_verifier", verifier),
+				)
 				require.NoError(t, err)
 			},
 			replacesToken: true,
@@ -770,14 +781,15 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 		}
 
 		// Go through the auth flow to get a code.
-		code, err := authorizationFlow(ctx, testClient, cfg)
+		code, verifier, err := authorizationFlow(ctx, testClient, cfg)
 		require.NoError(t, err)
 
 		return exchangeSetup{
-			cfg:    cfg,
-			app:    app,
-			secret: secret,
-			code:   code,
+			cfg:      cfg,
+			app:      app,
+			secret:   secret,
+			code:     code,
+			verifier: verifier,
 		}
 	}
 
@@ -794,12 +806,16 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 			test.fn(ctx, testClient, testEntities)
 
 			// Exchange should fail because the code should be gone.
-			_, err := testEntities.cfg.Exchange(ctx, testEntities.code)
+			_, err := testEntities.cfg.Exchange(ctx, testEntities.code,
+				oauth2.SetAuthURLParam("code_verifier", testEntities.verifier),
+			)
 			require.Error(t, err)
 
 			// Try again, this time letting the exchange complete first.
 			testEntities = setup(ctx, testClient, test.name+"-2")
-			token, err := testEntities.cfg.Exchange(ctx, testEntities.code)
+			token, err := testEntities.cfg.Exchange(ctx, testEntities.code,
+				oauth2.SetAuthURLParam("code_verifier", testEntities.verifier),
+			)
 			require.NoError(t, err)
 
 			// Validate the returned access token and that the app is listed.
@@ -872,25 +888,38 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 	}
 }
 
-func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2.Config) (string, error) {
-	state := uuid.NewString()
-	authURL := cfg.AuthCodeURL(state)
+// generatePKCE creates a PKCE verifier and S256 challenge for testing.
+func generatePKCE() (verifier, challenge string) {
+	verifier = uuid.NewString() + uuid.NewString()
+	h := sha256.Sum256([]byte(verifier))
+	challenge = base64.RawURLEncoding.EncodeToString(h[:])
+	return verifier, challenge
+}
 
-	// Make a POST request to simulate clicking "Allow" on the authorization page
-	// This bypasses the HTML consent page and directly processes the authorization
-	return oidctest.OAuth2GetCode(
+func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2.Config) (string, string, error) {
+	state := uuid.NewString()
+	verifier, challenge := generatePKCE()
+	authURL := cfg.AuthCodeURL(state,
+		oauth2.SetAuthURLParam("code_challenge", challenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+	)
+
+	// Make a POST request to simulate clicking "Allow" on the authorization page.
+	// This bypasses the HTML consent page and directly processes the authorization.
+	code, err := oidctest.OAuth2GetCode(
 		authURL,
 		func(req *http.Request) (*http.Response, error) {
-			// Change to POST to simulate the form submission
+			// Change to POST to simulate the form submission.
 			req.Method = http.MethodPost
 
-			// Prevent automatic redirect following
+			// Prevent automatic redirect following.
 			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			}
 			return client.Request(ctx, req.Method, req.URL.String(), nil)
 		},
 	)
+	return code, verifier, err
 }
 
 func must[T any](value T, err error) T {
@@ -997,11 +1026,15 @@ func TestOAuth2ProviderResourceIndicators(t *testing.T) {
 				Scopes:      []string{},
 			}
 
-			// Step 1: Authorization with resource parameter
+			// Step 1: Authorization with resource parameter and PKCE.
 			state := uuid.NewString()
-			authURL := cfg.AuthCodeURL(state)
+			verifier, challenge := generatePKCE()
+			authURL := cfg.AuthCodeURL(state,
+				oauth2.SetAuthURLParam("code_challenge", challenge),
+				oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+			)
 			if test.authResource != "" {
-				// Add resource parameter to auth URL
+				// Add resource parameter to auth URL.
 				parsedURL, err := url.Parse(authURL)
 				require.NoError(t, err)
 				query := parsedURL.Query()
@@ -1030,7 +1063,7 @@ func TestOAuth2ProviderResourceIndicators(t *testing.T) {
 
 			// Step 2: Token exchange with resource parameter
 			// Use custom token exchange since golang.org/x/oauth2 doesn't support resource parameter in token requests
-			token, err := customTokenExchange(ctx, ownerClient.URL.String(), apps.Default.ID.String(), secret.ClientSecretFull, code, apps.Default.CallbackURL, test.tokenResource)
+			token, err := customTokenExchange(ctx, ownerClient.URL.String(), apps.Default.ID.String(), secret.ClientSecretFull, code, apps.Default.CallbackURL, test.tokenResource, verifier)
 			if test.expectTokenError {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "invalid_target")
@@ -1127,9 +1160,13 @@ func TestOAuth2ProviderCrossResourceAudienceValidation(t *testing.T) {
 		Scopes:      []string{},
 	}
 
-	// Authorization with resource parameter for server1
+	// Authorization with resource parameter for server1 and PKCE.
 	state := uuid.NewString()
-	authURL := cfg.AuthCodeURL(state)
+	verifier, challenge := generatePKCE()
+	authURL := cfg.AuthCodeURL(state,
+		oauth2.SetAuthURLParam("code_challenge", challenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+	)
 	parsedURL, err := url.Parse(authURL)
 	require.NoError(t, err)
 	query := parsedURL.Query()
@@ -1149,8 +1186,11 @@ func TestOAuth2ProviderCrossResourceAudienceValidation(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Exchange code for token with resource parameter
-	token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("resource", resource1))
+	// Exchange code for token with resource parameter and PKCE verifier.
+	token, err := cfg.Exchange(ctx, code,
+		oauth2.SetAuthURLParam("resource", resource1),
+		oauth2.SetAuthURLParam("code_verifier", verifier),
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, token.AccessToken)
 
@@ -1226,9 +1266,11 @@ func TestOAuth2RefreshExpiryOutlivesAccess(t *testing.T) {
 	}
 
 	// Authorization and token exchange
-	code, err := authorizationFlow(ctx, ownerClient, cfg)
+	code, verifier, err := authorizationFlow(ctx, ownerClient, cfg)
 	require.NoError(t, err)
-	tok, err := cfg.Exchange(ctx, code)
+	tok, err := cfg.Exchange(ctx, code,
+		oauth2.SetAuthURLParam("code_verifier", verifier),
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, tok.AccessToken)
 	require.NotEmpty(t, tok.RefreshToken)
@@ -1253,7 +1295,7 @@ func TestOAuth2RefreshExpiryOutlivesAccess(t *testing.T) {
 
 // customTokenExchange performs a custom OAuth2 token exchange with support for resource parameter
 // This is needed because golang.org/x/oauth2 doesn't support custom parameters in token requests
-func customTokenExchange(ctx context.Context, baseURL, clientID, clientSecret, code, redirectURI, resource string) (*oauth2.Token, error) {
+func customTokenExchange(ctx context.Context, baseURL, clientID, clientSecret, code, redirectURI, resource, codeVerifier string) (*oauth2.Token, error) {
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
 	data.Set("code", code)
@@ -1262,6 +1304,9 @@ func customTokenExchange(ctx context.Context, baseURL, clientID, clientSecret, c
 	data.Set("redirect_uri", redirectURI)
 	if resource != "" {
 		data.Set("resource", resource)
+	}
+	if codeVerifier != "" {
+		data.Set("code_verifier", codeVerifier)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/oauth2/tokens", strings.NewReader(data.Encode()))
@@ -1637,17 +1682,21 @@ func TestOAuth2CoderClient(t *testing.T) {
 	// Make a new user
 	client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 
-	// Do an OAuth2 token exchange and get a new client with an oauth token
+	// Do an OAuth2 token exchange and get a new client with an oauth token.
 	state := uuid.NewString()
+	verifier, challenge := generatePKCE()
 
-	// Get an OAuth2 code for a token exchange
+	// Get an OAuth2 code for a token exchange.
 	code, err := oidctest.OAuth2GetCode(
-		cfg.AuthCodeURL(state),
+		cfg.AuthCodeURL(state,
+			oauth2.SetAuthURLParam("code_challenge", challenge),
+			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		),
 		func(req *http.Request) (*http.Response, error) {
-			// Change to POST to simulate the form submission
+			// Change to POST to simulate the form submission.
 			req.Method = http.MethodPost
 
-			// Prevent automatic redirect following
+			// Prevent automatic redirect following.
 			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			}
@@ -1656,7 +1705,9 @@ func TestOAuth2CoderClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	token, err := cfg.Exchange(ctx, code)
+	token, err := cfg.Exchange(ctx, code,
+		oauth2.SetAuthURLParam("code_verifier", verifier),
+	)
 	require.NoError(t, err)
 
 	// Use the oauth client's authentication
