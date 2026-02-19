@@ -5,14 +5,17 @@ import type {
 } from "api/api";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
 	createTestQueryClient,
 	renderComponent,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { ChatModelAdminPanel } from "./ChatModelAdminPanel";
+import {
+	ChatModelAdminPanel,
+	type ChatModelAdminSection,
+} from "./ChatModelAdminPanel";
 
 const now = "2026-02-18T12:00:00.000Z";
 const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
@@ -33,14 +36,18 @@ type RequestLog = {
 };
 
 const createProviderConfig = (
-	overrides: Partial<ChatProviderConfig> & Pick<ChatProviderConfig, "id" | "provider">,
+	overrides: Partial<ChatProviderConfig> &
+		Pick<ChatProviderConfig, "id" | "provider">,
 ): ChatProviderConfig => {
+	const hasAPIKey = Boolean(overrides.api_key_set ?? overrides.has_api_key);
 	return {
 		id: overrides.id,
 		provider: overrides.provider,
 		display_name: overrides.display_name ?? "",
 		enabled: overrides.enabled ?? true,
-		has_api_key: overrides.has_api_key ?? false,
+		api_key_set: hasAPIKey,
+		has_api_key: hasAPIKey,
+		base_url: overrides.base_url ?? "",
 		source: overrides.source ?? "database",
 		created_at: overrides.created_at ?? now,
 		updated_at: overrides.updated_at ?? now,
@@ -74,11 +81,14 @@ const installChatHandlers = (state: ChatAdminState, log?: RequestLog) => {
 			const provider = `${body.provider ?? ""}`.trim();
 			const apiKey = `${body.api_key ?? ""}`.trim();
 			const displayName = `${body.display_name ?? ""}`.trim();
+			const baseURL =
+				typeof body.base_url === "string" ? body.base_url.trim() : "";
 			const createdProvider = createProviderConfig({
 				id: `provider-${Date.now()}`,
 				provider,
 				display_name: displayName,
-				has_api_key: apiKey.length > 0,
+				api_key_set: apiKey.length > 0,
+				base_url: baseURL,
 				source: "database",
 			});
 
@@ -116,10 +126,18 @@ const installChatHandlers = (state: ChatAdminState, log?: RequestLog) => {
 					typeof body.display_name === "string"
 						? body.display_name
 						: currentProvider.display_name,
+				api_key_set:
+					typeof body.api_key === "string"
+						? body.api_key.trim().length > 0
+						: currentProvider.api_key_set,
 				has_api_key:
 					typeof body.api_key === "string"
 						? body.api_key.trim().length > 0
 						: currentProvider.has_api_key,
+				base_url:
+					typeof body.base_url === "string"
+						? body.base_url
+						: currentProvider.base_url,
 				updated_at: now,
 			};
 			state.providerConfigs = state.providerConfigs.map((providerConfig, index) =>
@@ -161,17 +179,17 @@ const installChatHandlers = (state: ChatAdminState, log?: RequestLog) => {
 	);
 };
 
-const renderPanel = () => {
+const renderPanel = (section: ChatModelAdminSection = "providers") => {
 	const queryClient = createTestQueryClient();
 	return renderComponent(
 		<QueryClientProvider client={queryClient}>
-			<ChatModelAdminPanel />
+			<ChatModelAdminPanel section={section} />
 		</QueryClientProvider>,
 	);
 };
 
 describe(ChatModelAdminPanel.name, () => {
-	it("renders provider options from backend provider data", async () => {
+	it("renders provider accordion cards from backend provider data", async () => {
 		installChatHandlers({
 			providerConfigs: [
 				createProviderConfig({
@@ -188,20 +206,21 @@ describe(ChatModelAdminPanel.name, () => {
 			},
 		});
 
-		renderPanel();
+		renderPanel("providers");
 
 		expect(await screen.findByText("OpenRouter")).toBeInTheDocument();
 		expect(screen.queryByText("OpenAI")).not.toBeInTheDocument();
+		expect(screen.getByLabelText("Base URL (optional)")).toBeInTheDocument();
 	});
 
-	it("shows env presets distinctly and allows BYO provider config", async () => {
+	it("shows env presets distinctly and blocks API key editing", async () => {
 		installChatHandlers({
 			providerConfigs: [
 				createProviderConfig({
 					id: nilProviderConfigID,
 					provider: "openai",
 					display_name: "OpenAI",
-					has_api_key: true,
+					api_key_set: true,
 					source: "env_preset",
 					enabled: true,
 				}),
@@ -209,7 +228,7 @@ describe(ChatModelAdminPanel.name, () => {
 					id: nilProviderConfigID,
 					provider: "anthropic",
 					display_name: "Anthropic",
-					has_api_key: true,
+					api_key_set: true,
 					source: "env_preset",
 					enabled: true,
 				}),
@@ -220,23 +239,24 @@ describe(ChatModelAdminPanel.name, () => {
 			},
 		});
 
-		renderPanel();
+		renderPanel("providers");
 
-		expect(await screen.findByText("Environment preset detected.")).toBeVisible();
+		expect(
+			await screen.findByText("API key managed by environment variable."),
+		).toBeVisible();
 		expect(screen.getByText("Anthropic")).toBeInTheDocument();
 		expect(
-			screen.getByText("Create a managed provider config before adding models."),
+			screen.getByText(
+				"This provider API key is managed by an environment variable.",
+			),
 		).toBeVisible();
-		const createProviderButton = screen.getByRole("button", {
-			name: "Create provider config",
-		});
-		expect(createProviderButton).toBeDisabled();
-
-		await userEvent.type(screen.getByLabelText("API key"), "sk-override");
-		expect(createProviderButton).toBeEnabled();
+		expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Create provider config" }),
+		).not.toBeInTheDocument();
 	});
 
-	it("creates provider config, updates models, and sends update provider requests", async () => {
+	it("creates and updates provider configs with base URL values", async () => {
 		const state: ChatAdminState = {
 			providerConfigs: [
 				createProviderConfig({
@@ -245,7 +265,7 @@ describe(ChatModelAdminPanel.name, () => {
 					display_name: "OpenAI",
 					source: "supported",
 					enabled: false,
-					has_api_key: false,
+					api_key_set: false,
 				}),
 			],
 			modelConfigs: [],
@@ -267,11 +287,12 @@ describe(ChatModelAdminPanel.name, () => {
 		};
 		installChatHandlers(state, log);
 
-		renderPanel();
+		renderPanel("providers");
 
+		await userEvent.type(await screen.findByLabelText("API key"), "sk-provider-key");
 		await userEvent.type(
-			await screen.findByLabelText("API key"),
-			"sk-provider-key",
+			screen.getByLabelText("Base URL (optional)"),
+			"https://proxy.example.com/v1",
 		);
 		await userEvent.click(
 			screen.getByRole("button", { name: "Create provider config" }),
@@ -283,6 +304,7 @@ describe(ChatModelAdminPanel.name, () => {
 		expect(log.createProviderBodies[0]).toMatchObject({
 			provider: "openai",
 			api_key: "sk-provider-key",
+			base_url: "https://proxy.example.com/v1",
 		});
 
 		await waitFor(() => {
@@ -291,11 +313,12 @@ describe(ChatModelAdminPanel.name, () => {
 			).toBeInTheDocument();
 		});
 
-		const displayNameInput = screen.getByPlaceholderText(
-			"Friendly provider label",
-		);
+		const displayNameInput = screen.getByPlaceholderText("Friendly provider label");
 		await userEvent.clear(displayNameInput);
 		await userEvent.type(displayNameInput, "Primary OpenAI");
+		const baseURLInput = screen.getByLabelText("Base URL (optional)");
+		await userEvent.clear(baseURLInput);
+		await userEvent.type(baseURLInput, "https://internal-proxy.example.com/v2");
 		await userEvent.type(
 			screen.getByLabelText("API key (optional)"),
 			"sk-updated-provider-key",
@@ -310,9 +333,63 @@ describe(ChatModelAdminPanel.name, () => {
 		expect(log.updateProviderBodies[0].body).toMatchObject({
 			display_name: "Primary OpenAI",
 			api_key: "sk-updated-provider-key",
+			base_url: "https://internal-proxy.example.com/v2",
 		});
+	});
 
-		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-mini");
+	it("models section lists all configured models and supports provider-scoped creation", async () => {
+		const state: ChatAdminState = {
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					api_key_set: true,
+				}),
+				createProviderConfig({
+					id: nilProviderConfigID,
+					provider: "anthropic",
+					display_name: "Anthropic",
+					source: "supported",
+					api_key_set: false,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-initial",
+					provider: "openai",
+					model: "gpt-5-mini",
+				}),
+				createModelConfig({
+					id: "model-anthropic",
+					provider: "anthropic",
+					model: "claude-sonnet-4-5",
+				}),
+			],
+			modelCatalog: {
+				providers: [],
+			},
+		};
+		const log: RequestLog = {
+			createProviderBodies: [],
+			updateProviderBodies: [],
+			createModelBodies: [],
+		};
+		installChatHandlers(state, log);
+
+		renderPanel("models");
+
+		expect(await screen.findByLabelText("Provider for new model")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByRole("combobox", { name: "Provider for new model" }),
+			).not.toBeDisabled();
+		});
+		expect(await screen.findAllByText("gpt-5-mini")).not.toHaveLength(0);
+		expect(await screen.findAllByText("claude-sonnet-4-5")).not.toHaveLength(0);
+
+		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-nano");
 		await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
 		await waitFor(() => {
@@ -320,13 +397,32 @@ describe(ChatModelAdminPanel.name, () => {
 		});
 		expect(log.createModelBodies[0]).toMatchObject({
 			provider: "openai",
-			model: "gpt-5-mini",
+			model: "gpt-5-nano",
 		});
-		expect(await screen.findAllByText("gpt-5-mini")).not.toHaveLength(0);
+		expect(await screen.findAllByText("gpt-5-nano")).not.toHaveLength(0);
 
-		await userEvent.click(screen.getByRole("button", { name: "Remove model" }));
+		const nanoRowLabel = (await screen.findAllByText("gpt-5-nano"))[0];
+		const nanoRow = nanoRowLabel.closest(
+			"div.flex.items-start.justify-between",
+		);
+		expect(nanoRow).not.toBeNull();
+		await userEvent.click(
+			within(nanoRow as HTMLElement).getByRole("button", {
+				name: "Remove model",
+			}),
+		);
 		await waitFor(() => {
-			expect(screen.queryAllByText("gpt-5-mini")).toHaveLength(0);
+			expect(screen.queryAllByText("gpt-5-nano")).toHaveLength(0);
 		});
+
+		await userEvent.click(
+			screen.getByRole("combobox", { name: "Provider for new model" }),
+		);
+		await userEvent.click(screen.getByRole("option", { name: "Anthropic" }));
+		expect(
+			await screen.findByText(
+				"Create a managed provider config before adding models.",
+			),
+		).toBeVisible();
 	});
 });
