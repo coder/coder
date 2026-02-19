@@ -3714,7 +3714,7 @@ func TestWorkspaceBuildUpdatesChannel(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSubscribe()
 
-	logger := testutil.Logger(t).Named(t.Name())
+	logger := testutil.Logger(t).Named("test")
 
 	waitForUpdate := func(event string, workspaceID uuid.UUID, expectedTransition, expectedStatus string) codersdk.WorkspaceBuildUpdate {
 		t.Helper()
