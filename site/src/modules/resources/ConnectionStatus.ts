@@ -58,9 +58,9 @@ export function connectionTypeLabel(
 		case "ssh":
 			return "SSH";
 		case "reconnecting_pty":
-			return "ReconnectingPTY";
+			return "Web Terminal";
 		case "vscode":
-			return "VSCode";
+			return "VS Code";
 		case "jetbrains":
 			return "JetBrains";
 		case "workspace_app":

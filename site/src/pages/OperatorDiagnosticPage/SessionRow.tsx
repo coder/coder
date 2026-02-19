@@ -15,6 +15,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { connectionTypeLabel } from "modules/resources/ConnectionStatus";
 import { cn } from "utils/cn";
 import { ForensicTimeline } from "./ForensicTimeline";
 import type { DiagnosticSession, DiagnosticSessionConnection } from "./types";
@@ -81,20 +82,8 @@ function formatTimeShort(iso: string): string {
 	});
 }
 
-const friendlyType: Record<string, string> = {
-	vscode: "VS Code",
-	ssh: "SSH",
-	reconnecting_pty: "Terminal",
-	workspace_app: "App",
-	port_forwarding: "Port",
-	jetbrains: "JetBrains",
-	system: "System",
-};
-
 function connLabel(conn: DiagnosticSessionConnection): string {
-	if (conn.type === "workspace_app" && conn.detail) return conn.detail;
-	if (conn.type === "port_forwarding" && conn.detail) return `Port ${conn.detail}`;
-	return friendlyType[conn.type] || conn.type;
+	return connectionTypeLabel(conn.type, conn.detail);
 }
 
 // typeDisplayLabel is the PROMINENT first column. Shows what kind of

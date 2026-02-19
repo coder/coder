@@ -1,22 +1,8 @@
 import type { ConnectionType } from "api/typesGenerated";
+import { connectionTypeLabel } from "modules/resources/ConnectionStatus";
 
 export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
-	switch (type) {
-		case "jetbrains":
-			return "JetBrains";
-		case "reconnecting_pty":
-			return "Web Terminal";
-		case "ssh":
-			return "SSH";
-		case "vscode":
-			return "VS Code";
-		case "port_forwarding":
-			return "Port Forwarding";
-		case "workspace_app":
-			return "Workspace App";
-		case "system":
-			return "System";
-	}
+	return connectionTypeLabel(type);
 };
 
 export const connectionTypeIsWeb = (type: ConnectionType): boolean => {
