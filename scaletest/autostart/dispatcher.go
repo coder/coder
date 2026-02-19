@@ -45,7 +45,6 @@ func (d *WorkspaceDispatcher) Start(ctx context.Context, source <-chan codersdk.
 				}
 			}
 		}
-		// Close all workspace channels when the source closes.
 		for _, ch := range d.Channels {
 			close(ch)
 		}

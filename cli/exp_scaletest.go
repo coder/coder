@@ -1809,7 +1809,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.New("the workspace-build-updates experiment must be enabled to run the autostart scaletest")
 			}
 
-			// Create dispatcher for coordinating build updates across workspaces.
 			workspaceNames := make([]string, 0, workspaceCount)
 			for i := range workspaceCount {
 				id := strconv.Itoa(int(i))
@@ -1817,7 +1816,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			}
 			dispatcher := autostart.NewWorkspaceDispatcher(workspaceNames)
 
-			// Start watching all workspace builds and dispatch updates.
 			buildUpdates, err := client.WatchAllWorkspaceBuilds(ctx)
 			if err != nil {
 				return xerrors.Errorf("watch all workspace builds: %w", err)
@@ -1829,8 +1827,6 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
 			for workspaceName, buildUpdatesChannel := range dispatcher.Channels {
-				// Extract the numeric ID from the workspace name for use in user generation.
-				// The workspace name format is "scaletest-{id}", so we extract the suffix.
 				id := strings.TrimPrefix(workspaceName, loadtestutil.ScaleTestPrefix+"-")
 
 				config := autostart.Config{

@@ -82,10 +82,8 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("create workspace: %w", err)
 	}
 
-	// Use the pre-provided build updates channel for this workspace.
 	buildUpdates := r.cfg.BuildUpdates
 
-	// Wait for the initial workspace build to complete.
 	createWorkspaceCtx, cancel := context.WithTimeout(ctx, r.cfg.WorkspaceJobTimeout)
 	defer cancel()
 
@@ -97,7 +95,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	logger.Info(ctx, "workspace started successfully", slog.F("workspace_name", workspace.Name))
 
-	// Stop the workspace.
 	logger.Info(ctx, "stopping workspace", slog.F("workspace_name", workspace.Name))
 
 	_, err = newUserClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
@@ -107,7 +104,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("create stop build: %w", err)
 	}
 
-	// Wait for the stop build to complete.
 	stopBuildCtx, cancel := context.WithTimeout(ctx, r.cfg.WorkspaceJobTimeout)
 	defer cancel()
 
