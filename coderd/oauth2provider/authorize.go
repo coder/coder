@@ -119,6 +119,22 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			return
 		}
 
+		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				HideStatus:  false,
+				Title:       "Unsupported Response Type",
+				Description: "Only response_type=code is supported.",
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
+			return
+		}
+
 		cancel := params.redirectURL
 		cancelQuery := params.redirectURL.Query()
 		cancelQuery.Add("error", "access_denied")
