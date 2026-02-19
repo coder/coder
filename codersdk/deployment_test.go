@@ -918,7 +918,7 @@ func TestHTTPCookieConfigMiddleware(t *testing.T) {
 			name: "Enabled_StripsPrefixFromCookie",
 			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
 			extraCookies: []*http.Cookie{
-				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "token123"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "token123"},
 			},
 			expectedCookies: map[string]string{
 				codersdk.SessionTokenCookie: "token123",
@@ -944,7 +944,7 @@ func TestHTTPCookieConfigMiddleware(t *testing.T) {
 				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
 				{Name: codersdk.PathAppSessionTokenCookie, Value: "unprefixed-token"},
 				{Name: codersdk.SubdomainAppSessionTokenCookie, Value: "unprefixed-token"},
-				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "prefixed-token"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "prefixed-token"},
 			},
 			expectedCookies: map[string]string{
 				codersdk.SessionTokenCookie: "prefixed-token", // Prefixed wins.
@@ -955,9 +955,9 @@ func TestHTTPCookieConfigMiddleware(t *testing.T) {
 			name: "Enabled_MultiplePrefixedCookies",
 			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
 			extraCookies: []*http.Cookie{
-				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "session"},
-				{Name: "__HOST-" + codersdk.PathAppSessionTokenCookie, Value: "path-app"},
-				{Name: "__HOST-" + codersdk.SubdomainAppSessionTokenCookie, Value: "subdomain-app"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__Host-" + codersdk.PathAppSessionTokenCookie, Value: "path-app"},
+				{Name: "__Host-" + codersdk.SubdomainAppSessionTokenCookie, Value: "subdomain-app"},
 			},
 			expectedCookies: map[string]string{
 				codersdk.SessionTokenCookie:             "session",
@@ -970,13 +970,13 @@ func TestHTTPCookieConfigMiddleware(t *testing.T) {
 			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
 			extraCookies: []*http.Cookie{
 				{Name: "custom_cookie", Value: "custom-value"},
-				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "session"},
-				{Name: "__HOST-foobar", Value: "do-not-change-me"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__Host-foobar", Value: "do-not-change-me"},
 			},
 			expectedCookies: map[string]string{
 				"custom_cookie":             "custom-value",
 				codersdk.SessionTokenCookie: "session",
-				"__HOST-foobar":             "do-not-change-me",
+				"__Host-foobar":             "do-not-change-me",
 			},
 		},
 	}
@@ -1066,24 +1066,24 @@ func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
 			name: "Enabled_WithPrefixedCookie",
 			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
 			extraCookies: []*http.Cookie{
-				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
 			},
 		},
 		{
 			name: "Enabled_MultiplePrefixedCookies",
 			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
 			extraCookies: []*http.Cookie{
-				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
-				{Name: "__HOST-" + codersdk.PathAppSessionTokenCookie, Value: "xyz123"},
-				{Name: "__HOST-" + codersdk.SubdomainAppSessionTokenCookie, Value: "abc456"},
-				{Name: "__HOST-" + "foobar", Value: "do-not-change-me"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+				{Name: "__Host-" + codersdk.PathAppSessionTokenCookie, Value: "xyz123"},
+				{Name: "__Host-" + codersdk.SubdomainAppSessionTokenCookie, Value: "abc456"},
+				{Name: "__Host-" + "foobar", Value: "do-not-change-me"},
 			},
 		},
 		{
 			name: "Enabled_NonSessionPrefixedCookies",
 			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
 			extraCookies: []*http.Cookie{
-				{Name: "__HOST-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
 			},
 		},
 	}

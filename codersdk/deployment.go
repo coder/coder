@@ -852,7 +852,7 @@ type TraceConfig struct {
 	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
-const cookieHostPrefix = "__HOST-"
+const cookieHostPrefix = "__Host-"
 
 type HTTPCookieConfig struct {
 	Secure           serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
@@ -2894,8 +2894,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
-			Name:        "__HOST Prefix Cookies",
-			Description: "Recommended to be enabled. Enables `__HOST-` prefix for cookies to guarantee they are only set by the right domain.",
+			Name:        "__Host Prefix Cookies",
+			Description: "Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain.",
 			Flag:        "host-prefix-cookie",
 			Env:         "CODER_HOST_PREFIX_COOKIE",
 			Value:       serpent.BoolOf(&c.HTTPCookies.EnableHostPrefix),
