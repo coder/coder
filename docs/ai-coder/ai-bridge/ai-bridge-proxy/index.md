@@ -1,4 +1,4 @@
- AI Bridge Proxy
+# AI Bridge Proxy
 
 AI Bridge Proxy extends [AI Bridge](../index.md) to support clients that don't allow base URL overrides.
 While AI Bridge requires clients to support custom base URLs, many popular AI coding tools lack this capability.

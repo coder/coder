@@ -5,6 +5,25 @@
 AI Bridge runs as an in-process component within `coderd` (the Coder control
 plane). It does not require a separate deployment or infrastructure.
 
+### Key architectural points
+
+- **Developers never hold provider API keys.** They authenticate with their
+  existing Coder credentials.
+- **The enterprise holds one key per provider.** These are configured centrally
+  in `coderd` via environment variables or Helm values.
+- **Template-level configuration.** Configure AI Bridge once in a workspace
+  template, and it propagates to every workspace created from that template.
+- **Universal client compatibility.** Works with any AI tool that supports base
+  URL overrides, including Claude Code, Codex, Cline, Zed, and more. For tools
+  that don't support base URL overrides, [AI Bridge Proxy](./ai-bridge-proxy/index.md)
+  can intercept traffic transparently.
+
+## Implementation Details
+
+`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
+
+![AI Bridge implementation details](../../images/aibridge/aibridge-implementation-details.png)
+
 ### Request lifecycle
 
 1. A template admin configures AI Bridge base URLs and session tokens in the
@@ -24,25 +43,6 @@ plane). It does not require a separate deployment or infrastructure.
    the user and sends results back to the LLM.
 9. Bridge logs usage (tokens, tools, model, user) and returns the final response
    to the agent.
-
-### Key architectural points
-
-- **Developers never hold provider API keys.** They authenticate with their
-  existing Coder credentials.
-- **The enterprise holds one key per provider.** These are configured centrally
-  in `coderd` via environment variables or Helm values.
-- **Template-level configuration.** Configure AI Bridge once in a workspace
-  template, and it propagates to every workspace created from that template.
-- **Universal client compatibility.** Works with any AI tool that supports base
-  URL overrides, including Claude Code, Codex, Cline, Zed, and more. For tools
-  that don't support base URL overrides, [AI Bridge Proxy](./ai-bridge-proxy/index.md)
-  can intercept traffic transparently.
-
-## Implementation Details
-
-`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
-
-![AI Bridge implementation details](../../images/aibridge/aibridge-implementation-details.png)
 
 ## Supported APIs
 

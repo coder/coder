@@ -134,7 +134,6 @@ To configure a specific trace endpoint:
 
 ```bash
 export CODER_TRACE_ENABLE=true
-export CODER_TRACE_ENDPOINT=<your-otel-collector-endpoint>
 ```
 
 ### What is Traced
@@ -189,16 +188,6 @@ rates — all labeled by user, model, and provider.
 
 For general Prometheus setup, see the
 [Coder Prometheus documentation](https://coder.com/docs/admin/integrations/prometheus).
-
-## Rate limiting
-
-AI Bridge supports rate limiting to protect upstream providers and your
-deployment:
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `CODER_AIBRIDGE_MAX_RPS` | Maximum requests per second per replica. Set to `0` to disable. | `0` |
-| `CODER_AIBRIDGE_MAX_CONCURRENT` | Maximum concurrent requests per replica. Set to `0` to disable. | `0` |
 
 ## Next steps
 
