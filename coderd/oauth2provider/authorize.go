@@ -25,6 +25,7 @@ import (
 type authorizeParams struct {
 	clientID            string
 	redirectURL         *url.URL
+	redirectURIProvided bool
 	responseType        codersdk.OAuth2ProviderResponseType
 	scope               []string
 	state               string
@@ -44,6 +45,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
 		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
+		redirectURIProvided: vals.Has("redirect_uri"),
 		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 		state:               p.String(vals, "", "state"),
@@ -208,7 +210,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 				StateHash:           hashOAuth2State(params.state),
-				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: true},
+				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)
