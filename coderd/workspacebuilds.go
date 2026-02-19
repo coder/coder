@@ -768,12 +768,13 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 
 	// Publish workspace build update to the all builds channel if the experiment is enabled.
 	if api.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
-		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, api.Pubsub, wspubsub.WorkspaceBuildUpdate{
-			WorkspaceID: workspace.ID,
-			BuildID:     workspaceBuild.ID,
-			Transition:  string(workspaceBuild.Transition),
-			JobStatus:   string(database.ProvisionerJobStatusCanceled),
-			BuildNumber: workspaceBuild.BuildNumber,
+		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, api.Pubsub, codersdk.WorkspaceBuildUpdate{
+			WorkspaceID:   workspace.ID,
+			WorkspaceName: workspace.Name,
+			BuildID:       workspaceBuild.ID,
+			Transition:    string(workspaceBuild.Transition),
+			JobStatus:     string(database.ProvisionerJobStatusCanceled),
+			BuildNumber:   workspaceBuild.BuildNumber,
 		})
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))

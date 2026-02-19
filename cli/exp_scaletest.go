@@ -1808,21 +1808,16 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.New("the workspace-build-updates experiment must be enabled to run the autostart scaletest")
 			}
 
-			// Map of workspace IDs to channels for dispatching updates.
-			workspaceChannels := make(map[uuid.UUID]chan codersdk.WorkspaceBuildUpdate)
-			var workspaceChannelsMu sync.RWMutex
-
-			// RegisterWorkspace creates a channel for the given workspace ID
-			// and returns it. The channel is buffered to hold all expected
-			// job status updates during coordination: initial build (~3),
-			// stop build (~3), and autostart build (~3) = ~9 updates. We use
-			// 16 to provide headroom for delivery timing variations.
-			registerWorkspace := func(workspaceID uuid.UUID) <-chan codersdk.WorkspaceBuildUpdate {
-				workspaceChannelsMu.Lock()
-				defer workspaceChannelsMu.Unlock()
-				ch := make(chan codersdk.WorkspaceBuildUpdate, 16)
-				workspaceChannels[workspaceID] = ch
-				return ch
+			// Map of workspace names to channels for dispatching updates.
+			// Pre-create all channels before starting the dispatcher to avoid races.
+			workspaceChannels := make(map[string]chan codersdk.WorkspaceBuildUpdate)
+			for i := range workspaceCount {
+				id := strconv.Itoa(int(i))
+				workspaceName := loadtestutil.GenerateDeterministicWorkspaceName(id)
+				// Buffer holds all expected job status updates during coordination:
+				// initial build (~3), stop build (~3), and autostart build (~3) = ~9
+				// updates. We use 16 to provide headroom for delivery timing variations.
+				workspaceChannels[workspaceName] = make(chan codersdk.WorkspaceBuildUpdate, 16)
 			}
 
 			// Start watching all workspace builds and dispatch updates.
@@ -1831,13 +1826,11 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.Errorf("watch all workspace builds: %w", err)
 			}
 
-			// Start the dispatcher goroutine.
+			// Start the dispatcher goroutine. All channels are pre-created so the
+			// map is now read-only and safe for concurrent access.
 			go func() {
 				for update := range buildUpdates {
-					workspaceChannelsMu.RLock()
-					ch, ok := workspaceChannels[update.WorkspaceID]
-					workspaceChannelsMu.RUnlock()
-					if ok {
+					if ch, ok := workspaceChannels[update.WorkspaceName]; ok {
 						select {
 						case ch <- update:
 						case <-ctx.Done():
@@ -1846,16 +1839,17 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 					}
 				}
 				// Close all channels when the build updates channel closes.
-				workspaceChannelsMu.Lock()
 				for _, ch := range workspaceChannels {
 					close(ch)
 				}
-				workspaceChannelsMu.Unlock()
 			}()
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
-			for i := range workspaceCount {
-				id := strconv.Itoa(int(i))
+			for workspaceName, buildUpdatesChannel := range workspaceChannels {
+				// Extract the numeric ID from the workspace name for use in user generation.
+				// The workspace name format is "scaletest-{id}", so we extract the suffix.
+				id := strings.TrimPrefix(workspaceName, loadtestutil.ScaleTestPrefix+"-")
+
 				config := autostart.Config{
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
@@ -1865,12 +1859,14 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 						Request: codersdk.CreateWorkspaceRequest{
 							TemplateID:          tpl.ID,
 							RichParameterValues: richParameters,
+							// Use deterministic workspace name so we can pre-create the channel.
+							Name: workspaceName,
 						},
 					},
 					WorkspaceJobTimeout: workspaceJobTimeout,
 					AutostartDelay:      autostartDelay,
 					SetupBarrier:        setupBarrier,
-					RegisterWorkspace:   registerWorkspace,
+					BuildUpdates:        buildUpdatesChannel,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)

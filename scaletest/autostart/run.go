@@ -82,17 +82,17 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("create workspace: %w", err)
 	}
 
-	// Register the workspace to receive build updates from the centralized
-	// pubsub channel.
-	buildUpdates := r.cfg.RegisterWorkspace(workspace.ID)
+	// Use the pre-provided build updates channel for this workspace.
+	buildUpdates := r.cfg.BuildUpdates
 
 	// Wait for the initial workspace build to complete.
 	createWorkspaceCtx, cancel := context.WithTimeout(ctx, r.cfg.WorkspaceJobTimeout)
 	defer cancel()
 
+	logger.Info(ctx, "waiting for initial workspace build", slog.F("workspace_name", workspace.Name), slog.F("workspace_id", workspace.ID.String()))
 	err = waitForBuild(createWorkspaceCtx, logger, buildUpdates, codersdk.WorkspaceTransitionStart)
 	if err != nil {
-		return xerrors.Errorf("wait for initial workspace build: %w", err)
+		return xerrors.Errorf("wait for initial workspace build (workspace=%s, id=%s): %w", workspace.Name, workspace.ID, err)
 	}
 
 	logger.Info(ctx, "workspace started successfully", slog.F("workspace_name", workspace.Name))

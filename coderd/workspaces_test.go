@@ -3698,10 +3698,10 @@ func TestWorkspaceBuildUpdatesChannel(t *testing.T) {
 
 	// Subscribe to the all workspace updates channel BEFORE creating the workspace
 	// so we can use it to wait for the initial build.
-	updates := make(chan wspubsub.WorkspaceBuildUpdate, 64)
+	updates := make(chan codersdk.WorkspaceBuildUpdate, 64)
 	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(wspubsub.AllWorkspaceEventChannel,
 		wspubsub.HandleWorkspaceBuildUpdate(
-			func(_ context.Context, update wspubsub.WorkspaceBuildUpdate, err error) {
+			func(_ context.Context, update codersdk.WorkspaceBuildUpdate, err error) {
 				if err != nil {
 					return
 				}
@@ -3716,13 +3716,13 @@ func TestWorkspaceBuildUpdatesChannel(t *testing.T) {
 
 	logger := testutil.Logger(t).Named(t.Name())
 
-	waitForUpdate := func(event string, workspaceID uuid.UUID, expectedTransition, expectedStatus string) wspubsub.WorkspaceBuildUpdate {
+	waitForUpdate := func(event string, workspaceID uuid.UUID, expectedTransition, expectedStatus string) codersdk.WorkspaceBuildUpdate {
 		t.Helper()
 		for {
 			select {
 			case <-ctx.Done():
 				require.FailNow(t, "timed out waiting for event", event)
-				return wspubsub.WorkspaceBuildUpdate{}
+				return codersdk.WorkspaceBuildUpdate{}
 			case update := <-updates:
 				logger.Info(ctx, "received workspace build update",
 					slog.F("event", event),

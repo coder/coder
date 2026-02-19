@@ -1283,12 +1283,13 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 
 		// Publish workspace build update to the all builds channel if the experiment is enabled.
 		if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
-			err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, wspubsub.WorkspaceBuildUpdate{
-				WorkspaceID: workspace.ID,
-				BuildID:     build.ID,
-				Transition:  string(build.Transition),
-				JobStatus:   string(database.ProvisionerJobStatusFailed),
-				BuildNumber: build.BuildNumber,
+			err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, codersdk.WorkspaceBuildUpdate{
+				WorkspaceID:   workspace.ID,
+				WorkspaceName: workspace.Name,
+				BuildID:       build.ID,
+				Transition:    string(build.Transition),
+				JobStatus:     string(database.ProvisionerJobStatusFailed),
+				BuildNumber:   build.BuildNumber,
 			})
 			if err != nil {
 				s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
@@ -2491,12 +2492,13 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 	// Publish workspace build update to the all builds channel if the experiment is enabled.
 	if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
-		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, wspubsub.WorkspaceBuildUpdate{
-			WorkspaceID: workspace.ID,
-			BuildID:     workspaceBuild.ID,
-			Transition:  string(workspaceBuild.Transition),
-			JobStatus:   string(database.ProvisionerJobStatusSucceeded),
-			BuildNumber: workspaceBuild.BuildNumber,
+		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, codersdk.WorkspaceBuildUpdate{
+			WorkspaceID:   workspace.ID,
+			WorkspaceName: workspace.Name,
+			BuildID:       workspaceBuild.ID,
+			Transition:    string(workspaceBuild.Transition),
+			JobStatus:     string(database.ProvisionerJobStatusSucceeded),
+			BuildNumber:   workspaceBuild.BuildNumber,
 		})
 		if err != nil {
 			s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))

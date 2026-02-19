@@ -6756,6 +6756,7 @@ export interface WorkspaceBuildTimings {
  */
 export interface WorkspaceBuildUpdate {
 	readonly workspace_id: string;
+	readonly workspace_name: string;
 	readonly build_id: string;
 	/**
 	 * Transition is the workspace transition type: "start", "stop", or "delete".

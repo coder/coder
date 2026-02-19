@@ -792,8 +792,9 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 // This is published via the /watch-all-workspacebuilds SSE endpoint when the
 // workspace-build-updates experiment is enabled.
 type WorkspaceBuildUpdate struct {
-	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
-	BuildID     uuid.UUID `json:"build_id" format:"uuid"`
+	WorkspaceID   uuid.UUID `json:"workspace_id" format:"uuid"`
+	WorkspaceName string    `json:"workspace_name"`
+	BuildID       uuid.UUID `json:"build_id" format:"uuid"`
 	// Transition is the workspace transition type: "start", "stop", or "delete".
 	Transition string `json:"transition"`
 	// JobStatus is the provisioner job status: "pending", "running",

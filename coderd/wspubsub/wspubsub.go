@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // AllWorkspaceEventChannel is a global channel that receives events for all
@@ -14,32 +16,17 @@ import (
 // creating N separate subscriptions.
 const AllWorkspaceEventChannel = "workspace_updates:all"
 
-// WorkspaceBuildUpdate contains information about a workspace build state
-// change. This is specifically designed for cases where you need to know
-// when a build has completed, what the job status was, and what transition
-// type was performed.
-type WorkspaceBuildUpdate struct {
-	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
-	BuildID     uuid.UUID `json:"build_id" format:"uuid"`
-	// Transition is the workspace transition type: "start", "stop", or "delete".
-	Transition string `json:"transition"`
-	// JobStatus is the provisioner job status: "pending", "running",
-	// "succeeded", "canceling", "canceled", or "failed".
-	JobStatus   string `json:"job_status"`
-	BuildNumber int32  `json:"build_number"`
-}
-
 // HandleWorkspaceBuildUpdate wraps a callback to parse WorkspaceBuildUpdate
 // messages from the pubsub.
-func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload WorkspaceBuildUpdate, err error)) func(ctx context.Context, message []byte, err error) {
+func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload codersdk.WorkspaceBuildUpdate, err error)) func(ctx context.Context, message []byte, err error) {
 	return func(ctx context.Context, message []byte, err error) {
 		if err != nil {
-			cb(ctx, WorkspaceBuildUpdate{}, xerrors.Errorf("workspace build update pubsub: %w", err))
+			cb(ctx, codersdk.WorkspaceBuildUpdate{}, xerrors.Errorf("workspace build update pubsub: %w", err))
 			return
 		}
-		var payload WorkspaceBuildUpdate
+		var payload codersdk.WorkspaceBuildUpdate
 		if err := json.Unmarshal(message, &payload); err != nil {
-			cb(ctx, WorkspaceBuildUpdate{}, xerrors.Errorf("unmarshal workspace build update: %w", err))
+			cb(ctx, codersdk.WorkspaceBuildUpdate{}, xerrors.Errorf("unmarshal workspace build update: %w", err))
 			return
 		}
 		cb(ctx, payload, nil)
@@ -49,7 +36,7 @@ func HandleWorkspaceBuildUpdate(cb func(ctx context.Context, payload WorkspaceBu
 // PublishWorkspaceBuildUpdate is a helper to publish a workspace build update
 // to the AllWorkspaceEventChannel. This should be called when a build
 // completes (succeeds, fails, or is canceled).
-func PublishWorkspaceBuildUpdate(_ context.Context, ps Pubsub, update WorkspaceBuildUpdate) error {
+func PublishWorkspaceBuildUpdate(_ context.Context, ps Pubsub, update codersdk.WorkspaceBuildUpdate) error {
 	msg, err := json.Marshal(update)
 	if err != nil {
 		return xerrors.Errorf("marshal workspace build update: %w", err)

@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -34,10 +33,10 @@ type Config struct {
 	// before setting the autostart schedule on each.
 	SetupBarrier *sync.WaitGroup `json:"-"`
 
-	// RegisterWorkspace is called by the runner after creating a workspace
-	// to register it for receiving build updates from the centralized pubsub
-	// channel.
-	RegisterWorkspace func(workspaceID uuid.UUID) <-chan codersdk.WorkspaceBuildUpdate `json:"-"`
+	// BuildUpdates is a channel that receives workspace build updates for
+	// this specific workspace. The channel is pre-created and keyed by the
+	// deterministic workspace name.
+	BuildUpdates <-chan codersdk.WorkspaceBuildUpdate `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -55,8 +54,8 @@ func (c Config) Validate() error {
 		return xerrors.New("setup barrier must be set")
 	}
 
-	if c.RegisterWorkspace == nil {
-		return xerrors.New("register workspace must be set")
+	if c.BuildUpdates == nil {
+		return xerrors.New("build updates channel must be set")
 	}
 
 	if c.WorkspaceJobTimeout <= 0 {

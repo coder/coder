@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/autostart"
 	"github.com/coder/coder/v2/scaletest/createusers"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -78,16 +79,12 @@ func TestRun(t *testing.T) {
 	barrier := new(sync.WaitGroup)
 	barrier.Add(numUsers)
 
-	// Set up the centralized build updates channel.
-	workspaceChannels := make(map[uuid.UUID]chan codersdk.WorkspaceBuildUpdate)
-	var workspaceChannelsMu sync.RWMutex
-
-	registerWorkspace := func(workspaceID uuid.UUID) <-chan codersdk.WorkspaceBuildUpdate {
-		workspaceChannelsMu.Lock()
-		defer workspaceChannelsMu.Unlock()
-		ch := make(chan codersdk.WorkspaceBuildUpdate, 16)
-		workspaceChannels[workspaceID] = ch
-		return ch
+	// Pre-create channels for each workspace keyed by deterministic name.
+	workspaceChannels := make(map[string]chan codersdk.WorkspaceBuildUpdate)
+	for i := range numUsers {
+		id := strconv.Itoa(i)
+		workspaceName := loadtestutil.GenerateDeterministicWorkspaceName(id)
+		workspaceChannels[workspaceName] = make(chan codersdk.WorkspaceBuildUpdate, 16)
 	}
 
 	// Start watching all workspace builds.
@@ -97,10 +94,7 @@ func TestRun(t *testing.T) {
 	// Start the dispatcher goroutine.
 	go func() {
 		for update := range buildUpdates {
-			workspaceChannelsMu.RLock()
-			ch, ok := workspaceChannels[update.WorkspaceID]
-			workspaceChannelsMu.RUnlock()
-			if ok {
+			if ch, ok := workspaceChannels[update.WorkspaceName]; ok {
 				select {
 				case ch <- update:
 				case <-ctx.Done():
@@ -108,17 +102,17 @@ func TestRun(t *testing.T) {
 				}
 			}
 		}
-		workspaceChannelsMu.Lock()
 		for _, ch := range workspaceChannels {
 			close(ch)
 		}
-		workspaceChannelsMu.Unlock()
 	}()
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
 	runners := make([]*autostart.Runner, 0, numUsers)
 	for i := range numUsers {
+		id := strconv.Itoa(i)
+		workspaceName := loadtestutil.GenerateDeterministicWorkspaceName(id)
 		cfg := autostart.Config{
 			User: createusers.Config{
 				OrganizationID: user.OrganizationID,
@@ -127,13 +121,14 @@ func TestRun(t *testing.T) {
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
 					TemplateID: template.ID,
+					Name:       workspaceName,
 				},
 				NoWaitForAgents: true,
 			},
 			WorkspaceJobTimeout: testutil.WaitMedium,
 			AutostartDelay:      autoStartDelay,
 			SetupBarrier:        barrier,
-			RegisterWorkspace:   registerWorkspace,
+			BuildUpdates:        workspaceChannels[workspaceName],
 		}
 		err := cfg.Validate()
 		require.NoError(t, err)

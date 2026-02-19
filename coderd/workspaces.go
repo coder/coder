@@ -2209,20 +2209,14 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 	// Subscribe to all workspace build updates.
 	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(wspubsub.AllWorkspaceEventChannel,
 		wspubsub.HandleWorkspaceBuildUpdate(
-			func(_ context.Context, update wspubsub.WorkspaceBuildUpdate, err error) {
+			func(_ context.Context, update codersdk.WorkspaceBuildUpdate, err error) {
 				if err != nil {
 					api.Logger.Warn(ctx, "workspace build update subscription error", slog.Error(err))
 					return
 				}
 				_ = sendEvent(codersdk.ServerSentEvent{
 					Type: codersdk.ServerSentEventTypeData,
-					Data: codersdk.WorkspaceBuildUpdate{
-						WorkspaceID: update.WorkspaceID,
-						BuildID:     update.BuildID,
-						Transition:  update.Transition,
-						JobStatus:   update.JobStatus,
-						BuildNumber: update.BuildNumber,
-					},
+					Data: update,
 				})
 			}))
 	if err != nil {
