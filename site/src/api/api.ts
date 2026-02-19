@@ -2468,9 +2468,11 @@ class ApiMethods {
 	};
 
 	getInsightsUserStatusCounts = async (
+		timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 	): Promise<TypesGen.GetUserStatusCountsResponse> => {
 		const searchParams = new URLSearchParams({
+			timezone,
 			tz_offset: offset.toString(),
 		});
 		const response = await this.axios.get(
