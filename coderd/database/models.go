@@ -1098,70 +1098,6 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
-type ChatTaskStatus string
-
-const (
-	ChatTaskStatusQueued         ChatTaskStatus = "queued"
-	ChatTaskStatusRunning        ChatTaskStatus = "running"
-	ChatTaskStatusAwaitingReport ChatTaskStatus = "awaiting_report"
-	ChatTaskStatusReported       ChatTaskStatus = "reported"
-)
-
-func (e *ChatTaskStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ChatTaskStatus(s)
-	case string:
-		*e = ChatTaskStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ChatTaskStatus: %T", src)
-	}
-	return nil
-}
-
-type NullChatTaskStatus struct {
-	ChatTaskStatus ChatTaskStatus `json:"chat_task_status"`
-	Valid          bool           `json:"valid"` // Valid is true if ChatTaskStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullChatTaskStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.ChatTaskStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ChatTaskStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullChatTaskStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ChatTaskStatus), nil
-}
-
-func (e ChatTaskStatus) Valid() bool {
-	switch e {
-	case ChatTaskStatusQueued,
-		ChatTaskStatusRunning,
-		ChatTaskStatusAwaitingReport,
-		ChatTaskStatusReported:
-		return true
-	}
-	return false
-}
-
-func AllChatTaskStatusValues() []ChatTaskStatus {
-	return []ChatTaskStatus{
-		ChatTaskStatusQueued,
-		ChatTaskStatusRunning,
-		ChatTaskStatusAwaitingReport,
-		ChatTaskStatusReported,
-	}
-}
-
 type ConnectionStatus string
 
 const (
@@ -3880,8 +3816,6 @@ type Chat struct {
 	UpdatedAt        time.Time       `db:"updated_at" json:"updated_at"`
 	ParentChatID     uuid.NullUUID   `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID       uuid.NullUUID   `db:"root_chat_id" json:"root_chat_id"`
-	TaskStatus       ChatTaskStatus  `db:"task_status" json:"task_status"`
-	TaskReport       sql.NullString  `db:"task_report" json:"task_report"`
 }
 
 type ChatDiffStatus struct {
@@ -3901,14 +3835,16 @@ type ChatDiffStatus struct {
 }
 
 type ChatMessage struct {
-	ID         int64                 `db:"id" json:"id"`
-	ChatID     uuid.UUID             `db:"chat_id" json:"chat_id"`
-	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
-	Role       string                `db:"role" json:"role"`
-	Content    pqtype.NullRawMessage `db:"content" json:"content"`
-	ToolCallID sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
-	Thinking   sql.NullString        `db:"thinking" json:"thinking"`
-	Hidden     bool                  `db:"hidden" json:"hidden"`
+	ID                int64                 `db:"id" json:"id"`
+	ChatID            uuid.UUID             `db:"chat_id" json:"chat_id"`
+	CreatedAt         time.Time             `db:"created_at" json:"created_at"`
+	Role              string                `db:"role" json:"role"`
+	Content           pqtype.NullRawMessage `db:"content" json:"content"`
+	ToolCallID        sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
+	Thinking          sql.NullString        `db:"thinking" json:"thinking"`
+	Hidden            bool                  `db:"hidden" json:"hidden"`
+	SubagentRequestID uuid.NullUUID         `db:"subagent_request_id" json:"subagent_request_id"`
+	SubagentEvent     sql.NullString        `db:"subagent_event" json:"subagent_event"`
 }
 
 type ChatModelConfig struct {

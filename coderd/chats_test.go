@@ -759,14 +759,12 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 		require.Nil(t, rootChat.ParentChatID)
 		require.NotNil(t, rootChat.RootChatID)
 		require.Equal(t, rootChat.ID, *rootChat.RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusReported, rootChat.TaskStatus)
 
 		got, err := client.GetChat(ctx, rootChat.ID)
 		require.NoError(t, err)
 		require.Nil(t, got.Chat.ParentChatID)
 		require.NotNil(t, got.Chat.RootChatID)
 		require.Equal(t, rootChat.ID, *got.Chat.RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusReported, got.Chat.TaskStatus)
 
 		chats, err := client.ListChats(ctx)
 		require.NoError(t, err)
@@ -774,7 +772,6 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 		require.Nil(t, chats[0].ParentChatID)
 		require.NotNil(t, chats[0].RootChatID)
 		require.Equal(t, rootChat.ID, *chats[0].RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusReported, chats[0].TaskStatus)
 	})
 
 	t.Run("CreateChildChatWithValidParent", func(t *testing.T) {
@@ -799,7 +796,6 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 		require.Equal(t, parent.ID, *child.ParentChatID)
 		require.NotNil(t, child.RootChatID)
 		require.Equal(t, parent.ID, *child.RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusQueued, child.TaskStatus)
 
 		gotChild, err := client.GetChat(ctx, child.ID)
 		require.NoError(t, err)
@@ -807,7 +803,6 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 		require.Equal(t, parent.ID, *gotChild.Chat.ParentChatID)
 		require.NotNil(t, gotChild.Chat.RootChatID)
 		require.Equal(t, parent.ID, *gotChild.Chat.RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusQueued, gotChild.Chat.TaskStatus)
 
 		chats, err := client.ListChats(ctx)
 		require.NoError(t, err)
@@ -823,12 +818,10 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 		require.Nil(t, byID[parent.ID].ParentChatID)
 		require.NotNil(t, byID[parent.ID].RootChatID)
 		require.Equal(t, parent.ID, *byID[parent.ID].RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusReported, byID[parent.ID].TaskStatus)
 		require.NotNil(t, byID[child.ID].ParentChatID)
 		require.Equal(t, parent.ID, *byID[child.ID].ParentChatID)
 		require.NotNil(t, byID[child.ID].RootChatID)
 		require.Equal(t, parent.ID, *byID[child.ID].RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusQueued, byID[child.ID].TaskStatus)
 	})
 
 	t.Run("RejectParentFromAnotherOwner", func(t *testing.T) {

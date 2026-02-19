@@ -2454,6 +2454,21 @@ func (mr *MockStoreMockRecorder) GetLatestCryptoKeyByFeature(ctx, feature any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestCryptoKeyByFeature", reflect.TypeOf((*MockStore)(nil).GetLatestCryptoKeyByFeature), ctx, feature)
 }
 
+// GetLatestPendingSubagentRequestIDByChatID mocks base method.
+func (m *MockStore) GetLatestPendingSubagentRequestIDByChatID(ctx context.Context, chatID uuid.UUID) (uuid.NullUUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestPendingSubagentRequestIDByChatID", ctx, chatID)
+	ret0, _ := ret[0].(uuid.NullUUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestPendingSubagentRequestIDByChatID indicates an expected call of GetLatestPendingSubagentRequestIDByChatID.
+func (mr *MockStoreMockRecorder) GetLatestPendingSubagentRequestIDByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestPendingSubagentRequestIDByChatID", reflect.TypeOf((*MockStore)(nil).GetLatestPendingSubagentRequestIDByChatID), ctx, chatID)
+}
+
 // GetLatestWorkspaceAppStatusByAppID mocks base method.
 func (m *MockStore) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
 	m.ctrl.T.Helper()
@@ -3472,6 +3487,36 @@ func (m *MockStore) GetStaleChats(ctx context.Context, staleThreshold time.Time)
 func (mr *MockStoreMockRecorder) GetStaleChats(ctx, staleThreshold any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStaleChats", reflect.TypeOf((*MockStore)(nil).GetStaleChats), ctx, staleThreshold)
+}
+
+// GetSubagentRequestDurationByChatIDAndRequestID mocks base method.
+func (m *MockStore) GetSubagentRequestDurationByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentRequestDurationByChatIDAndRequestIDParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSubagentRequestDurationByChatIDAndRequestID", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSubagentRequestDurationByChatIDAndRequestID indicates an expected call of GetSubagentRequestDurationByChatIDAndRequestID.
+func (mr *MockStoreMockRecorder) GetSubagentRequestDurationByChatIDAndRequestID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubagentRequestDurationByChatIDAndRequestID", reflect.TypeOf((*MockStore)(nil).GetSubagentRequestDurationByChatIDAndRequestID), ctx, arg)
+}
+
+// GetSubagentResponseMessageByChatIDAndRequestID mocks base method.
+func (m *MockStore) GetSubagentResponseMessageByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentResponseMessageByChatIDAndRequestIDParams) (database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSubagentResponseMessageByChatIDAndRequestID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSubagentResponseMessageByChatIDAndRequestID indicates an expected call of GetSubagentResponseMessageByChatIDAndRequestID.
+func (mr *MockStoreMockRecorder) GetSubagentResponseMessageByChatIDAndRequestID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubagentResponseMessageByChatIDAndRequestID", reflect.TypeOf((*MockStore)(nil).GetSubagentResponseMessageByChatIDAndRequestID), ctx, arg)
 }
 
 // GetTailnetPeers mocks base method.
@@ -6822,36 +6867,6 @@ func (m *MockStore) UpdateChatStatus(ctx context.Context, arg database.UpdateCha
 func (mr *MockStoreMockRecorder) UpdateChatStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatStatus), ctx, arg)
-}
-
-// UpdateChatTaskReport mocks base method.
-func (m *MockStore) UpdateChatTaskReport(ctx context.Context, arg database.UpdateChatTaskReportParams) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatTaskReport", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatTaskReport indicates an expected call of UpdateChatTaskReport.
-func (mr *MockStoreMockRecorder) UpdateChatTaskReport(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTaskReport", reflect.TypeOf((*MockStore)(nil).UpdateChatTaskReport), ctx, arg)
-}
-
-// UpdateChatTaskStatus mocks base method.
-func (m *MockStore) UpdateChatTaskStatus(ctx context.Context, arg database.UpdateChatTaskStatusParams) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatTaskStatus", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatTaskStatus indicates an expected call of UpdateChatTaskStatus.
-func (mr *MockStoreMockRecorder) UpdateChatTaskStatus(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTaskStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatTaskStatus), ctx, arg)
 }
 
 // UpdateChatWorkspace mocks base method.

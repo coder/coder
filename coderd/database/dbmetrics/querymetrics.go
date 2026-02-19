@@ -1335,6 +1335,14 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestPendingSubagentRequestIDByChatID(ctx context.Context, chatID uuid.UUID) (uuid.NullUUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestPendingSubagentRequestIDByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetLatestPendingSubagentRequestIDByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestPendingSubagentRequestIDByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
@@ -1876,6 +1884,22 @@ func (m queryMetricsStore) GetStaleChats(ctx context.Context, staleThreshold tim
 	r0, r1 := m.s.GetStaleChats(ctx, staleThreshold)
 	m.queryLatencies.WithLabelValues("GetStaleChats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetStaleChats").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetSubagentRequestDurationByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentRequestDurationByChatIDAndRequestIDParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetSubagentRequestDurationByChatIDAndRequestID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetSubagentRequestDurationByChatIDAndRequestID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetSubagentRequestDurationByChatIDAndRequestID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetSubagentResponseMessageByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentResponseMessageByChatIDAndRequestIDParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetSubagentResponseMessageByChatIDAndRequestID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetSubagentResponseMessageByChatIDAndRequestID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetSubagentResponseMessageByChatIDAndRequestID").Inc()
 	return r0, r1
 }
 
@@ -3628,22 +3652,6 @@ func (m queryMetricsStore) UpdateChatStatus(ctx context.Context, arg database.Up
 	r0, r1 := m.s.UpdateChatStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatStatus").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateChatTaskReport(ctx context.Context, arg database.UpdateChatTaskReportParams) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatTaskReport(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatTaskReport").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatTaskReport").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateChatTaskStatus(ctx context.Context, arg database.UpdateChatTaskStatusParams) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatTaskStatus(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatTaskStatus").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatTaskStatus").Inc()
 	return r0, r1
 }
 

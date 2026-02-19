@@ -2680,6 +2680,14 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
 }
 
+func (q *querier) GetLatestPendingSubagentRequestIDByChatID(ctx context.Context, chatID uuid.UUID) (uuid.NullUUID, error) {
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return uuid.NullUUID{}, err
+	}
+	return q.db.GetLatestPendingSubagentRequestIDByChatID(ctx, chatID)
+}
+
 func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceAppStatus{}, err
@@ -3238,6 +3246,22 @@ func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) (
 		return nil, err
 	}
 	return q.db.GetStaleChats(ctx, staleThreshold)
+}
+
+func (q *querier) GetSubagentRequestDurationByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentRequestDurationByChatIDAndRequestIDParams) (int64, error) {
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return q.db.GetSubagentRequestDurationByChatIDAndRequestID(ctx, arg)
+}
+
+func (q *querier) GetSubagentResponseMessageByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentResponseMessageByChatIDAndRequestIDParams) (database.ChatMessage, error) {
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.GetSubagentResponseMessageByChatIDAndRequestID(ctx, arg)
 }
 
 func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {
@@ -5194,28 +5218,6 @@ func (q *querier) UpdateChatStatus(ctx context.Context, arg database.UpdateChatS
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatStatus(ctx, arg)
-}
-
-func (q *querier) UpdateChatTaskReport(ctx context.Context, arg database.UpdateChatTaskReportParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.UpdateChatTaskReport(ctx, arg)
-}
-
-func (q *querier) UpdateChatTaskStatus(ctx context.Context, arg database.UpdateChatTaskStatusParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.UpdateChatTaskStatus(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspace(ctx context.Context, arg database.UpdateChatWorkspaceParams) (database.Chat, error) {

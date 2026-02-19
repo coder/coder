@@ -106,6 +106,49 @@ const appendText = (current: string, next: string): string => {
 const normalizeBlockType = (value: unknown): string =>
 	asString(value).toLowerCase().replace(/_/g, "-");
 
+const isSubagentToolName = (name: string): boolean =>
+	name === "subagent" ||
+	name === "subagent_await" ||
+	name === "subagent_message";
+
+const isCompletedSubagentResult = (
+	toolName: string,
+	result: unknown,
+): boolean => {
+	if (!isSubagentToolName(toolName)) {
+		return false;
+	}
+	const typedResult = asRecord(result);
+	if (!typedResult) {
+		return false;
+	}
+	const status = asString(
+		typedResult.status ?? typedResult.subagent_status,
+	).toLowerCase();
+	return status === "completed" || status === "reported";
+};
+
+type ToolResultErrorBlock = {
+	readonly is_error?: unknown;
+	readonly error?: unknown;
+};
+
+const parseToolResultIsError = (
+	toolName: string,
+	block: ToolResultErrorBlock,
+	result: unknown,
+): boolean => {
+	if (typeof block.is_error === "boolean") {
+		return block.is_error;
+	}
+	if (!Boolean(block.error)) {
+		return false;
+	}
+	// Some providers include generic error metadata even on successful
+	// subagent completions.
+	return !isCompletedSubagentResult(toolName, result);
+};
+
 const mergeStreamPayload = (
 	existing: unknown,
 	value: unknown,
@@ -264,15 +307,16 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 						asString(typedBlock.tool_call_id) ||
 						asString(typedBlock.id) ||
 						`tool-result-${index}`;
+					const result =
+						typedBlock.result ??
+						typedBlock.output ??
+						typedBlock.content ??
+						typedBlock.data;
 					parsed.toolResults.push({
 						id,
 						name: name || "Tool",
-						result:
-							typedBlock.result ??
-							typedBlock.output ??
-							typedBlock.content ??
-							typedBlock.data,
-						isError: Boolean(typedBlock.is_error ?? typedBlock.error),
+						result,
+						isError: parseToolResultIsError(name, typedBlock, result),
 					});
 					break;
 				}
@@ -915,6 +959,10 @@ export const AgentDetail: FC = () => {
 										part.result,
 										part.result_delta,
 									);
+									const nextToolName = toolName || existing?.name || "Tool";
+									const nextIsError =
+										existing?.isError ||
+										parseToolResultIsError(nextToolName, part, nextResult);
 
 									return {
 										...nextState,
@@ -922,9 +970,9 @@ export const AgentDetail: FC = () => {
 											...nextState.toolResults,
 											[toolCallID]: {
 												id: toolCallID,
-												name: toolName || existing?.name || "Tool",
+												name: nextToolName,
 												result: nextResult,
-												isError: existing?.isError || Boolean(part.is_error),
+												isError: nextIsError,
 											},
 										},
 									};

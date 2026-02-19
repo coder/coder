@@ -267,13 +267,6 @@ CREATE TYPE chat_status AS ENUM (
     'error'
 );
 
-CREATE TYPE chat_task_status AS ENUM (
-    'queued',
-    'running',
-    'awaiting_report',
-    'reported'
-);
-
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -1181,7 +1174,10 @@ CREATE TABLE chat_messages (
     content jsonb,
     tool_call_id text,
     thinking text,
-    hidden boolean DEFAULT false NOT NULL
+    hidden boolean DEFAULT false NOT NULL,
+    subagent_request_id uuid,
+    subagent_event text,
+    CONSTRAINT chat_messages_subagent_event_check CHECK (((subagent_event IS NULL) OR (subagent_event = ANY (ARRAY['request'::text, 'response'::text]))))
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1230,9 +1226,7 @@ CREATE TABLE chats (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_chat_id uuid,
-    root_chat_id uuid,
-    task_status chat_task_status DEFAULT 'reported'::chat_task_status NOT NULL,
-    task_report text
+    root_chat_id uuid
 );
 
 CREATE TABLE connection_logs (
@@ -3422,6 +3416,8 @@ CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
+
+CREATE INDEX idx_chat_messages_subagent_request ON chat_messages USING btree (chat_id, subagent_request_id, created_at) WHERE (subagent_request_id IS NOT NULL);
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 

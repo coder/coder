@@ -1055,6 +1055,8 @@ export interface Chat {
 	readonly owner_id: string;
 	readonly workspace_id?: string;
 	readonly workspace_agent_id?: string;
+	readonly parent_chat_id?: string;
+	readonly root_chat_id?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly diff_status?: ChatDiffStatus;
@@ -1249,9 +1251,19 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
-	readonly created_at: string;
-	readonly updated_at: string;
+	readonly source: ChatProviderConfigSource;
+	readonly created_at?: string;
+	readonly updated_at?: string;
 }
+
+// From codersdk/chats.go
+export type ChatProviderConfigSource = "database" | "env_preset" | "supported";
+
+export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
+	"database",
+	"env_preset",
+	"supported",
+];
 
 // From codersdk/chats.go
 export type ChatStatus =
@@ -1523,6 +1535,7 @@ export interface CreateChatRequest {
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly workspace_agent_id?: string;
+	readonly parent_chat_id?: string;
 	readonly model?: string;
 	readonly model_config?: Record<string, string>;
 }

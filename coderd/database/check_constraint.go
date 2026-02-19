@@ -7,6 +7,7 @@ type CheckConstraint string
 // CheckConstraint enums.
 const (
 	CheckAPIKeysAllowListNotEmpty                CheckConstraint = "api_keys_allow_list_not_empty"                // api_keys
+	CheckChatMessagesSubagentEventCheck          CheckConstraint = "chat_messages_subagent_event_check"           // chat_messages
 	CheckChatProvidersProviderCheck              CheckConstraint = "chat_providers_provider_check"                // chat_providers
 	CheckOrganizationIDNotZero                   CheckConstraint = "organization_id_not_zero"                     // custom_roles
 	CheckOneTimePasscodeSet                      CheckConstraint = "one_time_passcode_set"                        // users

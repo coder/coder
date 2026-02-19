@@ -24,15 +24,13 @@
             {
               "workspace_folder": "/workspace1",
               "name": "dev1",
-              "id": "eb9b7f18-c277-48af-af7c-2a8e5fb42bab",
-              "subagent_id": "72d17819-ea3b-450a-a502-175886583ecf"
+              "id": "eb9b7f18-c277-48af-af7c-2a8e5fb42bab"
             },
             {
               "workspace_folder": "/workspace2",
               "config_path": "/workspace2/.devcontainer/devcontainer.json",
               "name": "dev2",
-              "id": "964430ff-f0d9-4fcb-b645-6333cf6ba9f2",
-              "subagent_id": "40a59d56-d3df-488f-b07d-331c0b774bac"
+              "id": "964430ff-f0d9-4fcb-b645-6333cf6ba9f2"
             }
           ],
           "api_key_scope": "all"

@@ -199,7 +199,6 @@ func TestConvertChatIncludesHierarchyMetadata(t *testing.T) {
 			WorkspaceAgentID: uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
 			ParentChatID:     uuid.NullUUID{UUID: parentID, Valid: true},
 			RootChatID:       uuid.NullUUID{UUID: rootID, Valid: true},
-			TaskStatus:       database.ChatTaskStatusQueued,
 			Title:            "Child Chat",
 		}, nil)
 
@@ -207,7 +206,6 @@ func TestConvertChatIncludesHierarchyMetadata(t *testing.T) {
 		require.Equal(t, parentID, *converted.ParentChatID)
 		require.NotNil(t, converted.RootChatID)
 		require.Equal(t, rootID, *converted.RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusQueued, converted.TaskStatus)
 		require.NotNil(t, converted.WorkspaceID)
 		require.Equal(t, workspaceID, *converted.WorkspaceID)
 		require.NotNil(t, converted.WorkspaceAgentID)
@@ -226,7 +224,6 @@ func TestConvertChatIncludesHierarchyMetadata(t *testing.T) {
 		require.Nil(t, converted.ParentChatID)
 		require.NotNil(t, converted.RootChatID)
 		require.Equal(t, rootID, *converted.RootChatID)
-		require.Equal(t, codersdk.ChatTaskStatusReported, converted.TaskStatus)
 	})
 }
 
