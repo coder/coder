@@ -85,6 +85,9 @@ func connectionFromLog(log database.GetOngoingAgentConnectionsLast24hRow) coders
 	if log.ShortDescription.Valid {
 		conn.ShortDescription = log.ShortDescription.String
 	}
+	if log.Os.Valid {
+		conn.OS = log.Os.String
+	}
 	return conn
 }
 

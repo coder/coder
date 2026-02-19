@@ -389,7 +389,8 @@ SELECT
 	updated_at,
 	session_id,
 	client_hostname,
-	short_description
+	short_description,
+	os
 FROM
 	ranked
 WHERE

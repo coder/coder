@@ -2791,7 +2791,8 @@ SELECT
 	updated_at,
 	session_id,
 	client_hostname,
-	short_description
+	short_description,
+	os
 FROM
 	ranked
 WHERE
@@ -2832,6 +2833,7 @@ type GetOngoingAgentConnectionsLast24hRow struct {
 	SessionID        uuid.NullUUID  `db:"session_id" json:"session_id"`
 	ClientHostname   sql.NullString `db:"client_hostname" json:"client_hostname"`
 	ShortDescription sql.NullString `db:"short_description" json:"short_description"`
+	Os               sql.NullString `db:"os" json:"os"`
 }
 
 func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg GetOngoingAgentConnectionsLast24hParams) ([]GetOngoingAgentConnectionsLast24hRow, error) {
@@ -2871,6 +2873,7 @@ func (q *sqlQuerier) GetOngoingAgentConnectionsLast24h(ctx context.Context, arg 
 			&i.SessionID,
 			&i.ClientHostname,
 			&i.ShortDescription,
+			&i.Os,
 		); err != nil {
 			return nil, err
 		}
