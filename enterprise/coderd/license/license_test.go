@@ -837,7 +837,7 @@ func TestEntitlements(t *testing.T) {
 			},
 		}).
 			UserLimit(100).
-			ManagedAgentLimit(100, 200)
+			ManagedAgentLimit(100)
 
 		lic := database.License{
 			ID:  1,
@@ -1117,7 +1117,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		{
 			Name: "ManagedAgentLimit",
 			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100, 200),
+				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
 			},
 			Arguments: license.FeatureArguments{
 				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
@@ -1146,7 +1146,7 @@ func TestLicenseEntitlements(t *testing.T) {
 					WithIssuedAt(time.Now().Add(-time.Hour * 2)),
 				enterpriseLicense().
 					UserLimit(100).
-					ManagedAgentLimit(100, 100).
+					ManagedAgentLimit(100).
 					WithIssuedAt(time.Now().Add(-time.Hour * 1)).
 					GracePeriod(time.Now()),
 			},
@@ -1177,7 +1177,7 @@ func TestLicenseEntitlements(t *testing.T) {
 					WithIssuedAt(time.Now().Add(-time.Hour * 2)),
 				enterpriseLicense().
 					UserLimit(100).
-					ManagedAgentLimit(100, 200).
+					ManagedAgentLimit(100).
 					WithIssuedAt(time.Now().Add(-time.Hour * 1)).
 					Expired(time.Now()),
 			},
@@ -1199,7 +1199,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().
 					UserLimit(100).
-					ManagedAgentLimit(100, 200),
+					ManagedAgentLimit(100),
 			},
 			Arguments: license.FeatureArguments{
 				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {

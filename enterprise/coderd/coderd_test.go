@@ -678,7 +678,7 @@ func TestManagedAgentLimit(t *testing.T) {
 			// expiry warnings.
 			GraceAt:   time.Now().Add(time.Hour * 24 * 60),
 			ExpiresAt: time.Now().Add(time.Hour * 24 * 90),
-		}).ManagedAgentLimit(1, 1),
+		}).ManagedAgentLimit(1),
 	})
 
 	// Get entitlements to check that the license is a-ok.
