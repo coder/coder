@@ -198,14 +198,12 @@ export const ConnectionError: Story = {
 // Check if the terminal is not getting hide when the bottom message is shown
 // together with the error message
 export const BottomMessage: Story = {
-	decorators: [withWebSocket],
-	parameters: {
-		...meta.parameters,
-		// Forcing smaller viewport to make it easier to identify the issue
-		viewport: {
-			defaultViewport: "terminal",
-		},
-		webSocket: [
+    decorators: [withWebSocket],
+
+    parameters: {
+        ...meta.parameters,
+
+        webSocket: [
 			{
 				event: "message",
 				// This outputs text in the bottom left and right corners of the terminal.
@@ -215,6 +213,14 @@ export const BottomMessage: Story = {
 				event: "close",
 			},
 		],
-		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
-	},
+
+        queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")]
+    },
+
+    globals: {
+        viewport: {
+            value: "terminal",
+            isRotated: false
+        }
+    }
 };
