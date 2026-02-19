@@ -155,9 +155,7 @@ describe("WorkspacePage", () => {
 		await user.type(textField, MockFailedWorkspace.name);
 
 		// check orphan option
-		const orphanCheckbox = within(
-			screen.getByTestId("orphan-checkbox"),
-		).getByRole("checkbox");
+		const orphanCheckbox = screen.getByTestId("orphan-checkbox");
 
 		await user.click(orphanCheckbox);
 
