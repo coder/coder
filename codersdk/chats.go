@@ -22,31 +22,20 @@ const (
 	ChatStatusError     ChatStatus = "error"
 )
 
-// ChatTaskStatus represents the delegated task lifecycle for a chat.
-type ChatTaskStatus string
-
-const (
-	ChatTaskStatusQueued         ChatTaskStatus = "queued"
-	ChatTaskStatusRunning        ChatTaskStatus = "running"
-	ChatTaskStatusAwaitingReport ChatTaskStatus = "awaiting_report"
-	ChatTaskStatusReported       ChatTaskStatus = "reported"
-)
-
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID               uuid.UUID       `json:"id" format:"uuid"`
-	OwnerID          uuid.UUID       `json:"owner_id" format:"uuid"`
-	WorkspaceID      *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
-	ParentChatID     *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID       *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	TaskStatus       ChatTaskStatus  `json:"task_status"`
-	Title            string          `json:"title"`
-	Status           ChatStatus      `json:"status"`
-	DiffStatus       *ChatDiffStatus `json:"diff_status,omitempty"`
-	ModelConfig      json.RawMessage `json:"model_config,omitempty"`
-	CreatedAt        time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time       `json:"updated_at" format:"date-time"`
+	ID               uuid.UUID          `json:"id" format:"uuid"`
+	OwnerID          uuid.UUID          `json:"owner_id" format:"uuid"`
+	WorkspaceID      *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceAgentID *uuid.UUID         `json:"workspace_agent_id,omitempty" format:"uuid"`
+	ParentChatID     *uuid.UUID         `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID       *uuid.UUID         `json:"root_chat_id,omitempty" format:"uuid"`
+	Title            string             `json:"title"`
+	Status           ChatStatus         `json:"status"`
+	DiffStatus       *ChatDiffStatus    `json:"diff_status,omitempty"`
+	ModelConfig      json.RawMessage    `json:"model_config,omitempty"`
+	CreatedAt        time.Time          `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time          `json:"updated_at" format:"date-time"`
 }
 
 // ChatMessage represents a single message in a chat.

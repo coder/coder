@@ -9,10 +9,12 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import {
+	BotIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CircleAlertIcon,
+	ExternalLinkIcon,
 	FileIcon,
 	FilePenIcon,
 	LoaderIcon,
@@ -45,6 +47,63 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 
 const asString = (value: unknown): string =>
 	typeof value === "string" ? value : "";
+
+const asNumber = (value: unknown): number | undefined => {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) {
+			return parsed;
+		}
+	}
+	return undefined;
+};
+
+/**
+ * Formats a duration in milliseconds into a compact label using
+ * the same style as {@link shortRelativeTime} in utils/time.
+ */
+const shortDurationMs = (durationMs: number | undefined): string => {
+	if (durationMs === undefined || durationMs < 0) {
+		return "";
+	}
+	const seconds = Math.round(durationMs / 1000);
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = Math.round(seconds / 60);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = Math.round(minutes / 60);
+	return `${hours}h`;
+};
+
+const normalizeStatus = (status: string): string =>
+	status.trim().toLowerCase();
+
+const isSubagentSuccessStatus = (status: string): boolean => {
+	switch (normalizeStatus(status)) {
+		case "completed":
+		case "reported":
+			return true;
+		default:
+			return false;
+	}
+};
+
+const isSubagentRunningStatus = (status: string): boolean => {
+	switch (normalizeStatus(status)) {
+		case "pending":
+		case "running":
+		case "awaiting":
+			return true;
+		default:
+			return false;
+	}
+};
 
 const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	if (!args) {
@@ -191,10 +250,37 @@ const ToolLabel: React.FC<{ name: string; args: unknown; result: unknown }> = ({
 				</span>
 			);
 		}
-		case "task_terminate":
+		case "subagent_terminate":
 			return (
 				<span className="truncate text-sm text-content-secondary">
 					Terminated sub-agent
+				</span>
+			);
+		case "subagent": {
+			const parsed = parseArgs(args);
+			const title = parsed ? asString(parsed.title) : "";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{title || "Delegating to sub-agent…"}
+				</span>
+			);
+		}
+		case "subagent_await":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Awaiting sub-agent…
+				</span>
+			);
+		case "subagent_message":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Messaging sub-agent…
+				</span>
+			);
+		case "subagent_report":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Sub-agent report
 				</span>
 			);
 		default:
@@ -918,16 +1004,24 @@ const CreateWorkspaceTool: React.FC<{
 const COLLAPSED_REPORT_HEIGHT = 72;
 
 /**
- * Resolves a task status string and tool-level status into a display
- * icon. The tool status represents whether the tool call itself has
- * completed; the task status comes from the result payload.
+ * Resolves a sub-agent status string and tool-level status into a
+ * display icon. The sub-agent status in the tool result is a
+ * snapshot from when the tool returned and may be stale (e.g. a
+ * background sub-agent records "pending" forever). The icon is
+ * therefore driven primarily by the tool-call status itself.
  */
-const TaskStatusIcon: React.FC<{
-	taskStatus: string;
+const SubagentStatusIcon: React.FC<{
+	subagentStatus: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
-}> = ({ taskStatus, toolStatus, isError }) => {
-	if (isError) {
+}> = ({ subagentStatus, toolStatus, isError }) => {
+	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
+	if (isError && !subagentCompleted) {
+		return (
+			<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-destructive" />
+		);
+	}
+	if (toolStatus === "error") {
 		return (
 			<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-destructive" />
 		);
@@ -937,109 +1031,128 @@ const TaskStatusIcon: React.FC<{
 			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin text-content-link" />
 		);
 	}
-	switch (taskStatus) {
-		case "reported":
-			return (
-				<CheckIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-			);
-		case "running":
-			return (
-				<LoaderIcon className="h-4 w-4 shrink-0 animate-spin text-content-link" />
-			);
-		default:
-			return (
-				<LoaderIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-			);
-	}
+	return <BotIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 };
 
 /**
- * Specialized rendering for `task` and `task_await` tool calls.
- * Shows a clickable card linking to the sub-agent chat with its
- * title and current status. If a report is present, it can be
- * expanded inline.
+ * Specialized rendering for delegated sub-agent tool calls.
+ * Shows a clickable header row with the sub-agent title, status
+ * icon, and a chevron to expand the prompt / report below. A
+ * "View Agent" link navigates to the sub-agent chat.
  */
-const TaskTool: React.FC<{
+const SubagentTool: React.FC<{
+	toolName: string;
 	title: string;
 	chatId: string;
-	taskStatus: string;
+	subagentStatus: string;
+	prompt?: string;
+	durationMs?: number;
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
-}> = ({ title, chatId, taskStatus, report, toolStatus, isError }) => {
-	const [reportExpanded, setReportExpanded] = useState(false);
-	const reportRef = useRef<HTMLDivElement>(null);
-	const [reportOverflows, setReportOverflows] = useState(false);
-	const reportMeasureRef = (node: HTMLDivElement | null) => {
-		(reportRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-		if (node) {
-			setReportOverflows(node.scrollHeight > COLLAPSED_REPORT_HEIGHT);
-		}
-	};
+}> = ({
+	toolName,
+	title,
+	chatId,
+	subagentStatus,
+	prompt,
+	durationMs,
+	report,
+	toolStatus,
+	isError,
+}) => {
+	const [expanded, setExpanded] = useState(false);
+	const hasPrompt = Boolean(prompt?.trim());
 	const hasReport = Boolean(report?.trim());
+	const hasExpandableContent = hasPrompt || hasReport;
+	const durationLabel = shortDurationMs(durationMs);
 
 	return (
-		<div className="w-full overflow-hidden rounded-lg border border-solid border-border-default bg-surface-primary">
-			<Link
-				to={`/agents/${chatId}`}
-				className="flex items-center gap-2.5 px-3 py-2 text-inherit no-underline transition-colors hover:bg-surface-tertiary/50"
+		<div className="w-full">
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => hasExpandableContent && setExpanded((v) => !v)}
+				onKeyDown={(e) => {
+					if (
+						(e.key === "Enter" || e.key === " ") &&
+						hasExpandableContent
+					) {
+						setExpanded((v) => !v);
+					}
+				}}
+				className={cn(
+					"flex items-center gap-2",
+					hasExpandableContent && "cursor-pointer",
+				)}
 			>
-				<TaskStatusIcon
-					taskStatus={taskStatus}
+				<SubagentStatusIcon
+					subagentStatus={subagentStatus}
 					toolStatus={toolStatus}
 					isError={isError}
 				/>
-				<span className="min-w-0 flex-1 truncate text-sm font-medium text-content-primary">
-					{title}
-				</span>
-				<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-			</Link>
-			{hasReport && (
-				<>
-					<div
-						className="h-px"
-						style={{ background: "hsl(var(--border-default))" }}
-					/>
-					<div className="px-3 py-2">
-						<div
-							ref={reportMeasureRef}
-							style={
-								reportExpanded
-									? undefined
-									: {
-											maxHeight: COLLAPSED_REPORT_HEIGHT,
-											overflow: "hidden",
-										}
-							}
+				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
+					{toolName === "subagent" && toolStatus === "completed"
+						? "Spawned "
+						: toolName === "subagent_await" && toolStatus === "completed"
+							? "Waited for "
+							: ""}
+					<span className="text-content-secondary opacity-60">{title}</span>
+					{chatId && (
+						<Link
+							to={`/agents/${chatId}`}
+							onClick={(e) => e.stopPropagation()}
+							className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+							aria-label="View agent"
 						>
-							<Response>{report ?? ""}</Response>
-						</div>
-						{reportOverflows && (
-							<button
-								type="button"
-								onClick={() => setReportExpanded((v) => !v)}
-								className="mt-1 flex w-full cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent py-0.5 text-content-secondary transition-colors hover:text-content-primary"
-								aria-label={
-									reportExpanded ? "Collapse report" : "Expand report"
-								}
-							>
-								<ChevronDownIcon
-									className={cn(
-										"h-3 w-3 transition-transform",
-										reportExpanded && "rotate-180",
-									)}
-								/>
-							</button>
+							<ExternalLinkIcon className="h-3 w-3" />
+						</Link>
+					)}
+				</span>
+				{durationLabel && (
+					<span className="shrink-0 text-xs text-content-secondary">
+						Worked for {durationLabel}
+					</span>
+				)}
+				{hasExpandableContent && (
+					<ChevronDownIcon
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
 						)}
+					/>
+				)}
+			</div>
+
+			{expanded && hasPrompt && (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<div className="px-3 py-2">
+						<Response>{prompt ?? ""}</Response>
 					</div>
-				</>
+				</ScrollArea>
+			)}
+
+			{expanded && hasReport && (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<div className="px-3 py-2">
+						<Response>{report ?? ""}</Response>
+					</div>
+				</ScrollArea>
 			)}
 		</div>
 	);
 };
 
 /**
- * Specialized rendering for `agent_report` tool calls. Shows the
+ * Specialized rendering for `subagent_report` tool calls. Shows the
  * report as collapsible markdown with a short preview that users
  * can expand.
  */
@@ -1252,41 +1365,80 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			);
 		}
 
-		// Render task and task_await as a pretty sub-agent link card.
-		if (name === "task" || name === "task_await") {
+		// Render delegated sub-agent tools as a sub-agent link card.
+		if (
+			name === "subagent" ||
+			name === "subagent_await" ||
+			name === "subagent_message"
+		) {
 			const parsed = parseArgs(args);
 			const rec = asRecord(result);
-			const chatId = rec ? asString(rec.chat_id) : "";
-			const taskStatus = rec ? asString(rec.status) : "";
+			// subagent_await and subagent_message have chat_id in
+			// args, so check both result and args.
+			const chatId =
+				(rec ? asString(rec.chat_id) : "") ||
+				(parsed ? asString(parsed.chat_id) : "");
+			const subagentStatus = rec ? asString(rec.status || rec.subagent_status) : "";
+			const durationMs = rec ? asNumber(rec.duration_ms) : undefined;
 			const report = rec ? asString(rec.report) : "";
+			const prompt = parsed ? asString(parsed.prompt) : "";
 			const title =
+				(rec ? asString(rec.title) : "") ||
 				(parsed ? asString(parsed.title) : "") ||
-				(name === "task_await" ? "Sub-agent" : "Sub-agent");
+				"Sub-agent";
+			const subagentToolStatus: ToolStatus = isSubagentSuccessStatus(
+				subagentStatus,
+			)
+				? "completed"
+				: status;
+			const subagentIsError =
+				(status === "error" || isError) && !isSubagentSuccessStatus(subagentStatus);
 
 			if (chatId) {
 				return (
 					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<TaskTool
+						<SubagentTool
+							toolName={name}
 							title={title}
 							chatId={chatId}
-							taskStatus={taskStatus}
+							subagentStatus={subagentStatus}
+							prompt={prompt || undefined}
+							durationMs={durationMs}
 							report={report || undefined}
-							toolStatus={status}
-							isError={isError}
+							toolStatus={subagentToolStatus}
+							isError={subagentIsError}
 						/>
 					</div>
 				);
 			}
+
+			// No chat_id yet — the sub-agent is still being spawned.
+			// Show a pending row with the title (and expandable
+			// prompt) instead of falling through to the generic
+			// "wrench" rendering.
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<SubagentTool
+						toolName={name}
+						title={title}
+						chatId=""
+						subagentStatus={subagentStatus}
+						prompt={prompt || undefined}
+						toolStatus={subagentToolStatus}
+						isError={subagentIsError}
+					/>
+				</div>
+			);
 		}
 
-		// Render agent_report as a collapsible markdown report.
-		if (name === "agent_report") {
+		// Render subagent_report as a collapsible markdown report.
+		if (name === "subagent_report") {
 			const parsed = parseArgs(args);
 			const rec = asRecord(result);
 			const report =
 				(parsed ? asString(parsed.report) : "") ||
 				(rec ? asString(rec.report) : "");
-			const title = (rec ? asString(rec.title) : "") || "Status Report";
+			const title = (rec ? asString(rec.title) : "") || "Sub-agent report";
 
 			return (
 				<div ref={ref} className={cn("py-0.5", className)} {...props}>

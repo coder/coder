@@ -40,7 +40,6 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "status": "waiting",
-    "task_status": "queued",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
@@ -79,7 +78,6 @@ Status Code **200**
 | `» parent_chat_id`      | string(uuid)                                                 | false    |              |             |
 | `» root_chat_id`        | string(uuid)                                                 | false    |              |             |
 | `» status`              | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)         | false    |              |             |
-| `» task_status`         | [codersdk.ChatTaskStatus](schemas.md#codersdkchattaskstatus) | false    |              |             |
 | `» title`               | string                                                       | false    |              |             |
 | `» updated_at`          | string(date-time)                                            | false    |              |             |
 | `» workspace_agent_id`  | string(uuid)                                                 | false    |              |             |
@@ -87,10 +85,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                        |
-|---------------|-----------------------------------------------------------------|
-| `status`      | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
-| `task_status` | `awaiting_report`, `queued`, `reported`, `running`              |
+| Property | Value(s)                                                        |
+|----------|-----------------------------------------------------------------|
+| `status` | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -164,7 +161,6 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "status": "waiting",
-  "task_status": "queued",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
@@ -271,7 +267,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "status": "waiting",
-    "task_status": "queued",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
@@ -498,7 +493,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "status": "waiting",
-  "task_status": "queued",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",

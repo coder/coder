@@ -300,8 +300,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			visibleChatIDs.has(childID),
 		);
 		const hasChildren = childIDs.length > 0;
+		const isDelegated = Boolean(getParentChatID(chat));
 		const config = getStatusConfig(chat.status);
 		const StatusIcon = config.icon;
+		const isDelegatedExecuting =
+			isDelegated && (chat.status === "pending" || chat.status === "running");
 		const modelName = getModelDisplayName(chat.model_config, modelOptions);
 		const errorReason =
 			chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
@@ -341,6 +344,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							)}
 						>
 							<StatusIcon
+								data-testid={
+									isDelegatedExecuting
+										? `agents-tree-executing-${chat.id}`
+										: undefined
+								}
 								className={cn("h-3.5 w-3.5 shrink-0", config.className)}
 							/>
 						</div>
@@ -350,7 +358,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								size="icon"
 								onClick={() => toggleExpanded(chatID)}
 								className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary group-hover:visible [&>svg]:size-3.5"
+								data-testid={`agents-tree-toggle-${chat.id}`}
 								aria-label={isExpanded ? "Collapse" : "Expand"}
+								aria-expanded={isExpanded}
 							>
 								{isExpanded ? (
 									<ChevronDownIcon />

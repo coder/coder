@@ -363,7 +363,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		},
 		ParentChatID: chatHierarchy.ParentChatID,
 		RootChatID:   chatHierarchy.RootChatID,
-		TaskStatus:   chatHierarchy.TaskStatus,
 		Title:        title,
 		ModelConfig:  modelConfig,
 	})
@@ -1952,7 +1951,6 @@ type createChatHierarchy struct {
 	Request      codersdk.CreateChatRequest
 	ParentChatID uuid.NullUUID
 	RootChatID   uuid.NullUUID
-	TaskStatus   database.NullChatTaskStatus
 }
 
 func (api *API) resolveCreateChatHierarchy(
@@ -1962,10 +1960,6 @@ func (api *API) resolveCreateChatHierarchy(
 ) (createChatHierarchy, int, *codersdk.Response) {
 	hierarchy := createChatHierarchy{
 		Request: req,
-		TaskStatus: database.NullChatTaskStatus{
-			ChatTaskStatus: database.ChatTaskStatusReported,
-			Valid:          true,
-		},
 	}
 
 	if req.ParentChatID == nil {
@@ -2024,10 +2018,6 @@ func (api *API) resolveCreateChatHierarchy(
 	hierarchy.RootChatID = uuid.NullUUID{
 		UUID:  rootChatID,
 		Valid: true,
-	}
-	hierarchy.TaskStatus = database.NullChatTaskStatus{
-		ChatTaskStatus: database.ChatTaskStatusQueued,
-		Valid:          true,
 	}
 
 	return hierarchy, 0, nil
@@ -2170,19 +2160,26 @@ func chatTitleFromMessage(message string) string {
 	if truncated {
 		title += "…"
 	}
-	return chatd.TruncateRunes(title, maxRunes)
+	return truncateRunes(title, maxRunes)
+}
+
+func truncateRunes(value string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
+	}
+
+	return string(runes[:max])
 }
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
-	taskStatus := codersdk.ChatTaskStatus(c.TaskStatus)
-	if taskStatus == "" {
-		taskStatus = codersdk.ChatTaskStatusReported
-	}
-
 	chat := codersdk.Chat{
 		ID:          c.ID,
 		OwnerID:     c.OwnerID,
-		TaskStatus:  taskStatus,
 		Title:       c.Title,
 		Status:      codersdk.ChatStatus(c.Status),
 		ModelConfig: c.ModelConfig,

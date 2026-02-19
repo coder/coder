@@ -1603,7 +1603,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "status": "waiting",
-  "task_status": "queued",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
@@ -1623,7 +1622,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parent_chat_id`     | string                                             | false    |              |             |
 | `root_chat_id`       | string                                             | false    |              |             |
 | `status`             | [codersdk.ChatStatus](#codersdkchatstatus)         | false    |              |             |
-| `task_status`        | [codersdk.ChatTaskStatus](#codersdkchattaskstatus) | false    |              |             |
 | `title`              | string                                             | false    |              |             |
 | `updated_at`         | string                                             | false    |              |             |
 | `workspace_agent_id` | string                                             | false    |              |             |
@@ -1980,20 +1978,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------------------------------------------------|
 | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
 
-## codersdk.ChatTaskStatus
-
-```json
-"queued"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                           |
-|----------------------------------------------------|
-| `awaiting_report`, `queued`, `reported`, `running` |
-
 ## codersdk.ChatToolResultMetadata
 
 ```json
@@ -2053,7 +2037,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "status": "waiting",
-    "task_status": "queued",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",

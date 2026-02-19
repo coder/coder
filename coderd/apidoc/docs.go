@@ -14093,9 +14093,6 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
-                "task_status": {
-                    "$ref": "#/definitions/codersdk.ChatTaskStatus"
-                },
                 "title": {
                     "type": "string"
                 },
@@ -14400,21 +14397,6 @@ const docTemplate = `{
                 "ChatStatusPaused",
                 "ChatStatusCompleted",
                 "ChatStatusError"
-            ]
-        },
-        "codersdk.ChatTaskStatus": {
-            "type": "string",
-            "enum": [
-                "queued",
-                "running",
-                "awaiting_report",
-                "reported"
-            ],
-            "x-enum-varnames": [
-                "ChatTaskStatusQueued",
-                "ChatTaskStatusRunning",
-                "ChatTaskStatusAwaitingReport",
-                "ChatTaskStatusReported"
             ]
         },
         "codersdk.ChatToolResultMetadata": {
