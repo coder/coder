@@ -190,6 +190,12 @@ type sqlcQuerier interface {
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
+	// GetWorkspaceAgentAndLatestBuildByAuthToken returns a workspace agent and its
+	// associated build by the agent's auth token. During normal operation, this is
+	// the latest build. During shutdown, this may be the previous START build while
+	// the STOP build is executing, allowing shutdown scripts to authenticate (see
+	// issue #19467).
+	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
@@ -465,12 +471,6 @@ type sqlcQuerier interface {
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
-	// GetWorkspaceAgentAndLatestBuildByAuthToken returns a workspace agent and its
-	// associated build by the agent's auth token. During normal operation, this is
-	// the latest build. During shutdown, this may be the previous START build while
-	// the STOP build is executing, allowing shutdown scripts to authenticate (see
-	// issue #19467).
-	GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error)
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
@@ -506,11 +506,11 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
 	GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]WorkspaceBuildParameter, error)
-	// Fetches the provisioner state of a workspace build directly from the
-	// workspace_builds table. This is used by callers that need the full
-	// Terraform state, which is excluded from workspace_build_with_user to
-	// avoid loading it on hot paths.
-	GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) ([]byte, error)
+	// Fetches the provisioner state of a workspace build, joined through to the
+	// template so that dbauthz can enforce policy.ActionUpdate on the template.
+	// Provisioner state contains sensitive Terraform state and should only be
+	// accessible to template administrators.
+	GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (GetWorkspaceBuildProvisionerStateByIDRow, error)
 	GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]GetWorkspaceBuildStatsByTemplatesRow, error)
 	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)

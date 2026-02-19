@@ -316,6 +316,13 @@ func (t GetFileTemplatesRow) RBACObject() rbac.Object {
 		WithGroupACL(t.GroupACL)
 }
 
+func (t GetWorkspaceBuildProvisionerStateByIDRow) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.WithID(t.TemplateID).
+		InOrg(t.TemplateOrganizationID).
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
+}
+
 func (t Template) DeepCopy() Template {
 	cpy := t
 	cpy.UserACL = maps.Clone(t.UserACL)

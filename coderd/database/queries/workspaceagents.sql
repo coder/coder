@@ -315,7 +315,7 @@ WHERE
 -- the latest build. During shutdown, this may be the previous START build while
 -- the STOP build is executing, allowing shutdown scripts to authenticate (see
 -- issue #19467).
--- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
+-- name: GetAuthenticatedWorkspaceAgentAndBuildByAuthToken :one
 SELECT
 	sqlc.embed(workspaces),
 	sqlc.embed(workspace_agents),
