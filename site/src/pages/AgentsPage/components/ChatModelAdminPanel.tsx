@@ -19,8 +19,21 @@ import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
 import { Input } from "components/Input/Input";
-import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ChevronRightIcon, Loader2Icon, PlusIcon, ServerIcon, Trash2Icon } from "lucide-react";
 import {
 	type FC,
 	type FormEvent,
@@ -45,11 +58,12 @@ type ProviderState = {
 	hasCatalogAPIKey: boolean;
 	hasEffectiveAPIKey: boolean;
 	isEnvPreset: boolean;
-	supportsBaseURL: boolean;
 	baseURL: string;
 };
 
 type ProviderConfigSource = "database" | "env_preset" | "supported";
+
+export type ChatModelAdminSection = "providers" | "models";
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 
@@ -136,45 +150,6 @@ const readOptionalString = (value: unknown): string | undefined => {
 	return trimmedValue || undefined;
 };
 
-const readOptionalBoolean = (value: unknown): boolean | undefined => {
-	return typeof value === "boolean" ? value : undefined;
-};
-
-const providerSupportsBaseURL = (
-	provider: string,
-	catalogProvider: CatalogProvider | undefined,
-	providerConfig: ChatProviderConfig | undefined,
-): boolean => {
-	const catalogSupportsBaseURL = readOptionalBoolean(
-		(
-			catalogProvider as CatalogProvider & {
-				supports_base_url?: boolean;
-			}
-		)?.supports_base_url,
-	);
-	const providerConfigSupportsBaseURL = readOptionalBoolean(
-		(
-			providerConfig as ChatProviderConfig & {
-				supports_base_url?: boolean;
-			}
-		)?.supports_base_url,
-	);
-	const providerConfigBaseURL = readOptionalString(
-		(
-			providerConfig as ChatProviderConfig & {
-				base_url?: string;
-			}
-		)?.base_url,
-	);
-
-	return (
-		provider.includes("compatible") ||
-		Boolean(catalogSupportsBaseURL) ||
-		Boolean(providerConfigSupportsBaseURL) ||
-		Boolean(providerConfigBaseURL)
-	);
-};
-
 const getProviderBaseURL = (
 	providerConfig: ChatProviderConfig | undefined,
 ): string => {
@@ -189,23 +164,95 @@ const getProviderBaseURL = (
 	);
 };
 
+
+const getProviderModelsLabel = (providerState: ProviderState): string => {
+	if (providerState.modelConfigs.length > 0) {
+		return `${providerState.modelConfigs.length} configured model${providerState.modelConfigs.length === 1 ? "" : "s"}`;
+	}
+	if (providerState.catalogModelCount > 0) {
+		return `${providerState.catalogModelCount} catalog model${providerState.catalogModelCount === 1 ? "" : "s"}`;
+	}
+	return "No models configured";
+};
+
+const getProviderInputID = (baseID: string, provider: string): string => {
+	const providerSlug = provider.replace(/[^a-zA-Z0-9_-]/g, "-");
+	return `${baseID}-${providerSlug}`;
+};
+
+const isProviderAPIKeyEnvManaged = (
+	providerState: ProviderState | null | undefined,
+): boolean => {
+	return Boolean(providerState?.isEnvPreset && !providerState.providerConfig);
+};
+
+const providerIconMap: Record<string, string> = {
+	openai: "/icon/openai.svg",
+	anthropic: "/icon/claude.svg",
+	azure: "/icon/azure.svg",
+	bedrock: "/icon/aws.svg",
+	google: "/icon/google.svg",
+	gemini: "/icon/gemini.svg",
+};
+
+// Some provider SVGs (e.g. OpenAI) are pure black and need
+// inversion in dark mode to remain visible.
+const darkInvertProviders = new Set(["openai"]);
+
+const ProviderIcon: FC<{
+	provider: string;
+	className?: string;
+	active?: boolean;
+}> = ({ provider, className, active }) => {
+	const normalized = normalizeProvider(provider);
+	const iconPath = providerIconMap[normalized];
+	if (iconPath) {
+		return (
+			<ExternalImage
+				src={iconPath}
+				alt={`${formatProviderLabel(provider)} logo`}
+				className={cn(
+					"shrink-0",
+					!active && "grayscale opacity-50",
+					darkInvertProviders.has(normalized) && "dark:invert",
+					className,
+				)}
+			/>
+		);
+	}
+	return (
+		<ServerIcon
+			className={cn(
+				"shrink-0",
+				active ? "text-content-primary" : "text-content-secondary",
+				className,
+			)}
+		/>
+	);
+};
+
 type ChatModelAdminPanelProps = {
 	className?: string;
+	section?: ChatModelAdminSection;
 };
 
 export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	className,
+	section = "providers",
 }) => {
 	const queryClient = useQueryClient();
 	const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+	const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
 	const [providerDisplayName, setProviderDisplayName] = useState("");
 	const [providerAPIKey, setProviderAPIKey] = useState("");
 	const [providerBaseURL, setProviderBaseURL] = useState("");
 	const [model, setModel] = useState("");
 	const [displayName, setDisplayName] = useState("");
+	const [isAddModelOpen, setIsAddModelOpen] = useState(false);
 	const providerDisplayNameInputId = useId();
 	const providerAPIKeyInputId = useId();
 	const providerBaseURLInputId = useId();
+	const providerSelectInputId = useId();
 	const modelInputId = useId();
 	const displayNameInputId = useId();
 
@@ -348,11 +395,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					? hasProviderEntryAPIKey
 					: hasManagedAPIKey || hasCatalogAPIKey,
 				isEnvPreset,
-				supportsBaseURL: providerSupportsBaseURL(
-					provider,
-					catalogProvider,
-					providerConfigEntry,
-				),
 				baseURL: getProviderBaseURL(providerConfigEntry),
 			};
 		});
@@ -368,13 +410,21 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			}
 			return providerStates[0]?.provider ?? null;
 		});
+		setExpandedProvider((current) => {
+			if (
+				current &&
+				providerStates.some((providerState) => providerState.provider === current)
+			) {
+				return current;
+			}
+			return null;
+		});
 	}, [providerStates]);
 
 	const selectedProviderState = useMemo(() => {
 		if (!selectedProvider) {
 			return null;
 		}
-
 		return (
 			providerStates.find(
 				(providerState) => providerState.provider === selectedProvider,
@@ -382,22 +432,32 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		);
 	}, [providerStates, selectedProvider]);
 
+	const expandedProviderState = useMemo(() => {
+		if (!expandedProvider) {
+			return null;
+		}
+		return (
+			providerStates.find(
+				(providerState) => providerState.provider === expandedProvider,
+			) ?? null
+		);
+	}, [expandedProvider, providerStates]);
+
 	useEffect(() => {
-		if (!selectedProviderState) {
+		if (!expandedProviderState) {
 			setProviderDisplayName("");
 			setProviderAPIKey("");
 			setProviderBaseURL("");
 			return;
 		}
-
 		setProviderDisplayName(
-			readOptionalString(selectedProviderState.providerConfig?.display_name) ?? "",
+			readOptionalString(expandedProviderState.providerConfig?.display_name) ?? "",
 		);
 		setProviderAPIKey("");
-		setProviderBaseURL(selectedProviderState.baseURL);
-	}, [selectedProviderState]);
+		setProviderBaseURL(expandedProviderState.baseURL);
+	}, [expandedProviderState]);
 
-	const selectedProviderModels = selectedProviderState?.modelConfigs ?? [];
+	const allConfiguredModels = modelConfigs;
 	const hasProviderOptions = providerStates.length > 0;
 	const providerMutationError =
 		createProviderConfigMutation.error ?? updateProviderConfigMutation.error;
@@ -412,11 +472,16 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const isProviderMutationPending =
 		createProviderConfigMutation.isPending ||
 		updateProviderConfigMutation.isPending;
-	const requiresProviderAPIKey = !selectedProviderState?.providerConfig;
+	const requiresProviderAPIKey = Boolean(
+		expandedProviderState &&
+			!expandedProviderState.providerConfig &&
+			!isProviderAPIKeyEnvManaged(expandedProviderState),
+	);
 	const canSaveProviderConfig = Boolean(
-		selectedProviderState &&
+		expandedProviderState &&
 			!providerConfigsUnavailable &&
 			!isProviderMutationPending &&
+			!isProviderAPIKeyEnvManaged(expandedProviderState) &&
 			(!requiresProviderAPIKey || providerAPIKey.trim()),
 	);
 	const canManageSelectedProviderModels = Boolean(
@@ -427,9 +492,10 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const handleSaveProviderConfig = async (event: FormEvent) => {
 		event.preventDefault();
 		if (
-			!selectedProviderState ||
+			!expandedProviderState ||
 			providerConfigsUnavailable ||
-			isProviderMutationPending
+			isProviderMutationPending ||
+			isProviderAPIKeyEnvManaged(expandedProviderState)
 		) {
 			return;
 		}
@@ -438,12 +504,11 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		const trimmedAPIKey = providerAPIKey.trim();
 		const trimmedBaseURL = providerBaseURL.trim();
 
-		if (selectedProviderState.providerConfig) {
+		if (expandedProviderState.providerConfig) {
 			const currentDisplayName =
-				readOptionalString(selectedProviderState.providerConfig.display_name) ??
-				"";
-			const currentBaseURL = selectedProviderState.baseURL.trim();
-			const req: UpdateChatProviderConfigRequest & { base_url?: string } = {};
+				readOptionalString(expandedProviderState.providerConfig.display_name) ?? "";
+			const currentBaseURL = expandedProviderState.baseURL.trim();
+			const req: UpdateChatProviderConfigRequest = {};
 
 			if (trimmedDisplayName !== currentDisplayName) {
 				req.display_name = trimmedDisplayName;
@@ -451,10 +516,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			if (trimmedAPIKey) {
 				req.api_key = trimmedAPIKey;
 			}
-			if (
-				selectedProviderState.supportsBaseURL &&
-				trimmedBaseURL !== currentBaseURL
-			) {
+			if (trimmedBaseURL !== currentBaseURL) {
 				req.base_url = trimmedBaseURL;
 			}
 			if (Object.keys(req).length === 0) {
@@ -462,7 +524,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			}
 
 			await updateProviderConfigMutation.mutateAsync({
-				providerConfigId: selectedProviderState.providerConfig.id,
+				providerConfigId: expandedProviderState.providerConfig.id,
 				req,
 			});
 		} else {
@@ -470,14 +532,14 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 				return;
 			}
 
-			const req: CreateChatProviderConfigRequest & { base_url?: string } = {
-				provider: selectedProviderState.provider,
+			const req: CreateChatProviderConfigRequest = {
+				provider: expandedProviderState.provider,
 				api_key: trimmedAPIKey,
 			};
 			if (trimmedDisplayName) {
 				req.display_name = trimmedDisplayName;
 			}
-			if (selectedProviderState.supportsBaseURL && trimmedBaseURL) {
+			if (trimmedBaseURL) {
 				req.base_url = trimmedBaseURL;
 			}
 
@@ -515,6 +577,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		await createModelConfigMutation.mutateAsync(req);
 		setModel("");
 		setDisplayName("");
+		setIsAddModelOpen(false);
 	};
 
 	const handleDeleteModel = async (modelConfigId: string) => {
@@ -524,375 +587,543 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		await deleteModelConfigMutation.mutateAsync(modelConfigId);
 	};
 
-	return (
-		<div
-			className={cn(
-				"rounded-xl border border-border bg-surface-secondary/40 p-4",
-				className,
-			)}
-		>
-			<div className="mb-3 flex items-center justify-between gap-3">
-				<div>
-					<div className="text-sm font-medium text-content-primary">
-						Chat model configuration
-					</div>
-					<div className="text-xs text-content-secondary">
-						Configure providers first, then add or remove models.
-					</div>
-				</div>
+	const renderHeader = () => {
+		return (
+			<div className="flex items-center justify-between gap-4">
+			<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
+				{section === "providers"
+					? "Configure provider credentials and network settings."
+					: "Manage models available in Agents across all providers."}
+			</p>
 				{isLoading && (
-					<div className="flex items-center gap-1 text-2xs text-content-secondary">
-						<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+					<div className="flex items-center gap-1.5 text-xs text-content-secondary">
+						<Loader2Icon className="h-4 w-4 animate-spin" />
 						Loading
 					</div>
 				)}
 			</div>
+		);
+	};
 
-			{providerConfigsQuery.isError && (
-				<ErrorAlert error={providerConfigsQuery.error} />
-			)}
-			{modelConfigsQuery.isError && (
-				<ErrorAlert error={modelConfigsQuery.error} />
-			)}
-			{modelCatalogQuery.isError && (
-				<ErrorAlert error={modelCatalogQuery.error} />
-			)}
-			{providerMutationError && <ErrorAlert error={providerMutationError} />}
-			{modelMutationError && <ErrorAlert error={modelMutationError} />}
+	const renderAlerts = () => {
+		return (
+			<>
+				{providerConfigsQuery.isError && (
+					<ErrorAlert error={providerConfigsQuery.error} />
+				)}
+				{modelConfigsQuery.isError && <ErrorAlert error={modelConfigsQuery.error} />}
+				{modelCatalogQuery.isError && <ErrorAlert error={modelCatalogQuery.error} />}
+				{providerMutationError && <ErrorAlert error={providerMutationError} />}
+				{modelMutationError && <ErrorAlert error={modelMutationError} />}
 
-			{providerConfigsUnavailable && (
-				<Alert severity="info" className="mb-3">
-					<AlertTitle>
-						Chat provider admin API is unavailable on this deployment.
-					</AlertTitle>
-					<AlertDetail>/api/v2/chats/providers is missing.</AlertDetail>
-				</Alert>
-			)}
+				{providerConfigsUnavailable && (
+					<Alert severity="info" className="mb-3">
+						<AlertTitle>
+							Chat provider admin API is unavailable on this deployment.
+						</AlertTitle>
+						<AlertDetail>/api/v2/chats/providers is missing.</AlertDetail>
+					</Alert>
+				)}
 
-			{modelConfigsUnavailable && (
-				<Alert severity="info" className="mb-3">
-					<AlertTitle>
-						Chat model admin API is unavailable on this deployment.
-					</AlertTitle>
-					<AlertDetail>/api/v2/chats/model-configs is missing.</AlertDetail>
-				</Alert>
-			)}
+				{modelConfigsUnavailable && (
+					<Alert severity="info" className="mb-3">
+						<AlertTitle>
+							Chat model admin API is unavailable on this deployment.
+						</AlertTitle>
+						<AlertDetail>/api/v2/chats/model-configs is missing.</AlertDetail>
+					</Alert>
+				)}
+			</>
+		);
+	};
 
-			{!hasProviderOptions ? (
-				<div className="rounded-md border border-dashed border-border bg-surface-primary p-3 text-xs text-content-secondary">
-					No provider types were returned by the backend.
-				</div>
-			) : (
+	const renderProviderForm = (providerState: ProviderState) => {
+		const isExpanded = expandedProviderState?.provider === providerState.provider;
+		if (!isExpanded) {
+			return null;
+		}
+
+		const providerDisplayNameID = getProviderInputID(
+			providerDisplayNameInputId,
+			providerState.provider,
+		);
+		const providerAPIKeyID = getProviderInputID(
+			providerAPIKeyInputId,
+			providerState.provider,
+		);
+		const providerBaseURLID = getProviderInputID(
+			providerBaseURLInputId,
+			providerState.provider,
+		);
+		const isAPIKeyEnvManaged = isProviderAPIKeyEnvManaged(providerState);
+
+		return (
+			<CollapsibleContent className="border-t border-border px-5 py-4">
 				<div className="space-y-3">
-					<div className="space-y-2">
-						<div className="text-xs font-medium text-content-primary">
-							1. Select provider
-						</div>
-						<div className="grid gap-2 md:grid-cols-2">
-							{providerStates.map((providerState) => {
-								const isSelected =
-									selectedProviderState?.provider === providerState.provider;
-								const providerStatus = providerState.providerConfig
-									? "Managed config"
-									: providerState.isEnvPreset
-										? "Environment preset"
-										: "Needs API key";
-								const providerModelsLabel =
-									providerState.modelConfigs.length > 0
-										? `${providerState.modelConfigs.length} configured model${providerState.modelConfigs.length === 1 ? "" : "s"}`
-										: providerState.catalogModelCount > 0
-											? `${providerState.catalogModelCount} catalog model${providerState.catalogModelCount === 1 ? "" : "s"}`
-											: "No models configured";
+					<p className="m-0 text-xs text-content-secondary">
+						{providerState.providerConfig
+							? "Update this managed provider config for your deployment."
+							: isAPIKeyEnvManaged
+								? "This provider API key is managed by an environment variable."
+								: "Create a managed provider config before enabling models."}
+					</p>
 
-								return (
-									<button
-										key={providerState.provider}
-										type="button"
-										className={cn(
-											"rounded-lg border px-3 py-2 text-left transition-colors",
-											isSelected
-												? "border-content-link bg-surface-secondary"
-												: "border-border bg-surface-primary hover:bg-surface-secondary/60",
-										)}
-										onClick={() => setSelectedProvider(providerState.provider)}
-									>
-										<div className="flex items-center justify-between gap-2">
-											<div className="truncate text-sm font-medium text-content-primary">
-												{providerState.label}
-											</div>
-											<Badge
-												size="xs"
-												variant={
-													providerState.providerConfig
-														? "green"
-														: providerState.isEnvPreset
-															? "info"
-															: "default"
-												}
-											>
-												{providerStatus}
-											</Badge>
-										</div>
-										<div className="mt-1 truncate text-2xs text-content-secondary">
-											{providerState.provider}
-										</div>
-										<div className="mt-1 truncate text-2xs text-content-secondary">
-											{providerModelsLabel}
-										</div>
-									</button>
-								);
-							})}
-						</div>
-					</div>
-
-					{selectedProviderState && (
-						<div className="space-y-3 rounded-lg border border-border bg-surface-primary p-3">
-							<div className="space-y-1">
-								<div className="flex items-center gap-2 text-xs font-medium text-content-primary">
-									2. Provider setup
-									<Badge
-										size="xs"
-										variant={
-											selectedProviderState.providerConfig
-												? "green"
-												: selectedProviderState.isEnvPreset
-													? "info"
-													: "default"
-										}
-									>
-										{selectedProviderState.providerConfig
-											? "Managed config"
-											: selectedProviderState.isEnvPreset
-												? "Environment preset"
-												: "Not configured"}
-									</Badge>
-								</div>
-								<div className="text-2xs text-content-secondary">
-									{selectedProviderState.providerConfig
-										? "Update this managed provider config for your deployment."
-										: selectedProviderState.isEnvPreset
-											? "This provider has an environment preset. Create a managed config to use BYO credentials and configure models."
-											: "Create a managed provider config with BYO credentials before adding models."}
-								</div>
-							</div>
-
-							{selectedProviderState.isEnvPreset &&
-								!selectedProviderState.providerConfig && (
-									<Alert severity="info">
-										<AlertTitle>Environment preset detected.</AlertTitle>
-										<AlertDetail>
-											This provider is currently available through deployment
-											environment settings. Create a managed config below if you
-											want to override with BYO credentials.
-										</AlertDetail>
-									</Alert>
-								)}
-
-							<form className="space-y-2" onSubmit={handleSaveProviderConfig}>
-								<div
-									className={cn(
-										"grid gap-2 sm:grid-cols-2",
-										selectedProviderState.supportsBaseURL &&
-											"lg:grid-cols-3",
-									)}
-								>
-									<div className="grid gap-1 text-xs text-content-secondary">
-										<label
-											htmlFor={providerDisplayNameInputId}
-											className="font-medium text-content-primary"
-										>
-											Display name (optional)
-										</label>
-										<Input
-											id={providerDisplayNameInputId}
-											className="h-9 text-xs"
-											placeholder="Friendly provider label"
-											value={providerDisplayName}
-											onChange={(event) =>
-												setProviderDisplayName(event.target.value)
-											}
-											disabled={providerConfigsUnavailable || isProviderMutationPending}
-										/>
-									</div>
-									<div className="grid gap-1 text-xs text-content-secondary">
-										<label
-											htmlFor={providerAPIKeyInputId}
-											className="font-medium text-content-primary"
-										>
-											{selectedProviderState.providerConfig
-												? "API key (optional)"
-												: "API key"}
-										</label>
-										<Input
-											id={providerAPIKeyInputId}
-											type="password"
-											autoComplete="off"
-											className="h-9 text-xs"
-											placeholder={
-												selectedProviderState.providerConfig
-													? "Leave blank to keep existing key"
-													: "Paste provider API key"
-											}
-											value={providerAPIKey}
-											onChange={(event) => setProviderAPIKey(event.target.value)}
-											disabled={providerConfigsUnavailable || isProviderMutationPending}
-										/>
-									</div>
-									{selectedProviderState.supportsBaseURL && (
-										<div className="grid gap-1 text-xs text-content-secondary">
-											<label
-												htmlFor={providerBaseURLInputId}
-												className="font-medium text-content-primary"
-											>
-												Base URL (optional)
-											</label>
-											<Input
-												id={providerBaseURLInputId}
-												className="h-9 text-xs"
-												placeholder="https://api.example.com/v1"
-												value={providerBaseURL}
-												onChange={(event) =>
-													setProviderBaseURL(event.target.value)
-												}
-												disabled={
-													providerConfigsUnavailable || isProviderMutationPending
-												}
-											/>
-										</div>
-									)}
-								</div>
-								<div className="flex items-center justify-between gap-2">
-									<div className="text-2xs text-content-secondary">
-										{selectedProviderState.providerConfig
-											? "Updating the API key is optional."
-											: "API key is required to create a managed provider config."}
-									</div>
-									<Button
-										size="sm"
-										type="submit"
-										disabled={!canSaveProviderConfig}
-									>
-										{isProviderMutationPending && (
-											<Loader2Icon className="h-4 w-4 animate-spin" />
-										)}
-										{selectedProviderState.providerConfig
-											? "Save provider changes"
-											: "Create provider config"}
-									</Button>
-								</div>
-							</form>
-						</div>
+					{isAPIKeyEnvManaged && (
+						<Alert severity="info">
+							<AlertTitle>API key managed by environment variable.</AlertTitle>
+							<AlertDetail>
+								This provider key is configured from deployment environment
+								settings and cannot be edited in this UI.
+							</AlertDetail>
+						</Alert>
 					)}
 
-					<div className="space-y-3 rounded-lg border border-border bg-surface-primary p-3">
-						<div className="space-y-1">
-							<div className="text-xs font-medium text-content-primary">
-								3. Models
-							</div>
-							<div className="text-2xs text-content-secondary">
-								Add or remove models that end users can pick in Agents.
-							</div>
-						</div>
-						{selectedProviderState && !modelConfigsUnavailable ? (
-							canManageSelectedProviderModels ? (
-								<form
-									className="grid gap-2 md:grid-cols-[1fr_1fr_auto] md:items-end"
-									onSubmit={(event) => void handleAddModel(event)}
-								>
-									<div className="grid gap-1 text-xs text-content-secondary">
-										<label
-											htmlFor={modelInputId}
-											className="font-medium text-content-primary"
-										>
-											Model ID
-										</label>
-										<Input
-											id={modelInputId}
-											className="h-9 text-xs"
-											placeholder="gpt-5, claude-sonnet-4-5, etc."
-											value={model}
-											onChange={(event) => setModel(event.target.value)}
-											disabled={createModelConfigMutation.isPending}
-										/>
-									</div>
-									<div className="grid gap-1 text-xs text-content-secondary">
-										<label
-											htmlFor={displayNameInputId}
-											className="font-medium text-content-primary"
-										>
-											Display name (optional)
-										</label>
-										<Input
-											id={displayNameInputId}
-											className="h-9 text-xs"
-											placeholder="Friendly label"
-											value={displayName}
-											onChange={(event) => setDisplayName(event.target.value)}
-											disabled={createModelConfigMutation.isPending}
-										/>
-									</div>
-									<Button
-										size="sm"
-										type="submit"
-										disabled={createModelConfigMutation.isPending || !model.trim()}
+					{!isAPIKeyEnvManaged && (
+						<form
+							className="space-y-3"
+							onSubmit={(event) => void handleSaveProviderConfig(event)}
+						>
+							<div className="grid gap-3 lg:grid-cols-3">
+								<div className="grid gap-1.5">
+									<label
+										htmlFor={providerDisplayNameID}
+										className="text-[13px] font-medium text-content-primary"
 									>
-										<PlusIcon className="h-3.5 w-3.5" />
-										Add model
-									</Button>
-								</form>
-								) : (
-									<div className="rounded-md border border-dashed border-border bg-surface-secondary/30 p-3 text-xs text-content-secondary">
-										{!selectedProviderState.providerConfig
-											? "Create a managed provider config before adding models."
-											: "Set an API key for this provider before adding models."}
-									</div>
-								)
-						) : (
-							<div className="rounded-md border border-dashed border-border bg-surface-secondary/30 p-3 text-xs text-content-secondary">
-								Select a provider to manage models.
-							</div>
-						)}
-
-						<div className="space-y-2">
-							<div className="text-xs font-medium text-content-primary">
-								Configured models
-							</div>
-							{selectedProviderModels.length === 0 ? (
-								<div className="rounded-md border border-dashed border-border bg-surface-secondary/30 p-3 text-xs text-content-secondary">
-									No models configured for this provider.
+										Display name{" "}
+										<span className="font-normal text-content-secondary">(optional)</span>
+									</label>
+									<Input
+										id={providerDisplayNameID}
+										className="h-10 text-[13px]"
+										placeholder="Friendly provider label"
+										value={providerDisplayName}
+										onChange={(event) =>
+											setProviderDisplayName(event.target.value)
+										}
+										disabled={providerConfigsUnavailable || isProviderMutationPending}
+									/>
 								</div>
-							) : (
-								selectedProviderModels.map((modelConfig) => (
-									<div
-										key={modelConfig.id}
-										className="flex items-start justify-between gap-2 rounded-md border border-border bg-surface-secondary/20 px-3 py-2"
+								<div className="grid gap-1.5">
+									<label
+										htmlFor={providerAPIKeyID}
+										className="text-[13px] font-medium text-content-primary"
 									>
-										<div className="min-w-0">
-											<div className="truncate text-xs text-content-primary">
-												{modelConfig.display_name || modelConfig.model}
-											</div>
-											<div className="truncate text-2xs text-content-secondary">
-												{modelConfig.model}
-												{modelConfig.enabled === false ? " . disabled" : ""}
-												{modelConfig.is_default ? " . default" : ""}
+										API key{" "}
+										{providerState.providerConfig && (
+											<span className="font-normal text-content-secondary">(optional)</span>
+										)}
+									</label>
+									<Input
+										id={providerAPIKeyID}
+										type="password"
+										autoComplete="off"
+										className="h-10 text-[13px]"
+										placeholder={
+											providerState.providerConfig
+												? "Leave blank to keep existing key"
+												: "Paste provider API key"
+										}
+										value={providerAPIKey}
+										onChange={(event) => setProviderAPIKey(event.target.value)}
+										disabled={providerConfigsUnavailable || isProviderMutationPending}
+									/>
+								</div>
+								<div className="grid gap-1.5">
+									<label
+										htmlFor={providerBaseURLID}
+										className="text-[13px] font-medium text-content-primary"
+									>
+										Base URL{" "}
+										<span className="font-normal text-content-secondary">(optional)</span>
+									</label>
+									<Input
+										id={providerBaseURLID}
+										className="h-10 text-[13px]"
+										placeholder="https://api.example.com/v1"
+										value={providerBaseURL}
+										onChange={(event) => setProviderBaseURL(event.target.value)}
+										disabled={providerConfigsUnavailable || isProviderMutationPending}
+									/>
+								</div>
+							</div>
+							<div className="flex items-center justify-end gap-3 border-t border-border pt-3">
+								<Button size="sm" type="submit" disabled={!canSaveProviderConfig}>
+									{isProviderMutationPending && (
+										<Loader2Icon className="h-4 w-4 animate-spin" />
+									)}
+									{providerState.providerConfig
+										? "Save changes"
+										: "Create provider config"}
+								</Button>
+							</div>
+						</form>
+					)}
+				</div>
+			</CollapsibleContent>
+		);
+	};
+
+	const renderProvidersSection = () => {
+		if (!hasProviderOptions) {
+			return (
+				<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-[13px] text-content-secondary">
+					No provider types were returned by the backend.
+				</div>
+			);
+		}
+
+		return (
+			<div className="space-y-2">
+				{providerStates.map((providerState) => {
+					const isExpanded = expandedProvider === providerState.provider;
+					const providerModelsLabel = getProviderModelsLabel(providerState);
+
+					return (
+						<Collapsible
+							key={providerState.provider}
+							open={isExpanded}
+							onOpenChange={(nextOpen) => {
+								setExpandedProvider(nextOpen ? providerState.provider : null);
+								if (nextOpen) {
+									setSelectedProvider(providerState.provider);
+								}
+							}}
+						>
+							<div
+								className={cn(
+									"rounded-xl border border-border-default bg-surface-primary shadow-sm transition-all",
+									isExpanded && "border-border-default bg-surface-secondary/30 shadow-md",
+								)}
+							>
+								<CollapsibleTrigger asChild>
+									<Button
+										variant="subtle"
+										className={cn(
+											"h-auto w-full justify-between gap-4 rounded-[inherit] px-5 py-3.5 text-left shadow-none",
+											isExpanded
+												? "bg-surface-secondary/30 hover:bg-surface-secondary/30"
+												: "hover:bg-surface-tertiary/30",
+										)}
+									>
+										<div className="flex min-w-0 items-center gap-3">
+											<ProviderIcon
+												provider={providerState.provider}
+												className="h-7 w-7"
+												active={providerState.hasEffectiveAPIKey}
+											/>
+											<div className="min-w-0">
+												<span className={cn(
+													"truncate text-[15px] font-semibold",
+													providerState.hasEffectiveAPIKey
+														? "text-content-primary"
+														: "text-content-secondary",
+												)}>
+													{providerState.label}
+												</span>
+												<div className="mt-0.5 flex items-center gap-2 text-xs text-content-secondary">
+													<span className="truncate">{providerModelsLabel}</span>
+												</div>
 											</div>
 										</div>
-										<Button
-											size="xs"
-											variant="destructive"
-											onClick={() => void handleDeleteModel(modelConfig.id)}
-											disabled={deleteModelConfigMutation.isPending}
-										>
-											<Trash2Icon />
-											<span className="sr-only">Remove model</span>
-										</Button>
-									</div>
-								))
-							)}
-						</div>
+										<ChevronRightIcon
+											className={cn(
+												"h-4 w-4 shrink-0 text-content-secondary transition-transform duration-200",
+												isExpanded && "rotate-90 text-content-primary",
+											)}
+										/>
+									</Button>
+								</CollapsibleTrigger>
+								{renderProviderForm(providerState)}
+							</div>
+						</Collapsible>
+					);
+				})}
+			</div>
+		);
+	};
+
+	const renderAddModelForm = () => {
+		if (!selectedProviderState || modelConfigsUnavailable) {
+			return (
+				<div className="space-y-3 px-4 pb-4 pt-3">
+					<div className="grid gap-1.5">
+						<label
+							htmlFor={providerSelectInputId}
+							className="text-[13px] font-medium text-content-primary"
+						>
+							Provider
+						</label>
+						<Select
+							value={selectedProvider ?? ""}
+							onValueChange={setSelectedProvider}
+							disabled={!hasProviderOptions}
+						>
+							<SelectTrigger id={providerSelectInputId} className="h-10 max-w-[240px] text-[13px]">
+								<SelectValue placeholder="Select provider" />
+							</SelectTrigger>
+							<SelectContent>
+								{providerStates.map((providerState) => (
+									<SelectItem
+										key={providerState.provider}
+										value={providerState.provider}
+									>
+										<span className="flex items-center gap-2">
+											<ProviderIcon
+												provider={providerState.provider}
+												className="h-4 w-4"
+											/>
+											{providerState.label}
+										</span>
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 				</div>
-			)}
+			);
+		}
+
+		if (!canManageSelectedProviderModels) {
+			return (
+				<div className="space-y-3 px-4 pb-4 pt-3">
+					<div className="grid gap-1.5">
+						<label
+							htmlFor={providerSelectInputId}
+							className="text-[13px] font-medium text-content-primary"
+						>
+							Provider
+						</label>
+						<Select
+							value={selectedProvider ?? ""}
+							onValueChange={setSelectedProvider}
+							disabled={!hasProviderOptions}
+						>
+							<SelectTrigger id={providerSelectInputId} className="h-10 max-w-[240px] text-[13px]">
+								<SelectValue placeholder="Select provider" />
+							</SelectTrigger>
+							<SelectContent>
+								{providerStates.map((providerState) => (
+									<SelectItem
+										key={providerState.provider}
+										value={providerState.provider}
+									>
+										<span className="flex items-center gap-2">
+											<ProviderIcon
+												provider={providerState.provider}
+												className="h-4 w-4"
+											/>
+											{providerState.label}
+										</span>
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<p className="text-[13px] text-content-secondary">
+						{!selectedProviderState.providerConfig
+							? "Create a managed provider config on the Providers tab before adding models."
+							: "Set an API key for this provider on the Providers tab before adding models."}
+					</p>
+				</div>
+			);
+		}
+
+		return (
+			<form
+				className="space-y-3 px-4 pb-4 pt-3"
+				onSubmit={(event) => void handleAddModel(event)}
+			>
+				<div className="grid gap-3 md:grid-cols-3">
+					<div className="grid gap-1.5">
+						<label
+							htmlFor={providerSelectInputId}
+							className="text-[13px] font-medium text-content-primary"
+						>
+							Provider
+						</label>
+						<Select
+							value={selectedProvider ?? ""}
+							onValueChange={setSelectedProvider}
+							disabled={!hasProviderOptions}
+						>
+							<SelectTrigger id={providerSelectInputId} className="h-10 text-[13px]">
+								<SelectValue placeholder="Select provider" />
+							</SelectTrigger>
+							<SelectContent>
+								{providerStates.map((providerState) => (
+									<SelectItem
+										key={providerState.provider}
+										value={providerState.provider}
+										disabled={!providerState.hasEffectiveAPIKey}
+									>
+										<span className="flex items-center gap-2">
+											<ProviderIcon
+												provider={providerState.provider}
+												className="h-4 w-4"
+											/>
+											{providerState.label}
+											{!providerState.hasEffectiveAPIKey && (
+												<span className="text-xs text-content-disabled">
+													(not configured)
+												</span>
+											)}
+										</span>
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div className="grid gap-1.5">
+						<label
+							htmlFor={modelInputId}
+							className="text-[13px] font-medium text-content-primary"
+						>
+							Model ID
+						</label>
+						<Input
+							id={modelInputId}
+							className="h-10 text-[13px]"
+							placeholder="gpt-5, claude-sonnet-4-5, etc."
+							value={model}
+							onChange={(event) => setModel(event.target.value)}
+							disabled={createModelConfigMutation.isPending}
+						/>
+					</div>
+					<div className="grid gap-1.5">
+						<label
+							htmlFor={displayNameInputId}
+							className="text-[13px] font-medium text-content-primary"
+						>
+							Display name{" "}
+							<span className="font-normal text-content-secondary">(optional)</span>
+						</label>
+						<Input
+							id={displayNameInputId}
+							className="h-10 text-[13px]"
+							placeholder="Friendly label"
+							value={displayName}
+							onChange={(event) => setDisplayName(event.target.value)}
+							disabled={createModelConfigMutation.isPending}
+						/>
+					</div>
+				</div>
+				<div className="flex items-center justify-end gap-2">
+					<Button
+						size="sm"
+						variant="outline"
+						type="button"
+						onClick={() => {
+							setIsAddModelOpen(false);
+							setModel("");
+							setDisplayName("");
+						}}
+					>
+						Cancel
+					</Button>
+					<Button
+						size="sm"
+						type="submit"
+						disabled={createModelConfigMutation.isPending || !model.trim()}
+					>
+						{createModelConfigMutation.isPending ? (
+							<Loader2Icon className="h-4 w-4 animate-spin" />
+						) : (
+							<PlusIcon className="h-4 w-4" />
+						)}
+						Add model
+					</Button>
+				</div>
+			</form>
+		);
+	};
+
+	const renderModelsSection = () => {
+		return (
+			<div className="space-y-4">
+				{/* Model list */}
+				<div className="overflow-hidden rounded-xl border border-border">
+					{allConfiguredModels.length === 0 ? (
+						<div className="px-4 py-8 text-center text-[13px] text-content-secondary">
+							No models configured yet. Add one to get started.
+						</div>
+					) : (
+						allConfiguredModels.map((modelConfig, index) => (
+							<div
+								key={modelConfig.id}
+								className={cn(
+									"group flex items-center justify-between gap-3 bg-surface-primary px-4 py-3 transition-colors hover:bg-surface-secondary/20",
+									index > 0 && "border-t border-border",
+								)}
+							>
+								<div className="flex min-w-0 items-center gap-3">
+									<ProviderIcon
+										provider={modelConfig.provider}
+										className="h-5 w-5"
+									/>
+									<div className="min-w-0">
+										<div className="truncate text-[13px] font-medium text-content-primary">
+											{modelConfig.display_name || modelConfig.model}
+										</div>
+										<div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-content-secondary">
+											<span>{formatProviderLabel(modelConfig.provider)}</span>
+											<span className="text-content-disabled">&middot;</span>
+											<span>{modelConfig.model}</span>
+											{modelConfig.enabled === false && (
+												<>
+													<span className="text-content-disabled">&middot;</span>
+													<span className="text-content-disabled">disabled</span>
+												</>
+											)}
+											{modelConfig.is_default && (
+												<>
+													<span className="text-content-disabled">&middot;</span>
+													<Badge size="sm" variant="info">default</Badge>
+												</>
+											)}
+										</div>
+									</div>
+								</div>
+								<Button
+									size="icon"
+									variant="subtle"
+									className="h-8 w-8 shrink-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100"
+									onClick={() => void handleDeleteModel(modelConfig.id)}
+									disabled={deleteModelConfigMutation.isPending}
+								>
+									<Trash2Icon className="h-4 w-4" />
+									<span className="sr-only">Remove model</span>
+								</Button>
+							</div>
+						))
+					)}
+
+					{/* Add model trigger / inline form */}
+					{isAddModelOpen ? (
+						<div className="border-t border-border bg-surface-secondary/10">
+							{renderAddModelForm()}
+						</div>
+					) : (
+						<div className={cn(allConfiguredModels.length > 0 && "border-t border-border")}>
+							<Button
+								variant="subtle"
+								className="h-auto w-full justify-start gap-2 rounded-none border-none px-4 py-3 text-[13px] font-medium text-content-link shadow-none hover:bg-surface-secondary/20"
+								onClick={() => setIsAddModelOpen(true)}
+							>
+								<PlusIcon className="h-4 w-4" />
+								Add model
+							</Button>
+						</div>
+					)}
+				</div>
+			</div>
+		);
+	};
+
+	return (
+		<div className={cn("space-y-3", className)}>
+			{renderHeader()}
+			{renderAlerts()}
+			{section === "providers" ? renderProvidersSection() : renderModelsSection()}
 		</div>
 	);
 };

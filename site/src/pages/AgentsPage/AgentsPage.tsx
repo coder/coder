@@ -7,18 +7,13 @@ import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	Select,
@@ -27,14 +22,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { useAuthenticated } from "hooks";
-import {
-	ChevronDownIcon,
-	Loader2Icon,
-	MonitorIcon,
-	Settings2Icon,
-	SlidersHorizontalIcon,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { BoxesIcon, KeyRoundIcon, Loader2Icon, MonitorIcon, UserIcon, XIcon } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -70,6 +61,14 @@ type CreateChatOptions = {
 	workspaceId?: string;
 	model?: string;
 	systemPrompt?: string;
+};
+
+type ConfigureAgentsSection = "providers" | "system-prompt" | "models";
+
+type ConfigureAgentsSectionOption = {
+	id: ConfigureAgentsSection;
+	label: string;
+	icon: LucideIcon;
 };
 
 export interface AgentsOutletContext {
@@ -379,8 +378,10 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	}, []);
 	const [selectedModel, setSelectedModel] = useState(modelOptions[0]?.id ?? "");
 	const [systemPrompt, setSystemPrompt] = useState("");
-	const [isSystemPromptDialogOpen, setSystemPromptDialogOpen] = useState(false);
-	const [isModelConfigDialogOpen, setModelConfigDialogOpen] = useState(false);
+	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
+		useState(false);
+	const [activeConfigureSection, setActiveConfigureSection] =
+		useState<ConfigureAgentsSection>("providers");
 	const workspacesQuery = useQuery(workspaces({ limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		null,
@@ -388,6 +389,31 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
 	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
+	const configureSectionOptions = useMemo<
+		readonly ConfigureAgentsSectionOption[]
+	>(() => {
+		const options: ConfigureAgentsSectionOption[] = [];
+		if (canManageChatModelConfigs) {
+			options.push({
+				id: "providers",
+				label: "Providers",
+				icon: KeyRoundIcon,
+			});
+			options.push({
+				id: "models",
+				label: "Models",
+				icon: BoxesIcon,
+			});
+		}
+		if (canSetSystemPrompt) {
+			options.push({
+				id: "system-prompt",
+				label: "Behavior",
+				icon: UserIcon,
+			});
+		}
+		return options;
+	}, [canManageChatModelConfigs, canSetSystemPrompt]);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -426,12 +452,31 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		});
 	}, [modelOptions]);
 
+	useEffect(() => {
+		if (
+			configureSectionOptions.some((section) => section.id === activeConfigureSection)
+		) {
+			return;
+		}
+		setActiveConfigureSection(configureSectionOptions[0]?.id ?? "providers");
+	}, [activeConfigureSection, configureSectionOptions]);
+
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
 			setSelectedWorkspaceId(null);
 			return;
 		}
 		setSelectedWorkspaceId(value);
+	};
+
+	const handleOpenConfigureAgentsDialog = () => {
+		const initialSection =
+			configureSectionOptions.find((section) => section.id === "providers")
+				?.id ??
+			configureSectionOptions[0]?.id ??
+			"providers";
+		setActiveConfigureSection(initialSection);
+		setConfigureAgentsDialogOpen(true);
 	};
 
 	const handleInputChange = useCallback((value: string) => {
@@ -465,42 +510,14 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			{hasAdminControls &&
 				topBarActionsRef.current &&
 				createPortal(
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="subtle"
-								disabled={isCreating}
-								className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-							>
-								Admin
-								<ChevronDownIcon className="h-2.5 w-2.5 text-content-secondary" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							{canSetSystemPrompt && (
-								<DropdownMenuItem
-									onSelect={(event) => {
-										event.preventDefault();
-										setSystemPromptDialogOpen(true);
-									}}
-								>
-									<SlidersHorizontalIcon className="h-3.5 w-3.5" />
-									System prompt
-								</DropdownMenuItem>
-							)}
-							{canManageChatModelConfigs && (
-								<DropdownMenuItem
-									onSelect={(event) => {
-										event.preventDefault();
-										setModelConfigDialogOpen(true);
-									}}
-								>
-									<Settings2Icon className="h-3.5 w-3.5" />
-									Model config
-								</DropdownMenuItem>
-							)}
-						</DropdownMenuContent>
-					</DropdownMenu>,
+					<Button
+						variant="subtle"
+						disabled={isCreating}
+						className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
+						onClick={handleOpenConfigureAgentsDialog}
+					>
+						Admin
+					</Button>,
 					topBarActionsRef.current,
 				)}
 
@@ -557,60 +574,107 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 				/>
 			</div>
 
-			{canSetSystemPrompt && (
+			{hasAdminControls && (
 				<Dialog
-					open={isSystemPromptDialogOpen}
-					onOpenChange={setSystemPromptDialogOpen}
+					open={isConfigureAgentsDialogOpen}
+					onOpenChange={setConfigureAgentsDialogOpen}
 				>
-					<DialogContent className="max-w-2xl p-6">
-						<DialogHeader className="space-y-2">
-							<DialogTitle>System prompt</DialogTitle>
+					<DialogContent className="grid h-[min(88dvh,720px)] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0 md:grid-cols-[200px_minmax(0,1fr)]">
+						{/* Visually hidden for accessibility */}
+						<DialogHeader className="sr-only">
+							<DialogTitle>Configure Agents</DialogTitle>
 							<DialogDescription>
-								Admin-only instruction applied when this chat is created.
+								Manage providers, system prompt, and available models.
 							</DialogDescription>
 						</DialogHeader>
-						<TextareaAutosize
-							className="min-h-[180px] w-full resize-y rounded-md border border-border bg-surface-primary px-3 py-2 font-sans text-sm text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
-							placeholder="Optional. Set deployment-level instructions for this chat."
-							value={systemPrompt}
-							onChange={(e) => setSystemPrompt(e.target.value)}
-							disabled={isCreating}
-							minRows={6}
-						/>
-						<DialogFooter className="gap-2">
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => setSystemPrompt("")}
-								disabled={isCreating || !systemPrompt}
-							>
-								Clear
-							</Button>
-							<Button
-								size="sm"
-								variant="default"
-								onClick={() => setSystemPromptDialogOpen(false)}
-							>
-								Done
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
-			)}
 
-			{canManageChatModelConfigs && (
-				<Dialog
-					open={isModelConfigDialogOpen}
-					onOpenChange={setModelConfigDialogOpen}
-				>
-					<DialogContent className="max-h-[85dvh] max-w-2xl overflow-y-auto p-5">
-						<DialogTitle className="sr-only">
-							Chat model configuration
-						</DialogTitle>
-						<DialogDescription className="sr-only">
-							Admin-only controls for chat model providers and model configs.
-						</DialogDescription>
-						<ChatModelAdminPanel />
+						{/* Sidebar */}
+						<nav className="flex flex-row gap-0.5 overflow-x-auto border-b border-border p-2 md:flex-col md:overflow-x-visible md:border-b-0 md:border-r md:p-3">
+							<DialogClose asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									className="mb-2 h-8 w-8 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/30"
+								>
+									<XIcon className="h-[18px] w-[18px] text-content-secondary" />
+									<span className="sr-only">Close</span>
+								</Button>
+							</DialogClose>
+							{configureSectionOptions.map((section) => {
+								const isActive = section.id === activeConfigureSection;
+								const SectionIcon = section.icon;
+								return (
+									<Button
+										key={section.id}
+										variant="subtle"
+										className={cn(
+											"h-auto justify-start gap-2.5 rounded-lg border-none px-3 py-2 text-left shadow-none",
+											isActive
+												? "bg-surface-tertiary/50 text-content-primary hover:bg-surface-tertiary/50"
+												: "bg-transparent text-content-secondary hover:bg-surface-tertiary/30 hover:text-content-primary",
+										)}
+										onClick={() => setActiveConfigureSection(section.id)}
+									>
+										<SectionIcon className="h-[18px] w-[18px] shrink-0" />
+										<span className="text-[13px] font-medium">{section.label}</span>
+									</Button>
+								);
+							})}
+						</nav>
+
+						{/* Content */}
+						<div className="flex min-h-0 flex-col pt-5">
+							<h2 className="m-0 px-6 text-xl font-semibold text-content-primary">
+								{configureSectionOptions.find(
+									(s) => s.id === activeConfigureSection,
+								)?.label ?? "Settings"}
+							</h2>
+
+							<ScrollArea className="min-h-0 flex-1" viewportClassName="px-6 pb-6">
+								{activeConfigureSection === "providers" &&
+									canManageChatModelConfigs && (
+										<ChatModelAdminPanel section="providers" />
+									)}
+								{activeConfigureSection === "system-prompt" && canSetSystemPrompt && (
+									<div className="space-y-4">
+										<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
+											Configure how the AI agent behaves across this
+											deployment.
+										</p>
+										<div className="space-y-2">
+											<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+												System Prompt
+											</h3>
+											<p className="m-0 text-xs text-content-secondary">
+												Admin-only instruction applied to all new chats.
+											</p>
+											<TextareaAutosize
+												className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
+												placeholder="Optional. Set deployment-wide instructions for all new chats."
+												value={systemPrompt}
+												onChange={(event) => setSystemPrompt(event.target.value)}
+												disabled={isCreating}
+												minRows={7}
+											/>
+											<div className="flex justify-end">
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => setSystemPrompt("")}
+													disabled={isCreating || !systemPrompt}
+												>
+													Clear
+												</Button>
+											</div>
+										</div>
+									</div>
+								)}
+								{activeConfigureSection === "models" &&
+									canManageChatModelConfigs && (
+										<ChatModelAdminPanel section="models" />
+									)}
+							</ScrollArea>
+						</div>
 					</DialogContent>
 				</Dialog>
 			)}
