@@ -22,6 +22,10 @@ func TestParseOS(t *testing.T) {
 		{"iPhone", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", "iOS"},
 		{"iPad", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15", "iOS"},
 		{"ChromeOS", "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 Chrome/120.0.0.0", "chromeos"},
+		// Bare HTTP client library heuristics.
+		{"okhttp", "okhttp/4.12.0", "android"},
+		{"CFNetwork", "CFNetwork/1494.0.7 Darwin/23.4.0", "iOS"},
+		{"Dart", "Dart/3.2 (dart:io)", ""},
 		{"Empty", "", ""},
 		{"Unknown", "curl/7.81.0", ""},
 	}
