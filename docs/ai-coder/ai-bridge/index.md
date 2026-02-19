@@ -99,3 +99,10 @@ to help you plan your deployment:
   options.
 
 <children></children>
+
+  for the full list. Some tools (e.g., Cursor, Windsurf, Sourcegraph Amp etc.) do not
+> [!NOTE]
+> Correlating Bridge and Boundary log streams currently requires
+> exporting both to an external analytics platform and joining on shared fields
+> (user, workspace, timestamp). Built-in cross-referencing is planned for a
+> future release.

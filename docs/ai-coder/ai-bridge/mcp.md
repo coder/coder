@@ -1,6 +1,7 @@
 # MCP Tools Injection
 
-> **Early Access** — MCP tool injection is available but the API surface may
+> [IMPORTANT]
+> MCP tool injection is available but is an early-access feature. The API surface may
 > change in future releases.
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro)
@@ -8,7 +9,7 @@ is a mechanism for connecting AI applications to external systems.
 
 AI Bridge can connect to configured MCP servers, list their available tools, and
 inject those tools into incoming LLM requests automatically. This means agents
-receive centrally managed tools without any per-developer MCP configuration.
+receive centrally managed tools without configuring MCP in each client like Claude Code, Codex, etc.
 
 ## How it works
 
@@ -18,7 +19,7 @@ receive centrally managed tools without any per-developer MCP configuration.
 3. When an AI client sends a request through Bridge, Bridge fetches the
    available tools from configured MCP servers and injects them into the LLM
    request.
-4. The LLM sees and can invoke these tools in its response.
+
 5. When the LLM response includes tool calls, Bridge executes them on behalf of
    the user using their OAuth tokens (via Coder's External Auth).
 6. Tool results are sent back to the LLM to continue the conversation.
@@ -36,7 +37,7 @@ receive centrally managed tools without any per-developer MCP configuration.
 > [!NOTE]
 > Only MCP servers which support OAuth2 Authorization are supported currently.
 >
-> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
+> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases, we may consider support for the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
 ## Prerequisites
 
