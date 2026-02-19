@@ -258,7 +258,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// (RFC 6749 §4.1.3).
 	if dbCode.RedirectUri.Valid && dbCode.RedirectUri.String != "" {
 		if req.RedirectURI != dbCode.RedirectUri.String {
-			return codersdk.OAuth2TokenResponse{}, xerrors.New("redirect_uri mismatch")
+			return codersdk.OAuth2TokenResponse{}, errBadCode
 		}
 	}
 
