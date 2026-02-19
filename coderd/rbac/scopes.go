@@ -99,6 +99,7 @@ var builtinScopes = map[ScopeName]Scope{
 			DisplayName: "Ability to connect to applications",
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
+				ResourceTemplate.Type:  {policy.ActionRead},
 			}),
 			User:    []Permission{},
 			ByOrgID: map[string]OrgPermissions{},

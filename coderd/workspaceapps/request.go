@@ -203,6 +203,9 @@ type databaseRequest struct {
 	// AppSharingLevel is the sharing level of the app. This is forced to be set
 	// to AppSharingLevelOwner if the access method is terminal.
 	AppSharingLevel database.AppSharingLevel
+	// Template is the template that the workspace is using. This is used
+	// for template ACL checks.
+	Template database.Template
 	// CorsBehavior is set at the template level for all apps/ports in a workspace, and can
 	// either be the current CORS middleware 'simple' or bypass the cors middleware with 'passthru'.
 	CorsBehavior database.CorsBehavior
@@ -424,6 +427,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		Workspace:       workspace.WorkspaceTable(),
 		Agent:           agent,
 		App:             app,
+		Template:        tmpl,
 		AppURL:          appURLParsed,
 		AppSharingLevel: appSharingLevel,
 		CorsBehavior:    corsBehavior,
@@ -448,11 +452,17 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 		return nil, xerrors.Errorf("get workspace agent %q with workspace: %w", agentID, err)
 	}
 
+	tmpl, err := db.GetTemplateByID(ctx, aw.WorkspaceTable.TemplateID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template %q: %w", aw.WorkspaceTable.TemplateID, err)
+	}
+
 	return &databaseRequest{
 		Request:         r,
 		UserID:          aw.WorkspaceTable.OwnerID,
 		Workspace:       aw.WorkspaceTable,
 		Agent:           aw.WorkspaceAgent,
+		Template:        tmpl,
 		AppURL:          nil,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil
