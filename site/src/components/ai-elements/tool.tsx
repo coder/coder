@@ -121,7 +121,11 @@ const mapSubagentStatusToToolStatus = (
 		return "completed";
 	}
 	if (isSubagentRunningStatus(normalized)) {
-		return "running";
+		// If the tool call itself has already completed, don't
+		// override to "running". The spawn/await tool is done;
+		// the sub-agent may still be working in the background
+		// but that doesn't mean the tool call is still running.
+		return fallback === "completed" ? "completed" : "running";
 	}
 	switch (normalized) {
 		case "waiting":
