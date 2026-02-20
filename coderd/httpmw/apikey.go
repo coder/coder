@@ -30,7 +30,20 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type apiKeyContextKey struct{}
+type (
+	apiKeyContextKey             struct{}
+	preExtractedAPIKeyContextKey struct{}
+)
+
+// preExtractedAPIKey holds the results of a lightweight API key
+// lookup performed before the rate limiter. It is stored under
+// preExtractedAPIKeyContextKey and is NOT the validated identity —
+// full validation happens later in ExtractAPIKeyMW.
+type preExtractedAPIKey struct {
+	key        database.APIKey
+	subject    *rbac.Subject       // nil when role lookup failed
+	userStatus database.UserStatus // only valid when subject != nil
+}
 
 // APIKeyOptional may return an API key from the ExtractAPIKey handler.
 func APIKeyOptional(r *http.Request) (database.APIKey, bool) {
@@ -149,6 +162,56 @@ func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	}
 }
 
+// ExtractAPIKeyForRateLimit is a lightweight middleware that identifies
+// the caller by looking up their API key and roles. It stores the
+// results in context so the rate limiter can key by user ID and check
+// the Owner bypass header.
+//
+// Unlike ExtractAPIKeyMW, this middleware:
+//   - Never writes error responses (always calls next).
+//   - Performs no validation (expiry, audience, user status, etc.).
+//   - Has no side effects (no DB writes, no dormant activation).
+//
+// Full validation still happens when ExtractAPIKeyMW runs deeper in
+// the route tree. ExtractAPIKey will skip the DB lookups for the key
+// and roles if they were already fetched here, but will still run all
+// validation and side effects.
+func ExtractAPIKeyForRateLimit(db database.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			// Already extracted (e.g. nested routers), skip.
+			if _, ok := ctx.Value(preExtractedAPIKeyContextKey{}).(preExtractedAPIKey); ok {
+				next.ServeHTTP(rw, r)
+				return
+			}
+
+			key, _, ok := APIKeyFromRequest(ctx, db, nil, r)
+			if !ok || key == nil {
+				// No valid token — proceed without identity.
+				// The rate limiter will fall back to IP.
+				next.ServeHTTP(rw, r)
+				return
+			}
+
+			pe := preExtractedAPIKey{key: *key}
+
+			// Fetch roles for bypass-header check. This is the
+			// same call ExtractAPIKey makes, so it will be skipped
+			// later when ExtractAPIKey sees the pre-extracted data.
+			subject, userStatus, err := UserRBACSubject(ctx, db, key.UserID, key.ScopeSet())
+			if err == nil {
+				pe.subject = &subject
+				pe.userStatus = userStatus
+			}
+
+			ctx = context.WithValue(ctx, preExtractedAPIKeyContextKey{}, pe)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
 func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
 	tokenFunc := APITokenFromRequest
 	if sessionTokenFunc != nil {
@@ -240,9 +303,23 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return nil, nil, false
 	}
 
-	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
-	if !ok {
-		return optionalWrite(http.StatusUnauthorized, resp)
+	// Check if the key was pre-extracted by ExtractAPIKeyForRateLimit.
+	// If so, reuse the DB result to avoid a redundant database lookup.
+	// All validation and side effects below still run.
+	var preExtracted *preExtractedAPIKey
+	if pe, ok := ctx.Value(preExtractedAPIKeyContextKey{}).(preExtractedAPIKey); ok {
+		preExtracted = &pe
+	}
+
+	var key *database.APIKey
+	if preExtracted != nil {
+		key = &preExtracted.key
+	} else {
+		k, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
+		if !ok {
+			return optionalWrite(http.StatusUnauthorized, resp)
+		}
+		key = k
 	}
 
 	// Log the API key ID for all requests that have a valid key format and secret,
@@ -439,12 +516,22 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
-	if err != nil {
-		return write(http.StatusUnauthorized, codersdk.Response{
-			Message: internalErrorMessage,
-			Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
-		})
+	// Reuse the pre-extracted subject if available to avoid a
+	// redundant database lookup.
+	var actor rbac.Subject
+	var userStatus database.UserStatus
+	if preExtracted != nil && preExtracted.subject != nil {
+		actor = *preExtracted.subject
+		userStatus = preExtracted.userStatus
+	} else {
+		var err error
+		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+		if err != nil {
+			return write(http.StatusUnauthorized, codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
+			})
+		}
 	}
 
 	if userStatus == database.UserStatusDormant && cfg.ActivateDormantUser != nil {

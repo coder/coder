@@ -1054,6 +1054,11 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
+			// Lightweight identification so the rate limiter can
+			// key by user ID instead of falling back to IP.
+			// No validation or side effects — that still happens
+			// in apiKeyMiddleware deeper in the route tree.
+			httpmw.ExtractAPIKeyForRateLimit(options.Database),
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
@@ -1099,6 +1104,11 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
+			// Lightweight identification so the rate limiter can
+			// key by user ID instead of falling back to IP.
+			// No validation or side effects — that still happens
+			// in apiKeyMiddleware deeper in the route tree.
+			httpmw.ExtractAPIKeyForRateLimit(options.Database),
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
