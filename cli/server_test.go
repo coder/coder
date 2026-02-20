@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -1791,6 +1792,152 @@ func TestServer(t *testing.T) {
 			w.RequireSuccess()
 		})
 	})
+}
+
+//nolint:tparallel,paralleltest // This test sets environment variables.
+func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
+	type testCase struct {
+		name               string
+		args               []string
+		env                map[string]string
+		createUserPreStart bool
+		expectedProviders  []string
+	}
+
+	run := func(t *testing.T, tc testCase) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		unsetPrefixedEnv := func(prefix string) {
+			t.Helper()
+			for _, envVar := range os.Environ() {
+				key, _, found := strings.Cut(envVar, "=")
+				if !found || !strings.HasPrefix(key, prefix) {
+					continue
+				}
+				value, had := os.LookupEnv(key)
+				require.True(t, had)
+				require.NoError(t, os.Unsetenv(key))
+				keyCopy := key
+				valueCopy := value
+				t.Cleanup(func() {
+					_ = os.Setenv(keyCopy, valueCopy)
+				})
+			}
+		}
+		unsetPrefixedEnv("CODER_EXTERNAL_AUTH_")
+		unsetPrefixedEnv("CODER_GITAUTH_")
+
+		dbURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+		db, _ := dbtestutil.NewDB(t, dbtestutil.WithURL(dbURL))
+
+		const (
+			existingUserEmail    = "existing-user@coder.com"
+			existingUserUsername = "existing-user"
+			existingUserPassword = "SomeSecurePassword!"
+		)
+		if tc.createUserPreStart {
+			hashedPassword, err := userpassword.Hash(existingUserPassword)
+			require.NoError(t, err)
+			_ = dbgen.User(t, db, database.User{
+				Email:          existingUserEmail,
+				Username:       existingUserUsername,
+				HashedPassword: []byte(hashedPassword),
+			})
+		}
+
+		args := []string{
+			"server",
+			"--postgres-url", dbURL,
+			"--http-address", ":0",
+			"--access-url", "https://example.com",
+		}
+		args = append(args, tc.args...)
+
+		inv, cfg := clitest.New(t, args...)
+		for key, value := range tc.env {
+			t.Setenv(key, value)
+		}
+		clitest.Start(t, inv)
+
+		accessURL := waitAccessURL(t, cfg)
+		client := codersdk.New(accessURL)
+
+		if tc.createUserPreStart {
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    existingUserEmail,
+				Password: existingUserPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+		} else {
+			_ = coderdtest.CreateFirstUser(t, client)
+		}
+
+		externalAuthResp, err := client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+
+		gotProviders := map[string]codersdk.ExternalAuthLinkProvider{}
+		for _, provider := range externalAuthResp.Providers {
+			gotProviders[provider.ID] = provider
+		}
+		require.Len(t, gotProviders, len(tc.expectedProviders))
+
+		for _, providerID := range tc.expectedProviders {
+			provider, ok := gotProviders[providerID]
+			require.Truef(t, ok, "expected provider %q to be configured", providerID)
+			if providerID == codersdk.EnhancedExternalAuthProviderGitHub.String() {
+				require.Equal(t, codersdk.EnhancedExternalAuthProviderGitHub.String(), provider.Type)
+				require.True(t, provider.Device)
+			}
+		}
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:              "NewDeployment_NoExplicitProviders_InjectsDefaultGithub",
+			expectedProviders: []string{codersdk.EnhancedExternalAuthProviderGitHub.String()},
+		},
+		{
+			name:               "ExistingDeployment_DoesNotInjectDefaultGithub",
+			createUserPreStart: true,
+			expectedProviders:  nil,
+		},
+		{
+			name: "DefaultProviderDisabled_DoesNotInjectDefaultGithub",
+			args: []string{
+				"--external-auth-github-default-provider-enable=false",
+			},
+			expectedProviders: nil,
+		},
+		{
+			name: "ExplicitProviderViaConfig_DoesNotInjectDefaultGithub",
+			args: []string{
+				`--external-auth-providers=[{"type":"gitlab","client_id":"config-client-id"}]`,
+			},
+			expectedProviders: []string{codersdk.EnhancedExternalAuthProviderGitLab.String()},
+		},
+		{
+			name: "ExplicitProviderViaEnv_DoesNotInjectDefaultGithub",
+			env: map[string]string{
+				"CODER_EXTERNAL_AUTH_0_TYPE":      codersdk.EnhancedExternalAuthProviderGitLab.String(),
+				"CODER_EXTERNAL_AUTH_0_CLIENT_ID": "env-client-id",
+			},
+			expectedProviders: []string{codersdk.EnhancedExternalAuthProviderGitLab.String()},
+		},
+		{
+			name: "ExplicitProviderViaLegacyEnv_DoesNotInjectDefaultGithub",
+			env: map[string]string{
+				"CODER_GITAUTH_0_TYPE":      codersdk.EnhancedExternalAuthProviderGitLab.String(),
+				"CODER_GITAUTH_0_CLIENT_ID": "legacy-env-client-id",
+			},
+			expectedProviders: []string{codersdk.EnhancedExternalAuthProviderGitLab.String()},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			run(t, tc)
+		})
+	}
 }
 
 //nolint:tparallel,paralleltest // This test sets environment variables.

@@ -64,6 +64,9 @@ OPTIONS:
           Separate multiple experiments with commas, or enter '*' to opt-in to
           all available experiments.
 
+      --external-auth-github-default-provider-enable bool, $CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE (default: true)
+          Enable the default GitHub external auth provider managed by Coder.
+
       --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
           Type of auth to use when connecting to postgres. For AWS RDS, using
           IAM authentication (awsiamrds) is recommended.
