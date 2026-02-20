@@ -8,7 +8,7 @@ import { cn } from "utils/cn";
 
 // Be careful when changing the child styles from the button such as images
 // because they can override the styles from other components like Avatar.
-const buttonVariants = cva(
+export const buttonVariants = cva(
 	`
 	group inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans
 	border-solid rounded-md transition-colors shrink-0
