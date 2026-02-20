@@ -980,7 +980,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 var _ wsbuilder.UsageChecker = &API{}
 
-func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
+func (api *API) CheckBuildUsage(
+	_ context.Context,
+	_ database.Store,
+	templateVersion *database.TemplateVersion,
+	_ *database.Task,
+	_ database.WorkspaceTransition,
+) (wsbuilder.UsageCheckResponse, error) {
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
 	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
@@ -989,61 +995,6 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 			return wsbuilder.UsageCheckResponse{
 				Permitted: false,
 				Message:   "You have a template which uses external agents but your license is not entitled to this feature. You will be unable to create new workspaces from these templates.",
-			}, nil
-		}
-	}
-
-	resp, err := api.checkAIBuildUsage(ctx, store, task, transition)
-	if err != nil {
-		return wsbuilder.UsageCheckResponse{}, err
-	}
-	if !resp.Permitted {
-		return resp, nil
-	}
-
-	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-}
-
-// checkAIBuildUsage validates AI-related usage constraints. It is a no-op
-// unless the transition is "start" and the template version has an AI task.
-func (api *API) checkAIBuildUsage(ctx context.Context, store database.Store, task *database.Task, transition database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
-	// Only check AI usage rules for start transitions.
-	if transition != database.WorkspaceTransitionStart {
-		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-	}
-
-	// If the template version doesn't have an AI task, we don't need to check usage.
-	if task == nil {
-		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-	}
-
-	// When licensed, ensure we haven't breached the managed agent limit.
-	// Unlicensed deployments are allowed to use unlimited managed agents.
-	if api.Entitlements.HasLicense() {
-		managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
-		if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
-			return wsbuilder.UsageCheckResponse{
-				Permitted: false,
-				Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
-			}, nil
-		}
-
-		// This check is intentionally not committed to the database. It's fine
-		// if it's not 100% accurate or allows for minor breaches due to build
-		// races.
-		// nolint:gocritic // Requires permission to read all usage events.
-		managedAgentCount, err := store.GetTotalUsageDCManagedAgentsV1(agpldbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
-			StartDate: managedAgentLimit.UsagePeriod.Start,
-			EndDate:   managedAgentLimit.UsagePeriod.End,
-		})
-		if err != nil {
-			return wsbuilder.UsageCheckResponse{}, xerrors.Errorf("get managed agent count: %w", err)
-		}
-
-		if managedAgentCount >= *managedAgentLimit.Limit {
-			return wsbuilder.UsageCheckResponse{
-				Permitted: false,
-				Message:   "You have breached the managed agent limit in your license. Please contact sales to continue using managed agents.",
 			}, nil
 		}
 	}

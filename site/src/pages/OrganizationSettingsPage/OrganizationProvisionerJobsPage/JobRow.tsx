@@ -3,11 +3,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { TableCell, TableRow } from "components/Table/Table";
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
+import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
 import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
 import {
 	ProvisionerTag,
@@ -48,7 +44,9 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 							setIsOpen((v) => !v);
 						}}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						<span className="block first-letter:uppercase">
 							{relativeTime(new Date(job.created_at))}
