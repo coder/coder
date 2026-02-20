@@ -1065,7 +1065,6 @@ Controls the 'SameSite' property is set on browser session cookies.
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_HOST_PREFIX_COOKIE</code>   |
 | YAML        | <code>networking.hostPrefixCookie</code> |
-| Default     | <code>false</code>                       |
 
 Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain.
 
