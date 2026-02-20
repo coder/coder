@@ -800,6 +800,88 @@ func TestCheckBuildUsage_NeverBlocksOnManagedAgentLimit(t *testing.T) {
 	require.True(t, deleteResp.Permitted)
 }
 
+func TestCheckBuildUsage_BlocksWithoutManagedAgentEntitlement(t *testing.T) {
+	t.Parallel()
+
+	tv := &database.TemplateVersion{
+		HasAITask:        sql.NullBool{Valid: true, Bool: true},
+		HasExternalAgent: sql.NullBool{Valid: true, Bool: false},
+	}
+	task := &database.Task{
+		TemplateVersionID: tv.ID,
+	}
+
+	// Both "feature absent" and "feature explicitly disabled" should
+	// block AI task builds on licensed deployments.
+	tests := []struct {
+		name      string
+		setupEnts func(e *codersdk.Entitlements)
+	}{
+		{
+			name: "FeatureAbsent",
+			setupEnts: func(e *codersdk.Entitlements) {
+				e.HasLicense = true
+			},
+		},
+		{
+			name: "FeatureDisabled",
+			setupEnts: func(e *codersdk.Entitlements) {
+				e.HasLicense = true
+				e.Features[codersdk.FeatureManagedAgentLimit] = codersdk.Feature{
+					Enabled: false,
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			entSet := entitlements.New()
+			entSet.Modify(tc.setupEnts)
+
+			agpl := &agplcoderd.API{
+				Options: &agplcoderd.Options{
+					Entitlements: entSet,
+				},
+			}
+			eapi := &coderd.API{
+				AGPL:    agpl,
+				Options: &coderd.Options{Options: agpl.Options},
+			}
+
+			mDB := dbmock.NewMockStore(ctrl)
+			ctx := context.Background()
+
+			// Start transition with a task: should be blocked because the
+			// license doesn't include the managed agent entitlement.
+			resp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
+			require.NoError(t, err)
+			require.False(t, resp.Permitted)
+			require.Contains(t, resp.Message, "not entitled to managed agents")
+
+			// Stop and delete transitions should still be permitted so
+			// that existing workspaces can be stopped/cleaned up.
+			stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStop)
+			require.NoError(t, err)
+			require.True(t, stopResp.Permitted)
+
+			deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionDelete)
+			require.NoError(t, err)
+			require.True(t, deleteResp.Permitted)
+
+			// Start transition without a task: should be permitted (not
+			// an AI task build, so the entitlement check doesn't apply).
+			noTaskResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, nil, database.WorkspaceTransitionStart)
+			require.NoError(t, err)
+			require.True(t, noTaskResp.Permitted)
+		})
+	}
+}
+
 // testDBAuthzRole returns a context with a subject that has a role
 // with permissions required for test setup.
 func testDBAuthzRole(ctx context.Context) context.Context {
