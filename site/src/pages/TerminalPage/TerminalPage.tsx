@@ -28,12 +28,6 @@ import {
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 
-export const Language = {
-	workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
-	workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
-	websocketErrorMessagePrefix: "WebSocket failed: ",
-};
-
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
 	// is notably a pain because of assumptions certain programs might make about your
@@ -277,16 +271,14 @@ const TerminalPage: FC = () => {
 		}
 
 		if (workspace.error instanceof Error) {
-			terminal.writeln(
-				Language.workspaceErrorMessagePrefix + workspace.error.message,
-			);
+			terminal.writeln(`Unable to fetch workspace: ${workspace.error.message}`);
 			setConnectionStatus("disconnected");
 			return;
 		}
 
 		if (!workspaceAgent) {
 			terminal.writeln(
-				`${Language.workspaceAgentErrorMessagePrefix}no agent found with ID, is the workspace started?`,
+				"Unable to fetch workspace agent: no agent found with ID, is the workspace started?",
 			);
 			setConnectionStatus("disconnected");
 			return;
