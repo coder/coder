@@ -18010,8 +18010,8 @@ type GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow struct {
 	TaskID         uuid.NullUUID  `db:"task_id" json:"task_id"`
 }
 
-// GetWorkspaceAgentAndLatestBuildByAuthToken returns a workspace agent and its
-// associated build by the agent's auth token. During normal operation, this is
+// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
+// workspace agent and its associated build. During normal operation, this is
 // the latest build. During shutdown, this may be the previous START build while
 // the STOP build is executing, allowing shutdown scripts to authenticate (see
 // issue #19467).
@@ -21424,9 +21424,9 @@ SELECT
 FROM
 	workspace_builds
 INNER JOIN
-	workspaces ON workspaces.id = workspace_builds.workspace_id
+	template_versions ON template_versions.id = workspace_builds.template_version_id
 INNER JOIN
-	templates ON templates.id = workspaces.template_id
+	templates ON templates.id = template_versions.template_id
 WHERE
 	workspace_builds.id = $1
 `
