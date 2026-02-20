@@ -5517,6 +5517,7 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 // From codersdk/users.go
 export type TerminalFontName =
 	| "fira-code"
+	| "geist-mono"
 	| "ibm-plex-mono"
 	| "jetbrains-mono"
 	| "source-code-pro"
@@ -5524,6 +5525,7 @@ export type TerminalFontName =
 
 export const TerminalFontNames: TerminalFontName[] = [
 	"fira-code",
+	"geist-mono",
 	"ibm-plex-mono",
 	"jetbrains-mono",
 	"source-code-pro",

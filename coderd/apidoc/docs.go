@@ -19783,6 +19783,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "",
+                "geist-mono",
                 "ibm-plex-mono",
                 "fira-code",
                 "source-code-pro",
@@ -19790,6 +19791,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TerminalFontUnknown",
+                "TerminalFontGeistMono",
                 "TerminalFontIBMPlexMono",
                 "TerminalFontFiraCode",
                 "TerminalFontSourceCodePro",
