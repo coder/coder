@@ -27,7 +27,7 @@ func TestSharingShare(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
@@ -70,7 +70,7 @@ func TestSharingShare(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			orgOwner = coderdtest.CreateFirstUser(t, client)
@@ -129,7 +129,7 @@ func TestSharingShare(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
@@ -184,7 +184,7 @@ func TestSharingStatus(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
@@ -232,7 +232,7 @@ func TestSharingRemove(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
@@ -293,7 +293,7 @@ func TestSharingRemove(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)

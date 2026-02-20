@@ -2646,7 +2646,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
 			Flag:        "experiments",
 			Env:         "CODER_EXPERIMENTS",
-			Value: &c.Experiments,
+			Value:       &c.Experiments,
 			YAML:        "experiments",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
@@ -4158,7 +4158,7 @@ const (
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
-	ExperimentMCPServerHTTP Experiment = "mcp-server-http" // Enables the MCP HTTP server functionality.
+	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 )
 
 func (e Experiment) DisplayName() string {

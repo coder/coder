@@ -3651,7 +3651,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -3703,7 +3702,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -3757,7 +3755,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -3806,7 +3803,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -3854,7 +3850,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -4356,7 +4351,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
+
 		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -4405,7 +4400,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -4449,7 +4444,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-						
+
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4493,7 +4488,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-						
+
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4543,7 +4538,6 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -4631,7 +4625,6 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{

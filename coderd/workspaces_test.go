@@ -1899,7 +1899,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1937,7 +1936,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1975,7 +1973,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -2013,7 +2010,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -5249,7 +5245,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5285,7 +5281,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5318,7 +5314,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5358,7 +5354,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
 
 		dv := coderdtest.DeploymentValues(t)
-		
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5428,7 +5424,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			admin                                = coderdtest.CreateFirstUser(t, client)
@@ -5463,7 +5459,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 				}),
 			})
 			admin                                = coderdtest.CreateFirstUser(t, client)
@@ -5506,7 +5502,7 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 	var (
 		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-				
+
 			}),
 		})
 		admin                                = coderdtest.CreateFirstUser(t, client)
@@ -5558,7 +5554,7 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
+
 					// DisableWorkspaceSharing is false (default)
 				}),
 			})
@@ -5592,7 +5588,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					
 					dv.DisableWorkspaceSharing = true
 				}),
 			})

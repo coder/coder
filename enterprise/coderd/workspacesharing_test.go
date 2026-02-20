@@ -25,7 +25,6 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -45,7 +44,6 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -77,7 +75,6 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -101,7 +98,6 @@ func TestWorkspaceSharingSettings(t *testing.T) {
 
 		auditor := audit.NewMock()
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging: true,
@@ -140,7 +136,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -194,7 +189,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		
 
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
