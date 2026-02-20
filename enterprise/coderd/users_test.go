@@ -356,7 +356,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: uuid.NewString(),
 			Roles:        []string{codersdk.RoleOwner},
 			Error:        true,
-			StatusCode:   http.StatusBadRequest,
+			StatusCode:   http.StatusNotFound,
 		},
 		{
 			Name:         "MemberCannotUpdateRoles",
@@ -364,7 +364,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: first.UserID.String(),
 			Roles:        []string{},
 			Error:        true,
-			StatusCode:   http.StatusBadRequest,
+			StatusCode:   http.StatusNotFound,
 		},
 		{
 			// Cannot update your own roles

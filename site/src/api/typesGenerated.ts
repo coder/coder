@@ -56,6 +56,7 @@ export interface AIBridgeInterception {
 	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
+	readonly client: string | null;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
@@ -962,6 +963,9 @@ export type BuildReason =
 	| "initiator"
 	| "jetbrains_connection"
 	| "ssh_connection"
+	| "task_auto_pause"
+	| "task_manual_pause"
+	| "task_resume"
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
@@ -973,6 +977,9 @@ export const BuildReasons: BuildReason[] = [
 	"initiator",
 	"jetbrains_connection",
 	"ssh_connection",
+	"task_auto_pause",
+	"task_manual_pause",
+	"task_resume",
 	"vscode_connection",
 ];
 
@@ -1426,6 +1433,7 @@ export type CreateWorkspaceBuildReason =
 	| "jetbrains_connection"
 	| "ssh_connection"
 	| "task_manual_pause"
+	| "task_resume"
 	| "vscode_connection";
 
 export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
@@ -1434,6 +1442,7 @@ export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
 	"jetbrains_connection",
 	"ssh_connection",
 	"task_manual_pause",
+	"task_resume",
 	"vscode_connection",
 ];
 
@@ -2104,12 +2113,6 @@ export interface Feature {
 	readonly limit?: number;
 	readonly actual?: number;
 	/**
-	 * SoftLimit is the soft limit of the feature, and is only used for showing
-	 * included limits in the dashboard. No license validation or warnings are
-	 * generated from this value.
-	 */
-	readonly soft_limit?: number;
-	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
 	 * license).
@@ -2577,6 +2580,10 @@ export interface License {
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
+
+// From codersdk/licenses.go
+export const LicenseManagedAgentLimitExceededWarningText =
+	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
@@ -4355,6 +4362,14 @@ export interface Response {
 	readonly validations?: readonly ValidationError[];
 }
 
+// From codersdk/aitasks.go
+/**
+ * ResumeTaskResponse represents the response from resuming a task.
+ */
+export interface ResumeTaskResponse {
+	readonly workspace_build: WorkspaceBuild | null;
+}
+
 // From codersdk/deployment.go
 /**
  * RetentionConfig contains configuration for data retention policies.
@@ -5145,6 +5160,7 @@ export interface Template {
 	readonly description: string;
 	readonly deprecated: boolean;
 	readonly deprecation_message: string;
+	readonly deleted: boolean;
 	readonly icon: string;
 	readonly default_ttl_ms: number;
 	readonly activity_bump_ms: number;

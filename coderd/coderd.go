@@ -245,6 +245,7 @@ type Options struct {
 	MetadataBatcherOptions []metadatabatcher.Option
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
+	WorkspaceBuilderMetrics   *wsbuilder.Metrics
 
 	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
 	// sessions. Raising or lowering this value will directly affect the write
@@ -1084,6 +1085,7 @@ func New(options *Options) *API {
 					r.Post("/send", api.taskSend)
 					r.Get("/logs", api.taskLogs)
 					r.Post("/pause", api.pauseTask)
+					r.Post("/resume", api.resumeTask)
 				})
 			})
 		})
@@ -1240,7 +1242,10 @@ func New(options *Options) *API {
 							r.Get("/", api.organizationMember)
 							r.Delete("/", api.deleteOrganizationMember)
 							r.Put("/roles", api.putMemberRoles)
-							r.Post("/workspaces", api.postWorkspacesByOrganization)
+							r.Route("/workspaces", func(r chi.Router) {
+								r.Post("/", api.postWorkspacesByOrganization)
+								r.Get("/available-users", api.workspaceAvailableUsers)
+							})
 						})
 					})
 				})
@@ -1407,6 +1412,7 @@ func New(options *Options) *API {
 							r.Route("/{keyid}", func(r chi.Router) {
 								r.Get("/", api.apiKeyByID)
 								r.Delete("/", api.deleteAPIKey)
+								r.Put("/expire", api.expireAPIKey)
 							})
 						})
 

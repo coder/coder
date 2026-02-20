@@ -25,6 +25,25 @@ curl -X GET "https://coder.example.com/api/v2/aibridge/interceptions?q=initiator
 
 Available query filters:
 
+- `client` - Filter by client name.
+  <details>
+  <summary>Possible <code>client</code> values</summary>
+
+  > [!NOTE]
+  > Client classification is done on best effort basis using the `User-Agent` header;
+  not all clients send these headers in an easily-identifiable manner.
+
+  - `Claude Code`
+  - `Codex`
+  - `Zed`
+  - `GitHub Copilot (VS Code)`
+  - `GitHub Copilot (CLI)`
+  - `Kilo Code`
+  - `Roo Code`
+  - `Cursor`
+  - `Unknown`
+
+  </details><br>
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name
@@ -108,7 +127,8 @@ Example trace of an interception using Jaeger backend:
 
 ### Capturing Logs in Traces
 
-> **Note:** Enabling log capture may generate a large volume of trace events.
+> [!NOTE]
+> Enabling log capture may generate a large volume of trace events.
 
 To include log messages as trace events, enable trace log capture
 by setting `CODER_TRACE_LOGS` environment variable or using

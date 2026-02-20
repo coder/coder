@@ -11,6 +11,7 @@ import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
+	MinimalUser,
 	PreviewParameter,
 	Workspace,
 } from "api/typesGenerated";
@@ -31,6 +32,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
+import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
 	type CreateWorkspacePermissions,
@@ -59,10 +61,11 @@ const CreateWorkspacePage: FC = () => {
 	const defaultName = searchParams.get("name");
 	const disabledParams = searchParams.get("disable_params")?.split(",");
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
+	const [autoCreateConsented, setAutoCreateConsented] = useState(false);
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
-	const defaultOwner = me;
-	const [owner, setOwner] = useState(defaultOwner);
+	const defaultOwner: MinimalUser = me;
+	const [owner, setOwner] = useState<MinimalUser>(defaultOwner);
 
 	const queryClient = useQueryClient();
 	const autoCreateWorkspaceMutation = useMutation(
@@ -240,7 +243,11 @@ const CreateWorkspacePage: FC = () => {
 			externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
-	let autoCreateReady = mode === "auto" && hasAllRequiredExternalAuth;
+	let autoCreateReady =
+		mode === "auto" && hasAllRequiredExternalAuth && autoCreateConsented;
+
+	const showAutoCreateConsent =
+		mode === "auto" && !autoCreateConsented && !autoCreateError;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
@@ -290,6 +297,13 @@ const CreateWorkspacePage: FC = () => {
 	return (
 		<>
 			<title>{pageTitle(title)}</title>
+
+			<AutoCreateConsentDialog
+				open={showAutoCreateConsent}
+				autofillParameters={autofillParameters}
+				onConfirm={() => setAutoCreateConsented(true)}
+				onDeny={() => setMode("form")}
+			/>
 
 			{shouldShowLoader ? (
 				<Loader />

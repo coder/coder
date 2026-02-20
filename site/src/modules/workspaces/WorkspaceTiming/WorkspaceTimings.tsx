@@ -6,10 +6,10 @@ import type {
 	AgentScriptTiming,
 	ProvisionerTiming,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import {
 	calcDuration,
@@ -107,11 +107,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				css={styles.collapseTrigger}
 				onClick={() => setIsOpen((o) => !o)}
 			>
-				{isOpen ? (
-					<ChevronUpIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				) : (
-					<ChevronDownIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				)}
+				<ChevronDownIcon open={isOpen} className="size-4 mr-4" />
 				<span>Build timeline</span>
 				<span
 					css={(theme) => ({

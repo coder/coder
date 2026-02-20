@@ -6319,6 +6319,56 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	})
 }
 
+func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
+	t.Parallel()
+
+	// Context: https://github.com/coder/coder/pull/22196
+	t.Run("DoesNotReturnSubAgents", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A parent workspace agent with an AuthInstanceID and a
+		// sub-agent that shares the same AuthInstanceID.
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		// Create a sub-agent with the same AuthInstanceID (simulating
+		// the old behavior before the fix).
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
+			ResourceID: resource.ID,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// When: We look up the agent by instance ID.
+		agent, err := db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+
+		// Then: The result must be the parent agent, not the sub-agent.
+		assert.Equal(t, parentAgent.ID, agent.ID, "instance ID lookup should return the parent agent, not a sub-agent")
+		assert.False(t, agent.ParentID.Valid, "returned agent should not have a parent (should be the parent itself)")
+	})
+}
+
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
@@ -6646,7 +6696,6 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
@@ -6763,6 +6812,65 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
 		}
 	}
+}
+
+func TestWorkspaceACLObjectConstraint(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Deleted:    false,
+	})
+
+	t.Run("GroupACLNull", func(t *testing.T) {
+		t.Parallel()
+
+		var nilACL database.WorkspaceACL
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: nilACL,
+			UserACL:  database.WorkspaceACL{},
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckGroupAclIsObject))
+	})
+
+	t.Run("UserACLNull", func(t *testing.T) {
+		t.Parallel()
+
+		var nilACL database.WorkspaceACL
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: database.WorkspaceACL{},
+			UserACL:  nilACL,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUserAclIsObject))
+	})
+
+	t.Run("ValidEmptyObjects", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			GroupACL: database.WorkspaceACL{},
+			UserACL:  database.WorkspaceACL{},
+		})
+		require.NoError(t, err)
+	})
 }
 
 // TestGetLatestWorkspaceBuildsByWorkspaceIDs populates the database with
@@ -7401,7 +7509,6 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -7941,7 +8048,6 @@ func TestUpdateTaskWorkspaceID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -8011,12 +8117,15 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 				ID:          uid,
 				InitiatorID: user.ID,
 				Metadata:    json.RawMessage("{}"),
+				Client:      sql.NullString{String: "client", Valid: true},
 			}
 
 			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
 			require.NoError(t, err)
 			require.Equal(t, uid, intc.ID)
 			require.False(t, intc.EndedAt.Valid)
+			require.True(t, intc.Client.Valid)
+			require.Equal(t, "client", intc.Client.String)
 			interceptions = append(interceptions, intc)
 		}
 

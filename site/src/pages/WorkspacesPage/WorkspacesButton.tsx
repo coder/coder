@@ -1,5 +1,6 @@
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
@@ -11,7 +12,7 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { SearchEmpty } from "components/Search/Search";
-import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";

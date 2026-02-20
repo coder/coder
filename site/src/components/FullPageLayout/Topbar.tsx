@@ -5,10 +5,9 @@ import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	cloneElement,
 	type FC,
-	type ForwardedRef,
-	forwardRef,
 	type HTMLAttributes,
 	type ReactElement,
+	type Ref,
 } from "react";
 import { cn } from "utils/cn";
 
@@ -27,33 +26,27 @@ export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	);
 };
 
-export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-	({ className, ...props }, ref) => {
-		return (
-			<IconButton
-				ref={ref}
-				{...props}
-				size="small"
-				className={cn(
-					"p-0 rounded-none size-12 [&_svg]:size-icon-sm",
-					className,
-				)}
-			/>
-		);
-	},
-) as typeof IconButton;
+export const TopbarIconButton = (({ className, ...props }: IconButtonProps) => {
+	return (
+		<IconButton
+			{...props}
+			size="small"
+			className={cn("p-0 rounded-none size-12 [&_svg]:size-icon-sm", className)}
+		/>
+	);
+}) as typeof IconButton;
 
-export const TopbarButton = forwardRef<HTMLButtonElement, ButtonProps>(
-	(props: ButtonProps, ref) => {
-		return <Button ref={ref} variant="outline" size="sm" {...props} />;
-	},
-);
+export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
+	return <Button variant="outline" size="sm" {...props} />;
+};
 
 export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return <div {...props} className="flex gap-2 items-center justify-center" />;
 };
 
-export const TopbarDivider: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
+export const TopbarDivider: FC<
+	Omit<HTMLAttributes<HTMLSpanElement>, "children">
+> = (props) => {
 	const theme = useTheme();
 	return (
 		<span {...props} css={{ color: theme.palette.divider }}>
@@ -66,23 +59,19 @@ export const TopbarAvatar: FC<AvatarProps> = (props) => {
 	return <Avatar {...props} variant="icon" size="md" />;
 };
 
-type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement>;
+type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {
+	ref?: Ref<HTMLOrSVGElement>;
+};
 
-export const TopbarIcon = forwardRef<HTMLOrSVGElement, TopbarIconProps>(
-	(props: TopbarIconProps, ref) => {
-		const { children, className, ...restProps } = props;
-
-		return cloneElement(
-			children as ReactElement<
-				HTMLAttributes<HTMLOrSVGElement> & {
-					ref: ForwardedRef<HTMLOrSVGElement>;
-				}
-			>,
-			{
-				...restProps,
-				ref,
-				className: "text-base text-content-disabled size-icon-sm",
-			},
-		);
-	},
-);
+export const TopbarIcon: React.FC<TopbarIconProps> = ({
+	ref,
+	children,
+	className,
+	...restProps
+}) => {
+	return cloneElement(children as ReactElement<TopbarIconProps>, {
+		...restProps,
+		ref,
+		className: "text-base text-content-disabled size-icon-sm",
+	});
+};

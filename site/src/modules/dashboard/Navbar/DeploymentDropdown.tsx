@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -5,7 +6,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
 import { Link } from "react-router";
@@ -43,7 +43,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 			<DropdownMenuTrigger asChild>
 				<Button variant="outline" size="lg">
 					Admin settings
-					<ChevronDownIcon className="text-content-primary !size-icon-sm" />
+					<ChevronDownIcon className="text-content-primary" />
 				</Button>
 			</DropdownMenuTrigger>
 

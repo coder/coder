@@ -111,7 +111,7 @@ module "slackme" {
 
 module "dotfiles" {
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.3"
+  version  = "1.3.0"
   agent_id = coder_agent.dev.id
 }
 

@@ -569,6 +569,28 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * Get users for workspace owner selection. Requires
+	 * permission to create workspaces for other users in the
+	 * organization. Returns minimal user data (no email, roles,
+	 * etc.).
+	 */
+	getWorkspaceAvailableUsers = async (
+		organizationId: string,
+		options: TypesGen.UsersRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.MinimalUser[]> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organizationId}/members/me/workspaces/available-users`,
+			options,
+		);
+		const response = await this.axios.get<TypesGen.MinimalUser[]>(
+			url.toString(),
+			{ signal },
+		);
+		return response.data;
+	};
+
 	createOrganization = async (params: TypesGen.CreateOrganizationRequest) => {
 		const response = await this.axios.post<TypesGen.Organization>(
 			"/api/v2/organizations",
@@ -2785,6 +2807,46 @@ class ApiMethods {
 		await this.axios.patch(`/api/v2/tasks/${user}/${id}/input`, {
 			input,
 		} satisfies TypesGen.UpdateTaskInputRequest);
+	};
+
+	getTaskLogs = async (
+		user: string,
+		id: string,
+	): Promise<TypesGen.TaskLogsResponse> => {
+		const response = await this.axios.get<TypesGen.TaskLogsResponse>(
+			`/api/v2/tasks/${user}/${id}/logs`,
+		);
+		return response.data;
+	};
+
+	pauseTask = async (
+		user: string,
+		id: string,
+	): Promise<TypesGen.PauseTaskResponse> => {
+		const response = await this.axios.post<TypesGen.PauseTaskResponse>(
+			`/api/v2/tasks/${user}/${id}/pause`,
+		);
+		return response.data;
+	};
+
+	resumeTask = async (
+		user: string,
+		id: string,
+	): Promise<TypesGen.ResumeTaskResponse> => {
+		const response = await this.axios.post<TypesGen.ResumeTaskResponse>(
+			`/api/v2/tasks/${user}/${id}/resume`,
+		);
+		return response.data;
+	};
+
+	sendTaskInput = async (
+		user: string,
+		id: string,
+		input: string,
+	): Promise<void> => {
+		await this.axios.post(`/api/v2/tasks/${user}/${id}/send`, {
+			input,
+		} satisfies TypesGen.TaskSendRequest);
 	};
 
 	createTaskFeedback = async (

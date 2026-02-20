@@ -6,13 +6,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
-import {
-	type FC,
-	forwardRef,
-	type HTMLAttributes,
-	type PropsWithChildren,
-	type ReactNode,
-} from "react";
+import type { FC, HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 import { cn } from "utils/cn";
 
 type Icon = typeof CircleHelpIcon;
@@ -45,29 +39,23 @@ export const HelpTooltipContent: FC<TooltipContentProps> = ({
 	);
 };
 
-type HelpTooltipIconTriggerProps = HTMLAttributes<HTMLButtonElement> & {
+type HelpTooltipIconTriggerProps = React.ComponentPropsWithRef<"button"> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };
 
-export const HelpTooltipIconTrigger = forwardRef<
-	HTMLButtonElement,
-	HelpTooltipIconTriggerProps
->((props, ref) => {
-	const {
-		size = "medium",
-		children = <HelpTooltipIcon />,
-		hoverEffect = true,
-		className,
-		...buttonProps
-	} = props;
-
+export const HelpTooltipIconTrigger: React.FC<HelpTooltipIconTriggerProps> = ({
+	size = "medium",
+	children = <HelpTooltipIcon />,
+	hoverEffect = true,
+	className,
+	...buttonProps
+}) => {
 	return (
 		<HelpTooltipTrigger asChild>
 			<button
 				{...buttonProps}
 				aria-label="More info"
-				ref={ref}
 				className={cn(
 					"flex items-center justify-center px-0 py-1",
 					"border-0 border-none bg-transparent cursor-pointer text-inherit",
@@ -80,7 +68,7 @@ export const HelpTooltipIconTrigger = forwardRef<
 			</button>
 		</HelpTooltipTrigger>
 	);
-});
+};
 
 export const HelpTooltipTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	children,

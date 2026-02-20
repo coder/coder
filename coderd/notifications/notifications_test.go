@@ -262,8 +262,6 @@ func TestWebhookDispatch(t *testing.T) {
 	// This is not strictly necessary for this test, but it's testing some side logic which is too small for its own test.
 	require.Equal(t, payload.Payload.UserName, name)
 	require.Equal(t, payload.Payload.UserUsername, username)
-	// Right now we don't have a way to query notification templates by ID in dbmem, and it's not necessary to add this
-	// just to satisfy this test. We can safely assume that as long as this value is not empty that the given value was delivered.
 	require.NotEmpty(t, payload.Payload.NotificationName)
 }
 
@@ -1299,6 +1297,37 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"task":      "my-task",
+					"workspace": "my-workspace",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateTaskPaused",
+			id:   notifications.TemplateTaskPaused,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":         "my-task",
+					"task_id":      "00000000-0000-0000-0000-000000000000",
+					"workspace":    "my-workspace",
+					"pause_reason": "idle timeout",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateTaskResumed",
+			id:   notifications.TemplateTaskResumed,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":      "my-task",
+					"task_id":   "00000000-0000-0000-0000-000000000001",
 					"workspace": "my-workspace",
 				},
 				Data: map[string]any{},

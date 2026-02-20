@@ -1,6 +1,8 @@
 package workspaceapps_test
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,4 +33,20 @@ func TestAppCookies(t *testing.T) {
 	// subdomain cookie.
 	newCookies := workspaceapps.NewAppCookies("different.com")
 	require.NotEqual(t, cookies.SubdomainAppSessionToken, newCookies.SubdomainAppSessionToken)
+}
+
+func TestAppCookies_TokenFromRequest_PrefersAppCookieOverAuthorizationBearer(t *testing.T) {
+	t.Parallel()
+
+	cookies := workspaceapps.NewAppCookies("apps.example.com")
+
+	req := httptest.NewRequest("GET", "https://8081--agent--workspace--user.apps.example.com/", nil)
+	req.Header.Set("Authorization", "Bearer whatever")
+	req.AddCookie(&http.Cookie{
+		Name:  cookies.CookieNameForAccessMethod(workspaceapps.AccessMethodSubdomain),
+		Value: "subdomain-session-token",
+	})
+
+	got := cookies.TokenFromRequest(req, workspaceapps.AccessMethodSubdomain)
+	require.Equal(t, "subdomain-session-token", got)
 }

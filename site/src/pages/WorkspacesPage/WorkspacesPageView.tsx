@@ -1,6 +1,7 @@
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -17,13 +18,7 @@ import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidg
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import {
-	ChevronDownIcon,
-	CloudIcon,
-	PlayIcon,
-	SquareIcon,
-	TrashIcon,
-} from "lucide-react";
+import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
@@ -60,7 +55,6 @@ interface WorkspacesPageViewProps {
 	onBatchUpdateTransition: () => void;
 	onBatchStartTransition: () => void;
 	onBatchStopTransition: () => void;
-	canCheckWorkspaces: boolean;
 	templatesFetchStatus: TemplateQuery["status"];
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
@@ -84,7 +78,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	onBatchStopTransition,
 	onBatchStartTransition,
 	isRunningBatchAction,
-	canCheckWorkspaces,
 	templates,
 	templatesFetchStatus,
 	canCreateTemplate,
@@ -150,7 +143,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								>
 									Bulk actions
 									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon className="size-4" />
+										<ChevronDownIcon />
 									</Spinner>
 								</Button>
 							</DropdownMenuTrigger>
@@ -231,7 +224,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					isUsingFilter={filterState.filter.used}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
-					canCheckWorkspaces={canCheckWorkspaces}
 					templates={templates}
 					onActionSuccess={onActionSuccess}
 					onActionError={onActionError}

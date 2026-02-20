@@ -4,8 +4,12 @@ import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { getErrorMessage } from "api/errors";
 import { organizationMembers } from "api/queries/organizations";
-import { users } from "api/queries/users";
-import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
+import { users, workspaceAvailableUsers } from "api/queries/users";
+import type {
+	MinimalUser,
+	OrganizationMemberWithUserData,
+	User,
+} from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
@@ -21,7 +25,7 @@ import { prepareQuery } from "utils/filters";
 // The common properties between users and org members that we need.
 type SelectedUser = {
 	avatar_url?: string;
-	email: string;
+	email?: string;
 	username: string;
 };
 
@@ -85,6 +89,35 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 	);
 };
 
+type WorkspaceUserAutocompleteProps = CommonAutocompleteProps<MinimalUser> & {
+	organizationId: string;
+};
+
+export const WorkspaceUserAutocomplete: FC<WorkspaceUserAutocompleteProps> = ({
+	organizationId,
+	...props
+}) => {
+	const [filter, setFilter] = useState<string>();
+
+	const availableUsersQuery = useQuery({
+		...workspaceAvailableUsers(organizationId, {
+			q: prepareQuery(encodeURI(filter ?? "")),
+			limit: 25,
+		}),
+		enabled: filter !== undefined,
+		placeholderData: keepPreviousData,
+	});
+	return (
+		<InnerAutocomplete<MinimalUser>
+			error={availableUsersQuery.error}
+			isFetching={availableUsersQuery.isFetching}
+			setFilter={setFilter}
+			users={availableUsersQuery.data}
+			{...props}
+		/>
+	);
+};
+
 type InnerAutocompleteProps<T extends SelectedUser> =
 	CommonAutocompleteProps<T> & {
 		/** The error is null if not loaded or no error. */
@@ -131,10 +164,10 @@ const InnerAutocomplete = <T extends SelectedUser>({
 			data-testid="user-autocomplete"
 			open={open}
 			isOptionEqualToValue={(a, b) => a.username === b.username}
-			getOptionLabel={(option) => option.email}
+			getOptionLabel={(option) => option.email ?? option.username}
 			onOpen={() => {
 				setOpen(true);
-				setFilter(value?.email ?? "");
+				setFilter(value?.email ?? value?.username ?? "");
 			}}
 			onClose={() => {
 				setOpen(false);
@@ -159,7 +192,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 					fullWidth
 					size={size}
 					label={label}
-					placeholder="User email or username"
+					placeholder="Username or email"
 					css={{
 						"&:not(:has(label))": {
 							margin: 0,

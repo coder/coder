@@ -8,16 +8,11 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	ChevronDownIcon,
-	ChevronRightIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { formatDate, humanDuration } from "utils/time";
-import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
+import { AIBridgeModelIcon } from "../AIBridgeModelIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
@@ -143,11 +138,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							isOpen && "text-content-primary",
 						])}
 					>
-						{isOpen ? (
-							<ChevronDownIcon className="size-icon-xs" />
-						) : (
-							<ChevronRightIcon className="size-icon-xs" />
-						)}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{formatDate(new Date(interception.started_at))}
 					</div>
@@ -201,15 +194,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="w-full min-w-0 overflow-hidden">
-									<Badge className="gap-1.5 w-full">
+								<div className="min-w-0 overflow-hidden">
+									<Badge className="gap-1.5 max-w-full">
 										<div className="flex-shrink-0 flex items-center">
-											<AIBridgeProviderIcon
-												provider={interception.provider}
+											<AIBridgeModelIcon
+												model={interception.model}
 												className="size-icon-xs"
 											/>
 										</div>
-										<span className="truncate min-w-0 w-full">
+										<span className="truncate min-w-0">
 											{interception.model}
 										</span>
 									</Badge>
@@ -279,8 +272,8 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<dd data-chromatic="ignore">
 									<Badge className="gap-2">
 										<div className="flex-shrink-0 flex items-center">
-											<AIBridgeProviderIcon
-												provider={interception.provider}
+											<AIBridgeModelIcon
+												model={interception.model}
 												className="size-icon-xs"
 											/>
 										</div>

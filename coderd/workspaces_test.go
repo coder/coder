@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +22,9 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -30,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -37,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -5620,6 +5625,54 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAvailableUsers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OrgAdminCanListUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create an org admin and additional users
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+		_, user1 := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Org admin should be able to list available users
+		users, err := orgAdminClient.WorkspaceAvailableUsers(ctx, owner.OrganizationID, "me")
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(users), 4) // owner + orgAdmin + 2 users
+
+		// Verify the users we created are in the list
+		usernames := make([]string, 0, len(users))
+		for _, u := range users {
+			usernames = append(usernames, u.Username)
+		}
+		require.Contains(t, usernames, user1.Username)
+		require.Contains(t, usernames, user2.Username)
+	})
+
+	t.Run("MemberCannotListUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a regular member
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Regular member should not be able to list available users
+		_, err := memberClient.WorkspaceAvailableUsers(ctx, owner.OrganizationID, "me")
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+}
+
 func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 	t.Parallel()
 
@@ -5900,4 +5953,136 @@ func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 		require.NotNil(t, ws2.LatestBuild.TemplateVersionPresetID)
 		require.Equal(t, preset2ID, *ws2.LatestBuild.TemplateVersionPresetID)
 	})
+}
+
+func TestProvisionerJobQueueWaitMetric(t *testing.T) {
+	t.Parallel()
+
+	logger := testutil.Logger(t)
+	reg := prometheus.NewRegistry()
+	metrics := provisionerdserver.NewMetrics(logger)
+	err := metrics.Register(reg)
+	require.NoError(t, err)
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:  true,
+		ProvisionerdServerMetrics: metrics,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a template version - this triggers a template_version_import job.
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	// Check that the queue wait metric was recorded for the template_version_import job.
+	importMetric := promhelp.MetricValue(t, reg, "coderd_provisioner_job_queue_wait_seconds", prometheus.Labels{
+		"provisioner_type": string(database.ProvisionerTypeEcho),
+		"job_type":         string(database.ProvisionerJobTypeTemplateVersionImport),
+		"transition":       "",
+		"build_reason":     "",
+	})
+	require.NotNil(t, importMetric, "import job metric should be recorded")
+	importHistogram := importMetric.GetHistogram()
+	require.NotNil(t, importHistogram)
+	require.Equal(t, uint64(1), importHistogram.GetSampleCount(), "import job should have 1 sample")
+	require.Greater(t, importHistogram.GetSampleSum(), 0.0, "import job queue wait should be non-zero")
+
+	// Create a template and workspace - this triggers a workspace_build job.
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Check that the queue wait metric was recorded for the workspace_build job.
+	buildMetric := promhelp.MetricValue(t, reg, "coderd_provisioner_job_queue_wait_seconds", prometheus.Labels{
+		"provisioner_type": string(database.ProvisionerTypeEcho),
+		"job_type":         string(database.ProvisionerJobTypeWorkspaceBuild),
+		"transition":       string(database.WorkspaceTransitionStart),
+		"build_reason":     string(database.BuildReasonInitiator),
+	})
+	require.NotNil(t, buildMetric, "workspace build job metric should be recorded")
+	buildHistogram := buildMetric.GetHistogram()
+	require.NotNil(t, buildHistogram)
+	require.Equal(t, uint64(1), buildHistogram.GetSampleCount(), "workspace build job should have 1 sample")
+	require.Greater(t, buildHistogram.GetSampleSum(), 0.0, "workspace build job queue wait should be non-zero")
+}
+
+func TestWorkspaceBuildsEnqueuedMetric(t *testing.T) {
+	t.Parallel()
+
+	var (
+		logger  = testutil.Logger(t)
+		reg     = prometheus.NewRegistry()
+		metrics = provisionerdserver.NewMetrics(logger)
+
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+	)
+
+	err := metrics.Register(reg)
+	require.NoError(t, err)
+
+	wsBuilderMetrics, err := wsbuilder.NewMetrics(reg)
+	require.NoError(t, err)
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:  true,
+		ProvisionerdServerMetrics: metrics,
+		WorkspaceBuilderMetrics:   wsBuilderMetrics,
+		AutobuildTicker:           tickCh,
+		AutobuildStats:            statsCh,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a template and workspace with autostart schedule.
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutostartSchedule = ptr.Ref(sched.String())
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Stop the workspace to prepare for autostart.
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+	// Trigger an autostart build via the autobuild ticker. This verifies that
+	// autostart builds are recorded with build_reason="autostart".
+	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+	require.NoError(t, err)
+
+	go func() {
+		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
+		close(tickCh)
+	}()
+
+	// Wait for the autostart to complete.
+	stats := <-statsCh
+	require.Len(t, stats.Errors, 0)
+	require.Len(t, stats.Transitions, 1)
+	require.Contains(t, stats.Transitions, workspace.ID)
+	require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
+
+	// Verify the workspace was autostarted.
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.BuildReasonAutostart, workspace.LatestBuild.Reason)
+
+	// Now check the autostart metric was recorded.
+	autostartCount := promhelp.CounterValue(t, reg, "coderd_workspace_builds_enqueued_total", prometheus.Labels{
+		"provisioner_type": string(database.ProvisionerTypeEcho),
+		"build_reason":     string(database.BuildReasonAutostart),
+		"transition":       string(database.WorkspaceTransitionStart),
+		"status":           wsbuilder.BuildStatusSuccess,
+	})
+	require.Equal(t, 1, autostartCount, "autostart should record 1 enqueue with build_reason=autostart")
+}
+
+func mustSchedule(t *testing.T, s string) *cron.Schedule {
+	t.Helper()
+	sched, err := cron.Weekly(s)
+	require.NoError(t, err)
+	return sched
 }

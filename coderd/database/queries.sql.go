@@ -123,8 +123,7 @@ WITH interceptions_in_range AS (
     WHERE
         provider = $1::text
         AND model = $2::text
-        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-        AND 'unknown' = $3::text
+        AND COALESCE(client, 'Unknown') = $3::text
         AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
         AND ended_at >= $4::timestamptz
         AND ended_at < $5::timestamptz
@@ -301,6 +300,11 @@ WHERE
 		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
 		ELSE true
 	END
+	-- Filter client
+	AND CASE
+		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
 	-- @authorize_filter
 `
@@ -311,6 +315,7 @@ type CountAIBridgeInterceptionsParams struct {
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
+	Client        string    `db:"client" json:"client"`
 }
 
 func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error) {
@@ -320,6 +325,7 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
+		arg.Client,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -372,7 +378,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client
 FROM
 	aibridge_interceptions
 WHERE
@@ -391,13 +397,14 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.Metadata,
 		&i.EndedAt,
 		&i.APIKeyID,
+		&i.Client,
 	)
 	return i, err
 }
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client
 FROM
 	aibridge_interceptions
 `
@@ -420,6 +427,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.Metadata,
 			&i.EndedAt,
 			&i.APIKeyID,
+			&i.Client,
 		); err != nil {
 			return nil, err
 		}
@@ -565,11 +573,11 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at
+	id, api_key_id, initiator_id, provider, model, metadata, started_at, client
 ) VALUES (
-	$1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7
+	$1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7, $8
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -580,6 +588,7 @@ type InsertAIBridgeInterceptionParams struct {
 	Model       string          `db:"model" json:"model"`
 	Metadata    json.RawMessage `db:"metadata" json:"metadata"`
 	StartedAt   time.Time       `db:"started_at" json:"started_at"`
+	Client      sql.NullString  `db:"client" json:"client"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -591,6 +600,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.Model,
 		arg.Metadata,
 		arg.StartedAt,
+		arg.Client,
 	)
 	var i AIBridgeInterception
 	err := row.Scan(
@@ -602,6 +612,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.Metadata,
 		&i.EndedAt,
 		&i.APIKeyID,
+		&i.Client,
 	)
 	return i, err
 }
@@ -740,7 +751,7 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
@@ -773,9 +784,14 @@ WHERE
 		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
 		ELSE true
 	END
+	-- Filter client
+	AND CASE
+		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		ELSE true
+	END
 	-- Cursor pagination
 	AND CASE
-		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+		WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the started_at field, so select all
 			-- rows before the cursor and before the after_id UUID.
@@ -783,8 +799,8 @@ WHERE
 			-- "after_id" terminology comes from our pagination parser in
 			-- coderd.
 			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
-				(SELECT started_at FROM aibridge_interceptions WHERE id = $6),
-				$6::uuid
+				(SELECT started_at FROM aibridge_interceptions WHERE id = $7),
+				$7::uuid
 			)
 		)
 		ELSE true
@@ -794,8 +810,8 @@ WHERE
 ORDER BY
 	aibridge_interceptions.started_at DESC,
 	aibridge_interceptions.id DESC
-LIMIT COALESCE(NULLIF($8::integer, 0), 100)
-OFFSET $7
+LIMIT COALESCE(NULLIF($9::integer, 0), 100)
+OFFSET $8
 `
 
 type ListAIBridgeInterceptionsParams struct {
@@ -804,6 +820,7 @@ type ListAIBridgeInterceptionsParams struct {
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
+	Client        string    `db:"client" json:"client"`
 	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
 	Offset        int32     `db:"offset_" json:"offset_"`
 	Limit         int32     `db:"limit_" json:"limit_"`
@@ -821,6 +838,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
+		arg.Client,
 		arg.AfterID,
 		arg.Offset,
 		arg.Limit,
@@ -841,6 +859,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.AIBridgeInterception.Metadata,
 			&i.AIBridgeInterception.EndedAt,
 			&i.AIBridgeInterception.APIKeyID,
+			&i.AIBridgeInterception.Client,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -864,8 +883,7 @@ SELECT
     DISTINCT ON (provider, model, client)
     provider,
     model,
-    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-    'unknown' AS client
+    COALESCE(client, 'Unknown') AS client
 FROM
     aibridge_interceptions
 WHERE
@@ -1047,7 +1065,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $2::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -1067,6 +1085,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.Metadata,
 		&i.EndedAt,
 		&i.APIKeyID,
+		&i.Client,
 	)
 	return i, err
 }
@@ -18232,6 +18251,8 @@ WHERE
 	auth_instance_id = $1 :: TEXT
 	-- Filter out deleted sub agents.
 	AND deleted = FALSE
+	-- Filter out sub agents, they do not authenticate with auth_instance_id.
+	AND parent_id IS NULL
 ORDER BY
 	created_at DESC
 `

@@ -1991,6 +1991,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2115,6 +2116,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2239,6 +2241,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2385,6 +2388,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2532,6 +2536,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2745,7 +2750,6 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2979,6 +2983,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		api.AGPL.BuildUsageChecker,
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -4723,7 +4728,7 @@ func TestWorkspaceAITask(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
-		}).ManagedAgentLimit(10, 20),
+		}).ManagedAgentLimit(10),
 	})
 
 	client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID,

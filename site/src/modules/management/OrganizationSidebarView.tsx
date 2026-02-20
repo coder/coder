@@ -1,4 +1,5 @@
 import type { Organization } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
@@ -16,7 +17,7 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { SettingsSidebarNavItem } from "components/Sidebar/Sidebar";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
@@ -78,7 +79,7 @@ export const OrganizationSidebarView: FC<
 						) : (
 							<span className="truncate">No organization selected</span>
 						)}
-						<ChevronDown className="ml-auto !size-icon-sm" />
+						<ChevronDownIcon className="ml-auto !size-icon-sm" />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
@@ -109,7 +110,7 @@ export const OrganizationSidebarView: FC<
 												{organization?.display_name || organization?.name}
 											</span>
 											{activeOrganization?.name === organization.name && (
-												<Check size={16} strokeWidth={2} className="ml-auto" />
+												<Check className="ml-auto" />
 											)}
 										</CommandItem>
 									))}

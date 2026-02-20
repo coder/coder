@@ -1,7 +1,9 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Collapse from "@mui/material/Collapse";
-import Link from "@mui/material/Link";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
 import type { FC, ReactNode } from "react";
 
 interface ExpanderProps {
@@ -15,48 +17,19 @@ export const Expander: FC<ExpanderProps> = ({
 	setExpanded,
 	children,
 }) => {
-	const toggleExpanded = () => setExpanded(!expanded);
-
 	return (
-		<>
-			{!expanded && (
-				<Link onClick={toggleExpanded} css={styles.expandLink}>
-					<span css={styles.text}>
-						Click here to learn more
-						<DropdownArrow margin={false} />
-					</span>
-				</Link>
-			)}
-			<Collapse in={expanded}>
-				<div css={styles.text}>{children}</div>
-			</Collapse>
-			{expanded && (
-				<Link
-					onClick={toggleExpanded}
-					css={[styles.expandLink, styles.collapseLink]}
-				>
-					<span css={styles.text}>
-						Click here to hide
-						<DropdownArrow margin={false} close />
-					</span>
-				</Link>
-			)}
-		</>
+		<Collapsible open={expanded} onOpenChange={setExpanded}>
+			<CollapsibleContent>
+				<p className="flex items-center text-content-secondary text-xs">
+					{children}
+				</p>
+			</CollapsibleContent>
+			<CollapsibleTrigger className="cursor-pointer text-content-secondary hover:underline">
+				<span className="flex items-center text-xs">
+					{expanded ? "Click here to hide" : "Click here to learn more"}
+					<ChevronDownIcon open={expanded} className="size-4" />
+				</span>
+			</CollapsibleTrigger>
+		</Collapsible>
 	);
 };
-
-const styles = {
-	expandLink: (theme) => ({
-		cursor: "pointer",
-		color: theme.palette.text.secondary,
-	}),
-	collapseLink: {
-		marginTop: 16,
-	},
-	text: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		color: theme.palette.text.secondary,
-		fontSize: theme.typography.caption.fontSize,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

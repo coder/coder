@@ -1023,7 +1023,8 @@ CREATE TABLE aibridge_interceptions (
     started_at timestamp with time zone NOT NULL,
     metadata jsonb,
     ended_at timestamp with time zone,
-    api_key_id text
+    api_key_id text,
+    client character varying(64) DEFAULT 'Unknown'::character varying
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -2736,7 +2737,9 @@ CREATE TABLE workspaces (
     favorite boolean DEFAULT false NOT NULL,
     next_start_at timestamp with time zone,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
@@ -3271,6 +3274,8 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 

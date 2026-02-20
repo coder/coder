@@ -13,7 +13,6 @@
 import { useTheme } from "@emotion/react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cva, type VariantProps } from "class-variance-authority";
-import * as React from "react";
 import { getExternalImageStylesFromUrl } from "theme/externalImages";
 import { cn } from "utils/cn";
 
@@ -58,17 +57,22 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		fallback?: string;
+		ref?: React.Ref<React.ComponentRef<typeof AvatarPrimitive.Root>>;
 	};
 
-const Avatar = React.forwardRef<
-	React.ElementRef<typeof AvatarPrimitive.Root>,
-	AvatarProps
->(({ className, size, variant, src, fallback, children, ...props }, ref) => {
+export const Avatar: React.FC<AvatarProps> = ({
+	className,
+	size,
+	variant,
+	src,
+	fallback,
+	children,
+	...props
+}) => {
 	const theme = useTheme();
 
 	return (
 		<AvatarPrimitive.Root
-			ref={ref}
 			className={cn(avatarVariants({ size, variant, className }))}
 			{...props}
 		>
@@ -79,13 +83,10 @@ const Avatar = React.forwardRef<
 			/>
 			{fallback && (
 				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-					{fallback.charAt(0).toUpperCase()}
+					{fallback.slice(0, 2).toUpperCase()}
 				</AvatarPrimitive.Fallback>
 			)}
 			{children}
 		</AvatarPrimitive.Root>
 	);
-});
-Avatar.displayName = AvatarPrimitive.Root.displayName;
-
-export { Avatar };
+};

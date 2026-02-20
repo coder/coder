@@ -64,7 +64,7 @@ func TestRemoveOrganizationMembers(t *testing.T) {
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "must be an existing uuid or username")
+		require.ErrorContains(t, err, "Resource not found or you do not have access to this resource")
 	})
 }
 
