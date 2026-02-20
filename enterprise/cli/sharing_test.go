@@ -33,7 +33,6 @@ func TestSharingShare(t *testing.T) {
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -86,7 +85,6 @@ func TestSharingShare(t *testing.T) {
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -142,7 +140,6 @@ func TestSharingShare(t *testing.T) {
 				client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 					Options: &coderdtest.Options{
 						DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 						}),
 					},
 					LicenseOptions: &coderdenttest.LicenseOptions{
@@ -200,7 +197,6 @@ func TestSharingStatus(t *testing.T) {
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -257,7 +253,6 @@ func TestSharingRemove(t *testing.T) {
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -330,7 +325,6 @@ func TestSharingRemove(t *testing.T) {
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{

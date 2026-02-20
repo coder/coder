@@ -5424,7 +5424,6 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 				}),
 			})
 			admin                                = coderdtest.CreateFirstUser(t, client)
@@ -5459,7 +5458,6 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 				}),
 			})
 			admin                                = coderdtest.CreateFirstUser(t, client)
@@ -5502,7 +5500,6 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 	var (
 		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 			}),
 		})
 		admin                                = coderdtest.CreateFirstUser(t, client)
@@ -5554,7 +5551,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					// DisableWorkspaceSharing is false (default)
 				}),
 			})

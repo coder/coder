@@ -8,6 +8,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -20,7 +21,6 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {

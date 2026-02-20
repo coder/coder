@@ -4444,7 +4444,6 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4488,7 +4487,6 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{

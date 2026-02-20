@@ -1,11 +1,11 @@
 import type { Workspace } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	SettingsIcon as GeneralIcon,
 	CodeIcon as ParameterIcon,
