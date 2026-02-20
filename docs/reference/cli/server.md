@@ -1156,7 +1156,7 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 | Environment | <code>$CODER_DISABLE_WORKSPACE_SHARING</code> |
 | YAML        | <code>disableWorkspaceSharing</code>          |
 
-Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
 
 ### --session-duration
 
