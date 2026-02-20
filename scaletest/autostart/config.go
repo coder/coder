@@ -43,6 +43,10 @@ type Config struct {
 	// this specific workspace. The channel is pre-created and keyed by the
 	// deterministic workspace name.
 	BuildUpdates <-chan codersdk.WorkspaceBuildUpdate `json:"-"`
+
+	// ResultSink is a channel where the runner sends its result upon completion.
+	// This allows the CLI to aggregate results from all concurrent runners.
+	ResultSink chan<- RunResult `json:"-"`
 }
 
 func (c Config) Validate() error {

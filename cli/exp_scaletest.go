@@ -303,6 +303,46 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 	return nil
 }
 
+// writeAutostartOutput writes autostart-specific results to the specified output.
+func writeAutostartOutput(o scaleTestOutput, results autostart.RunResults, stdout io.Writer) error {
+	var (
+		w = stdout
+		c io.Closer
+	)
+	if o.path != "-" {
+		f, err := os.Create(o.path)
+		if err != nil {
+			return xerrors.Errorf("create output file: %w", err)
+		}
+		w, c = f, f
+	}
+
+	switch o.format {
+	case scaleTestOutputFormatText:
+		results.PrintText(w)
+	case scaleTestOutputFormatJSON:
+		err := json.NewEncoder(w).Encode(results)
+		if err != nil {
+			return xerrors.Errorf("encode JSON: %w", err)
+		}
+	}
+
+	// Sync the file to disk if it's a file.
+	if s, ok := w.(interface{ Sync() error }); ok {
+		// Best effort. If we get an error from syncing, just ignore it.
+		_ = s.Sync()
+	}
+
+	if c != nil {
+		err := c.Close()
+		if err != nil {
+			return xerrors.Errorf("close output file: %w", err)
+		}
+	}
+
+	return nil
+}
+
 type scaletestOutputFlags struct {
 	outputSpecs []string
 }
@@ -1743,6 +1783,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 		tracingFlags    = &scaletestTracingFlags{}
 		timeoutStrategy = &timeoutFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
+		output          = &scaletestOutputFlags{}
 	)
 
 	cmd := &serpent.Command{
@@ -1766,6 +1807,11 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 
 			if workspaceCount <= 0 {
 				return xerrors.Errorf("--workspace-count must be greater than zero")
+			}
+
+			outputs, err := output.parse()
+			if err != nil {
+				return xerrors.Errorf("parse output flags: %w", err)
 			}
 
 			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
@@ -1810,6 +1856,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			}
 
 			workspaceNames := make([]string, 0, workspaceCount)
+			resultSink := make(chan autostart.RunResult, workspaceCount)
 			for i := range workspaceCount {
 				id := strconv.Itoa(int(i))
 				workspaceNames = append(workspaceNames, loadtestutil.GenerateDeterministicWorkspaceName(id))
@@ -1846,7 +1893,8 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 					AutostartBuildTimeout: autostartBuildTimeout,
 					AutostartDelay:        autostartDelay,
 					SetupBarrier:          setupBarrier,
-					BuildUpdates:          buildUpdatesChannel,
+					BuildUpdates: buildUpdatesChannel,
+					ResultSink:   resultSink,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -1883,12 +1931,28 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
 			}
 
+			// Collect all metrics from the channel.
+			close(resultSink)
+			var runResults []autostart.RunResult
+			for r := range resultSink {
+				runResults = append(runResults, r)
+			}
+
 			res := th.Results()
 			if res.TotalFail > 0 {
 				return xerrors.New("load test failed, see above for more details")
 			}
 
 			_, _ = fmt.Fprintf(inv.Stderr, "\nAll %d autostart builds completed successfully (elapsed: %s)\n", res.TotalRuns, time.Duration(res.Elapsed).Round(time.Millisecond))
+
+			if len(runResults) > 0 {
+				results := autostart.NewRunResults(runResults)
+				for _, out := range outputs {
+					if err := writeAutostartOutput(out, results, inv.Stdout); err != nil {
+						return xerrors.Errorf("write output: %w", err)
+					}
+				}
+			}
 
 			if !noCleanup {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
@@ -1955,6 +2019,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	tracingFlags.attach(&cmd.Options)
+	output.attach(&cmd.Options)
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
