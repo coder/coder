@@ -4011,7 +4011,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "entitlement": "entitled",
       "limit": 0,
-      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -4023,7 +4022,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "entitlement": "entitled",
       "limit": 0,
-      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -4309,7 +4307,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "enabled": true,
   "entitlement": "entitled",
   "limit": 0,
-  "soft_limit": 0,
   "usage_period": {
     "end": "2019-08-24T14:15:22Z",
     "issued_at": "2019-08-24T14:15:22Z",
@@ -4320,13 +4317,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                                  |
-|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `actual`      | integer                                      | false    |              |                                                                                                                                                                              |
-| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                              |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                              |
-| `limit`       | integer                                      | false    |              |                                                                                                                                                                              |
-| `soft_limit`  | integer                                      | false    |              | Soft limit is the soft limit of the feature, and is only used for showing included limits in the dashboard. No license validation or warnings are generated from this value. |
+| Name          | Type                                         | Required | Restrictions | Description |
+|---------------|----------------------------------------------|----------|--------------|-------------|
+| `actual`      | integer                                      | false    |              |             |
+| `enabled`     | boolean                                      | false    |              |             |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
+| `limit`       | integer                                      | false    |              |             |
 |`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
 These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
 Only certain features set these fields: - FeatureManagedAgentLimit|
