@@ -30,6 +30,7 @@ func (r *RootCmd) templateVersions() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.templateVersionsList(),
+			r.templateVersionsDiff(),
 			r.archiveTemplateVersion(),
 			r.unarchiveTemplateVersion(),
 			r.templateVersionsPromote(),
