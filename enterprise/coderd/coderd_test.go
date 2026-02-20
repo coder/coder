@@ -720,27 +720,32 @@ func TestManagedAgentLimit(t *testing.T) {
 	require.NoError(t, err, "fetching AI workspace must succeed")
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 
-	// Create a second AI workspace, which should fail.
-	_, err = cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
+	// Create a second AI task, which should succeed even though the limit is
+	// breached. Managed agent limits are advisory only and should never block
+	// workspace creation.
+	task2, err := cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
 		Name:                    namesgenerator.UniqueNameWith("-"),
 		TemplateVersionID:       aiTemplate.ActiveVersionID,
 		TemplateVersionPresetID: uuid.Nil,
 		Input:                   "hi",
 		DisplayName:             namesgenerator.UniqueName(),
 	})
-	require.ErrorContains(t, err, "You have breached the managed agent limit in your license")
+	require.NoError(t, err, "creating task beyond managed agent limit must succeed")
+	workspace2, err := cli.Workspace(ctx, task2.WorkspaceID.UUID)
+	require.NoError(t, err, "fetching AI workspace must succeed")
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace2.LatestBuild.ID)
 
 	// Create a third non-AI workspace, which should succeed.
 	workspace = coderdtest.CreateWorkspace(t, cli, noAiTemplate.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 }
 
-func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
+func TestCheckBuildUsage_NeverBlocksOnManagedAgentLimit(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Prepare entitlements with a managed agent limit to enforce.
+	// Prepare entitlements with a managed agent limit.
 	entSet := entitlements.New()
 	entSet.Modify(func(e *codersdk.Entitlements) {
 		e.HasLicense = true
@@ -776,27 +781,24 @@ func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
 		TemplateVersionID: tv.ID,
 	}
 
-	// Mock DB: expect exactly one count call for the "start" transition.
+	// Mock DB: no calls expected since managed agent limits are
+	// advisory only and no longer query the database at build time.
 	mDB := dbmock.NewMockStore(ctrl)
-	mDB.EXPECT().
-		GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
-		Times(1).
-		Return(int64(1), nil) // equal to limit -> should breach
 
 	ctx := context.Background()
 
-	// Start transition: should be not permitted due to limit breach.
+	// Start transition: should be permitted even though the limit is
+	// breached. Managed agent limits are advisory only.
 	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
 	require.NoError(t, err)
-	require.False(t, startResp.Permitted)
-	require.Contains(t, startResp.Message, "breached the managed agent limit")
+	require.True(t, startResp.Permitted)
 
-	// Stop transition: should be permitted and must not trigger additional DB calls.
+	// Stop transition: should also be permitted.
 	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStop)
 	require.NoError(t, err)
 	require.True(t, stopResp.Permitted)
 
-	// Delete transition: should be permitted and must not trigger additional DB calls.
+	// Delete transition: should also be permitted.
 	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionDelete)
 	require.NoError(t, err)
 	require.True(t, deleteResp.Permitted)
