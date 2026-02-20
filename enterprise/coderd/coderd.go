@@ -987,8 +987,8 @@ func (api *API) CheckBuildUsage(
 	_ context.Context,
 	_ database.Store,
 	templateVersion *database.TemplateVersion,
-	_ *database.Task,
-	_ database.WorkspaceTransition,
+	task *database.Task,
+	transition database.WorkspaceTransition,
 ) (wsbuilder.UsageCheckResponse, error) {
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
@@ -1000,6 +1000,25 @@ func (api *API) CheckBuildUsage(
 				Message:   "You have a template which uses external agents but your license is not entitled to this feature. You will be unable to create new workspaces from these templates.",
 			}, nil
 		}
+	}
+
+	// Verify managed agent entitlement for AI task builds.
+	// The count/limit check is intentionally omitted — breaching the
+	// limit is advisory only and surfaced as a warning via entitlements.
+	if transition != database.WorkspaceTransitionStart || task == nil {
+		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+	}
+
+	if !api.Entitlements.HasLicense() {
+		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+	}
+
+	managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
+	if !ok || !managedAgentLimit.Enabled {
+		return wsbuilder.UsageCheckResponse{
+			Permitted: false,
+			Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
+		}, nil
 	}
 
 	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
