@@ -2916,9 +2916,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Flag:        "host-prefix-cookie",
 			Env:         "CODER_HOST_PREFIX_COOKIE",
 			Value:       serpent.BoolOf(&c.HTTPCookies.EnableHostPrefix),
-			DefaultFn: func() string {
-				return strconv.FormatBool(c.AccessURL.Scheme == "https")
-			},
+			// Ideally this is true, however any frontend interactions with the coder api would be broken.
+			// So for compatibility reasons, this is set to false.
+			Default:     "false",
 			Group:       &deploymentGroupNetworking,
 			YAML:        "hostPrefixCookie",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
