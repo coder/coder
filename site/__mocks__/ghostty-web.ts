@@ -164,6 +164,8 @@ export class FitAddon {
 
 	fit() {}
 
+	observeResize() {}
+
 	proposeDimensions() {
 		return { cols: 80, rows: 24 };
 	}

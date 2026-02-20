@@ -116,7 +116,6 @@ const TerminalPage: FC = () => {
 
 		let disposed = false;
 		let terminal: Terminal | undefined;
-		let resizeListener: (() => void) | undefined;
 
 		// ghostty-web requires async WASM initialization before creating
 		// Terminal instances. We wrap the setup in an async IIFE so the
@@ -225,11 +224,7 @@ const TerminalPage: FC = () => {
 			};
 			terminal.registerLinkProvider(portForwardLinkProvider);
 
-			fitAddon.fit();
-			fitAddon.fit();
-
-			resizeListener = () => fitAddon.fit();
-			window.addEventListener("resize", resizeListener);
+			fitAddon.observeResize();
 
 			if (!disposed) {
 				setTerminal(terminal);
@@ -238,9 +233,6 @@ const TerminalPage: FC = () => {
 
 		return () => {
 			disposed = true;
-			if (resizeListener) {
-				window.removeEventListener("resize", resizeListener);
-			}
 			terminal?.dispose();
 		};
 	}, [theme.palette.background.default, currentTerminalFont, copyToClipboard]);
