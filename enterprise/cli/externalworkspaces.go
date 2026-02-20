@@ -117,7 +117,7 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 				return err
 			}
 
-			workspace, workspaceAgent, _, err := agpl.GetWorkspaceAndAgent(inv.Context(), inv, client, false, inv.Args[0])
+			workspace, workspaceAgent, _, err := agpl.GetWorkspaceAndAgent(inv.Context(), inv, client, false, false, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("find workspace and agent: %w", err)
 			}

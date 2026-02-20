@@ -111,6 +111,31 @@ your template's Terraform file and the target resources on your infrastructure.
 Unhealthy workspaces are usually caused by a misconfiguration in the agent or
 workspace startup scripts.
 
+### Connecting to a failed workspace via SSH
+
+When you attempt to SSH into a workspace that is in a failed state, Coder will
+show you a link to the build logs and offer to retry the build:
+
+```console
+$ coder ssh myworkspace
+Workspace "myworkspace" failed its most recent build.
+  Build logs: https://coder.example.com/@user/myworkspace/builds/1
+Retry the build? (yes/no) yes
+```
+
+If you confirm, Coder will start a new build and connect you once it succeeds.
+
+In non-interactive mode (e.g. piped commands or scripts), the error message
+includes the build log link and a `coder start` command you can use to manually
+retry:
+
+```console
+$ coder ssh myworkspace 2>&1
+error: workspace "myworkspace" is in failed state, the last build failed
+  See: https://coder.example.com/@user/myworkspace/builds/1
+  Run `coder start user/myworkspace` to retry starting the workspace
+```
+
 ## Workspace build times
 
 After a successful build, you can see a timing breakdown of the workspace

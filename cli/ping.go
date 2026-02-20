@@ -109,6 +109,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			_, workspaceAgent, _, err := GetWorkspaceAndAgent(
 				ctx, inv, client,
 				false, // Do not autostart for a ping.
+				false,
 				workspaceName,
 			)
 			if err != nil {

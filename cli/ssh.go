@@ -802,7 +802,7 @@ func findWorkspaceAndAgentByHostname(
 	}
 	hostname = normalizeWorkspaceInput(hostname)
 
-	ws, agent, otherAgents, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
+	ws, agent, otherAgents, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, true, hostname)
 	if err != nil && strings.Contains(err.Error(), "multiple agents found") {
 		var errorMsg strings.Builder
 		_, _ = errorMsg.WriteString(fmt.Sprintf("%s\nTry running:\n", err.Error()))
@@ -894,7 +894,9 @@ startWatchLoop:
 // `<workspace>[.<agent>]` syntax via `in`. It will also return any other agents
 // in the workspace as a slice for use in child->parent lookups.
 // If autoStart is true, the workspace will be started if it is not already running.
-func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, []codersdk.WorkspaceAgent, error) { //nolint:revive
+// If retry is true and the workspace is in a failed state, the user will be
+// prompted to retry the build (when running interactively).
+func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, retry bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, []codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace codersdk.Workspace
 		// The input will be `owner/name.agent`
@@ -918,17 +920,15 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			// Any sort of deleting status, we should reject with a nicer error.
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("workspace %q is deleted", workspace.Name)
 		}
-		if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
+		// The workspace needs to be stopped (or failed) before we can start it.
+		// It cannot be in any other pending state.
+		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped &&
+			workspace.LatestBuild.Status != codersdk.WorkspaceStatusFailed {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil,
-				xerrors.Errorf("workspace %q is in failed state, unable to autostart the workspace", workspace.Name)
-		}
-		// The workspace needs to be stopped before we can start it.
-		// It cannot be in any pending or failed state.
-		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil,
-				xerrors.Errorf("workspace must be started; was unable to autostart as the last build job is %q, expected %q",
+				xerrors.Errorf("workspace must be started; was unable to autostart as the last build job is %q, expected %q or %q",
 					workspace.LatestBuild.Status,
 					codersdk.WorkspaceStatusStopped,
+					codersdk.WorkspaceStatusFailed,
 				)
 		}
 
@@ -943,7 +943,8 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			switch cerr.StatusCode() {
 			case http.StatusConflict:
 				_, _ = fmt.Fprintln(inv.Stderr, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...")
-				return GetWorkspaceAndAgent(ctx, inv, client, false, input)
+				// Pass retry=false to prevent infinite recursion.
+				return GetWorkspaceAndAgent(ctx, inv, client, false, false, input)
 
 			case http.StatusForbidden:
 				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)
@@ -984,11 +985,38 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		agentName = workspaceParts[1]
 	}
 	workspaceAgent, otherWorkspaceAgents, err := getWorkspaceAgent(workspace, agentName)
-	if err != nil {
+	if err == nil {
+		return workspace, workspaceAgent, otherWorkspaceAgents, nil
+	}
+
+	// If the latest build did not fail, return the original error.
+	if workspace.LatestBuild.Job.Status != codersdk.ProvisionerJobFailed {
 		return workspace, codersdk.WorkspaceAgent{}, otherWorkspaceAgents, err
 	}
 
-	return workspace, workspaceAgent, otherWorkspaceAgents, nil
+	// The latest build failed. Show a helpful message and offer to retry.
+	buildLink := buildWorkspaceBuildLink(client.URL, workspace)
+	_, _ = fmt.Fprintf(inv.Stderr, "Workspace %q failed its most recent build.\n  Build logs: %s\n", workspace.Name, buildLink.String())
+
+	if !retry || !isTTYIn(inv) {
+		return workspace, codersdk.WorkspaceAgent{}, otherWorkspaceAgents,
+			xerrors.Errorf("workspace %q is in failed state, the last build failed\n  See: %s\n  Run `coder start %s/%s` to retry starting the workspace",
+				workspace.Name, buildLink.String(), workspace.OwnerName, workspace.Name)
+	}
+
+	_, promptErr := cliui.Prompt(inv, cliui.PromptOptions{
+		Text:      "Retry the build?",
+		IsConfirm: true,
+		Default:   cliui.ConfirmYes,
+	})
+	if promptErr != nil {
+		return workspace, codersdk.WorkspaceAgent{}, otherWorkspaceAgents, xerrors.Errorf("workspace %q is in failed state", workspace.Name)
+	}
+
+	// User confirmed retry — reuse the full autostart flow which handles
+	// conflicts, forbidden errors, template version updates, etc.
+	// Pass retry=false to prevent infinite recursion.
+	return GetWorkspaceAndAgent(ctx, inv, client, true, false, input)
 }
 
 func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspaceAgent codersdk.WorkspaceAgent, otherAgents []codersdk.WorkspaceAgent, err error) {
@@ -1090,6 +1118,11 @@ func verifyWorkspaceOutdated(client *codersdk.Client, workspace codersdk.Workspa
 // Build the user workspace link which navigates to the Coder web UI.
 func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.URL {
 	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s", workspace.OwnerName, workspace.Name)})
+}
+
+// buildWorkspaceBuildLink returns a link to the specific workspace build in the Coder web UI.
+func buildWorkspaceBuildLink(serverURL *url.URL, workspace codersdk.Workspace) *url.URL {
+	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s/builds/%d", workspace.OwnerName, workspace.Name, workspace.LatestBuild.BuildNumber)})
 }
 
 // runLocal runs a command on the local machine.
