@@ -4075,6 +4075,54 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				},
 			},
 			{
+				// This test verifies that subagents created via
+				// devcontainers do not inherit the parent agent's
+				// AuthInstanceID.
+				// Context: https://github.com/coder/coder/pull/22196
+				name: "SubAgentDoesNotInheritAuthInstanceID",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:              agentID.String(),
+						Name:            "dev",
+						Architecture:    "amd64",
+						OperatingSystem: "linux",
+						Auth: &sdkproto.Agent_InstanceId{
+							InstanceId: "parent-instance-id",
+						},
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "sub",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Apps: []*sdkproto.App{
+								{Slug: "code-server", DisplayName: "VS Code", Url: "http://localhost:8080"},
+							},
+						}},
+					}},
+				},
+				expectSubAgentCount: 1,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, subAgents []database.WorkspaceAgent, _ bool) {
+					// Parent should have the AuthInstanceID set.
+					require.True(t, parentAgent.AuthInstanceID.Valid, "parent agent should have an AuthInstanceID")
+					require.Equal(t, "parent-instance-id", parentAgent.AuthInstanceID.String)
+
+					require.Len(t, subAgents, 1)
+					subAgent := subAgents[0]
+
+					// Sub-agent must NOT inherit the parent's AuthInstanceID.
+					assert.False(t, subAgent.AuthInstanceID.Valid, "sub-agent should not have an AuthInstanceID")
+					assert.Empty(t, subAgent.AuthInstanceID.String, "sub-agent AuthInstanceID string should be empty")
+
+					// Looking up by the parent's instance ID must still
+					// return the parent, not the sub-agent.
+					lookedUp, err := db.GetWorkspaceAgentByInstanceID(ctx, parentAgent.AuthInstanceID.String)
+					require.NoError(t, err)
+					assert.Equal(t, parentAgent.ID, lookedUp.ID, "instance ID lookup should still return the parent agent")
+				},
+			},
+			{
 				// This test verifies the backward-compatibility behavior where a
 				// devcontainer with a SubagentId but no apps, scripts, or envs does
 				// NOT create a subagent.

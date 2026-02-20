@@ -45,10 +45,10 @@ import (
 )
 
 // createTaskInState is a helper to create a task in the desired state.
-// It returns a function that takes context, test, and status, and returns the task ID.
+// It returns a function that takes context, test, and status, and returns the task.
 // The caller is responsible for setting up the database, owner, and user.
-func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID, userID uuid.UUID) func(context.Context, *testing.T, database.TaskStatus) uuid.UUID {
-	return func(ctx context.Context, t *testing.T, status database.TaskStatus) uuid.UUID {
+func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID, userID uuid.UUID) func(context.Context, *testing.T, database.TaskStatus) database.Task {
+	return func(ctx context.Context, t *testing.T, status database.TaskStatus) database.Task {
 		ctx = dbauthz.As(ctx, ownerSubject)
 
 		builder := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -65,6 +65,9 @@ func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID,
 			builder = builder.Pending()
 		case database.TaskStatusInitializing:
 			builder = builder.Starting()
+		case database.TaskStatusActive:
+			// Default builder produces a succeeded start build.
+			// Post-processing below sets agent and app to active.
 		case database.TaskStatusPaused:
 			builder = builder.Seed(database.WorkspaceBuild{
 				Transition: database.WorkspaceTransitionStop,
@@ -76,31 +79,32 @@ func createTaskInState(db database.Store, ownerSubject rbac.Subject, ownerOrgID,
 		}
 
 		resp := builder.Do()
-		taskID := resp.Task.ID
 
 		// Post-process by manipulating agent and app state.
-		if status == database.TaskStatusError {
-			// First, set agent to ready state so agent_status returns 'active'.
-			// This ensures the cascade reaches app_status.
+		if status == database.TaskStatusActive || status == database.TaskStatusError {
+			// Set agent to ready state so agent_status returns 'active'.
 			err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 				ID:             resp.Agents[0].ID,
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			})
 			require.NoError(t, err)
 
-			// Then set workspace app health to unhealthy to trigger error state.
 			apps, err := db.GetWorkspaceAppsByAgentID(ctx, resp.Agents[0].ID)
 			require.NoError(t, err)
 			require.Len(t, apps, 1, "expected exactly one app for task")
 
+			appHealth := database.WorkspaceAppHealthHealthy
+			if status == database.TaskStatusError {
+				appHealth = database.WorkspaceAppHealthUnhealthy
+			}
 			err = db.UpdateWorkspaceAppHealthByID(ctx, database.UpdateWorkspaceAppHealthByIDParams{
 				ID:     apps[0].ID,
-				Health: database.WorkspaceAppHealthUnhealthy,
+				Health: appHealth,
 			})
 			require.NoError(t, err)
 		}
 
-		return taskID
+		return resp.Task
 	}
 }
 
@@ -845,9 +849,9 @@ func TestTasks(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				taskID := createTask(ctx, t, database.TaskStatusPaused)
+				task := createTask(ctx, t, database.TaskStatusPaused)
 
-				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+				err := client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "Hello",
 				})
 
@@ -863,9 +867,9 @@ func TestTasks(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				taskID := createTask(ctx, t, database.TaskStatusInitializing)
+				task := createTask(ctx, t, database.TaskStatusInitializing)
 
-				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+				err := client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "Hello",
 				})
 
@@ -881,9 +885,9 @@ func TestTasks(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				taskID := createTask(ctx, t, database.TaskStatusPending)
+				task := createTask(ctx, t, database.TaskStatusPending)
 
-				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+				err := client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "Hello",
 				})
 
@@ -899,9 +903,9 @@ func TestTasks(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				taskID := createTask(ctx, t, database.TaskStatusError)
+				task := createTask(ctx, t, database.TaskStatusError)
 
-				err := client.TaskSend(ctx, "me", taskID, codersdk.TaskSendRequest{
+				err := client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "Hello",
 				})
 
@@ -1120,16 +1124,16 @@ func TestTasks(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			taskID := createTask(ctx, t, database.TaskStatusPending)
+			task := createTask(ctx, t, database.TaskStatusPending)
 
 			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
-				TaskID:               taskID,
+				TaskID:               task.ID,
 				LogSnapshot:          json.RawMessage(snapshotJSON),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
 			require.NoError(t, err, "upserting task snapshot")
 
-			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			logsResp, err := client.TaskLogs(ctx, "me", task.ID)
 			require.NoError(t, err, "fetching task logs")
 			verifySnapshotLogs(t, logsResp)
 		})
@@ -1138,16 +1142,16 @@ func TestTasks(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			taskID := createTask(ctx, t, database.TaskStatusInitializing)
+			task := createTask(ctx, t, database.TaskStatusInitializing)
 
 			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
-				TaskID:               taskID,
+				TaskID:               task.ID,
 				LogSnapshot:          json.RawMessage(snapshotJSON),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
 			require.NoError(t, err, "upserting task snapshot")
 
-			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			logsResp, err := client.TaskLogs(ctx, "me", task.ID)
 			require.NoError(t, err, "fetching task logs")
 			verifySnapshotLogs(t, logsResp)
 		})
@@ -1156,16 +1160,16 @@ func TestTasks(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			taskID := createTask(ctx, t, database.TaskStatusPaused)
+			task := createTask(ctx, t, database.TaskStatusPaused)
 
 			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
-				TaskID:               taskID,
+				TaskID:               task.ID,
 				LogSnapshot:          json.RawMessage(snapshotJSON),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
 			require.NoError(t, err, "upserting task snapshot")
 
-			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			logsResp, err := client.TaskLogs(ctx, "me", task.ID)
 			require.NoError(t, err, "fetching task logs")
 			verifySnapshotLogs(t, logsResp)
 		})
@@ -1174,9 +1178,9 @@ func TestTasks(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			taskID := createTask(ctx, t, database.TaskStatusPending)
+			task := createTask(ctx, t, database.TaskStatusPending)
 
-			logsResp, err := client.TaskLogs(ctx, "me", taskID)
+			logsResp, err := client.TaskLogs(ctx, "me", task.ID)
 			require.NoError(t, err)
 
 			assert.True(t, logsResp.Snapshot)
@@ -1188,7 +1192,7 @@ func TestTasks(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			taskID := createTask(ctx, t, database.TaskStatusPending)
+			task := createTask(ctx, t, database.TaskStatusPending)
 
 			invalidEnvelope := coderd.TaskLogSnapshotEnvelope{
 				Format: "unknown-format",
@@ -1198,13 +1202,13 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err)
 
 			err = db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
-				TaskID:               taskID,
+				TaskID:               task.ID,
 				LogSnapshot:          json.RawMessage(invalidJSON),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
 			require.NoError(t, err)
 
-			_, err = client.TaskLogs(ctx, "me", taskID)
+			_, err = client.TaskLogs(ctx, "me", task.ID)
 			require.Error(t, err)
 
 			var sdkErr *codersdk.Error
@@ -1217,16 +1221,16 @@ func TestTasks(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			taskID := createTask(ctx, t, database.TaskStatusPending)
+			task := createTask(ctx, t, database.TaskStatusPending)
 
 			err := db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
-				TaskID:               taskID,
+				TaskID:               task.ID,
 				LogSnapshot:          json.RawMessage(`{"format":"agentapi","data":"not an object"}`),
 				LogSnapshotCreatedAt: snapshotTime,
 			})
 			require.NoError(t, err)
 
-			_, err = client.TaskLogs(ctx, "me", taskID)
+			_, err = client.TaskLogs(ctx, "me", task.ID)
 			require.Error(t, err)
 
 			var sdkErr *codersdk.Error
@@ -1238,9 +1242,9 @@ func TestTasks(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			taskID := createTask(ctx, t, database.TaskStatusError)
+			task := createTask(ctx, t, database.TaskStatusError)
 
-			_, err := client.TaskLogs(ctx, "me", taskID)
+			_, err := client.TaskLogs(ctx, "me", task.ID)
 			require.Error(t, err)
 
 			var sdkErr *codersdk.Error
@@ -2563,7 +2567,6 @@ func TestPauseTask(t *testing.T) {
 		}
 
 		for _, tc := range cases {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				task, _ := setupWorkspaceTask(t, db, owner)
 				userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, tc.roles...)
@@ -2786,6 +2789,41 @@ func TestPauseTask(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode())
+	})
+
+	t.Run("Notification", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			notifyEnq       = &notificationstest.FakeEnqueuer{}
+			ownerClient, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{NotificationsEnqueuer: notifyEnq})
+			owner           = coderdtest.CreateFirstUser(t, ownerClient)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		ownerUser, err := ownerClient.User(ctx, owner.UserID.String())
+		require.NoError(t, err)
+
+		createTask := createTaskInState(db, coderdtest.AuthzUserSubject(ownerUser), owner.OrganizationID, owner.UserID)
+
+		// Given: A task in an active state
+		task := createTask(ctx, t, database.TaskStatusActive)
+
+		workspace, err := ownerClient.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+
+		// When: We pause the task
+		_, err = ownerClient.PauseTask(ctx, codersdk.Me, task.ID)
+		require.NoError(t, err)
+
+		// Then: A notification should be sent
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskPaused))
+		require.Len(t, sent, 1)
+		require.Equal(t, owner.UserID, sent[0].UserID)
+		require.Equal(t, task.Name, sent[0].Labels["task"])
+		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
+		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
+		require.Equal(t, "manual", sent[0].Labels["pause_reason"])
 	})
 }
 
@@ -3115,5 +3153,39 @@ func TestResumeTask(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode())
+	})
+
+	t.Run("Notification", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			notifyEnq       = &notificationstest.FakeEnqueuer{}
+			ownerClient, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{NotificationsEnqueuer: notifyEnq})
+			owner           = coderdtest.CreateFirstUser(t, ownerClient)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		ownerUser, err := ownerClient.User(ctx, owner.UserID.String())
+		require.NoError(t, err)
+
+		createTask := createTaskInState(db, coderdtest.AuthzUserSubject(ownerUser), owner.OrganizationID, owner.UserID)
+
+		// Given: A task in a paused state
+		task := createTask(ctx, t, database.TaskStatusPaused)
+
+		workspace, err := ownerClient.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+
+		// When: We resume the task
+		_, err = ownerClient.ResumeTask(ctx, codersdk.Me, task.ID)
+		require.NoError(t, err)
+
+		// Then: A notification should be sent
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskResumed))
+		require.Len(t, sent, 1)
+		require.Equal(t, owner.UserID, sent[0].UserID)
+		require.Equal(t, task.Name, sent[0].Labels["task"])
+		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
+		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 	})
 }

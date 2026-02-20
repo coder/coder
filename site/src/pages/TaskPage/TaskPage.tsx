@@ -1,10 +1,11 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
-import { pauseTask, resumeTask } from "api/queries/tasks";
+import { pauseTask, resumeTask, taskLogs } from "api/queries/tasks";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type {
 	Task,
+	TaskLogEntry,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceStatus,
@@ -12,6 +13,7 @@ import type {
 import isChromatic from "chromatic/isChromatic";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
@@ -35,6 +37,7 @@ import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
+	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -43,7 +46,9 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
 import type { FixedSizeList } from "react-window";
+import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import { relativeTime } from "utils/time";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
@@ -137,13 +142,7 @@ const TaskPage = () => {
 			/>
 		);
 	} else if (workspace.latest_build.status === "failed") {
-		content = (
-			<TaskBuildFailed
-				workspaceOwner={workspace.owner_name}
-				workspaceName={workspace.name}
-				buildNumber={workspace.latest_build.build_number}
-			/>
-		);
+		content = <TaskBuildFailed task={task} workspace={workspace} />;
 	} else if (workspace.latest_build.status === "stopping") {
 		content = (
 			<TaskTransitioning
@@ -303,32 +302,134 @@ const TaskDeleted: FC = () => {
 	);
 };
 
-type TaskBuildFailedProps = {
-	workspaceOwner: string;
-	workspaceName: string;
-	buildNumber: number;
+type TaskLogPreviewProps = {
+	logs: readonly TaskLogEntry[];
+	maxMessages?: number;
+	headerAction?: ReactNode;
+	snapshotAt?: string;
 };
 
-const TaskBuildFailed: FC<TaskBuildFailedProps> = ({
-	workspaceOwner,
-	workspaceName,
-	buildNumber,
+function logPreviewLabel(count: number): string {
+	if (count === 0) {
+		return "AI chat logs";
+	}
+	if (count === 1) {
+		return "Last message of AI chat logs";
+	}
+	return `Last ${count} messages of AI chat logs`;
+}
+
+const TaskLogPreview: FC<TaskLogPreviewProps> = ({
+	logs,
+	headerAction,
+	snapshotAt,
 }) => {
+	// Scroll to the bottom on mount since snapshot logs are static.
+	const scrollToBottom = useCallback((el: HTMLDivElement | null) => {
+		if (!isChromatic() && el) {
+			el.scrollIntoView({ block: "end" });
+		}
+	}, []);
+
 	return (
-		<TaskStateMessage
-			title="Task build failed"
-			description="Please check the logs for more details."
-			icon={<TriangleAlertIcon className="size-4 text-content-destructive" />}
-			actions={
-				<Button size="sm" variant="outline" asChild>
-					<RouterLink
-						to={`/@${workspaceOwner}/${workspaceName}/builds/${buildNumber}`}
-					>
-						View full logs
-					</RouterLink>
-				</Button>
-			}
-		/>
+		<div className="w-full max-w-screen-lg mx-auto px-16">
+			<div className="border border-solid border-border rounded-lg overflow-hidden">
+				<div className="flex items-center justify-between px-4 py-2 border-0 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
+					<span className="flex items-center gap-1.5">
+						{logPreviewLabel(logs.length)}
+						{snapshotAt && (
+							<InfoTooltip
+								type="info"
+								message={`This log snapshot was taken ${relativeTime(snapshotAt)}.`}
+							/>
+						)}
+					</span>
+					{headerAction}
+				</div>
+				{snapshotAt ? (
+					logs.length > 0 ? (
+						<ScrollArea className="h-96">
+							<div
+								ref={scrollToBottom}
+								className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
+							>
+								{logs.map((entry, index) => {
+									const prev = index === 0 ? undefined : logs[index - 1];
+									const isNewGroup = !prev || prev.type !== entry.type;
+									return (
+										<div
+											key={entry.id}
+											className={cn(
+												"pl-3 border-0 border-l-2 border-solid",
+												entry.type === "input"
+													? "border-l-border-pending"
+													: "border-l-border-purple",
+												isNewGroup && index > 0 && "mt-4",
+											)}
+										>
+											{isNewGroup && (
+												<div className="text-content-primary font-semibold mb-1">
+													{entry.type === "input" ? "[user]" : "[agent]"}
+												</div>
+											)}
+											{entry.content || "\u00A0"}
+										</div>
+									);
+								})}
+							</div>
+						</ScrollArea>
+					) : (
+						<p className="px-4 py-3 text-sm text-content-secondary m-0">
+							No log messages in this snapshot.
+						</p>
+					)
+				) : (
+					<p className="px-4 py-3 text-sm text-content-secondary m-0">
+						No log snapshot available. Resume your task to view logs.
+					</p>
+				)}
+			</div>
+		</div>
+	);
+};
+
+type TaskBuildFailedProps = {
+	task: Task;
+	workspace: Workspace;
+};
+
+const TaskBuildFailed: FC<TaskBuildFailedProps> = ({ task, workspace }) => {
+	const { data: logsData } = useQuery({
+		...taskLogs(task.owner_name, task.id),
+		retry: false,
+	});
+
+	const buildLogsLink = `/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`;
+
+	return (
+		<>
+			<TaskStateMessage
+				title="Task build failed"
+				description="Please check the logs for more details."
+				icon={<TriangleAlertIcon className="size-4 text-content-destructive" />}
+				actions={
+					<Button size="sm" variant="outline" asChild>
+						<RouterLink to={buildLogsLink}>View full logs</RouterLink>
+					</Button>
+				}
+			/>
+			{logsData && (
+				<TaskLogPreview
+					logs={logsData.logs}
+					snapshotAt={logsData.snapshot_at}
+					headerAction={
+						<Button size="sm" variant="subtle" asChild>
+							<RouterLink to={buildLogsLink}>View full logs</RouterLink>
+						</Button>
+					}
+				/>
+			)}
+		</>
 	);
 };
 
@@ -350,6 +451,11 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 				displayError(getErrorMessage(error, "Failed to resume task."));
 			}
 		},
+	});
+
+	const { data: logsData } = useQuery({
+		...taskLogs(task.owner_name, task.id),
+		retry: false,
 	});
 
 	// After requesting a task resume, it may take a while to become ready.
@@ -401,6 +507,23 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 					</div>
 				}
 			/>
+			{logsData && (
+				<TaskLogPreview
+					logs={logsData.logs}
+					snapshotAt={logsData.snapshot_at}
+					headerAction={
+						<Button
+							size="sm"
+							variant="subtle"
+							disabled={isWaitingForStart}
+							onClick={() => resumeMutation.mutate()}
+						>
+							<Spinner loading={isWaitingForStart} />
+							Resume to view full logs
+						</Button>
+					}
+				/>
+			)}
 
 			<WorkspaceErrorDialog
 				open={apiError !== undefined}
@@ -438,21 +561,6 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 		P95: null,
 	};
 
-	const scrollAreaRef = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect should run when build logs change
-	useLayoutEffect(() => {
-		if (isChromatic()) {
-			return;
-		}
-		const scrollAreaEl = scrollAreaRef.current;
-		const scrollAreaViewportEl = scrollAreaEl?.querySelector<HTMLDivElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (scrollAreaViewportEl) {
-			scrollAreaViewportEl.scrollTop = scrollAreaViewportEl.scrollHeight;
-		}
-	}, [buildLogs]);
-
 	return (
 		<section className="p-16 overflow-y-auto">
 			<div className="flex justify-center items-center w-full">
@@ -473,10 +581,7 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 							variant="task"
 						/>
 
-						<ScrollArea
-							ref={scrollAreaRef}
-							className="h-96 border border-solid border-border rounded-lg"
-						>
+						<ScrollArea className="h-96 border border-solid border-border rounded-lg">
 							<WorkspaceBuildLogs
 								sticky
 								className="border-0 rounded-none"

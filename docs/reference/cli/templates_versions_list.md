@@ -30,10 +30,10 @@ Select which organization (uuid or name) to use.
 
 ### -c, --column
 
-|         |                                                                       |
-|---------|-----------------------------------------------------------------------|
-| Type    | <code>[name\|created at\|created by\|status\|active\|archived]</code> |
-| Default | <code>name,created at,created by,status,active</code>                 |
+|         |                                                                           |
+|---------|---------------------------------------------------------------------------|
+| Type    | <code>[id\|name\|created at\|created by\|status\|active\|archived]</code> |
+| Default | <code>name,created at,created by,status,active</code>                     |
 
 Columns to display in table output.
 
