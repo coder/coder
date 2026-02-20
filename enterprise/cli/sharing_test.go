@@ -31,10 +31,6 @@ func TestSharingShare(t *testing.T) {
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					}),
-				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
 						codersdk.FeatureTemplateRBAC: 1,
@@ -83,10 +79,6 @@ func TestSharingShare(t *testing.T) {
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					}),
-				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
 						codersdk.FeatureTemplateRBAC: 1,
@@ -138,10 +130,6 @@ func TestSharingShare(t *testing.T) {
 
 			var (
 				client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-					Options: &coderdtest.Options{
-						DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-						}),
-					},
 					LicenseOptions: &coderdenttest.LicenseOptions{
 						Features: license.Features{
 							codersdk.FeatureTemplateRBAC: 1,
@@ -195,10 +183,6 @@ func TestSharingStatus(t *testing.T) {
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					}),
-				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
 						codersdk.FeatureTemplateRBAC: 1,
@@ -251,10 +235,6 @@ func TestSharingRemove(t *testing.T) {
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					}),
-				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
 						codersdk.FeatureTemplateRBAC: 1,
@@ -323,10 +303,6 @@ func TestSharingRemove(t *testing.T) {
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					}),
-				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
 						codersdk.FeatureTemplateRBAC: 1,
