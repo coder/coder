@@ -2719,7 +2719,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
 FROM
     chat_messages
 WHERE
@@ -2740,13 +2740,20 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.Hidden,
 		&i.SubagentRequestID,
 		&i.SubagentEvent,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
 	)
 	return i, err
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
 FROM
     chat_messages
 WHERE
@@ -2775,6 +2782,13 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UU
 			&i.Hidden,
 			&i.SubagentRequestID,
 			&i.SubagentEvent,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
 		); err != nil {
 			return nil, err
 		}
@@ -2976,7 +2990,7 @@ func (q *sqlQuerier) GetSubagentRequestDurationByChatIDAndRequestID(ctx context.
 
 const getSubagentResponseMessageByChatIDAndRequestID = `-- name: GetSubagentResponseMessageByChatIDAndRequestID :one
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
 FROM
     chat_messages
 WHERE
@@ -3008,6 +3022,13 @@ func (q *sqlQuerier) GetSubagentResponseMessageByChatIDAndRequestID(ctx context.
 		&i.Hidden,
 		&i.SubagentRequestID,
 		&i.SubagentEvent,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
 	)
 	return i, err
 }
@@ -3082,7 +3103,14 @@ INSERT INTO chat_messages (
     thinking,
     hidden,
     subagent_request_id,
-    subagent_event
+    subagent_event,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit
 ) VALUES (
     $1::uuid,
     $2::text,
@@ -3091,21 +3119,35 @@ INSERT INTO chat_messages (
     $5::text,
     $6::boolean,
     $7::uuid,
-    $8::text
+    $8::text,
+    $9::bigint,
+    $10::bigint,
+    $11::bigint,
+    $12::bigint,
+    $13::bigint,
+    $14::bigint,
+    $15::bigint
 )
 RETURNING
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
 `
 
 type InsertChatMessageParams struct {
-	ChatID            uuid.UUID             `db:"chat_id" json:"chat_id"`
-	Role              string                `db:"role" json:"role"`
-	Content           pqtype.NullRawMessage `db:"content" json:"content"`
-	ToolCallID        sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
-	Thinking          sql.NullString        `db:"thinking" json:"thinking"`
-	Hidden            bool                  `db:"hidden" json:"hidden"`
-	SubagentRequestID uuid.NullUUID         `db:"subagent_request_id" json:"subagent_request_id"`
-	SubagentEvent     sql.NullString        `db:"subagent_event" json:"subagent_event"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	Role                string                `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage `db:"content" json:"content"`
+	ToolCallID          sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
+	Thinking            sql.NullString        `db:"thinking" json:"thinking"`
+	Hidden              bool                  `db:"hidden" json:"hidden"`
+	SubagentRequestID   uuid.NullUUID         `db:"subagent_request_id" json:"subagent_request_id"`
+	SubagentEvent       sql.NullString        `db:"subagent_event" json:"subagent_event"`
+	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64         `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 }
 
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {
@@ -3118,6 +3160,13 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		arg.Hidden,
 		arg.SubagentRequestID,
 		arg.SubagentEvent,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.TotalTokens,
+		arg.ReasoningTokens,
+		arg.CacheCreationTokens,
+		arg.CacheReadTokens,
+		arg.ContextLimit,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -3131,6 +3180,13 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		&i.Hidden,
 		&i.SubagentRequestID,
 		&i.SubagentEvent,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
 	)
 	return i, err
 }

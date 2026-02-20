@@ -24,31 +24,38 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID               uuid.UUID          `json:"id" format:"uuid"`
-	OwnerID          uuid.UUID          `json:"owner_id" format:"uuid"`
-	WorkspaceID      *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID *uuid.UUID         `json:"workspace_agent_id,omitempty" format:"uuid"`
-	ParentChatID     *uuid.UUID         `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID       *uuid.UUID         `json:"root_chat_id,omitempty" format:"uuid"`
-	Title            string             `json:"title"`
-	Status           ChatStatus         `json:"status"`
-	DiffStatus       *ChatDiffStatus    `json:"diff_status,omitempty"`
-	ModelConfig      json.RawMessage    `json:"model_config,omitempty"`
-	CreatedAt        time.Time          `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time          `json:"updated_at" format:"date-time"`
+	ID               uuid.UUID       `json:"id" format:"uuid"`
+	OwnerID          uuid.UUID       `json:"owner_id" format:"uuid"`
+	WorkspaceID      *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
+	ParentChatID     *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID       *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	Title            string          `json:"title"`
+	Status           ChatStatus      `json:"status"`
+	DiffStatus       *ChatDiffStatus `json:"diff_status,omitempty"`
+	ModelConfig      json.RawMessage `json:"model_config,omitempty"`
+	CreatedAt        time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time       `json:"updated_at" format:"date-time"`
 }
 
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
-	ID         int64             `json:"id"`
-	ChatID     uuid.UUID         `json:"chat_id" format:"uuid"`
-	CreatedAt  time.Time         `json:"created_at" format:"date-time"`
-	Role       string            `json:"role"`
-	Content    json.RawMessage   `json:"content,omitempty"`
-	Parts      []ChatMessagePart `json:"parts,omitempty"`
-	ToolCallID *string           `json:"tool_call_id,omitempty"`
-	Thinking   *string           `json:"thinking,omitempty"`
-	Hidden     bool              `json:"hidden"`
+	ID                  int64             `json:"id"`
+	ChatID              uuid.UUID         `json:"chat_id" format:"uuid"`
+	CreatedAt           time.Time         `json:"created_at" format:"date-time"`
+	Role                string            `json:"role"`
+	Content             json.RawMessage   `json:"content,omitempty"`
+	Parts               []ChatMessagePart `json:"parts,omitempty"`
+	ToolCallID          *string           `json:"tool_call_id,omitempty"`
+	Thinking            *string           `json:"thinking,omitempty"`
+	Hidden              bool              `json:"hidden"`
+	InputTokens         *int64            `json:"input_tokens,omitempty"`
+	OutputTokens        *int64            `json:"output_tokens,omitempty"`
+	TotalTokens         *int64            `json:"total_tokens,omitempty"`
+	ReasoningTokens     *int64            `json:"reasoning_tokens,omitempty"`
+	CacheCreationTokens *int64            `json:"cache_creation_tokens,omitempty"`
+	CacheReadTokens     *int64            `json:"cache_read_tokens,omitempty"`
+	ContextLimit        *int64            `json:"context_limit,omitempty"`
 }
 
 // ChatMessagePartType represents a structured message part type.

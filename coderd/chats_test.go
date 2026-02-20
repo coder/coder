@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -176,6 +177,87 @@ func TestChats(t *testing.T) {
 		result, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, result.Messages, len(before.Messages)+1)
+	})
+
+	t.Run("GetIncludesMessageUsage", func(t *testing.T) {
+		t.Parallel()
+		client, _, api := coderdtest.NewWithAPI(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Message: "Test usage fields",
+		})
+		require.NoError(t, err)
+
+		_, err = api.Database.InsertChatMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatMessageParams{
+				ChatID:  chat.ID,
+				Role:    "assistant",
+				Content: pqtype.NullRawMessage{RawMessage: json.RawMessage(`"usage response"`), Valid: true},
+				Hidden:  false,
+				InputTokens: sql.NullInt64{
+					Int64: 120,
+					Valid: true,
+				},
+				OutputTokens: sql.NullInt64{
+					Int64: 45,
+					Valid: true,
+				},
+				ReasoningTokens: sql.NullInt64{
+					Int64: 12,
+					Valid: true,
+				},
+				CacheCreationTokens: sql.NullInt64{
+					Int64: 3,
+					Valid: true,
+				},
+				CacheReadTokens: sql.NullInt64{
+					Int64: 9,
+					Valid: true,
+				},
+				TotalTokens: sql.NullInt64{
+					Int64: 165,
+					Valid: true,
+				},
+				ContextLimit: sql.NullInt64{
+					Int64: 200000,
+					Valid: true,
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		result, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		assistantMessage, ok := firstChatMessageByRole(result.Messages, "assistant")
+		require.True(t, ok)
+		require.NotNil(t, assistantMessage.InputTokens)
+		require.Equal(t, int64(120), *assistantMessage.InputTokens)
+		require.NotNil(t, assistantMessage.OutputTokens)
+		require.Equal(t, int64(45), *assistantMessage.OutputTokens)
+		require.NotNil(t, assistantMessage.ReasoningTokens)
+		require.Equal(t, int64(12), *assistantMessage.ReasoningTokens)
+		require.NotNil(t, assistantMessage.CacheCreationTokens)
+		require.Equal(t, int64(3), *assistantMessage.CacheCreationTokens)
+		require.NotNil(t, assistantMessage.CacheReadTokens)
+		require.Equal(t, int64(9), *assistantMessage.CacheReadTokens)
+		require.NotNil(t, assistantMessage.TotalTokens)
+		require.Equal(t, int64(165), *assistantMessage.TotalTokens)
+		require.NotNil(t, assistantMessage.ContextLimit)
+		require.Equal(t, int64(200000), *assistantMessage.ContextLimit)
+
+		userMessage, ok := firstChatMessageByRole(result.Messages, "user")
+		require.True(t, ok)
+		require.Nil(t, userMessage.InputTokens)
+		require.Nil(t, userMessage.OutputTokens)
+		require.Nil(t, userMessage.ReasoningTokens)
+		require.Nil(t, userMessage.CacheCreationTokens)
+		require.Nil(t, userMessage.CacheReadTokens)
+		require.Nil(t, userMessage.TotalTokens)
+		require.Nil(t, userMessage.ContextLimit)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {

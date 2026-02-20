@@ -1177,6 +1177,13 @@ CREATE TABLE chat_messages (
     hidden boolean DEFAULT false NOT NULL,
     subagent_request_id uuid,
     subagent_event text,
+    input_tokens bigint,
+    output_tokens bigint,
+    total_tokens bigint,
+    reasoning_tokens bigint,
+    cache_creation_tokens bigint,
+    cache_read_tokens bigint,
+    context_limit bigint,
     CONSTRAINT chat_messages_subagent_event_check CHECK (((subagent_event IS NULL) OR (subagent_event = ANY (ARRAY['request'::text, 'response'::text]))))
 );
 

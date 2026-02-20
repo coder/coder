@@ -96,7 +96,14 @@ INSERT INTO chat_messages (
     thinking,
     hidden,
     subagent_request_id,
-    subagent_event
+    subagent_event,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit
 ) VALUES (
     @chat_id::uuid,
     @role::text,
@@ -105,7 +112,14 @@ INSERT INTO chat_messages (
     sqlc.narg('thinking')::text,
     @hidden::boolean,
     sqlc.narg('subagent_request_id')::uuid,
-    sqlc.narg('subagent_event')::text
+    sqlc.narg('subagent_event')::text,
+    sqlc.narg('input_tokens')::bigint,
+    sqlc.narg('output_tokens')::bigint,
+    sqlc.narg('total_tokens')::bigint,
+    sqlc.narg('reasoning_tokens')::bigint,
+    sqlc.narg('cache_creation_tokens')::bigint,
+    sqlc.narg('cache_read_tokens')::bigint,
+    sqlc.narg('context_limit')::bigint
 )
 RETURNING
     *;

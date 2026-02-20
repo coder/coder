@@ -13909,6 +13909,12 @@ const docTemplate = `{
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
+                "cache_creation_tokens": {
+                    "type": "integer"
+                },
+                "cache_read_tokens": {
+                    "type": "integer"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -13918,6 +13924,9 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "context_limit": {
+                    "type": "integer"
                 },
                 "created_at": {
                     "type": "string",
@@ -13929,11 +13938,20 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
                 "parts": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessagePart"
                     }
+                },
+                "reasoning_tokens": {
+                    "type": "integer"
                 },
                 "role": {
                     "type": "string"
@@ -13943,6 +13961,9 @@ const docTemplate = `{
                 },
                 "tool_call_id": {
                     "type": "string"
+                },
+                "total_tokens": {
+                    "type": "integer"
                 }
             }
         },

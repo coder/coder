@@ -85,6 +85,31 @@ type fakeModel struct {
 	calls int
 }
 
+type fakeContextLimitMetadata struct {
+	Limits fakeContextLimitMetadataLimits `json:"limits"`
+}
+
+type fakeContextLimitMetadataLimits struct {
+	ContextLimit int64 `json:"context_limit"`
+}
+
+func (*fakeContextLimitMetadata) Options() {}
+
+func (m fakeContextLimitMetadata) MarshalJSON() ([]byte, error) {
+	type plain fakeContextLimitMetadata
+	return json.Marshal(plain(m))
+}
+
+func (m *fakeContextLimitMetadata) UnmarshalJSON(data []byte) error {
+	type plain fakeContextLimitMetadata
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*m = fakeContextLimitMetadata(decoded)
+	return nil
+}
+
 func (*fakeModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
 	return fallbackResponse(), nil
 }
@@ -109,8 +134,20 @@ func (f *fakeModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamRes
 				ToolCallInput: string(args),
 			},
 			{
-				Type:         fantasy.StreamPartTypeFinish,
-				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				Type: fantasy.StreamPartTypeFinish,
+				Usage: fantasy.Usage{
+					InputTokens:         11,
+					OutputTokens:        7,
+					TotalTokens:         18,
+					ReasoningTokens:     6,
+					CacheReadTokens:     3,
+					CacheCreationTokens: 2,
+				},
+				ProviderMetadata: fantasy.ProviderMetadata{
+					"fake": &fakeContextLimitMetadata{
+						Limits: fakeContextLimitMetadataLimits{ContextLimit: 8192},
+					},
+				},
 				FinishReason: fantasy.FinishReasonToolCalls,
 			},
 		}
@@ -120,8 +157,20 @@ func (f *fakeModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamRes
 			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
 			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
 			{
-				Type:         fantasy.StreamPartTypeFinish,
-				Usage:        fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+				Type: fantasy.StreamPartTypeFinish,
+				Usage: fantasy.Usage{
+					InputTokens:         13,
+					OutputTokens:        5,
+					TotalTokens:         18,
+					ReasoningTokens:     4,
+					CacheReadTokens:     4,
+					CacheCreationTokens: 1,
+				},
+				ProviderMetadata: fantasy.ProviderMetadata{
+					"fake": &fakeContextLimitMetadata{
+						Limits: fakeContextLimitMetadataLimits{ContextLimit: 8192},
+					},
+				},
 				FinishReason: fantasy.FinishReasonToolCalls,
 			},
 		}
@@ -840,8 +889,32 @@ func TestRunChatLoop(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, stored, 4)
 
+	firstAssistant := stored[1]
+	require.Equal(t, string(fantasy.MessageRoleAssistant), firstAssistant.Role)
+	require.True(t, firstAssistant.InputTokens.Valid)
+	require.Equal(t, int64(11), firstAssistant.InputTokens.Int64)
+	require.True(t, firstAssistant.OutputTokens.Valid)
+	require.Equal(t, int64(7), firstAssistant.OutputTokens.Int64)
+	require.True(t, firstAssistant.TotalTokens.Valid)
+	require.Equal(t, int64(18), firstAssistant.TotalTokens.Int64)
+	require.True(t, firstAssistant.ReasoningTokens.Valid)
+	require.Equal(t, int64(6), firstAssistant.ReasoningTokens.Int64)
+	require.True(t, firstAssistant.CacheCreationTokens.Valid)
+	require.Equal(t, int64(2), firstAssistant.CacheCreationTokens.Int64)
+	require.True(t, firstAssistant.CacheReadTokens.Valid)
+	require.Equal(t, int64(3), firstAssistant.CacheReadTokens.Int64)
+	require.True(t, firstAssistant.ContextLimit.Valid)
+	require.Equal(t, int64(8192), firstAssistant.ContextLimit.Int64)
+
 	toolMessage := stored[2]
 	require.Equal(t, string(fantasy.MessageRoleTool), toolMessage.Role)
+	require.False(t, toolMessage.InputTokens.Valid)
+	require.False(t, toolMessage.OutputTokens.Valid)
+	require.False(t, toolMessage.TotalTokens.Valid)
+	require.False(t, toolMessage.ReasoningTokens.Valid)
+	require.False(t, toolMessage.CacheCreationTokens.Valid)
+	require.False(t, toolMessage.CacheReadTokens.Valid)
+	require.False(t, toolMessage.ContextLimit.Valid)
 	var toolResults []chatd.ToolResultBlock
 	require.NoError(t, json.Unmarshal(toolMessage.Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
@@ -856,6 +929,20 @@ func TestRunChatLoop(t *testing.T) {
 	textBlock, ok := fantasy.AsContentType[fantasy.TextContent](finalContent[0])
 	require.True(t, ok)
 	require.Equal(t, "done", textBlock.Text)
+	require.True(t, finalMessage.InputTokens.Valid)
+	require.Equal(t, int64(13), finalMessage.InputTokens.Int64)
+	require.True(t, finalMessage.OutputTokens.Valid)
+	require.Equal(t, int64(5), finalMessage.OutputTokens.Int64)
+	require.True(t, finalMessage.TotalTokens.Valid)
+	require.Equal(t, int64(18), finalMessage.TotalTokens.Int64)
+	require.True(t, finalMessage.ReasoningTokens.Valid)
+	require.Equal(t, int64(4), finalMessage.ReasoningTokens.Int64)
+	require.True(t, finalMessage.CacheCreationTokens.Valid)
+	require.Equal(t, int64(1), finalMessage.CacheCreationTokens.Int64)
+	require.True(t, finalMessage.CacheReadTokens.Valid)
+	require.Equal(t, int64(4), finalMessage.CacheReadTokens.Int64)
+	require.True(t, finalMessage.ContextLimit.Valid)
+	require.Equal(t, int64(8192), finalMessage.ContextLimit.Int64)
 }
 
 func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
@@ -2051,6 +2138,116 @@ func TestRunChatLoop_DelegatedChildWithoutReportRequeuesForReportPass(t *testing
 		}
 		return false
 	}, testutil.WaitLong, 25*time.Millisecond)
+}
+
+func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	parent := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "parent", "parent prompt")
+	child, _ := insertDelegatedChildChatWithUserMessage(
+		t,
+		db,
+		dbCtx,
+		user.UserID,
+		parent.ID,
+		"child",
+		"run delegated subagent",
+	)
+
+	// Keep an active descendant so the old defer branch that only checks
+	// descendants does not run.
+	_, _ = insertDelegatedChildChatWithUserMessage(
+		t,
+		db,
+		dbCtx,
+		user.UserID,
+		child.ID,
+		"grandchild",
+		"pending delegated work",
+	)
+
+	model := &blockingCloseModel{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	processor := chatd.NewProcessor(
+		testutil.Logger(t).Named("chatd"),
+		db,
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(500*time.Millisecond),
+	)
+	closed := false
+	defer func() {
+		if !closed {
+			_ = processor.Close()
+		}
+	}()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        child.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-model.started:
+	case <-time.After(testutil.WaitLong):
+		t.Fatal("timed out waiting for delegated child run to start")
+	}
+
+	storedChild, err := db.GetChatByID(dbCtx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, storedChild.Status)
+
+	followUpRequestID := uuid.New()
+	followUpContent, err := json.Marshal(contentFromText("follow up while running"))
+	require.NoError(t, err)
+	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
+		ChatID:  child.ID,
+		Role:    string(fantasy.MessageRoleUser),
+		Content: pqtype.NullRawMessage{RawMessage: followUpContent, Valid: true},
+		Hidden:  false,
+		SubagentRequestID: uuid.NullUUID{
+			UUID:  followUpRequestID,
+			Valid: true,
+		},
+		SubagentEvent: sql.NullString{
+			String: "request",
+			Valid:  true,
+		},
+	})
+	require.NoError(t, err)
+
+	close(model.release)
+
+	require.Eventually(t, func() bool {
+		updatedChild, lookupErr := db.GetChatByID(dbCtx, child.ID)
+		return lookupErr == nil && updatedChild.Status == database.ChatStatusPending
+	}, testutil.WaitLong, 25*time.Millisecond)
+
+	pendingRequestID, err := db.GetLatestPendingSubagentRequestIDByChatID(dbCtx, child.ID)
+	require.NoError(t, err)
+	require.True(t, pendingRequestID.Valid)
+	require.Equal(t, followUpRequestID, pendingRequestID.UUID)
+
+	require.NoError(t, processor.Close())
+	closed = true
+
+	acquired, err := db.AcquireChat(dbCtx, database.AcquireChatParams{
+		StartedAt: time.Now(),
+		WorkerID:  uuid.New(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, child.ID, acquired.ID)
 }
 
 func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) {
