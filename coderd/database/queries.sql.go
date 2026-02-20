@@ -17236,6 +17236,143 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	return i, err
 }
 
+const deleteWebAuthnCredential = `-- name: DeleteWebAuthnCredential :exec
+DELETE FROM webauthn_credentials
+WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteWebAuthnCredential(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWebAuthnCredential, id)
+	return err
+}
+
+const getWebAuthnCredentialByID = `-- name: GetWebAuthnCredentialByID :one
+SELECT id, user_id, credential_id, public_key, attestation_type, aaguid, sign_count, name, created_at, last_used_at FROM webauthn_credentials
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetWebAuthnCredentialByID(ctx context.Context, id uuid.UUID) (WebauthnCredential, error) {
+	row := q.db.QueryRowContext(ctx, getWebAuthnCredentialByID, id)
+	var i WebauthnCredential
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CredentialID,
+		&i.PublicKey,
+		&i.AttestationType,
+		&i.Aaguid,
+		&i.SignCount,
+		&i.Name,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const getWebAuthnCredentialsByUserID = `-- name: GetWebAuthnCredentialsByUserID :many
+SELECT id, user_id, credential_id, public_key, attestation_type, aaguid, sign_count, name, created_at, last_used_at FROM webauthn_credentials
+WHERE user_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *sqlQuerier) GetWebAuthnCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]WebauthnCredential, error) {
+	rows, err := q.db.QueryContext(ctx, getWebAuthnCredentialsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebauthnCredential
+	for rows.Next() {
+		var i WebauthnCredential
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CredentialID,
+			&i.PublicKey,
+			&i.AttestationType,
+			&i.Aaguid,
+			&i.SignCount,
+			&i.Name,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWebAuthnCredential = `-- name: InsertWebAuthnCredential :one
+INSERT INTO webauthn_credentials (
+    id, user_id, credential_id, public_key, attestation_type,
+    aaguid, sign_count, name
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8
+) RETURNING id, user_id, credential_id, public_key, attestation_type, aaguid, sign_count, name, created_at, last_used_at
+`
+
+type InsertWebAuthnCredentialParams struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	UserID          uuid.UUID `db:"user_id" json:"user_id"`
+	CredentialID    []byte    `db:"credential_id" json:"credential_id"`
+	PublicKey       []byte    `db:"public_key" json:"public_key"`
+	AttestationType string    `db:"attestation_type" json:"attestation_type"`
+	Aaguid          []byte    `db:"aaguid" json:"aaguid"`
+	SignCount       int64     `db:"sign_count" json:"sign_count"`
+	Name            string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) InsertWebAuthnCredential(ctx context.Context, arg InsertWebAuthnCredentialParams) (WebauthnCredential, error) {
+	row := q.db.QueryRowContext(ctx, insertWebAuthnCredential,
+		arg.ID,
+		arg.UserID,
+		arg.CredentialID,
+		arg.PublicKey,
+		arg.AttestationType,
+		arg.Aaguid,
+		arg.SignCount,
+		arg.Name,
+	)
+	var i WebauthnCredential
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CredentialID,
+		&i.PublicKey,
+		&i.AttestationType,
+		&i.Aaguid,
+		&i.SignCount,
+		&i.Name,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const updateWebAuthnCredentialSignCount = `-- name: UpdateWebAuthnCredentialSignCount :exec
+UPDATE webauthn_credentials
+SET sign_count = $2, last_used_at = $3
+WHERE id = $1
+`
+
+type UpdateWebAuthnCredentialSignCountParams struct {
+	ID         uuid.UUID    `db:"id" json:"id"`
+	SignCount  int64        `db:"sign_count" json:"sign_count"`
+	LastUsedAt sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) UpdateWebAuthnCredentialSignCount(ctx context.Context, arg UpdateWebAuthnCredentialSignCountParams) error {
+	_, err := q.db.ExecContext(ctx, updateWebAuthnCredentialSignCount, arg.ID, arg.SignCount, arg.LastUsedAt)
+	return err
+}
+
 const getWorkspaceAgentDevcontainersByAgentID = `-- name: GetWorkspaceAgentDevcontainersByAgentID :many
 SELECT
 	id, workspace_agent_id, created_at, workspace_folder, config_path, name, subagent_id

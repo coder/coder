@@ -1477,6 +1477,67 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
+	// If --require-fido2-connect is enabled, every workspace
+	// connection must present a valid WebAuthn connection JWT
+	// obtained by touching a FIDO2 security key. Users who have
+	// not registered a key are rejected with a message telling
+	// them to register one.
+	// FIDO2 enforcement only applies to direct user API-key auth,
+	// not workspace proxy auth. APIKeyOptional returns false for
+	// proxy-authenticated requests, safely skipping enforcement.
+	if api.DeploymentValues.RequireFIDO2Connect.Value() {
+		if apiKey, ok := httpmw.APIKeyOptional(r); ok {
+			tokenDuration := api.DeploymentValues.Sessions.FIDO2TokenDuration.Value()
+
+			// If the user recently verified (within the token
+			// duration window), allow the connection without a
+			// JWT header. This lets multiple SSH sessions share
+			// a single key touch.
+			if api.WebAuthnVerifyCache.IsRecentlyVerified(apiKey.UserID, tokenDuration) {
+				// Recently verified — allow through.
+				goto fido2Passed
+			}
+
+			jwtToken := r.Header.Get("Coder-WebAuthn-JWT")
+			if jwtToken == "" {
+				//nolint:gocritic // System reads credentials for enforcement check.
+				userCreds, credErr := api.Database.GetWebAuthnCredentialsByUserID(
+					dbauthz.AsSystemRestricted(ctx), apiKey.UserID,
+				)
+				if credErr == nil && len(userCreds) == 0 {
+					httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+						Message: "This server requires FIDO2 security key verification for workspace connections.",
+						Detail:  "You have no security keys registered. Run 'coder webauthn register' to set up your key, then try again.",
+					})
+				} else {
+					httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+						Message: "FIDO2 security key verification required for this connection.",
+						Detail:  "Touch your security key and try again. If using the CLI, ensure 'coder-fido2' is installed on your PATH.",
+					})
+				}
+				return
+			}
+			jwtUserID, jwtErr := api.VerifyWebAuthnConnectJWT(ctx, jwtToken)
+			if jwtErr != nil {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "Invalid or expired FIDO2 connection token.",
+					Detail:  jwtErr.Error(),
+				})
+				return
+			}
+			if jwtUserID != apiKey.UserID {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "FIDO2 token does not match authenticated user.",
+				})
+				return
+			}
+			// JWT is valid — also record in verify cache so
+			// subsequent connections don't need a JWT.
+			api.WebAuthnVerifyCache.RecordVerification(apiKey.UserID)
+		}
+	}
+fido2Passed:
+
 	// This is used by Enterprise code to control the functionality of this route.
 	// Namely, disabling the route using `CODER_BROWSER_ONLY`.
 	override := api.WorkspaceClientCoordinateOverride.Load()
