@@ -34,26 +34,44 @@ describe(Tool.name, () => {
 				result: { chat_id: "child-chat-id", status: "pending" },
 			});
 
-			expect(screen.getByRole("link", { name: "Sub-agent" })).toHaveAttribute(
+			expect(screen.getByRole("link", { name: "View agent" })).toHaveAttribute(
 				"href",
 				"/agents/child-chat-id",
 			);
 		},
 	);
 
-	it("uses tool result status for delegated status rendering", () => {
+	it("maps pending delegated status to running rendering", () => {
 		const { container } = renderTool({
 			name: "subagent",
-			result: { chat_id: "child-chat-id", status: "completed" },
+			result: { chat_id: "child-chat-id", status: "pending" },
 			status: "completed",
 		});
 
-		expect(screen.getByRole("link", { name: "Sub-agent" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: "View agent" })).toHaveAttribute(
 			"href",
 			"/agents/child-chat-id",
 		);
+		expect(
+			screen.getByRole("button", { name: /Spawning Sub-agent/ }),
+		).toBeInTheDocument();
+		expect(container.querySelector(".animate-spin")).toBeInTheDocument();
+	});
+
+	it("uses stream override status for delegated status rendering", () => {
+		const { container } = renderTool({
+			name: "subagent",
+			result: { chat_id: "child-chat-id", status: "pending" },
+			status: "completed",
+			subagentStatusOverrides: new Map([
+				["child-chat-id", "completed"],
+			]),
+		});
+
+		expect(
+			screen.getByRole("button", { name: /Spawned Sub-agent/ }),
+		).toBeInTheDocument();
 		expect(container.querySelector(".animate-spin")).toBeNull();
-		expect(container.querySelector(".lucide-check")).toBeInTheDocument();
 	});
 
 	it("does not show a subagent error icon when completed despite parser noise", () => {
@@ -70,7 +88,9 @@ describe(Tool.name, () => {
 
 		expect(container.querySelector(".animate-spin")).toBeNull();
 		expect(container.querySelector(".lucide-circle-alert")).toBeNull();
-		expect(container.querySelector(".lucide-check")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /Spawned Sub-agent/ }),
+		).toBeInTheDocument();
 	});
 
 	it("prefers returned subagent title for await tools", () => {
@@ -84,9 +104,11 @@ describe(Tool.name, () => {
 			},
 		});
 
-		expect(
-			screen.getByRole("link", { name: "Delegated child title" }),
-		).toHaveAttribute("href", "/agents/child-chat-id");
+		expect(screen.getByText("Delegated child title")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
 		expect(screen.queryByText("Fallback title")).toBeNull();
 	});
 
@@ -103,9 +125,7 @@ describe(Tool.name, () => {
 				},
 			});
 
-			expect(screen.getByText("Request ID")).toBeInTheDocument();
-			expect(screen.getByText("request-123")).toBeInTheDocument();
-			expect(screen.getByText("Duration 1.5s")).toBeInTheDocument();
+			expect(screen.getByText("Worked for 2s")).toBeInTheDocument();
 		},
 	);
 
@@ -125,7 +145,8 @@ describe(Tool.name, () => {
 			name: "subagent_terminate",
 		});
 
-		expect(screen.getByText("Terminated sub-agent")).toBeInTheDocument();
+		expect(screen.getByText(/Terminated/)).toBeInTheDocument();
+		expect(screen.getByText("Sub-agent")).toBeInTheDocument();
 	});
 
 	it("does not use task-specific delegated rendering", () => {
@@ -134,6 +155,6 @@ describe(Tool.name, () => {
 		});
 
 		expect(screen.getByText("task")).toBeInTheDocument();
-		expect(screen.queryByRole("link", { name: "Sub-agent" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "View agent" })).toBeNull();
 	});
 });

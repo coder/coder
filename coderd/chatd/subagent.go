@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -68,6 +69,7 @@ type SubagentService struct {
 	db subagentServiceStore
 
 	interrupter subagentServiceInterrupter
+	streamer    *StreamManager
 
 	waitersMu sync.Mutex
 	waiters   map[subagentRequestKey][]chan SubagentAwaitResult
@@ -81,6 +83,27 @@ func newSubagentService(db subagentServiceStore, interrupter subagentServiceInte
 		waiters:     make(map[subagentRequestKey][]chan SubagentAwaitResult),
 		results:     make(map[subagentRequestKey]SubagentAwaitResult),
 	}
+}
+
+func (s *SubagentService) setStreamManager(streamer *StreamManager) {
+	s.streamer = streamer
+}
+
+func (s *SubagentService) publishChildStatus(chat database.Chat, status database.ChatStatus) {
+	if !chat.ParentChatID.Valid || chat.ParentChatID.UUID == uuid.Nil {
+		return
+	}
+	if s.streamer == nil {
+		return
+	}
+
+	s.streamer.Publish(chat.ParentChatID.UUID, codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeStatus,
+		ChatID: chat.ID,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatus(status),
+		},
+	})
 }
 
 func (s *SubagentService) CreateChildSubagentChat(
@@ -228,6 +251,7 @@ func (s *SubagentService) requeueChatIfNeeded(ctx context.Context, chat database
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("requeue subagent chat: %w", err)
 	}
+	s.publishChildStatus(updatedChat, database.ChatStatusPending)
 	return updatedChat, nil
 }
 
@@ -246,6 +270,14 @@ func (s *SubagentService) LatestPendingRequestID(
 		return uuid.Nil, false, nil
 	}
 	return requestID.UUID, true, nil
+}
+
+func (s *SubagentService) HasPendingRequest(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	_, hasPending, err := s.LatestPendingRequestID(ctx, chatID)
+	if err != nil {
+		return false, err
+	}
+	return hasPending, nil
 }
 
 func (s *SubagentService) ShouldRunReportOnlyPass(
@@ -370,6 +402,7 @@ func (s *SubagentService) MarkSubagentReported(
 	s.resolveRequestWaiters(subagentRequestKey{chatID: chatID, requestID: requestID}, result)
 
 	if chat.ParentChatID.Valid {
+		s.publishChildStatus(chat, database.ChatStatusCompleted)
 		if err := s.requeueParentChat(ctx, chat.ParentChatID.UUID); err != nil {
 			return SubagentAwaitResult{}, err
 		}
@@ -562,7 +595,7 @@ func (s *SubagentService) TerminateSubagentSubtree(
 		}
 
 		if chat.Status == database.ChatStatusPending {
-			_, err := s.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			updatedChat, err := s.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 				ID:        chat.ID,
 				Status:    database.ChatStatusWaiting,
 				WorkerID:  uuid.NullUUID{},
@@ -571,6 +604,7 @@ func (s *SubagentService) TerminateSubagentSubtree(
 			if err != nil {
 				return xerrors.Errorf("set pending chat waiting for termination: %w", err)
 			}
+			s.publishChildStatus(updatedChat, database.ChatStatusWaiting)
 		}
 
 		for {

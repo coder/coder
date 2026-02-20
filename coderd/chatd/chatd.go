@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -357,6 +358,7 @@ func NewProcessor(logger slog.Logger, db database.Store, opts ...Option) *Proces
 	}
 
 	p.subagentService = newSubagentService(p.db, p)
+	p.subagentService.setStreamManager(p.streamManager)
 
 	//nolint:gocritic // The chat processor is a system-level service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
@@ -539,6 +541,9 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	defer cancel(nil)
 
 	p.publishStatus(chat.ID, database.ChatStatusRunning)
+	if p.subagentService != nil {
+		p.subagentService.publishChildStatus(chat, database.ChatStatusRunning)
+	}
 
 	// Determine the final status to set when we're done.
 	status := database.ChatStatusWaiting
@@ -584,6 +589,15 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 					}
 				}
 			}
+
+			if status == database.ChatStatusWaiting {
+				hasPendingRequest, pendingErr := p.subagentService.HasPendingRequest(ctx, chat.ID)
+				if pendingErr != nil {
+					logger.Warn(ctx, "failed to check delegated pending request", slog.Error(pendingErr))
+				} else if hasPendingRequest {
+					status = database.ChatStatusPending
+				}
+			}
 		}
 
 		// Release the chat when done.
@@ -598,6 +612,9 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 		}
 
 		p.publishStatus(chat.ID, status)
+		if p.subagentService != nil {
+			p.subagentService.publishChildStatus(chat, status)
+		}
 	}()
 
 	if err := p.runChat(chatCtx, chat, logger, reportOnly, activeSubagentRequestID); err != nil {
@@ -638,7 +655,7 @@ func (p *Processor) runChat(
 		return xerrors.Errorf("build chat prompt: %w", err)
 	}
 	if reportOnly {
-		prompt = appendSystemInstruction(prompt, reportOnlyInstruction)
+		prompt = appendUserInstruction(prompt, reportOnlyInstruction)
 	} else if !chat.WorkspaceID.Valid {
 		prompt = prependSystemInstruction(prompt, defaultNoWorkspaceInstruction)
 	}
@@ -752,7 +769,11 @@ func (p *Processor) runChatWithAgent(
 		return currentConn, nil
 	}
 
-	persistAssistant := func(content []fantasy.Content) error {
+	persistAssistant := func(
+		content []fantasy.Content,
+		usage fantasy.Usage,
+		contextLimit sql.NullInt64,
+	) error {
 		if len(content) == 0 {
 			return nil
 		}
@@ -762,6 +783,7 @@ func (p *Processor) runChatWithAgent(
 			return err
 		}
 
+		hasUsage := usage != (fantasy.Usage{})
 		assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:  chat.ID,
 			Role:    string(fantasy.MessageRoleAssistant),
@@ -774,6 +796,16 @@ func (p *Processor) runChatWithAgent(
 			},
 			Hidden:            false,
 			SubagentRequestID: subagentRequest,
+			InputTokens:       usageNullInt64(usage.InputTokens, hasUsage),
+			OutputTokens:      usageNullInt64(usage.OutputTokens, hasUsage),
+			TotalTokens:       usageNullInt64(usage.TotalTokens, hasUsage),
+			ReasoningTokens:   usageNullInt64(usage.ReasoningTokens, hasUsage),
+			CacheCreationTokens: usageNullInt64(
+				usage.CacheCreationTokens,
+				hasUsage,
+			),
+			CacheReadTokens: usageNullInt64(usage.CacheReadTokens, hasUsage),
+			ContextLimit:    contextLimit,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert assistant message: %w", err)
@@ -826,6 +858,7 @@ func (p *Processor) runChatWithAgent(
 		fantasy.WithStopConditions(fantasy.StepCountIs(maxChatSteps)),
 	)
 	sentinelPrompt := "__chatd_agent_prompt_sentinel_" + uuid.NewString()
+	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(model)
 
 	result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
 		Prompt:   sentinelPrompt,
@@ -834,7 +867,12 @@ func (p *Processor) runChatWithAgent(
 			stepCtx context.Context,
 			options fantasy.PrepareStepFunctionOptions,
 		) (context.Context, fantasy.PrepareStepResult, error) {
-			return stepCtx, prepareAgentStepResult(options.Messages, sentinelPrompt, reportOnly), nil
+			return stepCtx, prepareAgentStepResult(
+				options.Messages,
+				sentinelPrompt,
+				reportOnly,
+				applyAnthropicCaching,
+			), nil
 		},
 		OnStepStart: func(_ int) error {
 			resetStepState()
@@ -906,7 +944,11 @@ func (p *Processor) runChatWithAgent(
 			toolResults := append([]ToolResultBlock(nil), stepToolResults...)
 			stepStateMu.Unlock()
 
-			if err := persistAssistant(stepAssistantContent(stepResult.Content, toolResults)); err != nil {
+			if err := persistAssistant(
+				stepAssistantContent(stepResult.Content, toolResults),
+				stepResult.Usage,
+				extractContextLimit(stepResult.ProviderMetadata),
+			); err != nil {
 				return err
 			}
 			for _, toolResult := range toolResults {
@@ -944,14 +986,53 @@ func prepareAgentStepResult(
 	messages []fantasy.Message,
 	sentinel string,
 	reportOnly bool,
+	anthropicCaching bool,
 ) fantasy.PrepareStepResult {
 	result := fantasy.PrepareStepResult{
 		Messages: stripAgentPromptSentinel(messages, sentinel),
+	}
+	if anthropicCaching {
+		result.Messages = addAnthropicPromptCaching(result.Messages)
 	}
 	if reportOnly {
 		result.ActiveTools = []string{toolSubagentReport}
 	}
 	return result
+}
+
+func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
+	if model == nil {
+		return false
+	}
+	return model.Provider() == fantasyanthropic.Name
+}
+
+func addAnthropicPromptCaching(messages []fantasy.Message) []fantasy.Message {
+	for i := range messages {
+		messages[i].ProviderOptions = nil
+	}
+
+	providerOption := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderCacheControlOptions{
+			CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
+		},
+	}
+
+	lastSystemRoleIdx := -1
+	systemMessageUpdated := false
+	for i, msg := range messages {
+		if msg.Role == fantasy.MessageRoleSystem {
+			lastSystemRoleIdx = i
+		} else if !systemMessageUpdated && lastSystemRoleIdx >= 0 {
+			messages[lastSystemRoleIdx].ProviderOptions = providerOption
+			systemMessageUpdated = true
+		}
+		if i > len(messages)-3 {
+			messages[i].ProviderOptions = providerOption
+		}
+	}
+
+	return messages
 }
 
 func isAgentPromptSentinelMessage(message fantasy.Message, sentinel string) bool {
@@ -990,6 +1071,155 @@ func stepAssistantContent(content []fantasy.Content, toolResults []ToolResultBlo
 		filtered = append(filtered, block)
 	}
 	return filtered
+}
+
+func usageNullInt64(value int64, valid bool) sql.NullInt64 {
+	if !valid {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{
+		Int64: value,
+		Valid: valid,
+	}
+}
+
+func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {
+	if len(metadata) == 0 {
+		return sql.NullInt64{}
+	}
+
+	encoded, err := json.Marshal(metadata)
+	if err != nil || len(encoded) == 0 {
+		return sql.NullInt64{}
+	}
+
+	var payload any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		return sql.NullInt64{}
+	}
+
+	limit, ok := findContextLimitValue(payload)
+	if !ok {
+		return sql.NullInt64{}
+	}
+
+	return sql.NullInt64{
+		Int64: limit,
+		Valid: true,
+	}
+}
+
+func findContextLimitValue(value any) (int64, bool) {
+	var (
+		limit int64
+		found bool
+	)
+
+	collectContextLimitValues(value, func(candidate int64) {
+		if !found || candidate > limit {
+			limit = candidate
+			found = true
+		}
+	})
+
+	return limit, found
+}
+
+func collectContextLimitValues(value any, onValue func(int64)) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			if isContextLimitKey(key) {
+				if numeric, ok := numericContextLimitValue(child); ok {
+					onValue(numeric)
+				}
+			}
+			collectContextLimitValues(child, onValue)
+		}
+	case []any:
+		for _, child := range typed {
+			collectContextLimitValues(child, onValue)
+		}
+	}
+}
+
+func isContextLimitKey(key string) bool {
+	normalized := normalizeMetadataKey(key)
+	if normalized == "" {
+		return false
+	}
+
+	switch normalized {
+	case
+		"contextlimit",
+		"contextwindow",
+		"contextlength",
+		"maxcontext",
+		"maxcontexttokens",
+		"maxinputtokens",
+		"maxinputtoken",
+		"inputtokenlimit":
+		return true
+	}
+
+	return strings.Contains(normalized, "context") &&
+		(strings.Contains(normalized, "limit") ||
+			strings.Contains(normalized, "window") ||
+			strings.Contains(normalized, "length") ||
+			strings.HasPrefix(normalized, "max"))
+}
+
+func normalizeMetadataKey(key string) string {
+	var b strings.Builder
+	b.Grow(len(key))
+
+	for _, r := range key {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r + ('a' - 'A'))
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		}
+	}
+
+	return b.String()
+}
+
+func numericContextLimitValue(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int64:
+		return positiveInt64(typed)
+	case int32:
+		return positiveInt64(int64(typed))
+	case int:
+		return positiveInt64(int64(typed))
+	case float64:
+		casted := int64(typed)
+		if typed > 0 && float64(casted) == typed {
+			return casted, true
+		}
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if err == nil {
+			return positiveInt64(parsed)
+		}
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err == nil {
+			return positiveInt64(parsed)
+		}
+	}
+
+	return 0, false
+}
+
+func positiveInt64(value int64) (int64, bool) {
+	if value <= 0 {
+		return 0, false
+	}
+	return value, true
 }
 
 func (p *Processor) maybeGenerateChatTitle(
@@ -1470,14 +1700,23 @@ func injectMissingToolUses(prompt []fantasy.Message, toolNameByCallID map[string
 			continue
 		}
 
+		// Walk backwards through the result to find the nearest
+		// preceding assistant message (skipping over other tool
+		// messages that belong to the same batch of results).
 		answeredByPrevious := make(map[string]struct{})
-		if len(result) > 0 && result[len(result)-1].Role == fantasy.MessageRoleAssistant {
-			for _, toolCall := range extractToolCallsFromMessageParts(result[len(result)-1].Content) {
-				toolCallID := sanitizeToolCallID(toolCall.ToolCallID)
-				if toolCallID == "" {
-					continue
+		for k := len(result) - 1; k >= 0; k-- {
+			if result[k].Role == fantasy.MessageRoleAssistant {
+				for _, toolCall := range extractToolCallsFromMessageParts(result[k].Content) {
+					toolCallID := sanitizeToolCallID(toolCall.ToolCallID)
+					if toolCallID == "" {
+						continue
+					}
+					answeredByPrevious[toolCallID] = struct{}{}
 				}
-				answeredByPrevious[toolCallID] = struct{}{}
+				break
+			}
+			if result[k].Role != fantasy.MessageRoleTool {
+				break
 			}
 		}
 
@@ -1605,7 +1844,11 @@ func prependSystemInstruction(prompt []fantasy.Message, instruction string) []fa
 	return out
 }
 
-func appendSystemInstruction(prompt []fantasy.Message, instruction string) []fantasy.Message {
+// appendUserInstruction appends an instruction as a user message at
+// the end of the prompt. This ensures the conversation ends with a
+// user message, which is required by some providers (e.g. Anthropic
+// rejects prompts ending with an assistant message).
+func appendUserInstruction(prompt []fantasy.Message, instruction string) []fantasy.Message {
 	instruction = strings.TrimSpace(instruction)
 	if instruction == "" {
 		return prompt
@@ -1613,7 +1856,7 @@ func appendSystemInstruction(prompt []fantasy.Message, instruction string) []fan
 	out := make([]fantasy.Message, 0, len(prompt)+1)
 	out = append(out, prompt...)
 	out = append(out, fantasy.Message{
-		Role: fantasy.MessageRoleSystem,
+		Role: fantasy.MessageRoleUser,
 		Content: []fantasy.MessagePart{
 			fantasy.TextPart{Text: instruction},
 		},
@@ -2473,12 +2716,12 @@ func (p *Processor) agentTools(
 					ToolCallID: call.ID,
 					ToolName:   call.Name,
 					Result: map[string]any{
-						"chat_id":      chatID.String(),
-						"title":        targetChat.Title,
-						"request_id":   awaitResult.RequestID.String(),
-						"report":       awaitResult.Report,
-						"duration_ms":  awaitResult.DurationMS,
-						"status":       "completed",
+						"chat_id":     chatID.String(),
+						"title":       targetChat.Title,
+						"request_id":  awaitResult.RequestID.String(),
+						"report":      awaitResult.Report,
+						"duration_ms": awaitResult.DurationMS,
+						"status":      "completed",
 					},
 				}), nil
 			},
@@ -2632,13 +2875,13 @@ func (p *Processor) agentTools(
 					ToolCallID: call.ID,
 					ToolName:   call.Name,
 					Result: map[string]any{
-						"chat_id":      chatSnapshot.ID.String(),
-						"title":        chatSnapshot.Title,
-						"request_id":   awaitResult.RequestID.String(),
-						"report":       awaitResult.Report,
-						"duration_ms":  awaitResult.DurationMS,
-						"reported":     true,
-						"status":       "reported",
+						"chat_id":     chatSnapshot.ID.String(),
+						"title":       chatSnapshot.Title,
+						"request_id":  awaitResult.RequestID.String(),
+						"report":      awaitResult.Report,
+						"duration_ms": awaitResult.DurationMS,
+						"reported":    true,
+						"status":      "reported",
 					},
 				}), nil
 			},
@@ -3061,11 +3304,18 @@ func toolResultBlockFromAgentToolResult(content fantasy.ToolResultContent) ToolR
 
 func SDKChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	msg := codersdk.ChatMessage{
-		ID:        m.ID,
-		ChatID:    m.ChatID,
-		CreatedAt: m.CreatedAt,
-		Role:      m.Role,
-		Hidden:    m.Hidden,
+		ID:                  m.ID,
+		ChatID:              m.ChatID,
+		CreatedAt:           m.CreatedAt,
+		Role:                m.Role,
+		Hidden:              m.Hidden,
+		InputTokens:         nullInt64Ptr(m.InputTokens),
+		OutputTokens:        nullInt64Ptr(m.OutputTokens),
+		TotalTokens:         nullInt64Ptr(m.TotalTokens),
+		ReasoningTokens:     nullInt64Ptr(m.ReasoningTokens),
+		CacheCreationTokens: nullInt64Ptr(m.CacheCreationTokens),
+		CacheReadTokens:     nullInt64Ptr(m.CacheReadTokens),
+		ContextLimit:        nullInt64Ptr(m.ContextLimit),
 	}
 	if m.Content.Valid {
 		msg.Content = m.Content.RawMessage
@@ -3081,4 +3331,12 @@ func SDKChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		msg.Thinking = &m.Thinking.String
 	}
 	return msg
+}
+
+func nullInt64Ptr(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Int64
+	return &value
 }

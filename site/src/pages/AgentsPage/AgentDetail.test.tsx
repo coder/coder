@@ -2,6 +2,7 @@ import type { ChatModelsResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
@@ -44,6 +45,19 @@ vi.mock("react-router", async () => {
 		useNavigate: () => mockNavigate,
 		useParams: () => mockUseParams(),
 		useOutletContext: () => mockUseOutletContext(),
+		Link: ({
+			to,
+			children,
+			...props
+		}: {
+			to?: string;
+			children?: ReactNode;
+			[key: string]: unknown;
+		}) => (
+			<a href={typeof to === "string" ? to : "#"} {...props}>
+				{children}
+			</a>
+		),
 	};
 });
 
@@ -89,6 +103,53 @@ type AgentDetailTestState = {
 	readonly workspaceData: TypesGen.Workspace;
 	readonly diffUrl?: string;
 	readonly modelCatalog?: ChatModelsResponse;
+};
+
+type MockSocket = {
+	addEventListener: ReturnType<typeof vi.fn>;
+	removeEventListener: ReturnType<typeof vi.fn>;
+	close: ReturnType<typeof vi.fn>;
+	emitMessage: (payload: unknown) => void;
+	emitError: (payload?: unknown) => void;
+};
+
+const createMockSocket = (): MockSocket => {
+	const messageListeners = new Set<(payload: unknown) => void>();
+	const errorListeners = new Set<(payload: unknown) => void>();
+
+	return {
+		addEventListener: vi.fn((type: string, listener: (payload: unknown) => void) => {
+			if (type === "message") {
+				messageListeners.add(listener);
+				return;
+			}
+			if (type === "error") {
+				errorListeners.add(listener);
+			}
+		}),
+		removeEventListener: vi.fn(
+			(type: string, listener: (payload: unknown) => void) => {
+				if (type === "message") {
+					messageListeners.delete(listener);
+					return;
+				}
+				if (type === "error") {
+					errorListeners.delete(listener);
+				}
+			},
+		),
+		close: vi.fn(),
+		emitMessage: (payload: unknown) => {
+			for (const listener of messageListeners) {
+				listener(payload);
+			}
+		},
+		emitError: (payload?: unknown) => {
+			for (const listener of errorListeners) {
+				listener(payload);
+			}
+		},
+	};
 };
 
 const installQueryMocks = ({
@@ -335,5 +396,206 @@ describe(AgentDetail.name, () => {
 		topBarTitleRoot.remove();
 		topBarActionsRoot.remove();
 		rightPanelRoot.remove();
+	});
+
+	it("applies child status events to subagent cards without changing parent status", async () => {
+		const socket = createMockSocket();
+		mockWatchChat.mockReturnValue(socket);
+
+		const setQueryData = vi.fn();
+		const invalidateQueries = vi.fn().mockResolvedValue(undefined);
+		mockUseQueryClient.mockReturnValue({
+			setQueryData,
+			invalidateQueries,
+		});
+
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-1",
+		};
+		const chatData: TypesGen.ChatWithMessages = {
+			chat: {
+				id: "chat-1",
+				owner_id: "owner-id",
+				workspace_id: workspace.id,
+				workspace_agent_id: MockWorkspaceAgent.id,
+				title: "Parent agent",
+				status: "running",
+				model_config: {
+					model: "gpt-4o",
+					provider: "openai",
+				},
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+			messages: [
+				{
+					id: 1,
+					chat_id: "chat-1",
+					created_at: "2026-02-18T00:00:01.000Z",
+					role: "assistant",
+					hidden: false,
+					parts: [
+						{
+							type: "tool-call",
+							tool_call_id: "tool-subagent-1",
+							tool_name: "subagent",
+							args: {
+								title: "Child agent",
+							},
+						},
+						{
+							type: "tool-result",
+							tool_call_id: "tool-subagent-1",
+							tool_name: "subagent",
+							result: {
+								chat_id: "child-chat-1",
+								title: "Child agent",
+								status: "pending",
+							},
+						},
+					],
+				},
+			],
+		};
+
+		mockUseOutletContext.mockReturnValue({
+			chatErrorReasons: {},
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+			topBarTitleRef: { current: null },
+			topBarActionsRef: { current: null },
+			rightPanelRef: { current: null },
+			setRightPanelOpen: vi.fn(),
+			requestArchiveAgent: vi.fn(),
+		});
+		installQueryMocks({
+			chatData,
+			workspaceData: workspace,
+			diffUrl: undefined,
+		});
+
+		renderComponent(<AgentDetail />);
+
+		expect(screen.getByText("Thinking...")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /Spawning Child agent/ }),
+		).toBeInTheDocument();
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "status",
+					chat_id: "child-chat-1",
+					status: {
+						status: "completed",
+					},
+				},
+			},
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /Spawned Child agent/ }),
+			).toBeInTheDocument();
+		});
+		expect(screen.getByText("Thinking...")).toBeInTheDocument();
+		expect(setQueryData).not.toHaveBeenCalled();
+		expect(invalidateQueries).not.toHaveBeenCalled();
+	});
+
+	it("renders streamed subagent title before args JSON is complete", async () => {
+		const socket = createMockSocket();
+		mockWatchChat.mockReturnValue(socket);
+
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-1",
+		};
+		const chatData: TypesGen.ChatWithMessages = {
+			chat: {
+				id: "chat-1",
+				owner_id: "owner-id",
+				workspace_id: workspace.id,
+				workspace_agent_id: MockWorkspaceAgent.id,
+				title: "Streaming title",
+				status: "running",
+				model_config: {
+					model: "gpt-4o",
+					provider: "openai",
+				},
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+			messages: [],
+		};
+
+		mockUseOutletContext.mockReturnValue({
+			chatErrorReasons: {},
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+			topBarTitleRef: { current: null },
+			topBarActionsRef: { current: null },
+			rightPanelRef: { current: null },
+			setRightPanelOpen: vi.fn(),
+			requestArchiveAgent: vi.fn(),
+		});
+		installQueryMocks({
+			chatData,
+			workspaceData: workspace,
+			diffUrl: undefined,
+		});
+
+		renderComponent(<AgentDetail />);
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "message_part",
+					message_part: {
+						part: {
+							type: "tool-call",
+							tool_call_id: "tool-subagent-stream-1",
+							tool_name: "subagent",
+							args_delta: "{\"title\":\"Streamed Child\"",
+						},
+					},
+				},
+			},
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /Spawning Streamed Child/ }),
+			).toBeInTheDocument();
+		});
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "message_part",
+					message_part: {
+						part: {
+							type: "tool-call",
+							tool_call_id: "tool-subagent-stream-1",
+							tool_name: "subagent",
+							args_delta: ",\"prompt\":\"Finish setup\"}",
+						},
+					},
+				},
+			},
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /Spawning Streamed Child/ }),
+			).toBeInTheDocument();
+		});
 	});
 });

@@ -36,6 +36,10 @@ interface ToolProps
 	args?: unknown;
 	result?: unknown;
 	isError?: boolean;
+	/** Maps sub-agent chat IDs to their titles, built from spawn tool results. */
+	subagentTitles?: Map<string, string>;
+	/** Maps sub-agent chat IDs to real-time status updates from stream events. */
+	subagentStatusOverrides?: Map<string, string>;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -102,6 +106,31 @@ const isSubagentRunningStatus = (status: string): boolean => {
 			return true;
 		default:
 			return false;
+	}
+};
+
+const mapSubagentStatusToToolStatus = (
+	subagentStatus: string,
+	fallback: ToolStatus,
+): ToolStatus => {
+	const normalized = normalizeStatus(subagentStatus);
+	if (!normalized) {
+		return fallback;
+	}
+	if (isSubagentSuccessStatus(normalized)) {
+		return "completed";
+	}
+	if (isSubagentRunningStatus(normalized)) {
+		return "running";
+	}
+	switch (normalized) {
+		case "waiting":
+		case "terminated":
+			return "completed";
+		case "error":
+			return "error";
+		default:
+			return fallback;
 	}
 };
 
@@ -253,34 +282,43 @@ const ToolLabel: React.FC<{ name: string; args: unknown; result: unknown }> = ({
 		case "subagent_terminate":
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					Terminated sub-agent
+					Terminating sub-agent
 				</span>
 			);
 		case "subagent": {
-			const parsed = parseArgs(args);
-			const title = parsed ? asString(parsed.title) : "";
+			const spawnTitle =
+				(parsedResult ? asString(parsedResult.title) : "") ||
+				(parsed ? asString(parsed.title) : "");
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					{title || "Delegating to sub-agent…"}
+					{spawnTitle ? `Spawning ${spawnTitle}` : "Spawning sub-agent…"}
 				</span>
 			);
 		}
-		case "subagent_await":
+		case "subagent_await": {
+			const awaitTitle =
+				(parsedResult ? asString(parsedResult.title) : "") ||
+				(parsed ? asString(parsed.title) : "");
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					Awaiting sub-agent…
+					{awaitTitle ? `Waiting for ${awaitTitle}` : "Waiting for sub-agent…"}
 				</span>
 			);
-		case "subagent_message":
+		}
+		case "subagent_message": {
+			const msgTitle =
+				(parsedResult ? asString(parsedResult.title) : "") ||
+				(parsed ? asString(parsed.title) : "");
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					Messaging sub-agent…
+					{msgTitle ? `Messaging ${msgTitle}` : "Messaging sub-agent…"}
 				</span>
 			);
+		}
 		case "subagent_report":
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					Sub-agent report
+					Reporting to parent
 				</span>
 			);
 		default:
@@ -1046,6 +1084,7 @@ const SubagentTool: React.FC<{
 	chatId: string;
 	subagentStatus: string;
 	prompt?: string;
+	message?: string;
 	durationMs?: number;
 	report?: string;
 	toolStatus: ToolStatus;
@@ -1056,6 +1095,7 @@ const SubagentTool: React.FC<{
 	chatId,
 	subagentStatus,
 	prompt,
+	message,
 	durationMs,
 	report,
 	toolStatus,
@@ -1063,8 +1103,9 @@ const SubagentTool: React.FC<{
 }) => {
 	const [expanded, setExpanded] = useState(false);
 	const hasPrompt = Boolean(prompt?.trim());
+	const hasMessage = Boolean(message?.trim());
 	const hasReport = Boolean(report?.trim());
-	const hasExpandableContent = hasPrompt || hasReport;
+	const hasExpandableContent = hasPrompt || hasMessage || hasReport;
 	const durationLabel = shortDurationMs(durationMs);
 
 	return (
@@ -1092,11 +1133,23 @@ const SubagentTool: React.FC<{
 					isError={isError}
 				/>
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
-					{toolName === "subagent" && toolStatus === "completed"
-						? "Spawned "
-						: toolName === "subagent_await" && toolStatus === "completed"
-							? "Waited for "
-							: ""}
+					{toolName === "subagent"
+						? toolStatus === "completed"
+							? "Spawned "
+							: "Spawning "
+						: toolName === "subagent_await"
+							? toolStatus === "completed"
+								? "Waited for "
+								: "Waiting for "
+							: toolName === "subagent_message"
+								? toolStatus === "completed"
+									? "Messaged "
+									: "Messaging "
+								: toolName === "subagent_terminate"
+									? toolStatus === "completed"
+										? "Terminated "
+										: "Terminating "
+									: ""}
 					<span className="text-content-secondary opacity-60">{title}</span>
 					{chatId && (
 						<Link
@@ -1132,6 +1185,18 @@ const SubagentTool: React.FC<{
 				>
 					<div className="px-3 py-2">
 						<Response>{prompt ?? ""}</Response>
+					</div>
+				</ScrollArea>
+			)}
+
+			{expanded && hasMessage && (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<div className="px-3 py-2">
+						<Response>{message ?? ""}</Response>
 					</div>
 				</ScrollArea>
 			)}
@@ -1250,6 +1315,8 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			args,
 			result,
 			isError = false,
+			subagentTitles,
+			subagentStatusOverrides,
 			...props
 		},
 		ref,
@@ -1369,7 +1436,8 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 		if (
 			name === "subagent" ||
 			name === "subagent_await" ||
-			name === "subagent_message"
+			name === "subagent_message" ||
+			name === "subagent_terminate"
 		) {
 			const parsed = parseArgs(args);
 			const rec = asRecord(result);
@@ -1378,21 +1446,29 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			const chatId =
 				(rec ? asString(rec.chat_id) : "") ||
 				(parsed ? asString(parsed.chat_id) : "");
-			const subagentStatus = rec ? asString(rec.status || rec.subagent_status) : "";
+			const resultSubagentStatus = rec
+				? asString(rec.status || rec.subagent_status)
+				: "";
+			const streamSubagentStatus =
+				(chatId && subagentStatusOverrides?.get(chatId)) || "";
+			const subagentStatus = streamSubagentStatus || resultSubagentStatus;
 			const durationMs = rec ? asNumber(rec.duration_ms) : undefined;
 			const report = rec ? asString(rec.report) : "";
 			const prompt = parsed ? asString(parsed.prompt) : "";
+			const subagentMessage = parsed ? asString(parsed.message) : "";
 			const title =
 				(rec ? asString(rec.title) : "") ||
 				(parsed ? asString(parsed.title) : "") ||
+				(chatId && subagentTitles?.get(chatId)) ||
 				"Sub-agent";
-			const subagentToolStatus: ToolStatus = isSubagentSuccessStatus(
+			const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
+			const subagentToolStatus = mapSubagentStatusToToolStatus(
 				subagentStatus,
-			)
-				? "completed"
-				: status;
+				status,
+			);
 			const subagentIsError =
-				(status === "error" || isError) && !isSubagentSuccessStatus(subagentStatus);
+				subagentToolStatus === "error" ||
+				((status === "error" || isError) && !subagentCompleted);
 
 			if (chatId) {
 				return (
@@ -1403,6 +1479,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 							chatId={chatId}
 							subagentStatus={subagentStatus}
 							prompt={prompt || undefined}
+							message={subagentMessage || undefined}
 							durationMs={durationMs}
 							report={report || undefined}
 							toolStatus={subagentToolStatus}
@@ -1424,6 +1501,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 						chatId=""
 						subagentStatus={subagentStatus}
 						prompt={prompt || undefined}
+						message={subagentMessage || undefined}
 						toolStatus={subagentToolStatus}
 						isError={subagentIsError}
 					/>

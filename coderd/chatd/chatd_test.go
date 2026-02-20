@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
@@ -481,17 +482,23 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 		prompt, err := chatMessagesToPrompt(messages)
 		require.NoError(t, err)
 
-		// Original 3 messages + synthesized assistant tool_use + tool result for call-2.
-		require.Len(t, prompt, 5)
+		// Original 3 messages + synthetic tool result for call-2.
+		// injectMissingToolResults sees that call-2 has no result
+		// and appends a synthetic error result. No extra assistant
+		// message is needed because the original assistant already
+		// contains both tool_use blocks.
+		require.Len(t, prompt, 4)
 
-		syntheticToolUse := prompt[3]
-		require.Equal(t, fantasy.MessageRoleAssistant, syntheticToolUse.Role)
-		syntheticCalls := extractToolCallsFromMessageParts(syntheticToolUse.Content)
-		require.Len(t, syntheticCalls, 1)
-		require.Equal(t, "call-2", syntheticCalls[0].ToolCallID)
-		require.Equal(t, toolReadFile, syntheticCalls[0].ToolName)
+		// First tool message carries the real call-1 result.
+		firstToolMsg := prompt[2]
+		require.Equal(t, fantasy.MessageRoleTool, firstToolMsg.Role)
+		firstParts := messageToolResultParts(firstToolMsg)
+		require.Len(t, firstParts, 1)
+		require.Equal(t, "call-1", firstParts[0].ToolCallID)
 
-		injectedMsg := prompt[4]
+		// Second tool message is the synthetic interrupted result
+		// for call-2.
+		injectedMsg := prompt[3]
 		require.Equal(t, fantasy.MessageRoleTool, injectedMsg.Role)
 		injectedParts := messageToolResultParts(injectedMsg)
 		require.Len(t, injectedParts, 1)
@@ -568,6 +575,98 @@ func TestChatMessagesToPrompt_InjectsMissingToolResults(t *testing.T) {
 		require.Len(t, prompt, 3, "no injection when all results present")
 	})
 }
+func TestChatMessagesToPrompt_SeparateToolResults(t *testing.T) {
+	t.Parallel()
+
+	// Reproduce the exact pattern from production: an assistant message
+	// with 6 tool calls, followed by 6 SEPARATE tool result messages
+	// (one per result, as the code persists them), then another assistant
+	// with 1 tool call and 1 tool result.
+	userContent, err := json.Marshal(contentFromText("analyze the repo"))
+	require.NoError(t, err)
+
+	// First assistant: 6 tool calls.
+	assistantBlocks1 := append(contentFromText("I'll read files in parallel."),
+		fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: toolReadFile, Input: `{"path":"a.txt"}`},
+		fantasy.ToolCallContent{ToolCallID: "call-2", ToolName: toolReadFile, Input: `{"path":"b.txt"}`},
+		fantasy.ToolCallContent{ToolCallID: "call-3", ToolName: toolReadFile, Input: `{"path":"c.txt"}`},
+		fantasy.ToolCallContent{ToolCallID: "call-4", ToolName: toolExecute, Input: `{"command":"ls"}`},
+		fantasy.ToolCallContent{ToolCallID: "call-5", ToolName: toolExecute, Input: `{"command":"pwd"}`},
+		fantasy.ToolCallContent{ToolCallID: "call-6", ToolName: toolReadFile, Input: `{"path":"d.txt"}`},
+	)
+	assistantContent1, err := json.Marshal(assistantBlocks1)
+	require.NoError(t, err)
+
+	// 6 separate tool result messages (one per tool call).
+	makeToolResult := func(callID, toolName string, isError bool, result map[string]any) pqtype.NullRawMessage {
+		data, err := json.Marshal([]ToolResultBlock{{
+			ToolCallID: callID,
+			ToolName:   toolName,
+			Result:     result,
+			IsError:    isError,
+		}})
+		require.NoError(t, err)
+		return pqtype.NullRawMessage{RawMessage: data, Valid: true}
+	}
+
+	// Second assistant: 1 tool call.
+	assistantBlocks2 := append(contentFromText("Let me check more."),
+		fantasy.ToolCallContent{ToolCallID: "call-7", ToolName: toolExecute, Input: `{"command":"cat x"}`},
+	)
+	assistantContent2, err := json.Marshal(assistantBlocks2)
+	require.NoError(t, err)
+
+	messages := []database.ChatMessage{
+		{Role: string(fantasy.MessageRoleUser), Content: pqtype.NullRawMessage{RawMessage: userContent, Valid: true}},
+		{Role: string(fantasy.MessageRoleAssistant), Content: pqtype.NullRawMessage{RawMessage: assistantContent1, Valid: true}},
+		{Role: string(fantasy.MessageRoleTool), Content: makeToolResult("call-1", toolReadFile, true, map[string]any{"error": "not found"})},
+		{Role: string(fantasy.MessageRoleTool), Content: makeToolResult("call-2", toolReadFile, true, map[string]any{"error": "not found"})},
+		{Role: string(fantasy.MessageRoleTool), Content: makeToolResult("call-3", toolReadFile, true, map[string]any{"error": "not found"})},
+		{Role: string(fantasy.MessageRoleTool), Content: makeToolResult("call-4", toolExecute, false, map[string]any{"output": "file1\nfile2"})},
+		{Role: string(fantasy.MessageRoleTool), Content: makeToolResult("call-5", toolExecute, false, map[string]any{"output": "/home"})},
+		{Role: string(fantasy.MessageRoleTool), Content: makeToolResult("call-6", toolReadFile, true, map[string]any{"error": "not found"})},
+		{Role: string(fantasy.MessageRoleAssistant), Content: pqtype.NullRawMessage{RawMessage: assistantContent2, Valid: true}},
+		{Role: string(fantasy.MessageRoleTool), Content: makeToolResult("call-7", toolExecute, false, map[string]any{"output": "data"})},
+	}
+
+	prompt, err := chatMessagesToPrompt(messages)
+	require.NoError(t, err)
+
+	// Should have: user, assistant(6 calls), 6 tool msgs, assistant(1 call), 1 tool msg = 10 messages.
+	require.Len(t, prompt, 10, "all messages should be present")
+
+	// Verify structure.
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[1].Role)
+	require.Len(t, extractToolCallsFromMessageParts(prompt[1].Content), 6)
+
+	// Check all 6 tool results are present and have correct IDs.
+	for i := 2; i <= 7; i++ {
+		require.Equal(t, fantasy.MessageRoleTool, prompt[i].Role, "prompt[%d] should be tool", i)
+		results := messageToolResultParts(prompt[i])
+		require.Len(t, results, 1, "prompt[%d] should have 1 tool result", i)
+	}
+
+	// Collect all tool result IDs.
+	answered := make(map[string]struct{})
+	for i := 2; i <= 7; i++ {
+		results := messageToolResultParts(prompt[i])
+		answered[results[0].ToolCallID] = struct{}{}
+	}
+	for j := 1; j <= 6; j++ {
+		_, ok := answered[fmt.Sprintf("call-%d", j)]
+		require.True(t, ok, "call-%d should have a result", j)
+	}
+
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[8].Role)
+	require.Len(t, extractToolCallsFromMessageParts(prompt[8].Content), 1)
+
+	require.Equal(t, fantasy.MessageRoleTool, prompt[9].Role)
+	results9 := messageToolResultParts(prompt[9])
+	require.Len(t, results9, 1)
+	require.Equal(t, "call-7", results9[0].ToolCallID)
+}
+
 func messageToolResultParts(message fantasy.Message) []fantasy.ToolResultPart {
 	results := make([]fantasy.ToolResultPart, 0, len(message.Content))
 	for _, part := range message.Content {
@@ -602,11 +701,99 @@ func TestPrepareAgentStepResult_ReportOnly(t *testing.T) {
 		},
 		sentinel,
 		true,
+		false,
 	)
 
 	require.Equal(t, []string{toolSubagentReport}, result.ActiveTools)
 	require.Len(t, result.Messages, 1)
 	require.Equal(t, fantasy.MessageRoleUser, result.Messages[0].Role)
+}
+
+func TestPrepareAgentStepResult_AnthropicCaching(t *testing.T) {
+	t.Parallel()
+
+	result := prepareAgentStepResult(
+		[]fantasy.Message{
+			textMessage(fantasy.MessageRoleSystem, "sys-1"),
+			textMessage(fantasy.MessageRoleSystem, "sys-2"),
+			textMessage(fantasy.MessageRoleUser, "hello"),
+			textMessage(fantasy.MessageRoleAssistant, "working"),
+			textMessage(fantasy.MessageRoleUser, "continue"),
+		},
+		"__sentinel__",
+		false,
+		true,
+	)
+
+	require.Len(t, result.Messages, 5)
+	require.False(t, hasAnthropicEphemeralCacheControl(result.Messages[0]))
+	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[1]))
+	require.False(t, hasAnthropicEphemeralCacheControl(result.Messages[2]))
+	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[3]))
+	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[4]))
+}
+
+func TestPrepareAgentStepResult_NonAnthropicUnchanged(t *testing.T) {
+	t.Parallel()
+
+	result := prepareAgentStepResult(
+		[]fantasy.Message{
+			textMessage(fantasy.MessageRoleSystem, "sys"),
+			textMessage(fantasy.MessageRoleUser, "hello"),
+			textMessage(fantasy.MessageRoleAssistant, "working"),
+		},
+		"__sentinel__",
+		false,
+		false,
+	)
+
+	require.Len(t, result.Messages, 3)
+	for _, message := range result.Messages {
+		require.Nil(t, message.ProviderOptions)
+	}
+}
+
+func TestPrepareAgentStepResult_AnthropicCachingWithoutSystemMessage(t *testing.T) {
+	t.Parallel()
+
+	result := prepareAgentStepResult(
+		[]fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "first"),
+			textMessage(fantasy.MessageRoleAssistant, "second"),
+			textMessage(fantasy.MessageRoleUser, "third"),
+		},
+		"__sentinel__",
+		false,
+		true,
+	)
+
+	require.Len(t, result.Messages, 3)
+	require.False(t, hasAnthropicEphemeralCacheControl(result.Messages[0]))
+	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[1]))
+	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[2]))
+}
+
+func textMessage(role fantasy.MessageRole, text string) fantasy.Message {
+	return fantasy.Message{
+		Role: role,
+		Content: []fantasy.MessagePart{
+			fantasy.TextPart{Text: text},
+		},
+	}
+}
+
+func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
+	if len(message.ProviderOptions) == 0 {
+		return false
+	}
+
+	options, ok := message.ProviderOptions[fantasyanthropic.Name]
+	if !ok {
+		return false
+	}
+
+	cacheOptions, ok := options.(*fantasyanthropic.ProviderCacheControlOptions)
+	return ok && cacheOptions.CacheControl.Type == "ephemeral"
 }
 
 // Consolidated from schema_test.go.
@@ -793,6 +980,60 @@ func TestSDKChatMessage_ToolResultPartMetadata(t *testing.T) {
 	require.Equal(t, "completed", part.ResultMeta.Output)
 	require.NotNil(t, part.ResultMeta.ExitCode)
 	require.Equal(t, 17, *part.ResultMeta.ExitCode)
+}
+
+func TestSDKChatMessage_IncludesUsageFields(t *testing.T) {
+	t.Parallel()
+
+	message := SDKChatMessage(database.ChatMessage{
+		ID:        99,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      string(fantasy.MessageRoleAssistant),
+		InputTokens: sql.NullInt64{
+			Int64: 101,
+			Valid: true,
+		},
+		OutputTokens: sql.NullInt64{
+			Int64: 37,
+			Valid: true,
+		},
+		ReasoningTokens: sql.NullInt64{
+			Int64: 11,
+			Valid: true,
+		},
+		CacheCreationTokens: sql.NullInt64{
+			Int64: 5,
+			Valid: true,
+		},
+		CacheReadTokens: sql.NullInt64{
+			Int64: 2,
+			Valid: true,
+		},
+		TotalTokens: sql.NullInt64{
+			Int64: 138,
+			Valid: true,
+		},
+		ContextLimit: sql.NullInt64{
+			Int64: 200000,
+			Valid: true,
+		},
+	})
+
+	require.NotNil(t, message.InputTokens)
+	require.Equal(t, int64(101), *message.InputTokens)
+	require.NotNil(t, message.OutputTokens)
+	require.Equal(t, int64(37), *message.OutputTokens)
+	require.NotNil(t, message.ReasoningTokens)
+	require.Equal(t, int64(11), *message.ReasoningTokens)
+	require.NotNil(t, message.CacheCreationTokens)
+	require.Equal(t, int64(5), *message.CacheCreationTokens)
+	require.NotNil(t, message.CacheReadTokens)
+	require.Equal(t, int64(2), *message.CacheReadTokens)
+	require.NotNil(t, message.TotalTokens)
+	require.Equal(t, int64(138), *message.TotalTokens)
+	require.NotNil(t, message.ContextLimit)
+	require.Equal(t, int64(200000), *message.ContextLimit)
 }
 
 func TestStreamManager_SnapshotBuffersOnlyMessageParts(t *testing.T) {

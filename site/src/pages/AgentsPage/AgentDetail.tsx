@@ -54,7 +54,7 @@ import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, type AgentContextUsage } from "./AgentChatInput";
 import type { AgentsOutletContext } from "./AgentsPage";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
@@ -77,9 +77,86 @@ const asString = (value: unknown): string => {
 	return typeof value === "string" ? value : "";
 };
 
+const asTokenCount = (value: unknown): number | undefined => {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+		return undefined;
+	}
+	return value;
+};
+
 const asNonEmptyString = (value: unknown): string | undefined => {
 	const next = asString(value).trim();
 	return next.length > 0 ? next : undefined;
+};
+
+type ChatMessageWithUsage = TypesGen.ChatMessage & {
+	readonly input_tokens?: unknown;
+	readonly output_tokens?: unknown;
+	readonly total_tokens?: unknown;
+	readonly reasoning_tokens?: unknown;
+	readonly cache_creation_tokens?: unknown;
+	readonly cache_read_tokens?: unknown;
+	readonly context_limit?: unknown;
+};
+
+const extractContextUsageFromMessage = (
+	message: TypesGen.ChatMessage,
+): AgentContextUsage | null => {
+	const withUsage = message as ChatMessageWithUsage;
+	const inputTokens = asTokenCount(withUsage.input_tokens);
+	const outputTokens = asTokenCount(withUsage.output_tokens);
+	const totalTokens = asTokenCount(withUsage.total_tokens);
+	const reasoningTokens = asTokenCount(withUsage.reasoning_tokens);
+	const cacheCreationTokens = asTokenCount(withUsage.cache_creation_tokens);
+	const cacheReadTokens = asTokenCount(withUsage.cache_read_tokens);
+	const contextLimitTokens = asTokenCount(withUsage.context_limit);
+
+	const components = [
+		inputTokens,
+		outputTokens,
+		cacheReadTokens,
+		cacheCreationTokens,
+		reasoningTokens,
+	].filter((value): value is number => value !== undefined);
+	const derivedUsedTokens =
+		components.length > 0
+			? components.reduce((total, value) => total + value, 0)
+			: undefined;
+	const usedTokens = totalTokens ?? derivedUsedTokens;
+
+	const hasUsage =
+		usedTokens !== undefined ||
+		contextLimitTokens !== undefined ||
+		inputTokens !== undefined ||
+		outputTokens !== undefined ||
+		cacheReadTokens !== undefined ||
+		cacheCreationTokens !== undefined ||
+		reasoningTokens !== undefined;
+	if (!hasUsage) {
+		return null;
+	}
+
+	return {
+		usedTokens,
+		contextLimitTokens,
+		inputTokens,
+		outputTokens,
+		cacheReadTokens,
+		cacheCreationTokens,
+		reasoningTokens,
+	};
+};
+
+const getLatestContextUsage = (
+	messages: readonly TypesGen.ChatMessage[],
+): AgentContextUsage | null => {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const usage = extractContextUsageFromMessage(messages[index]);
+		if (usage) {
+			return usage;
+		}
+	}
+	return null;
 };
 
 type ChatWithHierarchyMetadata = TypesGen.Chat & {
@@ -149,29 +226,358 @@ const parseToolResultIsError = (
 	return !isCompletedSubagentResult(toolName, result);
 };
 
+const tryParseJSONObject = (value: string): unknown | null => {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+	const first = trimmed[0];
+	if (first !== "{" && first !== "[") {
+		return null;
+	}
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		return null;
+	}
+};
+
+const parsePartialJSONString = (
+	input: string,
+	startIndex: number,
+): { value: string; nextIndex: number } | "incomplete" | null => {
+	if (input[startIndex] !== "\"") {
+		return null;
+	}
+	let escaped = false;
+	for (let i = startIndex + 1; i < input.length; i += 1) {
+		const char = input[i];
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+		if (char === "\\") {
+			escaped = true;
+			continue;
+		}
+		if (char !== "\"") {
+			continue;
+		}
+		const token = input.slice(startIndex, i + 1);
+		try {
+			return {
+				value: JSON.parse(token) as string,
+				nextIndex: i + 1,
+			};
+		} catch {
+			return null;
+		}
+	}
+	return "incomplete";
+};
+
+const isJSONValueBoundary = (char: string | undefined): boolean =>
+	char === undefined || char === "," || char === "}" || char === "]" || /\s/.test(char);
+
+const findBalancedJSONEnd = (
+	input: string,
+	startIndex: number,
+): number | "incomplete" | null => {
+	const stack: string[] = [];
+	let escaped = false;
+	let inString = false;
+
+	for (let index = startIndex; index < input.length; index += 1) {
+		const char = input[index];
+		if (inString) {
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+			if (char === "\\") {
+				escaped = true;
+				continue;
+			}
+			if (char === "\"") {
+				inString = false;
+			}
+			continue;
+		}
+
+		switch (char) {
+			case "\"":
+				inString = true;
+				break;
+			case "{":
+			case "[":
+				stack.push(char);
+				break;
+			case "}": {
+				const top = stack.pop();
+				if (top !== "{") {
+					return null;
+				}
+				break;
+			}
+			case "]": {
+				const top = stack.pop();
+				if (top !== "[") {
+					return null;
+				}
+				break;
+			}
+			default:
+				break;
+		}
+
+		if (stack.length === 0) {
+			return index + 1;
+		}
+	}
+
+	return "incomplete";
+};
+
+type PartialJSONValue =
+	| { status: "ok"; value: unknown; nextIndex: number }
+	| { status: "incomplete" }
+	| { status: "invalid" };
+
+const parsePartialJSONValue = (
+	input: string,
+	startIndex: number,
+): PartialJSONValue => {
+	let index = startIndex;
+	while (index < input.length && /\s/.test(input[index])) {
+		index += 1;
+	}
+	if (index >= input.length) {
+		return { status: "incomplete" };
+	}
+
+	const char = input[index];
+	if (char === "\"") {
+		const parsed = parsePartialJSONString(input, index);
+		if (parsed === "incomplete") {
+			return { status: "incomplete" };
+		}
+		if (!parsed) {
+			return { status: "invalid" };
+		}
+		return {
+			status: "ok",
+			value: parsed.value,
+			nextIndex: parsed.nextIndex,
+		};
+	}
+
+	if (char === "{" || char === "[") {
+		const end = findBalancedJSONEnd(input, index);
+		if (end === "incomplete") {
+			return { status: "incomplete" };
+		}
+		if (end === null) {
+			return { status: "invalid" };
+		}
+		const parsed = tryParseJSONObject(input.slice(index, end));
+		if (parsed === null) {
+			return { status: "invalid" };
+		}
+		return {
+			status: "ok",
+			value: parsed,
+			nextIndex: end,
+		};
+	}
+
+	if (input.startsWith("true", index)) {
+		const next = index + 4;
+		if (!isJSONValueBoundary(input[next])) {
+			return { status: "invalid" };
+		}
+		return { status: "ok", value: true, nextIndex: next };
+	}
+	if ("true".startsWith(input.slice(index))) {
+		return { status: "incomplete" };
+	}
+
+	if (input.startsWith("false", index)) {
+		const next = index + 5;
+		if (!isJSONValueBoundary(input[next])) {
+			return { status: "invalid" };
+		}
+		return { status: "ok", value: false, nextIndex: next };
+	}
+	if ("false".startsWith(input.slice(index))) {
+		return { status: "incomplete" };
+	}
+
+	if (input.startsWith("null", index)) {
+		const next = index + 4;
+		if (!isJSONValueBoundary(input[next])) {
+			return { status: "invalid" };
+		}
+		return { status: "ok", value: null, nextIndex: next };
+	}
+	if ("null".startsWith(input.slice(index))) {
+		return { status: "incomplete" };
+	}
+
+	if (char === "-" || (char >= "0" && char <= "9")) {
+		let end = index;
+		while (end < input.length && /[0-9eE+.-]/.test(input[end])) {
+			end += 1;
+		}
+		const token = input.slice(index, end);
+		if (!token) {
+			return { status: "invalid" };
+		}
+		if (end === input.length && /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?)?$/.test(token)) {
+			return { status: "incomplete" };
+		}
+		if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(token)) {
+			return { status: "invalid" };
+		}
+		if (!isJSONValueBoundary(input[end])) {
+			return { status: "invalid" };
+		}
+		return { status: "ok", value: Number(token), nextIndex: end };
+	}
+
+	return { status: "invalid" };
+};
+
+const parsePartialJSONObject = (value: string): Record<string, unknown> | null => {
+	const trimmed = value.trim();
+	if (!trimmed.startsWith("{")) {
+		return null;
+	}
+
+	let index = 1;
+	const parsed: Record<string, unknown> = {};
+	let hasFields = false;
+
+	while (index < trimmed.length) {
+		while (index < trimmed.length && /\s/.test(trimmed[index])) {
+			index += 1;
+		}
+		if (index >= trimmed.length) {
+			break;
+		}
+
+		if (trimmed[index] === "}") {
+			return hasFields ? parsed : null;
+		}
+
+		if (trimmed[index] === ",") {
+			index += 1;
+			continue;
+		}
+
+		const key = parsePartialJSONString(trimmed, index);
+		if (key === "incomplete") {
+			break;
+		}
+		if (!key) {
+			return hasFields ? parsed : null;
+		}
+		index = key.nextIndex;
+
+		while (index < trimmed.length && /\s/.test(trimmed[index])) {
+			index += 1;
+		}
+		if (index >= trimmed.length || trimmed[index] !== ":") {
+			break;
+		}
+		index += 1;
+
+		const nextValue = parsePartialJSONValue(trimmed, index);
+		if (nextValue.status === "incomplete") {
+			break;
+		}
+		if (nextValue.status === "invalid") {
+			return hasFields ? parsed : null;
+		}
+
+		parsed[key.value] = nextValue.value;
+		hasFields = true;
+		index = nextValue.nextIndex;
+
+		while (index < trimmed.length && /\s/.test(trimmed[index])) {
+			index += 1;
+		}
+		if (index >= trimmed.length) {
+			break;
+		}
+		if (trimmed[index] === ",") {
+			index += 1;
+			continue;
+		}
+		if (trimmed[index] === "}") {
+			return parsed;
+		}
+		return hasFields ? parsed : null;
+	}
+
+	return hasFields ? parsed : null;
+};
+
+const parseStreamingJSON = (value: string): unknown | null => {
+	const complete = tryParseJSONObject(value);
+	if (complete !== null) {
+		return complete;
+	}
+	return parsePartialJSONObject(value);
+};
+
+type StreamPayloadMerge = {
+	value: unknown;
+	rawText?: string;
+};
+
 const mergeStreamPayload = (
-	existing: unknown,
+	existingValue: unknown,
+	existingRawText: string | undefined,
 	value: unknown,
 	delta: unknown,
-): unknown => {
+): StreamPayloadMerge => {
 	if (value !== undefined) {
-		return value;
+		if (typeof value !== "string") {
+			return { value };
+		}
+		const parsed = parseStreamingJSON(value);
+		if (parsed !== null) {
+			return { value: parsed, rawText: value };
+		}
+		return { value, rawText: value };
 	}
 
 	const chunk = typeof delta === "string" ? delta : "";
 	if (!chunk) {
-		return existing;
+		return {
+			value: existingValue,
+			rawText: existingRawText,
+		};
 	}
 
-	if (typeof existing === "string") {
-		return `${existing}${chunk}`;
+	if (
+		existingValue !== undefined &&
+		typeof existingValue !== "string" &&
+		existingRawText === undefined
+	) {
+		return {
+			value: existingValue,
+		};
 	}
 
-	if (existing === undefined) {
-		return chunk;
-	}
+	const base = existingRawText ?? (typeof existingValue === "string" ? existingValue : "");
+	const rawText = `${base}${chunk}`;
+	const parsed = parseStreamingJSON(rawText);
 
-	return existing;
+	return {
+		value: parsed ?? rawText,
+		rawText,
+	};
 };
 
 type ParsedToolCall = {
@@ -412,12 +818,14 @@ type StreamToolCall = {
 	id: string;
 	name: string;
 	args?: unknown;
+	argsRaw?: string;
 };
 
 type StreamToolResult = {
 	id: string;
 	name: string;
 	result?: unknown;
+	resultRaw?: string;
 	isError: boolean;
 };
 
@@ -550,7 +958,9 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-}>(({ message, parsed }) => {
+	subagentTitles?: Map<string, string>;
+	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+}>(({ message, parsed, subagentTitles, subagentStatusOverrides }) => {
 	const isUser = message.role === "user";
 
 	// Skip messages that only carry tool results. Those results
@@ -594,6 +1004,8 @@ const ChatMessageItem = memo<{
 									result={tool.result}
 									status={tool.status}
 									isError={tool.isError}
+									subagentTitles={subagentTitles}
+									subagentStatusOverrides={subagentStatusOverrides}
 								/>
 							))}
 							{!hasRenderableContent && (
@@ -618,7 +1030,9 @@ ChatMessageItem.displayName = "ChatMessageItem";
 const StreamingOutput = memo<{
 	streamState: StreamState | null;
 	streamTools: MergedTool[];
-}>(({ streamState, streamTools }) => {
+	subagentTitles?: Map<string, string>;
+	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+}>(({ streamState, streamTools, subagentTitles, subagentStatusOverrides }) => {
 	const conversationItemProps = { role: "assistant" as const };
 
 	return (
@@ -644,6 +1058,8 @@ const StreamingOutput = memo<{
 								result={tool.result}
 								status={tool.status}
 								isError={tool.isError}
+								subagentTitles={subagentTitles}
+								subagentStatusOverrides={subagentStatusOverrides}
 							/>
 						))}
 					</div>
@@ -671,6 +1087,9 @@ export const AgentDetail: FC = () => {
 	const [chatStatus, setChatStatus] = useState<TypesGen.ChatStatus | null>(
 		null,
 	);
+	const [subagentStatusOverrides, setSubagentStatusOverrides] = useState<
+		Map<string, TypesGen.ChatStatus>
+	>(new Map());
 	const [selectedModel, setSelectedModel] = useState("");
 	const chatErrorReasons = outletContext?.chatErrorReasons ?? {};
 	const setChatErrorReason =
@@ -822,6 +1241,7 @@ export const AgentDetail: FC = () => {
 		cancelScheduledStreamReset();
 		setStreamState(null);
 		setStreamError(null);
+		setSubagentStatusOverrides(new Map());
 
 		const socket = watchChat(agentId);
 		const handleMessage = (
@@ -915,6 +1335,7 @@ export const AgentDetail: FC = () => {
 									const existing = nextState.toolCalls[toolCallID];
 									const nextArgs = mergeStreamPayload(
 										existing?.args,
+										existing?.argsRaw,
 										part.args,
 										part.args_delta,
 									);
@@ -926,7 +1347,8 @@ export const AgentDetail: FC = () => {
 											[toolCallID]: {
 												id: toolCallID,
 												name: toolName || existing?.name || "Tool",
-												args: nextArgs,
+												args: nextArgs.value,
+												argsRaw: nextArgs.rawText,
 											},
 										},
 									};
@@ -956,13 +1378,18 @@ export const AgentDetail: FC = () => {
 									const existing = nextState.toolResults[toolCallID];
 									const nextResult = mergeStreamPayload(
 										existing?.result,
+										existing?.resultRaw,
 										part.result,
 										part.result_delta,
 									);
 									const nextToolName = toolName || existing?.name || "Tool";
 									const nextIsError =
 										existing?.isError ||
-										parseToolResultIsError(nextToolName, part, nextResult);
+										parseToolResultIsError(
+											nextToolName,
+											part,
+											nextResult.value,
+										);
 
 									return {
 										...nextState,
@@ -971,7 +1398,8 @@ export const AgentDetail: FC = () => {
 											[toolCallID]: {
 												id: toolCallID,
 												name: nextToolName,
-												result: nextResult,
+												result: nextResult.value,
+												resultRaw: nextResult.rawText,
 												isError: nextIsError,
 											},
 										},
@@ -987,37 +1415,52 @@ export const AgentDetail: FC = () => {
 				case "status": {
 					const status = asRecord(streamEvent.status);
 					const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
-					if (nextStatus) {
-						setChatStatus(nextStatus);
-						if (agentId && nextStatus !== "error") {
-							clearChatErrorReason(agentId);
-						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: nextStatus,
-							updated_at: new Date().toISOString(),
-						}));
-						// Always refresh diff queries on any status event
-						// because the background refresh may have discovered
-						// a new PR or updated diff contents.
-						if (agentId) {
-							void Promise.all([
-								queryClient.invalidateQueries({
-									queryKey: chatDiffStatusKey(agentId),
-								}),
-								queryClient.invalidateQueries({
-									queryKey: chatDiffContentsKey(agentId),
-								}),
-							]);
-						}
-						const shouldRefreshQueries =
-							nextStatus === "completed" ||
-							nextStatus === "error" ||
-							nextStatus === "paused" ||
-							nextStatus === "waiting";
-						if (shouldRefreshQueries) {
-							void queryClient.invalidateQueries({ queryKey: chatsKey });
-						}
+					if (!nextStatus) {
+						return;
+					}
+
+					const eventChatID = asString(streamEvent.chat_id);
+					if (eventChatID && eventChatID !== agentId) {
+						setSubagentStatusOverrides((prev) => {
+							if (prev.get(eventChatID) === nextStatus) {
+								return prev;
+							}
+							const next = new Map(prev);
+							next.set(eventChatID, nextStatus);
+							return next;
+						});
+						return;
+					}
+
+					setChatStatus(nextStatus);
+					if (agentId && nextStatus !== "error") {
+						clearChatErrorReason(agentId);
+					}
+					updateSidebarChat((chat) => ({
+						...chat,
+						status: nextStatus,
+						updated_at: new Date().toISOString(),
+					}));
+					// Always refresh diff queries on any status event
+					// because the background refresh may have discovered
+					// a new PR or updated diff contents.
+					if (agentId) {
+						void Promise.all([
+							queryClient.invalidateQueries({
+								queryKey: chatDiffStatusKey(agentId),
+							}),
+							queryClient.invalidateQueries({
+								queryKey: chatDiffContentsKey(agentId),
+							}),
+						]);
+					}
+					const shouldRefreshQueries =
+						nextStatus === "completed" ||
+						nextStatus === "error" ||
+						nextStatus === "paused" ||
+						nextStatus === "waiting";
+					if (shouldRefreshQueries) {
+						void queryClient.invalidateQueries({ queryKey: chatsKey });
 					}
 					return;
 				}
@@ -1075,6 +1518,10 @@ export const AgentDetail: FC = () => {
 		);
 		return list;
 	}, [messagesById]);
+	const latestContextUsage = useMemo(
+		() => getLatestContextUsage(messages),
+		[messages],
+	);
 
 	const isStreaming =
 		Boolean(streamState) ||
@@ -1205,6 +1652,26 @@ export const AgentDetail: FC = () => {
 			})),
 		[visibleMessages, globalToolResults],
 	);
+
+	// Build a lookup of sub-agent chat_id → title from spawn tool
+	// results so await/message tools can show the title while still
+	// in progress (before their own result arrives with the title).
+	const subagentTitles = useMemo(() => {
+		const map = new Map<string, string>();
+		for (const { parsed } of parsedMessages) {
+			for (const tool of parsed.tools) {
+				if (tool.name !== "subagent") continue;
+				const rec = asRecord(tool.result);
+				if (!rec) continue;
+				const chatId = asString(rec.chat_id);
+				const title = asString(rec.title);
+				if (chatId && title) {
+					map.set(chatId, title);
+				}
+			}
+		}
+		return map;
+	}, [parsedMessages]);
 
 	// Group messages into sections so each user message can be CSS
 	// sticky within its section. When the section scrolls out, the
@@ -1456,6 +1923,10 @@ export const AgentDetail: FC = () => {
 														<ChatMessageItem
 															message={message}
 															parsed={parsed}
+															subagentTitles={subagentTitles}
+															subagentStatusOverrides={
+																subagentStatusOverrides
+															}
 														/>
 													</div>
 												) : (
@@ -1463,6 +1934,10 @@ export const AgentDetail: FC = () => {
 														key={message.id}
 														message={message}
 														parsed={parsed}
+														subagentTitles={subagentTitles}
+														subagentStatusOverrides={
+															subagentStatusOverrides
+														}
 													/>
 												);
 											})}
@@ -1475,6 +1950,8 @@ export const AgentDetail: FC = () => {
 										<StreamingOutput
 											streamState={streamState}
 											streamTools={streamTools}
+											subagentTitles={subagentTitles}
+											subagentStatusOverrides={subagentStatusOverrides}
 										/>
 									</div>
 								)}
@@ -1495,6 +1972,7 @@ export const AgentDetail: FC = () => {
 						isStreaming={isStreaming}
 						onInterrupt={stableOnInterrupt}
 						isInterruptPending={interruptMutation.isPending}
+						contextUsage={latestContextUsage}
 						hasModelOptions={hasModelOptions}
 						selectedModel={selectedModel}
 						onModelChange={setSelectedModel}

@@ -3,10 +3,25 @@ import {
 	type ModelSelectorOption,
 } from "components/ai-elements";
 import { Button } from "components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { ArrowUpIcon, Loader2Icon, Square } from "lucide-react";
 import { memo, type ReactNode, useCallback, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatProviderLabel } from "./modelOptions";
+
+export interface AgentContextUsage {
+	readonly usedTokens?: number;
+	readonly contextLimitTokens?: number;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cacheReadTokens?: number;
+	readonly cacheCreationTokens?: number;
+	readonly reasoningTokens?: number;
+}
 
 interface AgentChatInputProps {
 	onSend: (message: string) => Promise<void>;
@@ -35,10 +50,161 @@ interface AgentChatInputProps {
 	// Extra controls rendered in the left action area (e.g. workspace
 	// selector on the create page).
 	leftActions?: ReactNode;
+	// Optional context-usage summary shown to the left of the send button.
+	// Pass `null` to render fallback values (e.g. when limit is unknown).
+	// Omit entirely to hide the indicator.
+	contextUsage?: AgentContextUsage | null;
 	// When true the entire input sticks to the bottom of the scroll
 	// container (used in the detail page).
 	sticky?: boolean;
 }
+
+const hasFiniteTokenValue = (value: number | undefined): value is number =>
+	typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+const formatTokenCount = (value: number | undefined): string =>
+	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
+
+const getIndicatorToneClassName = (percentUsed: number | null): string => {
+	if (percentUsed === null) {
+		return "text-content-secondary/60";
+	}
+	if (percentUsed >= 95) {
+		return "text-content-destructive";
+	}
+	if (percentUsed >= 85) {
+		return "text-content-warning";
+	}
+	return "text-content-link";
+};
+
+const RING_SIZE = 30;
+const RING_STROKE = 3;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
+	({ usage }) => {
+		const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
+			? usage.usedTokens
+			: undefined;
+		const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
+			? usage.contextLimitTokens
+			: undefined;
+		const percentUsed =
+			usedTokens !== undefined &&
+			contextLimitTokens !== undefined &&
+			contextLimitTokens > 0
+				? (usedTokens / contextLimitTokens) * 100
+				: null;
+		const percentLabel =
+			percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+		const indicatorLabel =
+			percentUsed === null
+				? "--"
+				: percentUsed >= 100
+					? "100+"
+					: `${Math.round(percentUsed)}`;
+		const clampedPercent =
+			percentUsed === null ? 0 : Math.min(Math.max(percentUsed, 0), 100);
+		const dashOffset =
+			RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
+		const toneClassName = getIndicatorToneClassName(percentUsed);
+		const breakdown = [
+			{ key: "input", label: "Input", value: usage?.inputTokens },
+			{ key: "output", label: "Output", value: usage?.outputTokens },
+			{ key: "cache-read", label: "Cache read", value: usage?.cacheReadTokens },
+			{
+				key: "cache-create",
+				label: "Cache creation",
+				value: usage?.cacheCreationTokens,
+			},
+			{ key: "reasoning", label: "Reasoning", value: usage?.reasoningTokens },
+		].filter(
+			(entry): entry is { key: string; label: string; value: number } =>
+				hasFiniteTokenValue(entry.value),
+		);
+		const ariaLabel = `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`;
+
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span
+						tabIndex={0}
+						aria-label={ariaLabel}
+						className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+					>
+						<svg
+							className={`h-8 w-8 -rotate-90 ${toneClassName}`}
+							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+							aria-hidden
+						>
+							<circle
+								cx={RING_SIZE / 2}
+								cy={RING_SIZE / 2}
+								r={RING_RADIUS}
+								fill="none"
+								strokeWidth={RING_STROKE}
+								className="stroke-border-default/70"
+							/>
+							<circle
+								cx={RING_SIZE / 2}
+								cy={RING_SIZE / 2}
+								r={RING_RADIUS}
+								fill="none"
+								strokeWidth={RING_STROKE}
+								strokeLinecap="round"
+								className="stroke-current transition-all duration-300 ease-out"
+								style={{
+									strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
+									strokeDashoffset: dashOffset,
+								}}
+							/>
+						</svg>
+						<span className="pointer-events-none absolute text-[9px] font-medium tabular-nums text-content-secondary">
+							{indicatorLabel}
+						</span>
+					</span>
+				</TooltipTrigger>
+				<TooltipContent
+					side="top"
+					className="min-w-[14rem] max-w-[16rem] border-border-default/80 bg-surface-primary/95 px-2.5 py-2"
+				>
+					<div className="space-y-1">
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-xs font-medium text-content-primary">
+								Context usage
+							</span>
+							<span className="font-mono text-xs tabular-nums text-content-primary">
+								{percentLabel}
+							</span>
+						</div>
+						<div className="font-mono text-[11px] tabular-nums text-content-secondary">
+							{formatTokenCount(usedTokens)} / {formatTokenCount(contextLimitTokens)}{" "}
+							tokens
+						</div>
+						{breakdown.length > 0 && (
+							<div className="space-y-0.5 border-t border-border-default/60 pt-1">
+								{breakdown.map((entry) => (
+									<div
+										key={entry.key}
+										className="flex items-center justify-between gap-2 text-[11px]"
+									>
+										<span className="text-content-secondary">{entry.label}</span>
+										<span className="font-mono tabular-nums text-content-primary">
+											{formatTokenCount(entry.value)}
+										</span>
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+				</TooltipContent>
+			</Tooltip>
+		);
+	},
+);
+ContextUsageIndicator.displayName = "ContextUsageIndicator";
 
 export const AgentChatInput = memo<AgentChatInputProps>(
 	({
@@ -59,6 +225,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		onInterrupt,
 		isInterruptPending = false,
 		leftActions,
+		contextUsage,
 		sticky = false,
 	}) => {
 		const [input, setInput] = useState(initialValue);
@@ -134,6 +301,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									<Square className="h-4 w-4" />
 									<span className="sr-only">Interrupt</span>
 								</Button>
+							)}
+							{contextUsage !== undefined && (
+								<ContextUsageIndicator usage={contextUsage} />
 							)}
 							<Button
 								size="icon"

@@ -274,13 +274,18 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   },
   "messages": [
     {
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         0
       ],
+      "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "hidden": true,
       "id": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "parts": [
         {
           "args": [
@@ -319,9 +324,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
           "url": "string"
         }
       ],
+      "reasoning_tokens": 0,
       "role": "string",
       "thinking": "string",
-      "tool_call_id": "string"
+      "tool_call_id": "string",
+      "total_tokens": 0
     }
   ]
 }
@@ -549,13 +556,18 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 ```json
 [
   {
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       0
     ],
+    "context_limit": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "hidden": true,
     "id": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
     "parts": [
       {
         "args": [
@@ -594,9 +606,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "url": "string"
       }
     ],
+    "reasoning_tokens": 0,
     "role": "string",
     "thinking": "string",
-    "tool_call_id": "string"
+    "tool_call_id": "string",
+    "total_tokens": 0
   }
 ]
 ```
@@ -611,45 +625,52 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 Status Code **200**
 
-| Name                     | Type                                                                         | Required | Restrictions | Description |
-|--------------------------|------------------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`           | array                                                                        | false    |              |             |
-| `» chat_id`              | string(uuid)                                                                 | false    |              |             |
-| `» content`              | array                                                                        | false    |              |             |
-| `» created_at`           | string(date-time)                                                            | false    |              |             |
-| `» hidden`               | boolean                                                                      | false    |              |             |
-| `» id`                   | integer                                                                      | false    |              |             |
-| `» parts`                | array                                                                        | false    |              |             |
-| `»» args`                | array                                                                        | false    |              |             |
-| `»» args_delta`          | string                                                                       | false    |              |             |
-| `»» data`                | array                                                                        | false    |              |             |
-| `»» is_error`            | boolean                                                                      | false    |              |             |
-| `»» media_type`          | string                                                                       | false    |              |             |
-| `»» result`              | array                                                                        | false    |              |             |
-| `»» result_delta`        | string                                                                       | false    |              |             |
-| `»» result_meta`         | [codersdk.ChatToolResultMetadata](schemas.md#codersdkchattoolresultmetadata) | false    |              |             |
-| `»»» content`            | string                                                                       | false    |              |             |
-| `»»» created`            | boolean                                                                      | false    |              |             |
-| `»»» error`              | string                                                                       | false    |              |             |
-| `»»» exit_code`          | integer                                                                      | false    |              |             |
-| `»»» mime_type`          | string                                                                       | false    |              |             |
-| `»»» output`             | string                                                                       | false    |              |             |
-| `»»» reason`             | string                                                                       | false    |              |             |
-| `»»» workspace_agent_id` | string                                                                       | false    |              |             |
-| `»»» workspace_id`       | string                                                                       | false    |              |             |
-| `»»» workspace_name`     | string                                                                       | false    |              |             |
-| `»»» workspace_url`      | string                                                                       | false    |              |             |
-| `»» signature`           | string                                                                       | false    |              |             |
-| `»» source_id`           | string                                                                       | false    |              |             |
-| `»» text`                | string                                                                       | false    |              |             |
-| `»» title`               | string                                                                       | false    |              |             |
-| `»» tool_call_id`        | string                                                                       | false    |              |             |
-| `»» tool_name`           | string                                                                       | false    |              |             |
-| `»» type`                | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype)       | false    |              |             |
-| `»» url`                 | string                                                                       | false    |              |             |
-| `» role`                 | string                                                                       | false    |              |             |
-| `» thinking`             | string                                                                       | false    |              |             |
-| `» tool_call_id`         | string                                                                       | false    |              |             |
+| Name                      | Type                                                                         | Required | Restrictions | Description |
+|---------------------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`            | array                                                                        | false    |              |             |
+| `» cache_creation_tokens` | integer                                                                      | false    |              |             |
+| `» cache_read_tokens`     | integer                                                                      | false    |              |             |
+| `» chat_id`               | string(uuid)                                                                 | false    |              |             |
+| `» content`               | array                                                                        | false    |              |             |
+| `» context_limit`         | integer                                                                      | false    |              |             |
+| `» created_at`            | string(date-time)                                                            | false    |              |             |
+| `» hidden`                | boolean                                                                      | false    |              |             |
+| `» id`                    | integer                                                                      | false    |              |             |
+| `» input_tokens`          | integer                                                                      | false    |              |             |
+| `» output_tokens`         | integer                                                                      | false    |              |             |
+| `» parts`                 | array                                                                        | false    |              |             |
+| `»» args`                 | array                                                                        | false    |              |             |
+| `»» args_delta`           | string                                                                       | false    |              |             |
+| `»» data`                 | array                                                                        | false    |              |             |
+| `»» is_error`             | boolean                                                                      | false    |              |             |
+| `»» media_type`           | string                                                                       | false    |              |             |
+| `»» result`               | array                                                                        | false    |              |             |
+| `»» result_delta`         | string                                                                       | false    |              |             |
+| `»» result_meta`          | [codersdk.ChatToolResultMetadata](schemas.md#codersdkchattoolresultmetadata) | false    |              |             |
+| `»»» content`             | string                                                                       | false    |              |             |
+| `»»» created`             | boolean                                                                      | false    |              |             |
+| `»»» error`               | string                                                                       | false    |              |             |
+| `»»» exit_code`           | integer                                                                      | false    |              |             |
+| `»»» mime_type`           | string                                                                       | false    |              |             |
+| `»»» output`              | string                                                                       | false    |              |             |
+| `»»» reason`              | string                                                                       | false    |              |             |
+| `»»» workspace_agent_id`  | string                                                                       | false    |              |             |
+| `»»» workspace_id`        | string                                                                       | false    |              |             |
+| `»»» workspace_name`      | string                                                                       | false    |              |             |
+| `»»» workspace_url`       | string                                                                       | false    |              |             |
+| `»» signature`            | string                                                                       | false    |              |             |
+| `»» source_id`            | string                                                                       | false    |              |             |
+| `»» text`                 | string                                                                       | false    |              |             |
+| `»» title`                | string                                                                       | false    |              |             |
+| `»» tool_call_id`         | string                                                                       | false    |              |             |
+| `»» tool_name`            | string                                                                       | false    |              |             |
+| `»» type`                 | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype)       | false    |              |             |
+| `»» url`                  | string                                                                       | false    |              |             |
+| `» reasoning_tokens`      | integer                                                                      | false    |              |             |
+| `» role`                  | string                                                                       | false    |              |             |
+| `» thinking`              | string                                                                       | false    |              |             |
+| `» tool_call_id`          | string                                                                       | false    |              |             |
+| `» total_tokens`          | integer                                                                      | false    |              |             |
 
 #### Enumerated Values
 

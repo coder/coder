@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestProcessor_SubagentToolIncludesCreatedTitle(t *testing.T) {
@@ -359,6 +361,65 @@ func TestSubagentService_MarkSubagentReportedWakesParentToPending(t *testing.T) 
 			require.Equal(t, database.ChatStatusPending, updatedParent.Status)
 		})
 	}
+}
+
+func TestSubagentService_CreateChildSubagentChatPublishesPendingStatusToParentStream(t *testing.T) {
+	t.Parallel()
+
+	parentID := uuid.New()
+	parent := testSubagentChat(parentID, uuid.Nil)
+	parent.Title = "Parent"
+	parent.Status = database.ChatStatusWaiting
+
+	store := newSubagentServiceTestStore(parent)
+	streamManager := NewStreamManager(testutil.Logger(t))
+	service := newSubagentService(store, nil)
+	service.setStreamManager(streamManager)
+
+	_, events, cancel := streamManager.Subscribe(parentID)
+	defer cancel()
+
+	child, _, err := service.CreateChildSubagentChat(
+		context.Background(),
+		parent,
+		"do delegated work",
+		"Child",
+		true,
+	)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, child.Status)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			if event.Type != codersdk.ChatStreamEventTypeStatus || event.Status == nil {
+				return false
+			}
+			if event.ChatID != child.ID {
+				return false
+			}
+			return event.Status.Status == codersdk.ChatStatusPending
+		default:
+			return false
+		}
+	}, testutil.WaitShort, 10*time.Millisecond)
+}
+
+func TestSubagentService_PublishChildStatusSkipsMissingParent(t *testing.T) {
+	t.Parallel()
+
+	store := newSubagentServiceTestStore()
+	streamManager := NewStreamManager(testutil.Logger(t))
+	service := newSubagentService(store, nil)
+	service.setStreamManager(streamManager)
+
+	rootChat := testSubagentChat(uuid.New(), uuid.Nil)
+	require.NotPanics(t, func() {
+		service.publishChildStatus(rootChat, database.ChatStatusRunning)
+	})
 }
 
 func TestSubagentService_MarkSubagentReportedDoesNotWakeRunningParent(t *testing.T) {
