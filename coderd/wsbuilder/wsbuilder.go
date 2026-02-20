@@ -452,7 +452,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	// to read all provisioner daemons. We need to retrieve the eligible
 	// provisioner daemons for this job to show in the UI if there is no
 	// matching provisioner daemon.
-	provisionerDaemons, err := b.store.GetEligibleProvisionerDaemonsByProvisionerJobIDs(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), []uuid.UUID{provisionerJob.ID})
+	provisionerDaemons, err := b.store.GetEligibleProvisionerDaemonsByProvisionerJobIDs(dbauthz.AsWorkspaceBuilder(b.ctx), []uuid.UUID{provisionerJob.ID})
 	if err != nil {
 		// NOTE: we do **not** want to fail a workspace build if we fail to
 		// retrieve provisioner daemons. This is just to show in the UI if there
@@ -570,8 +570,9 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			}
 		}
 		if b.state.orphan && !hasActiveEligibleProvisioner {
-			// nolint: gocritic // At this moment, we are pretending to be provisionerd.
-			if err := store.UpdateProvisionerJobWithCompleteWithStartedAtByID(dbauthz.AsProvisionerd(b.ctx), database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
+			// nolint: gocritic // Workspace builder needs to mark orphan
+			// build provisioner jobs as complete.
+			if err := store.UpdateProvisionerJobWithCompleteWithStartedAtByID(dbauthz.AsWorkspaceBuilder(b.ctx), database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 				CompletedAt: sql.NullTime{Valid: true, Time: now},
 				Error:       sql.NullString{Valid: false},
 				ErrorCode:   sql.NullString{Valid: false},
@@ -819,8 +820,8 @@ func (b *Builder) getState() ([]byte, error) {
 	// on the template (since state can contain sensitive Terraform data).
 	// The wsbuilder runs in the user's context, but users creating normal
 	// builds don't have template update permissions. We elevate to
-	// AsProvisionerd since we're preparing state for the provisioner.
-	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsProvisionerd(b.ctx), bld.ID)
+	// AsWorkspaceBuilder since we're preparing state for the provisioner.
+	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsWorkspaceBuilder(b.ctx), bld.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace build provisioner state: %w", err)
 	}
