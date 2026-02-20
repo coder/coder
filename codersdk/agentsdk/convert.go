@@ -464,3 +464,16 @@ func ProtoFromDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) *proto.Worksp
 		SubagentId:      subagentID,
 	}
 }
+
+func ProtoFromPatchAppStatus(pas PatchAppStatus) (*proto.UpdateAppStatusRequest, error) {
+	state, ok := proto.UpdateAppStatusRequest_AppStatusState_value[strings.ToUpper(string(pas.State))]
+	if !ok {
+		return nil, xerrors.Errorf("Invalid state: %s", pas.State)
+	}
+	return &proto.UpdateAppStatusRequest{
+		Slug:    pas.AppSlug,
+		State:   proto.UpdateAppStatusRequest_AppStatusState(state),
+		Message: pas.Message,
+		Uri:     pas.URI,
+	}, nil
+}
