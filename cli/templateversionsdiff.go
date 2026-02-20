@@ -280,8 +280,8 @@ func generateDiff(fromName, toName string, fromFiles, toFiles map[string]string)
 		unified := gotextdiff.ToUnified(fromLabel, toLabel, fromContent, edits)
 
 		if len(unified.Hunks) > 0 {
-			result.WriteString(fmt.Sprint(unified))
-			result.WriteString("\n")
+			_, _ = result.WriteString(fmt.Sprint(unified))
+			_, _ = result.WriteString("\n")
 		}
 	}
 
@@ -296,17 +296,17 @@ func colorizeDiff(diff string) string {
 	for _, line := range lines {
 		switch {
 		case strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---"):
-			result.WriteString(pretty.Sprint(cliui.DefaultStyles.Code, line))
+			_, _ = result.WriteString(pretty.Sprint(cliui.DefaultStyles.Code, line))
 		case strings.HasPrefix(line, "+"):
-			result.WriteString(pretty.Sprint(cliui.DefaultStyles.Keyword, line))
+			_, _ = result.WriteString(pretty.Sprint(cliui.DefaultStyles.Keyword, line))
 		case strings.HasPrefix(line, "-"):
-			result.WriteString(pretty.Sprint(cliui.DefaultStyles.Error, line))
+			_, _ = result.WriteString(pretty.Sprint(cliui.DefaultStyles.Error, line))
 		case strings.HasPrefix(line, "@@"):
-			result.WriteString(pretty.Sprint(cliui.DefaultStyles.Placeholder, line))
+			_, _ = result.WriteString(pretty.Sprint(cliui.DefaultStyles.Placeholder, line))
 		default:
-			result.WriteString(line)
+			_, _ = result.WriteString(line)
 		}
-		result.WriteString("\n")
+		_, _ = result.WriteString("\n")
 	}
 
 	return strings.TrimSuffix(result.String(), "\n")

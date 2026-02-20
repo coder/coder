@@ -2117,6 +2117,11 @@
 							"path": "reference/cli/templates_versions_archive.md"
 						},
 						{
+							"title": "templates versions diff",
+							"description": "Compare two versions of a template",
+							"path": "reference/cli/templates_versions_diff.md"
+						},
+						{
 							"title": "templates versions list",
 							"description": "List all the versions of the specified template",
 							"path": "reference/cli/templates_versions_list.md"

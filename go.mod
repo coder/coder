@@ -482,6 +482,7 @@ require (
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.5
+	github.com/hexops/gotextdiff v1.0.3
 	github.com/icholy/replace v0.6.0
 	github.com/mark3labs/mcp-go v0.38.0
 	gonum.org/v1/gonum v0.17.0
@@ -536,7 +537,6 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/hashicorp/go-getter v1.7.9 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
-	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
