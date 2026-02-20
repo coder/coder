@@ -4728,7 +4728,7 @@ func TestWorkspaceAITask(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
-		}).ManagedAgentLimit(10, 20),
+		}).ManagedAgentLimit(10),
 	})
 
 	client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID,
