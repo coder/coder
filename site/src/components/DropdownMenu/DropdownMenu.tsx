@@ -10,7 +10,17 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check } from "lucide-react";
 import { cn } from "utils/cn";
 
-export const DropdownMenu = DropdownMenuPrimitive.Root;
+export const DropdownMenu = ({
+	children,
+	modal = false,
+	...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
+	return (
+		<DropdownMenuPrimitive.Root modal={modal} {...props}>
+			{children}
+		</DropdownMenuPrimitive.Root>
+	);
+};
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 

@@ -61,7 +61,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	const hasSomePermission = Object.values(permissions).some((p) => p);
 
 	return (
-		<DropdownMenu open={open} onOpenChange={setOpen}>
+		<DropdownMenu modal open={open} onOpenChange={setOpen}>
 			{open && (
 				<div className="fixed inset-0 top-[72px] z-10 bg-surface-primary" />
 			)}
