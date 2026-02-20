@@ -190,8 +190,8 @@ type sqlcQuerier interface {
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
-	// GetWorkspaceAgentAndLatestBuildByAuthToken returns a workspace agent and its
-	// associated build by the agent's auth token. During normal operation, this is
+	// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
+	// workspace agent and its associated build. During normal operation, this is
 	// the latest build. During shutdown, this may be the previous START build while
 	// the STOP build is executing, allowing shutdown scripts to authenticate (see
 	// issue #19467).
