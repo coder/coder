@@ -109,6 +109,10 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
+	if (agent.status !== "connected") {
+		canClick = false;
+	}
+
 	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
 		canClick = false;
 	}

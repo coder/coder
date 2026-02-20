@@ -68,6 +68,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const shouldDisplayAgentApps =
 		(agent.status === "connected" && hasAppsToDisplay) ||
 		(agent.status === "connecting" && !isExternalAgent);
+	const agentAppsDisabled = agent.status !== "connected";
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
@@ -239,6 +240,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 										agentName={agent.name}
 										folderPath={agent.expanded_directory}
 										displayApps={agent.display_apps}
+										disabled={agentAppsDisabled}
 									/>
 								)}
 								{appSections.map((section, i) => (
@@ -257,6 +259,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								workspaceName={workspace.name}
 								agentName={agent.name}
 								userName={workspace.owner_name}
+								disabled={agentAppsDisabled}
 							/>
 						)}
 					</section>
