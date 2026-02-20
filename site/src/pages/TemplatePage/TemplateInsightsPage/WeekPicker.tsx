@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -7,7 +8,6 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import dayjs from "dayjs";
-import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import type { DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";

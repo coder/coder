@@ -1,5 +1,6 @@
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Popover,
@@ -12,7 +13,7 @@ import {
 	SearchField,
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
