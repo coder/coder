@@ -1748,6 +1748,13 @@ const docTemplate = `{
                 "operationId": "get-insights-about-user-status-counts",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "IANA timezone name (e.g. America/St_Johns)",
+                        "name": "timezone",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
                         "type": "integer",
                         "description": "Time-zone offset (e.g. -2)",
                         "name": "tz_offset",

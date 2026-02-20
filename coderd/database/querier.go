@@ -447,16 +447,6 @@ type sqlcQuerier interface {
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
-	//
-	// Bucketing:
-	// Between the start_time and end_time, we include each timestamp where a user's status changed or they were deleted.
-	// We do not bucket these results by day or some other time unit. This is because such bucketing would hide potentially
-	// important patterns. If a user was active for 23 hours and 59 minutes, and then suspended, a daily bucket would hide this.
-	// A daily bucket would also have required us to carefully manage the timezone of the bucket based on the timezone of the user.
-	//
-	// Accumulation:
-	// We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
-	// the result shows the total number of users in each status on any particular day.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
 	GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error)
