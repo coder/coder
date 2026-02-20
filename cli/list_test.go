@@ -106,10 +106,7 @@ func TestList(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-				}),
-			})
+			client, db           = coderdtest.NewWithDatabase(t, nil)
 			orgOwner             = coderdtest.CreateFirstUser(t, client)
 			memberClient, member = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
 			sharedWorkspace      = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{

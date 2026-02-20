@@ -149,10 +149,10 @@ export const OrganizationSettingsPageView: FC<
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
 						title={
-							<span className="flex items-center gap-2">
+							<div className="flex items-center gap-2">
 								Workspace Sharing
 								<FeatureStageBadge contentType="beta" size="sm" />
-							</span>
+							</div>
 						}
 						description="Control whether workspace owners can share their workspaces."
 					>
