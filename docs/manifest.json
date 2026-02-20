@@ -325,7 +325,7 @@
 					"description": "Sharing workspaces",
 					"path": "./user-guides/shared-workspaces.md",
 					"icon_path": "./images/icons/generic.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				},
 				{
 					"title": "Workspace Scheduling",

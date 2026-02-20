@@ -15097,8 +15097,7 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "oauth2",
-                "mcp-server-http",
-                "workspace-sharing"
+                "mcp-server-http"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -15107,7 +15106,6 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
-                "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -15117,8 +15115,7 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
-                "Enables the MCP HTTP server functionality.",
-                "Enables updating workspace ACLs for sharing with users and groups."
+                "Enables the MCP HTTP server functionality."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -15127,8 +15124,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
-                "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing"
+                "ExperimentMCPServerHTTP"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

@@ -114,7 +114,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -240,7 +239,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	wss, err := convertWorkspaces(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspaces,
@@ -336,7 +334,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -868,7 +865,6 @@ func createWorkspace(
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		initiatorID,
 		workspace,
@@ -1514,7 +1510,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -2094,7 +2089,6 @@ func (api *API) watchWorkspace(
 		}
 		w, err := convertWorkspace(
 			ctx,
-			api.Experiments,
 			api.Logger,
 			apiKey.UserID,
 			workspace,
@@ -2236,8 +2230,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// the case here. This data goes directly to an unauthorized user. We are
 	// just straight up breaking security promises.
 	//
-	// Fine for now while behind the shared-workspaces experiment, but needs to
-	// be fixed before GA.
+	// TODO: This needs to be fixed before GA. Currently in beta.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2595,7 +2588,6 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 
 func convertWorkspaces(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspaces []database.Workspace,
@@ -2633,7 +2625,6 @@ func convertWorkspaces(
 
 		w, err := convertWorkspace(
 			ctx,
-			experiments,
 			logger,
 			requesterID,
 			workspace,
@@ -2653,7 +2644,6 @@ func convertWorkspaces(
 
 func convertWorkspace(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspace database.Workspace,
@@ -2752,20 +2742,15 @@ func convertWorkspace(
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
 		TaskID:           workspace.TaskID,
-		SharedWith:       sharedWorkspaceActors(ctx, experiments, logger, workspace),
+		SharedWith:       sharedWorkspaceActors(ctx, logger, workspace),
 	}, nil
 }
 
 func sharedWorkspaceActors(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	workspace database.Workspace,
 ) []codersdk.SharedWorkspaceActor {
-	if !experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
-		return nil
-	}
-
 	out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
 
 	// Users
