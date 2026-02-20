@@ -1,7 +1,7 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { type FC, type FormEvent, useId, useState } from "react";
-import { Stack } from "../../Stack/Stack";
+import { cn } from "utils/cn";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 interface DeleteDialogProps {
@@ -47,7 +47,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 
 	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
 	const displayErrorMessage = hasError && !isFocused;
-	const inputColor = hasError ? "error" : "primary";
+	const inputId = `${hookId}-confirm`;
 
 	return (
 		<ConfirmDialog
@@ -62,56 +62,56 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 			confirmText={confirmText}
 			description={
 				<>
-					<Stack spacing={1.5}>
+					<div className="flex flex-col gap-3">
 						<p>
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
 
-						{Boolean(info) && <div css={styles.callout}>{info}</div>}
+						{Boolean(info) && (
+							<div className="rounded-md border border-solid border-border-destructive bg-surface-destructive px-4 py-2 text-content-destructive">
+								{info}
+							</div>
+						)}
 
 						<p>
 							Type <strong>{name}</strong> below to confirm.
 						</p>
-					</Stack>
+					</div>
 
-					<form onSubmit={onSubmit}>
-						<TextField
-							fullWidth
-							autoFocus
-							css={{ marginTop: 24 }}
-							name="confirmation"
-							autoComplete="off"
-							id={`${hookId}-confirm`}
-							placeholder={name}
-							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
-							onFocus={() => setIsFocused(true)}
-							onBlur={() => setIsFocused(false)}
-							label={label ?? `Name of the ${entity} to delete`}
-							color={inputColor}
-							error={displayErrorMessage}
-							helperText={
-								displayErrorMessage &&
-								`${userConfirmationText} does not match the name of this ${entity}`
-							}
-							InputProps={{ color: inputColor }}
-							inputProps={{
-								"data-testid": "delete-dialog-name-confirmation",
-							}}
-						/>
+					<form onSubmit={onSubmit} className="mt-6">
+						<div className="flex flex-col gap-1">
+							<Label htmlFor={inputId}>
+								{label ?? `Name of the ${entity} to delete`}
+							</Label>
+							<Input
+								id={inputId}
+								name="confirmation"
+								autoFocus
+								autoComplete="off"
+								placeholder={name}
+								value={userConfirmationText}
+								onChange={(event) =>
+									setUserConfirmationText(event.target.value)
+								}
+								onFocus={() => setIsFocused(true)}
+								onBlur={() => setIsFocused(false)}
+								aria-invalid={displayErrorMessage}
+								className={cn(
+									displayErrorMessage &&
+										"border-border-destructive focus-visible:ring-border-destructive",
+								)}
+								data-testid="delete-dialog-name-confirmation"
+							/>
+							{displayErrorMessage && (
+								<p className="text-xs text-content-destructive mt-1">
+									{userConfirmationText} does not match the name of this{" "}
+									{entity}
+								</p>
+							)}
+						</div>
 					</form>
 				</>
 			}
 		/>
 	);
 };
-
-const styles = {
-	callout: (theme) => ({
-		backgroundColor: theme.roles.danger.background,
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: theme.shape.borderRadius,
-		color: theme.roles.danger.text,
-		padding: "8px 16px",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

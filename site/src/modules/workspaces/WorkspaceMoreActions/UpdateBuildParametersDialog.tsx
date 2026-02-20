@@ -1,16 +1,16 @@
-import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
 import type {
 	TemplateVersionParameter,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import type { DialogProps } from "components/Dialogs/Dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useFormik } from "formik";
@@ -22,7 +22,8 @@ import {
 } from "utils/richParameters";
 import * as Yup from "yup";
 
-type UpdateBuildParametersDialogProps = DialogProps & {
+type UpdateBuildParametersDialogProps = {
+	open: boolean;
 	onClose: () => void;
 	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 	missedParameters: TemplateVersionParameter[];
@@ -30,7 +31,7 @@ type UpdateBuildParametersDialogProps = DialogProps & {
 
 export const UpdateBuildParametersDialog: FC<
 	UpdateBuildParametersDialogProps
-> = ({ missedParameters, onUpdate, ...dialogProps }) => {
+> = ({ missedParameters, onUpdate, open, onClose }) => {
 	const form = useFormik({
 		initialValues: {
 			rich_parameter_values: getInitialRichParameterValues(missedParameters),
@@ -48,28 +49,21 @@ export const UpdateBuildParametersDialog: FC<
 
 	return (
 		<Dialog
-			{...dialogProps}
-			scroll="body"
-			aria-labelledby="update-build-parameters-title"
-			maxWidth="xs"
-			data-testid="dialog"
+			open={open}
+			onOpenChange={(isOpen) => {
+				if (!isOpen) onClose();
+			}}
 		>
-			<DialogTitle
-				id="update-build-parameters-title"
-				classes={{ root: classNames.root }}
-			>
-				Workspace parameters
-			</DialogTitle>
-			<DialogContent css={styles.content}>
-				<DialogContentText css={{ margin: 0 }}>
-					This template has new parameters that must be configured to complete
-					the update
-				</DialogContentText>
-				<VerticalForm
-					css={styles.form}
-					onSubmit={form.handleSubmit}
-					id="updateParameters"
-				>
+			<DialogContent className="max-w-sm" data-testid="dialog">
+				<DialogHeader>
+					<DialogTitle>Workspace parameters</DialogTitle>
+					<DialogDescription>
+						This template has new parameters that must be configured to complete
+						the update
+					</DialogDescription>
+				</DialogHeader>
+
+				<VerticalForm onSubmit={form.handleSubmit} id="updateParameters">
 					{missedParameters && (
 						<FormFields>
 							{missedParameters.map((parameter, index) => {
@@ -95,47 +89,21 @@ export const UpdateBuildParametersDialog: FC<
 						</FormFields>
 					)}
 				</VerticalForm>
+
+				<DialogFooter className="flex-col gap-2">
+					<Button
+						variant="outline"
+						className="w-full"
+						type="button"
+						onClick={onClose}
+					>
+						Cancel
+					</Button>
+					<Button className="w-full" type="submit" form="updateParameters">
+						Update parameters
+					</Button>
+				</DialogFooter>
 			</DialogContent>
-			<DialogActions disableSpacing css={styles.dialogActions}>
-				<Button
-					variant="outline"
-					className="w-full"
-					type="button"
-					onClick={dialogProps.onClose}
-				>
-					Cancel
-				</Button>
-				<Button className="w-full" type="submit" form="updateParameters">
-					Update parameters
-				</Button>
-			</DialogActions>
 		</Dialog>
 	);
 };
-
-const classNames = {
-	root: css`
-    padding: 24px 40px;
-
-    & h2 {
-      font-size: 20px;
-      font-weight: 400;
-    }
-  `,
-};
-
-const styles = {
-	content: {
-		padding: "0 40px",
-	},
-
-	form: {
-		paddingTop: 32,
-	},
-
-	dialogActions: {
-		padding: 40,
-		flexDirection: "column",
-		gap: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

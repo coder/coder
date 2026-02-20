@@ -1,25 +1,28 @@
-import { css } from "@emotion/css";
-import Autocomplete from "@mui/material/Autocomplete";
-import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
 import { templateVersions } from "api/queries/templates";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
-import { Alert, AlertTitle } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
+import {
+	Combobox,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "components/Dialogs/Dialog";
-import { FormFields } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
-import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
-import { InfoIcon } from "lucide-react";
+import { ChevronDownIcon, InfoIcon, UserIcon } from "lucide-react";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { createDayString } from "utils/createDayString";
 
-type ChangeWorkspaceVersionDialogProps = DialogProps & {
+type ChangeWorkspaceVersionDialogProps = {
+	open: boolean;
 	workspace: Workspace;
 	onClose: () => void;
 	onConfirm: (version: TemplateVersion) => void;
@@ -27,22 +30,22 @@ type ChangeWorkspaceVersionDialogProps = DialogProps & {
 
 export const ChangeWorkspaceVersionDialog: FC<
 	ChangeWorkspaceVersionDialogProps
-> = ({ workspace, onClose, onConfirm, ...dialogProps }) => {
+> = ({ workspace, onClose, onConfirm, open }) => {
 	const { data: versions } = useQuery({
 		...templateVersions(workspace.template_id),
 		select: (data) => [...data].reverse(),
 	});
-	const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
 	const currentVersion = versions?.find(
 		(v) => workspace.latest_build.template_version_id === v.id,
 	);
 	const [newVersion, setNewVersion] = useState<TemplateVersion>();
 	const validVersions = versions?.filter((v) => v.job.status === "succeeded");
 	const selectedVersion = newVersion || currentVersion;
+	const popoverContainerRef = useRef<HTMLDivElement>(null);
 
 	return (
 		<ConfirmDialog
-			{...dialogProps}
+			open={open}
 			onClose={onClose}
 			onConfirm={() => {
 				if (newVersion) {
@@ -55,88 +58,105 @@ export const ChangeWorkspaceVersionDialog: FC<
 			confirmText="Change"
 			title="Change version"
 			description={
-				<Stack>
+				<div className="flex flex-col gap-4">
 					<p>You are about to change the version of this workspace.</p>
 					{validVersions ? (
 						<>
-							<FormFields>
-								<Autocomplete
-									disableClearable
-									options={validVersions}
-									defaultValue={selectedVersion}
-									id="template-version-autocomplete"
-									open={isAutocompleteOpen}
-									onChange={(_, newTemplateVersion) => {
-										setNewVersion(newTemplateVersion);
+							<div ref={popoverContainerRef}>
+								<Combobox
+									value={selectedVersion?.id}
+									onValueChange={(id) => {
+										const version = validVersions.find((v) => v.id === id);
+										if (version) {
+											setNewVersion(version);
+										}
 									}}
-									onOpen={() => {
-										setIsAutocompleteOpen(true);
-									}}
-									onClose={() => {
-										setIsAutocompleteOpen(false);
-									}}
-									isOptionEqualToValue={(
-										option: TemplateVersion,
-										value: TemplateVersion,
-									) => option.id === value.id}
-									getOptionLabel={(option) => option.name}
-									renderOption={(props, option: TemplateVersion) => (
-										<li {...props}>
-											<AvatarData
-												avatar={
-													<Avatar
-														src={option.created_by.avatar_url}
-														fallback={option.name}
+								>
+									<ComboboxTrigger asChild>
+										<Button
+											variant="outline"
+											className="h-16 w-full justify-between"
+										>
+											{selectedVersion ? (
+												<div className="text-left justify-between flex-1">
+													<AvatarData
+														avatar={
+															<Avatar
+																src={selectedVersion.created_by.avatar_url}
+																fallback={selectedVersion.name}
+															/>
+														}
+														title={
+															<div className="flex flex-row justify-between w-full gap-2">
+																<div className="flex flex-row items-center gap-2">
+																	{selectedVersion.name}
+																	{selectedVersion.message && (
+																		<InfoIcon
+																			aria-hidden="true"
+																			className="size-icon-xs"
+																		/>
+																	)}
+																</div>
+																{workspace.template_active_version_id ===
+																	selectedVersion.id && (
+																	<Badge variant="green">Active</Badge>
+																)}
+															</div>
+														}
+														subtitle={createDayString(
+															selectedVersion.created_at,
+														)}
 													/>
-												}
-												title={
-													<Stack
-														direction="row"
-														justifyContent="space-between"
-														style={{ width: "100%" }}
-													>
-														<Stack
-															direction="row"
-															alignItems="center"
-															spacing={1}
-														>
-															{option.name}
-															{option.message && (
-																<InfoIcon
-																	aria-hidden="true"
-																	className="size-icon-xs"
-																/>
-															)}
-														</Stack>
-														{workspace.template_active_version_id ===
-															option.id && <Pill type="success">Active</Pill>}
-													</Stack>
-												}
-												subtitle={createDayString(option.created_at)}
-											/>
-										</li>
-									)}
-									renderInput={(params) => (
-										<>
-											<TextField
-												{...params}
-												fullWidth
-												placeholder="Template version name"
-												InputProps={{
-													...params.InputProps,
-													endAdornment: (
-														<>
-															{!versions && <CircularProgress size={16} />}
-															{params.InputProps.endAdornment}
-														</>
-													),
-													classes: { root: classNames.root },
-												}}
-											/>
-										</>
-									)}
-								/>
-							</FormFields>
+												</div>
+											) : null}
+											<ChevronDownIcon />
+										</Button>
+									</ComboboxTrigger>
+									<ComboboxContent
+										className="w-[var(--radix-popper-anchor-width)]"
+										container={popoverContainerRef.current}
+									>
+										<ComboboxInput placeholder="Search versions..." />
+										<ComboboxList>
+											{validVersions.map((version) => (
+												<ComboboxItem
+													key={version.id}
+													value={version.id}
+													keywords={[version.name]}
+												>
+													<AvatarData
+														avatar={
+															<Avatar
+																src={version.created_by.avatar_url}
+																fallback={version.name}
+															/>
+														}
+														title={
+															<div className="flex flex-row justify-between w-full gap-2">
+																<div className="flex flex-row items-center gap-2">
+																	{version.name}
+																	{version.message && (
+																		<InfoIcon
+																			aria-hidden="true"
+																			className="size-icon-xs"
+																		/>
+																	)}
+																</div>
+																{workspace.template_active_version_id ===
+																	version.id && (
+																	<Badge variant="green">Active</Badge>
+																)}
+															</div>
+														}
+														subtitle={createDayString(version.created_at)}
+													/>
+												</ComboboxItem>
+											))}
+										</ComboboxList>
+										<ComboboxEmpty>No versions found</ComboboxEmpty>
+									</ComboboxContent>
+								</Combobox>
+							</div>
 							{selectedVersion && (
 								<>
 									{selectedVersion.message && (
@@ -144,26 +164,20 @@ export const ChangeWorkspaceVersionDialog: FC<
 											{selectedVersion.message}
 										</TemplateUpdateMessage>
 									)}
-									<Alert severity="info">
-										<AlertTitle>
+									<div className="flex items-center gap-1 font-normal text-sm">
+										<UserIcon className="size-icon-sm" />
+										<span>
 											Published by {selectedVersion.created_by.username}
-										</AlertTitle>
-									</Alert>
+										</span>
+									</div>
 								</>
 							)}
 						</>
 					) : (
 						<Loader />
 					)}
-				</Stack>
+				</div>
 			}
 		/>
 	);
-};
-
-const classNames = {
-	// Same `padding-left` as input
-	root: css`
-    padding-left: 14px !important;
-  `,
 };

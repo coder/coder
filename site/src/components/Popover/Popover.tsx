@@ -14,10 +14,12 @@ export const Popover = PopoverPrimitive.Root;
 export const PopoverTrigger = PopoverPrimitive.Trigger;
 
 export const PopoverContent: React.FC<
-	React.ComponentPropsWithRef<typeof PopoverPrimitive.Content>
-> = ({ className, align = "center", sideOffset = 4, ...props }) => {
+	React.ComponentPropsWithRef<typeof PopoverPrimitive.Content> & {
+		container?: HTMLElement | null;
+	}
+> = ({ className, align = "center", sideOffset = 4, container, ...props }) => {
 	return (
-		<PopoverPrimitive.Portal>
+		<PopoverPrimitive.Portal container={container ?? undefined}>
 			<PopoverPrimitive.Content
 				align={align}
 				sideOffset={sideOffset}
