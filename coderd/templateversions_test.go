@@ -700,6 +700,39 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						}
 					`,
 				},
+				expectError: "", // Presets are not validated unless they are for a prebuild
+			},
+			{
+				name: "invalid prebuild",
+				files: map[string]string{
+					`main.tf`: `
+						terraform {
+							required_providers {
+								coder = {
+									source = "coder/coder"
+									version = "2.8.0"
+								}
+							}
+						}
+						data "coder_parameter" "valid_parameter" {
+							name = "valid_parameter_name"
+							default = "valid_option_value"
+							option {
+								name = "valid_option_name"
+								value = "valid_option_value"
+							}
+						}
+						data "coder_workspace_preset" "invalid_parameter_name" {
+							name = "invalid_parameter_name"
+							parameters = {
+								"invalid_parameter_name" = "irrelevant_value"
+							}
+							prebuilds {
+								instances = 2
+							}
+						}
+					`,
+				},
 				expectError: "Undefined Parameter",
 			},
 		} {
