@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"charm.land/fantasy"
 	"context"
 	"database/sql"
@@ -39,8 +40,13 @@ const (
 	chatDiffBackgroundRefreshTimeout = 20 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
 
-	chatWorkspaceRequestMetadataRole = "__chat_workspace_request_metadata"
-	chatWorkspaceModeModelConfigKey  = "workspace_mode"
+	chatWorkspaceRequestMetadataRole              = "__chat_workspace_request_metadata"
+	chatWorkspaceModeModelConfigKey               = "workspace_mode"
+	chatContextLimitModelConfigKey                = "context_limit"
+	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
+	defaultChatContextCompressionThreshold        = int32(70)
+	minChatContextCompressionThreshold            = int32(0)
+	maxChatContextCompressionThreshold            = int32(100)
 )
 
 // chatDiffRefreshBackoffSchedule defines the delays between successive
@@ -399,6 +405,18 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	modelConfig, modelConfigErr = api.applyChatModelCompressionConfig(
+		ctx,
+		modelConfig,
+		req.ContextCompressionThreshold,
+	)
+	if modelConfigErr != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model configuration.",
+			Detail:  modelConfigErr.Error(),
+		})
+		return
+	}
 
 	chat, err := api.Database.InsertChat(ctx, database.InsertChatParams{
 		OwnerID: apiKey.UserID,
@@ -672,6 +690,39 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if req.Role == "user" && req.ContextCompressionThreshold != nil {
+		updatedModelConfig, modelConfigErr := api.applyChatModelCompressionConfig(
+			ctx,
+			chat.ModelConfig,
+			req.ContextCompressionThreshold,
+		)
+		if modelConfigErr != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model configuration.",
+				Detail:  modelConfigErr.Error(),
+			})
+			return
+		}
+
+		if !bytes.Equal(chat.ModelConfig, updatedModelConfig) {
+			updatedChat, updateErr := api.Database.UpdateChatModelConfigByChatID(
+				ctx,
+				database.UpdateChatModelConfigByChatIDParams{
+					ID:          chat.ID,
+					ModelConfig: updatedModelConfig,
+				},
+			)
+			if updateErr != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to update chat model configuration.",
+					Detail:  updateErr.Error(),
+				})
+				return
+			}
+			chat = updatedChat
+		}
 	}
 
 	// Insert the message.
@@ -2262,6 +2313,159 @@ func createChatModelConfig(
 	return encoded, nil
 }
 
+func normalizeChatCompressionThreshold(
+	requested *int32,
+	fallback int32,
+) (int32, error) {
+	threshold := fallback
+	if requested != nil {
+		threshold = *requested
+	}
+
+	if threshold < minChatContextCompressionThreshold ||
+		threshold > maxChatContextCompressionThreshold {
+		return 0, xerrors.Errorf(
+			"context_compression_threshold must be between %d and %d",
+			minChatContextCompressionThreshold,
+			maxChatContextCompressionThreshold,
+		)
+	}
+
+	return threshold, nil
+}
+
+func chatCompressionThresholdFromModelConfig(config map[string]any) (int32, bool) {
+	raw, ok := config[chatContextCompressionThresholdModelConfigKey]
+	if !ok {
+		return 0, false
+	}
+
+	switch typed := raw.(type) {
+	case float64:
+		return int32(typed), true
+	case float32:
+		return int32(typed), true
+	case int:
+		return int32(typed), true
+	case int64:
+		return int32(typed), true
+	case int32:
+		return typed, true
+	case int16:
+		return int32(typed), true
+	case int8:
+		return int32(typed), true
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int32(parsed), true
+	default:
+		return 0, false
+	}
+}
+
+func chatModelConfigReference(config map[string]any) (string, string, bool) {
+	model, _ := config["model"].(string)
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return "", "", false
+	}
+
+	if provider, modelID, ok := parseCanonicalChatModelRef(model); ok {
+		return provider, modelID, true
+	}
+
+	providerHint, _ := config["provider"].(string)
+	providerHint = normalizeChatProvider(providerHint)
+	if providerHint == "" {
+		return "", "", false
+	}
+
+	return providerHint, model, true
+}
+
+func parseCanonicalChatModelRef(modelRef string) (string, string, bool) {
+	modelRef = strings.TrimSpace(modelRef)
+	if modelRef == "" {
+		return "", "", false
+	}
+
+	for _, separator := range []string{":", "/"} {
+		parts := strings.SplitN(modelRef, separator, 2)
+		if len(parts) != 2 {
+			continue
+		}
+		provider := normalizeChatProvider(parts[0])
+		model := strings.TrimSpace(parts[1])
+		if provider == "" || model == "" {
+			continue
+		}
+		return provider, model, true
+	}
+
+	return "", "", false
+}
+
+func (api *API) applyChatModelCompressionConfig(
+	ctx context.Context,
+	modelConfigRaw json.RawMessage,
+	requestedThreshold *int32,
+) (json.RawMessage, error) {
+	config := map[string]any{}
+	if len(modelConfigRaw) > 0 {
+		if err := json.Unmarshal(modelConfigRaw, &config); err != nil {
+			if requestedThreshold == nil {
+				return modelConfigRaw, nil
+			}
+			return nil, xerrors.Errorf("parse model config: %w", err)
+		}
+	}
+	if config == nil {
+		config = map[string]any{}
+	}
+
+	if provider, model, ok := chatModelConfigReference(config); ok {
+		modelConfig, err := api.Database.GetChatModelConfigByProviderAndModel(
+			dbauthz.AsSystemRestricted(ctx),
+			database.GetChatModelConfigByProviderAndModelParams{
+				Provider: provider,
+				Model:    model,
+			},
+		)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("load model compression config: %w", err)
+		}
+		if err == nil {
+			config[chatContextLimitModelConfigKey] = modelConfig.ContextLimit
+			if _, ok := chatCompressionThresholdFromModelConfig(config); !ok {
+				config[chatContextCompressionThresholdModelConfigKey] = modelConfig.CompressionThreshold
+			}
+		}
+	}
+
+	thresholdFallback := defaultChatContextCompressionThreshold
+	if existingThreshold, ok := chatCompressionThresholdFromModelConfig(config); ok {
+		thresholdFallback = existingThreshold
+	}
+
+	threshold, err := normalizeChatCompressionThreshold(
+		requestedThreshold,
+		thresholdFallback,
+	)
+	if err != nil {
+		return nil, err
+	}
+	config[chatContextCompressionThresholdModelConfigKey] = threshold
+
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return nil, xerrors.Errorf("encode model config: %w", err)
+	}
+	return encoded, nil
+}
+
 func defaultChatSystemPrompt(api *API) string {
 	if api == nil || api.DeploymentValues == nil {
 		return ""
@@ -2780,11 +2984,34 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		enabled = *req.Enabled
 	}
 
+	if req.ContextLimit == nil || *req.ContextLimit <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Context limit is required.",
+			Detail:  "context_limit must be greater than zero.",
+		})
+		return
+	}
+	contextLimit := *req.ContextLimit
+
+	compressionThreshold, thresholdErr := normalizeChatCompressionThreshold(
+		req.CompressionThreshold,
+		defaultChatContextCompressionThreshold,
+	)
+	if thresholdErr != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid compression threshold.",
+			Detail:  thresholdErr.Error(),
+		})
+		return
+	}
+
 	inserted, err := api.Database.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:    provider,
-		Model:       model,
-		DisplayName: strings.TrimSpace(req.DisplayName),
-		Enabled:     enabled,
+		Provider:             provider,
+		Model:                model,
+		DisplayName:          strings.TrimSpace(req.DisplayName),
+		Enabled:              enabled,
+		ContextLimit:         contextLimit,
+		CompressionThreshold: compressionThreshold,
 	})
 	if err != nil {
 		switch {
@@ -2869,12 +3096,37 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		enabled = *req.Enabled
 	}
 
+	contextLimit := existing.ContextLimit
+	if req.ContextLimit != nil {
+		if *req.ContextLimit <= 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Context limit must be greater than zero.",
+			})
+			return
+		}
+		contextLimit = *req.ContextLimit
+	}
+
+	compressionThreshold, thresholdErr := normalizeChatCompressionThreshold(
+		req.CompressionThreshold,
+		existing.CompressionThreshold,
+	)
+	if thresholdErr != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid compression threshold.",
+			Detail:  thresholdErr.Error(),
+		})
+		return
+	}
+
 	updated, err := api.Database.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
-		Provider:    provider,
-		Model:       model,
-		DisplayName: displayName,
-		Enabled:     enabled,
-		ID:          existing.ID,
+		Provider:             provider,
+		Model:                model,
+		DisplayName:          displayName,
+		Enabled:              enabled,
+		ContextLimit:         contextLimit,
+		CompressionThreshold: compressionThreshold,
+		ID:                   existing.ID,
 	})
 	if err != nil {
 		switch {
@@ -3017,13 +3269,15 @@ func convertChatProviderConfig(
 
 func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
 	return codersdk.ChatModelConfig{
-		ID:          config.ID,
-		Provider:    config.Provider,
-		Model:       config.Model,
-		DisplayName: config.DisplayName,
-		Enabled:     config.Enabled,
-		CreatedAt:   config.CreatedAt,
-		UpdatedAt:   config.UpdatedAt,
+		ID:                   config.ID,
+		Provider:             config.Provider,
+		Model:                config.Model,
+		DisplayName:          config.DisplayName,
+		Enabled:              config.Enabled,
+		ContextLimit:         config.ContextLimit,
+		CompressionThreshold: config.CompressionThreshold,
+		CreatedAt:            config.CreatedAt,
+		UpdatedAt:            config.UpdatedAt,
 	}
 }
 

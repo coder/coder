@@ -170,6 +170,8 @@ const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 			return <FilePenIcon className={base} />;
 		case "create_workspace":
 			return <PlusCircleIcon className={base} />;
+		case "chat_summarized":
+			return <BotIcon className={base} />;
 		default:
 			return <WrenchIcon className={base} />;
 	}
@@ -324,6 +326,12 @@ const ToolLabel: React.FC<{ name: string; args: unknown; result: unknown }> = ({
 			return (
 				<span className="truncate text-sm text-content-secondary">
 					Reporting to parent
+				</span>
+			);
+		case "chat_summarized":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Chat summarized
 				</span>
 			);
 		default:
@@ -1550,6 +1558,23 @@ export const Tool = memo(forwardRef<HTMLDivElement, ToolProps>(
 					<AgentReportTool
 						title={title}
 						report={report}
+						toolStatus={status}
+						isError={isError}
+					/>
+				</div>
+			);
+		}
+
+		if (name === "chat_summarized") {
+			const rec = asRecord(result);
+			const summary =
+				(rec ? asString(rec.summary) : "") ||
+				(typeof result === "string" ? result : "");
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<AgentReportTool
+						title="Chat summarized"
+						report={summary}
 						toolStatus={status}
 						isError={isError}
 					/>

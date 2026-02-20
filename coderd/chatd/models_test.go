@@ -2286,7 +2286,7 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
 			return model, nil
 		}),
-		chatd.WithPollInterval(750*time.Millisecond),
+		chatd.WithPollInterval(50*time.Millisecond),
 	)
 	defer processor.Close()
 

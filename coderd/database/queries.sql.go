@@ -2097,7 +2097,7 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, provider, model, display_name, enabled, created_at, updated_at
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
 FROM
     chat_model_configs
 WHERE
@@ -2115,13 +2115,47 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+	)
+	return i, err
+}
+
+const getChatModelConfigByProviderAndModel = `-- name: GetChatModelConfigByProviderAndModel :one
+SELECT
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
+FROM
+    chat_model_configs
+WHERE
+    provider = $1::text
+    AND model = $2::text
+`
+
+type GetChatModelConfigByProviderAndModelParams struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) GetChatModelConfigByProviderAndModel(ctx context.Context, arg GetChatModelConfigByProviderAndModelParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigByProviderAndModel, arg.Provider, arg.Model)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, enabled, created_at, updated_at
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
 FROM
     chat_model_configs
 ORDER BY
@@ -2146,6 +2180,8 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
 		); err != nil {
 			return nil, err
 		}
@@ -2162,7 +2198,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.enabled, cmc.created_at, cmc.updated_at
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.enabled, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold
 FROM
     chat_model_configs cmc
 JOIN
@@ -2192,6 +2228,8 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
 		); err != nil {
 			return nil, err
 		}
@@ -2211,22 +2249,28 @@ INSERT INTO chat_model_configs (
     provider,
     model,
     display_name,
-    enabled
+    enabled,
+    context_limit,
+    compression_threshold
 ) VALUES (
     $1::text,
     $2::text,
     $3::text,
-    $4::boolean
+    $4::boolean,
+    $5::bigint,
+    $6::integer
 )
 RETURNING
-    id, provider, model, display_name, enabled, created_at, updated_at
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
 `
 
 type InsertChatModelConfigParams struct {
-	Provider    string `db:"provider" json:"provider"`
-	Model       string `db:"model" json:"model"`
-	DisplayName string `db:"display_name" json:"display_name"`
-	Enabled     bool   `db:"enabled" json:"enabled"`
+	Provider             string `db:"provider" json:"provider"`
+	Model                string `db:"model" json:"model"`
+	DisplayName          string `db:"display_name" json:"display_name"`
+	Enabled              bool   `db:"enabled" json:"enabled"`
+	ContextLimit         int64  `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32  `db:"compression_threshold" json:"compression_threshold"`
 }
 
 func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
@@ -2235,6 +2279,8 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		arg.Model,
 		arg.DisplayName,
 		arg.Enabled,
+		arg.ContextLimit,
+		arg.CompressionThreshold,
 	)
 	var i ChatModelConfig
 	err := row.Scan(
@@ -2245,6 +2291,8 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
 	)
 	return i, err
 }
@@ -2257,19 +2305,23 @@ SET
     model = $2::text,
     display_name = $3::text,
     enabled = $4::boolean,
+    context_limit = $5::bigint,
+    compression_threshold = $6::integer,
     updated_at = NOW()
 WHERE
-    id = $5::uuid
+    id = $7::uuid
 RETURNING
-    id, provider, model, display_name, enabled, created_at, updated_at
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
 `
 
 type UpdateChatModelConfigParams struct {
-	Provider    string    `db:"provider" json:"provider"`
-	Model       string    `db:"model" json:"model"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Enabled     bool      `db:"enabled" json:"enabled"`
-	ID          uuid.UUID `db:"id" json:"id"`
+	Provider             string    `db:"provider" json:"provider"`
+	Model                string    `db:"model" json:"model"`
+	DisplayName          string    `db:"display_name" json:"display_name"`
+	Enabled              bool      `db:"enabled" json:"enabled"`
+	ContextLimit         int64     `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32     `db:"compression_threshold" json:"compression_threshold"`
+	ID                   uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error) {
@@ -2278,6 +2330,8 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		arg.Model,
 		arg.DisplayName,
 		arg.Enabled,
+		arg.ContextLimit,
+		arg.CompressionThreshold,
 		arg.ID,
 	)
 	var i ChatModelConfig
@@ -2289,6 +2343,8 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
 	)
 	return i, err
 }
@@ -2719,7 +2775,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 FROM
     chat_messages
 WHERE
@@ -2747,13 +2803,14 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.CacheCreationTokens,
 		&i.CacheReadTokens,
 		&i.ContextLimit,
+		&i.Compressed,
 	)
 	return i, err
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 FROM
     chat_messages
 WHERE
@@ -2789,6 +2846,107 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UU
 			&i.CacheCreationTokens,
 			&i.CacheReadTokens,
 			&i.ContextLimit,
+			&i.Compressed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatMessagesForPromptByChatID = `-- name: GetChatMessagesForPromptByChatID :many
+WITH latest_compressed_summary AS (
+    SELECT
+        id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = $1::uuid
+        AND role = 'system'
+        AND hidden = TRUE
+        AND compressed = TRUE
+    ORDER BY
+        created_at DESC,
+        id DESC
+    LIMIT
+        1
+)
+SELECT
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND (
+        (
+            role = 'system'
+            AND hidden = TRUE
+            AND compressed = FALSE
+        )
+        OR (
+            compressed = FALSE
+            AND (
+                NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        latest_compressed_summary
+                )
+                OR id > (
+                    SELECT
+                        id
+                    FROM
+                        latest_compressed_summary
+                )
+            )
+        )
+        OR id = (
+            SELECT
+                id
+            FROM
+                latest_compressed_summary
+        )
+    )
+ORDER BY
+    created_at ASC,
+    id ASC
+`
+
+func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.ToolCallID,
+			&i.Thinking,
+			&i.Hidden,
+			&i.SubagentRequestID,
+			&i.SubagentEvent,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
 		); err != nil {
 			return nil, err
 		}
@@ -2990,7 +3148,7 @@ func (q *sqlQuerier) GetSubagentRequestDurationByChatIDAndRequestID(ctx context.
 
 const getSubagentResponseMessageByChatIDAndRequestID = `-- name: GetSubagentResponseMessageByChatIDAndRequestID :one
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 FROM
     chat_messages
 WHERE
@@ -3029,6 +3187,7 @@ func (q *sqlQuerier) GetSubagentResponseMessageByChatIDAndRequestID(ctx context.
 		&i.CacheCreationTokens,
 		&i.CacheReadTokens,
 		&i.ContextLimit,
+		&i.Compressed,
 	)
 	return i, err
 }
@@ -3110,7 +3269,8 @@ INSERT INTO chat_messages (
     reasoning_tokens,
     cache_creation_tokens,
     cache_read_tokens,
-    context_limit
+    context_limit,
+    compressed
 ) VALUES (
     $1::uuid,
     $2::text,
@@ -3126,10 +3286,11 @@ INSERT INTO chat_messages (
     $12::bigint,
     $13::bigint,
     $14::bigint,
-    $15::bigint
+    $15::bigint,
+    COALESCE($16::boolean, FALSE)
 )
 RETURNING
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 `
 
 type InsertChatMessageParams struct {
@@ -3148,6 +3309,7 @@ type InsertChatMessageParams struct {
 	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
+	Compressed          sql.NullBool          `db:"compressed" json:"compressed"`
 }
 
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {
@@ -3167,6 +3329,7 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		arg.CacheCreationTokens,
 		arg.CacheReadTokens,
 		arg.ContextLimit,
+		arg.Compressed,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -3187,6 +3350,7 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		&i.CacheCreationTokens,
 		&i.CacheReadTokens,
 		&i.ContextLimit,
+		&i.Compressed,
 	)
 	return i, err
 }
@@ -3306,6 +3470,44 @@ type UpdateChatByIDParams struct {
 
 func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatByID, arg.Title, arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.WorkspaceAgentID,
+		&i.Title,
+		&i.Status,
+		&i.ModelConfig,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+	)
+	return i, err
+}
+
+const updateChatModelConfigByChatID = `-- name: UpdateChatModelConfigByChatID :one
+UPDATE
+    chats
+SET
+    model_config = $1::jsonb,
+    updated_at = NOW()
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, workspace_agent_id, title, status, model_config, worker_id, started_at, created_at, updated_at, parent_chat_id, root_chat_id
+`
+
+type UpdateChatModelConfigByChatIDParams struct {
+	ModelConfig json.RawMessage `db:"model_config" json:"model_config"`
+	ID          uuid.UUID       `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatModelConfigByChatID(ctx context.Context, arg UpdateChatModelConfigByChatIDParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatModelConfigByChatID, arg.ModelConfig, arg.ID)
 	var i Chat
 	err := row.Scan(
 		&i.ID,

@@ -3852,16 +3852,19 @@ type ChatMessage struct {
 	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
+	Compressed          bool                  `db:"compressed" json:"compressed"`
 }
 
 type ChatModelConfig struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Provider    string    `db:"provider" json:"provider"`
-	Model       string    `db:"model" json:"model"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Enabled     bool      `db:"enabled" json:"enabled"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID                   uuid.UUID `db:"id" json:"id"`
+	Provider             string    `db:"provider" json:"provider"`
+	Model                string    `db:"model" json:"model"`
+	DisplayName          string    `db:"display_name" json:"display_name"`
+	Enabled              bool      `db:"enabled" json:"enabled"`
+	CreatedAt            time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time `db:"updated_at" json:"updated_at"`
+	ContextLimit         int64     `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32     `db:"compression_threshold" json:"compression_threshold"`
 }
 
 type ChatProvider struct {

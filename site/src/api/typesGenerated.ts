@@ -742,6 +742,8 @@ export interface ChatModelConfig {
     readonly model: string;
     readonly display_name: string;
     readonly enabled: boolean;
+    readonly context_limit: number;
+    readonly compression_threshold: number;
     readonly created_at: string;
     readonly updated_at: string;
 }
@@ -794,11 +796,6 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = ["database"
 export type ChatStatus = "completed" | "error" | "paused" | "pending" | "running" | "waiting";
 
 export const ChatStatuses: ChatStatus[] = ["completed", "error", "paused", "pending", "running", "waiting"];
-
-// From codersdk/chats.go
-export type ChatWorkspaceMode = "local" | "workspace";
-
-export const ChatWorkspaceModes: ChatWorkspaceMode[] = ["local", "workspace"];
 
 // From codersdk/chats.go
 /**
@@ -869,6 +866,11 @@ export interface ChatWithMessages {
     readonly chat: Chat;
     readonly messages: readonly ChatMessage[];
 }
+
+// From codersdk/chats.go
+export type ChatWorkspaceMode = "local" | "workspace";
+
+export const ChatWorkspaceModes: ChatWorkspaceMode[] = ["local", "workspace"];
 
 // From codersdk/client.go
 /**
@@ -993,6 +995,7 @@ export interface CreateChatMessageRequest {
     readonly content?: Record<string, string>;
     readonly tool_call_id?: string;
     readonly thinking?: string;
+    readonly context_compression_threshold?: number;
 }
 
 // From codersdk/chats.go
@@ -1004,6 +1007,8 @@ export interface CreateChatModelConfigRequest {
     readonly model: string;
     readonly display_name?: string;
     readonly enabled?: boolean;
+    readonly context_limit?: number;
+    readonly compression_threshold?: number;
 }
 
 // From codersdk/chats.go
@@ -1031,6 +1036,7 @@ export interface CreateChatRequest {
     readonly parent_chat_id?: string;
     readonly model?: string;
     readonly model_config?: Record<string, string>;
+    readonly context_compression_threshold?: number;
 }
 
 // From codersdk/users.go
@@ -1652,6 +1658,7 @@ export interface DeploymentValues {
     readonly support?: SupportConfig;
     readonly enable_authz_recording?: boolean;
     readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
+    readonly external_auth_github_default_provider_enable?: boolean;
     readonly config_ssh?: SSHConfig;
     readonly wgtunnel_host?: string;
     readonly disable_owner_workspace_exec?: boolean;
@@ -4891,6 +4898,8 @@ export interface UpdateChatModelConfigRequest {
     readonly model?: string;
     readonly display_name?: string;
     readonly enabled?: boolean;
+    readonly context_limit?: number;
+    readonly compression_threshold?: number;
 }
 
 // From codersdk/chats.go
@@ -6154,4 +6163,5 @@ export interface WorkspacesResponse {
     readonly workspaces: readonly Workspace[];
     readonly count: number;
 }
+
 

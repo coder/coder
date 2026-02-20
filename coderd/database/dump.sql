@@ -1184,6 +1184,7 @@ CREATE TABLE chat_messages (
     cache_creation_tokens bigint,
     cache_read_tokens bigint,
     context_limit bigint,
+    compressed boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_messages_subagent_event_check CHECK (((subagent_event IS NULL) OR (subagent_event = ANY (ARRAY['request'::text, 'response'::text]))))
 );
 
@@ -1203,7 +1204,11 @@ CREATE TABLE chat_model_configs (
     display_name text DEFAULT ''::text NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    context_limit bigint NOT NULL,
+    compression_threshold integer NOT NULL,
+    CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
+    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
 
 CREATE TABLE chat_providers (
@@ -3423,6 +3428,8 @@ CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
+
+CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::text) AND (hidden = true));
 
 CREATE INDEX idx_chat_messages_subagent_request ON chat_messages USING btree (chat_id, subagent_request_id, created_at) WHERE (subagent_request_id IS NOT NULL);
 
