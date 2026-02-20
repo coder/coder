@@ -570,8 +570,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			}
 		}
 		if b.state.orphan && !hasActiveEligibleProvisioner {
-			// nolint: gocritic // Workspace builder needs to mark orphan
-			// build provisioner jobs as complete.
+			// nolint: gocritic // User won't necessarily have the permission to do this so we act as a system user.
 			if err := store.UpdateProvisionerJobWithCompleteWithStartedAtByID(dbauthz.AsWorkspaceBuilder(b.ctx), database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 				CompletedAt: sql.NullTime{Valid: true, Time: now},
 				Error:       sql.NullString{Valid: false},
@@ -816,11 +815,7 @@ func (b *Builder) getState() ([]byte, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get last build to get state: %w", err)
 	}
-	// Fetching provisioner state for the new build requires ActionUpdate
-	// on the template (since state can contain sensitive Terraform data).
-	// The wsbuilder runs in the user's context, but users creating normal
-	// builds don't have template update permissions. We elevate to
-	// AsWorkspaceBuilder since we're preparing state for the provisioner.
+	// nolint: gocritic // Workspace builder needs to read provisioner state for the new build.
 	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsWorkspaceBuilder(b.ctx), bld.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace build provisioner state: %w", err)
