@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/wsproxy/derpmetrics"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
@@ -196,6 +197,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("create DERP mesh tls config: %w", err)
 	}
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
+	if opts.PrometheusRegistry != nil {
+		opts.PrometheusRegistry.MustRegister(derpmetrics.NewCollector(derpServer))
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
