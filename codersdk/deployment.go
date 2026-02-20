@@ -3573,6 +3573,16 @@ Don't assume what needs to be done - collaborate to define the scope together.
 			Group: &deploymentGroupAIBridge,
 			YAML:  "chat_title_generation_prompt",
 		},
+		{
+			Name:        "Agent Local Workspace",
+			Description: "Enable admin-only local workspace mode for agent chats.",
+			Flag:        "agent-local-workspace",
+			Env:         "CODER_AGENT_LOCAL_WORKSPACE",
+			Value:       &c.AI.Chat.LocalWorkspace,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "agent_local_workspace",
+		},
 
 		// AI Bridge Options
 		{
@@ -4049,6 +4059,7 @@ type AIBridgeProxyConfig struct {
 type AIChatConfig struct {
 	SystemPrompt          serpent.String `json:"system_prompt" typescript:",notnull"`
 	TitleGenerationPrompt serpent.String `json:"title_generation_prompt" typescript:",notnull"`
+	LocalWorkspace        serpent.Bool   `json:"local_workspace" typescript:",notnull"`
 }
 
 type AIConfig struct {

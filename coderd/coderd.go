@@ -675,6 +675,13 @@ func New(options *Options) *API {
 			chatModelCatalogConfig,
 		),
 	}
+	api.chatLocalService = chatd.NewLocalService(chatd.LocalServiceOptions{
+		Logger:       options.Logger.Named("chat-local"),
+		Database:     options.Database,
+		AccessURL:    options.AccessURL,
+		HTTPClient:   options.HTTPClient,
+		DeploymentID: depID,
+	})
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -2000,6 +2007,8 @@ type API struct {
 	chatProviderAPIKeys chatd.ProviderAPIKeys
 	// chatModelCatalog lists available provider models for chats.
 	chatModelCatalog *chatd.ModelCatalog
+	// chatLocalService manages local workspace chat bootstrap and agent runtimes.
+	chatLocalService *chatd.LocalService
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2027,6 +2036,11 @@ func (api *API) Close() error {
 	case <-wsDone:
 	case <-timer.C:
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
+	}
+	if api.chatLocalService != nil {
+		if err := api.chatLocalService.Close(); err != nil {
+			api.Logger.Warn(api.ctx, "close local chat agents", slog.Error(err))
+		}
 	}
 
 	api.dbRolluper.Close()

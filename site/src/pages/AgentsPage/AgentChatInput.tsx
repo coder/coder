@@ -78,8 +78,8 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	return "text-content-link";
 };
 
-const RING_SIZE = 30;
-const RING_STROKE = 3;
+const RING_SIZE = 22;
+const RING_STROKE = 2.5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
@@ -97,16 +97,17 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 			contextLimitTokens > 0
 				? (usedTokens / contextLimitTokens) * 100
 				: null;
+		const hasPercent = percentUsed !== null;
 		const percentLabel =
 			percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-		const indicatorLabel =
-			percentUsed === null
-				? "--"
-				: percentUsed >= 100
-					? "100+"
-					: `${Math.round(percentUsed)}`;
-		const clampedPercent =
-			percentUsed === null ? 0 : Math.min(Math.max(percentUsed, 0), 100);
+		const indicatorLabel = hasPercent
+			? percentUsed >= 100
+				? "100+"
+				: `${Math.round(percentUsed)}`
+			: null;
+		const clampedPercent = hasPercent
+			? Math.min(Math.max(percentUsed, 0), 100)
+			: 100;
 		const dashOffset =
 			RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
 		const toneClassName = getIndicatorToneClassName(percentUsed);
@@ -124,7 +125,9 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 			(entry): entry is { key: string; label: string; value: number } =>
 				hasFiniteTokenValue(entry.value),
 		);
-		const ariaLabel = `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`;
+		const ariaLabel = hasPercent
+			? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
+			: "Context usage";
 
 		return (
 			<Tooltip>
@@ -132,10 +135,10 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 					<span
 						tabIndex={0}
 						aria-label={ariaLabel}
-						className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+						className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 					>
 						<svg
-							className={`h-8 w-8 -rotate-90 ${toneClassName}`}
+							className={`h-6 w-6 -rotate-90 ${toneClassName}`}
 							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
 							aria-hidden
 						>
@@ -161,34 +164,39 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 								}}
 							/>
 						</svg>
-						<span className="pointer-events-none absolute text-[9px] font-medium tabular-nums text-content-secondary">
-							{indicatorLabel}
-						</span>
+						{indicatorLabel !== null && (
+							<span className="pointer-events-none absolute text-[7px] font-semibold tabular-nums text-content-secondary">
+								{indicatorLabel}
+							</span>
+						)}
 					</span>
 				</TooltipTrigger>
 				<TooltipContent
 					side="top"
-					className="min-w-[14rem] max-w-[16rem] border-border-default/80 bg-surface-primary/95 px-2.5 py-2"
+					className="min-w-[10rem] max-w-[14rem] rounded-lg border-border-default/60 bg-surface-primary px-3 py-2.5 shadow-md"
 				>
-					<div className="space-y-1">
-						<div className="flex items-center justify-between gap-3">
-							<span className="text-xs font-medium text-content-primary">
-								Context usage
+					<div className="space-y-1.5">
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-2xs font-medium text-content-secondary">
+								Context
 							</span>
-							<span className="font-mono text-xs tabular-nums text-content-primary">
-								{percentLabel}
-							</span>
+							{hasPercent && (
+								<span className="font-mono text-2xs tabular-nums text-content-primary">
+									{percentLabel}
+								</span>
+							)}
 						</div>
-						<div className="font-mono text-[11px] tabular-nums text-content-secondary">
-							{formatTokenCount(usedTokens)} / {formatTokenCount(contextLimitTokens)}{" "}
-							tokens
-						</div>
+						{(usedTokens !== undefined || contextLimitTokens !== undefined) && (
+							<div className="font-mono text-2xs tabular-nums text-content-secondary">
+								{formatTokenCount(usedTokens)} / {formatTokenCount(contextLimitTokens)} tokens
+							</div>
+						)}
 						{breakdown.length > 0 && (
-							<div className="space-y-0.5 border-t border-border-default/60 pt-1">
+							<div className="space-y-px border-t border-border-default/40 pt-1.5">
 								{breakdown.map((entry) => (
 									<div
 										key={entry.key}
-										className="flex items-center justify-between gap-2 text-[11px]"
+										className="flex items-center justify-between gap-3 text-2xs"
 									>
 										<span className="text-content-secondary">{entry.label}</span>
 										<span className="font-mono tabular-nums text-content-primary">
@@ -290,35 +298,36 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							)}
 						</div>
 						<div className="flex items-center gap-2">
-							{isStreaming && onInterrupt && (
-								<Button
-									size="icon"
-									variant="outline"
-									className="rounded-full"
-									onClick={onInterrupt}
-									disabled={isInterruptPending}
-								>
-									<Square className="h-4 w-4" />
-									<span className="sr-only">Interrupt</span>
-								</Button>
-							)}
 							{contextUsage !== undefined && (
 								<ContextUsageIndicator usage={contextUsage} />
 							)}
-							<Button
-								size="icon"
-								variant="default"
-								className="rounded-full transition-colors [&>svg]:!size-6"
-								onClick={() => void handleSubmit()}
-								disabled={isDisabled || !hasModelOptions || !input.trim()}
-							>
-								{isLoading ? (
-									<Loader2Icon className="animate-spin" />
-								) : (
-									<ArrowUpIcon />
-								)}
-								<span className="sr-only">Send</span>
-							</Button>
+							{isStreaming && onInterrupt ? (
+								<Button
+									size="icon"
+									variant="default"
+									className="size-7 rounded-full transition-colors"
+									onClick={onInterrupt}
+									disabled={isInterruptPending}
+								>
+									<Square className="h-3 w-3 fill-current" />
+									<span className="sr-only">Stop</span>
+								</Button>
+							) : (
+								<Button
+									size="icon"
+									variant="default"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-3.5"
+									onClick={() => void handleSubmit()}
+									disabled={isDisabled || !hasModelOptions || !input.trim()}
+								>
+									{isLoading ? (
+										<Loader2Icon className="animate-spin" />
+									) : (
+										<ArrowUpIcon />
+									)}
+									<span className="sr-only">Send</span>
+								</Button>
+							)}
 						</div>
 					</div>
 					{inputStatusText && (

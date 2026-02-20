@@ -40,6 +40,7 @@ const (
 	githubAPIBaseURL                 = "https://api.github.com"
 
 	chatWorkspaceRequestMetadataRole = "__chat_workspace_request_metadata"
+	chatWorkspaceModeModelConfigKey  = "workspace_mode"
 )
 
 // chatDiffRefreshBackoffSchedule defines the delays between successive
@@ -304,6 +305,14 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
+	normalizedMode, ok := normalizeRequestedChatWorkspaceMode(req.WorkspaceMode)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid workspace mode.",
+		})
+		return
+	}
+	req.WorkspaceMode = normalizedMode
 
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(req)
 	if inputError != nil {
@@ -323,6 +332,54 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workspaceMode := effectiveChatWorkspaceMode(chatHierarchy.Request.WorkspaceMode)
+	if workspaceMode == codersdk.ChatWorkspaceModeLocal {
+		if !chatLocalWorkspaceEnabled(api) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Local workspace mode is disabled.",
+			})
+			return
+		}
+		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+			httpapi.Forbidden(rw)
+			return
+		}
+	}
+	if workspaceMode == codersdk.ChatWorkspaceModeLocal &&
+		(chatHierarchy.Request.WorkspaceID == nil || chatHierarchy.Request.WorkspaceAgentID == nil) {
+		if api.chatLocalService == nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to initialize local workspace.",
+				Detail:  "Local workspace service is not configured.",
+			})
+			return
+		}
+
+		localBinding, localErr := api.chatLocalService.EnsureWorkspaceBinding(
+			ctx,
+			apiKey.UserID,
+			httpmw.APITokenFromRequest(r),
+		)
+		if localErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to initialize local workspace.",
+				Detail:  localErr.Error(),
+			})
+			return
+		}
+		chatHierarchy.Request.WorkspaceID = &localBinding.WorkspaceID
+		chatHierarchy.Request.WorkspaceAgentID = &localBinding.WorkspaceAgentID
+
+		validationStatus, validationError = api.validateCreateChatWorkspaceSelection(
+			ctx,
+			chatHierarchy.Request,
+		)
+		if validationError != nil {
+			httpapi.Write(ctx, rw, validationStatus, *validationError)
+			return
+		}
+	}
+
 	systemPrompt := defaultChatSystemPrompt(api)
 	if override := strings.TrimSpace(req.SystemPrompt); override != "" {
 		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -334,21 +391,13 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 
 	title := chatTitleFromMessage(titleSource)
 
-	// Marshal model config or use empty object.
-	modelConfig := req.ModelConfig
-	if modelConfig == nil {
-		modelConfig = json.RawMessage("{}")
-	}
-	if req.Model != "" {
-		modelPayload, err := json.Marshal(map[string]string{"model": req.Model})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to encode model configuration.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		modelConfig = modelPayload
+	modelConfig, modelConfigErr := createChatModelConfig(req, workspaceMode)
+	if modelConfigErr != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model configuration.",
+			Detail:  modelConfigErr.Error(),
+		})
+		return
 	}
 
 	chat, err := api.Database.InsertChat(ctx, database.InsertChatParams{
@@ -612,7 +661,7 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check that the chat exists and user has access.
-	_, err := api.Database.GetChatByID(ctx, chatID)
+	chat, err := api.Database.GetChatByID(ctx, chatID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -663,6 +712,22 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 	// If this is a user message, mark the chat as pending so the processor picks
 	// it up.
 	if req.Role == "user" {
+		if api.chatLocalService != nil {
+			if err := api.chatLocalService.MaybeLaunchAgentForChat(ctx, chat); err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to initialize local workspace agent.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		} else if chatWorkspaceModeFromModelConfig(chat.ModelConfig) == codersdk.ChatWorkspaceModeLocal {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to initialize local workspace agent.",
+				Detail:  "Local workspace service is not configured.",
+			})
+			return
+		}
+
 		api.recordChatWorkspaceRequestMetadata(ctx, chatID, r)
 
 		updatedChat, err := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -1983,6 +2048,13 @@ func (api *API) resolveCreateChatHierarchy(
 			Message: "Parent chat not found or you do not have access to this resource",
 		}
 	}
+	parentWorkspaceMode := chatWorkspaceModeFromModelConfig(parentChat.ModelConfig)
+	requestedWorkspaceMode := effectiveChatWorkspaceMode(req.WorkspaceMode)
+	if req.WorkspaceMode != "" && requestedWorkspaceMode != parentWorkspaceMode {
+		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Child chat workspace mode must match parent chat workspace mode.",
+		}
+	}
 
 	if !createChatUUIDMatchesParent(req.WorkspaceID, parentChat.WorkspaceID) {
 		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
@@ -2003,6 +2075,9 @@ func (api *API) resolveCreateChatHierarchy(
 	if resolvedReq.WorkspaceAgentID == nil && parentChat.WorkspaceAgentID.Valid {
 		inheritedWorkspaceAgentID := parentChat.WorkspaceAgentID.UUID
 		resolvedReq.WorkspaceAgentID = &inheritedWorkspaceAgentID
+	}
+	if resolvedReq.WorkspaceMode == "" {
+		resolvedReq.WorkspaceMode = parentWorkspaceMode
 	}
 
 	rootChatID := parentChat.ID
@@ -2037,6 +2112,17 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
 ) (int, *codersdk.Response) {
+	if effectiveChatWorkspaceMode(req.WorkspaceMode) == codersdk.ChatWorkspaceModeLocal {
+		if req.WorkspaceID == nil && req.WorkspaceAgentID == nil {
+			return 0, nil
+		}
+		if req.WorkspaceID == nil || req.WorkspaceAgentID == nil {
+			return http.StatusBadRequest, &codersdk.Response{
+				Message: "Local workspace mode requires both workspace and workspace agent.",
+			}
+		}
+	}
+
 	var workspaceID uuid.UUID
 	if req.WorkspaceID != nil {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
@@ -2075,6 +2161,105 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	}
 
 	return 0, nil
+}
+
+func chatLocalWorkspaceEnabled(api *API) bool {
+	if api == nil || api.DeploymentValues == nil {
+		return false
+	}
+	return api.DeploymentValues.AI.Chat.LocalWorkspace.Value()
+}
+
+func normalizeRequestedChatWorkspaceMode(
+	mode codersdk.ChatWorkspaceMode,
+) (codersdk.ChatWorkspaceMode, bool) {
+	switch codersdk.ChatWorkspaceMode(
+		strings.ToLower(strings.TrimSpace(string(mode))),
+	) {
+	case "":
+		return "", true
+	case codersdk.ChatWorkspaceModeWorkspace:
+		return codersdk.ChatWorkspaceModeWorkspace, true
+	case codersdk.ChatWorkspaceModeLocal:
+		return codersdk.ChatWorkspaceModeLocal, true
+	default:
+		return "", false
+	}
+}
+
+func effectiveChatWorkspaceMode(mode codersdk.ChatWorkspaceMode) codersdk.ChatWorkspaceMode {
+	if mode == "" {
+		return codersdk.ChatWorkspaceModeWorkspace
+	}
+	return mode
+}
+
+func chatWorkspaceModeFromModelConfig(configRaw json.RawMessage) codersdk.ChatWorkspaceMode {
+	if len(configRaw) == 0 {
+		return codersdk.ChatWorkspaceModeWorkspace
+	}
+
+	var config struct {
+		WorkspaceMode codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	}
+	if err := json.Unmarshal(configRaw, &config); err != nil {
+		return codersdk.ChatWorkspaceModeWorkspace
+	}
+
+	normalized, ok := normalizeRequestedChatWorkspaceMode(config.WorkspaceMode)
+	if !ok {
+		return codersdk.ChatWorkspaceModeWorkspace
+	}
+	return effectiveChatWorkspaceMode(normalized)
+}
+
+func createChatModelConfig(
+	req codersdk.CreateChatRequest,
+	workspaceMode codersdk.ChatWorkspaceMode,
+) (json.RawMessage, error) {
+	model := strings.TrimSpace(req.Model)
+	modelConfig := req.ModelConfig
+	config := map[string]any{}
+
+	if len(modelConfig) > 0 {
+		if err := json.Unmarshal(modelConfig, &config); err != nil {
+			if workspaceMode == codersdk.ChatWorkspaceModeWorkspace && model == "" {
+				return modelConfig, nil
+			}
+			return nil, xerrors.Errorf("parse model config: %w", err)
+		}
+		if config == nil {
+			config = map[string]any{}
+		}
+	}
+
+	if workspaceMode == codersdk.ChatWorkspaceModeWorkspace &&
+		model == "" &&
+		len(modelConfig) > 0 &&
+		len(config) == 0 {
+		return modelConfig, nil
+	}
+
+	if model != "" {
+		config["model"] = model
+	}
+	if workspaceMode == codersdk.ChatWorkspaceModeLocal {
+		config[chatWorkspaceModeModelConfigKey] = string(
+			codersdk.ChatWorkspaceModeLocal,
+		)
+	} else {
+		delete(config, chatWorkspaceModeModelConfigKey)
+	}
+
+	if len(config) == 0 {
+		return json.RawMessage("{}"), nil
+	}
+
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return nil, xerrors.Errorf("encode model config: %w", err)
+	}
+	return encoded, nil
 }
 
 func defaultChatSystemPrompt(api *API) string {
@@ -2178,13 +2363,14 @@ func truncateRunes(value string, max int) string {
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	chat := codersdk.Chat{
-		ID:          c.ID,
-		OwnerID:     c.OwnerID,
-		Title:       c.Title,
-		Status:      codersdk.ChatStatus(c.Status),
-		ModelConfig: c.ModelConfig,
-		CreatedAt:   c.CreatedAt,
-		UpdatedAt:   c.UpdatedAt,
+		ID:            c.ID,
+		OwnerID:       c.OwnerID,
+		WorkspaceMode: chatWorkspaceModeFromModelConfig(c.ModelConfig),
+		Title:         c.Title,
+		Status:        codersdk.ChatStatus(c.Status),
+		ModelConfig:   c.ModelConfig,
+		CreatedAt:     c.CreatedAt,
+		UpdatedAt:     c.UpdatedAt,
 	}
 	if c.ParentChatID.Valid {
 		parentChatID := c.ParentChatID.UUID

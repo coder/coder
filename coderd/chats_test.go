@@ -824,6 +824,39 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 }
 
+func TestCreateChat_LocalWorkspaceBootstrap(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		DeploymentValues: coderdtest.DeploymentValues(
+			t,
+			func(cfg *codersdk.DeploymentValues) {
+				cfg.AI.Chat.LocalWorkspace = serpent.Bool(true)
+			},
+		),
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message:       "Bootstrap local workspace chat.",
+		WorkspaceMode: codersdk.ChatWorkspaceModeLocal,
+	})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ChatWorkspaceModeLocal, chat.WorkspaceMode)
+	require.NotNil(t, chat.WorkspaceID)
+	require.NotNil(t, chat.WorkspaceAgentID)
+
+	got, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ChatWorkspaceModeLocal, got.Chat.WorkspaceMode)
+	require.NotNil(t, got.Chat.WorkspaceID)
+	require.NotNil(t, got.Chat.WorkspaceAgentID)
+	require.Equal(t, *chat.WorkspaceID, *got.Chat.WorkspaceID)
+	require.Equal(t, *chat.WorkspaceAgentID, *got.Chat.WorkspaceAgentID)
+}
+
 func TestCreateChat_HierarchyMetadata(t *testing.T) {
 	t.Parallel()
 

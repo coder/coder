@@ -447,6 +447,53 @@ const parsePartialJSONValue = (
 	return { status: "invalid" };
 };
 
+/**
+ * Extracts the content of an incomplete JSON string literal that is
+ * still being streamed. Given an opening quote at `startIndex`,
+ * returns whatever text has been received so far (handling escape
+ * sequences). Returns `null` if the character at startIndex is not
+ * a quote.
+ */
+const extractIncompleteStringContent = (
+	input: string,
+	startIndex: number,
+): string | null => {
+	if (input[startIndex] !== '"') {
+		return null;
+	}
+	let result = "";
+	let escaped = false;
+	for (let i = startIndex + 1; i < input.length; i += 1) {
+		const char = input[i];
+		if (escaped) {
+			// Handle common JSON escape sequences.
+			switch (char) {
+				case '"': result += '"'; break;
+				case '\\': result += '\\'; break;
+				case '/': result += '/'; break;
+				case 'n': result += '\n'; break;
+				case 'r': result += '\r'; break;
+				case 't': result += '\t'; break;
+				default: result += `\\${char}`; break;
+			}
+			escaped = false;
+			continue;
+		}
+		if (char === '\\') {
+			escaped = true;
+			continue;
+		}
+		if (char === '"') {
+			// String is actually complete — shouldn't happen if
+			// parsePartialJSONValue already returned "incomplete",
+			// but return what we have.
+			return result;
+		}
+		result += char;
+	}
+	return result.length > 0 ? result : null;
+};
+
 const parsePartialJSONObject = (value: string): Record<string, unknown> | null => {
 	const trimmed = value.trim();
 	if (!trimmed.startsWith("{")) {
@@ -493,6 +540,14 @@ const parsePartialJSONObject = (value: string): Record<string, unknown> | null =
 
 		const nextValue = parsePartialJSONValue(trimmed, index);
 		if (nextValue.status === "incomplete") {
+			// For incomplete string values, extract whatever content
+			// has been received so far. This lets streaming tool args
+			// (e.g. a command being typed) appear incrementally.
+			const partialStr = extractIncompleteStringContent(trimmed, index);
+			if (partialStr !== null) {
+				parsed[key.value] = partialStr;
+				hasFields = true;
+			}
 			break;
 		}
 		if (nextValue.status === "invalid") {
@@ -849,49 +904,6 @@ const createEmptyStreamState = (): StreamState => ({
  * call in one assistant message with its result that arrives in
  * a later message.
  */
-const buildGlobalToolResultMap = (
-	messages: TypesGen.ChatMessage[],
-): Map<string, ParsedToolResult> => {
-	const map = new Map<string, ParsedToolResult>();
-	for (const message of messages) {
-		const parsed =
-			Array.isArray(message.parts) && message.parts.length > 0
-				? parseMessageContent(message.parts)
-				: parseMessageContent(message.content);
-		for (const result of parsed.toolResults) {
-			map.set(result.id, result);
-		}
-	}
-	return map;
-};
-
-const parseChatMessageContent = (
-	message: TypesGen.ChatMessage,
-	globalToolResults: Map<string, ParsedToolResult>,
-): ParsedMessageContent => {
-	const parsed =
-		Array.isArray(message.parts) && message.parts.length > 0
-			? parseMessageContent(message.parts)
-			: parseMessageContent(message.content);
-
-	// Merge using the global result map so tool calls find their
-	// results even when they arrive in a separate message.
-	const resultById = new Map<string, ParsedToolResult>();
-	for (const r of parsed.toolResults) {
-		resultById.set(r.id, r);
-	}
-	for (const call of parsed.toolCalls) {
-		if (!resultById.has(call.id)) {
-			const global = globalToolResults.get(call.id);
-			if (global) {
-				resultById.set(global.id, global);
-			}
-		}
-	}
-	parsed.tools = mergeTools(parsed.toolCalls, Array.from(resultById.values()));
-	return parsed;
-};
-
 type CreateChatMessagePayload = TypesGen.CreateChatMessageRequest & {
 	readonly model?: string;
 };
@@ -958,9 +970,7 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-	subagentTitles?: Map<string, string>;
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-}>(({ message, parsed, subagentTitles, subagentStatusOverrides }) => {
+}>(({ message, parsed }) => {
 	const isUser = message.role === "user";
 
 	// Skip messages that only carry tool results. Those results
@@ -1004,8 +1014,6 @@ const ChatMessageItem = memo<{
 									result={tool.result}
 									status={tool.status}
 									isError={tool.isError}
-									subagentTitles={subagentTitles}
-									subagentStatusOverrides={subagentStatusOverrides}
 								/>
 							))}
 							{!hasRenderableContent && (
@@ -1037,16 +1045,16 @@ const StreamingOutput = memo<{
 
 	return (
 		<ConversationItem {...conversationItemProps}>
-			<Message>
+			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
 					<div className="space-y-3">
 						{streamState?.content ? (
 							<Response>{streamState.content}</Response>
-						) : (
+						) : streamTools.length === 0 ? (
 							<Shimmer as="span" className="text-sm">
 								Thinking...
 							</Shimmer>
-						)}
+						) : null}
 						{streamState?.reasoning && (
 							<Thinking>{streamState.reasoning}</Thinking>
 						)}
@@ -1101,6 +1109,7 @@ export const AgentDetail: FC = () => {
 	const requestArchiveAgent =
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
 	const streamResetFrameRef = useRef<number | null>(null);
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -1210,6 +1219,8 @@ export const AgentDetail: FC = () => {
 
 	useEffect(() => {
 		if (!chatQuery.data) {
+			setMessagesById(new Map());
+			setChatStatus(null);
 			return;
 		}
 		setMessagesById(
@@ -1518,10 +1529,31 @@ export const AgentDetail: FC = () => {
 		);
 		return list;
 	}, [messagesById]);
-	const latestContextUsage = useMemo(
+	const latestContextUsageRaw = useMemo(
 		() => getLatestContextUsage(messages),
 		[messages],
 	);
+	// Stabilize the reference so AgentChatInput doesn't re-render
+	// when the token counts haven't actually changed.
+	const contextUsageRef = useRef<AgentContextUsage | null>(null);
+	const latestContextUsage = useMemo(() => {
+		const prev = contextUsageRef.current;
+		if (
+			prev !== null &&
+			latestContextUsageRaw !== null &&
+			prev.usedTokens === latestContextUsageRaw.usedTokens &&
+			prev.contextLimitTokens === latestContextUsageRaw.contextLimitTokens &&
+			prev.inputTokens === latestContextUsageRaw.inputTokens &&
+			prev.outputTokens === latestContextUsageRaw.outputTokens &&
+			prev.cacheReadTokens === latestContextUsageRaw.cacheReadTokens &&
+			prev.cacheCreationTokens === latestContextUsageRaw.cacheCreationTokens &&
+			prev.reasoningTokens === latestContextUsageRaw.reasoningTokens
+		) {
+			return prev;
+		}
+		contextUsageRef.current = latestContextUsageRaw;
+		return latestContextUsageRaw;
+	}, [latestContextUsageRaw]);
 
 	const isStreaming =
 		Boolean(streamState) ||
@@ -1577,6 +1609,11 @@ export const AgentDetail: FC = () => {
 		};
 		clearChatErrorReason(agentId);
 		setStreamError(null);
+		// Scroll to bottom when sending a new message. With
+		// flex-col-reverse the bottom is scrollTop = 0.
+		if (scrollContainerRef.current) {
+			scrollContainerRef.current.scrollTop = 0;
+		}
 		await sendMutation.mutateAsync(request);
 	};
 
@@ -1635,23 +1672,89 @@ export const AgentDetail: FC = () => {
 		() => messages.filter((message) => !message.hidden),
 		[messages],
 	);
-	const globalToolResults = useMemo(
-		() => buildGlobalToolResultMap(visibleMessages),
-		[visibleMessages],
-	);
 
-	// Pre-compute parsed content for all visible messages. This runs
-	// only when visibleMessages changes (at message boundaries), not
-	// on every stream chunk. Each entry keeps a stable reference so
-	// ChatMessageItem can bail out via React.memo.
-	const parsedMessages = useMemo(
-		() =>
-			visibleMessages.map((message) => ({
-				message,
-				parsed: parseChatMessageContent(message, globalToolResults),
-			})),
-		[visibleMessages, globalToolResults],
-	);
+	// Windowed rendering: only mount the most recent N messages
+	// and progressively reveal older ones as the user scrolls up.
+	const MESSAGES_PAGE_SIZE = 50;
+	const [renderedMessageCount, setRenderedMessageCount] =
+		useState(MESSAGES_PAGE_SIZE);
+
+	// Reset the window when switching chats.
+	useEffect(() => {
+		setRenderedMessageCount(MESSAGES_PAGE_SIZE);
+	}, [agentId]);
+
+	const hasMoreMessages = renderedMessageCount < visibleMessages.length;
+	const windowedMessages = useMemo(() => {
+		if (renderedMessageCount >= visibleMessages.length) {
+			return visibleMessages;
+		}
+		return visibleMessages.slice(
+			visibleMessages.length - renderedMessageCount,
+		);
+	}, [visibleMessages, renderedMessageCount]);
+
+	// Sentinel ref: when it scrolls into view, load more messages.
+	const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+	useEffect(() => {
+		const node = loadMoreSentinelRef.current;
+		if (!node || !hasMoreMessages) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting) {
+					setRenderedMessageCount((prev) =>
+						prev + MESSAGES_PAGE_SIZE,
+					);
+				}
+			},
+			{ rootMargin: "200px" },
+		);
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [hasMoreMessages, windowedMessages]);
+
+	// Each message is parsed once; the global tool-result map and
+	// final merged content are derived from the same parse.
+	const parsedMessages = useMemo(() => {
+		// Step 1: parse each message once.
+		const rawParsed = windowedMessages.map((message) => ({
+			message,
+			parsed:
+				Array.isArray(message.parts) && message.parts.length > 0
+					? parseMessageContent(message.parts)
+					: parseMessageContent(message.content),
+		}));
+
+		// Step 2: build the global tool-result map from the already-parsed data.
+		const globalToolResults = new Map<string, ParsedToolResult>();
+		for (const { parsed } of rawParsed) {
+			for (const result of parsed.toolResults) {
+				globalToolResults.set(result.id, result);
+			}
+		}
+
+		// Step 3: merge tool calls with their results.
+		for (const { parsed } of rawParsed) {
+			const resultById = new Map<string, ParsedToolResult>();
+			for (const r of parsed.toolResults) {
+				resultById.set(r.id, r);
+			}
+			for (const call of parsed.toolCalls) {
+				if (!resultById.has(call.id)) {
+					const global = globalToolResults.get(call.id);
+					if (global) {
+						resultById.set(global.id, global);
+					}
+				}
+			}
+			parsed.tools = mergeTools(
+				parsed.toolCalls,
+				Array.from(resultById.values()),
+			);
+		}
+
+		return rawParsed;
+	}, [windowedMessages]);
 
 	// Build a lookup of sub-agent chat_id → title from spawn tool
 	// results so await/message tools can show the title while still
@@ -1673,11 +1776,8 @@ export const AgentDetail: FC = () => {
 		return map;
 	}, [parsedMessages]);
 
-	// Group messages into sections so each user message can be CSS
-	// sticky within its section. When the section scrolls out, the
-	// sticky user message scrolls away and the next one takes over
-	// — no JavaScript scroll tracking needed.
-	const messageSections = useMemo(() => {
+	// Group parsed messages into sections for rendering.
+	const parsedSections = useMemo(() => {
 		const sections: Array<{
 			userEntry: (typeof parsedMessages)[number] | null;
 			entries: typeof parsedMessages;
@@ -1695,7 +1795,6 @@ export const AgentDetail: FC = () => {
 
 		return sections;
 	}, [parsedMessages]);
-
 	const persistedErrorReason = agentId ? chatErrorReasons[agentId] : undefined;
 	const detailErrorMessage =
 		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
@@ -1897,16 +1996,27 @@ export const AgentDetail: FC = () => {
 			{shouldShowDiffPanel &&
 				rightPanelRef?.current &&
 				createPortal(<FilesChangedPanel chatId={agentId} />, rightPanelRef.current)}
-			<div className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]">
+			<div
+				ref={scrollContainerRef}
+				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]"
+			>
 				<div>
 					<div className="mx-auto w-full max-w-3xl py-6">
-						{parsedMessages.length === 0 && !hasStreamOutput ? (
+						{visibleMessages.length === 0 && !hasStreamOutput ? (
 							<div className="py-12 text-center text-content-secondary">
 								<p className="text-sm">Start a conversation with your agent.</p>
 							</div>
 						) : (
 							<div className="flex flex-col">
-								{messageSections.map((section, sectionIdx) => (
+								{hasMoreMessages && (
+									<div
+										ref={loadMoreSentinelRef}
+										className="flex items-center justify-center py-4 text-xs text-content-secondary"
+									>
+										Loading earlier messages…
+									</div>
+								)}
+								{parsedSections.map((section, sectionIdx) => (
 									<div
 										key={
 											section.userEntry?.message.id ?? `section-${sectionIdx}`
@@ -1923,10 +2033,6 @@ export const AgentDetail: FC = () => {
 														<ChatMessageItem
 															message={message}
 															parsed={parsed}
-															subagentTitles={subagentTitles}
-															subagentStatusOverrides={
-																subagentStatusOverrides
-															}
 														/>
 													</div>
 												) : (
@@ -1934,10 +2040,6 @@ export const AgentDetail: FC = () => {
 														key={message.id}
 														message={message}
 														parsed={parsed}
-														subagentTitles={subagentTitles}
-														subagentStatusOverrides={
-															subagentStatusOverrides
-														}
 													/>
 												);
 											})}

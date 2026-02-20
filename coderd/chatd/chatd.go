@@ -52,8 +52,9 @@ const (
 	toolSubagentTerminate = "subagent_terminate"
 	toolSubagentReport    = "subagent_report"
 
-	defaultExecuteTimeout = 60 * time.Second
-	maxChatSteps          = 1200
+	defaultExecuteTimeout        = 60 * time.Second
+	homeInstructionLookupTimeout = 5 * time.Second
+	maxChatSteps                 = 1200
 
 	defaultChatModel = "claude-opus-4-6"
 
@@ -656,7 +657,8 @@ func (p *Processor) runChat(
 	}
 	if reportOnly {
 		prompt = appendUserInstruction(prompt, reportOnlyInstruction)
-	} else if !chat.WorkspaceID.Valid {
+	} else if workspaceModeFromChat(chat) != codersdk.ChatWorkspaceModeLocal &&
+		!chat.WorkspaceID.Valid {
 		prompt = prependSystemInstruction(prompt, defaultNoWorkspaceInstruction)
 	}
 
@@ -768,6 +770,13 @@ func (p *Processor) runChatWithAgent(
 		agentRelease()
 		return currentConn, nil
 	}
+
+	prompt = p.appendHomeInstructionToPrompt(
+		ctx,
+		chat,
+		prompt,
+		getWorkspaceConn,
+	)
 
 	persistAssistant := func(
 		content []fantasy.Content,
@@ -1352,6 +1361,45 @@ func chatTitleInput(chat database.Chat, messages []database.ChatMessage) (string
 	return firstUserText, true, nil
 }
 
+func (p *Processor) appendHomeInstructionToPrompt(
+	ctx context.Context,
+	chat database.Chat,
+	prompt []fantasy.Message,
+	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
+) []fantasy.Message {
+	if !chat.WorkspaceID.Valid || getWorkspaceConn == nil {
+		return prompt
+	}
+
+	instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
+	defer cancel()
+
+	conn, err := getWorkspaceConn(instructionCtx)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to resolve workspace connection for home instruction file",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return prompt
+	}
+
+	content, sourcePath, truncated, err := readHomeInstructionFile(instructionCtx, conn)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to load home instruction file",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return prompt
+	}
+
+	instruction := formatHomeInstruction(content, sourcePath, truncated)
+	if instruction == "" {
+		return prompt
+	}
+
+	return insertSystemInstruction(prompt, instruction)
+}
+
 func (p *Processor) resolveProviderAPIKeys(ctx context.Context) (ProviderAPIKeys, error) {
 	if p.providerKeysFn == nil {
 		return p.providerKeys, nil
@@ -1844,6 +1892,34 @@ func prependSystemInstruction(prompt []fantasy.Message, instruction string) []fa
 	return out
 }
 
+func insertSystemInstruction(prompt []fantasy.Message, instruction string) []fantasy.Message {
+	instruction = strings.TrimSpace(instruction)
+	if instruction == "" {
+		return prompt
+	}
+
+	systemMessage := fantasy.Message{
+		Role: fantasy.MessageRoleSystem,
+		Content: []fantasy.MessagePart{
+			fantasy.TextPart{Text: instruction},
+		},
+	}
+
+	out := make([]fantasy.Message, 0, len(prompt)+1)
+	inserted := false
+	for _, message := range prompt {
+		if !inserted && message.Role != fantasy.MessageRoleSystem {
+			out = append(out, systemMessage)
+			inserted = true
+		}
+		out = append(out, message)
+	}
+	if !inserted {
+		out = append(out, systemMessage)
+	}
+	return out
+}
+
 // appendUserInstruction appends an instruction as a user message at
 // the end of the prompt. This ensures the conversation ends with a
 // user message, which is required by some providers (e.g. Anthropic
@@ -2322,8 +2398,27 @@ func intValue(value any) (int, bool) {
 }
 
 type chatModelConfig struct {
-	Provider string `json:"provider,omitempty"`
-	Model    string `json:"model"`
+	Provider      string                     `json:"provider,omitempty"`
+	Model         string                     `json:"model"`
+	WorkspaceMode codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+}
+
+func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
+	config := chatModelConfig{}
+	if len(chat.ModelConfig) > 0 {
+		if err := json.Unmarshal(chat.ModelConfig, &config); err != nil {
+			return codersdk.ChatWorkspaceModeWorkspace
+		}
+	}
+
+	switch codersdk.ChatWorkspaceMode(
+		strings.ToLower(strings.TrimSpace(string(config.WorkspaceMode))),
+	) {
+	case codersdk.ChatWorkspaceModeLocal:
+		return codersdk.ChatWorkspaceModeLocal
+	default:
+		return codersdk.ChatWorkspaceModeWorkspace
+	}
 }
 
 func modelFromChat(chat database.Chat, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
