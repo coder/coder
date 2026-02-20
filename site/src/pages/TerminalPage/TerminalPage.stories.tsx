@@ -81,13 +81,7 @@ const meta = {
 			{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
 			{
 				key: ["deployment", "config"],
-				data: {
-					...MockDeploymentConfig,
-					config: {
-						...MockDeploymentConfig.config,
-						web_terminal_renderer: "canvas",
-					},
-				},
+				data: MockDeploymentConfig,
 			},
 		],
 		chromatic: {

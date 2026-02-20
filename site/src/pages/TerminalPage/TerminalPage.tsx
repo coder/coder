@@ -1,12 +1,4 @@
-import "@xterm/xterm/css/xterm.css";
 import type { Interpolation, Theme } from "@emotion/react";
-import { CanvasAddon } from "@xterm/addon-canvas";
-import { FitAddon } from "@xterm/addon-fit";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
-import { Terminal } from "@xterm/xterm";
-import { deploymentConfig } from "api/queries/deployment";
 import { appearanceSettings } from "api/queries/users";
 import {
 	workspaceByOwnerAndName,
@@ -14,6 +6,7 @@ import {
 } from "api/queries/workspaces";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import { FitAddon, type ILinkProvider, init, Terminal } from "ghostty-web";
 import { useClipboard } from "hooks/useClipboard";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
@@ -78,9 +71,6 @@ const TerminalPage: FC = () => {
 	const selectedProxy = proxy.proxy;
 	const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
-	const config = useQuery(deploymentConfig());
-	const renderer = config.data?.config.web_terminal_renderer;
-
 	const { copyToClipboard } = useClipboard();
 
 	// Periodically report workspace usage.
@@ -121,115 +111,140 @@ const TerminalPage: FC = () => {
 	// Create the terminal!
 	const fitAddonRef = useRef<FitAddon>(undefined);
 	useEffect(() => {
-		if (!terminalWrapperRef.current || config.isLoading) {
+		if (!terminalWrapperRef.current) {
 			return;
 		}
-		const terminal = new Terminal({
-			allowProposedApi: true,
-			allowTransparency: true,
-			disableStdin: false,
-			fontFamily: terminalFonts[currentTerminalFont],
-			fontSize: 16,
-			theme: {
-				background: theme.palette.background.default,
-			},
-		});
-		if (renderer === "webgl") {
-			terminal.loadAddon(new WebglAddon());
-		} else if (renderer === "canvas") {
-			terminal.loadAddon(new CanvasAddon());
-		}
-		const fitAddon = new FitAddon();
-		fitAddonRef.current = fitAddon;
-		terminal.loadAddon(fitAddon);
-		terminal.loadAddon(new Unicode11Addon());
-		terminal.unicode.activeVersion = "11";
-		terminal.loadAddon(
-			new WebLinksAddon((_, uri) => {
-				handleWebLinkRef.current(uri);
-			}),
-		);
 
-		const isMac = navigator.platform.match("Mac");
+		let disposed = false;
+		let terminal: Terminal | undefined;
+		let resizeListener: (() => void) | undefined;
 
-		const copySelection = () => {
-			const selection = terminal.getSelection();
-			if (selection) {
-				copyToClipboard(selection);
-			}
-		};
+		// ghostty-web requires async WASM initialization before creating
+		// Terminal instances. We wrap the setup in an async IIFE so the
+		// effect can still return a synchronous cleanup function.
+		(async () => {
+			await init();
+			if (disposed) return;
 
-		// There is no way to remove this handler, so we must attach it once and
-		// rely on a ref to send it to the current socket.
-		const escapedCarriageReturn = "\x1b\r";
-		terminal.attachCustomKeyEventHandler((ev) => {
-			// Make shift+enter send ^[^M (escaped carriage return).  Applications
-			// typically take this to mean to insert a literal newline.
-			if (ev.shiftKey && ev.key === "Enter") {
-				if (ev.type === "keydown") {
-					websocketRef.current?.send(
-						new TextEncoder().encode(
-							JSON.stringify({ data: escapedCarriageReturn }),
-						),
-					);
+			terminal = new Terminal({
+				allowTransparency: true,
+				disableStdin: false,
+				fontFamily: terminalFonts[currentTerminalFont],
+				fontSize: 16,
+				theme: {
+					background: theme.palette.background.default,
+				},
+			});
+
+			const fitAddon = new FitAddon();
+			fitAddonRef.current = fitAddon;
+			terminal.loadAddon(fitAddon);
+
+			const isMac = navigator.platform.match("Mac");
+
+			const copySelection = () => {
+				const selection = terminal!.getSelection();
+				if (selection) {
+					copyToClipboard(selection);
+				}
+			};
+
+			// ghostty-web's customKeyEventHandler has inverted semantics
+			// compared to xterm.js: return true = "I handled it, stop
+			// processing", return false = "not handled, continue".
+			const escapedCarriageReturn = "\x1b\r";
+			terminal.attachCustomKeyEventHandler((ev) => {
+				if (ev.shiftKey && ev.key === "Enter") {
+					if (ev.type === "keydown") {
+						websocketRef.current?.send(
+							new TextEncoder().encode(
+								JSON.stringify({ data: escapedCarriageReturn }),
+							),
+						);
+					}
+					return true;
+				}
+				if (
+					(isMac ? ev.metaKey : ev.ctrlKey) &&
+					ev.shiftKey &&
+					ev.key === "C"
+				) {
+					ev.preventDefault();
+					if (ev.type === "keydown") {
+						copySelection();
+					}
+					return true;
 				}
 				return false;
+			});
+
+			terminal.onSelectionChange(() => {
+				copySelection();
+			});
+
+			terminal.open(terminalWrapperRef.current!);
+
+			// Register a custom link provider so that localhost URLs are
+			// opened through the workspace proxy (port forwarding) instead
+			// of being opened directly by the browser.
+			const portForwardLinkProvider: ILinkProvider = {
+				provideLinks(y, callback) {
+					const line = terminal!.buffer.active.getLine(y);
+					if (!line) {
+						callback(undefined);
+						return;
+					}
+					const lineText = line.translateToString(false);
+					const urlRegex = /(?:https?:\/\/)[\w\-.~:/?#@!$&*+,;=%]+/gi;
+					const links: Array<{
+						text: string;
+						range: {
+							start: { x: number; y: number };
+							end: { x: number; y: number };
+						};
+						activate: () => void;
+					}> = [];
+					let match = urlRegex.exec(lineText);
+					while (match !== null) {
+						const url = match[0].replace(/[.,;!?)\]]+$/, "");
+						if (url.length > 8) {
+							links.push({
+								text: url,
+								range: {
+									start: { x: match.index, y },
+									end: { x: match.index + url.length - 1, y },
+								},
+								activate: () => {
+									handleWebLinkRef.current(url);
+								},
+							});
+						}
+						match = urlRegex.exec(lineText);
+					}
+					callback(links.length > 0 ? links : undefined);
+				},
+			};
+			terminal.registerLinkProvider(portForwardLinkProvider);
+
+			fitAddon.fit();
+			fitAddon.fit();
+
+			resizeListener = () => fitAddon.fit();
+			window.addEventListener("resize", resizeListener);
+
+			if (!disposed) {
+				setTerminal(terminal);
 			}
-			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
-			// By default this usually launches the browser dev tools, but users
-			// expect this keybinding to copy when in the context of the web terminal.
-			if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.shiftKey && ev.key === "C") {
-				ev.preventDefault();
-				if (ev.type === "keydown") {
-					copySelection();
-				}
-				return false;
-			}
-			return true;
-		});
-
-		// Copy using the clipboard API on selection.  This selected text will go
-		// into the clipboard, not the primary selection, as the browser does not
-		// give us an API to set the primary selection (only relevant to systems
-		// that have this distinction, like X11).
-		//
-		// We could bind the middle mouse button to paste from the clipboard to
-		// compensate, but then we would break pasting selections from external
-		// applications into the web terminal.  Not sure which tradeoff is worse; it
-		// probably varies between users.
-		//
-		// In other words, this copied text can be pasted with a keybinding
-		// (typically ctrl+v, ctrl+shift+v, or shift+insert), but *not* with the
-		// middle mouse button.
-		terminal.onSelectionChange(() => {
-			copySelection();
-		});
-
-		terminal.open(terminalWrapperRef.current);
-
-		// We have to fit twice here. It's unknown why, but the first fit will
-		// overflow slightly in some scenarios. Applying a second fit resolves this.
-		fitAddon.fit();
-		fitAddon.fit();
-
-		// This will trigger a resize event on the terminal.
-		const listener = () => fitAddon.fit();
-		window.addEventListener("resize", listener);
-
-		// Terminal is correctly sized and is ready to be used.
-		setTerminal(terminal);
+		})();
 
 		return () => {
-			window.removeEventListener("resize", listener);
-			terminal.dispose();
+			disposed = true;
+			if (resizeListener) {
+				window.removeEventListener("resize", resizeListener);
+			}
+			terminal?.dispose();
 		};
-	}, [
-		config.isLoading,
-		renderer,
-		theme.palette.background.default,
-		currentTerminalFont,
-		copyToClipboard,
-	]);
+	}, [theme.palette.background.default, currentTerminalFont, copyToClipboard]);
 
 	// Updates the reconnection token into the URL if necessary.
 	useEffect(() => {
@@ -332,10 +347,7 @@ const TerminalPage: FC = () => {
 				websocketRef.current = websocket;
 				websocket.addEventListener(WebsocketEvent.open, () => {
 					// Now that we are connected, allow user input.
-					terminal.options = {
-						disableStdin: false,
-						windowsMode: workspaceAgent?.operating_system === "windows",
-					};
+					terminal.options.disableStdin = false;
 					// Send the initial size.
 					websocket?.send(
 						new TextEncoder().encode(
@@ -457,28 +469,12 @@ const styles = {
 	terminal: (theme) => ({
 		width: "100%",
 		overflow: "hidden",
-		backgroundColor: theme.palette.background.paper,
+		// Must match the terminal theme background so the thin
+		// fractional-cell gap around the canvas blends in.
+		backgroundColor: theme.palette.background.default,
 		flex: 1,
-		// These styles attempt to mimic the VS Code scrollbar.
-		"& .xterm": {
-			padding: 4,
-			width: "100%",
-			height: "100%",
-		},
-		"& .xterm-viewport": {
-			// This is required to force full-width on the terminal.
-			// Otherwise there's a small white bar to the right of the scrollbar.
-			width: "auto !important",
-		},
-		"& .xterm-viewport::-webkit-scrollbar": {
-			width: "10px",
-		},
-		"& .xterm-viewport::-webkit-scrollbar-track": {
-			backgroundColor: "inherit",
-		},
-		"& .xterm-viewport::-webkit-scrollbar-thumb": {
-			minHeight: 20,
-			backgroundColor: "rgba(255, 255, 255, 0.18)",
+		"& canvas": {
+			display: "block",
 		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
