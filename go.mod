@@ -476,7 +476,7 @@ require (
 	github.com/coder/aibridge v1.0.4
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.0
-	github.com/coder/preview v1.0.4
+	github.com/coder/preview v1.0.7
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
