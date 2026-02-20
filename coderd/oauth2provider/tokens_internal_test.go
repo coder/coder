@@ -318,6 +318,7 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			query.Set("response_type", "code")
 			query.Set("client_id", "test-client")
 			query.Set("redirect_uri", "http://localhost:3000/callback")
+			query.Set("code_challenge", "test-challenge")
 			if tc.scopeParam != "" {
 				query.Set("scope", tc.scopeParam)
 			}
@@ -339,6 +340,34 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			require.Equal(t, tc.expectedScopes, params.scope)
 		})
 	}
+}
+
+// TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE ensures
+// response_type=token is parsed without requiring PKCE fields so callers can
+// return unsupported_response_type instead of invalid_request.
+func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T) {
+	t.Parallel()
+
+	callbackURL, err := url.Parse("http://localhost:3000/callback")
+	require.NoError(t, err)
+
+	query := url.Values{}
+	query.Set("response_type", string(codersdk.OAuth2ProviderResponseTypeToken))
+	query.Set("client_id", "test-client")
+	query.Set("redirect_uri", "http://localhost:3000/callback")
+
+	reqURL, err := url.Parse("http://localhost:8080/oauth2/authorize?" + query.Encode())
+	require.NoError(t, err)
+
+	req := &http.Request{
+		Method: http.MethodGet,
+		URL:    reqURL,
+	}
+
+	params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+	require.NoError(t, err)
+	require.Empty(t, validationErrs)
+	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
 // TestRefreshTokenGrant_Scopes tests that scopes can be requested during refresh

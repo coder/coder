@@ -119,6 +119,7 @@ links */}}
       </p>
       <div class="button-group">
         <form method="POST" style="display: inline;">
+          <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}" />
           <button type="submit" class="primary-button">Allow</button>
         </form>
         <a href="{{ .CancelURI }}">Cancel</a>
