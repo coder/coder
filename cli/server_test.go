@@ -1740,6 +1740,18 @@ func TestServer(t *testing.T) {
 
 			// Next, we instruct the same server to display the YAML config
 			// and then save it.
+			// Because this is literally the same invocation, DefaultFn sets the
+			// value of 'Default'. Which triggers a mutually exclusive error
+			// on the next parse.
+			// Usually we only parse flags once, so this is not an issue
+			for _, c := range inv.Command.Children {
+				if c.Name() == "server" {
+					for i := range c.Options {
+						c.Options[i].DefaultFn = nil
+					}
+					break
+				}
+			}
 			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
 			//nolint:gocritic
 			inv.Args = append(args, "--write-config")
