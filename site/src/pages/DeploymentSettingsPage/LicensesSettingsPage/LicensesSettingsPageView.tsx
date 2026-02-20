@@ -3,6 +3,7 @@ import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import type { GetLicensesResponse } from "api/api";
 import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
+import confetti from "canvas-confetti";
 import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
@@ -16,10 +17,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
-import type { FC } from "react";
-import Confetti from "react-confetti";
+import { type FC, useEffect } from "react";
 import { Link } from "react-router";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
@@ -56,18 +55,78 @@ const LicensesSettingsPageView: FC<Props> = ({
 	aiGovernanceUserFeature,
 }) => {
 	const theme = useTheme();
-	const { width, height } = useWindowSize();
+
+	useEffect(() => {
+		if (!showConfetti) {
+			return;
+		}
+
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		if (
+			"matchMedia" in window &&
+			window.matchMedia("(prefers-reduced-motion: reduce)").matches
+		) {
+			return;
+		}
+
+		const colors = [theme.palette.primary.main, theme.palette.secondary.main];
+
+		confetti({
+			particleCount: 150,
+			spread: 70,
+			origin: { y: 0.6 },
+			colors,
+			zIndex: 1000,
+		});
+
+		const durationMs = 2000;
+		const animationEnd = Date.now() + durationMs;
+
+		const defaults = {
+			startVelocity: 45,
+			spread: 60,
+			ticks: 80,
+			zIndex: 1000,
+			colors,
+		};
+
+		const randomInRange = (min: number, max: number) =>
+			Math.random() * (max - min) + min;
+
+		const interval = window.setInterval(() => {
+			const timeLeft = animationEnd - Date.now();
+			if (timeLeft <= 0) {
+				window.clearInterval(interval);
+				return;
+			}
+
+			const particleCount = Math.ceil(30 * (timeLeft / durationMs));
+
+			confetti({
+				...defaults,
+				particleCount,
+				angle: 60,
+				origin: { x: randomInRange(0.1, 0.3), y: 0.85 },
+			});
+			confetti({
+				...defaults,
+				particleCount,
+				angle: 120,
+				origin: { x: randomInRange(0.7, 0.9), y: 0.85 },
+			});
+		}, 250);
+
+		return () => {
+			window.clearInterval(interval);
+			confetti.reset();
+		};
+	}, [showConfetti, theme.palette.primary.main, theme.palette.secondary.main]);
 
 	return (
 		<>
-			<Confetti
-				// For some reason this overflows the window and adds scrollbars if we don't subtract here.
-				width={width - 1}
-				height={height - 1}
-				numberOfPieces={showConfetti ? 200 : 0}
-				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
-			/>
-
 			<Stack
 				alignItems="baseline"
 				direction="row"
