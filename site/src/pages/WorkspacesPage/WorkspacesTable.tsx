@@ -119,7 +119,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<Checkbox
 								disabled={!workspaces || workspaces.length === 0}
 								checked={
-									workspaces &&
+									!!workspaces &&
 									workspaces.length > 0 &&
 									checkedWorkspaces.length === workspaces.length
 								}

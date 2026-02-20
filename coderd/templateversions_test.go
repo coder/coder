@@ -1828,8 +1828,8 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateAVersion1.ID)
-		// Create two versions for the template B to be sure if we try to get the
-		// previous version of the first version it will returns a 404
+		// Create two versions for template B so we can verify that requesting
+		// the previous version of the first version returns nil.
 		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion1.ID)
@@ -1840,9 +1840,7 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		defer cancel()
 
 		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion1.Name)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		require.ErrorIs(t, err, codersdk.ErrNoPreviousVersion)
 	})
 
 	t.Run("Previous version found", func(t *testing.T) {

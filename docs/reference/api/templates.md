@@ -630,9 +630,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| Status | Meaning                                                         | Description | Schema                                                         |
+|--------|-----------------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |                                                                |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

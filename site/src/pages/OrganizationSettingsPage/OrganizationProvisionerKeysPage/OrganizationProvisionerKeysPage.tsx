@@ -17,6 +17,7 @@ const OrganizationProvisionerKeysPage: FC = () => {
 	const { entitlements } = useDashboard();
 	const provisionerKeyDaemonsQuery = useQuery({
 		...provisionerDaemonGroups(organizationName),
+		enabled: !!organization,
 		select: (data) =>
 			[...data].sort((a, b) => b.daemons.length - a.daemons.length),
 	});

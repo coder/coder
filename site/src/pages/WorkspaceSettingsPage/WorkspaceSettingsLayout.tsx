@@ -5,6 +5,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
@@ -25,6 +26,7 @@ export function useWorkspaceSettings() {
 }
 
 export const WorkspaceSettingsLayout: FC = () => {
+	const { experiments } = useDashboard();
 	const params = useParams() as {
 		workspace: string;
 		username: string;
@@ -40,9 +42,12 @@ export const WorkspaceSettingsLayout: FC = () => {
 
 	const sharingSettingsQuery = useQuery({
 		...workspaceSharingSettings(workspace?.organization_id ?? ""),
-		enabled: !!workspace,
+		enabled: !!workspace && experiments.includes("workspace-sharing"),
 	});
-	const sharingDisabled = sharingSettingsQuery.data?.sharing_disabled ?? false;
+	const sharingDisabled =
+		(sharingSettingsQuery.data?.sharing_disabled ||
+			!experiments.includes("workspace-sharing")) ??
+		false;
 
 	if (isLoading) {
 		return <Loader />;

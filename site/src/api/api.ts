@@ -1024,25 +1024,17 @@ class ApiMethods {
 		templateName: string,
 		versionName: string,
 	) => {
-		try {
-			const response = await this.axios.get<TypesGen.TemplateVersion>(
-				`/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}/previous`,
-			);
+		const response = await this.axios.get<TypesGen.TemplateVersion>(
+			`/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}/previous`,
+		);
 
-			return response.data;
-		} catch (error) {
-			// When there is no previous version, like the first version of a
-			// template, the API returns 404 so in this case we can safely return
-			// undefined
-			const is404 =
-				isAxiosError(error) && error.response && error.response.status === 404;
-
-			if (is404) {
-				return undefined;
-			}
-
-			throw error;
+		// The API returns 204 No Content when there is no previous version
+		// (e.g. the first version of a template).
+		if (response.status === 204) {
+			return undefined;
 		}
+
+		return response.data;
 	};
 
 	/**

@@ -12,6 +12,7 @@ import {
 	StyledEngineProvider,
 } from "@mui/material/styles";
 import { appearanceSettings } from "api/queries/users";
+import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
@@ -29,9 +30,14 @@ import themes, { DEFAULT_THEME, type Theme } from "theme";
  */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
-	const appearanceSettingsQuery = useQuery(
-		appearanceSettings(metadata.userAppearance),
-	);
+	// We use `useAuthContext` instead of `useAuthenticated` because
+	// we need to check if the user is authenticated without throwing
+	// an `new Error` exception.
+	const { user } = useAuthContext();
+	const appearanceSettingsQuery = useQuery({
+		...appearanceSettings(metadata.userAppearance),
+		enabled: !!user,
+	});
 	const themeQuery = useMemo(
 		() => window.matchMedia?.("(prefers-color-scheme: light)"),
 		[],
