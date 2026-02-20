@@ -15,9 +15,10 @@ dashboard.
 ## Web Terminal
 
 The Web Terminal is a browser-based terminal that provides instant access to
-your workspace's shell environment. It uses [xterm.js](https://xtermjs.org/)
-and WebSocket technology for a responsive terminal experience with features
-like persistent sessions, Unicode support, and clickable URLs.
+your workspace's shell environment. It uses
+[ghostty-web](https://github.com/coder/ghostty-web) and WebSocket technology
+for a responsive terminal experience with features like persistent sessions,
+Unicode support, and clickable URLs.
 
 ![Terminal Access](../../images/user-guides/terminal-access.png)
 

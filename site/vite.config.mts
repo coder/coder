@@ -47,7 +47,7 @@ export default defineConfig({
 					if (id.includes("@mui")) return "mui";
 					if (id.includes("@emotion")) return "emotion";
 					if (id.includes("monaco-editor")) return "monaco";
-					if (id.includes("@xterm")) return "xterm";
+					if (id.includes("ghostty-web")) return "ghostty-web";
 					if (id.includes("emoji-mart")) return "emoji-mart";
 					if (id.includes("radix-ui")) return "radix-ui";
 				},

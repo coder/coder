@@ -9,9 +9,11 @@ configuration.
 
 ## Overview
 
-The Web Terminal leverages [xterm.js](https://xtermjs.org/), an industry-standard
-terminal emulator, combined with WebSocket technology to provide a responsive
-and feature-rich terminal experience in your browser.
+The Web Terminal leverages
+[ghostty-web](https://github.com/coder/ghostty-web), a WASM-compiled terminal
+emulator powered by [Ghostty](https://ghostty.org/), combined with WebSocket
+technology to provide a responsive and feature-rich terminal experience in your
+browser.
 
 ### Key Features
 
@@ -24,8 +26,8 @@ and feature-rich terminal experience in your browser.
   correctly
 - **Clickable Links**: Automatically detects and makes URLs clickable
 - **Copy/Paste Support**: Select text to automatically copy it to your clipboard
-- **Multiple Rendering Options**: Choose between different rendering engines for
-  optimal performance
+- **Hardware-Accelerated Rendering**: Canvas-based rendering powered by Ghostty's
+  WASM engine
 
 ## Accessing the Terminal
 
@@ -59,7 +61,7 @@ https://coder.example.com/@username/workspace-name.agent-name/terminal
 The Web Terminal creates a persistent connection between your browser and the
 workspace:
 
-1. **Browser**: Renders the terminal using xterm.js
+1. **Browser**: Renders the terminal using ghostty-web
 2. **WebSocket**: Maintains a persistent, low-latency connection
 3. **Coder Server**: Routes traffic between browser and workspace
 4. **Workspace Agent**: Manages the pseudo-terminal (PTY) session
@@ -91,31 +93,6 @@ You can customize the terminal font through your user settings:
    - **Source Code Pro**
 
 The font change applies immediately to all open terminal sessions.
-
-### Rendering Engine
-
-Administrators can configure the terminal renderer for performance optimization:
-
-```yaml
-# In your Coder deployment configuration
-webTerminalRenderer: "canvas"  # Options: canvas, webgl, dom
-```
-
-Or via environment variable:
-
-```bash
-CODER_WEB_TERMINAL_RENDERER=canvas
-```
-
-**Renderer Options:**
-
-- **`canvas`** (default): Best compatibility, good performance on most systems
-- **`webgl`**: Hardware-accelerated, ideal for high-refresh terminals and
-  complex rendering
-- **`dom`**: Fallback option, useful for accessibility tools or older browsers
-
-> **Note:** The renderer setting is deployment-wide and requires a Coder server
-> restart to take effect.
 
 ## Keyboard Shortcuts
 
@@ -190,7 +167,7 @@ bottom-right corner.
 
 ## Configuration File Support
 
-The Web Terminal uses xterm.js under the hood, which is configured
+The Web Terminal uses ghostty-web under the hood, which is configured
 programmatically rather than through a configuration file. However, you can
 customize various aspects:
 

@@ -1,4 +1,3 @@
-import "jest-canvas-mock";
 import {
 	MockUserOwner,
 	MockWorkspace,
@@ -11,7 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
-import TerminalPage, { Language } from "./TerminalPage";
+import TerminalPage from "./TerminalPage";
 
 const renderTerminal = async (
 	route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
@@ -36,9 +35,9 @@ const renderTerminal = async (
 const expectTerminalText = (container: HTMLElement, text: string) => {
 	return waitFor(
 		() => {
-			const elements = container.getElementsByClassName("xterm-rows");
+			const elements = container.getElementsByClassName("ghostty-rows");
 			if (elements.length === 0) {
-				throw new Error("no xterm-rows");
+				throw new Error("no ghostty-rows");
 			}
 			const row = elements[0] as HTMLDivElement;
 			if (!row.textContent) {
@@ -83,7 +82,7 @@ describe("TerminalPage", () => {
 
 		const { container } = await renderTerminal();
 
-		await expectTerminalText(container, Language.workspaceErrorMessagePrefix);
+		await expectTerminalText(container, "Unable to fetch workspace: ");
 	});
 
 	it("shows reconnect message when websocket fails", async () => {
@@ -161,7 +160,7 @@ describe("TerminalPage", () => {
 		await ws.nextMessage;
 
 		const msg = ws.nextMessage;
-		const terminal = container.getElementsByClassName("xterm");
+		const terminal = container.getElementsByClassName("ghostty-terminal");
 		await userEvent.type(terminal[0], "{Shift>}{Enter}{/Shift}");
 		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
 		expect(req.data).toBe("\x1b\r");
