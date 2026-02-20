@@ -9545,6 +9545,7 @@ const docTemplate = `{
                 ],
                 "summary": "Patch workspace agent app status",
                 "operationId": "patch-workspace-agent-app-status",
+                "deprecated": true,
                 "parameters": [
                     {
                         "description": "app status",
