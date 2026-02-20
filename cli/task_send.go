@@ -23,10 +23,10 @@ func (r *RootCmd) taskSend() *serpent.Command {
 		Long: "Send input to a task. If the task is paused, it will be automatically resumed before input is sent. If the task is initializing, it will wait for the task to become ready.\n" +
 			FormatExamples(Example{
 				Description: "Send direct input to a task",
-				Command:     "coder task send task1 \"Please also add unit tests\"",
+				Command:     `coder task send task1 "Please also add unit tests"`,
 			}, Example{
 				Description: "Send input from stdin to a task",
-				Command:     "echo \"Please also add unit tests\" | coder task send task1 --stdin",
+				Command:     `echo "Please also add unit tests" | coder task send task1 --stdin`,
 			}),
 		Middleware: serpent.RequireRangeArgs(1, 2),
 		Options: serpent.OptionSet{
