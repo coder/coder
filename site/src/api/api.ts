@@ -2389,7 +2389,7 @@ class ApiMethods {
 
 		const activeVersionId = template.active_version_id;
 
-		if(!isDynamicParametersEnabled) {
+		if (!isDynamicParametersEnabled) {
 			// Dynamic templates rely on the backend to fully validate parameters.
 			// Legacy templates do not, so do an additional check for any missing params.
 			const templateParameters =
