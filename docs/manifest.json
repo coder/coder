@@ -982,6 +982,11 @@
 							"path": "./ai-coder/custom-agents.md"
 						},
 						{
+							"title": "Agent Compatibility",
+							"description": "Which AI agents support session persistence across workspace restarts",
+							"path": "./ai-coder/agent-compatibility.md"
+						},
+						{
 							"title": "Tasks Migration Guide",
 							"description": "Changes to Coder Tasks made in v2.28",
 							"path": "./ai-coder/tasks-migration.md"
