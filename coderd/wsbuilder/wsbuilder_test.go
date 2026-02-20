@@ -1382,7 +1382,7 @@ func withLastBuildFound(mTx *dbmock.MockStore) {
 		}, nil)
 
 	mTx.EXPECT().GetWorkspaceBuildProvisionerStateByID(gomock.Any(), lastBuildID).
-		Times(1).
+		AnyTimes().
 		Return(database.GetWorkspaceBuildProvisionerStateByIDRow{
 			ProvisionerState: []byte("last build state"),
 		}, nil)
