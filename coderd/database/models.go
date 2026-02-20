@@ -1227,6 +1227,7 @@ const (
 	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
 	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureWebauthnConnect     CryptoKeyFeature = "webauthn_connect"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -1269,7 +1270,8 @@ func (e CryptoKeyFeature) Valid() bool {
 	case CryptoKeyFeatureWorkspaceAppsToken,
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
-		CryptoKeyFeatureTailnetResume:
+		CryptoKeyFeatureTailnetResume,
+		CryptoKeyFeatureWebauthnConnect:
 		return true
 	}
 	return false
@@ -1281,6 +1283,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
+		CryptoKeyFeatureWebauthnConnect,
 	}
 }
 
@@ -4670,6 +4673,19 @@ type VisibleUser struct {
 	Username  string    `db:"username" json:"username"`
 	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+}
+
+type WebauthnCredential struct {
+	ID              uuid.UUID    `db:"id" json:"id"`
+	UserID          uuid.UUID    `db:"user_id" json:"user_id"`
+	CredentialID    []byte       `db:"credential_id" json:"credential_id"`
+	PublicKey       []byte       `db:"public_key" json:"public_key"`
+	AttestationType string       `db:"attestation_type" json:"attestation_type"`
+	Aaguid          []byte       `db:"aaguid" json:"aaguid"`
+	SignCount       int64        `db:"sign_count" json:"sign_count"`
+	Name            string       `db:"name" json:"name"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt      sql.NullTime `db:"last_used_at" json:"last_used_at"`
 }
 
 type WebpushSubscription struct {

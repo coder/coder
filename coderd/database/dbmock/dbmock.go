@@ -955,6 +955,20 @@ func (mr *MockStoreMockRecorder) DeleteUserSecret(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserSecret", reflect.TypeOf((*MockStore)(nil).DeleteUserSecret), ctx, id)
 }
 
+// DeleteWebAuthnCredential mocks base method.
+func (m *MockStore) DeleteWebAuthnCredential(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWebAuthnCredential", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWebAuthnCredential indicates an expected call of DeleteWebAuthnCredential.
+func (mr *MockStoreMockRecorder) DeleteWebAuthnCredential(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebAuthnCredential", reflect.TypeOf((*MockStore)(nil).DeleteWebAuthnCredential), ctx, id)
+}
+
 // DeleteWebpushSubscriptionByUserIDAndEndpoint mocks base method.
 func (m *MockStore) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
 	m.ctrl.T.Helper()
@@ -4019,6 +4033,51 @@ func (mr *MockStoreMockRecorder) GetUsersByIDs(ctx, ids any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByIDs", reflect.TypeOf((*MockStore)(nil).GetUsersByIDs), ctx, ids)
 }
 
+// GetWebAuthnCredentialByCredentialID mocks base method.
+func (m *MockStore) GetWebAuthnCredentialByCredentialID(ctx context.Context, credentialID []byte) (database.WebauthnCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWebAuthnCredentialByCredentialID", ctx, credentialID)
+	ret0, _ := ret[0].(database.WebauthnCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWebAuthnCredentialByCredentialID indicates an expected call of GetWebAuthnCredentialByCredentialID.
+func (mr *MockStoreMockRecorder) GetWebAuthnCredentialByCredentialID(ctx, credentialID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebAuthnCredentialByCredentialID", reflect.TypeOf((*MockStore)(nil).GetWebAuthnCredentialByCredentialID), ctx, credentialID)
+}
+
+// GetWebAuthnCredentialByID mocks base method.
+func (m *MockStore) GetWebAuthnCredentialByID(ctx context.Context, id uuid.UUID) (database.WebauthnCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWebAuthnCredentialByID", ctx, id)
+	ret0, _ := ret[0].(database.WebauthnCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWebAuthnCredentialByID indicates an expected call of GetWebAuthnCredentialByID.
+func (mr *MockStoreMockRecorder) GetWebAuthnCredentialByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebAuthnCredentialByID", reflect.TypeOf((*MockStore)(nil).GetWebAuthnCredentialByID), ctx, id)
+}
+
+// GetWebAuthnCredentialsByUserID mocks base method.
+func (m *MockStore) GetWebAuthnCredentialsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebauthnCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWebAuthnCredentialsByUserID", ctx, userID)
+	ret0, _ := ret[0].([]database.WebauthnCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWebAuthnCredentialsByUserID indicates an expected call of GetWebAuthnCredentialsByUserID.
+func (mr *MockStoreMockRecorder) GetWebAuthnCredentialsByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebAuthnCredentialsByUserID", reflect.TypeOf((*MockStore)(nil).GetWebAuthnCredentialsByUserID), ctx, userID)
+}
+
 // GetWebpushSubscriptionsByUserID mocks base method.
 func (m *MockStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
 	m.ctrl.T.Helper()
@@ -5687,6 +5746,21 @@ func (mr *MockStoreMockRecorder) InsertVolumeResourceMonitor(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertVolumeResourceMonitor", reflect.TypeOf((*MockStore)(nil).InsertVolumeResourceMonitor), ctx, arg)
 }
 
+// InsertWebAuthnCredential mocks base method.
+func (m *MockStore) InsertWebAuthnCredential(ctx context.Context, arg database.InsertWebAuthnCredentialParams) (database.WebauthnCredential, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWebAuthnCredential", ctx, arg)
+	ret0, _ := ret[0].(database.WebauthnCredential)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWebAuthnCredential indicates an expected call of InsertWebAuthnCredential.
+func (mr *MockStoreMockRecorder) InsertWebAuthnCredential(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWebAuthnCredential", reflect.TypeOf((*MockStore)(nil).InsertWebAuthnCredential), ctx, arg)
+}
+
 // InsertWebpushSubscription mocks base method.
 func (m *MockStore) InsertWebpushSubscription(ctx context.Context, arg database.InsertWebpushSubscriptionParams) (database.WebpushSubscription, error) {
 	m.ctrl.T.Helper()
@@ -7263,6 +7337,20 @@ func (m *MockStore) UpdateVolumeResourceMonitor(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) UpdateVolumeResourceMonitor(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolumeResourceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateVolumeResourceMonitor), ctx, arg)
+}
+
+// UpdateWebAuthnCredentialSignCount mocks base method.
+func (m *MockStore) UpdateWebAuthnCredentialSignCount(ctx context.Context, arg database.UpdateWebAuthnCredentialSignCountParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWebAuthnCredentialSignCount", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWebAuthnCredentialSignCount indicates an expected call of UpdateWebAuthnCredentialSignCount.
+func (mr *MockStoreMockRecorder) UpdateWebAuthnCredentialSignCount(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWebAuthnCredentialSignCount", reflect.TypeOf((*MockStore)(nil).UpdateWebAuthnCredentialSignCount), ctx, arg)
 }
 
 // UpdateWorkspace mocks base method.

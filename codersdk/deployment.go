@@ -621,6 +621,8 @@ type DeploymentValues struct {
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
 	EnableAuthzRecording            serpent.Bool                         `json:"enable_authz_recording,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
+	RequireFIDO2Connect             serpent.Bool                         `json:"require_fido2_connect,omitempty" typescript:",notnull"`
+	RequireFIDO2UserVerification    serpent.Bool                         `json:"require_fido2_user_verification,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
@@ -717,6 +719,8 @@ type SessionLifetime struct {
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumAdminTokenDuration serpent.Duration `json:"max_admin_token_lifetime,omitempty" typescript:",notnull"`
+
+	FIDO2TokenDuration serpent.Duration `json:"fido2_token_duration,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -1369,6 +1373,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "These options change the behavior of how clients interact with the Coder. " +
 				"Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.",
 			YAML: "client",
+		}
+		deploymentGroupFIDO2 = serpent.Group{
+			Name:        "FIDO2 / WebAuthn",
+			Description: "Configure FIDO2 hardware security key authentication for sensitive workspace operations (SSH, port forwarding).",
+			YAML:        "fido2",
 		}
 		deploymentGroupConfig = serpent.Group{
 			Name:        "Config",
@@ -2787,6 +2796,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "FIDO2 Token Duration",
+			Description: "How long a FIDO2/WebAuthn connection token is valid after the user touches their security key. Controls the window during which SSH and other sensitive connections are authorized. Set to 0s for single-use tokens (one connection per key touch). Must not be negative.",
+			Flag:        "fido2-token-duration",
+			Env:         "CODER_FIDO2_TOKEN_DURATION",
+			Default:     (5 * time.Minute).String(),
+			Value:       &c.Sessions.FIDO2TokenDuration,
+			Group:       &deploymentGroupFIDO2,
+			YAML:        "fido2TokenDuration",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Default OAuth Refresh Lifetime",
 			Description: "The default lifetime duration for OAuth2 refresh tokens. This controls how long refresh tokens remain valid after issuance or rotation.",
 			Flag:        "default-oauth-refresh-lifetime",
@@ -3079,6 +3099,26 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.DisablePasswordAuth,
 			Group: &deploymentGroupNetworkingHTTP,
 			YAML:  "disablePasswordAuth",
+		},
+		{
+			Name:        "Require FIDO2 Connect",
+			Description: "Require FIDO2 security key verification before SSH, port-forwarding, and other sensitive workspace connections. All users must register a security key ('coder webauthn register') and touch it before connecting. Non-connection operations (listing workspaces, creating them, etc.) are unaffected.",
+			Flag:        "require-fido2-connect",
+			Env:         "CODER_REQUIRE_FIDO2_CONNECT",
+			Value:       &c.RequireFIDO2Connect,
+			Group:       &deploymentGroupFIDO2,
+			YAML:        "requireFido2Connect",
+			Default:     "false",
+		},
+		{
+			Name:        "Require FIDO2 User Verification",
+			Description: "Require PIN or biometric verification in addition to physical key touch during FIDO2 authentication. When enabled, users must enter their security key's PIN (or use a biometric) in addition to touching the key. This provides stronger identity assurance but adds friction to every connection.",
+			Flag:        "require-fido2-user-verification",
+			Env:         "CODER_REQUIRE_FIDO2_USER_VERIFICATION",
+			Value:       &c.RequireFIDO2UserVerification,
+			Group:       &deploymentGroupFIDO2,
+			YAML:        "requireFido2UserVerification",
+			Default:     "false",
 		},
 		{
 			Name:          "Config Path",
@@ -4050,6 +4090,15 @@ func (c *DeploymentValues) Validate() error {
 			refresh, access,
 		)
 	}
+
+	fido2Duration := c.Sessions.FIDO2TokenDuration.Value()
+	if fido2Duration < 0 {
+		return xerrors.Errorf(
+			"FIDO2 token duration must not be negative (got %s); set --fido2-token-duration to 0s for single-use or a positive duration",
+			fido2Duration,
+		)
+	}
+
 	return nil
 }
 
@@ -4522,6 +4571,7 @@ const (
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureWebAuthnConnect    CryptoKeyFeature = "webauthn_connect"
 )
 
 type CryptoKey struct {

@@ -861,6 +861,16 @@ func TestRolePermissions(t *testing.T) {
 				false: {orgAdmin, otherOrgAdmin, orgAuditor, otherOrgAuditor, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, userAdmin, orgUserAdmin, otherOrgUserAdmin},
 			},
 		},
+		// All users can create, read, and delete their own WebAuthn credentials.
+		{
+			Name:     "WebauthnCredential",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
+			Resource: rbac.ResourceWebauthnCredential.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, memberMe},
+				false: {orgAdmin, otherOrgAdmin, orgAuditor, otherOrgAuditor, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, userAdmin, orgUserAdmin, otherOrgUserAdmin},
+			},
+		},
 		// AnyOrganization tests
 		{
 			Name:     "CreateOrgMember",
