@@ -390,6 +390,10 @@ NETWORKING OPTIONS:
           Specifies the wildcard hostname to use for workspace applications in
           the form "*.example.com".
 
+      --host-prefix-cookie bool, $CODER_HOST_PREFIX_COOKIE (default: false)
+          Recommended to be enabled. Enables `__Host-` prefix for cookies to
+          guarantee they are only set by the right domain.
+
 NETWORKING / DERP OPTIONS: 
 Most Coder deployments never have to think about DERP because all connections
 between workspaces and users are peer-to-peer. However, when Coder cannot

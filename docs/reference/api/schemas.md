@@ -2815,6 +2815,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
+      "host_prefix": true,
       "same_site": "string",
       "secure_auth_cookie": true
     },
@@ -3369,6 +3370,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
+    "host_prefix": true,
     "same_site": "string",
     "secure_auth_cookie": true
   },
@@ -4488,6 +4490,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
+  "host_prefix": true,
   "same_site": "string",
   "secure_auth_cookie": true
 }
@@ -4497,6 +4500,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Name                 | Type    | Required | Restrictions | Description |
 |----------------------|---------|----------|--------------|-------------|
+| `host_prefix`        | boolean | false    |              |             |
 | `same_site`          | string  | false    |              |             |
 | `secure_auth_cookie` | boolean | false    |              |             |
 

@@ -314,6 +314,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
+      "host_prefix": true,
       "same_site": "string",
       "secure_auth_cookie": true
     },

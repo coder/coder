@@ -900,6 +900,7 @@ func New(options *Options) *API {
 		sharedhttpmw.Recover(api.Logger),
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
+		options.DeploymentValues.HTTPCookies.Middleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),

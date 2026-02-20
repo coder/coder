@@ -332,6 +332,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		sharedhttpmw.Recover(s.Logger),
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
+		opts.CookieConfig.Middleware,
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
