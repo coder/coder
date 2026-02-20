@@ -3420,6 +3420,69 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 	}
 }
 
+func TestInsertWorkspacePresetsAndParameters_DuplicateNames(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+	db, ps := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+
+	job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		JobID:          job.ID,
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	// First, insert a preset successfully
+	firstPresets := []*sdkproto.Preset{
+		{
+			Name: "duplicate-preset-name",
+		},
+	}
+
+	err := provisionerdserver.InsertWorkspacePresetsAndParameters(
+		ctx,
+		logger,
+		db,
+		job.ID,
+		templateVersion.ID,
+		firstPresets,
+		time.Now(),
+	)
+	require.NoError(t, err)
+
+	// Now try to insert another preset with the same name
+	duplicatePresets := []*sdkproto.Preset{
+		{
+			Name: "duplicate-preset-name", // Same name as above
+		},
+	}
+
+	err = provisionerdserver.InsertWorkspacePresetsAndParameters(
+		ctx,
+		logger,
+		db,
+		job.ID,
+		templateVersion.ID,
+		duplicatePresets,
+		time.Now(),
+	)
+
+	// Should get a user-friendly error message
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `a preset with the name "duplicate-preset-name" already exists in this template version`)
+
+	// Make sure it doesn't contain the technical postgres error
+	require.NotContains(t, err.Error(), "pq: duplicate key value violates unique constraint")
+	require.NotContains(t, err.Error(), "idx_unique_preset_name")
+}
+
 func TestInsertWorkspaceResource(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
