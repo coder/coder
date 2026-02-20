@@ -13312,6 +13312,171 @@ func (q *sqlQuerier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (Tas
 	return i, err
 }
 
+const getTelemetryTaskEvents = `-- name: GetTelemetryTaskEvents :many
+WITH task_event_data AS (
+    SELECT
+        t.id AS task_id,
+        t.workspace_id,
+        twa.workspace_app_id,
+        -- Latest stop build.
+        stop_build.created_at AS stop_build_created_at,
+        stop_build.reason AS stop_build_reason,
+        -- Latest start build (task_resume only).
+        start_build.created_at AS start_build_created_at,
+		start_build.reason AS start_build_reason,
+		start_build.build_number AS start_build_number,
+        -- Last "working" app status (for idle duration).
+        lws.created_at AS last_working_status_at,
+        -- First app status after resume (for resume-to-status duration).
+        -- Only populated for workspaces in an active phase (started more
+        -- recently than stopped).
+        fsar.created_at AS first_status_after_resume_at,
+        -- Cumulative time spent in "working" state.
+        active_dur.total_working_ms AS active_duration_ms
+    FROM tasks t
+    LEFT JOIN LATERAL (
+        SELECT task_app.workspace_app_id
+        FROM task_workspace_apps task_app
+        WHERE task_app.task_id = t.id
+        ORDER BY task_app.workspace_build_number DESC
+        LIMIT 1
+    ) twa ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT wb.created_at, wb.reason, wb.build_number
+        FROM workspace_builds wb
+        WHERE wb.workspace_id = t.workspace_id
+            AND wb.transition = 'stop'
+        ORDER BY wb.build_number DESC
+        LIMIT 1
+    ) stop_build ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT wb.created_at, wb.reason, wb.build_number
+        FROM workspace_builds wb
+        WHERE wb.workspace_id = t.workspace_id
+            AND wb.transition = 'start'
+        ORDER BY wb.build_number DESC
+        LIMIT 1
+    ) start_build ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT was.created_at
+        FROM workspace_app_statuses was
+        WHERE was.app_id = twa.workspace_app_id
+            AND was.state = 'working'
+        ORDER BY was.created_at DESC
+        LIMIT 1
+    ) lws ON twa.workspace_app_id IS NOT NULL
+    LEFT JOIN LATERAL (
+        SELECT was.created_at
+        FROM workspace_app_statuses was
+        WHERE was.app_id = twa.workspace_app_id
+            AND was.created_at > start_build.created_at
+        ORDER BY was.created_at ASC
+        LIMIT 1
+    ) fsar ON twa.workspace_app_id IS NOT NULL
+        AND start_build.created_at IS NOT NULL
+        AND (stop_build.created_at IS NULL
+            OR start_build.created_at > stop_build.created_at)
+    -- Active duration: cumulative time spent in "working" state.
+    -- Uses LEAD() to convert point-in-time statuses into intervals, then sums
+    -- intervals where state='working'. For the last status, falls back to
+    -- stop_build time (if paused) or @now (if still running).
+    LEFT JOIN LATERAL (
+        SELECT COALESCE(
+            SUM(EXTRACT(EPOCH FROM (interval_end - interval_start)) * 1000)::bigint,
+            0
+        )::bigint AS total_working_ms
+        FROM (
+            SELECT
+                was.created_at AS interval_start,
+                COALESCE(
+                    LEAD(was.created_at) OVER (ORDER BY was.created_at ASC),
+                    COALESCE(stop_build.created_at, $1::timestamptz)
+                ) AS interval_end,
+                was.state
+            FROM workspace_app_statuses was
+            WHERE was.app_id = twa.workspace_app_id
+        ) intervals
+        WHERE intervals.state = 'working'
+    ) active_dur ON twa.workspace_app_id IS NOT NULL
+    WHERE t.deleted_at IS NULL
+        AND t.workspace_id IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM workspace_builds wb
+            WHERE wb.workspace_id = t.workspace_id
+              AND wb.created_at > $2
+        )
+)
+SELECT task_id, workspace_id, workspace_app_id, stop_build_created_at, stop_build_reason, start_build_created_at, start_build_reason, start_build_number, last_working_status_at, first_status_after_resume_at, active_duration_ms FROM task_event_data
+ORDER BY task_id
+`
+
+type GetTelemetryTaskEventsParams struct {
+	Now          time.Time `db:"now" json:"now"`
+	CreatedAfter time.Time `db:"created_after" json:"created_after"`
+}
+
+type GetTelemetryTaskEventsRow struct {
+	TaskID                   uuid.UUID       `db:"task_id" json:"task_id"`
+	WorkspaceID              uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	WorkspaceAppID           uuid.NullUUID   `db:"workspace_app_id" json:"workspace_app_id"`
+	StopBuildCreatedAt       sql.NullTime    `db:"stop_build_created_at" json:"stop_build_created_at"`
+	StopBuildReason          NullBuildReason `db:"stop_build_reason" json:"stop_build_reason"`
+	StartBuildCreatedAt      sql.NullTime    `db:"start_build_created_at" json:"start_build_created_at"`
+	StartBuildReason         BuildReason     `db:"start_build_reason" json:"start_build_reason"`
+	StartBuildNumber         sql.NullInt32   `db:"start_build_number" json:"start_build_number"`
+	LastWorkingStatusAt      sql.NullTime    `db:"last_working_status_at" json:"last_working_status_at"`
+	FirstStatusAfterResumeAt sql.NullTime    `db:"first_status_after_resume_at" json:"first_status_after_resume_at"`
+	ActiveDurationMs         int64           `db:"active_duration_ms" json:"active_duration_ms"`
+}
+
+// Returns all data needed to build task lifecycle events for telemetry
+// in a single round-trip. For each task whose workspace is in the
+// given set, fetches:
+//   - the latest workspace app binding (task_workspace_apps)
+//   - the most recent stop and start builds (workspace_builds)
+//   - the last "working" app status (workspace_app_statuses)
+//   - the first app status after resume, for active workspaces
+//
+// Assumptions:
+//   - 1:1 relationship between tasks and workspaces. All builds on the
+//     workspace are considered task-related.
+//   - Idle duration approximation: If the agent reports "working", does
+//     work, then reports "done", we miss that working time.
+func (q *sqlQuerier) GetTelemetryTaskEvents(ctx context.Context, arg GetTelemetryTaskEventsParams) ([]GetTelemetryTaskEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTelemetryTaskEvents, arg.Now, arg.CreatedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTelemetryTaskEventsRow
+	for rows.Next() {
+		var i GetTelemetryTaskEventsRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.WorkspaceID,
+			&i.WorkspaceAppID,
+			&i.StopBuildCreatedAt,
+			&i.StopBuildReason,
+			&i.StartBuildCreatedAt,
+			&i.StartBuildReason,
+			&i.StartBuildNumber,
+			&i.LastWorkingStatusAt,
+			&i.FirstStatusAfterResumeAt,
+			&i.ActiveDurationMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertTask = `-- name: InsertTask :one
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, display_name, workspace_id, template_version_id, template_parameters, prompt, created_at)
