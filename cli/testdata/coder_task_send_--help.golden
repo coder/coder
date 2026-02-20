@@ -5,6 +5,9 @@ USAGE:
 
   Send input to a task
 
+  Send input to a task. If the task is paused, it will be automatically resumed
+  before input is sent. If the task is initializing, it will wait for the task
+  to become ready.
     - Send direct input to a task.:
   
        $ coder task send task1 "Please also add unit tests"
