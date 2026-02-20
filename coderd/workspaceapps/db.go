@@ -92,8 +92,8 @@ func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
 func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
 	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
 	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
-	//                 // dangerousSystemCtx is only used for database calls. The actual authentication
-	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
+	//                 // dangerousSystemCtx is only used for database calls. The actual authorization
+	//                 // logic is handled in authorizeRequest, which directly checks the actor's
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
@@ -297,6 +297,16 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// The user is not authenticated, so they can only access the app if it
 		// is public.
 		return sharingLevel == database.AppSharingLevelPublic, warnings, nil
+	}
+
+	// Enforce template ACLs for workspace owners. If the owner's access
+	// to the template has been revoked, they should not be able to access
+	// workspace apps. Non-owners skip this check because they may
+	// legitimately lack direct template access (e.g. shared app users).
+	if dbReq.Workspace.OwnerID.String() == roles.ID {
+		if err := p.Authorizer.Authorize(ctx, *roles, policy.ActionRead, dbReq.Template.RBACObject()); err != nil {
+			return false, warnings, nil
+		}
 	}
 
 	// Block anyone from accessing workspaces they don't own in path-based apps

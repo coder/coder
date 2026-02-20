@@ -592,9 +592,9 @@ func TestAuthorizeDomain(t *testing.T) {
 
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 		}),
-		// Other Objects
+		// Other Objects: non-read actions still blocked by scope
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
+			c.actions = []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
@@ -620,6 +620,37 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceTemplate.InOrg(unusedID)},
 
 			{resource: ResourceTemplate.WithOwner("not-me")},
+		}),
+		// Template read: allowed by scope, checked against roles.
+		// The member role grants template:* on own resources via user
+		// permissions, so owned templates pass.
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []policy.Action{policy.ActionRead}
+			return c
+		}, []authTestCase{
+			// Org + me (member role allows template:* on own resources)
+			{resource: ResourceTemplate.InOrg(defOrg).WithOwner(user.ID), allow: true},
+			{resource: ResourceTemplate.InOrg(defOrg), allow: false},
+
+			// No org + me (member user-level perms allow template:*)
+			{resource: ResourceTemplate.WithOwner(user.ID), allow: true},
+
+			{resource: ResourceTemplate.All(), allow: false},
+
+			// Other org + me
+			{resource: ResourceTemplate.InOrg(unusedID).WithOwner(user.ID), allow: false},
+			{resource: ResourceTemplate.InOrg(unusedID), allow: false},
+
+			// Other org + other user
+			{resource: ResourceTemplate.InOrg(defOrg).WithOwner("not-me"), allow: false},
+
+			{resource: ResourceTemplate.WithOwner("not-me"), allow: false},
+
+			// Other org + other use
+			{resource: ResourceTemplate.InOrg(unusedID).WithOwner("not-me"), allow: false},
+			{resource: ResourceTemplate.InOrg(unusedID), allow: false},
+
+			{resource: ResourceTemplate.WithOwner("not-me"), allow: false},
 		}),
 	)
 
