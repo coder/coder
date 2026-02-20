@@ -870,7 +870,7 @@ func (b *Builder) getDynamicParameters() (names, values []string, err error) {
 		b.richParameterValues,
 		presetParameterValues)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("resolve parameters: %w", err)
+		return nil, nil, BuildError{http.StatusBadRequest, "resolve parameters", err}
 	}
 
 	names = make([]string, 0, len(buildValues))
@@ -1107,7 +1107,7 @@ func (b *Builder) getDynamicProvisionerTags() (map[string]string, error) {
 	output, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
 	tagErr := dynamicparameters.CheckTags(output, diags)
 	if tagErr != nil {
-		return nil, tagErr
+		return nil, BuildError{http.StatusBadRequest, "workspace tags validation failed", tagErr}
 	}
 
 	for k, v := range output.WorkspaceTags.Tags() {
