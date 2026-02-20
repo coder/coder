@@ -815,7 +815,7 @@ func (b *Builder) getState() ([]byte, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get last build to get state: %w", err)
 	}
-	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsProvisionerd(b.ctx), bld.ID)
+	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsSystemRestricted(b.ctx), bld.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace build provisioner state: %w", err)
 	}
