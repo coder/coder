@@ -176,7 +176,7 @@ networking:
   # (default: <unset>, type: string-array)
   proxyTrustedOrigins: []
   # Controls if the 'Secure' property is set on browser session cookies.
-  # (default: <unset>, type: bool)
+  # (default: false, type: bool)
   secureAuthCookie: false
   # Controls the 'SameSite' property is set on browser session cookies.
   # (default: lax, type: enum[lax\|none])

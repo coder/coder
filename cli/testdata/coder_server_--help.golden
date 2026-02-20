@@ -383,7 +383,7 @@ NETWORKING OPTIONS:
       --samesite-auth-cookie lax|none, $CODER_SAMESITE_AUTH_COOKIE (default: lax)
           Controls the 'SameSite' property is set on browser session cookies.
 
-      --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE
+      --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE (default: false)
           Controls if the 'Secure' property is set on browser session cookies.
 
       --wildcard-access-url string, $CODER_WILDCARD_ACCESS_URL
