@@ -2236,8 +2236,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// the case here. This data goes directly to an unauthorized user. We are
 	// just straight up breaking security promises.
 	//
-	// Fine for now while behind the shared-workspaces experiment, but needs to
-	// be fixed before GA.
+	// TODO: This needs to be fixed before GA. Currently in beta.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
