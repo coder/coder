@@ -990,4 +990,74 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
+
+	t.Run("NewImmutableParameterViaFlag", func(t *testing.T) {
+		t.Parallel()
+
+		// Create template and workspace with only a mutable parameter.
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		templateParameters := []*proto.RichParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+				{Name: "First option", Description: "This is first option", Value: "1st"},
+				{Name: "Second option", Description: "This is second option", Value: "2nd"},
+			}},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(templateParameters))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "1st"))
+		clitest.SetupConfig(t, member, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Update template: add a new immutable parameter.
+		updatedTemplateParameters := []*proto.RichParameter{
+			templateParameters[0],
+			{Name: immutableParameterName, Type: "string", Mutable: false, Required: true, Options: []*proto.RichParameterOption{
+				{Name: "fir", Description: "First option for immutable parameter", Value: "I"},
+				{Name: "sec", Description: "Second option for immutable parameter", Value: "II"},
+			}},
+		}
+
+		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
+		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: updatedVersion.ID,
+		})
+		require.NoError(t, err)
+
+		// Update workspace, supplying the new immutable parameter via
+		// the --parameter flag. This should succeed because it's the
+		// first time this parameter is being set.
+		inv, root = clitest.New(t, "update", "my-workspace",
+			"--parameter", fmt.Sprintf("%s=%s", immutableParameterName, "II"))
+		clitest.SetupConfig(t, member, root)
+
+		pty := ptytest.New(t).Attach(inv)
+		doneChan := make(chan struct{})
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch("Planning workspace")
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_ = testutil.TryReceive(ctx, t, doneChan)
+
+		// Verify the immutable parameter was set correctly.
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, memberUser.ID.String(), "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+			Name:  immutableParameterName,
+			Value: "II",
+		})
+	})
 }
