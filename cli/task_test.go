@@ -88,6 +88,13 @@ func Test_Tasks(t *testing.T) {
 					o.Client = agentClient
 				})
 				coderdtest.NewWorkspaceAgentWaiter(t, userClient, tasks[0].WorkspaceID.UUID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
+				// Report the task app as idle so that waitForTaskIdle
+				// can proceed during the "send task message" step.
+				require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+					AppSlug: "task-sidebar",
+					State:   codersdk.WorkspaceAppStatusStateIdle,
+					Message: "ready",
+				}))
 			},
 		},
 		{
@@ -314,6 +321,14 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 
 	coderdtest.NewWorkspaceAgentWaiter(t, userClient, workspace.ID).
 		WaitFor(coderdtest.AgentsReady)
+
+	// Report the task app as idle so that waitForTaskIdle can proceed.
+	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+		AppSlug: "task-sidebar",
+		State:   codersdk.WorkspaceAppStatusStateIdle,
+		Message: "ready",
+	})
+	require.NoError(t, err)
 
 	return setupCLITaskTestResult{
 		ownerClient: ownerClient,

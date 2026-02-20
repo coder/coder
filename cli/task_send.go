@@ -87,7 +87,7 @@ func (r *RootCmd) taskSend() *serpent.Command {
 				}
 
 				if err = waitForTaskReady(ctx, inv, client, task, resp.WorkspaceBuild.ID); err != nil {
-					return err
+					return xerrors.Errorf("wait for task %q to be ready: %w", display, err)
 				}
 
 			case codersdk.TaskStatusInitializing:
@@ -101,11 +101,15 @@ func (r *RootCmd) taskSend() *serpent.Command {
 				}
 
 				if err = waitForTaskReady(ctx, inv, client, task, workspace.LatestBuild.ID); err != nil {
-					return err
+					return xerrors.Errorf("wait for task %q to be ready: %w", display, err)
 				}
 
 			default:
 				return xerrors.Errorf("task %q has status %s and cannot be sent input", display, task.Status)
+			}
+
+			if err := waitForTaskIdle(ctx, client, task); err != nil {
+				return xerrors.Errorf("wait for task %q to be idle: %w", display, err)
 			}
 
 			if err := client.TaskSend(ctx, codersdk.Me, task.ID, codersdk.TaskSendRequest{Input: taskInput}); err != nil {
@@ -119,13 +123,48 @@ func (r *RootCmd) taskSend() *serpent.Command {
 	return cmd
 }
 
+// waitForTaskIdle polls until the task's app state becomes idle.
+// This ensures the agent is ready to accept input before we send it.
+func waitForTaskIdle(ctx context.Context, client *codersdk.Client, task codersdk.Task) error {
+	// TODO(DanielleMaywood):
+	// When we have a streaming Task API, this should be converted
+	// away from polling.
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			task, err := client.TaskByID(ctx, task.ID)
+			if err != nil {
+				return xerrors.Errorf("get task by id: %w", err)
+			}
+
+			if task.CurrentState == nil {
+				continue
+			}
+
+			switch task.CurrentState.State {
+			case codersdk.TaskStateIdle:
+				return nil
+			case codersdk.TaskStateComplete:
+				return xerrors.Errorf("task has completed and cannot be sent input")
+			case codersdk.TaskStateFailed:
+				return xerrors.Errorf("task has failed and cannot be sent input")
+			case codersdk.TaskStateWorking:
+				// Still busy, keep polling.
+			}
+		}
+	}
+}
+
 // waitForTaskReady watches the workspace build to completion then polls
 // until the task becomes active.
 func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, task codersdk.Task, workspaceBuildID uuid.UUID) error {
-	display := fmt.Sprintf("%s/%s", task.OwnerName, task.Name)
-
 	if err := cliui.WorkspaceBuild(ctx, inv.Stdout, client, workspaceBuildID); err != nil {
-		return xerrors.Errorf("watch workspace build for task %q: %w", display, err)
+		return xerrors.Errorf("watch workspace build: %w", err)
 	}
 
 	// TODO(DanielleMaywood):
@@ -142,7 +181,7 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 			if err != nil {
 				return xerrors.Errorf("get task by id: %w", err)
 			} else if task.Status == codersdk.TaskStatusError || task.Status == codersdk.TaskStatusUnknown {
-				return xerrors.Errorf("entered %s state while waiting for it to become active", task.Status)
+				return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
 			}
 
 			if task.Status == codersdk.TaskStatusActive {

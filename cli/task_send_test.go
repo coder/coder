@@ -166,6 +166,13 @@ func Test_TaskSend(t *testing.T) {
 		coderdtest.NewWorkspaceAgentWaiter(t, setup.userClient, setup.task.WorkspaceID.UUID).
 			WaitFor(coderdtest.AgentsReady)
 
+		// Report the task app as idle so waitForTaskIdle can proceed.
+		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateIdle,
+			Message: "ready",
+		}))
+
 		// Then: The command should complete successfully.
 		require.NoError(t, w.Wait())
 
@@ -210,12 +217,63 @@ func Test_TaskSend(t *testing.T) {
 		coderdtest.NewWorkspaceAgentWaiter(t, setup.userClient, setup.task.WorkspaceID.UUID).
 			WaitFor(coderdtest.AgentsReady)
 
+		// Report the task app as idle so waitForTaskIdle can proceed.
+		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateIdle,
+			Message: "ready",
+		}))
+
 		// Then: The command should complete successfully.
 		require.NoError(t, w.Wait())
 
 		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TaskStatusActive, updated.Status)
+	})
+
+	t.Run("RejectsCompletedTask", func(t *testing.T) {
+		t.Parallel()
+
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+
+		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
+		require.NoError(t, agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+			Message: "done",
+		}))
+
+		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some input")
+		clitest.SetupConfig(t, setup.userClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "has completed and cannot be sent input")
+	})
+
+	t.Run("RejectsFailedTask", func(t *testing.T) {
+		t.Parallel()
+
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+
+		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
+		require.NoError(t, agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateFailure,
+			Message: "something went wrong",
+		}))
+
+		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some input")
+		clitest.SetupConfig(t, setup.userClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "has failed and cannot be sent input")
 	})
 }
 
