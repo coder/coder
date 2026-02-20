@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -21,7 +22,14 @@ import (
 // connections to the "derp" subprotocol to WebSockets and
 // passes them to the DERP server.
 // Taken from: https://github.com/tailscale/tailscale/blob/e3211ff88ba85435f70984cf67d9b353f3d650d8/cmd/derper/websocket.go#L21
-func WithWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func()) {
+func WithWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func()) {	return WithWebsocketSupportAndMetrics(s, base, nil)
+}
+
+// WithWebsocketSupportAndMetrics is like WithWebsocketSupport but
+// also instruments connections using the provided metrics hooks.
+// If metrics is nil, no instrumentation is applied.
+func WithWebsocketSupportAndMetrics(s *derp.Server, base http.Handler, metrics *DERPWebsocketMetrics) (http.Handler, func()) {
+
 	var mu sync.Mutex
 	var waitGroup sync.WaitGroup
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -64,9 +72,15 @@ func WithWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func
 				c.Close(websocket.StatusPolicyViolation, "client must speak the derp subprotocol")
 				return
 			}
-			wc := websocket.NetConn(ctx, c, websocket.MessageBinary)
-			brw := bufio.NewReadWriter(bufio.NewReader(wc), bufio.NewWriter(wc))
-			s.Accept(ctx, wc, brw, r.RemoteAddr)
+			var conn net.Conn = websocket.NetConn(ctx, c, websocket.MessageBinary)
+			if metrics != nil {
+				if metrics.OnConnOpen != nil {
+					metrics.OnConnOpen()
+				}
+				conn = newCountingConn(conn, metrics)
+			}
+			brw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+			s.Accept(ctx, conn, brw, r.RemoteAddr)
 		}), func() {
 			cancelFunc()
 			mu.Lock()

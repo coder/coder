@@ -321,7 +321,31 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	})
 
 	derpHandler := derphttp.Handler(derpServer)
-	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derpHandler)
+
+	// Prometheus metrics for DERP websocket connections.
+	derpWSActiveConns := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "coder_wsproxy",
+		Subsystem: "derp_websocket",
+		Name:      "active_connections",
+		Help:      "Number of active DERP websocket connections.",
+	})
+	derpWSBytesTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coder_wsproxy",
+		Subsystem: "derp_websocket",
+		Name:      "bytes_total",
+		Help:      "Total bytes flowing through DERP websocket connections.",
+	}, []string{"direction"})
+	if opts.PrometheusRegistry != nil {
+		opts.PrometheusRegistry.MustRegister(derpWSActiveConns, derpWSBytesTotal)
+	}
+
+	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupportAndMetrics(
+		derpServer, derpHandler, &tailnet.DERPWebsocketMetrics{
+			OnConnOpen:  func() { derpWSActiveConns.Inc() },
+			OnConnClose: func() { derpWSActiveConns.Dec() },
+			OnRead:      func(n int) { derpWSBytesTotal.WithLabelValues("read").Add(float64(n)) },
+			OnWrite:     func(n int) { derpWSBytesTotal.WithLabelValues("write").Add(float64(n)) },
+		})
 
 	// The primary coderd dashboard needs to make some GET requests to
 	// the workspace proxies to check latency.
