@@ -286,8 +286,8 @@ SELECT
 FROM
 	workspace_builds
 INNER JOIN
-	template_versions ON template_versions.id = workspace_builds.template_version_id
+	workspaces ON workspaces.id = workspace_builds.workspace_id
 INNER JOIN
-	templates ON templates.id = template_versions.template_id
+	templates ON templates.id = workspaces.template_id
 WHERE
 	workspace_builds.id = @workspace_build_id;
