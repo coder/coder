@@ -430,7 +430,7 @@ const TerminalPage: FC = () => {
 					}}
 				/>
 				<div
-					className="w-full overflow-hidden flex-1 [&_canvas]:block"
+					className="w-full overflow-hidden flex-1 [&_canvas]:block p-1"
 					style={{ backgroundColor: theme.palette.background.default }}
 					ref={terminalWrapperRef}
 					data-testid="terminal"
