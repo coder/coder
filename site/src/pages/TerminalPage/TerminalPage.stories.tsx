@@ -199,12 +199,10 @@ export const ConnectionError: Story = {
 // together with the error message
 export const BottomMessage: Story = {
 	decorators: [withWebSocket],
+
 	parameters: {
 		...meta.parameters,
-		// Forcing smaller viewport to make it easier to identify the issue
-		viewport: {
-			defaultViewport: "terminal",
-		},
+
 		webSocket: [
 			{
 				event: "message",
@@ -215,6 +213,14 @@ export const BottomMessage: Story = {
 				event: "close",
 			},
 		],
+
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+
+	globals: {
+		viewport: {
+			value: "terminal",
+			isRotated: false,
+		},
 	},
 };
