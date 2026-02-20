@@ -2725,10 +2725,16 @@ class ApiMethods {
 		return res.data;
 	};
 
-	getInboxNotifications = async (startingBeforeId?: string) => {
+	getInboxNotifications = async (
+		startingBeforeId?: string,
+		readStatus?: "read" | "unread" | "all",
+	) => {
 		const params = new URLSearchParams();
 		if (startingBeforeId) {
 			params.append("starting_before", startingBeforeId);
+		}
+		if (readStatus) {
+			params.append("read_status", readStatus);
 		}
 		const res = await this.axios.get<TypesGen.ListInboxNotificationsResponse>(
 			`/api/v2/notifications/inbox?${params.toString()}`,
