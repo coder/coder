@@ -14,7 +14,7 @@ type UpdateAllPayload = Readonly<{
 
 type UseBatchActionsResult = Readonly<{
 	isProcessing: boolean;
-	start: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
+	start: (workspaces: readonly Workspace[]) => Promise<unknown[]>;
 	stop: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	delete: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	updateTemplateVersions: (
@@ -31,10 +31,16 @@ export function useBatchActions(
 
 	const startAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(
-				workspaces.map((w) =>
-					API.startWorkspace(w.id, w.latest_build.template_version_id),
-				),
+			return Promise.all<unknown>(
+				workspaces.map((w) => {
+					if (
+						w.latest_build.status === "failed" &&
+						w.latest_build.transition === "start"
+					) {
+						return API.restartWorkspace({ workspace: w });
+					}
+					return API.startWorkspace(w.id, w.latest_build.template_version_id);
+				}),
 			);
 		},
 		onSuccess,

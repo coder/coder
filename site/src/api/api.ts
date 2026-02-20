@@ -345,6 +345,7 @@ type SearchParamOptions = TypesGen.Pagination & {
 type RestartWorkspaceParameters = Readonly<{
 	workspace: TypesGen.Workspace;
 	buildParameters?: TypesGen.WorkspaceBuildParameter[];
+	logLevel?: TypesGen.ProvisionerLogLevel;
 }>;
 
 export type DeleteWorkspaceOptions = Pick<
@@ -1407,23 +1408,27 @@ class ApiMethods {
 	restartWorkspace = async ({
 		workspace,
 		buildParameters,
-	}: RestartWorkspaceParameters): Promise<void> => {
-		const stopBuild = await this.stopWorkspace(workspace.id);
+		logLevel,
+	}: RestartWorkspaceParameters): Promise<
+		TypesGen.WorkspaceBuild | undefined
+	> => {
+		const stopBuild = await this.stopWorkspace(workspace.id, logLevel);
 		const awaitedStopBuild = await this.waitForBuild(stopBuild);
 
 		// If the restart is canceled halfway through, make sure we bail
 		if (awaitedStopBuild?.status === "canceled") {
-			return;
+			return undefined;
 		}
 
 		const startBuild = await this.startWorkspace(
 			workspace.id,
 			workspace.latest_build.template_version_id,
-			undefined,
+			logLevel,
 			buildParameters,
 		);
 
 		await this.waitForBuild(startBuild);
+		return startBuild;
 	};
 
 	cancelTemplateVersionBuild = async (
@@ -2256,8 +2261,14 @@ class ApiMethods {
 
 	updateWorkspaceVersion = async (
 		workspace: TypesGen.Workspace,
-	): Promise<TypesGen.WorkspaceBuild> => {
+	): Promise<TypesGen.WorkspaceBuild | undefined> => {
 		const template = await this.getTemplate(workspace.template_id);
+		if (
+			workspace.latest_build.status === "failed" &&
+			workspace.latest_build.transition === "start"
+		) {
+			return this.restartWorkspace({ workspace });
+		}
 		return this.startWorkspace(workspace.id, template.active_version_id);
 	};
 
