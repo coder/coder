@@ -269,7 +269,7 @@ func TestSubagentService_HasActiveDescendants(t *testing.T) {
 	require.False(t, active)
 }
 
-func TestSubagentService_MarkSubagentReportedInsertsParentToolUseAndToolMessage(t *testing.T) {
+func TestSubagentService_MarkSubagentReportedDoesNotInsertParentMessages(t *testing.T) {
 	t.Parallel()
 
 	parentID := uuid.New()
@@ -286,46 +286,10 @@ func TestSubagentService_MarkSubagentReportedInsertsParentToolUseAndToolMessage(
 	_, err := service.MarkSubagentReported(context.Background(), childID, "child complete", uuid.NullUUID{UUID: requestID, Valid: true})
 	require.NoError(t, err)
 
+	// The report should not inject any messages into the parent
+	// chat. The parent receives the report via subagent_await.
 	messages := store.chatMessagesByChatID(parentID)
-	require.Len(t, messages, 2)
-
-	assistantMsg := messages[0]
-	require.Equal(t, string(fantasy.MessageRoleAssistant), assistantMsg.Role)
-	require.True(t, assistantMsg.Hidden)
-	require.True(t, assistantMsg.ToolCallID.Valid)
-
-	expectedToolCallID := subagentReportToolCallID(requestID)
-	require.Equal(t, expectedToolCallID, assistantMsg.ToolCallID.String)
-	require.Regexp(t, `^[a-zA-Z0-9_-]+$`, assistantMsg.ToolCallID.String)
-
-	assistantBlocks, err := parseContentBlocks(assistantMsg.Role, assistantMsg.Content)
-	require.NoError(t, err)
-	require.Len(t, assistantBlocks, 1)
-	assistantToolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](assistantBlocks[0])
-	require.True(t, ok)
-	require.Equal(t, expectedToolCallID, assistantToolCall.ToolCallID)
-	require.Equal(t, toolSubagentReport, assistantToolCall.ToolName)
-	require.Equal(t, "{}", assistantToolCall.Input)
-
-	msg := messages[1]
-	require.Equal(t, string(fantasy.MessageRoleTool), msg.Role)
-	require.False(t, msg.Hidden)
-	require.True(t, msg.ToolCallID.Valid)
-	require.Equal(t, expectedToolCallID, msg.ToolCallID.String)
-	require.Regexp(t, `^[a-zA-Z0-9_-]+$`, msg.ToolCallID.String)
-
-	blocks, err := parseToolResults(msg.Content)
-	require.NoError(t, err)
-	require.Len(t, blocks, 1)
-	require.Equal(t, expectedToolCallID, blocks[0].ToolCallID)
-	require.Regexp(t, `^[a-zA-Z0-9_-]+$`, blocks[0].ToolCallID)
-	require.Equal(t, toolSubagentReport, blocks[0].ToolName)
-
-	payload, ok := blocks[0].Result.(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, childID.String(), payload["chat_id"])
-	require.Equal(t, requestID.String(), payload["request_id"])
-	require.Equal(t, "child complete", payload["report"])
+	require.Empty(t, messages)
 }
 
 func TestSubagentService_MarkSubagentReportedWakesParentToPending(t *testing.T) {

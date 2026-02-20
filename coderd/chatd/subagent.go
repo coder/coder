@@ -375,18 +375,6 @@ func (s *SubagentService) MarkSubagentReported(
 		return SubagentAwaitResult{}, xerrors.Errorf("insert subagent response marker: %w", err)
 	}
 
-	if chat.ParentChatID.Valid {
-		if err := s.insertParentSubagentReportMessage(
-			ctx,
-			chat.ParentChatID.UUID,
-			chatID,
-			requestID,
-			report,
-		); err != nil {
-			return SubagentAwaitResult{}, err
-		}
-	}
-
 	result, ok, err := s.responseForRequest(ctx, chatID, requestID)
 	if err != nil {
 		return SubagentAwaitResult{}, err
@@ -752,77 +740,6 @@ func (s *SubagentService) resolveRequestWaiters(
 		}
 		close(waiter)
 	}
-}
-
-func (s *SubagentService) insertParentSubagentReportMessage(
-	ctx context.Context,
-	parentChatID uuid.UUID,
-	childChatID uuid.UUID,
-	requestID uuid.UUID,
-	report string,
-) error {
-	toolCallID := subagentReportToolCallID(requestID)
-	toolCallContent, err := marshalContentBlocks([]fantasy.Content{
-		fantasy.ToolCallContent{
-			ToolCallID: toolCallID,
-			ToolName:   toolSubagentReport,
-			Input:      "{}",
-		},
-	})
-	if err != nil {
-		return xerrors.Errorf("marshal parent subagent report tool call: %w", err)
-	}
-
-	_, err = s.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  parentChatID,
-		Role:    string(fantasy.MessageRoleAssistant),
-		Content: toolCallContent,
-		ToolCallID: sql.NullString{
-			String: toolCallID,
-			Valid:  true,
-		},
-		// Keep existing visible report card behavior by only surfacing the
-		// tool result message to clients.
-		Hidden: true,
-	})
-	if err != nil {
-		return xerrors.Errorf("insert parent subagent report tool call message: %w", err)
-	}
-
-	content, err := marshalToolResults([]ToolResultBlock{{
-		ToolCallID: toolCallID,
-		ToolName:   toolSubagentReport,
-		Result: map[string]any{
-			"chat_id":     childChatID.String(),
-			"request_id":  requestID.String(),
-			"report":      report,
-			"status":      "reported",
-			"duration_ms": nil,
-		},
-	}})
-	if err != nil {
-		return xerrors.Errorf("marshal parent subagent report tool result: %w", err)
-	}
-
-	_, err = s.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  parentChatID,
-		Role:    string(fantasy.MessageRoleTool),
-		Content: content,
-		ToolCallID: sql.NullString{
-			String: toolCallID,
-			Valid:  true,
-		},
-		Hidden: false,
-	})
-	if err != nil {
-		return xerrors.Errorf("insert parent subagent report tool message: %w", err)
-	}
-
-	return nil
-}
-
-func subagentReportToolCallID(requestID uuid.UUID) string {
-	return subagentReportToolCallIDPrefix + requestID.String()
 }
 
 func (s *SubagentService) requeueParentChat(ctx context.Context, parentChatID uuid.UUID) error {

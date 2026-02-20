@@ -2324,30 +2324,21 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 		return durationErr == nil && durationMS > 0
 	}, testutil.WaitLong, 25*time.Millisecond)
 
-	require.Eventually(t, func() bool {
-		messages, msgErr := db.GetChatMessagesByChatID(dbCtx, parent.ID)
-		if msgErr != nil {
-			return false
+	// The parent should NOT have any subagent_report messages injected.
+	// Reports are delivered through subagent_await, not separate messages.
+	messages, err := db.GetChatMessagesByChatID(dbCtx, parent.ID)
+	require.NoError(t, err)
+	for _, message := range messages {
+		if message.Role != string(fantasy.MessageRoleTool) {
+			continue
 		}
-		for _, message := range messages {
-			if message.Role != string(fantasy.MessageRoleTool) {
-				continue
-			}
-			var blocks []chatd.ToolResultBlock
-			if err := json.Unmarshal(message.Content.RawMessage, &blocks); err != nil {
-				continue
-			}
-			if len(blocks) != 1 || blocks[0].ToolName != "subagent_report" {
-				continue
-			}
-			payload, ok := blocks[0].Result.(map[string]any)
-			if !ok {
-				continue
-			}
-			report, reportOK := payload["report"].(string)
-			request, requestOK := payload["request_id"].(string)
-			return reportOK && requestOK && report == fallbackSummary && request == requestID.String()
+		var blocks []chatd.ToolResultBlock
+		if unmarshalErr := json.Unmarshal(message.Content.RawMessage, &blocks); unmarshalErr != nil {
+			continue
 		}
-		return false
-	}, testutil.WaitLong, 25*time.Millisecond)
+		for _, block := range blocks {
+			require.NotEqual(t, "subagent_report", block.ToolName,
+				"subagent_report should not be injected into parent chat")
+		}
+	}
 }
