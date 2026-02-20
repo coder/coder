@@ -2702,7 +2702,6 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.build_number,
     workspace_builds.transition,
     workspace_builds.initiator_id,
-    workspace_builds.provisioner_state,
     workspace_builds.job_id,
     workspace_builds.deadline,
     workspace_builds.reason,

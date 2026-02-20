@@ -1969,6 +1969,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
 		check.Args(build.ID).Asserts(ws, policy.ActionRead).Returns(build)
 	}))
+	s.Run("GetWorkspaceBuildProvisionerStateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := database.GetWorkspaceBuildProvisionerStateByIDRow{
+			ProvisionerState:       []byte("state"),
+			TemplateID:             uuid.New(),
+			TemplateOrganizationID: uuid.New(),
+		}
+		dbm.EXPECT().GetWorkspaceBuildProvisionerStateByID(gomock.Any(), gomock.Any()).Return(row, nil).AnyTimes()
+		check.Args(uuid.New()).Asserts(row, policy.ActionUpdate).Returns(row)
+	}))
 	s.Run("GetWorkspaceBuildByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})

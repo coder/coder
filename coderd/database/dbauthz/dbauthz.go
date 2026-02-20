@@ -668,6 +668,31 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectWorkspaceBuilder = rbac.Subject{
+		Type:         rbac.SubjectTypeWorkspaceBuilder,
+		FriendlyName: "Workspace Builder",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "workspace-builder"},
+				DisplayName: "Workspace Builder",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// Reading provisioner daemons to check eligibility.
+					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
+					// Updating provisioner jobs (e.g. marking prebuild
+					// jobs complete).
+					rbac.ResourceProvisionerJobs.Type: {policy.ActionUpdate},
+					// Reading provisioner state requires template update
+					// permission.
+					rbac.ResourceTemplate.Type: {policy.ActionUpdate},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -772,6 +797,14 @@ func AsDBPurge(ctx context.Context) context.Context {
 // required for the boundary usage tracker to record telemetry statistics.
 func AsBoundaryUsageTracker(ctx context.Context) context.Context {
 	return As(ctx, subjectBoundaryUsageTracker)
+}
+
+// AsWorkspaceBuilder returns a context with an actor that has permissions
+// required for the workspace builder to prepare workspace builds. This
+// includes reading provisioner daemons, updating provisioner jobs, and
+// reading provisioner state (which requires template update permission).
+func AsWorkspaceBuilder(ctx context.Context) context.Context {
+	return As(ctx, subjectWorkspaceBuilder)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -2257,7 +2290,7 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 }
 
 func (q *querier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
-	// This is a system function
+	// This is a system function.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, err
 	}
@@ -3912,6 +3945,11 @@ func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, wor
 	}
 
 	return q.db.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prep)
+}
+
+func (q *querier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, buildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
+	// Fetching the provisioner state requires Update permission on the template.
+	return fetchWithAction(q.log, q.auth, policy.ActionUpdate, q.db.GetWorkspaceBuildProvisionerStateByID)(ctx, buildID)
 }
 
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
