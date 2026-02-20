@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { appearanceSettings } from "api/queries/users";
 import {
 	workspaceByOwnerAndName,
@@ -430,10 +429,7 @@ const TerminalPage: FC = () => {
 				</title>
 			)}
 
-			<div
-				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
-				data-status={connectionStatus}
-			>
+			<div className="flex flex-col h-screen" data-status={connectionStatus}>
 				<TerminalAlerts
 					agent={workspaceAgent}
 					status={connectionStatus}
@@ -442,41 +438,20 @@ const TerminalPage: FC = () => {
 					}}
 				/>
 				<div
-					css={styles.terminal}
+					className="w-full overflow-hidden flex-1 [&_canvas]:block"
+					style={{ backgroundColor: theme.palette.background.default }}
 					ref={terminalWrapperRef}
 					data-testid="terminal"
 				/>
 			</div>
 
 			{latency && isDebugging && (
-				<span
-					css={{
-						position: "absolute",
-						bottom: 24,
-						right: 24,
-						color: theme.palette.text.disabled,
-						fontSize: 14,
-					}}
-				>
+				<span className="absolute bottom-6 right-6 text-sm text-content-disabled">
 					Latency: {latency.latencyMS.toFixed(0)}ms
 				</span>
 			)}
 		</ThemeOverride>
 	);
 };
-
-const styles = {
-	terminal: (theme) => ({
-		width: "100%",
-		overflow: "hidden",
-		// Must match the terminal theme background so the thin
-		// fractional-cell gap around the canvas blends in.
-		backgroundColor: theme.palette.background.default,
-		flex: 1,
-		"& canvas": {
-			display: "block",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default TerminalPage;
