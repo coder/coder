@@ -76,8 +76,7 @@ func TestEntitlements(t *testing.T) {
 					f := make(license.Features)
 					for _, name := range codersdk.FeatureNames {
 						if name == codersdk.FeatureManagedAgentLimit {
-							f[codersdk.FeatureName("managed_agent_limit_soft")] = 100
-							f[codersdk.FeatureName("managed_agent_limit_hard")] = 200
+							f[codersdk.FeatureManagedAgentLimit] = 100
 							continue
 						}
 						f[name] = 1
@@ -520,8 +519,7 @@ func TestEntitlements(t *testing.T) {
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 		const userLimit = 1
-		const expectedAgentSoftLimit = 1000
-		const expectedAgentHardLimit = 1000
+		const expectedAgentLimit = 1000
 
 		db, _ := dbtestutil.NewDB(t)
 		licenseOptions := coderdenttest.LicenseOptions{
@@ -553,8 +551,7 @@ func TestEntitlements(t *testing.T) {
 				agentEntitlement := entitlements.Features[featureName]
 				require.True(t, agentEntitlement.Enabled)
 				require.Equal(t, codersdk.EntitlementEntitled, agentEntitlement.Entitlement)
-				require.EqualValues(t, expectedAgentSoftLimit, *agentEntitlement.SoftLimit)
-				require.EqualValues(t, expectedAgentHardLimit, *agentEntitlement.Limit)
+				require.EqualValues(t, expectedAgentLimit, *agentEntitlement.Limit)
 
 				// This might be shocking, but there's a sound reason for this.
 				// See license.go for more details.
@@ -814,7 +811,7 @@ func TestEntitlements(t *testing.T) {
 			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
 		}).
 			UserLimit(100).
-			ManagedAgentLimit(100, 200)
+			ManagedAgentLimit(100)
 
 		lic := database.License{
 			ID:  1,
@@ -855,16 +852,16 @@ func TestEntitlements(t *testing.T) {
 
 		managedAgentLimit, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 		require.True(t, ok)
-		require.NotNil(t, managedAgentLimit.SoftLimit)
-		require.EqualValues(t, 100, *managedAgentLimit.SoftLimit)
+
 		require.NotNil(t, managedAgentLimit.Limit)
-		require.EqualValues(t, 200, *managedAgentLimit.Limit)
+		// The soft limit value (100) is used as the single Limit.
+		require.EqualValues(t, 100, *managedAgentLimit.Limit)
 		require.NotNil(t, managedAgentLimit.Actual)
 		require.EqualValues(t, 175, *managedAgentLimit.Actual)
 
-		// Should've also populated a warning.
+		// Usage exceeds the limit, so an exceeded warning should be present.
 		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.", entitlements.Warnings[0])
+		require.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
 	})
 }
 
@@ -1081,13 +1078,12 @@ func TestLicenseEntitlements(t *testing.T) {
 		{
 			Name: "ManagedAgentLimit",
 			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100, 200),
+				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100),
 			},
 			Arguments: license.FeatureArguments{
 				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-					// 175 will generate a warning as it's over 75% of the
-					// difference between the soft and hard limit.
-					return 174, nil
+					// 74 is below the limit (soft=100), so no warning.
+					return 74, nil
 				},
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
@@ -1096,9 +1092,9 @@ func TestLicenseEntitlements(t *testing.T) {
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
 				assert.True(t, feature.Enabled)
-				assert.Equal(t, int64(100), *feature.SoftLimit)
-				assert.Equal(t, int64(200), *feature.Limit)
-				assert.Equal(t, int64(174), *feature.Actual)
+				// Soft limit value is used as the single Limit.
+				assert.Equal(t, int64(100), *feature.Limit)
+				assert.Equal(t, int64(74), *feature.Actual)
 			},
 		},
 		{
@@ -1111,7 +1107,7 @@ func TestLicenseEntitlements(t *testing.T) {
 					WithIssuedAt(time.Now().Add(-time.Hour * 2)),
 				enterpriseLicense().
 					UserLimit(100).
-					ManagedAgentLimit(100, 100).
+					ManagedAgentLimit(100).
 					WithIssuedAt(time.Now().Add(-time.Hour * 1)).
 					GracePeriod(time.Now()),
 			},
@@ -1128,7 +1124,6 @@ func TestLicenseEntitlements(t *testing.T) {
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 				assert.Equal(t, codersdk.EntitlementGracePeriod, feature.Entitlement)
 				assert.True(t, feature.Enabled)
-				assert.Equal(t, int64(100), *feature.SoftLimit)
 				assert.Equal(t, int64(100), *feature.Limit)
 				assert.Equal(t, int64(74), *feature.Actual)
 			},
@@ -1143,7 +1138,7 @@ func TestLicenseEntitlements(t *testing.T) {
 					WithIssuedAt(time.Now().Add(-time.Hour * 2)),
 				enterpriseLicense().
 					UserLimit(100).
-					ManagedAgentLimit(100, 200).
+					ManagedAgentLimit(100).
 					WithIssuedAt(time.Now().Add(-time.Hour * 1)).
 					Expired(time.Now()),
 			},
@@ -1156,84 +1151,33 @@ func TestLicenseEntitlements(t *testing.T) {
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 				assert.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
 				assert.False(t, feature.Enabled)
-				assert.Nil(t, feature.SoftLimit)
 				assert.Nil(t, feature.Limit)
 				assert.Nil(t, feature.Actual)
 			},
 		},
 		{
-			Name: "ManagedAgentLimitWarning/ApproachingLimit/DifferentSoftAndHardLimit",
+			Name: "ManagedAgentLimitWarning/ExceededLimit",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().
 					UserLimit(100).
-					ManagedAgentLimit(100, 200),
+					ManagedAgentLimit(100),
 			},
 			Arguments: license.FeatureArguments{
 				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-					return 175, nil
+					return 150, nil
 				},
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
 				assert.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.", entitlements.Warnings[0])
+				assert.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
 				assertNoErrors(t, entitlements)
 
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
 				assert.True(t, feature.Enabled)
-				assert.Equal(t, int64(100), *feature.SoftLimit)
-				assert.Equal(t, int64(200), *feature.Limit)
-				assert.Equal(t, int64(175), *feature.Actual)
-			},
-		},
-		{
-			Name: "ManagedAgentLimitWarning/ApproachingLimit/EqualSoftAndHardLimit",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().
-					UserLimit(100).
-					ManagedAgentLimit(100, 100),
-			},
-			Arguments: license.FeatureArguments{
-				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-					return 75, nil
-				},
-			},
-			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assert.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.", entitlements.Warnings[0])
-				assertNoErrors(t, entitlements)
-
-				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
-				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
-				assert.True(t, feature.Enabled)
-				assert.Equal(t, int64(100), *feature.SoftLimit)
+				// Soft limit (100) is used as the single Limit.
 				assert.Equal(t, int64(100), *feature.Limit)
-				assert.Equal(t, int64(75), *feature.Actual)
-			},
-		},
-		{
-			Name: "ManagedAgentLimitWarning/BreachedLimit",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().
-					UserLimit(100).
-					ManagedAgentLimit(100, 200),
-			},
-			Arguments: license.FeatureArguments{
-				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-					return 200, nil
-				},
-			},
-			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assert.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, "You have built more workspaces with managed agents than your license allows.", entitlements.Warnings[0])
-				assertNoErrors(t, entitlements)
-
-				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
-				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
-				assert.True(t, feature.Enabled)
-				assert.Equal(t, int64(100), *feature.SoftLimit)
-				assert.Equal(t, int64(200), *feature.Limit)
-				assert.Equal(t, int64(200), *feature.Actual)
+				assert.Equal(t, int64(150), *feature.Actual)
 			},
 		},
 		{
@@ -1288,173 +1232,240 @@ func TestLicenseEntitlements(t *testing.T) {
 func TestUsageLimitFeatures(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		sdkFeatureName       codersdk.FeatureName
-		softLimitFeatureName codersdk.FeatureName
-		hardLimitFeatureName codersdk.FeatureName
-	}{
-		{
-			sdkFeatureName:       codersdk.FeatureManagedAgentLimit,
-			softLimitFeatureName: codersdk.FeatureName("managed_agent_limit_soft"),
-			hardLimitFeatureName: codersdk.FeatureName("managed_agent_limit_hard"),
-		},
-	}
+	// Ensures that usage limit features are ranked by issued at, not by
+	// values.
+	t.Run("IssuedAtRanking", func(t *testing.T) {
+		t.Parallel()
 
-	for _, c := range cases {
-		t.Run(string(c.sdkFeatureName), func(t *testing.T) {
-			t.Parallel()
+		// Generate 2 real licenses both with managed agent limit
+		// features. lic2 should trump lic1 even though it has a lower
+		// limit, because it was issued later.
+		lic1 := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        time.Now().Add(time.Hour),
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				IssuedAt:  time.Now().Add(-time.Minute * 2),
+				NotBefore: time.Now().Add(-time.Minute * 2),
+				ExpiresAt: time.Now().Add(time.Hour * 2),
+				Features: license.Features{
+					codersdk.FeatureManagedAgentLimit: 100,
+				},
+			}),
+		}
+		lic2Iat := time.Now().Add(-time.Minute * 1)
+		lic2Nbf := lic2Iat.Add(-time.Minute)
+		lic2Exp := lic2Iat.Add(time.Hour)
+		lic2 := database.License{
+			ID:         2,
+			UploadedAt: time.Now(),
+			Exp:        lic2Exp,
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				IssuedAt:  lic2Iat,
+				NotBefore: lic2Nbf,
+				ExpiresAt: lic2Exp,
+				Features: license.Features{
+					codersdk.FeatureManagedAgentLimit: 50,
+				},
+			}),
+		}
 
-			// Test for either a missing soft or hard limit feature value.
-			t.Run("MissingGroupedFeature", func(t *testing.T) {
-				t.Parallel()
+		const actualAgents = 10
+		arguments := license.FeatureArguments{
+			ActiveUserCount:   10,
+			ReplicaCount:      0,
+			ExternalAuthCount: 0,
+			ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+				return actualAgents, nil
+			},
+		}
 
-				for _, feature := range []codersdk.FeatureName{
-					c.softLimitFeatureName,
-					c.hardLimitFeatureName,
-				} {
-					t.Run(string(feature), func(t *testing.T) {
-						t.Parallel()
+		// Load the licenses in both orders to ensure the correct
+		// behavior is observed no matter the order.
+		for _, order := range [][]database.License{
+			{lic1, lic2},
+			{lic2, lic1},
+		} {
+			entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
+			require.NoError(t, err)
 
-						lic := database.License{
-							ID:         1,
-							UploadedAt: time.Now(),
-							Exp:        time.Now().Add(time.Hour),
-							UUID:       uuid.New(),
-							JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-								Features: license.Features{
-									feature: 100,
-								},
-							}),
-						}
+			feature, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+			require.True(t, ok, "feature %s not found", codersdk.FeatureManagedAgentLimit)
+			require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+			require.NotNil(t, feature.Limit)
+			require.EqualValues(t, 50, *feature.Limit)
+			require.NotNil(t, feature.Actual)
+			require.EqualValues(t, actualAgents, *feature.Actual)
+			require.NotNil(t, feature.UsagePeriod)
+			require.WithinDuration(t, lic2Iat, feature.UsagePeriod.IssuedAt, 2*time.Second)
+			require.WithinDuration(t, lic2Nbf, feature.UsagePeriod.Start, 2*time.Second)
+			require.WithinDuration(t, lic2Exp, feature.UsagePeriod.End, 2*time.Second)
+		}
+	})
+}
 
-						arguments := license.FeatureArguments{
-							ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-								return 0, nil
-							},
-						}
-						entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
-						require.NoError(t, err)
+// TestOldStyleManagedAgentLicenses ensures backward compatibility with
+// older licenses that encode the managed agent limit using separate
+// "managed_agent_limit_soft" and "managed_agent_limit_hard" feature keys
+// instead of the canonical "managed_agent_limit" key.
+func TestOldStyleManagedAgentLicenses(t *testing.T) {
+	t.Parallel()
 
-						feature, ok := entitlements.Features[c.sdkFeatureName]
-						require.True(t, ok, "feature %s not found", c.sdkFeatureName)
-						require.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+	t.Run("SoftAndHard", func(t *testing.T) {
+		t.Parallel()
 
-						require.Len(t, entitlements.Errors, 1)
-						require.Equal(t, fmt.Sprintf("Invalid license (%v): feature %s has missing soft or hard limit values", lic.UUID, c.sdkFeatureName), entitlements.Errors[0])
-					})
-				}
-			})
+		lic := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        time.Now().Add(time.Hour),
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureName("managed_agent_limit_soft"): 100,
+					codersdk.FeatureName("managed_agent_limit_hard"): 200,
+				},
+			}),
+		}
 
-			t.Run("HardBelowSoft", func(t *testing.T) {
-				t.Parallel()
+		const actualAgents = 42
+		arguments := license.FeatureArguments{
+			ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return actualAgents, nil
+			},
+		}
 
-				lic := database.License{
-					ID:         1,
-					UploadedAt: time.Now(),
-					Exp:        time.Now().Add(time.Hour),
-					UUID:       uuid.New(),
-					JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-						Features: license.Features{
-							c.softLimitFeatureName: 100,
-							c.hardLimitFeatureName: 50,
-						},
-					}),
-				}
+		entitlements, err := license.LicensesEntitlements(
+			context.Background(), time.Now(), []database.License{lic},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments,
+		)
+		require.NoError(t, err)
+		require.Empty(t, entitlements.Errors)
 
-				arguments := license.FeatureArguments{
-					ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-						return 0, nil
-					},
-				}
-				entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
-				require.NoError(t, err)
+		feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+		require.True(t, feature.Enabled)
+		require.NotNil(t, feature.Limit)
+		// The soft limit should be used as the canonical limit.
+		require.EqualValues(t, 100, *feature.Limit)
+		require.NotNil(t, feature.Actual)
+		require.EqualValues(t, actualAgents, *feature.Actual)
+		require.NotNil(t, feature.UsagePeriod)
+	})
 
-				feature, ok := entitlements.Features[c.sdkFeatureName]
-				require.True(t, ok, "feature %s not found", c.sdkFeatureName)
-				require.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+	t.Run("OnlySoft", func(t *testing.T) {
+		t.Parallel()
 
-				require.Len(t, entitlements.Errors, 1)
-				require.Equal(t, fmt.Sprintf("Invalid license (%v): feature %s has a hard limit less than the soft limit", lic.UUID, c.sdkFeatureName), entitlements.Errors[0])
-			})
+		lic := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        time.Now().Add(time.Hour),
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureName("managed_agent_limit_soft"): 75,
+				},
+			}),
+		}
 
-			// Ensures that these features are ranked by issued at, not by
-			// values.
-			t.Run("IssuedAtRanking", func(t *testing.T) {
-				t.Parallel()
+		const actualAgents = 10
+		arguments := license.FeatureArguments{
+			ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return actualAgents, nil
+			},
+		}
 
-				// Generate 2 real licenses both with managed agent limit
-				// features. lic2 should trump lic1 even though it has a lower
-				// limit, because it was issued later.
-				lic1 := database.License{
-					ID:         1,
-					UploadedAt: time.Now(),
-					Exp:        time.Now().Add(time.Hour),
-					UUID:       uuid.New(),
-					JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-						IssuedAt:  time.Now().Add(-time.Minute * 2),
-						NotBefore: time.Now().Add(-time.Minute * 2),
-						ExpiresAt: time.Now().Add(time.Hour * 2),
-						Features: license.Features{
-							c.softLimitFeatureName: 100,
-							c.hardLimitFeatureName: 200,
-						},
-					}),
-				}
-				lic2Iat := time.Now().Add(-time.Minute * 1)
-				lic2Nbf := lic2Iat.Add(-time.Minute)
-				lic2Exp := lic2Iat.Add(time.Hour)
-				lic2 := database.License{
-					ID:         2,
-					UploadedAt: time.Now(),
-					Exp:        lic2Exp,
-					UUID:       uuid.New(),
-					JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-						IssuedAt:  lic2Iat,
-						NotBefore: lic2Nbf,
-						ExpiresAt: lic2Exp,
-						Features: license.Features{
-							c.softLimitFeatureName: 50,
-							c.hardLimitFeatureName: 100,
-						},
-					}),
-				}
+		entitlements, err := license.LicensesEntitlements(
+			context.Background(), time.Now(), []database.License{lic},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments,
+		)
+		require.NoError(t, err)
+		require.Empty(t, entitlements.Errors)
 
-				const actualAgents = 10
-				arguments := license.FeatureArguments{
-					ActiveUserCount:   10,
-					ReplicaCount:      0,
-					ExternalAuthCount: 0,
-					ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-						return actualAgents, nil
-					},
-				}
+		feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+		require.True(t, feature.Enabled)
+		require.NotNil(t, feature.Limit)
+		require.EqualValues(t, 75, *feature.Limit)
+	})
 
-				// Load the licenses in both orders to ensure the correct
-				// behavior is observed no matter the order.
-				for _, order := range [][]database.License{
-					{lic1, lic2},
-					{lic2, lic1},
-				} {
-					entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), order, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
-					require.NoError(t, err)
+	// A license with only the hard limit key should silently ignore it,
+	// leaving the feature unset (not entitled).
+	t.Run("OnlyHard", func(t *testing.T) {
+		t.Parallel()
 
-					feature, ok := entitlements.Features[c.sdkFeatureName]
-					require.True(t, ok, "feature %s not found", c.sdkFeatureName)
-					require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
-					require.NotNil(t, feature.Limit)
-					require.EqualValues(t, 100, *feature.Limit)
-					require.NotNil(t, feature.SoftLimit)
-					require.EqualValues(t, 50, *feature.SoftLimit)
-					require.NotNil(t, feature.Actual)
-					require.EqualValues(t, actualAgents, *feature.Actual)
-					require.NotNil(t, feature.UsagePeriod)
-					require.WithinDuration(t, lic2Iat, feature.UsagePeriod.IssuedAt, 2*time.Second)
-					require.WithinDuration(t, lic2Nbf, feature.UsagePeriod.Start, 2*time.Second)
-					require.WithinDuration(t, lic2Exp, feature.UsagePeriod.End, 2*time.Second)
-				}
-			})
-		})
-	}
+		lic := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        time.Now().Add(time.Hour),
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureName("managed_agent_limit_hard"): 200,
+				},
+			}),
+		}
+
+		arguments := license.FeatureArguments{
+			ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return 0, nil
+			},
+		}
+
+		entitlements, err := license.LicensesEntitlements(
+			context.Background(), time.Now(), []database.License{lic},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments,
+		)
+		require.NoError(t, err)
+		require.Empty(t, entitlements.Errors)
+
+		feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+		require.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+	})
+
+	// Old-style license with both soft and hard set to zero should
+	// explicitly disable the feature (and override any Premium default).
+	t.Run("ExplicitZero", func(t *testing.T) {
+		t.Parallel()
+
+		lic := database.License{
+			ID:         1,
+			UploadedAt: time.Now(),
+			Exp:        time.Now().Add(time.Hour),
+			UUID:       uuid.New(),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+				Features: license.Features{
+					codersdk.FeatureUserLimit:                        100,
+					codersdk.FeatureName("managed_agent_limit_soft"): 0,
+					codersdk.FeatureName("managed_agent_limit_hard"): 0,
+				},
+			}),
+		}
+
+		const actualAgents = 5
+		arguments := license.FeatureArguments{
+			ActiveUserCount: 10,
+			ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+				return actualAgents, nil
+			},
+		}
+
+		entitlements, err := license.LicensesEntitlements(
+			context.Background(), time.Now(), []database.License{lic},
+			map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments,
+		)
+		require.NoError(t, err)
+
+		feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+		require.False(t, feature.Enabled)
+		require.NotNil(t, feature.Limit)
+		require.EqualValues(t, 0, *feature.Limit)
+		require.NotNil(t, feature.Actual)
+		require.EqualValues(t, actualAgents, *feature.Actual)
+	})
 }
 
 func TestManagedAgentLimitDefault(t *testing.T) {
@@ -1492,20 +1503,16 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.True(t, ok, "feature %s not found", codersdk.FeatureManagedAgentLimit)
 		require.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
 		require.Nil(t, feature.Limit)
-		require.Nil(t, feature.SoftLimit)
 		require.Nil(t, feature.Actual)
 		require.Nil(t, feature.UsagePeriod)
 	})
 
-	// "Premium" licenses should receive a default managed agent limit of:
-	// soft = 1000
-	// hard = 1000
+	// "Premium" licenses should receive a default managed agent limit of 1000.
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 
 		const userLimit = 33
-		const softLimit = 1000
-		const hardLimit = 1000
+		const defaultLimit = 1000
 		lic := database.License{
 			ID:         1,
 			UploadedAt: time.Now(),
@@ -1536,9 +1543,7 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.True(t, ok, "feature %s not found", codersdk.FeatureManagedAgentLimit)
 		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
 		require.NotNil(t, feature.Limit)
-		require.EqualValues(t, hardLimit, *feature.Limit)
-		require.NotNil(t, feature.SoftLimit)
-		require.EqualValues(t, softLimit, *feature.SoftLimit)
+		require.EqualValues(t, defaultLimit, *feature.Limit)
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, actualAgents, *feature.Actual)
 		require.NotNil(t, feature.UsagePeriod)
@@ -1547,8 +1552,8 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.NotZero(t, feature.UsagePeriod.End)
 	})
 
-	// "Premium" licenses with an explicit managed agent limit should not
-	// receive a default managed agent limit.
+	// "Premium" licenses with an explicit managed agent limit should use
+	// that value instead of the default.
 	t.Run("PremiumExplicitValues", func(t *testing.T) {
 		t.Parallel()
 
@@ -1560,9 +1565,8 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
 				Features: license.Features{
-					codersdk.FeatureUserLimit:                        100,
-					codersdk.FeatureName("managed_agent_limit_soft"): 100,
-					codersdk.FeatureName("managed_agent_limit_hard"): 200,
+					codersdk.FeatureUserLimit:         100,
+					codersdk.FeatureManagedAgentLimit: 100,
 				},
 			}),
 		}
@@ -1584,9 +1588,7 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.True(t, ok, "feature %s not found", codersdk.FeatureManagedAgentLimit)
 		require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
 		require.NotNil(t, feature.Limit)
-		require.EqualValues(t, 200, *feature.Limit)
-		require.NotNil(t, feature.SoftLimit)
-		require.EqualValues(t, 100, *feature.SoftLimit)
+		require.EqualValues(t, 100, *feature.Limit)
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, actualAgents, *feature.Actual)
 		require.NotNil(t, feature.UsagePeriod)
@@ -1608,9 +1610,8 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				FeatureSet: codersdk.FeatureSetPremium,
 				Features: license.Features{
-					codersdk.FeatureUserLimit:                        100,
-					codersdk.FeatureName("managed_agent_limit_soft"): 0,
-					codersdk.FeatureName("managed_agent_limit_hard"): 0,
+					codersdk.FeatureUserLimit:         100,
+					codersdk.FeatureManagedAgentLimit: 0,
 				},
 			}),
 		}
@@ -1634,8 +1635,6 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.False(t, feature.Enabled)
 		require.NotNil(t, feature.Limit)
 		require.EqualValues(t, 0, *feature.Limit)
-		require.NotNil(t, feature.SoftLimit)
-		require.EqualValues(t, 0, *feature.SoftLimit)
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, actualAgents, *feature.Actual)
 		require.NotNil(t, feature.UsagePeriod)

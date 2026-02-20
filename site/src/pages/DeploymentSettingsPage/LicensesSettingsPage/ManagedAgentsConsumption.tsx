@@ -40,7 +40,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	}
 
 	const usage = managedAgentFeature.actual;
-	const included = managedAgentFeature.soft_limit;
+	const included = managedAgentFeature.limit;
 	const startDate = managedAgentFeature.usage_period?.start;
 	const endDate = managedAgentFeature.usage_period?.end;
 
