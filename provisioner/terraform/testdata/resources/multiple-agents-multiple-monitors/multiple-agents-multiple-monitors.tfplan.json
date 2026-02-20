@@ -134,6 +134,7 @@
             "share": "owner",
             "slug": "app1",
             "subdomain": null,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
@@ -166,6 +167,7 @@
             "share": "owner",
             "slug": "app2",
             "subdomain": true,
+            "tooltip": null,
             "url": null
           },
           "sensitive_values": {
@@ -369,6 +371,7 @@
           "share": "owner",
           "slug": "app1",
           "subdomain": null,
+          "tooltip": null,
           "url": null
         },
         "after_unknown": {
@@ -412,6 +415,7 @@
           "share": "owner",
           "slug": "app2",
           "subdomain": true,
+          "tooltip": null,
           "url": null
         },
         "after_unknown": {
@@ -456,7 +460,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "2.2.0-pre0"
+        "version_constraint": ">= 2.2.0"
       },
       "null": {
         "name": "null",
