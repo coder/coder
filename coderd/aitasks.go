@@ -314,6 +314,18 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 }
 
+// appStatusStateToTaskState converts a WorkspaceAppStatusState to a
+// TaskState. The two enums mostly share values but "failure" in the
+// app status maps to "failed" in the public task API.
+func appStatusStateToTaskState(s codersdk.WorkspaceAppStatusState) codersdk.TaskState {
+	switch s {
+	case codersdk.WorkspaceAppStatusStateFailure:
+		return codersdk.TaskStateFailed
+	default:
+		return codersdk.TaskState(s)
+	}
+}
+
 // deriveTaskCurrentState determines the current state of a task based on the
 // workspace's latest app status and initialization phase.
 // Returns nil if no valid state can be determined.
@@ -333,7 +345,7 @@ func deriveTaskCurrentState(
 		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
 			currentState = &codersdk.TaskStateEntry{
 				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				State:     appStatusStateToTaskState(ws.LatestAppStatus.State),
 				Message:   ws.LatestAppStatus.Message,
 				URI:       ws.LatestAppStatus.URI,
 			}
