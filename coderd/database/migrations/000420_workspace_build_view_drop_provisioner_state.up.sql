@@ -1,6 +1,6 @@
 -- Drop and recreate workspace_build_with_user to exclude provisioner_state.
 -- This avoids loading the large Terraform state blob (1-5 MB per workspace)
--- on every query that uses this view. The 5 callers that need provisioner_state
+-- on every query that uses this view. The callers that need provisioner_state
 -- now fetch it separately via GetWorkspaceBuildProvisionerStateByID.
 DROP VIEW workspace_build_with_user;
 
