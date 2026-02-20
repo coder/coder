@@ -114,7 +114,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -240,7 +239,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	wss, err := convertWorkspaces(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspaces,
@@ -336,7 +334,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -868,7 +865,6 @@ func createWorkspace(
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		initiatorID,
 		workspace,
@@ -1514,7 +1510,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -2094,7 +2089,6 @@ func (api *API) watchWorkspace(
 		}
 		w, err := convertWorkspace(
 			ctx,
-			api.Experiments,
 			api.Logger,
 			apiKey.UserID,
 			workspace,
@@ -2594,7 +2588,6 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 
 func convertWorkspaces(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspaces []database.Workspace,
@@ -2632,7 +2625,6 @@ func convertWorkspaces(
 
 		w, err := convertWorkspace(
 			ctx,
-			experiments,
 			logger,
 			requesterID,
 			workspace,
@@ -2652,7 +2644,6 @@ func convertWorkspaces(
 
 func convertWorkspace(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspace database.Workspace,
