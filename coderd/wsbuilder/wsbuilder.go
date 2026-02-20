@@ -815,7 +815,12 @@ func (b *Builder) getState() ([]byte, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get last build to get state: %w", err)
 	}
-	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsSystemRestricted(b.ctx), bld.ID)
+	// Fetching provisioner state for the new build requires ActionUpdate
+	// on the template (since state can contain sensitive Terraform data).
+	// The wsbuilder runs in the user's context, but users creating normal
+	// builds don't have template update permissions. We elevate to
+	// AsProvisionerd since we're preparing state for the provisioner.
+	state, err := b.store.GetWorkspaceBuildProvisionerStateByID(dbauthz.AsProvisionerd(b.ctx), bld.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace build provisioner state: %w", err)
 	}
