@@ -10,6 +10,9 @@ and permission requirements.
 **Running on Kubernetes?** See [nsjail on Kubernetes](./k8s.md) for runtime
 and permission requirements.
 
+**Running on ECS?** See [nsjail on ECS](./ecs.md) for runtime and permission
+requirements.
+
 ## Overview
 
 nsjail leverages Linux namespace technology to isolate processes at the network
