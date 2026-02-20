@@ -160,12 +160,15 @@ func TestStart(t *testing.T) {
 							return
 						}
 
+						// The member should proactively use the active
+						// version via the AuthCheck path. The fallback
+						// retry message should NOT appear.
 						if cmd == "start" {
-							require.Contains(t, buf.String(), "Unable to start the workspace with the template version from the last build")
+							require.NotContains(t, buf.String(), "Unable to start the workspace with the template version from the last build")
 						}
 
 						if cmd == "restart" {
-							require.Contains(t, buf.String(), "Unable to restart the workspace with the template version from the last build")
+							require.NotContains(t, buf.String(), "Unable to restart the workspace with the template version from the last build")
 						}
 					})
 				}
