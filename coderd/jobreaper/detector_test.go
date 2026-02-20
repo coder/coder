@@ -71,7 +71,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 	file := dbgen.File(t, db, database.File{})
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: now.Add(-time.Minute * 5),
 			UpdatedAt: now.Add(-time.Minute * time.Duration(i)),
@@ -884,7 +884,7 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 
 	// Create MaxJobsPerRun + 1 hung jobs.
 	now := time.Now()
-	for i := 0; i < jobreaper.MaxJobsPerRun+1; i++ {
+	for range jobreaper.MaxJobsPerRun + 1 {
 		pj := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now.Add(-time.Hour),

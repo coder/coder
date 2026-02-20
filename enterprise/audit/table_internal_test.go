@@ -47,9 +47,9 @@ func TestAuditableResources(t *testing.T) {
 	found := make(map[string]bool)
 	expectedList := make([]string, 0)
 	// Now we check we have all the resources in the AuditableResources
-	for i := 0; i < unionType.Len(); i++ {
+	for term := range unionType.Terms() {
 		// All types come across like 'github.com/coder/coder/v2/coderd/database.<type>'
-		typeName := unionType.Term(i).Type().String()
+		typeName := term.Type().String()
 		_, ok := AuditableResources[typeName]
 		assert.True(t, ok, "missing resource %q from AuditableResources", typeName)
 		found[typeName] = true
@@ -121,8 +121,7 @@ func findSwitchTypes(f *types.Func) []string {
 
 func returnSwitchBlocks(sc *types.Scope) []*types.Scope {
 	switches := make([]*types.Scope, 0)
-	for i := 0; i < sc.NumChildren(); i++ {
-		child := sc.Child(i)
+	for child := range sc.Children() {
 		cStr := child.String()
 		// This is the easiest way to tell if it is a switch statement.
 		if strings.Contains(cStr, "type switch scope") {
@@ -136,8 +135,7 @@ func returnSwitchBlocks(sc *types.Scope) []*types.Scope {
 // the "Default:" case.
 func findCaseTypes(sc *types.Scope) []string {
 	caseTypes := make([]string, 0)
-	for i := 0; i < sc.NumChildren(); i++ {
-		child := sc.Child(i)
+	for child := range sc.Children() {
 		for _, name := range child.Names() {
 			obj := child.Lookup(name).Type()
 			typeName := obj.String()

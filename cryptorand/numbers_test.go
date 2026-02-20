@@ -11,7 +11,7 @@ import (
 func TestInt63(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		v, err := cryptorand.Int63()
 		require.NoError(t, err, "unexpected error from Int63")
 		t.Logf("value: %v <- random?", v)
@@ -22,7 +22,7 @@ func TestInt63(t *testing.T) {
 func TestInt63n(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		v, err := cryptorand.Int63n(100)
 		require.NoError(t, err, "unexpected error from Int63n")
 		t.Logf("value: %v <- random?", v)
@@ -43,7 +43,7 @@ func TestInt63n(t *testing.T) {
 func TestIntn(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		v, err := cryptorand.Intn(100)
 		require.NoError(t, err, "unexpected error from Intn")
 		t.Logf("value: %v <- random?", v)
@@ -64,7 +64,7 @@ func TestIntn(t *testing.T) {
 func TestFloat64(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		v, err := cryptorand.Float64()
 		require.NoError(t, err, "unexpected error from Float64")
 		t.Logf("value: %v <- random?", v)

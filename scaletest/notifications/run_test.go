@@ -115,7 +115,7 @@ func TestRun(t *testing.T) {
 		// Wait for all runners to connect
 		dialBarrier.Wait()
 
-		for i := 0; i < numReceivingUsers; i++ {
+		for i := range numReceivingUsers {
 			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
 			require.NoError(t, err)
 			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
@@ -272,11 +272,11 @@ func TestRunWithSMTP(t *testing.T) {
 		// Wait for all runners to connect
 		dialBarrier.Wait()
 
-		for i := 0; i < numReceivingUsers; i++ {
+		for range numReceivingUsers {
 			smtpTrap.MustWait(runCtx).MustRelease(runCtx)
 		}
 
-		for i := 0; i < numReceivingUsers; i++ {
+		for i := range numReceivingUsers {
 			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
 			require.NoError(t, err)
 			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)

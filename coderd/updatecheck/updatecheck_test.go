@@ -66,7 +66,7 @@ func TestChecker_Notify(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	for i := 0; i < len(wantVersion); i++ {
+	for i := range wantVersion {
 		select {
 		case <-ctx.Done():
 			t.Error("timed out waiting for notification")

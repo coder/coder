@@ -101,7 +101,7 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey) ([]byte, error) {
 	pk1.Pad = make([]byte, padLen)
 
 	// Padding is a sequence of bytes like: 1, 2, 3...
-	for i := 0; i < padLen; i++ {
+	for i := range padLen {
 		pk1.Pad[i] = byte(i + 1)
 	}
 

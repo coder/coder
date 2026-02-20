@@ -137,7 +137,7 @@ func TestDERPMesh(t *testing.T) {
 		t.Parallel()
 		meshes := make([]*derpmesh.Mesh, 0, 20)
 		serverURLs := make([]string, 0, 20)
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			server, url := startDERP(t, tlsConfig)
 			mesh := derpmesh.New(testutil.Logger(t).Named("mesh"), server, tlsConfig)
 			t.Cleanup(func() {

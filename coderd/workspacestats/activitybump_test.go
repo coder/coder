@@ -220,7 +220,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				var buildNumber int32 = 1
 				// Insert a number of previous workspace builds.
-				for i := 0; i < 5; i++ {
+				for range 5 {
 					insertPrevWorkspaceBuild(t, db, org.ID, templateVersion.ID, ws.ID, database.WorkspaceTransitionStart, buildNumber)
 					buildNumber++
 					insertPrevWorkspaceBuild(t, db, org.ID, templateVersion.ID, ws.ID, database.WorkspaceTransitionStop, buildNumber)

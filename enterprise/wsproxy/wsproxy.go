@@ -546,7 +546,7 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 		}
 
 		replicaErrs := make([]string, 0, len(replicas))
-		for i := 0; i < len(replicas); i++ {
+		for range replicas {
 			err := <-errs
 			if err != nil {
 				replicaErrs = append(replicaErrs, err.Error())
@@ -569,7 +569,7 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 func pingReplica(ctx context.Context, client http.Client, replica codersdk.Replica) error {
 	const attempts = 2
 	var err error
-	for i := 0; i < attempts; i++ {
+	for i := range attempts {
 		err = replicasync.PingPeerReplica(ctx, client, replica.RelayAddress)
 		if err == nil {
 			return nil

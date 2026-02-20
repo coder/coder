@@ -76,7 +76,7 @@ func TestIntegration(t *testing.T) {
 
 	// Insert the events we expect to be published.
 	clock.Set(now.Add(1 * time.Second))
-	for i := 0; i < eventCount; i++ {
+	for i := range eventCount {
 		clock.Advance(time.Second)
 		err := inserter.InsertDiscreteUsageEvent(ctx, db, usagetypes.DCManagedAgentsV1{
 			Count: uint64(i + 1), // nolint:gosec // these numbers are tiny and will not overflow

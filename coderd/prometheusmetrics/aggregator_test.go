@@ -676,7 +676,7 @@ func benchmarkRunner(b *testing.B, aggregateByLabels []string) {
 		b.StopTimer()
 		b.Logf("N=%d generating %d metrics", b.N, numMetrics)
 		metrics := make([]*agentproto.Stats_Metric, 0, numMetrics)
-		for i := 0; i < numMetrics; i++ {
+		for range numMetrics {
 			metrics = append(metrics, genAgentMetric(b))
 		}
 
@@ -684,7 +684,7 @@ func benchmarkRunner(b *testing.B, aggregateByLabels []string) {
 		var nGot atomic.Int64
 		b.StartTimer()
 		metricsAggregator.Update(ctx, testLabels, metrics)
-		for i := 0; i < numMetrics; i++ {
+		for range numMetrics {
 			select {
 			case <-ctx.Done():
 				b.FailNow()

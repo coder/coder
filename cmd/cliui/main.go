@@ -235,7 +235,7 @@ func main() {
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					startingAt := time.Now()
 					agent.StartedAt = &startingAt
-					for i := 0; i < 10; i++ {
+					for i := range 10 {
 						level := codersdk.LogLevelInfo
 						if rand.Float64() > 0.75 { //nolint:gosec
 							level = codersdk.LogLevelError

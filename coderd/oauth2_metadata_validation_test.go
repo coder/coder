@@ -715,7 +715,7 @@ func TestOAuth2ClientMetadataEdgeCases(t *testing.T) {
 
 		// Test with many redirect URIs
 		redirectURIs := make([]string, 20)
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			redirectURIs[i] = fmt.Sprintf("https://example%d.com/callback", i)
 		}
 

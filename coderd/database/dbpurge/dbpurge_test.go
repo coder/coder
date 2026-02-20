@@ -802,7 +802,7 @@ func TestDeleteOldAuditLogConnectionEventsLimit(t *testing.T) {
 	now := dbtime.Now()
 	threshold := now.Add(-90 * 24 * time.Hour)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		dbgen.AuditLog(t, db, database.AuditLog{
 			UserID:         user.ID,
 			OrganizationID: org.ID,

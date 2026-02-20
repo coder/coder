@@ -44,7 +44,7 @@ func TestDebugHealth(t *testing.T) {
 		defer cancel()
 
 		sessionToken = client.SessionToken()
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
 			require.NoError(t, err)
 			_, _ = io.ReadAll(res.Body)
@@ -77,7 +77,7 @@ func TestDebugHealth(t *testing.T) {
 		defer cancel()
 
 		sessionToken = client.SessionToken()
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			res, err := client.Request(ctx, "GET", "/api/v2/debug/health?force=true", nil)
 			require.NoError(t, err)
 			_, _ = io.ReadAll(res.Body)

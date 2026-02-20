@@ -755,7 +755,7 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Start all goroutines
-	for i := 0; i < numConcurrent; i++ {
+	for i := range numConcurrent {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -778,7 +778,7 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	}
 
 	// Wait for all ForceReconnect calls to join the singleflight operation.
-	for i := 0; i < numConcurrent; i++ {
+	for range numConcurrent {
 		testutil.RequireReceive(testCtx, t, enteredSignals)
 	}
 

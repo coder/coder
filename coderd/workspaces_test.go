@@ -1715,7 +1715,7 @@ func TestWorkspaceFilter(t *testing.T) {
 	t.Cleanup(cancel)
 
 	users := make([]coderUser, 0)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner())
 
 		if i%3 == 0 {

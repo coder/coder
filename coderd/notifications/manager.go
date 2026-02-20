@@ -269,12 +269,12 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 	// If more items are added to the success or failure channels between measuring their lengths and now, those items
 	// will be processed on the next bulk update.
 
-	for i := 0; i < nSuccess; i++ {
+	for range nSuccess {
 		res := <-m.success
 		successParams.IDs = append(successParams.IDs, res.msg)
 		successParams.SentAts = append(successParams.SentAts, res.ts)
 	}
-	for i := 0; i < nFailure; i++ {
+	for range nFailure {
 		res := <-m.failure
 
 		var (

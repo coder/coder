@@ -76,7 +76,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 	fakeAPI, closeFn := setupAppReporter(ctx, t, slices.Clone(apps), handlers, mClock)
 	defer closeFn()
 	healthchecksStarted := make([]string, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		c := healthcheckTrap.MustWait(ctx)
 		c.MustRelease(ctx)
 		healthchecksStarted[i] = c.Tags[1]

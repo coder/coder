@@ -122,7 +122,7 @@ func collectAndSortMetrics(t *testing.T, collector prometheus.Collector, count i
 	var metrics []*dto.Metric
 
 	collector.Collect(ch)
-	for i := 0; i < count; i++ {
+	for range count {
 		m := <-ch
 
 		var metric dto.Metric

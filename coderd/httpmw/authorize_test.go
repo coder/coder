@@ -76,7 +76,7 @@ func TestExtractUserRoles(t *testing.T) {
 				expected := []rbac.RoleIdentifier{}
 				user, token := addUser(t, db)
 				expected = append(expected, rbac.RoleMember())
-				for i := 0; i < 3; i++ {
+				for i := range 3 {
 					organization, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 						ID:          uuid.New(),
 						Name:        fmt.Sprintf("testorg%d", i),

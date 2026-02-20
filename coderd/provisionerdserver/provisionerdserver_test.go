@@ -134,7 +134,7 @@ func TestHeartbeat(t *testing.T) {
 		heartbeatInterval: testutil.IntervalFast,
 	})
 
-	for i := 0; i < numBeats; i++ {
+	for range numBeats {
 		testutil.TryReceive(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak

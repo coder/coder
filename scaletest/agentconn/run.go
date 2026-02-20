@@ -140,7 +140,7 @@ func waitForDisco(ctx context.Context, logs io.Writer, conn workspacesdk.AgentCo
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	for i := 0; i < pingAttempts; i++ {
+	for i := range pingAttempts {
 		_, _ = fmt.Fprintf(logs, "\tDisco ping attempt %d/%d...\n", i+1, pingAttempts)
 		pingCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 		_, p2p, _, err := conn.Ping(pingCtx)
@@ -172,7 +172,7 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn workspace
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	for i := 0; i < directConnectionAttempts; i++ {
+	for i := range directConnectionAttempts {
 		_, _ = fmt.Fprintf(logs, "\tDirect connection check %d/%d...\n", i+1, directConnectionAttempts)
 		status := conn.TailnetConn().Status()
 
@@ -215,7 +215,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Age
 	defer span.End()
 
 	client := agentHTTPClient(conn)
-	for i := 0; i < verifyConnectionAttempts; i++ {
+	for i := range verifyConnectionAttempts {
 		_, _ = fmt.Fprintf(logs, "\tVerify connection attempt %d/%d...\n", i+1, verifyConnectionAttempts)
 		verifyCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 

@@ -1478,7 +1478,7 @@ func TestQueuePosition(t *testing.T) {
 	jobCount := 10
 	jobs := []database.ProvisionerJob{}
 	jobIDs := []uuid.UUID{}
-	for i := 0; i < jobCount; i++ {
+	for range jobCount {
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			Tags:           database.StringMap{},
@@ -1931,7 +1931,7 @@ func TestAuditLogDefaultLimit(t *testing.T) {
 	require.NoError(t, err)
 	db := database.New(sqlDB)
 
-	for i := 0; i < 110; i++ {
+	for range 110 {
 		dbgen.AuditLog(t, db, database.AuditLog{})
 	}
 
@@ -2074,7 +2074,7 @@ func TestReadCustomRoles(t *testing.T) {
 	allRoles := make([]database.CustomRole, 0)
 	siteRoles := make([]database.CustomRole, 0)
 	orgRoles := make([]database.CustomRole, 0)
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		orgID := uuid.NullUUID{
 			UUID:  orgIDs[i%len(orgIDs)],
 			Valid: true,
@@ -2829,7 +2829,7 @@ func TestCountConnectionLogs(t *testing.T) {
 	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: userB.ID, OrganizationID: orgB.Org.ID, TemplateID: tplB.ID})
 
 	// Create logs for two different orgs.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			OrganizationID:   wsA.OrganizationID,
 			WorkspaceOwnerID: wsA.OwnerID,
@@ -2837,7 +2837,7 @@ func TestCountConnectionLogs(t *testing.T) {
 			Type:             database.ConnectionTypeSsh,
 		})
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			OrganizationID:   wsB.OrganizationID,
 			WorkspaceOwnerID: wsB.OwnerID,

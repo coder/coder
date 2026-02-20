@@ -92,7 +92,7 @@ func StringCharset(charSetStr string, size int) (string, error) {
 	var buf strings.Builder
 	buf.Grow(size)
 
-	for i := 0; i < size; i++ {
+	for range size {
 		r := binary.BigEndian.Uint32(entropy[:4])
 		entropy = entropy[4:]
 

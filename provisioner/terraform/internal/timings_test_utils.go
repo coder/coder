@@ -51,7 +51,7 @@ func TimingsAreEqual(t *testing.T, expected []*proto.Timing, actual []*proto.Tim
 	}
 
 	// Compare each element; both are expected to be sorted in a stable manner.
-	for i := 0; i < len(expected); i++ {
+	for i := range expected {
 		ex := expected[i]
 		ac := actual[i]
 		if !protobuf.Equal(ex, ac) {

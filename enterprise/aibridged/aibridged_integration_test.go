@@ -514,7 +514,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 
 	// Test OpenAI circuit breaker.
 	openaiRequestBody := `{"messages":[{"role":"user","content":"test"}],"model":"gpt-4"}`
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(openaiRequestBody))
 		require.NoError(t, err)
 		req.Header.Add("Authorization", "Bearer "+apiKey.Key)
@@ -527,7 +527,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 
 	// Test Anthropic circuit breaker.
 	anthropicRequestBody := `{"messages":[{"role":"user","content":"test"}],"model":"claude-3-5-sonnet-20241022","max_tokens":100}`
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/anthropic/v1/messages", bytes.NewBufferString(anthropicRequestBody))
 		require.NoError(t, err)
 		req.Header.Add("Authorization", "Bearer "+apiKey.Key)

@@ -957,7 +957,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		workspaces := make([]codersdk.Workspace, 0, numWorkspaces)
-		for i := 0; i < numWorkspaces; i++ {
+		for range numWorkspaces {
 			ws := coderdtest.CreateWorkspace(t, client, template.ID)
 			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 			require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)

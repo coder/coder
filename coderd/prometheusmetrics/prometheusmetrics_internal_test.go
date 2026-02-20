@@ -53,7 +53,7 @@ func benchAsPrometheus(b *testing.B, base []string, extraN int) {
 		templateName:      "tmpl",
 		aggregateByLabels: base,
 	}
-	for i := 0; i < extraN; i++ {
+	for i := range extraN {
 		am.Labels[i] = &agentproto.Stats_Metric_Label{Name: fmt.Sprintf("l%d", i), Value: "v"}
 	}
 

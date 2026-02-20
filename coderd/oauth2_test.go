@@ -109,7 +109,7 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 		require.Len(t, secrets, 0)
 
 		// Should be able to create secrets.
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			//nolint:gocritic // OAauth2 app management requires owner permission.
 			secret, err := client.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 			require.NoError(t, err)

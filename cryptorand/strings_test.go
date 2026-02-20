@@ -16,7 +16,7 @@ import (
 func TestString(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		rs, err := cryptorand.String(10)
 		require.NoError(t, err, "unexpected error from String")
 		t.Logf("value: %v <- random?", rs)
@@ -95,7 +95,7 @@ func TestStringCharset(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			t.Parallel()
 
-			for i := 0; i < 5; i++ {
+			for i := range 5 {
 				rs, err := cryptorand.StringCharset(test.Charset, test.Length)
 				require.NoError(t, err, "unexpected error from StringCharset")
 				require.Equal(t, test.Length, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
@@ -109,7 +109,7 @@ func TestStringCharset(t *testing.T) {
 			t.Run(test.Name+"HelperFunc", func(t *testing.T) {
 				t.Parallel()
 
-				for i := 0; i < 5; i++ {
+				for i := range 5 {
 					rs, err := test.HelperFunc(test.Length)
 					require.NoError(t, err, "unexpected error from HelperFunc")
 					require.Equal(t, test.Length, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
@@ -125,7 +125,7 @@ func TestStringCharset(t *testing.T) {
 func TestSha1String(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		rs, err := cryptorand.Sha1String()
 		require.NoError(t, err, "unexpected error from String")
 		require.Equal(t, 40, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
@@ -157,7 +157,7 @@ func BenchmarkStringUnsafe20(b *testing.B) {
 		var buf strings.Builder
 		buf.Grow(size)
 
-		for i := 0; i < size; i++ {
+		for i := range size {
 			n := binary.BigEndian.Uint32(ibuf[i*4 : (i+1)*4])
 			_, _ = buf.WriteRune(charSet[n%uint32(len(charSet))]) // #nosec G115 - Safe conversion as len(charSet) will be reasonably small for character sets
 		}
@@ -180,7 +180,7 @@ func BenchmarkStringBigint20(b *testing.B) {
 		buf.Grow(size)
 
 		bi := big.NewInt(int64(size))
-		for i := 0; i < size; i++ {
+		for range size {
 			num, err := rand.Int(rand.Reader, bi)
 			if err != nil {
 				return "", err

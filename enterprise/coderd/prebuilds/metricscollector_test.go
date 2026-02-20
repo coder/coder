@@ -223,7 +223,7 @@ func TestMetricsCollector(t *testing.T) {
 									registry.Register(collector)
 
 									numTemplates := 2
-									for i := 0; i < numTemplates; i++ {
+									for range numTemplates {
 										org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
 										templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, org.ID, ownerID, template.ID)
 										preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())

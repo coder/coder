@@ -767,7 +767,7 @@ func TestRecordTelemetryStatus(t *testing.T) {
 				require.Nil(t, snapshot1)
 			}
 
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				// Whatever happens, subsequent calls should not report if telemetryEnabled didn't change
 				snapshot2, err := telemetry.RecordTelemetryStatus(ctx, logger, db, testCase.telemetryEnabled)
 				require.NoError(t, err)

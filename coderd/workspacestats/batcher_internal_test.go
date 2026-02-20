@@ -84,7 +84,7 @@ func TestBatchStats(t *testing.T) {
 	go func() {
 		defer close(done)
 		t.Logf("inserting %d stats", defaultBufferSize)
-		for i := 0; i < defaultBufferSize; i++ {
+		for i := range defaultBufferSize {
 			if i%2 == 0 {
 				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
 			} else {

@@ -295,7 +295,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 
 	replicaErrs := make([]string, 0, len(peers))
-	for i := 0; i < len(peers); i++ {
+	for range peers {
 		err := <-errs
 		if err != nil {
 			replicaErrs = append(replicaErrs, err.Error())

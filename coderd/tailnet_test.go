@@ -228,7 +228,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 
 		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(
 				http.MethodGet,
@@ -442,7 +442,7 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 
 	agents := []agentWithID{}
 
-	for i := 0; i < agentNum; i++ {
+	for range agentNum {
 		manifest := agentsdk.Manifest{
 			AgentID: uuid.New(),
 			DERPMap: derpMap,

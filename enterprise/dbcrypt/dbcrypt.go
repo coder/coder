@@ -410,7 +410,7 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 
 func (db *dbCrypt) ensureEncryptedWithRetry(ctx context.Context) error {
 	var err error
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		err = db.ensureEncrypted(ctx)
 		if err == nil {
 			return nil

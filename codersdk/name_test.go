@@ -165,7 +165,7 @@ func TestTemplateVersionNameValid(t *testing.T) {
 func TestGeneratedTemplateVersionNameValid(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		name := testutil.GetRandomName(t)
 		err := codersdk.TemplateVersionNameValid(name)
 		require.NoError(t, err, "invalid template version name: %s", name)

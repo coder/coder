@@ -435,7 +435,7 @@ func TestBackedReader_PartialReads(t *testing.T) {
 
 	// Read multiple times
 	buf := make([]byte, 10)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		n, err := br.Read(buf)
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
