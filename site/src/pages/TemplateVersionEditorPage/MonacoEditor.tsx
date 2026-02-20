@@ -49,7 +49,7 @@ export const MonacoEditor: FC<MonacoEditorProps> = ({
 			}}
 			path={path}
 			onChange={(newValue) => {
-				if (onChange && typeof newValue === "string") {
+				if (onChange && newValue !== undefined) {
 					onChange(newValue);
 				}
 			}}
