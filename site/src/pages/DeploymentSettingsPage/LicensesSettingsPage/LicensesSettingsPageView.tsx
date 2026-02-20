@@ -1,14 +1,13 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import MuiLink from "@mui/material/Link";
-import Skeleton from "@mui/material/Skeleton";
 import type { GetLicensesResponse } from "api/api";
 import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -16,19 +15,19 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
+import { LicenseSuccessDialog } from "modules/management/LicenseSuccessDialog/LicenseSuccessDialog";
 import type { FC } from "react";
-import Confetti from "react-confetti";
-import { Link } from "react-router";
+import { Link as RouterLink } from "react-router";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 
 type Props = {
-	showConfetti: boolean;
+	isSuccess: boolean;
 	isLoading: boolean;
+	licenseTier: string | null;
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	licenses?: GetLicensesResponse[];
@@ -39,11 +38,13 @@ type Props = {
 	activeUsers: UserStatusChangeCount[] | undefined;
 	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
+	onCloseSuccess: () => void;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
-	showConfetti,
+	isSuccess,
 	isLoading,
+	licenseTier,
 	userLimitActual,
 	userLimitLimit,
 	licenses,
@@ -54,20 +55,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 	activeUsers,
 	managedAgentFeature,
 	aiGovernanceUserFeature,
+	onCloseSuccess,
 }) => {
-	const theme = useTheme();
-	const { width, height } = useWindowSize();
-
 	return (
 		<>
-			<Confetti
-				// For some reason this overflows the window and adds scrollbars if we don't subtract here.
-				width={width - 1}
-				height={height - 1}
-				numberOfPieces={showConfetti ? 200 : 0}
-				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
-			/>
-
 			<Stack
 				alignItems="baseline"
 				direction="row"
@@ -82,10 +73,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 
 				<Stack direction="row" spacing={2}>
 					<Button variant="outline" asChild>
-						<Link to="/deployment/licenses/add">
+						<RouterLink className="px-0" to="/deployment/licenses/add">
 							<PlusIcon />
 							Add a license
-						</Link>
+						</RouterLink>
 					</Button>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -109,9 +100,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 			</Stack>
 
 			<div className="flex flex-col gap-4">
-				{isLoading && (
-					<Skeleton className="rounded" variant="rectangular" height={78} />
-				)}
+				{isLoading && <Skeleton className="h-[78px] rounded" />}
 
 				{!isLoading && licenses && licenses?.length > 0 && (
 					<Stack spacing={4} className="licenses">
@@ -135,19 +124,19 @@ const LicensesSettingsPageView: FC<Props> = ({
 				)}
 
 				{!isLoading && licenses === null && (
-					<div css={styles.root}>
+					<div className="min-h-[240px] flex items-center justify-center rounded-lg border border-solid border-border p-12">
 						<Stack alignItems="center" spacing={1}>
 							<Stack alignItems="center" spacing={0.5}>
-								<span css={styles.title}>
+								<span className="text-base">
 									You don&apos;t have any licenses!
 								</span>
-								<span css={styles.description}>
+								<span className="text-content-secondary text-center max-w-[464px] mt-2">
 									You&apos;re missing out on high availability, RBAC, quotas,
 									and much more. Contact{" "}
-									<MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
-									<MuiLink href="https://coder.com/trial">
+									<Link href="mailto:sales@coder.com">sales</Link> or{" "}
+									<Link href="https://coder.com/trial">
 										request a trial license
-									</MuiLink>{" "}
+									</Link>{" "}
 									to get started.
 								</span>
 							</Stack>
@@ -177,31 +166,14 @@ const LicensesSettingsPageView: FC<Props> = ({
 					</>
 				)}
 			</div>
+
+			<LicenseSuccessDialog
+				open={isSuccess}
+				onClose={onCloseSuccess}
+				licenseTier={licenseTier}
+			/>
 		</>
 	);
 };
-
-const styles = {
-	title: {
-		fontSize: 16,
-	},
-
-	root: (theme) => ({
-		minHeight: 240,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		padding: 48,
-	}),
-
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		maxWidth: 464,
-		marginTop: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default LicensesSettingsPageView;

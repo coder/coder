@@ -196,9 +196,6 @@ importers:
       react-color:
         specifier: 2.19.3
         version: 2.19.3(react@19.2.2)
-      react-confetti:
-        specifier: 6.4.0
-        version: 6.4.0(react@19.2.2)
       react-date-range:
         specifier: 1.4.0
         version: 1.4.0(date-fns@2.30.0)(react@19.2.2)
@@ -5182,12 +5179,6 @@ packages:
     peerDependencies:
       react: '*'
 
-  react-confetti@6.4.0:
-    resolution: {integrity: sha512-5MdGUcqxrTU26I2EU7ltkWPwxvucQTuqMm8dUz72z2YMqTD6s9vMcDUysk7n9jnC+lXuCPeJJ7Knf98VEYE9Rg==, tarball: https://registry.npmjs.org/react-confetti/-/react-confetti-6.4.0.tgz}
-    engines: {node: '>=16'}
-    peerDependencies:
-      react: ^16.3.0 || ^17.0.1 || ^18.0.0 || ^19.0.0
-
   react-date-range@1.4.0:
     resolution: {integrity: sha512-+9t0HyClbCqw1IhYbpWecjsiaftCeRN5cdhsi9v06YdimwyMR2yYHWcgVn3URwtN/txhqKpEZB6UX1fHpvK76w==, tarball: https://registry.npmjs.org/react-date-range/-/react-date-range-1.4.0.tgz}
     peerDependencies:
@@ -5876,9 +5867,6 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==, tarball: https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz}
-
-  tween-functions@1.2.0:
-    resolution: {integrity: sha512-PZBtLYcCLtEcjL14Fzb1gSxPBeL7nWvGhO5ZFPGqziCcr8uvHp0NDmdjBchp6KHL+tExcg0m3NISmKxhU394dA==, tarball: https://registry.npmjs.org/tween-functions/-/tween-functions-1.2.0.tgz}
 
   tweetnacl@0.14.5:
     resolution: {integrity: sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==, tarball: https://registry.npmjs.org/tweetnacl/-/tweetnacl-0.14.5.tgz}
@@ -11731,11 +11719,6 @@ snapshots:
       reactcss: 1.2.3(react@19.2.2)
       tinycolor2: 1.6.0
 
-  react-confetti@6.4.0(react@19.2.2):
-    dependencies:
-      react: 19.2.2
-      tween-functions: 1.2.0
-
   react-date-range@1.4.0(date-fns@2.30.0)(react@19.2.2):
     dependencies:
       classnames: 2.3.2
@@ -12534,8 +12517,6 @@ snapshots:
       strip-bom: 3.0.0
 
   tslib@2.8.1: {}
-
-  tween-functions@1.2.0: {}
 
   tweetnacl@0.14.5: {}
 

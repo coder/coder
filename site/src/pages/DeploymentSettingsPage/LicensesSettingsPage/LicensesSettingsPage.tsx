@@ -4,7 +4,7 @@ import { entitlements, refreshEntitlements } from "api/queries/entitlements";
 import { insightsUserStatusCounts } from "api/queries/insights";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -12,9 +12,10 @@ import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const LicensesSettingsPage: FC = () => {
 	const queryClient = useQueryClient();
+
 	const [searchParams, setSearchParams] = useSearchParams();
-	const success = searchParams.get("success");
-	const [confettiOn, setConfettiOn] = useState(false);
+	const isSuccess = searchParams.get("success") === "true";
+	const licenseTier = searchParams.get("tier");
 
 	const { metadata } = useEmbeddedMetadata();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
@@ -53,29 +54,14 @@ const LicensesSettingsPage: FC = () => {
 		queryFn: () => API.getLicenses(),
 	});
 
-	useEffect(() => {
-		if (!success) {
-			return;
-		}
-
-		setConfettiOn(true);
-		const timeout = setTimeout(() => {
-			setConfettiOn(false);
-			setSearchParams();
-		}, 2000);
-
-		return () => {
-			clearTimeout(timeout);
-		};
-	}, [setSearchParams, success]);
-
 	return (
 		<>
 			<title>{pageTitle("License Settings")}</title>
 
 			<LicensesSettingsPageView
-				showConfetti={confettiOn}
+				isSuccess={isSuccess}
 				isLoading={isLoading}
+				licenseTier={licenseTier}
 				isRefreshing={refreshEntitlementsMutation.isPending}
 				userLimitActual={entitlementsQuery.data?.features.user_limit?.actual}
 				userLimitLimit={entitlementsQuery.data?.features.user_limit?.limit}
@@ -97,6 +83,7 @@ const LicensesSettingsPage: FC = () => {
 						displayError(getErrorMessage(error, "Failed to remove license"));
 					}
 				}}
+				onCloseSuccess={() => setSearchParams()}
 			/>
 		</>
 	);

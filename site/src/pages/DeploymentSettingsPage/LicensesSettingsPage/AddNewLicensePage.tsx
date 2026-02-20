@@ -15,10 +15,6 @@ const AddNewLicensePage: FC = () => {
 		error: savingLicenseError,
 	} = useMutation({
 		mutationFn: API.createLicense,
-		onSuccess: () => {
-			displaySuccess("You have successfully added a license");
-			navigate("/deployment/licenses?success=true");
-		},
 		onError: () => displayError("Failed to save license key"),
 	});
 
@@ -26,9 +22,11 @@ const AddNewLicensePage: FC = () => {
 		saveLicenseKeyApi(
 			{ license: licenseKey },
 			{
-				onSuccess: () => {
+				onSuccess: (data) => {
 					displaySuccess("You have successfully added a license");
-					navigate("/deployment/licenses?success=true");
+					navigate(
+						`/deployment/licenses?success=true&tier=${data.claims.feature_set}`,
+					);
 				},
 				onError: () => displayError("Failed to save license key"),
 			},
