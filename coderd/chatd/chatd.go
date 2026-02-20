@@ -2409,7 +2409,7 @@ func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (fant
 	case fantasygoogle.Name:
 		providerClient, err = fantasygoogle.New(fantasygoogle.WithGeminiAPIKey(apiKey))
 	case fantasyopenai.Name:
-		providerClient, err = fantasyopenai.New(fantasyopenai.WithAPIKey(apiKey))
+		providerClient, err = fantasyopenai.New(fantasyopenai.WithAPIKey(apiKey), fantasyopenai.WithUseResponsesAPI())
 	case fantasyopenaicompat.Name:
 		providerClient, err = fantasyopenaicompat.New(fantasyopenaicompat.WithAPIKey(apiKey))
 	case fantasyopenrouter.Name:
