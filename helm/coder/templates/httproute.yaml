@@ -1,0 +1,35 @@
+{{- if .Values.coder.httpRoute.enable }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: coder
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+  {{- with .Values.coder.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    - kind: Gateway
+      {{- with .Values.coder.httpRoute.gateway }}
+      {{- . | toYaml | nindent 6 }}
+      {{- end }}
+  hostnames:
+    - {{ .Values.coder.httpRoute.host | quote }}
+    {{- if .Values.coder.httpRoute.wildcardHost }}
+    - {{ regexReplaceAll "\\*[^.]*(\\..*)" .Values.coder.httpRoute.wildcardHost "*${1}" | quote }}
+    {{- end }}
+  rules:
+    - backendRefs:
+        - name: coder
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+{{- end }}
+
