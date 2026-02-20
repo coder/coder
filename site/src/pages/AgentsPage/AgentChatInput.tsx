@@ -3,6 +3,7 @@ import {
 	type ModelSelectorOption,
 } from "components/ai-elements";
 import { Button } from "components/Button/Button";
+import { Input } from "components/Input/Input";
 import {
 	Tooltip,
 	TooltipContent,
@@ -50,6 +51,9 @@ interface AgentChatInputProps {
 	// Extra controls rendered in the left action area (e.g. workspace
 	// selector on the create page).
 	leftActions?: ReactNode;
+	// Optional context compression threshold percentage input (0-100).
+	contextCompressionThreshold?: string;
+	onContextCompressionThresholdChange?: (value: string) => void;
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
@@ -233,6 +237,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		onInterrupt,
 		isInterruptPending = false,
 		leftActions,
+		contextCompressionThreshold,
+		onContextCompressionThresholdChange,
 		contextUsage,
 		sticky = false,
 	}) => {
@@ -291,6 +297,26 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								className="h-8 w-auto justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent [&>span]:!text-content-secondary"
 							/>
 							{leftActions}
+							{onContextCompressionThresholdChange &&
+								contextCompressionThreshold !== undefined && (
+									<div className="flex items-center gap-1">
+										<Input
+											type="number"
+											min={0}
+											max={100}
+											step={1}
+											value={contextCompressionThreshold}
+											onChange={(event) =>
+												onContextCompressionThresholdChange(
+													event.target.value,
+												)
+											}
+											className="h-7 w-16 border-border-default/70 bg-transparent px-2 text-xs"
+											disabled={isDisabled}
+										/>
+										<span className="text-xs text-content-secondary">%</span>
+									</div>
+								)}
 							{inputStatusText && (
 								<span className="hidden text-xs text-content-secondary sm:inline">
 									{inputStatusText}

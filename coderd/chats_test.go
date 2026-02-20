@@ -24,6 +24,10 @@ import (
 	"github.com/coder/serpent"
 )
 
+func int64Ptr(v int64) *int64 {
+	return &v
+}
+
 func TestChats(t *testing.T) {
 	t.Parallel()
 
@@ -1284,9 +1288,10 @@ func TestChatModelConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:    "openai",
-			Model:       "gpt-4.1",
-			DisplayName: "GPT 4.1",
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			DisplayName:  "GPT 4.1",
+			ContextLimit: int64Ptr(200000),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "openai", config.Provider)
@@ -1304,8 +1309,9 @@ func TestChatModelConfigs(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, err := memberClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider: "openai",
-			Model:    "gpt-4.1",
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			ContextLimit: int64Ptr(200000),
 		})
 		require.Error(t, err)
 		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
@@ -1325,9 +1331,10 @@ func TestChatModelConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:    "openai",
-			Model:       "gpt-4.1",
-			DisplayName: "GPT 4.1",
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			DisplayName:  "GPT 4.1",
+			ContextLimit: int64Ptr(200000),
 		})
 		require.NoError(t, err)
 
@@ -1360,8 +1367,9 @@ func TestChatModelConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		config, err := ownerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider: "openai",
-			Model:    "gpt-4.1",
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			ContextLimit: int64Ptr(200000),
 		})
 		require.NoError(t, err)
 
@@ -1386,8 +1394,9 @@ func TestChatModelConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider: "openai",
-			Model:    "gpt-4.1",
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			ContextLimit: int64Ptr(200000),
 		})
 		require.NoError(t, err)
 
@@ -1414,8 +1423,9 @@ func TestChatModelConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		config, err := ownerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider: "openai",
-			Model:    "gpt-4.1",
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			ContextLimit: int64Ptr(200000),
 		})
 		require.NoError(t, err)
 

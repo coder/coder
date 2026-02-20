@@ -36,6 +36,63 @@ WHERE
 ORDER BY
     created_at ASC;
 
+-- name: GetChatMessagesForPromptByChatID :many
+WITH latest_compressed_summary AS (
+    SELECT
+        id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = @chat_id::uuid
+        AND role = 'system'
+        AND hidden = TRUE
+        AND compressed = TRUE
+    ORDER BY
+        created_at DESC,
+        id DESC
+    LIMIT
+        1
+)
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND (
+        (
+            role = 'system'
+            AND hidden = TRUE
+            AND compressed = FALSE
+        )
+        OR (
+            compressed = FALSE
+            AND (
+                NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        latest_compressed_summary
+                )
+                OR id > (
+                    SELECT
+                        id
+                    FROM
+                        latest_compressed_summary
+                )
+            )
+        )
+        OR id = (
+            SELECT
+                id
+            FROM
+                latest_compressed_summary
+        )
+    )
+ORDER BY
+    created_at ASC,
+    id ASC;
+
 -- name: GetChatsByOwnerID :many
 SELECT
     *
@@ -103,7 +160,8 @@ INSERT INTO chat_messages (
     reasoning_tokens,
     cache_creation_tokens,
     cache_read_tokens,
-    context_limit
+    context_limit,
+    compressed
 ) VALUES (
     @chat_id::uuid,
     @role::text,
@@ -119,7 +177,8 @@ INSERT INTO chat_messages (
     sqlc.narg('reasoning_tokens')::bigint,
     sqlc.narg('cache_creation_tokens')::bigint,
     sqlc.narg('cache_read_tokens')::bigint,
-    sqlc.narg('context_limit')::bigint
+    sqlc.narg('context_limit')::bigint,
+    COALESCE(sqlc.narg('compressed')::boolean, FALSE)
 )
 RETURNING
     *;
@@ -222,6 +281,17 @@ UPDATE
 SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
     workspace_agent_id = sqlc.narg('workspace_agent_id')::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatModelConfigByChatID :one
+UPDATE
+    chats
+SET
+    model_config = @model_config::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid

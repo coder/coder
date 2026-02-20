@@ -150,6 +150,33 @@ const readOptionalString = (value: unknown): string | undefined => {
 	return trimmedValue || undefined;
 };
 
+const parsePositiveInteger = (value: string): number | null => {
+	const trimmedValue = value.trim();
+	if (!trimmedValue) {
+		return null;
+	}
+	const parsedValue = Number.parseInt(trimmedValue, 10);
+	if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+		return null;
+	}
+	return parsedValue;
+};
+
+const parseThresholdInteger = (value: string): number | null => {
+	const trimmedValue = value.trim();
+	if (!trimmedValue) {
+		return null;
+	}
+	const parsedValue = Number.parseInt(trimmedValue, 10);
+	if (!Number.isFinite(parsedValue)) {
+		return null;
+	}
+	if (parsedValue < 0 || parsedValue > 100) {
+		return null;
+	}
+	return parsedValue;
+};
+
 const getProviderBaseURL = (
 	providerConfig: ChatProviderConfig | undefined,
 ): string => {
@@ -248,6 +275,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const [providerBaseURL, setProviderBaseURL] = useState("");
 	const [model, setModel] = useState("");
 	const [displayName, setDisplayName] = useState("");
+	const [contextLimit, setContextLimit] = useState("");
+	const [compressionThreshold, setCompressionThreshold] = useState("70");
 	const [isAddModelOpen, setIsAddModelOpen] = useState(false);
 	const providerDisplayNameInputId = useId();
 	const providerAPIKeyInputId = useId();
@@ -255,6 +284,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const providerSelectInputId = useId();
 	const modelInputId = useId();
 	const displayNameInputId = useId();
+	const contextLimitInputId = useId();
+	const compressionThresholdInputId = useId();
 
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
 	const modelConfigsQuery = useQuery(chatModelConfigs());
@@ -564,10 +595,20 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		if (!trimmedModel) {
 			return;
 		}
+		const parsedContextLimit = parsePositiveInteger(contextLimit);
+		if (parsedContextLimit === null) {
+			return;
+		}
+		const parsedCompressionThreshold = parseThresholdInteger(compressionThreshold);
+		if (parsedCompressionThreshold === null) {
+			return;
+		}
 
 		const req: CreateChatModelConfigRequest = {
 			provider: selectedProviderState.provider,
 			model: trimmedModel,
+			context_limit: parsedContextLimit,
+			compression_threshold: parsedCompressionThreshold,
 		};
 		const trimmedDisplayName = displayName.trim();
 		if (trimmedDisplayName) {
@@ -577,6 +618,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		await createModelConfigMutation.mutateAsync(req);
 		setModel("");
 		setDisplayName("");
+		setContextLimit("");
+		setCompressionThreshold("70");
 		setIsAddModelOpen(false);
 	};
 
@@ -933,7 +976,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 				className="space-y-3 px-4 pb-4 pt-3"
 				onSubmit={(event) => void handleAddModel(event)}
 			>
-				<div className="grid gap-3 md:grid-cols-3">
+				<div className="grid gap-3 md:grid-cols-5">
 					<div className="grid gap-1.5">
 						<label
 							htmlFor={providerSelectInputId}
@@ -1006,6 +1049,38 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 							disabled={createModelConfigMutation.isPending}
 						/>
 					</div>
+					<div className="grid gap-1.5">
+						<label
+							htmlFor={contextLimitInputId}
+							className="text-[13px] font-medium text-content-primary"
+						>
+							Context limit
+						</label>
+						<Input
+							id={contextLimitInputId}
+							className="h-10 text-[13px]"
+							placeholder="200000"
+							value={contextLimit}
+							onChange={(event) => setContextLimit(event.target.value)}
+							disabled={createModelConfigMutation.isPending}
+						/>
+					</div>
+					<div className="grid gap-1.5">
+						<label
+							htmlFor={compressionThresholdInputId}
+							className="text-[13px] font-medium text-content-primary"
+						>
+							Compression threshold
+						</label>
+						<Input
+							id={compressionThresholdInputId}
+							className="h-10 text-[13px]"
+							placeholder="70"
+							value={compressionThreshold}
+							onChange={(event) => setCompressionThreshold(event.target.value)}
+							disabled={createModelConfigMutation.isPending}
+						/>
+					</div>
 				</div>
 				<div className="flex items-center justify-end gap-2">
 					<Button
@@ -1016,6 +1091,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 							setIsAddModelOpen(false);
 							setModel("");
 							setDisplayName("");
+							setContextLimit("");
+							setCompressionThreshold("70");
 						}}
 					>
 						Cancel
@@ -1023,7 +1100,12 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<Button
 						size="sm"
 						type="submit"
-						disabled={createModelConfigMutation.isPending || !model.trim()}
+						disabled={
+							createModelConfigMutation.isPending ||
+							!model.trim() ||
+							parsePositiveInteger(contextLimit) === null ||
+							parseThresholdInteger(compressionThreshold) === null
+						}
 					>
 						{createModelConfigMutation.isPending ? (
 							<Loader2Icon className="h-4 w-4 animate-spin" />
@@ -1068,6 +1150,10 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 											<span>{formatProviderLabel(modelConfig.provider)}</span>
 											<span className="text-content-disabled">&middot;</span>
 											<span>{modelConfig.model}</span>
+											<span className="text-content-disabled">&middot;</span>
+											<span>{modelConfig.context_limit.toLocaleString()} ctx</span>
+											<span className="text-content-disabled">&middot;</span>
+											<span>{modelConfig.compression_threshold}% compress</span>
 											{modelConfig.enabled === false && (
 												<>
 													<span className="text-content-disabled">&middot;</span>

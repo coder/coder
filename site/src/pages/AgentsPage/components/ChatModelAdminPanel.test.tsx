@@ -64,6 +64,8 @@ const createModelConfig = (
 		model: overrides.model,
 		display_name: overrides.display_name ?? overrides.model,
 		enabled: overrides.enabled ?? true,
+		context_limit: overrides.context_limit ?? 200000,
+		compression_threshold: overrides.compression_threshold ?? 70,
 		created_at: overrides.created_at ?? now,
 		updated_at: overrides.updated_at ?? now,
 	};
@@ -161,6 +163,15 @@ const installChatHandlers = (state: ChatAdminState, log?: RequestLog) => {
 				provider,
 				model,
 				display_name: displayName || model,
+				context_limit:
+					typeof body.context_limit === "number" && Number.isFinite(body.context_limit)
+						? body.context_limit
+						: 200000,
+				compression_threshold:
+					typeof body.compression_threshold === "number" &&
+					Number.isFinite(body.compression_threshold)
+						? body.compression_threshold
+						: 70,
 			});
 			state.modelConfigs = [...state.modelConfigs, createdModel];
 
@@ -210,6 +221,9 @@ describe(ChatModelAdminPanel.name, () => {
 
 		expect(await screen.findByText("OpenRouter")).toBeInTheDocument();
 		expect(screen.queryByText("OpenAI")).not.toBeInTheDocument();
+		await userEvent.click(
+			screen.getByRole("button", { name: /OpenRouter/i }),
+		);
 		expect(screen.getByLabelText("Base URL (optional)")).toBeInTheDocument();
 	});
 
@@ -241,6 +255,9 @@ describe(ChatModelAdminPanel.name, () => {
 
 		renderPanel("providers");
 
+		await userEvent.click(
+			await screen.findByRole("button", { name: /OpenAI/i }),
+		);
 		expect(
 			await screen.findByText("API key managed by environment variable."),
 		).toBeVisible();
@@ -248,6 +265,11 @@ describe(ChatModelAdminPanel.name, () => {
 		expect(
 			screen.getByText(
 				"This provider API key is managed by an environment variable.",
+			),
+		).toBeVisible();
+		expect(
+			screen.getByText(
+				"This provider key is configured from deployment environment settings and cannot be edited in this UI.",
 			),
 		).toBeVisible();
 		expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
@@ -289,6 +311,9 @@ describe(ChatModelAdminPanel.name, () => {
 
 		renderPanel("providers");
 
+		await userEvent.click(
+			await screen.findByRole("button", { name: /OpenAI/i }),
+		);
 		await userEvent.type(await screen.findByLabelText("API key"), "sk-provider-key");
 		await userEvent.type(
 			screen.getByLabelText("Base URL (optional)"),
@@ -309,7 +334,7 @@ describe(ChatModelAdminPanel.name, () => {
 
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: "Save provider changes" }),
+				screen.getByRole("button", { name: "Save changes" }),
 			).toBeInTheDocument();
 		});
 
@@ -324,7 +349,7 @@ describe(ChatModelAdminPanel.name, () => {
 			"sk-updated-provider-key",
 		);
 		await userEvent.click(
-			screen.getByRole("button", { name: "Save provider changes" }),
+			screen.getByRole("button", { name: "Save changes" }),
 		);
 
 		await waitFor(() => {
@@ -380,16 +405,18 @@ describe(ChatModelAdminPanel.name, () => {
 
 		renderPanel("models");
 
-		expect(await screen.findByLabelText("Provider for new model")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+		expect(await screen.findByLabelText("Provider")).toBeInTheDocument();
 		await waitFor(() => {
 			expect(
-				screen.getByRole("combobox", { name: "Provider for new model" }),
+				screen.getByRole("combobox", { name: "Provider" }),
 			).not.toBeDisabled();
 		});
 		expect(await screen.findAllByText("gpt-5-mini")).not.toHaveLength(0);
 		expect(await screen.findAllByText("claude-sonnet-4-5")).not.toHaveLength(0);
 
 		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-nano");
+		await userEvent.type(screen.getByLabelText("Context limit"), "200000");
 		await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
 		await waitFor(() => {
@@ -398,13 +425,13 @@ describe(ChatModelAdminPanel.name, () => {
 		expect(log.createModelBodies[0]).toMatchObject({
 			provider: "openai",
 			model: "gpt-5-nano",
+			context_limit: 200000,
+			compression_threshold: 70,
 		});
 		expect(await screen.findAllByText("gpt-5-nano")).not.toHaveLength(0);
 
 		const nanoRowLabel = (await screen.findAllByText("gpt-5-nano"))[0];
-		const nanoRow = nanoRowLabel.closest(
-			"div.flex.items-start.justify-between",
-		);
+		const nanoRow = nanoRowLabel.closest("div.group");
 		expect(nanoRow).not.toBeNull();
 		await userEvent.click(
 			within(nanoRow as HTMLElement).getByRole("button", {
@@ -415,14 +442,14 @@ describe(ChatModelAdminPanel.name, () => {
 			expect(screen.queryAllByText("gpt-5-nano")).toHaveLength(0);
 		});
 
+		await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 		await userEvent.click(
-			screen.getByRole("combobox", { name: "Provider for new model" }),
+			screen.getByRole("combobox", { name: "Provider" }),
 		);
-		await userEvent.click(screen.getByRole("option", { name: "Anthropic" }));
-		expect(
-			await screen.findByText(
-				"Create a managed provider config before adding models.",
-			),
-		).toBeVisible();
+		const anthropicOption = await screen.findByRole("option", {
+			name: /Anthropic/i,
+		});
+		expect(anthropicOption).toHaveTextContent("(not configured)");
+		expect(anthropicOption).toHaveAttribute("aria-disabled", "true");
 	});
 });

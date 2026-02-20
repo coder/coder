@@ -56,6 +56,23 @@ import {
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const selectedWorkspaceModeStorageKey = "agents.selected-workspace-mode";
+const defaultContextCompressionThreshold = "70";
+
+const contextCompressionThresholdStorageKey = (modelID: string) =>
+	`agents.context-compression-threshold.${modelID || "default"}`;
+
+const parseContextCompressionThreshold = (
+	value: string,
+): number | undefined => {
+	const parsedValue = Number.parseInt(value.trim(), 10);
+	if (!Number.isFinite(parsedValue)) {
+		return undefined;
+	}
+	if (parsedValue < 0 || parsedValue > 100) {
+		return undefined;
+	}
+	return parsedValue;
+};
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -65,6 +82,7 @@ type CreateChatOptions = {
 	workspaceMode?: "local";
 	model?: string;
 	systemPrompt?: string;
+	contextCompressionThreshold?: number;
 };
 
 type ConfigureAgentsSection = "providers" | "system-prompt" | "models";
@@ -165,7 +183,14 @@ export const AgentsPage: FC = () => {
 		Boolean(deploymentConfigQuery.data?.config.ai?.chat?.local_workspace);
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, workspaceId, workspaceMode, model, systemPrompt } = options;
+		const {
+			message,
+			workspaceId,
+			workspaceMode,
+			model,
+			systemPrompt,
+			contextCompressionThreshold,
+		} = options;
 		const createdChat = await createMutation.mutateAsync({
 			message,
 			input: {
@@ -175,6 +200,7 @@ export const AgentsPage: FC = () => {
 			workspace_mode: workspaceMode,
 			model,
 			system_prompt: systemPrompt,
+			context_compression_threshold: contextCompressionThreshold,
 		});
 
 		if (typeof window !== "undefined") {
@@ -392,6 +418,8 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
 	}, []);
 	const [selectedModel, setSelectedModel] = useState(modelOptions[0]?.id ?? "");
+	const [contextCompressionThreshold, setContextCompressionThreshold] =
+		useState(defaultContextCompressionThreshold);
 	const [systemPrompt, setSystemPrompt] = useState("");
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
@@ -469,6 +497,8 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceModeRef.current = selectedWorkspaceMode;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
+	const contextCompressionThresholdRef = useRef(contextCompressionThreshold);
+	contextCompressionThresholdRef.current = contextCompressionThreshold;
 	const systemPromptRef = useRef(systemPrompt);
 	systemPromptRef.current = systemPrompt;
 
@@ -480,6 +510,18 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			return modelOptions[0]?.id ?? "";
 		});
 	}, [modelOptions]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const storedThreshold = localStorage.getItem(
+			contextCompressionThresholdStorageKey(selectedModel),
+		);
+		setContextCompressionThreshold(
+			storedThreshold ?? defaultContextCompressionThreshold,
+		);
+	}, [selectedModel]);
 
 	useEffect(() => {
 		if (
@@ -533,10 +575,26 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 	}, []);
 
+	const handleContextCompressionThresholdChange = useCallback(
+		(value: string) => {
+			setContextCompressionThreshold(value);
+			if (typeof window !== "undefined") {
+				localStorage.setItem(
+					contextCompressionThresholdStorageKey(selectedModelRef.current),
+					value,
+				);
+			}
+		},
+		[],
+	);
+
 	const handleSend = useCallback(
 		async (message: string) => {
 			const trimmedSystemPrompt = systemPromptRef.current.trim();
 			const localWorkspaceMode = selectedWorkspaceModeRef.current === "local";
+			const parsedCompressionThreshold = parseContextCompressionThreshold(
+				contextCompressionThresholdRef.current,
+			);
 			await onCreateChat({
 				message,
 				workspaceId: localWorkspaceMode
@@ -548,6 +606,7 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					canSetSystemPrompt && trimmedSystemPrompt
 						? trimmedSystemPrompt
 						: undefined,
+				contextCompressionThreshold: parsedCompressionThreshold,
 			});
 		},
 		[onCreateChat, canSetSystemPrompt],
@@ -602,6 +661,10 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					hasModelOptions={hasModelOptions}
 					inputStatusText={inputStatusText}
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
+					contextCompressionThreshold={contextCompressionThreshold}
+					onContextCompressionThresholdChange={
+						handleContextCompressionThresholdChange
+					}
 					leftActions={
 						<Select
 							value={

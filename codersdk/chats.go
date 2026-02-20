@@ -134,15 +134,16 @@ type ChatInput struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Input            *ChatInput        `json:"input,omitempty"`
-	Message          string            `json:"message,omitempty"`
-	SystemPrompt     string            `json:"system_prompt,omitempty"`
-	WorkspaceID      *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID *uuid.UUID        `json:"workspace_agent_id,omitempty" format:"uuid"`
-	WorkspaceMode    ChatWorkspaceMode `json:"workspace_mode,omitempty"`
-	ParentChatID     *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
-	Model            string            `json:"model,omitempty"`
-	ModelConfig      json.RawMessage   `json:"model_config,omitempty"`
+	Input                       *ChatInput        `json:"input,omitempty"`
+	Message                     string            `json:"message,omitempty"`
+	SystemPrompt                string            `json:"system_prompt,omitempty"`
+	WorkspaceID                 *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceAgentID            *uuid.UUID        `json:"workspace_agent_id,omitempty" format:"uuid"`
+	WorkspaceMode               ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	ParentChatID                *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
+	Model                       string            `json:"model,omitempty"`
+	ModelConfig                 json.RawMessage   `json:"model_config,omitempty"`
+	ContextCompressionThreshold *int32            `json:"context_compression_threshold,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -152,10 +153,11 @@ type UpdateChatRequest struct {
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content,omitempty"`
-	ToolCallID *string         `json:"tool_call_id,omitempty"`
-	Thinking   *string         `json:"thinking,omitempty"`
+	Role                        string          `json:"role"`
+	Content                     json.RawMessage `json:"content,omitempty"`
+	ToolCallID                  *string         `json:"tool_call_id,omitempty"`
+	Thinking                    *string         `json:"thinking,omitempty"`
+	ContextCompressionThreshold *int32          `json:"context_compression_threshold,omitempty"`
 }
 
 // ChatWithMessages is a chat along with its messages.
@@ -231,29 +233,35 @@ type UpdateChatProviderConfigRequest struct {
 
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Provider    string    `json:"provider"`
-	Model       string    `json:"model"`
-	DisplayName string    `json:"display_name"`
-	Enabled     bool      `json:"enabled"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+	ID                   uuid.UUID `json:"id" format:"uuid"`
+	Provider             string    `json:"provider"`
+	Model                string    `json:"model"`
+	DisplayName          string    `json:"display_name"`
+	Enabled              bool      `json:"enabled"`
+	ContextLimit         int64     `json:"context_limit"`
+	CompressionThreshold int32     `json:"compression_threshold"`
+	CreatedAt            time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time `json:"updated_at" format:"date-time"`
 }
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider    string `json:"provider"`
-	Model       string `json:"model"`
-	DisplayName string `json:"display_name,omitempty"`
-	Enabled     *bool  `json:"enabled,omitempty"`
+	Provider             string `json:"provider"`
+	Model                string `json:"model"`
+	DisplayName          string `json:"display_name,omitempty"`
+	Enabled              *bool  `json:"enabled,omitempty"`
+	ContextLimit         *int64 `json:"context_limit,omitempty"`
+	CompressionThreshold *int32 `json:"compression_threshold,omitempty"`
 }
 
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
-	Provider    string `json:"provider,omitempty"`
-	Model       string `json:"model,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
-	Enabled     *bool  `json:"enabled,omitempty"`
+	Provider             string `json:"provider,omitempty"`
+	Model                string `json:"model,omitempty"`
+	DisplayName          string `json:"display_name,omitempty"`
+	Enabled              *bool  `json:"enabled,omitempty"`
+	ContextLimit         *int64 `json:"context_limit,omitempty"`
+	CompressionThreshold *int32 `json:"compression_threshold,omitempty"`
 }
 
 // ChatGitChange represents a git file change detected during a chat session.

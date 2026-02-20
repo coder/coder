@@ -89,6 +89,24 @@ const asNonEmptyString = (value: unknown): string | undefined => {
 	return next.length > 0 ? next : undefined;
 };
 
+const defaultContextCompressionThreshold = "70";
+
+const contextCompressionThresholdStorageKey = (modelID: string): string =>
+	`agents.context-compression-threshold.${modelID || "default"}`;
+
+const parseContextCompressionThreshold = (
+	value: string,
+): number | undefined => {
+	const parsedValue = Number.parseInt(value.trim(), 10);
+	if (!Number.isFinite(parsedValue)) {
+		return undefined;
+	}
+	if (parsedValue < 0 || parsedValue > 100) {
+		return undefined;
+	}
+	return parsedValue;
+};
+
 type ChatMessageWithUsage = TypesGen.ChatMessage & {
 	readonly input_tokens?: unknown;
 	readonly output_tokens?: unknown;
@@ -869,6 +887,24 @@ const resolveModelFromChatConfig = (
 	return modelOptions[0]?.id ?? "";
 };
 
+const resolveContextCompressionThresholdFromChatConfig = (
+	modelConfig: TypesGen.Chat["model_config"],
+): string | null => {
+	if (!modelConfig || typeof modelConfig !== "object") {
+		return null;
+	}
+
+	const typedModelConfig = modelConfig as Record<string, unknown>;
+	const threshold = typedModelConfig.context_compression_threshold;
+	if (typeof threshold !== "number" || !Number.isFinite(threshold)) {
+		return null;
+	}
+	if (threshold < 0 || threshold > 100) {
+		return null;
+	}
+	return String(Math.trunc(threshold));
+};
+
 type StreamToolCall = {
 	id: string;
 	name: string;
@@ -1099,6 +1135,8 @@ export const AgentDetail: FC = () => {
 		Map<string, TypesGen.ChatStatus>
 	>(new Map());
 	const [selectedModel, setSelectedModel] = useState("");
+	const [contextCompressionThreshold, setContextCompressionThreshold] =
+		useState(defaultContextCompressionThreshold);
 	const chatErrorReasons = outletContext?.chatErrorReasons ?? {};
 	const setChatErrorReason =
 		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
@@ -1243,6 +1281,34 @@ export const AgentDetail: FC = () => {
 			);
 		});
 	}, [chatQuery.data, modelOptions]);
+
+	useEffect(() => {
+		if (!chatQuery.data) {
+			return;
+		}
+
+		const configuredModel = resolveModelFromChatConfig(
+			chatQuery.data.chat.model_config,
+			modelOptions,
+		);
+		const fromChatConfig = resolveContextCompressionThresholdFromChatConfig(
+			chatQuery.data.chat.model_config,
+		);
+		if (fromChatConfig !== null && selectedModel === configuredModel) {
+			setContextCompressionThreshold(fromChatConfig);
+			return;
+		}
+
+		if (typeof window === "undefined") {
+			return;
+		}
+		const storedThreshold = localStorage.getItem(
+			contextCompressionThresholdStorageKey(selectedModel),
+		);
+		setContextCompressionThreshold(
+			storedThreshold ?? defaultContextCompressionThreshold,
+		);
+	}, [chatQuery.data, modelOptions, selectedModel]);
 
 	useEffect(() => {
 		if (!agentId) {
@@ -1582,6 +1648,18 @@ export const AgentDetail: FC = () => {
 	const isSubmissionPending =
 		sendMutation.isPending || interruptMutation.isPending;
 	const isInputDisabled = isSubmissionPending || !hasModelOptions;
+	const handleContextCompressionThresholdChange = useCallback(
+		(value: string) => {
+			setContextCompressionThreshold(value);
+			if (typeof window !== "undefined") {
+				localStorage.setItem(
+					contextCompressionThresholdStorageKey(selectedModel),
+					value,
+				);
+			}
+		},
+		[selectedModel],
+	);
 
 	// Stable callback refs — the actual implementation is updated on
 	// every render, but the reference passed to ChatInput never changes.
@@ -1602,10 +1680,14 @@ export const AgentDetail: FC = () => {
 		if (isStreaming) {
 			await interruptMutation.mutateAsync();
 		}
+		const parsedCompressionThreshold = parseContextCompressionThreshold(
+			contextCompressionThreshold,
+		);
 		const request: CreateChatMessagePayload = {
 			role: "user",
 			content: JSON.parse(JSON.stringify(message)),
 			model: selectedModel || undefined,
+			context_compression_threshold: parsedCompressionThreshold,
 		};
 		clearChatErrorReason(agentId);
 		setStreamError(null);
@@ -2082,6 +2164,10 @@ export const AgentDetail: FC = () => {
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						inputStatusText={inputStatusText}
 						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						contextCompressionThreshold={contextCompressionThreshold}
+						onContextCompressionThresholdChange={
+							handleContextCompressionThresholdChange
+						}
 						sticky
 					/>
 				</div>

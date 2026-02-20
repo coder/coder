@@ -51,6 +51,7 @@ const (
 	toolSubagentMessage   = "subagent_message"
 	toolSubagentTerminate = "subagent_terminate"
 	toolSubagentReport    = "subagent_report"
+	toolChatSummarized    = "chat_summarized"
 
 	defaultExecuteTimeout        = 60 * time.Second
 	homeInstructionLookupTimeout = 5 * time.Second
@@ -58,13 +59,23 @@ const (
 
 	defaultChatModel = "claude-opus-4-6"
 
+	defaultContextCompressionThresholdPercent = int32(70)
+	minContextCompressionThresholdPercent     = int32(0)
+	maxContextCompressionThresholdPercent     = int32(100)
+	contextCompressionSummaryPrompt           = "Summarize the current chat so a " +
+		"new assistant can continue seamlessly. Include the user's goals, " +
+		"decisions made, concrete technical details (files, commands, APIs), " +
+		"errors encountered and fixes, and open questions. Be dense and factual. " +
+		"Omit pleasantries and next-step suggestions."
+	contextCompressionSystemSummaryPrefix = "Summary of earlier chat context:"
+
 	maxCreateWorkspaceBuildLogLines     = 120
 	maxCreateWorkspaceBuildLogChars     = 16 * 1024
 	maxCreateWorkspaceBuildLogLineChars = 240
 
-	defaultTitleGenerationPrompt = "Generate a concise title (max 8 words) for " +
-		"the user's first message. Return plain text only, with no surrounding " +
-		"quotes."
+	defaultTitleGenerationPrompt = "Generate a concise title (max 8 words, under 128 characters) for " +
+		"the user's first message. Return plain text only — no quotes, no emoji, " +
+		"no markdown, no special characters."
 
 	defaultNoWorkspaceInstruction = "No workspace is selected yet. Call the create_workspace tool first before using read_file, write_file, or execute. If create_workspace fails, ask the user to clarify the template or workspace request."
 	reportOnlyInstruction         = "Report-only follow-up pass. Call subagent_report exactly once with a concise summary and nothing else."
@@ -640,7 +651,7 @@ func (p *Processor) runChat(
 	reportOnly bool,
 	subagentRequestID uuid.UUID,
 ) error {
-	messages, err := p.db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	if err != nil {
 		return xerrors.Errorf("get chat messages: %w", err)
 	}
@@ -683,7 +694,352 @@ func (p *Processor) runChat(
 			return xerrors.Errorf("chat exceeded %d tool steps", maxChatSteps)
 		}
 	}
+	if !reportOnly {
+		if err := p.maybeCompressChatContext(ctx, chat, model, logger); err != nil {
+			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
+		}
+	}
 	return nil
+}
+
+type chatContextCompressionConfig struct {
+	ContextLimit      int64
+	ThresholdPercent  int32
+	ThresholdExplicit bool
+}
+
+type chatContextUsageSnapshot struct {
+	ContextTokens int64
+	ContextLimit  int64
+}
+
+func (p *Processor) maybeCompressChatContext(
+	ctx context.Context,
+	chat database.Chat,
+	model fantasy.LanguageModel,
+	logger slog.Logger,
+) error {
+	config, err := p.resolveChatContextCompressionConfig(ctx, chat)
+	if err != nil {
+		return err
+	}
+	if config.ThresholdPercent >= maxContextCompressionThresholdPercent {
+		return nil
+	}
+
+	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	if err != nil {
+		return xerrors.Errorf("get prompt messages for compression: %w", err)
+	}
+
+	usage, hasUsage := latestAssistantContextUsage(messages)
+	if !hasUsage || usage.ContextTokens <= 0 {
+		return nil
+	}
+
+	contextLimit := config.ContextLimit
+	if contextLimit <= 0 && usage.ContextLimit > 0 {
+		contextLimit = usage.ContextLimit
+	}
+	if contextLimit <= 0 {
+		return nil
+	}
+
+	usagePercent := (float64(usage.ContextTokens) / float64(contextLimit)) * 100
+	if usagePercent < float64(config.ThresholdPercent) {
+		return nil
+	}
+
+	summary, err := p.generateChatContextSummary(ctx, model, messages)
+	if err != nil {
+		return xerrors.Errorf("generate context summary: %w", err)
+	}
+	if strings.TrimSpace(summary) == "" {
+		return nil
+	}
+
+	if err := p.persistChatContextSummary(
+		ctx,
+		chat.ID,
+		summary,
+		config.ThresholdPercent,
+		usage.ContextTokens,
+		contextLimit,
+		usagePercent,
+	); err != nil {
+		return xerrors.Errorf("persist context summary: %w", err)
+	}
+
+	logger.Info(ctx, "chat context summarized",
+		slog.F("chat_id", chat.ID),
+		slog.F("threshold_percent", config.ThresholdPercent),
+		slog.F("usage_percent", usagePercent),
+		slog.F("context_tokens", usage.ContextTokens),
+		slog.F("context_limit", contextLimit),
+	)
+	return nil
+}
+
+func (p *Processor) resolveChatContextCompressionConfig(
+	ctx context.Context,
+	chat database.Chat,
+) (chatContextCompressionConfig, error) {
+	config := chatContextCompressionConfig{
+		ThresholdPercent: normalizeContextCompressionThreshold(
+			defaultContextCompressionThresholdPercent,
+		),
+	}
+
+	chatConfig := chatModelConfig{}
+	if len(chat.ModelConfig) > 0 {
+		if err := json.Unmarshal(chat.ModelConfig, &chatConfig); err != nil {
+			return config, nil
+		}
+	}
+
+	if chatConfig.ContextLimit > 0 {
+		config.ContextLimit = chatConfig.ContextLimit
+	}
+	if chatConfig.ContextCompressionThreshold != nil {
+		config.ThresholdPercent = normalizeContextCompressionThreshold(
+			*chatConfig.ContextCompressionThreshold,
+		)
+		config.ThresholdExplicit = true
+	}
+
+	if config.ContextLimit > 0 && config.ThresholdExplicit {
+		return config, nil
+	}
+
+	modelName := strings.TrimSpace(chatConfig.Model)
+	if modelName == "" {
+		modelName = defaultChatModel
+	}
+
+	providerHint := strings.TrimSpace(chatConfig.Provider)
+	provider, modelID, err := resolveModelWithProviderHint(modelName, providerHint)
+	if err != nil {
+		return config, nil
+	}
+
+	modelConfig, err := p.db.GetChatModelConfigByProviderAndModel(
+		ctx,
+		database.GetChatModelConfigByProviderAndModelParams{
+			Provider: provider,
+			Model:    modelID,
+		},
+	)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return config, nil
+		}
+		return config, xerrors.Errorf("load model compression config: %w", err)
+	}
+
+	if config.ContextLimit <= 0 {
+		config.ContextLimit = modelConfig.ContextLimit
+	}
+	if !config.ThresholdExplicit {
+		config.ThresholdPercent = normalizeContextCompressionThreshold(
+			modelConfig.CompressionThreshold,
+		)
+	}
+	return config, nil
+}
+
+func (p *Processor) generateChatContextSummary(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	messages []database.ChatMessage,
+) (string, error) {
+	prompt, err := chatMessagesToPrompt(messages)
+	if err != nil {
+		return "", xerrors.Errorf("build summary prompt: %w", err)
+	}
+
+	prompt = appendUserInstruction(prompt, contextCompressionSummaryPrompt)
+	toolChoice := fantasy.ToolChoiceNone
+
+	summaryCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+
+	response, err := model.Generate(summaryCtx, fantasy.Call{
+		Prompt:     prompt,
+		ToolChoice: &toolChoice,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("generate summary text: %w", err)
+	}
+
+	return strings.TrimSpace(contentBlocksToText(response.Content)), nil
+}
+
+func (p *Processor) persistChatContextSummary(
+	ctx context.Context,
+	chatID uuid.UUID,
+	summary string,
+	thresholdPercent int32,
+	contextTokens int64,
+	contextLimit int64,
+	usagePercent float64,
+) error {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return nil
+	}
+
+	systemSummary := strings.TrimSpace(
+		contextCompressionSystemSummaryPrefix + "\n\n" + summary,
+	)
+	systemContent, err := json.Marshal(systemSummary)
+	if err != nil {
+		return xerrors.Errorf("encode system summary: %w", err)
+	}
+
+	_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID: chatID,
+		Role:   string(fantasy.MessageRoleSystem),
+		Content: pqtype.NullRawMessage{
+			RawMessage: systemContent,
+			Valid:      len(systemContent) > 0,
+		},
+		Hidden:     true,
+		Compressed: sql.NullBool{Bool: true, Valid: true},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert hidden summary message: %w", err)
+	}
+
+	toolCallID := "chat_summarized_" + uuid.NewString()
+	args, err := json.Marshal(map[string]any{
+		"source":            "automatic",
+		"threshold_percent": thresholdPercent,
+	})
+	if err != nil {
+		return xerrors.Errorf("encode summary tool args: %w", err)
+	}
+
+	assistantContent, err := marshalContentBlocks([]fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID: toolCallID,
+			ToolName:   toolChatSummarized,
+			Input:      string(args),
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("encode summary tool call: %w", err)
+	}
+
+	assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:  chatID,
+		Role:    string(fantasy.MessageRoleAssistant),
+		Content: assistantContent,
+		Hidden:  false,
+		Compressed: sql.NullBool{
+			Bool:  true,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert summary tool call message: %w", err)
+	}
+
+	toolResult, err := marshalToolResults([]ToolResultBlock{{
+		ToolCallID: toolCallID,
+		ToolName:   toolChatSummarized,
+		Result: map[string]any{
+			"summary":              summary,
+			"source":               "automatic",
+			"threshold_percent":    thresholdPercent,
+			"usage_percent":        usagePercent,
+			"context_tokens":       contextTokens,
+			"context_limit_tokens": contextLimit,
+		},
+	}})
+	if err != nil {
+		return xerrors.Errorf("encode summary tool result: %w", err)
+	}
+
+	toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:  chatID,
+		Role:    string(fantasy.MessageRoleTool),
+		Content: toolResult,
+		ToolCallID: sql.NullString{
+			String: toolCallID,
+			Valid:  true,
+		},
+		Hidden: false,
+		Compressed: sql.NullBool{
+			Bool:  true,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert summary tool result message: %w", err)
+	}
+
+	p.publishMessage(chatID, assistantMessage)
+	p.publishMessage(chatID, toolMessage)
+	return nil
+}
+
+func normalizeContextCompressionThreshold(value int32) int32 {
+	if value < minContextCompressionThresholdPercent ||
+		value > maxContextCompressionThresholdPercent {
+		return defaultContextCompressionThresholdPercent
+	}
+	return value
+}
+
+func latestAssistantContextUsage(messages []database.ChatMessage) (chatContextUsageSnapshot, bool) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.Role != string(fantasy.MessageRoleAssistant) {
+			continue
+		}
+
+		contextTokens, hasTokens := messageContextTokens(message)
+		if !hasTokens {
+			continue
+		}
+
+		snapshot := chatContextUsageSnapshot{
+			ContextTokens: contextTokens,
+		}
+		if message.ContextLimit.Valid && message.ContextLimit.Int64 > 0 {
+			snapshot.ContextLimit = message.ContextLimit.Int64
+		}
+		return snapshot, true
+	}
+
+	return chatContextUsageSnapshot{}, false
+}
+
+func messageContextTokens(message database.ChatMessage) (int64, bool) {
+	total := int64(0)
+	hasContextTokens := false
+
+	if message.InputTokens.Valid {
+		total += message.InputTokens.Int64
+		hasContextTokens = true
+	}
+	if message.CacheReadTokens.Valid {
+		total += message.CacheReadTokens.Int64
+		hasContextTokens = true
+	}
+	if message.CacheCreationTokens.Valid {
+		total += message.CacheCreationTokens.Int64
+		hasContextTokens = true
+	}
+	if hasContextTokens {
+		return total, true
+	}
+
+	if message.TotalTokens.Valid {
+		return message.TotalTokens.Int64, true
+	}
+
+	return 0, false
 }
 
 func (p *Processor) resolveChatModel(ctx context.Context, chat database.Chat) (fantasy.LanguageModel, error) {
@@ -2398,9 +2754,11 @@ func intValue(value any) (int, bool) {
 }
 
 type chatModelConfig struct {
-	Provider      string                     `json:"provider,omitempty"`
-	Model         string                     `json:"model"`
-	WorkspaceMode codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	Provider                    string                     `json:"provider,omitempty"`
+	Model                       string                     `json:"model"`
+	WorkspaceMode               codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	ContextLimit                int64                      `json:"context_limit,omitempty"`
+	ContextCompressionThreshold *int32                     `json:"context_compression_threshold,omitempty"`
 }
 
 func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {

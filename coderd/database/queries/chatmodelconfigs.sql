@@ -6,6 +6,15 @@ FROM
 WHERE
     id = @id::uuid;
 
+-- name: GetChatModelConfigByProviderAndModel :one
+SELECT
+    *
+FROM
+    chat_model_configs
+WHERE
+    provider = @provider::text
+    AND model = @model::text;
+
 -- name: GetChatModelConfigs :many
 SELECT
     *
@@ -34,12 +43,16 @@ INSERT INTO chat_model_configs (
     provider,
     model,
     display_name,
-    enabled
+    enabled,
+    context_limit,
+    compression_threshold
 ) VALUES (
     @provider::text,
     @model::text,
     @display_name::text,
-    @enabled::boolean
+    @enabled::boolean,
+    @context_limit::bigint,
+    @compression_threshold::integer
 )
 RETURNING
     *;
@@ -52,6 +65,8 @@ SET
     model = @model::text,
     display_name = @display_name::text,
     enabled = @enabled::boolean,
+    context_limit = @context_limit::bigint,
+    compression_threshold = @compression_threshold::integer,
     updated_at = NOW()
 WHERE
     id = @id::uuid
