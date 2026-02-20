@@ -1,6 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
+import type React from "react";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
@@ -22,7 +23,7 @@ import {
 	TerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
-import { forwardRef, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
 import { Response } from "./response";
@@ -338,6 +339,43 @@ const fileViewerCSS =
 const diffViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }";
 
+// Stable option/style objects shared across tool renderers to
+// avoid creating new references on every render.
+const DIFF_VIEWER_OPTIONS = {
+	diffStyle: "unified" as const,
+	diffIndicators: "bars" as const,
+	overflow: "scroll" as const,
+	themeType: "dark" as const,
+	theme: "github-dark-high-contrast",
+	unsafeCSS: diffViewerCSS,
+};
+
+const FILE_VIEWER_OPTIONS = {
+	overflow: "scroll" as const,
+	themeType: "dark" as const,
+	theme: "github-dark-high-contrast",
+	unsafeCSS: fileViewerCSS,
+};
+
+const FILE_VIEWER_OPTIONS_NO_HEADER = {
+	...FILE_VIEWER_OPTIONS,
+	disableFileHeader: true,
+};
+
+const FILE_VIEWER_OPTIONS_MINIMAL = {
+	...FILE_VIEWER_OPTIONS,
+	disableFileHeader: true,
+	disableLineNumbers: true,
+};
+
+const DIFFS_FONT_STYLE = {
+	"--diffs-font-size": "11px",
+	"--diffs-line-height": "1.5",
+} as React.CSSProperties;
+
+const BORDER_BG_STYLE = {
+	background: "hsl(var(--border-default))",
+};
 /**
  * Checks whether a tool result should be rendered as a syntax-highlighted
  * file viewer. Returns the file path, content, and whether the header
@@ -478,19 +516,23 @@ const ExecuteTool: React.FC<{
 	return (
 		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			{/* Header: $ command + copy button */}
-			<div className="flex items-center gap-2 px-2.5 py-0.5">
-				<span className="shrink-0 font-mono text-xs text-content-secondary">
-					$
-				</span>
-				<code className="min-w-0 flex-1 truncate font-mono text-xs text-content-primary">
-					{command}
-				</code>
-				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
-				)}
-				<span className="opacity-0 transition-opacity group-hover/exec:opacity-100">
-					<CopyButton text={command} label="Copy command" />
-				</span>
+			<div className="flex w-full items-center justify-between gap-2 px-2.5 py-0.5">
+				<div className="flex min-w-0 flex-1 items-center gap-2">
+					<span className="shrink-0 font-mono text-xs text-content-secondary">
+						$
+					</span>
+					<code className="min-w-0 flex-1 truncate font-mono text-xs text-content-primary">
+						{command}
+					</code>
+				</div>
+				<div className="flex shrink-0 items-center gap-1">
+					{isRunning && (
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
+					)}
+					<span className="opacity-0 transition-opacity group-hover/exec:opacity-100">
+						<CopyButton text={command} label="Copy command" />
+					</span>
+				</div>
 			</div>
 
 			{/* Output preview / expanded */}
@@ -498,7 +540,7 @@ const ExecuteTool: React.FC<{
 				<>
 					<div
 						className="h-px"
-						style={{ background: "hsl(var(--border-default))" }}
+						style={BORDER_BG_STYLE}
 					/>
 					<ScrollArea
 						className="text-2xs"
@@ -622,18 +664,8 @@ const ReadFileTool: React.FC<{
 							name: path,
 							contents: content,
 						}}
-						options={{
-							overflow: "scroll",
-							disableLineNumbers: true,
-							disableFileHeader: true,
-							themeType: "dark",
-							theme: "github-dark-high-contrast",
-							unsafeCSS: fileViewerCSS,
-						}}
-						style={{
-							"--diffs-font-size": "11px",
-							"--diffs-line-height": "1.5",
-						}}
+						options={FILE_VIEWER_OPTIONS_MINIMAL}
+						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
 			)}
@@ -711,18 +743,8 @@ const WriteFileTool: React.FC<{
 				>
 					<FileDiff
 						fileDiff={diff}
-						options={{
-							diffStyle: "unified",
-							diffIndicators: "bars",
-							overflow: "scroll",
-							themeType: "dark",
-							theme: "github-dark-high-contrast",
-							unsafeCSS: diffViewerCSS,
-						}}
-						style={{
-							"--diffs-font-size": "11px",
-							"--diffs-line-height": "1.5",
-						}}
+						options={DIFF_VIEWER_OPTIONS}
+						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
 			)}
@@ -825,15 +847,20 @@ const EditFilesTool: React.FC<{
 
 	let label: string;
 	if (isRunning) {
-		label =
-			files.length === 1
-				? `Editing ${files[0].path.split("/").pop() || files[0].path}…`
-				: `Editing ${files.length} files…`;
+		if (files.length === 1) {
+			label = `Editing ${files[0].path.split("/").pop() || files[0].path}…`;
+		} else if (files.length > 1) {
+			label = `Editing ${files.length} files…`;
+		} else {
+			label = "Editing files…";
+		}
 	} else if (files.length === 1) {
 		const filename = files[0].path.split("/").pop() || files[0].path;
 		label = `Edited ${filename}`;
-	} else {
+	} else if (files.length > 1) {
 		label = `Edited ${files.length} files`;
+	} else {
+		label = "Edited files";
 	}
 
 	return (
@@ -892,18 +919,8 @@ const EditFilesTool: React.FC<{
 							>
 								<FileDiff
 									fileDiff={diff}
-									options={{
-										diffStyle: "unified",
-										diffIndicators: "bars",
-										overflow: "scroll",
-										themeType: "dark",
-										theme: "github-dark-high-contrast",
-										unsafeCSS: diffViewerCSS,
-									}}
-									style={{
-										"--diffs-font-size": "11px",
-										"--diffs-line-height": "1.5",
-									}}
+									options={DIFF_VIEWER_OPTIONS}
+									style={DIFFS_FONT_STYLE}
 								/>
 							</ScrollArea>
 						) : null,
@@ -1023,18 +1040,8 @@ const CreateWorkspaceTool: React.FC<{
 							name: "result.json",
 							contents: resultJson,
 						}}
-						options={{
-							overflow: "scroll",
-							disableLineNumbers: true,
-							disableFileHeader: true,
-							themeType: "dark",
-							theme: "github-dark-high-contrast",
-							unsafeCSS: fileViewerCSS,
-						}}
-						style={{
-							"--diffs-font-size": "11px",
-							"--diffs-line-height": "1.5",
-						}}
+						options={FILE_VIEWER_OPTIONS_MINIMAL}
+						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
 			)}
@@ -1287,7 +1294,7 @@ const AgentReportTool: React.FC<{
 				<>
 					<div
 						className="h-px"
-						style={{ background: "hsl(var(--border-default))" }}
+						style={BORDER_BG_STYLE}
 					/>
 					<div className="px-3 py-2">
 						<div
@@ -1310,7 +1317,7 @@ const AgentReportTool: React.FC<{
 	);
 };
 
-export const Tool = forwardRef<HTMLDivElement, ToolProps>(
+export const Tool = memo(forwardRef<HTMLDivElement, ToolProps>(
 	(
 		{
 			className,
@@ -1325,7 +1332,8 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 		},
 		ref,
 	) => {
-		const resultOutput = formatResultOutput(result);
+		const parsedArgs = useMemo(() => parseArgs(args), [args]);
+		const resultOutput = useMemo(() => formatResultOutput(result), [result]);
 		const fileContent = useMemo(
 			() => getFileContentForViewer(name, args, result),
 			[name, args, result],
@@ -1334,10 +1342,27 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			() => getWriteFileDiff(name, args),
 			[name, args],
 		);
+		const { editFiles, editDiffs } = useMemo(() => {
+			if (name !== "edit_files") return { editFiles: [], editDiffs: [] };
+			const files = parseEditFilesArgs(args);
+			const diffs = files.map((f) => buildEditDiff(f.path, f.edits));
+			return { editFiles: files, editDiffs: diffs };
+		}, [name, args]);
+		const fileContentOptions = useMemo(
+			() =>
+				fileContent
+					? {
+							...FILE_VIEWER_OPTIONS,
+							disableFileHeader: fileContent.disableHeader,
+							disableLineNumbers: fileContent.disableLineNumbers,
+						}
+					: FILE_VIEWER_OPTIONS,
+			[fileContent],
+		);
 
 		// Render execute tools with the specialized terminal-style block.
 		if (name === "execute") {
-			const parsed = parseArgs(args);
+			const parsed = parsedArgs;
 			const command = parsed ? asString(parsed.command) : "";
 			const rec = asRecord(result);
 			const output = rec ? asString(rec.output).trim() : "";
@@ -1345,7 +1370,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			return (
 				<div ref={ref} className={cn("w-full py-0.5", className)} {...props}>
 					<ExecuteTool
-						command={command || "Running command…"}
+						command={command}
 						output={output}
 						status={status}
 						isError={isError}
@@ -1356,7 +1381,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 
 		// Render read_file with a collapsed-by-default viewer.
 		if (name === "read_file") {
-			const parsed = parseArgs(args);
+			const parsed = parsedArgs;
 			const path = parsed ? asString(parsed.path).trim() : "";
 			const rec = asRecord(result);
 			const content = rec ? asString(rec.content).trim() : "";
@@ -1376,7 +1401,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 
 		// Render write_file with a collapsed-by-default diff viewer.
 		if (name === "write_file") {
-			const parsed = parseArgs(args);
+			const parsed = parsedArgs;
 			const path = parsed ? asString(parsed.path).trim() : "";
 			const rec = asRecord(result);
 
@@ -1395,15 +1420,13 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 
 		// Render edit_files with a collapsed-by-default diff viewer.
 		if (name === "edit_files") {
-			const files = parseEditFilesArgs(args);
-			const diffs = files.map((f) => buildEditDiff(f.path, f.edits));
 			const rec = asRecord(result);
 
 			return (
 				<div ref={ref} className={cn("py-0.5", className)} {...props}>
 					<EditFilesTool
-						files={files}
-						diffs={diffs}
+						files={editFiles}
+						diffs={editDiffs}
 						status={status}
 						isError={isError}
 						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
@@ -1443,7 +1466,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			name === "subagent_message" ||
 			name === "subagent_terminate"
 		) {
-			const parsed = parseArgs(args);
+			const parsed = parsedArgs;
 			const rec = asRecord(result);
 			// subagent_await and subagent_message have chat_id in
 			// args, so check both result and args.
@@ -1515,7 +1538,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 
 		// Render subagent_report as a collapsible markdown report.
 		if (name === "subagent_report") {
-			const parsed = parseArgs(args);
+			const parsed = parsedArgs;
 			const rec = asRecord(result);
 			const report =
 				(parsed ? asString(parsed.report) : "") ||
@@ -1548,14 +1571,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 					>
 						<FileDiff
 							fileDiff={writeFileDiff}
-							options={{
-								diffStyle: "unified",
-								diffIndicators: "bars",
-								overflow: "scroll",
-								themeType: "dark",
-								theme: "github-dark-high-contrast",
-								unsafeCSS: diffViewerCSS,
-							}}
+							options={DIFF_VIEWER_OPTIONS}
 						/>
 					</ScrollArea>
 				) : fileContent ? (
@@ -1569,14 +1585,7 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 								name: fileContent.path,
 								contents: fileContent.content,
 							}}
-							options={{
-								overflow: "scroll",
-								themeType: "dark",
-								theme: "github-dark-high-contrast",
-								unsafeCSS: fileViewerCSS,
-								disableFileHeader: fileContent.disableHeader,
-								disableLineNumbers: fileContent.disableLineNumbers,
-							}}
+							options={fileContentOptions}
 						/>
 					</ScrollArea>
 				) : (
@@ -1591,17 +1600,8 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 									name: "output.json",
 									contents: resultOutput,
 								}}
-								options={{
-									overflow: "scroll",
-									themeType: "dark",
-									theme: "github-dark-high-contrast",
-									unsafeCSS: fileViewerCSS,
-									disableFileHeader: true,
-								}}
-								style={{
-									"--diffs-font-size": "11px",
-									"--diffs-line-height": "1.5",
-								}}
+								options={FILE_VIEWER_OPTIONS_NO_HEADER}
+								style={DIFFS_FONT_STYLE}
 							/>
 						</ScrollArea>
 					)
@@ -1609,6 +1609,6 @@ export const Tool = forwardRef<HTMLDivElement, ToolProps>(
 			</div>
 		);
 	},
-);
+));
 
 Tool.displayName = "Tool";

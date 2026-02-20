@@ -134,6 +134,7 @@ export interface AIBridgeUserPrompt {
 export interface AIChatConfig {
     readonly system_prompt: string;
     readonly title_generation_prompt: string;
+    readonly local_workspace: boolean;
 }
 
 // From codersdk/deployment.go
@@ -591,6 +592,7 @@ export interface Chat {
     readonly owner_id: string;
     readonly workspace_id?: string;
     readonly workspace_agent_id?: string;
+    readonly workspace_mode?: ChatWorkspaceMode;
     readonly parent_chat_id?: string;
     readonly root_chat_id?: string;
     readonly title: string;
@@ -792,6 +794,11 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = ["database"
 export type ChatStatus = "completed" | "error" | "paused" | "pending" | "running" | "waiting";
 
 export const ChatStatuses: ChatStatus[] = ["completed", "error", "paused", "pending", "running", "waiting"];
+
+// From codersdk/chats.go
+export type ChatWorkspaceMode = "local" | "workspace";
+
+export const ChatWorkspaceModes: ChatWorkspaceMode[] = ["local", "workspace"];
 
 // From codersdk/chats.go
 /**
@@ -1020,6 +1027,7 @@ export interface CreateChatRequest {
     readonly system_prompt?: string;
     readonly workspace_id?: string;
     readonly workspace_agent_id?: string;
+    readonly workspace_mode?: ChatWorkspaceMode;
     readonly parent_chat_id?: string;
     readonly model?: string;
     readonly model_config?: Record<string, string>;
@@ -6146,5 +6154,4 @@ export interface WorkspacesResponse {
     readonly workspaces: readonly Workspace[];
     readonly count: number;
 }
-
 

@@ -1,6 +1,7 @@
 import type { ChatModelsResponse } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { chatModels, chats, createChat, deleteChat } from "api/queries/chats";
+import { deploymentConfig } from "api/queries/deployment";
 import { workspaces } from "api/queries/workspaces";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
@@ -53,12 +54,15 @@ import {
 } from "./modelOptions";
 
 const emptyInputStorageKey = "agents.empty-input";
+const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
+const selectedWorkspaceModeStorageKey = "agents.selected-workspace-mode";
 
 type ChatModelOption = ModelSelectorOption;
 
 type CreateChatOptions = {
 	message: string;
 	workspaceId?: string;
+	workspaceMode?: "local";
 	model?: string;
 	systemPrompt?: string;
 };
@@ -88,9 +92,17 @@ export const AgentsPage: FC = () => {
 	const { agentId } = useParams();
 	const { permissions, user, signOut } = useAuthenticated();
 	const { appearance, buildInfo } = useDashboard();
+	const isAgentsAdmin =
+		permissions.editDeploymentConfig ||
+		user.roles.some((role) => role.name === "owner" || role.name === "admin");
+	const canSetSystemPrompt = isAgentsAdmin;
 
 	const chatsQuery = useQuery(chats());
 	const chatModelsQuery = useQuery(chatModels());
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: isAgentsAdmin,
+	});
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(deleteChat(queryClient));
 	const [archiveTargetChatId, setArchiveTargetChatId] = useState<string | null>(
@@ -148,19 +160,19 @@ export const AgentsPage: FC = () => {
 		setRightPanelOpen: setIsRightPanelOpen,
 		requestArchiveAgent,
 	};
-	const isAgentsAdmin =
-		permissions.editDeploymentConfig ||
-		user.roles.some((role) => role.name === "owner" || role.name === "admin");
-	const canSetSystemPrompt = isAgentsAdmin;
+	const canUseLocalWorkspaceMode =
+		isAgentsAdmin &&
+		Boolean(deploymentConfigQuery.data?.config.ai?.chat?.local_workspace);
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, workspaceId, model, systemPrompt } = options;
+		const { message, workspaceId, workspaceMode, model, systemPrompt } = options;
 		const createdChat = await createMutation.mutateAsync({
 			message,
 			input: {
 				parts: [{ type: "text", text: message }],
 			},
 			workspace_id: workspaceId,
+			workspace_mode: workspaceMode,
 			model,
 			system_prompt: systemPrompt,
 		});
@@ -288,6 +300,7 @@ export const AgentsPage: FC = () => {
 							modelCatalogError={chatModelsQuery.error}
 							canSetSystemPrompt={canSetSystemPrompt}
 							canManageChatModelConfigs={isAgentsAdmin}
+							canUseLocalWorkspaceMode={canUseLocalWorkspaceMode}
 							topBarActionsRef={topBarActionsRef}
 						/>
 					)}
@@ -355,6 +368,7 @@ interface AgentsEmptyStateProps {
 	modelCatalogError: unknown;
 	canSetSystemPrompt: boolean;
 	canManageChatModelConfigs: boolean;
+	canUseLocalWorkspaceMode: boolean;
 	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -368,6 +382,7 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	modelCatalogError,
 	canSetSystemPrompt,
 	canManageChatModelConfigs,
+	canUseLocalWorkspaceMode,
 	topBarActionsRef,
 }) => {
 	const initialInput = useMemo(() => {
@@ -384,10 +399,22 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		useState<ConfigureAgentsSection>("providers");
 	const workspacesQuery = useQuery(workspaces({ limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		null,
+		() => {
+			if (typeof window === "undefined") return null;
+			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
+		},
 	);
+	const [selectedWorkspaceMode, setSelectedWorkspaceMode] = useState<
+		"workspace" | "local"
+	>(() => {
+		if (typeof window === "undefined") return "workspace";
+		const stored = localStorage.getItem(selectedWorkspaceModeStorageKey);
+		if (stored === "local") return "local";
+		return "workspace";
+	});
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
+	const localWorkspaceValue = "__local_workspace__";
 	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
 	const configureSectionOptions = useMemo<
 		readonly ConfigureAgentsSectionOption[]
@@ -438,6 +465,8 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
+	const selectedWorkspaceModeRef = useRef(selectedWorkspaceMode);
+	selectedWorkspaceModeRef.current = selectedWorkspaceMode;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
 	const systemPromptRef = useRef(systemPrompt);
@@ -463,10 +492,29 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
+			setSelectedWorkspaceMode("workspace");
 			setSelectedWorkspaceId(null);
+			if (typeof window !== "undefined") {
+				localStorage.setItem(selectedWorkspaceModeStorageKey, "workspace");
+				localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			}
 			return;
 		}
+		if (value === localWorkspaceValue && canUseLocalWorkspaceMode) {
+			setSelectedWorkspaceMode("local");
+			setSelectedWorkspaceId(null);
+			if (typeof window !== "undefined") {
+				localStorage.setItem(selectedWorkspaceModeStorageKey, "local");
+				localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			}
+			return;
+		}
+		setSelectedWorkspaceMode("workspace");
 		setSelectedWorkspaceId(value);
+		if (typeof window !== "undefined") {
+			localStorage.setItem(selectedWorkspaceModeStorageKey, "workspace");
+			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		}
 	};
 
 	const handleOpenConfigureAgentsDialog = () => {
@@ -488,9 +536,13 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const handleSend = useCallback(
 		async (message: string) => {
 			const trimmedSystemPrompt = systemPromptRef.current.trim();
+			const localWorkspaceMode = selectedWorkspaceModeRef.current === "local";
 			await onCreateChat({
 				message,
-				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
+				workspaceId: localWorkspaceMode
+					? undefined
+					: selectedWorkspaceIdRef.current ?? undefined,
+				workspaceMode: localWorkspaceMode ? "local" : undefined,
 				model: selectedModelRef.current || undefined,
 				systemPrompt:
 					canSetSystemPrompt && trimmedSystemPrompt
@@ -501,9 +553,18 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		[onCreateChat, canSetSystemPrompt],
 	);
 
-	const selectedWorkspaceName = selectedWorkspaceId
-		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)?.name
-		: null;
+	useEffect(() => {
+		if (!canUseLocalWorkspaceMode && selectedWorkspaceMode === "local") {
+			setSelectedWorkspaceMode("workspace");
+		}
+	}, [canUseLocalWorkspaceMode, selectedWorkspaceMode]);
+
+	const selectedWorkspaceName =
+		selectedWorkspaceMode === "local"
+			? "Local Workspace"
+			: selectedWorkspaceId
+				? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)?.name
+				: null;
 
 	return (
 		<div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6 lg:p-8">
@@ -543,7 +604,11 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
 					leftActions={
 						<Select
-							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
+							value={
+								selectedWorkspaceMode === "local"
+									? localWorkspaceValue
+									: selectedWorkspaceId ?? autoCreateWorkspaceValue
+							}
 							onValueChange={handleWorkspaceChange}
 							disabled={isCreating || workspacesQuery.isLoading}
 						>
@@ -557,6 +622,11 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 								<SelectItem value={autoCreateWorkspaceValue}>
 									Auto-create Workspace
 								</SelectItem>
+								{canUseLocalWorkspaceMode && (
+									<SelectItem value={localWorkspaceValue}>
+										Local Workspace
+									</SelectItem>
+								)}
 								{workspaceOptions.map((workspace) => (
 									<SelectItem key={workspace.id} value={workspace.id}>
 										{workspace.name}

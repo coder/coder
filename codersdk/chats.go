@@ -22,20 +22,29 @@ const (
 	ChatStatusError     ChatStatus = "error"
 )
 
+// ChatWorkspaceMode represents how chat tools access files and commands.
+type ChatWorkspaceMode string
+
+const (
+	ChatWorkspaceModeWorkspace ChatWorkspaceMode = "workspace"
+	ChatWorkspaceModeLocal     ChatWorkspaceMode = "local"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID               uuid.UUID       `json:"id" format:"uuid"`
-	OwnerID          uuid.UUID       `json:"owner_id" format:"uuid"`
-	WorkspaceID      *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
-	ParentChatID     *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID       *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	Title            string          `json:"title"`
-	Status           ChatStatus      `json:"status"`
-	DiffStatus       *ChatDiffStatus `json:"diff_status,omitempty"`
-	ModelConfig      json.RawMessage `json:"model_config,omitempty"`
-	CreatedAt        time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time       `json:"updated_at" format:"date-time"`
+	ID               uuid.UUID         `json:"id" format:"uuid"`
+	OwnerID          uuid.UUID         `json:"owner_id" format:"uuid"`
+	WorkspaceID      *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceAgentID *uuid.UUID        `json:"workspace_agent_id,omitempty" format:"uuid"`
+	WorkspaceMode    ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	ParentChatID     *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID       *uuid.UUID        `json:"root_chat_id,omitempty" format:"uuid"`
+	Title            string            `json:"title"`
+	Status           ChatStatus        `json:"status"`
+	DiffStatus       *ChatDiffStatus   `json:"diff_status,omitempty"`
+	ModelConfig      json.RawMessage   `json:"model_config,omitempty"`
+	CreatedAt        time.Time         `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time         `json:"updated_at" format:"date-time"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -125,14 +134,15 @@ type ChatInput struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Input            *ChatInput      `json:"input,omitempty"`
-	Message          string          `json:"message,omitempty"`
-	SystemPrompt     string          `json:"system_prompt,omitempty"`
-	WorkspaceID      *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
-	ParentChatID     *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	Model            string          `json:"model,omitempty"`
-	ModelConfig      json.RawMessage `json:"model_config,omitempty"`
+	Input            *ChatInput        `json:"input,omitempty"`
+	Message          string            `json:"message,omitempty"`
+	SystemPrompt     string            `json:"system_prompt,omitempty"`
+	WorkspaceID      *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceAgentID *uuid.UUID        `json:"workspace_agent_id,omitempty" format:"uuid"`
+	WorkspaceMode    ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	ParentChatID     *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
+	Model            string            `json:"model,omitempty"`
+	ModelConfig      json.RawMessage   `json:"model_config,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
