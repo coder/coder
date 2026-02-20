@@ -81,6 +81,36 @@ export default defineConfig({
 				secure: process.env.NODE_ENV === "production",
 				rewrite: (path) => path.replace(/\/+/g, "/"),
 			},
+			// Path-based workspace apps are served by the backend. Without
+			// these rules, Vite serves index.html (SPA fallback) instead
+			// of proxying to the Go server.
+			"/@": {
+				changeOrigin: true,
+				target: process.env.CODER_HOST || "http://localhost:3000",
+				secure: process.env.NODE_ENV === "production",
+				ws: true,
+				bypass: (req) => {
+					// Only proxy requests that contain /apps/ in the path,
+					// which are workspace app routes handled by the backend.
+					// Other /@user/workspace paths are frontend routes.
+					if (req.url?.includes("/apps/")) {
+						return undefined; // Proxy the request.
+					}
+					return false; // Skip proxy, let Vite handle it.
+				},
+			},
+			"/%40": {
+				changeOrigin: true,
+				target: process.env.CODER_HOST || "http://localhost:3000",
+				secure: process.env.NODE_ENV === "production",
+				ws: true,
+				bypass: (req) => {
+					if (req.url?.includes("/apps/")) {
+						return undefined;
+					}
+					return false;
+				},
+			},
 			"/api": {
 				ws: true,
 				changeOrigin: true,
