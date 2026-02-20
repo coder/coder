@@ -5422,10 +5422,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-				}),
-			})
+			client, db                           = coderdtest.NewWithDatabase(t, nil)
 			admin                                = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 			_, toShareWithUser                   = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5456,10 +5453,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-				}),
-			})
+			client, db                           = coderdtest.NewWithDatabase(t, nil)
 			admin                                = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 			sharedUseClient, toShareWithUser     = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5498,11 +5492,8 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 	t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
 
 	var (
-		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-			}),
-		})
-		admin                                = coderdtest.CreateFirstUser(t, client)
+		client, db = coderdtest.NewWithDatabase(t, nil)
+		admin      = coderdtest.CreateFirstUser(t, client)
 		workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		sharedUserClientA, sharedUserA       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		_, sharedUserB                       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
