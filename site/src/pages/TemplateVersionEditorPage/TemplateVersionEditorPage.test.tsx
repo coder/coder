@@ -34,7 +34,7 @@ const { API } = apiModule;
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
-jest.mock(
+vi.mock(
 	"modules/templates/TemplateResourcesTable/TemplateResourcesTable",
 	() => ({
 		TemplateResourcesTable: () => <div></div>,
@@ -43,7 +43,7 @@ jest.mock(
 
 // Occasionally, Jest encounters HTML5 canvas errors. As the MonacoEditor is not
 // required for these tests, we can safely mock it.
-jest.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
+vi.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
 	MonacoEditor: (props: MonacoEditorProps) => (
 		<textarea
 			data-testid="monaco-editor"
@@ -78,27 +78,25 @@ const buildTemplateVersion = async (
 	user: UserEvent,
 	topbar: HTMLElement,
 ) => {
-	jest.spyOn(API, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
-	jest.spyOn(API, "createTemplateVersion").mockResolvedValue({
+	vi.spyOn(API, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
+	vi.spyOn(API, "createTemplateVersion").mockResolvedValue({
 		...templateVersion,
 		job: {
 			...templateVersion.job,
 			status: "running",
 		},
 	});
-	jest
-		.spyOn(API, "getTemplateVersionByName")
-		.mockResolvedValue(templateVersion);
-	jest
-		.spyOn(apiModule, "watchBuildLogsByTemplateVersionId")
-		.mockImplementation((_, options) => {
+	vi.spyOn(API, "getTemplateVersionByName").mockResolvedValue(templateVersion);
+	vi.spyOn(apiModule, "watchBuildLogsByTemplateVersionId").mockImplementation(
+		(_, options) => {
 			options.onMessage(MockWorkspaceBuildLogs[0]);
 			options.onDone?.();
 			const wsMock = {
-				close: jest.fn(),
+				close: vi.fn(),
 			} as unknown;
 			return wsMock as WebSocket;
-		});
+		},
+	);
 	const buildButton = within(topbar).getByRole("button", {
 		name: "Build",
 	});
@@ -124,10 +122,10 @@ test("Use custom name, message and set it as active when publishing", async () =
 	await buildTemplateVersion(newTemplateVersion, user, topbar);
 
 	// Publish
-	const patchTemplateVersion = jest
+	const patchTemplateVersion = vi
 		.spyOn(API, "patchTemplateVersion")
 		.mockResolvedValue(newTemplateVersion);
-	const updateActiveTemplateVersion = jest
+	const updateActiveTemplateVersion = vi
 		.spyOn(API, "updateActiveTemplateVersion")
 		.mockResolvedValue({ message: "" });
 	const publishButton = within(topbar).getByRole("button", {
@@ -170,10 +168,10 @@ test("Do not mark as active if promote is not checked", async () => {
 	await buildTemplateVersion(newTemplateVersion, user, topbar);
 
 	// Publish
-	const patchTemplateVersion = jest
+	const patchTemplateVersion = vi
 		.spyOn(API, "patchTemplateVersion")
 		.mockResolvedValue(newTemplateVersion);
-	const updateActiveTemplateVersion = jest
+	const updateActiveTemplateVersion = vi
 		.spyOn(API, "updateActiveTemplateVersion")
 		.mockResolvedValue({ message: "" });
 	const publishButton = within(topbar).getByRole("button", {
@@ -215,7 +213,7 @@ test("Patch request is not send when there are no changes", async () => {
 	await buildTemplateVersion(newTemplateVersion, user, topbar);
 
 	// Publish
-	const patchTemplateVersion = jest
+	const patchTemplateVersion = vi
 		.spyOn(API, "patchTemplateVersion")
 		.mockResolvedValue(newTemplateVersion);
 	const publishButton = within(topbar).getByRole("button", {
@@ -333,7 +331,7 @@ describe.each([
 		askForVariables,
 	}) => {
 		it(testName, async () => {
-			jest.resetAllMocks();
+			vi.resetAllMocks();
 			const queryClient = new QueryClient();
 			queryClient.setQueryData(
 				templateVersionVariablesKey(MockTemplateVersion.id),
