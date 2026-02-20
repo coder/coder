@@ -266,6 +266,16 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name: "CreateWorkspaceForMembers",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(policy.WildcardSymbol),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgAuditor, memberMe, userAdmin, templateAdmin, orgTemplateAdmin},
+			},
+		},
+		{
 			Name: "MyWorkspaceInOrgExecution",
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []policy.Action{policy.ActionSSH},

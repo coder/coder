@@ -8,7 +8,7 @@ import type {
 } from "api/typesGenerated";
 import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { useQueryClient } from "react-query";
-import { action } from "storybook/internal/actions";
+import { action } from "storybook/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 

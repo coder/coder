@@ -128,7 +128,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		Name:                     agentName,
 		ResourceID:               parentAgent.ResourceID,
 		AuthToken:                uuid.New(),
-		AuthInstanceID:           parentAgent.AuthInstanceID,
+		AuthInstanceID:           sql.NullString{},
 		Architecture:             req.Architecture,
 		EnvironmentVariables:     pqtype.NullRawMessage{},
 		OperatingSystem:          req.OperatingSystem,

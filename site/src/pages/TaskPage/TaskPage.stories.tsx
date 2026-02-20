@@ -31,8 +31,21 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import type { Task, Workspace, WorkspaceApp } from "api/typesGenerated";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { taskLogsKey } from "api/queries/tasks";
+import type {
+	Task,
+	TaskLogsResponse,
+	Workspace,
+	WorkspaceApp,
+} from "api/typesGenerated";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage from "./TaskPage";
 
@@ -66,6 +79,61 @@ const MockVSCodeApp: WorkspaceApp = {
 	display_name: "VS Code Web",
 	icon: "/icon/code.svg",
 	health: "healthy",
+};
+
+const MockTaskLogsResponse: TaskLogsResponse = {
+	logs: [
+		{
+			id: 1,
+			content: "Implement JWT authentication with refresh token rotation.",
+			type: "input",
+			time: "2024-01-01T11:59:55Z",
+		},
+		{
+			id: 2,
+			content:
+				"I'll help you implement the authentication system. Let me start by examining the existing code structure.",
+			type: "output",
+			time: "2024-01-01T12:00:00Z",
+		},
+		{
+			id: 3,
+			content:
+				"Looking at the codebase, I can see the following relevant files:\n- src/auth/login.ts\n- src/auth/middleware.ts\n- src/models/user.ts",
+			type: "output",
+			time: "2024-01-01T12:00:05Z",
+		},
+		{
+			id: 4,
+			content:
+				"I'll now create the JWT token validation middleware. This will intercept all protected routes and verify the bearer token.",
+			type: "output",
+			time: "2024-01-01T12:00:10Z",
+		},
+		{
+			id: 5,
+			content:
+				"Looks good so far. Also add rate limiting to the token endpoint.",
+			type: "input",
+			time: "2024-01-01T12:00:12Z",
+		},
+		{
+			id: 6,
+			content:
+				"Successfully updated src/auth/middleware.ts with the new token validation logic.\nRunning tests to verify the changes...",
+			type: "output",
+			time: "2024-01-01T12:00:15Z",
+		},
+		{
+			id: 7,
+			content:
+				"All 12 tests passed. The authentication middleware is working correctly.\n\nNext, I'll add the refresh token rotation endpoint to prevent token reuse attacks.",
+			type: "output",
+			time: "2024-01-01T12:00:20Z",
+		},
+	],
+	snapshot: true,
+	snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
 };
 
 const meta: Meta<typeof TaskPage> = {
@@ -154,6 +222,20 @@ export const FailedBuild: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockFailedWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const FailedBuildNoSnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockFailedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			logs: [],
+		});
 	},
 };
 
@@ -163,6 +245,7 @@ export const TerminatedBuild: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 };
 
@@ -173,6 +256,7 @@ export const TerminatedBuildWithStatus: Story = {
 			...MockStoppedWorkspace,
 			latest_app_status: MockWorkspaceAppStatus,
 		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 };
 
@@ -206,6 +290,82 @@ export const TaskPaused: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const TaskPausedNoSnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			logs: [],
+		});
+	},
+};
+
+export const TaskPausedEmptySnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+			logs: [],
+		});
+	},
+};
+
+export const TaskPausedSingleMessage: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+			logs: [MockTaskLogsResponse.logs[0]],
+		});
+	},
+};
+
+export const TaskPausedSnapshotTooltip: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const tooltipTrigger = await canvas.findByRole("button", {
+			name: /info/i,
+		});
+		await userEvent.hover(tooltipTrigger);
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
+				/This log snapshot was taken/,
+			),
+		);
 	},
 };
 
@@ -223,6 +383,7 @@ export const TaskPausedTimeout: Story = {
 				reason: "task_auto_pause",
 			},
 		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 };
 
@@ -235,6 +396,7 @@ export const TaskCanceled: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockCanceledWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 };
 
@@ -511,6 +673,10 @@ export const TaskPausedOutdated: Story = {
 				],
 				data: [],
 			},
+			{
+				key: taskLogsKey(MockTask.owner_name, MockTask.id),
+				data: MockTaskLogsResponse,
+			},
 		],
 	},
 	// Then: a tooltip should be displayed prompting the user to update the workspace.
@@ -576,6 +742,7 @@ export const TaskResuming: Story = {
 		spyOn(API, "startWorkspace").mockResolvedValue(
 			MockStartingWorkspace.latest_build,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -617,6 +784,7 @@ export const TaskResumeFailure: Story = {
 		spyOn(API, "startWorkspace").mockRejectedValue(
 			new Error("Some unexpected error"),
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -659,6 +827,7 @@ export const TaskResumeFailureWithDialog: Story = {
 			}),
 			code: "ERR_BAD_REQUEST",
 		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({

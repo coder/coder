@@ -2952,3 +2952,48 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 
 	return codersdk.WorkspaceRoleDeleted
 }
+
+// @Summary Get users available for workspace creation
+// @ID get-users-available-for-workspace-creation
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param user path string true "User ID, name, or me"
+// @Param q query string false "Search query"
+// @Param limit query int false "Limit results"
+// @Param offset query int false "Offset for pagination"
+// @Success 200 {array} codersdk.MinimalUser
+// @Router /organizations/{organization}/members/{user}/workspaces/available-users [get]
+func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	// This endpoint requires the user to be able to create workspaces for other
+	// users in this organization. We check if they can create a workspace with
+	// a wildcard owner.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(policy.WildcardSymbol)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Use system context to list all users. The authorization check above
+	// ensures only users who can create workspaces for others can access this.
+	//nolint:gocritic // System context needed to list users for workspace owner selection.
+	users, _, ok := api.GetUsers(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
+	if !ok {
+		return
+	}
+
+	minimalUsers := make([]codersdk.MinimalUser, 0, len(users))
+	for _, user := range users {
+		minimalUsers = append(minimalUsers, codersdk.MinimalUser{
+			ID:        user.ID,
+			Username:  user.Username,
+			Name:      user.Name,
+			AvatarURL: user.AvatarURL,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, minimalUsers)
+}
