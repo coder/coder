@@ -1005,16 +1005,20 @@ func (api *API) CheckBuildUsage(
 	// Verify managed agent entitlement for AI task builds.
 	// The count/limit check is intentionally omitted — breaching the
 	// limit is advisory only and surfaced as a warning via entitlements.
-	if transition == database.WorkspaceTransitionStart && task != nil {
-		if api.Entitlements.HasLicense() {
-			managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
-			if !ok || !managedAgentLimit.Enabled {
-				return wsbuilder.UsageCheckResponse{
-					Permitted: false,
-					Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
-				}, nil
-			}
-		}
+	if transition != database.WorkspaceTransitionStart || task == nil {
+		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+	}
+
+	if !api.Entitlements.HasLicense() {
+		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+	}
+
+	managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
+	if !ok || !managedAgentLimit.Enabled {
+		return wsbuilder.UsageCheckResponse{
+			Permitted: false,
+			Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
+		}, nil
 	}
 
 	return wsbuilder.UsageCheckResponse{Permitted: true}, nil
