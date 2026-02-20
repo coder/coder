@@ -2781,7 +2781,18 @@ func (p *Processor) agentTools(
 					timeout,
 				)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					// Include the chat metadata and request_id
+					// in the error response so the LLM can retry
+					// with subagent_await using the correct
+					// request_id.
+					payload["error"] = err.Error()
+					payload["status"] = "error"
+					return toolResultBlockToAgentResponse(ToolResultBlock{
+						ToolCallID: call.ID,
+						ToolName:   call.Name,
+						IsError:    true,
+						Result:     payload,
+					}), nil
 				}
 
 				payload["report"] = awaitResult.Report
