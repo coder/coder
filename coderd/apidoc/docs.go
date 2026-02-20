@@ -22805,7 +22805,7 @@ const docTemplate = `{
                     ]
                 },
                 "default": {
-                    "description": "Default is parsed into Value if set.",
+                    "description": "Default is parsed into Value if set.\nMust be ` + "`" + `\"\"` + "`" + ` if ` + "`" + `DefaultFn` + "`" + ` != nil",
                     "type": "string"
                 },
                 "description": {

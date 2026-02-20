@@ -4599,6 +4599,7 @@ export interface SerpentOption {
 	readonly yaml?: string;
 	/**
 	 * Default is parsed into Value if set.
+	 * Must be `""` if `DefaultFn` != nil
 	 */
 	readonly default?: string;
 	/**
