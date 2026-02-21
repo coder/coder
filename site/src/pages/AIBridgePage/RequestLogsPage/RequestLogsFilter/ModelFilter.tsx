@@ -6,6 +6,7 @@ import {
 } from "components/Filter/menu";
 import { SelectFilter } from "components/Filter/SelectFilter";
 import type { FC } from "react";
+import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
 export const useModelFilterMenu = ({
 	value,
@@ -25,6 +26,9 @@ export const useModelFilterMenu = ({
 				return {
 					label: firstModel,
 					value: firstModel,
+					startIcon: (
+						<AIBridgeModelIcon model={firstModel} className="size-icon-sm" />
+					),
 				};
 			}
 
@@ -38,6 +42,7 @@ export const useModelFilterMenu = ({
 			return modelsRes.map((model) => ({
 				label: model,
 				value: model,
+				startIcon: <AIBridgeModelIcon model={model} className="size-icon-sm" />,
 			}));
 		},
 		value,
