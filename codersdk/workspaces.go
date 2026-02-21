@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 type AutomaticUpdates string
@@ -808,50 +811,36 @@ type WorkspaceBuildUpdate struct {
 func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (<-chan WorkspaceBuildUpdate, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	//nolint:bodyclose
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/watch-all-workspacebuilds", nil)
+
+	serverURL, err := c.URL.Parse("/api/experimental/watch-all-workspacebuilds")
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	if res.StatusCode != http.StatusOK {
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
+	}
+
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient:      httpClient,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
 		return nil, ReadBodyAsError(res)
 	}
-	nextEvent := ServerSentEventReader(ctx, res.Body)
 
-	wc := make(chan WorkspaceBuildUpdate, 256)
-	go func() {
-		defer close(wc)
-		defer res.Body.Close()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				sse, err := nextEvent()
-				if err != nil {
-					return
-				}
-				if sse.Type != ServerSentEventTypeData {
-					continue
-				}
-				var update WorkspaceBuildUpdate
-				b, ok := sse.Data.([]byte)
-				if !ok {
-					return
-				}
-				err = json.Unmarshal(b, &update)
-				if err != nil {
-					return
-				}
-				select {
-				case <-ctx.Done():
-					return
-				case wc <- update:
-				}
-			}
-		}
-	}()
-
-	return wc, nil
+	d := wsjson.NewDecoder[WorkspaceBuildUpdate](conn, websocket.MessageText, c.logger)
+	return d.Chan(), nil
 }

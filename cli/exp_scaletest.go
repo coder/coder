@@ -1893,8 +1893,8 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 					AutostartBuildTimeout: autostartBuildTimeout,
 					AutostartDelay:        autostartDelay,
 					SetupBarrier:          setupBarrier,
-					BuildUpdates: buildUpdatesChannel,
-					ResultSink:   resultSink,
+					BuildUpdates:          buildUpdatesChannel,
+					ResultSink:            resultSink,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)

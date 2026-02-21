@@ -43,6 +43,8 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 var (
@@ -2179,26 +2181,17 @@ func (api *API) watchWorkspace(
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Success 200 {object} codersdk.ServerSentEvent
+// @Success 101
 // @Router /experimental/watch-all-workspacebuilds [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error setting up server-sent events.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Prevent handler from returning until the sender is closed.
-	defer func() {
-		<-senderClosed
-	}()
+	// Buffer enough updates to avoid blocking the pubsub callback while we're
+	// accepting the WebSocket connection. Accepting the connection signals to
+	// the client that the server is subscribed and ready to forward events.
+	updates := make(chan codersdk.WorkspaceBuildUpdate, 256)
 
-	// Subscribe to all workspace build updates.
 	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(wspubsub.AllWorkspaceEventChannel,
 		wspubsub.HandleWorkspaceBuildUpdate(
 			func(_ context.Context, update codersdk.WorkspaceBuildUpdate, err error) {
@@ -2206,35 +2199,47 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 					api.Logger.Warn(ctx, "workspace build update subscription error", slog.Error(err))
 					return
 				}
-				_ = sendEvent(codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeData,
-					Data: update,
-				})
+				select {
+				case updates <- update:
+				default:
+					api.Logger.Warn(ctx, "workspace build update dropped, client too slow")
+				}
 			}))
 	if err != nil {
-		_ = sendEvent(codersdk.ServerSentEvent{
-			Type: codersdk.ServerSentEventTypeError,
-			Data: codersdk.Response{
-				Message: "Internal error subscribing to workspace build events.",
-				Detail:  err.Error(),
-			},
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error subscribing to workspace build events.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 	defer cancelSubscribe()
 
-	// An initial ping signals to the request that the server is now ready
-	// and the client can begin servicing a channel with data.
-	_ = sendEvent(codersdk.ServerSentEvent{
-		Type: codersdk.ServerSentEventTypePing,
-	})
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept WebSocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "done")
 
+	ctx, cancel := context.WithCancel(ctx)
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	defer cancel()
+
+	enc := wsjson.NewEncoder[codersdk.WorkspaceBuildUpdate](conn, websocket.MessageText)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-senderClosed:
-			return
+		case update, ok := <-updates:
+			if !ok {
+				return
+			}
+			if err := enc.Encode(update); err != nil {
+				return
+			}
 		}
 	}
 }
