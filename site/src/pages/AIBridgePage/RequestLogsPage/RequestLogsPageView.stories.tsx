@@ -13,21 +13,9 @@ import {
 	mockSuccessResult,
 } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { ComponentProps } from "react";
-import { action } from "storybook/actions";
-import type { ClientFilterMenu } from "./RequestLogsFilter/ClientFilter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 type FilterProps = ComponentProps<typeof RequestLogsPageView>["filterProps"];
-
-const MockClientMenu: ClientFilterMenu = {
-	query: "",
-	setQuery: action("setClientQuery"),
-	searchOptions: [],
-	selectedClients: new Set<string>(),
-	toggleOption: action("toggleClientOption"),
-	isInitializing: false,
-	isSearching: false,
-};
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: "owner:me",
@@ -39,7 +27,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		user: MockMenu,
 		provider: MockMenu,
 		model: MockMenu,
-		client: MockClientMenu as unknown as typeof MockMenu,
+		client: MockMenu,
 	},
 });
 
