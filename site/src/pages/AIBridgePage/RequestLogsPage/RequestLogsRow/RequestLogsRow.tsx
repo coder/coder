@@ -229,17 +229,17 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 											{interception.client ?? "Unknown"}
 										</span>
 									</Badge>
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>{interception.client}</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+								</TooltipTrigger>
+								<TooltipContent>{interception.client}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
 				</TableCell>
 				<TableCell className="w-40 max-w-40">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="min-w-0 overflow-hidden">
+					<div className="min-w-0 overflow-hidden">
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
 									<Badge className="gap-1.5 max-w-full">
 										<div className="flex-shrink-0 flex items-center">
 											<AIBridgeModelIcon
