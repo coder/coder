@@ -21,7 +21,7 @@ import { cn } from "utils/cn";
 type ComboboxContextProps = {
 	open: boolean;
 	setOpen: (open: boolean) => void;
-	value: string | undefined;
+	value: string | Set<string> | undefined;
 	onValueChange: ((value: string | undefined) => void) | undefined;
 };
 
@@ -36,7 +36,7 @@ function useCombobox() {
 }
 
 interface ComboboxProps extends React.ComponentProps<typeof Popover> {
-	value?: string;
+	value?: string | Set<string>;
 	onValueChange?: (value: string | undefined) => void;
 }
 
@@ -50,7 +50,6 @@ export const Combobox = ({
 }: ComboboxProps) => {
 	const [internalOpen, setInternalOpen] = useState(false);
 
-	// Use controlled state if provided, otherwise use internal state
 	const open = controlledOpen ?? internalOpen;
 	const setOpen = controlledOnOpenChange ?? setInternalOpen;
 
@@ -128,17 +127,22 @@ export const ComboboxItem = ({
 	...props
 }: React.ComponentPropsWithRef<typeof CommandItem>) => {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
-	const isSelected = value === selectedValue;
+	const isMultiple = selectedValue instanceof Set;
+	const isSelected = isMultiple
+		? selectedValue.has(value ?? "")
+		: value === selectedValue;
 
 	return (
 		<CommandItem
 			value={value}
 			className={cn(className, "rounded-none")}
 			onSelect={(itemValue) => {
-				setOpen(false);
-				// Toggle behavior: selecting the same value deselects it.
-				const newValue = itemValue === selectedValue ? undefined : itemValue;
-				onValueChange?.(newValue);
+				if (!isMultiple) {
+					setOpen(false);
+				}
+				onValueChange?.(
+					!isMultiple && itemValue === selectedValue ? undefined : itemValue,
+				);
 				onSelect?.(itemValue);
 			}}
 			{...props}
