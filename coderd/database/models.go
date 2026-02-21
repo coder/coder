@@ -3879,6 +3879,13 @@ type ChatProvider struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
+type ChatQueuedMessage struct {
+	ID        int64           `db:"id" json:"id"`
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content   json.RawMessage `db:"content" json:"content"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
 type ConnectionLog struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`

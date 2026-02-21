@@ -2643,6 +2643,15 @@ func (q *sqlQuerier) AcquireChat(ctx context.Context, arg AcquireChatParams) (Ch
 	return i, err
 }
 
+const deleteAllChatQueuedMessages = `-- name: DeleteAllChatQueuedMessages :exec
+DELETE FROM chat_queued_messages WHERE chat_id = $1
+`
+
+func (q *sqlQuerier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAllChatQueuedMessages, chatID)
+	return err
+}
+
 const deleteChatByID = `-- name: DeleteChatByID :exec
 DELETE FROM
     chats
@@ -2667,6 +2676,20 @@ func (q *sqlQuerier) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid
 	return err
 }
 
+const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
+DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
+`
+
+type DeleteChatQueuedMessageParams struct {
+	ID     int64     `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessage, arg.ID, arg.ChatID)
+	return err
+}
+
 const getChatByID = `-- name: GetChatByID :one
 SELECT
     id, owner_id, workspace_id, workspace_agent_id, title, status, model_config, worker_id, started_at, created_at, updated_at, parent_chat_id, root_chat_id
@@ -2678,6 +2701,31 @@ WHERE
 
 func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, getChatByID, id)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.WorkspaceAgentID,
+		&i.Title,
+		&i.Status,
+		&i.ModelConfig,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+	)
+	return i, err
+}
+
+const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
+SELECT id, owner_id, workspace_id, workspace_agent_id, title, status, model_config, worker_id, started_at, created_at, updated_at, parent_chat_id, root_chat_id FROM chats WHERE id = $1::uuid FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, getChatByIDForUpdate, id)
 	var i Chat
 	err := row.Scan(
 		&i.ID,
@@ -2947,6 +2995,40 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.CacheReadTokens,
 			&i.ContextLimit,
 			&i.Compressed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
+SELECT id, chat_id, content, created_at FROM chat_queued_messages
+WHERE chat_id = $1
+ORDER BY id ASC
+`
+
+func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatQueuedMessages, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatQueuedMessage
+	for rows.Next() {
+		var i ChatQueuedMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.Content,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3355,6 +3437,29 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 	return i, err
 }
 
+const insertChatQueuedMessage = `-- name: InsertChatQueuedMessage :one
+INSERT INTO chat_queued_messages (chat_id, content)
+VALUES ($1, $2)
+RETURNING id, chat_id, content, created_at
+`
+
+type InsertChatQueuedMessageParams struct {
+	ChatID  uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content json.RawMessage `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, insertChatQueuedMessage, arg.ChatID, arg.Content)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listChatsByRootID = `-- name: ListChatsByRootID :many
 SELECT
     id, owner_id, workspace_id, workspace_agent_id, title, status, model_config, worker_id, started_at, created_at, updated_at, parent_chat_id, root_chat_id
@@ -3449,6 +3554,29 @@ func (q *sqlQuerier) ListChildChatsByParentID(ctx context.Context, parentChatID 
 		return nil, err
 	}
 	return items, nil
+}
+
+const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
+DELETE FROM chat_queued_messages
+WHERE id = (
+    SELECT cqm.id FROM chat_queued_messages cqm
+    WHERE cqm.chat_id = $1
+    ORDER BY cqm.id ASC
+    LIMIT 1
+)
+RETURNING id, chat_id, content, created_at
+`
+
+func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, popNextQueuedMessage, chatID)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const updateChatByID = `-- name: UpdateChatByID :one

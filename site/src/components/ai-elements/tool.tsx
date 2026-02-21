@@ -807,6 +807,7 @@ const buildEditDiff = (
 
 	let lineOffset = 1;
 	for (const edit of edits) {
+		if (!edit.search) continue;
 		const searchLines = edit.search.split("\n");
 		const replaceLines = edit.replace.split("\n");
 

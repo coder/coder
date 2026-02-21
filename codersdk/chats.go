@@ -160,10 +160,18 @@ type CreateChatMessageRequest struct {
 	ContextCompressionThreshold *int32          `json:"context_compression_threshold,omitempty"`
 }
 
+// CreateChatMessageResponse is the response from adding a message to a chat.
+type CreateChatMessageResponse struct {
+	Messages      []ChatMessage      `json:"messages,omitempty"`
+	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
+	Queued        bool               `json:"queued"`
+}
+
 // ChatWithMessages is a chat along with its messages.
 type ChatWithMessages struct {
-	Chat     Chat          `json:"chat"`
-	Messages []ChatMessage `json:"messages"`
+	Chat           Chat                `json:"chat"`
+	Messages       []ChatMessage       `json:"messages"`
+	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -308,7 +316,16 @@ const (
 	ChatStreamEventTypeMessage     ChatStreamEventType = "message"
 	ChatStreamEventTypeStatus      ChatStreamEventType = "status"
 	ChatStreamEventTypeError       ChatStreamEventType = "error"
+	ChatStreamEventTypeQueueUpdate ChatStreamEventType = "queue_update"
 )
+
+// ChatQueuedMessage represents a queued message waiting to be processed.
+type ChatQueuedMessage struct {
+	ID        int64           `json:"id"`
+	ChatID    uuid.UUID       `json:"chat_id" format:"uuid"`
+	Content   json.RawMessage `json:"content"`
+	CreatedAt time.Time       `json:"created_at" format:"date-time"`
+}
 
 // ChatStreamMessagePart is a streamed message part update.
 type ChatStreamMessagePart struct {
@@ -333,7 +350,8 @@ type ChatStreamEvent struct {
 	Message     *ChatMessage           `json:"message,omitempty"`
 	MessagePart *ChatStreamMessagePart `json:"message_part,omitempty"`
 	Status      *ChatStreamStatus      `json:"status,omitempty"`
-	Error       *ChatStreamError       `json:"error,omitempty"`
+	Error          *ChatStreamError       `json:"error,omitempty"`
+	QueuedMessages []ChatQueuedMessage    `json:"queued_messages,omitempty"`
 }
 
 // ListChats returns all chats for the authenticated user.
@@ -523,17 +541,17 @@ func (c *Client) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
 }
 
 // CreateChatMessage adds a message to a chat.
-func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req CreateChatMessageRequest) ([]ChatMessage, error) {
+func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req CreateChatMessageRequest) (CreateChatMessageResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/messages", chatID), req)
 	if err != nil {
-		return nil, err
+		return CreateChatMessageResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return CreateChatMessageResponse{}, ReadBodyAsError(res)
 	}
-	var messages []ChatMessage
-	return messages, json.NewDecoder(res.Body).Decode(&messages)
+	var resp CreateChatMessageResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.

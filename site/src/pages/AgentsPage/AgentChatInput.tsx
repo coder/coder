@@ -9,7 +9,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ArrowUpIcon, Loader2Icon, Square } from "lucide-react";
+import { ArrowUpIcon, ListPlusIcon, Loader2Icon, Square } from "lucide-react";
 import { memo, type ReactNode, useCallback, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatProviderLabel } from "./modelOptions";
@@ -48,6 +48,8 @@ interface AgentChatInputProps {
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
 	isInterruptPending?: boolean;
+	// Whether there are already queued messages waiting.
+	hasQueuedMessages?: boolean;
 	// Extra controls rendered in the left action area (e.g. workspace
 	// selector on the create page).
 	leftActions?: ReactNode;
@@ -236,6 +238,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isStreaming = false,
 		onInterrupt,
 		isInterruptPending = false,
+		hasQueuedMessages = false,
 		leftActions,
 		contextCompressionThreshold,
 		onContextCompressionThresholdChange,
@@ -327,7 +330,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							{contextUsage !== undefined && (
 								<ContextUsageIndicator usage={contextUsage} />
 							)}
-							{isStreaming && onInterrupt ? (
+							{isStreaming && onInterrupt && (
 								<Button
 									size="icon"
 									variant="default"
@@ -338,22 +341,26 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									<Square className="h-3 w-3 fill-current" />
 									<span className="sr-only">Stop</span>
 								</Button>
-							) : (
-								<Button
-									size="icon"
-									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:!size-3.5"
-									onClick={() => void handleSubmit()}
-									disabled={isDisabled || !hasModelOptions || !input.trim()}
-								>
-									{isLoading ? (
-										<Loader2Icon className="animate-spin" />
-									) : (
-										<ArrowUpIcon />
-									)}
-									<span className="sr-only">Send</span>
-								</Button>
 							)}
+							<Button
+								size="icon"
+								variant="default"
+								className="size-7 rounded-full transition-colors [&>svg]:!size-3.5"
+								onClick={() => void handleSubmit()}
+								disabled={isDisabled || !hasModelOptions || !input.trim()}
+								title={isStreaming ? "Queue message" : "Send"}
+							>
+								{isLoading ? (
+									<Loader2Icon className="animate-spin" />
+								) : isStreaming ? (
+									<ListPlusIcon />
+								) : (
+									<ArrowUpIcon />
+								)}
+								<span className="sr-only">
+									{isStreaming ? "Queue message" : "Send"}
+								</span>
+							</Button>
 						</div>
 					</div>
 					{inputStatusText && (

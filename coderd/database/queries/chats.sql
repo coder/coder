@@ -434,3 +434,32 @@ SET
     updated_at = NOW()
 RETURNING
     *;
+
+-- name: InsertChatQueuedMessage :one
+INSERT INTO chat_queued_messages (chat_id, content)
+VALUES (@chat_id, @content)
+RETURNING *;
+
+-- name: GetChatQueuedMessages :many
+SELECT * FROM chat_queued_messages
+WHERE chat_id = @chat_id
+ORDER BY id ASC;
+
+-- name: DeleteChatQueuedMessage :exec
+DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
+
+-- name: DeleteAllChatQueuedMessages :exec
+DELETE FROM chat_queued_messages WHERE chat_id = @chat_id;
+
+-- name: PopNextQueuedMessage :one
+DELETE FROM chat_queued_messages
+WHERE id = (
+    SELECT cqm.id FROM chat_queued_messages cqm
+    WHERE cqm.chat_id = @chat_id
+    ORDER BY cqm.id ASC
+    LIMIT 1
+)
+RETURNING *;
+
+-- name: GetChatByIDForUpdate :one
+SELECT * FROM chats WHERE id = @id::uuid FOR UPDATE;

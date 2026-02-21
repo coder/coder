@@ -484,6 +484,20 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
 }
 
+// DeleteAllChatQueuedMessages mocks base method.
+func (m *MockStore) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllChatQueuedMessages", ctx, chatID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllChatQueuedMessages indicates an expected call of DeleteAllChatQueuedMessages.
+func (mr *MockStoreMockRecorder) DeleteAllChatQueuedMessages(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).DeleteAllChatQueuedMessages), ctx, chatID)
+}
+
 // DeleteAllTailnetTunnels mocks base method.
 func (m *MockStore) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
 	m.ctrl.T.Helper()
@@ -594,6 +608,20 @@ func (m *MockStore) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) er
 func (mr *MockStoreMockRecorder) DeleteChatProviderByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatProviderByID", reflect.TypeOf((*MockStore)(nil).DeleteChatProviderByID), ctx, id)
+}
+
+// DeleteChatQueuedMessage mocks base method.
+func (m *MockStore) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatQueuedMessage", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatQueuedMessage indicates an expected call of DeleteChatQueuedMessage.
+func (mr *MockStoreMockRecorder) DeleteChatQueuedMessage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessage", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessage), ctx, arg)
 }
 
 // DeleteCryptoKey mocks base method.
@@ -1749,6 +1777,21 @@ func (mr *MockStoreMockRecorder) GetChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByID", reflect.TypeOf((*MockStore)(nil).GetChatByID), ctx, id)
 }
 
+// GetChatByIDForUpdate mocks base method.
+func (m *MockStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatByIDForUpdate indicates an expected call of GetChatByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetChatByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatByIDForUpdate), ctx, id)
+}
+
 // GetChatDiffStatusByChatID mocks base method.
 func (m *MockStore) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	m.ctrl.T.Helper()
@@ -1912,6 +1955,21 @@ func (m *MockStore) GetChatProviders(ctx context.Context) ([]database.ChatProvid
 func (mr *MockStoreMockRecorder) GetChatProviders(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProviders", reflect.TypeOf((*MockStore)(nil).GetChatProviders), ctx)
+}
+
+// GetChatQueuedMessages mocks base method.
+func (m *MockStore) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatQueuedMessages", ctx, chatID)
+	ret0, _ := ret[0].([]database.ChatQueuedMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatQueuedMessages indicates an expected call of GetChatQueuedMessages.
+func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessages), ctx, chatID)
 }
 
 // GetChatsByOwnerID mocks base method.
@@ -5468,6 +5526,21 @@ func (mr *MockStoreMockRecorder) InsertChatProvider(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProvider", reflect.TypeOf((*MockStore)(nil).InsertChatProvider), ctx, arg)
 }
 
+// InsertChatQueuedMessage mocks base method.
+func (m *MockStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatQueuedMessage", ctx, arg)
+	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatQueuedMessage indicates an expected call of InsertChatQueuedMessage.
+func (mr *MockStoreMockRecorder) InsertChatQueuedMessage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessage", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessage), ctx, arg)
+}
+
 // InsertCryptoKey mocks base method.
 func (m *MockStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -6664,6 +6737,21 @@ func (m *MockStore) Ping(ctx context.Context) (time.Duration, error) {
 func (mr *MockStoreMockRecorder) Ping(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStore)(nil).Ping), ctx)
+}
+
+// PopNextQueuedMessage mocks base method.
+func (m *MockStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PopNextQueuedMessage", ctx, chatID)
+	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PopNextQueuedMessage indicates an expected call of PopNextQueuedMessage.
+func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
 }
 
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.

@@ -84,6 +84,7 @@ type sqlcQuerier interface {
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error
 	DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error
 	// Deletes all existing webpush subscriptions.
 	// This should be called when the VAPID keypair is regenerated, as the old
@@ -97,6 +98,7 @@ type sqlcQuerier interface {
 	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -208,6 +210,7 @@ type sqlcQuerier interface {
 	// stale data.
 	GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetBoundaryUsageSummaryRow, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
+	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
@@ -219,6 +222,7 @@ type sqlcQuerier interface {
 	GetChatProviderByID(ctx context.Context, id uuid.UUID) (ChatProvider, error)
 	GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
+	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error)
@@ -582,6 +586,7 @@ type sqlcQuerier interface {
 	InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error)
+	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -682,6 +687,7 @@ type sqlcQuerier interface {
 	//  - Use both to get a specific org member row
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error)
+	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error

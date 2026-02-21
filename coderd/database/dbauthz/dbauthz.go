@@ -1689,6 +1689,17 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.DeleteAllChatQueuedMessages(ctx, chatID)
+}
+
 func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -1755,6 +1766,17 @@ func (q *querier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) erro
 		return err
 	}
 	return q.db.DeleteChatProviderByID(ctx, id)
+}
+
+func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatQueuedMessage(ctx, arg)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -2329,6 +2351,10 @@ func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat,
 	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
 
+func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
+}
+
 func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)
@@ -2432,6 +2458,14 @@ func (q *querier) GetChatProviders(ctx context.Context) ([]database.ChatProvider
 		return nil, err
 	}
 	return q.db.GetChatProviders(ctx)
+}
+
+func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatQueuedMessages(ctx, chatID)
 }
 
 func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
@@ -4413,6 +4447,17 @@ func (q *querier) InsertChatProvider(ctx context.Context, arg database.InsertCha
 	return q.db.InsertChatProvider(ctx, arg)
 }
 
+func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatQueuedMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatQueuedMessage{}, err
+	}
+	return q.db.InsertChatQueuedMessage(ctx, arg)
+}
+
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -5097,6 +5142,17 @@ func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database
 		return nil, err
 	}
 	return q.db.PaginatedOrganizationMembers(ctx, arg)
+}
+
+func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return database.ChatQueuedMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatQueuedMessage{}, err
+	}
+	return q.db.PopNextQueuedMessage(ctx, chatID)
 }
 
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {

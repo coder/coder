@@ -1225,6 +1225,22 @@ CREATE TABLE chat_providers (
 
 COMMENT ON COLUMN chat_providers.api_key_key_id IS 'The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted';
 
+CREATE TABLE chat_queued_messages (
+    id bigint NOT NULL,
+    chat_id uuid NOT NULL,
+    content jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE SEQUENCE chat_queued_messages_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
+
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -3041,6 +3057,8 @@ COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information su
 
 ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
 
+ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_queued_messages_id_seq'::regclass);
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -3094,6 +3112,9 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
+
+ALTER TABLE ONLY chat_queued_messages
+    ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -3439,6 +3460,8 @@ CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (
 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
+CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
@@ -3706,6 +3729,9 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_queued_messages
+    ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;

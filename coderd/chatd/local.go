@@ -17,10 +17,11 @@ import (
 	"sync"
 	"time"
 
-	"cdr.dev/slog/v3"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"tailscale.com/util/singleflight"
+
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/database"
