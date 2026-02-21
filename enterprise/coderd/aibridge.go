@@ -23,8 +23,10 @@ import (
 const (
 	maxListInterceptionsLimit     = 1000
 	maxListModelsLimit            = 1000
+	maxListClientsLimit           = 1000
 	defaultListInterceptionsLimit = 100
 	defaultListModelsLimit        = 100
+	defaultListClientsLimit       = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow = time.Second
@@ -44,6 +46,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			r.Use(middlewares...)
 			r.Get("/interceptions", api.aiBridgeListInterceptions)
 			r.Get("/models", api.aiBridgeListModels)
+			r.Get("/clients", api.aiBridgeListClients)
 		})
 
 		// Apply overload protection middleware to the aibridged handler.
@@ -226,6 +229,58 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, models)
+}
+
+// aiBridgeListClients returns all AI Bridge clients a user can see.
+//
+// @Summary List AI Bridge clients
+// @ID list-ai-bridge-clients
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Bridge
+// @Success 200 {array} string
+// @Router /aibridge/clients [get]
+func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	page, ok := coderd.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	if page.Limit == 0 {
+		page.Limit = defaultListClientsLimit
+	}
+
+	if page.Limit > maxListClientsLimit || page.Limit < 1 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid pagination limit value.",
+			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListClientsLimit),
+		})
+		return
+	}
+
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := searchquery.AIBridgeClients(queryStr, page)
+
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid AI Bridge clients search query.",
+			Validations: errs,
+		})
+		return
+	}
+
+	clients, err := api.Database.ListAIBridgeClients(ctx, filter)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting AI Bridge clients.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, clients)
 }
 
 func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.ListAIBridgeInterceptionsRow) ([]codersdk.AIBridgeInterception, error) {

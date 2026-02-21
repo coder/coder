@@ -101,15 +101,13 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 		return {};
 	}
 
-	const pairs = filterQuery.split(" ");
 	const result: FilterValues = {};
+	const keyValuePair = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
 
-	for (const pair of pairs) {
-		const [key, value] = pair.split(":") as [
-			keyof FilterValues,
-			string | undefined,
-		];
-		if (value) {
+	for (const match of filterQuery.matchAll(keyValuePair)) {
+		const key = match[1] ?? match[3];
+		const value = match[2] ?? match[4];
+		if (key && value) {
 			result[key] = value;
 		}
 	}
@@ -123,7 +121,8 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 	for (const key in filterValue) {
 		const value = filterValue[key];
 		if (value) {
-			result += `${key}:${value} `;
+			const needsQuotes = value.includes(" ");
+			result += needsQuotes ? `${key}:"${value}" ` : `${key}:${value} `;
 		}
 	}
 

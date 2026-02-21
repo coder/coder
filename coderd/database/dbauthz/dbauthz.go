@@ -4754,6 +4754,14 @@ func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBri
 	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
 }
 
+func (q *querier) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.ListAuthorizedAIBridgeClients(ctx, arg, prep)
+}
+
 func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	// This function is a system function until we implement a join for aibridge interceptions.
 	// Matches the behavior of the workspaces listing endpoint.
@@ -6321,4 +6329,12 @@ func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
 	return q.ListAIBridgeModels(ctx, arg)
+}
+
+func (q *querier) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, _ rbac.PreparedAuthorized) ([]string, error) {
+	// TODO: Delete this function, all ListAIBridgeClients should be
+	// authorized. For now just call ListAIBridgeClients on the authz
+	// querier. This cannot be deleted for now because it's included in
+	// the database.Store interface, so dbauthz needs to implement it.
+	return q.ListAIBridgeClients(ctx, arg)
 }
