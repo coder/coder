@@ -115,9 +115,9 @@ WHERE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
 		ELSE true
 	END
-	-- Filter client
+	-- Filter client(s)
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+		WHEN cardinality(@clients :: text[]) > 0 THEN COALESCE(aibridge_interceptions.client, 'Unknown') = ANY(@clients :: text[])
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -159,9 +159,9 @@ WHERE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
 		ELSE true
 	END
-	-- Filter client
+	-- Filter client(s)
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+		WHEN cardinality(@clients :: text[]) > 0 THEN COALESCE(aibridge_interceptions.client, 'Unknown') = ANY(@clients :: text[])
 		ELSE true
 	END
 	-- Cursor pagination
@@ -393,6 +393,29 @@ WHERE
 	-- @authorize_filter
 GROUP BY
 	model
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+OFFSET @offset_
+;
+
+-- name: ListAIBridgeClients :many
+SELECT
+	COALESCE(client, 'Unknown') AS client
+FROM
+	aibridge_interceptions
+WHERE
+	ended_at IS NOT NULL
+	-- Filter client (prefix match to allow B-tree index usage).
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE @client::text || '%'
+		ELSE true
+	END
+	-- We use an `@authorize_filter` as we are attempting to list clients
+	-- that are relevant to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in
+	-- ListAIBridgeClientsAuthorized.
+	-- @authorize_filter
+GROUP BY
+	client
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;

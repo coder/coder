@@ -385,7 +385,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
 	filter.Model = parser.String(values, "", "model")
-	filter.Client = parser.String(values, "", "client")
+	filter.Clients = parser.Strings(values, nil, "client")
 
 	// Time must be between started_after and started_before.
 	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")
@@ -425,6 +425,34 @@ func AIBridgeModels(query string, page codersdk.Pagination) (database.ListAIBrid
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Model = parser.String(values, "", "model")
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBridgeClientsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeClientsParams{
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("client", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Client = parser.String(values, "", "client")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

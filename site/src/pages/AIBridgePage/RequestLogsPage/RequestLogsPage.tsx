@@ -8,6 +8,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { useClientFilterMenu } from "./RequestLogsFilter/ClientFilter";
 import { useModelFilterMenu } from "./RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "./RequestLogsFilter/ProviderFilter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
@@ -62,6 +63,15 @@ const RequestLogsPage: FC = () => {
 			}),
 	});
 
+	const clientMenu = useClientFilterMenu({
+		value: filter.values.client,
+		onChange: (value) =>
+			filter.update({
+				...filter.values,
+				client: value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
@@ -78,6 +88,7 @@ const RequestLogsPage: FC = () => {
 						user: userMenu,
 						provider: providerMenu,
 						model: modelMenu,
+						client: clientMenu,
 					},
 				}}
 			/>

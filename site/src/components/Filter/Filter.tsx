@@ -101,16 +101,19 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 		return {};
 	}
 
-	const pairs = filterQuery.split(" ");
 	const result: FilterValues = {};
+	// Matches key:value pairs where the value is either a quoted string
+	// or unquoted (no spaces). Repeated keys (e.g. client:A client:"B C")
+	// are merged into a comma-separated value.
+	const keyValuePair = /(\w+):("([^"]*)"|[^\s]+)/g;
 
-	for (const pair of pairs) {
-		const [key, value] = pair.split(":") as [
-			keyof FilterValues,
-			string | undefined,
-		];
-		if (value) {
-			result[key] = value;
+	for (const match of filterQuery.matchAll(keyValuePair)) {
+		const key = match[1];
+		// Use the inner capture group for quoted values, otherwise the
+		// full value match.
+		const value = match[3] ?? match[2];
+		if (key && value) {
+			result[key] = result[key] ? `${result[key]},${value}` : value;
 		}
 	}
 
@@ -123,7 +126,13 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 	for (const key in filterValue) {
 		const value = filterValue[key];
 		if (value) {
-			result += `${key}:${value} `;
+			// Emit each comma-separated part as its own key:value pair so
+			// the backend's searchTerms parser can handle them via
+			// url.Values.Add (repeated keys). Quote values with spaces.
+			for (const part of value.split(",")) {
+				const serialized = part.includes(" ") ? `"${part}"` : part;
+				result += `${key}:${serialized} `;
+			}
 		}
 	}
 
