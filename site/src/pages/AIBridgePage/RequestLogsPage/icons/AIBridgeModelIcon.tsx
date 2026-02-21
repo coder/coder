@@ -33,6 +33,7 @@ function inferModelFamily(model: string): string {
 
 export const AIBridgeModelIcon = ({
 	model,
+	className,
 	...props
 }: {
 	model: string;
@@ -44,20 +45,20 @@ export const AIBridgeModelIcon = ({
 			return (
 				<ExternalImage
 					src="/icon/claude.svg"
-					className={cn(iconClassName, props.className)}
+					className={cn(iconClassName, className)}
 				/>
 			);
 		case "openai":
 			return (
 				<ExternalImage
 					src="/icon/openai.svg"
-					className={cn(iconClassName, props.className)}
+					className={cn(iconClassName, className)}
 				/>
 			);
 		default:
 			return (
 				<CircleQuestionMarkIcon
-					className={cn(iconClassName, props.className)}
+					className={cn(iconClassName, className)}
 					{...props}
 				/>
 			);

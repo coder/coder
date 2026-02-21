@@ -7,7 +7,7 @@ import {
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import type { FC } from "react";
-import { AIBridgeProviderIcon } from "../AIBridgeProviderIcon";
+import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
 
 const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 	{

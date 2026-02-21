@@ -50,6 +50,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 							<TableHead>Timestamp</TableHead>
 							<TableHead>Initiator</TableHead>
 							<TableHead>Tokens</TableHead>
+							<TableHead>Client</TableHead>
 							<TableHead>Model</TableHead>
 							<TableHead>Tool Calls</TableHead>
 						</TableRow>
