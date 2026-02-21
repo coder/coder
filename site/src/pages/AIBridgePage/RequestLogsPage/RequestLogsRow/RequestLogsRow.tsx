@@ -204,7 +204,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 											/>
 										</div>
 										<span className="truncate min-w-0">
-											{interception.client}
+											{interception.client ?? "Unknown"}
 										</span>
 									</Badge>
 								</div>
