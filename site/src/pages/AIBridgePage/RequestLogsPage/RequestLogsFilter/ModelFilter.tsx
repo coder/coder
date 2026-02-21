@@ -1,12 +1,10 @@
 import { API } from "api/api";
+import { ComboboxInput } from "components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import {
-	SelectFilter,
-	SelectFilterSearch,
-} from "components/Filter/SelectFilter";
+import { SelectFilter } from "components/Filter/SelectFilter";
 import type { FC } from "react";
 
 export const useModelFilterMenu = ({
@@ -64,11 +62,10 @@ export const ModelFilter: FC<ModelFilterProps> = ({ menu }) => {
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			selectFilterSearch={
-				<SelectFilterSearch
-					inputProps={{ "aria-label": "Search model" }}
+				<ComboboxInput
 					placeholder="Search model..."
 					value={menu.query}
-					onChange={menu.setQuery}
+					onValueChange={menu.setQuery}
 				/>
 			}
 		/>
