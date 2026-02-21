@@ -127,6 +127,11 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 		return error.detail;
 	}
 
+	const validationMessage = getValidationErrorMessage(error);
+	if (validationMessage) {
+		return validationMessage;
+	}
+
 	if (error instanceof Error) {
 		return "Please check the developer console for more details.";
 	}
