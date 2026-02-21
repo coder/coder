@@ -1,10 +1,12 @@
 import { API } from "api/api";
-import { ComboboxInput } from "components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import { SelectFilter } from "components/Filter/SelectFilter";
+import {
+	SelectFilter,
+	SelectFilterSearch,
+} from "components/Filter/SelectFilter";
 import type { FC } from "react";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
@@ -67,10 +69,11 @@ export const ModelFilter: FC<ModelFilterProps> = ({ menu }) => {
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			selectFilterSearch={
-				<ComboboxInput
+				<SelectFilterSearch
+					inputProps={{ "aria-label": "Search model" }}
 					placeholder="Search model..."
 					value={menu.query}
-					onValueChange={menu.setQuery}
+					onChange={menu.setQuery}
 				/>
 			}
 		/>
