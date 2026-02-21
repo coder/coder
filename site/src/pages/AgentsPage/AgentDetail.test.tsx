@@ -278,6 +278,7 @@ describe(AgentDetail.name, () => {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 			messages: [],
+			queued_messages: [],
 		};
 		const requestArchiveAgent = vi.fn();
 		const setRightPanelOpen = vi.fn();
@@ -368,6 +369,7 @@ describe(AgentDetail.name, () => {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 			messages: [],
+			queued_messages: [],
 		};
 		const setRightPanelOpen = vi.fn();
 		mockUseOutletContext.mockReturnValue({
@@ -457,6 +459,7 @@ describe(AgentDetail.name, () => {
 					],
 				},
 			],
+			queued_messages: [],
 		};
 
 		mockUseOutletContext.mockReturnValue({
@@ -530,6 +533,7 @@ describe(AgentDetail.name, () => {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 			messages: [],
+			queued_messages: [],
 		};
 
 		mockUseOutletContext.mockReturnValue({

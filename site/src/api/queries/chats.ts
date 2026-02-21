@@ -64,6 +64,31 @@ export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	},
 });
 
+export const deleteChatQueuedMessage = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
+	mutationFn: (queuedMessageId: number) =>
+		API.deleteChatQueuedMessage(chatId, queuedMessageId),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+	},
+});
+
+export const promoteChatQueuedMessage = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
+	mutationFn: (queuedMessageId: number) =>
+		API.promoteChatQueuedMessage(chatId, queuedMessageId),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
+			queryClient.invalidateQueries({ queryKey: chatsKey }),
+		]);
+	},
+});
+
 export const chatGitChangesKey = (chatId: string) =>
 	["chat", chatId, "git-changes"] as const;
 

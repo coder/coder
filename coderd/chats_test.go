@@ -174,8 +174,9 @@ func TestChats(t *testing.T) {
 			Content: json.RawMessage(`"Hello, AI!"`),
 		})
 		require.NoError(t, err)
-		require.Len(t, messages, len(before.Messages)+1)
-		require.Equal(t, "user", messages[len(messages)-1].Role)
+		require.False(t, messages.Queued)
+		require.Len(t, messages.Messages, len(before.Messages)+1)
+		require.Equal(t, "user", messages.Messages[len(messages.Messages)-1].Role)
 
 		// Verify messages were saved.
 		result, err := client.GetChat(ctx, chat.ID)

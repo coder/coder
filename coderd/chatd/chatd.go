@@ -612,13 +612,77 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 			}
 		}
 
-		// Release the chat when done.
-		_, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:        chat.ID,
-			Status:    status,
-			WorkerID:  uuid.NullUUID{}, // Clear worker.
-			StartedAt: sql.NullTime{},  // Clear started_at.
-		})
+		// Check for queued messages and auto-promote the next one.
+		// This must be done atomically with the status update to avoid
+		// races with the promote endpoint (which also sets status to
+		// pending). We use a transaction with FOR UPDATE to ensure we
+		// don't overwrite a status change made by another caller.
+		err := p.db.InTx(func(tx database.Store) error {
+			// Re-read the chat status under lock — another caller
+			// (e.g. promote) may have already set it to pending.
+			latestChat, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
+			if lockErr != nil {
+				return xerrors.Errorf("lock chat for release: %w", lockErr)
+			}
+
+			// If someone else already set the chat to pending (e.g.
+			// the promote endpoint), don't overwrite it — just clear
+			// the worker and let the processor pick it back up.
+			if latestChat.Status == database.ChatStatusPending && status == database.ChatStatusWaiting {
+				status = database.ChatStatusPending
+			} else if status == database.ChatStatusWaiting {
+				// Try to auto-promote the next queued message.
+				nextQueued, popErr := tx.PopNextQueuedMessage(ctx, chat.ID)
+				if popErr == nil {
+					msg, insertErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+						ChatID: chat.ID,
+						Role:   "user",
+						Content: pqtype.NullRawMessage{
+							RawMessage: nextQueued.Content,
+							Valid:      len(nextQueued.Content) > 0,
+						},
+						Hidden: false,
+					})
+					if insertErr != nil {
+						logger.Error(ctx, "failed to promote queued message",
+							slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
+					} else {
+						status = database.ChatStatusPending
+
+						sdkMsg := SDKChatMessage(msg)
+						p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
+							Type:    codersdk.ChatStreamEventTypeMessage,
+							Message: &sdkMsg,
+						})
+
+						remaining, qErr := tx.GetChatQueuedMessages(ctx, chat.ID)
+						if qErr == nil {
+							sdkQueued := make([]codersdk.ChatQueuedMessage, 0, len(remaining))
+							for _, q := range remaining {
+								sdkQueued = append(sdkQueued, codersdk.ChatQueuedMessage{
+									ID:        q.ID,
+									ChatID:    q.ChatID,
+									Content:   q.Content,
+									CreatedAt: q.CreatedAt,
+								})
+							}
+							p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
+								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+								QueuedMessages: sdkQueued,
+							})
+						}
+					}
+				}
+			}
+
+			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:        chat.ID,
+				Status:    status,
+				WorkerID:  uuid.NullUUID{},
+				StartedAt: sql.NullTime{},
+			})
+			return updateErr
+		}, nil)
 		if err != nil {
 			logger.Error(ctx, "failed to release chat", slog.Error(err))
 		}
@@ -1224,10 +1288,12 @@ func (p *Processor) runChatWithAgent(
 	)
 	sentinelPrompt := "__chatd_agent_prompt_sentinel_" + uuid.NewString()
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(model)
+	maxOutputTokens := int64(32_000)
 
 	result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
-		Prompt:   sentinelPrompt,
-		Messages: prompt,
+		Prompt:          sentinelPrompt,
+		Messages:        prompt,
+		MaxOutputTokens: &maxOutputTokens,
 		PrepareStep: func(
 			stepCtx context.Context,
 			options fantasy.PrepareStepFunctionOptions,

@@ -8,7 +8,9 @@ import {
 	chatModels,
 	chatsKey,
 	createChatMessage,
+	deleteChatQueuedMessage,
 	interruptChat,
+	promoteChatQueuedMessage,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import {
@@ -55,6 +57,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { AgentChatInput, type AgentContextUsage } from "./AgentChatInput";
+import { QueuedMessagesList } from "./QueuedMessagesList";
 import type { AgentsOutletContext } from "./AgentsPage";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
@@ -1114,6 +1117,40 @@ const StreamingOutput = memo<{
 });
 StreamingOutput.displayName = "StreamingOutput";
 
+const StickyUserMessage: FC<{
+	message: TypesGen.ChatMessage;
+	parsed: ParsedMessageContent;
+}> = ({ message, parsed }) => {
+	const sentinelRef = useRef<HTMLDivElement | null>(null);
+	const [isStuck, setIsStuck] = useState(false);
+
+	useEffect(() => {
+		const el = sentinelRef.current;
+		if (!el) return;
+		const observer = new IntersectionObserver(
+			([entry]) => setIsStuck(!entry.isIntersecting),
+			{ threshold: 0 },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+
+	// When stuck, visually clip via clip-path so layout height is
+	// unchanged — no sentinel jitter, no feedback loop.
+
+	return (
+		<>
+			<div ref={sentinelRef} className="pointer-events-none h-px" />
+			<div
+				className="sticky -top-2 z-10 pt-1 drop-shadow-xl"
+				style={isStuck ? { clipPath: "inset(0 0 calc(100% - 5rem) 0 round 0 0 0.5rem 0.5rem)" } : undefined}
+			>
+				<ChatMessageItem message={message} parsed={parsed} />
+			</div>
+		</>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -1128,6 +1165,9 @@ export const AgentDetail: FC = () => {
 	>(new Map());
 	const [streamState, setStreamState] = useState<StreamState | null>(null);
 	const [streamError, setStreamError] = useState<string | null>(null);
+	const [queuedMessages, setQueuedMessages] = useState<
+		readonly TypesGen.ChatQueuedMessage[]
+	>([]);
 	const [chatStatus, setChatStatus] = useState<TypesGen.ChatStatus | null>(
 		null,
 	);
@@ -1212,6 +1252,12 @@ export const AgentDetail: FC = () => {
 	const interruptMutation = useMutation(
 		interruptChat(queryClient, agentId ?? ""),
 	);
+	const deleteQueuedMutation = useMutation(
+		deleteChatQueuedMessage(queryClient, agentId ?? ""),
+	);
+	const promoteQueuedMutation = useMutation(
+		promoteChatQueuedMessage(queryClient, agentId ?? ""),
+	);
 	const updateSidebarChat = useCallback(
 		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
 			if (!agentId) {
@@ -1259,12 +1305,14 @@ export const AgentDetail: FC = () => {
 		if (!chatQuery.data) {
 			setMessagesById(new Map());
 			setChatStatus(null);
+			setQueuedMessages([]);
 			return;
 		}
 		setMessagesById(
 			new Map(chatQuery.data.messages.map((message) => [message.id, message])),
 		);
 		setChatStatus(chatQuery.data.chat.status);
+		setQueuedMessages(chatQuery.data.queued_messages ?? []);
 	}, [chatQuery.data]);
 
 	useEffect(() => {
@@ -1489,6 +1537,11 @@ export const AgentDetail: FC = () => {
 							return;
 					}
 				}
+				case "queue_update": {
+					const queuedMsgs = streamEvent.queued_messages;
+					setQueuedMessages(queuedMsgs ?? []);
+					return;
+				}
 				case "status": {
 					const status = asRecord(streamEvent.status);
 					const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
@@ -1676,9 +1729,6 @@ export const AgentDetail: FC = () => {
 			!hasModelOptions
 		) {
 			return;
-		}
-		if (isStreaming) {
-			await interruptMutation.mutateAsync();
 		}
 		const parsedCompressionThreshold = parseContextCompressionThreshold(
 			contextCompressionThreshold,
@@ -2105,26 +2155,21 @@ export const AgentDetail: FC = () => {
 										}
 									>
 										<div className="flex flex-col gap-3">
-											{section.entries.map(({ message, parsed }) => {
-												const isUser = message.role === "user";
-												return isUser ? (
-													<div
+											{section.entries.map(({ message, parsed }) =>
+												message.role === "user" ? (
+													<StickyUserMessage
 														key={message.id}
-														className="sticky -top-2 z-10 pt-1 drop-shadow-xl"
-													>
-														<ChatMessageItem
-															message={message}
-															parsed={parsed}
-														/>
-													</div>
+														message={message}
+														parsed={parsed}
+													/>
 												) : (
 													<ChatMessageItem
 														key={message.id}
 														message={message}
 														parsed={parsed}
 													/>
-												);
-											})}
+												),
+											)}
 										</div>
 									</div>
 								))}
@@ -2149,6 +2194,13 @@ export const AgentDetail: FC = () => {
 						)}
 					</div>
 
+					{queuedMessages.length > 0 && (
+						<QueuedMessagesList
+							messages={queuedMessages}
+							onDelete={(id) => deleteQueuedMutation.mutate(id)}
+							onPromote={(id) => promoteQueuedMutation.mutate(id)}
+						/>
+					)}
 					<AgentChatInput
 						onSend={stableOnSend}
 						isDisabled={isInputDisabled}
@@ -2156,6 +2208,7 @@ export const AgentDetail: FC = () => {
 						isStreaming={isStreaming}
 						onInterrupt={stableOnInterrupt}
 						isInterruptPending={interruptMutation.isPending}
+						hasQueuedMessages={queuedMessages.length > 0}
 						contextUsage={latestContextUsage}
 						hasModelOptions={hasModelOptions}
 						selectedModel={selectedModel}
