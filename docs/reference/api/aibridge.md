@@ -137,4 +137,3 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/models \
 <h3 id="list-ai-bridge-models-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
