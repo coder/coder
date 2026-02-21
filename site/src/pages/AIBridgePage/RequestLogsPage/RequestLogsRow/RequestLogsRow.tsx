@@ -291,6 +291,21 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 									</span>
 								</dd>
 
+								<dt>Client:</dt>
+								<dd data-chromatic="ignore">
+									<Badge className="gap-2">
+										<div className="flex-shrink-0 flex items-center">
+											<AIBridgeClientIcon
+												client={interception.client}
+												className="size-icon-xs"
+											/>
+										</div>
+										<span className="truncate min-w-0 w-full text-2xs">
+											{interception.client ?? "Unknown"}
+										</span>
+									</Badge>
+								</dd>
+
 								<dt>Model:</dt>
 								<dd data-chromatic="ignore">
 									<Badge className="gap-2">
