@@ -749,6 +749,58 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 	return i, err
 }
 
+const listAIBridgeClients = `-- name: ListAIBridgeClients :many
+SELECT
+	COALESCE(client, 'Unknown') AS client
+FROM
+	aibridge_interceptions
+WHERE
+	ended_at IS NOT NULL
+	-- Filter client (prefix match to allow B-tree index usage).
+	AND CASE
+		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE $1::text || '%'
+		ELSE true
+	END
+	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list clients
+	-- that are relevant to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in
+	-- ListAIBridgeClientsAuthorized.
+	-- @authorize_filter
+GROUP BY
+	client
+LIMIT COALESCE(NULLIF($3::integer, 0), 100)
+OFFSET $2
+`
+
+type ListAIBridgeClientsParams struct {
+	Client string `db:"client" json:"client"`
+	Offset int32  `db:"offset_" json:"offset_"`
+	Limit  int32  `db:"limit_" json:"limit_"`
+}
+
+func (q *sqlQuerier) ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeClients, arg.Client, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var client string
+		if err := rows.Scan(&client); err != nil {
+			return nil, err
+		}
+		items = append(items, client)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
 	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client,
