@@ -5,6 +5,7 @@ import { cn } from "utils/cn";
 
 export const AIBridgeProviderIcon = ({
 	provider,
+	className,
 	...props
 }: {
 	provider: AIBridgeInterception["provider"];
@@ -15,27 +16,27 @@ export const AIBridgeProviderIcon = ({
 			return (
 				<ExternalImage
 					src="/icon/openai.svg"
-					className={cn(iconClassName, props.className)}
+					className={cn(iconClassName, className)}
 				/>
 			);
 		case "anthropic":
 			return (
 				<ExternalImage
 					src="/icon/claude.svg"
-					className={cn(iconClassName, props.className)}
+					className={cn(iconClassName, className)}
 				/>
 			);
 		case "copilot":
 			return (
 				<ExternalImage
 					src="/icon/github.svg"
-					className={cn(iconClassName, props.className)}
+					className={cn(iconClassName, className)}
 				/>
 			);
 		default:
 			return (
 				<CircleQuestionMarkIcon
-					className={cn(iconClassName, props.className)}
+					className={cn(iconClassName, className)}
 					{...props}
 				/>
 			);

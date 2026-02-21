@@ -12,7 +12,8 @@ import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { formatDate, humanDuration } from "utils/time";
-import { AIBridgeModelIcon } from "../AIBridgeModelIcon";
+import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
+import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
@@ -189,6 +190,28 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							</Tooltip>
 						</TooltipProvider>
 					</div>
+				</TableCell>
+				<TableCell className="w-40 max-w-40">
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="min-w-0 overflow-hidden">
+									<Badge className="gap-1.5 max-w-full">
+										<div className="flex-shrink-0 flex items-center">
+											<AIBridgeClientIcon
+												client={interception.client}
+												className="size-icon-xs"
+											/>
+										</div>
+										<span className="truncate min-w-0">
+											{interception.client}
+										</span>
+									</Badge>
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>{interception.client}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</TableCell>
 				<TableCell className="w-40 max-w-40">
 					<TooltipProvider>
