@@ -65,10 +65,10 @@ const RequestLogsPage: FC = () => {
 
 	const clientMenu = useClientFilterMenu({
 		value: filter.values.client,
-		onChange: (option) =>
+		onChange: (value) =>
 			filter.update({
 				...filter.values,
-				client: option?.value,
+				client: value,
 			}),
 	});
 

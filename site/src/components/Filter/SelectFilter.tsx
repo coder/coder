@@ -21,16 +21,15 @@ export type SelectFilterOption = {
 
 type SelectFilterProps = {
 	options: SelectFilterOption[] | undefined;
+	// For single-select, pass the currently selected option.
 	selectedOption?: SelectFilterOption;
-	// Used to add a accessibility label to the select
+	// For multi-select, pass a Set of selected values.
+	value?: Set<string>;
 	label: string;
-	// Used when there is no option selected
 	placeholder: string;
-	// Used to customize the empty state message
 	emptyText?: string;
 	onSelect: (option: SelectFilterOption | undefined) => void;
 	width?: number;
-	// SelectFilterSearch element
 	selectFilterSearch?: ReactNode;
 };
 
@@ -38,22 +37,32 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 	label,
 	options,
 	selectedOption,
+	value,
 	onSelect,
 	placeholder,
 	emptyText = "No options found",
 	width = BASE_WIDTH,
 	selectFilterSearch,
 }) => {
+	const isMultiple = value instanceof Set;
+	const comboboxValue = isMultiple ? value : selectedOption?.value;
+
+	const displayOption = isMultiple
+		? value.size > 1
+			? { label: `${value.size} selected`, value: "" }
+			: value.size === 1
+				? options?.find((o) => value.has(o.value))
+				: undefined
+		: selectedOption;
+
 	return (
 		<Combobox
-			value={selectedOption?.value}
-			onValueChange={(value) =>
-				onSelect(options?.find((opt) => opt.value === value))
-			}
+			value={comboboxValue}
+			onValueChange={(v) => onSelect(options?.find((opt) => opt.value === v))}
 		>
 			<ComboboxTrigger asChild>
 				<ComboboxButton
-					selectedOption={selectedOption}
+					selectedOption={displayOption}
 					placeholder={placeholder}
 					className="flex-shrink-0 grow"
 					style={{ flexBasis: width }}
@@ -61,12 +70,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				/>
 			</ComboboxTrigger>
 			<ComboboxContent
-				className={cn([
-					// When including selectFilterSearch, we aim for the width to be as
-					// wide as possible.
-					selectFilterSearch && "w-full",
-					"max-w-[260px]",
-				])}
+				className={cn([selectFilterSearch && "w-full", "max-w-[260px]"])}
 				style={{
 					minWidth: width,
 				}}

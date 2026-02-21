@@ -1,55 +1,60 @@
 import { API } from "api/api";
 import { ComboboxInput } from "components/Combobox/Combobox";
-import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "components/Filter/menu";
+import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { SelectFilter } from "components/Filter/SelectFilter";
+import { useState } from "react";
+import { useQuery } from "react-query";
 import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
+
+type UseClientFilterMenuOptions = {
+	value: string | undefined;
+	onChange: (value: string | undefined) => void;
+	enabled?: boolean;
+};
 
 export const useClientFilterMenu = ({
 	value,
 	onChange,
 	enabled,
-}: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
-	return useFilterMenu({
-		id: "client",
-		getSelectedOption: async () => {
-			const clientsRes = await API.getAIBridgeClients({
-				q: value,
-				limit: 1,
-			});
-			const firstClient = clientsRes.at(0);
+}: UseClientFilterMenuOptions) => {
+	const [query, setQuery] = useState("");
 
-			if (firstClient) {
-				return {
-					label: firstClient,
-					value: firstClient,
-					startIcon: (
-						<AIBridgeClientIcon client={firstClient} className="size-icon-sm" />
-					),
-				};
-			}
+	const selectedClients = value
+		? new Set(value.split(",").filter(Boolean))
+		: new Set<string>();
 
-			return null;
-		},
-		getOptions: async (query) => {
-			const clientsRes = await API.getAIBridgeClients({
-				q: query,
-				limit: 25,
-			});
-			return clientsRes.map((client) => ({
-				label: client,
-				value: client,
-				startIcon: (
-					<AIBridgeClientIcon client={client} className="size-icon-sm" />
-				),
-			}));
-		},
-		value,
-		onChange,
+	const searchOptionsQuery = useQuery({
+		queryKey: ["client", "autocomplete", "search", query],
+		queryFn: () => API.getAIBridgeClients({ q: query, limit: 25 }),
 		enabled,
 	});
+
+	const searchOptions = searchOptionsQuery.data?.map((client) => ({
+		label: client,
+		value: client,
+		startIcon: <AIBridgeClientIcon client={client} className="size-icon-sm" />,
+	}));
+
+	const toggleOption = (option: SelectFilterOption | undefined) => {
+		if (!option) return;
+		const next = new Set(selectedClients);
+		if (next.has(option.value)) {
+			next.delete(option.value);
+		} else {
+			next.add(option.value);
+		}
+		onChange(next.size > 0 ? [...next].join(",") : undefined);
+	};
+
+	return {
+		query,
+		setQuery,
+		selectedClients,
+		searchOptions,
+		toggleOption,
+		isInitializing: false,
+		isSearching: searchOptionsQuery.isFetching,
+	};
 };
 
 export type ClientFilterMenu = ReturnType<typeof useClientFilterMenu>;
@@ -65,8 +70,8 @@ export const ClientFilter: React.FC<ClientFilterProps> = ({ menu }) => {
 			placeholder="All clients"
 			emptyText="No clients found"
 			options={menu.searchOptions}
-			onSelect={(option) => menu.selectOption(option)}
-			selectedOption={menu.selectedOption ?? undefined}
+			onSelect={(option) => menu.toggleOption(option)}
+			value={menu.selectedClients}
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search client..."

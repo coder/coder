@@ -102,13 +102,23 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 	}
 
 	const result: FilterValues = {};
-	const keyValuePair = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
+	// Matches key:value where the value can be a comma-separated list of
+	// quoted or unquoted tokens (e.g. client:foo,"Bar Baz").
+	const keyValuePair =
+		/(\w+):((?:"[^"]*"|[^,\s"]+)(?:,(?:"[^"]*"|[^,\s"]+))*)/g;
 
 	for (const match of filterQuery.matchAll(keyValuePair)) {
-		const key = match[1] ?? match[3];
-		const value = match[2] ?? match[4];
-		if (key && value) {
-			result[key] = value;
+		const key = match[1];
+		const rawValue = match[2];
+		if (key && rawValue) {
+			// Strip quotes from individual parts of a possibly
+			// comma-separated value.
+			const parts: string[] = [];
+			for (const m of rawValue.matchAll(/"([^"]*)"|([^,]+)/g)) {
+				const v = m[1] ?? m[2];
+				if (v) parts.push(v);
+			}
+			result[key] = parts.join(",");
 		}
 	}
 
@@ -121,8 +131,13 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 	for (const key in filterValue) {
 		const value = filterValue[key];
 		if (value) {
-			const needsQuotes = value.includes(" ");
-			result += needsQuotes ? `${key}:"${value}" ` : `${key}:${value} `;
+			// Split on comma to handle multi-select values, then
+			// individually quote any part that contains spaces.
+			const parts = value.split(",");
+			const serialized = parts
+				.map((p) => (p.includes(" ") ? `"${p}"` : p))
+				.join(",");
+			result += `${key}:${serialized} `;
 		}
 	}
 
