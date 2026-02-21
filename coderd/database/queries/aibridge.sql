@@ -115,9 +115,9 @@ WHERE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
 		ELSE true
 	END
-	-- Filter client
+	-- Filter client(s)
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+		WHEN cardinality(@clients :: text[]) > 0 THEN COALESCE(aibridge_interceptions.client, 'Unknown') = ANY(@clients :: text[])
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -159,9 +159,9 @@ WHERE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
 		ELSE true
 	END
-	-- Filter client
+	-- Filter client(s)
 	AND CASE
-		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+		WHEN cardinality(@clients :: text[]) > 0 THEN COALESCE(aibridge_interceptions.client, 'Unknown') = ANY(@clients :: text[])
 		ELSE true
 	END
 	-- Cursor pagination

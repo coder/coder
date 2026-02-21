@@ -300,9 +300,9 @@ WHERE
 		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
 		ELSE true
 	END
-	-- Filter client
+	-- Filter client(s)
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN cardinality($6 :: text[]) > 0 THEN COALESCE(aibridge_interceptions.client, 'Unknown') = ANY($6 :: text[])
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -315,7 +315,7 @@ type CountAIBridgeInterceptionsParams struct {
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
-	Client        string    `db:"client" json:"client"`
+	Clients       []string  `db:"clients" json:"clients"`
 }
 
 func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error) {
@@ -325,7 +325,7 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
-		arg.Client,
+		pq.Array(arg.Clients),
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -836,9 +836,9 @@ WHERE
 		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
 		ELSE true
 	END
-	-- Filter client
+	-- Filter client(s)
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN cardinality($6 :: text[]) > 0 THEN COALESCE(aibridge_interceptions.client, 'Unknown') = ANY($6 :: text[])
 		ELSE true
 	END
 	-- Cursor pagination
@@ -872,7 +872,7 @@ type ListAIBridgeInterceptionsParams struct {
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
-	Client        string    `db:"client" json:"client"`
+	Clients       []string  `db:"clients" json:"clients"`
 	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
 	Offset        int32     `db:"offset_" json:"offset_"`
 	Limit         int32     `db:"limit_" json:"limit_"`
@@ -890,7 +890,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
-		arg.Client,
+		pq.Array(arg.Clients),
 		arg.AfterID,
 		arg.Offset,
 		arg.Limit,

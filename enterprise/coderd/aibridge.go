@@ -141,7 +141,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 			InitiatorID:   filter.InitiatorID,
 			Provider:      filter.Provider,
 			Model:         filter.Model,
-			Client:        filter.Client,
+			Clients:       filter.Clients,
 		})
 		if err != nil {
 			return xerrors.Errorf("count authorized aibridge interceptions: %w", err)

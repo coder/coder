@@ -792,7 +792,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
-		arg.Client,
+		pq.Array(arg.Clients),
 		arg.AfterID,
 		arg.Offset,
 		arg.Limit,
@@ -851,7 +851,7 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, a
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
-		arg.Client,
+		pq.Array(arg.Clients),
 	)
 	if err != nil {
 		return 0, err
