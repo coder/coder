@@ -102,23 +102,18 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 	}
 
 	const result: FilterValues = {};
-	// Matches key:value where the value can be a comma-separated list of
-	// quoted or unquoted tokens (e.g. client:foo,"Bar Baz").
-	const keyValuePair =
-		/(\w+):((?:"[^"]*"|[^,\s"]+)(?:,(?:"[^"]*"|[^,\s"]+))*)/g;
+	// Matches key:value pairs where the value is either a quoted string
+	// or unquoted (no spaces). Repeated keys (e.g. client:A client:"B C")
+	// are merged into a comma-separated value.
+	const keyValuePair = /(\w+):("([^"]*)"|[^\s]+)/g;
 
 	for (const match of filterQuery.matchAll(keyValuePair)) {
 		const key = match[1];
-		const rawValue = match[2];
-		if (key && rawValue) {
-			// Strip quotes from individual parts of a possibly
-			// comma-separated value.
-			const parts: string[] = [];
-			for (const m of rawValue.matchAll(/"([^"]*)"|([^,]+)/g)) {
-				const v = m[1] ?? m[2];
-				if (v) parts.push(v);
-			}
-			result[key] = parts.join(",");
+		// Use the inner capture group for quoted values, otherwise the
+		// full value match.
+		const value = match[3] ?? match[2];
+		if (key && value) {
+			result[key] = result[key] ? `${result[key]},${value}` : value;
 		}
 	}
 
@@ -131,13 +126,13 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 	for (const key in filterValue) {
 		const value = filterValue[key];
 		if (value) {
-			// Split on comma to handle multi-select values, then
-			// individually quote any part that contains spaces.
-			const parts = value.split(",");
-			const serialized = parts
-				.map((p) => (p.includes(" ") ? `"${p}"` : p))
-				.join(",");
-			result += `${key}:${serialized} `;
+			// Emit each comma-separated part as its own key:value pair so
+			// the backend's searchTerms parser can handle them via
+			// url.Values.Add (repeated keys). Quote values with spaces.
+			for (const part of value.split(",")) {
+				const serialized = part.includes(" ") ? `"${part}"` : part;
+				result += `${key}:${serialized} `;
+			}
 		}
 	}
 
