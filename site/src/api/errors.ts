@@ -127,9 +127,13 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 		return error.detail;
 	}
 
-	const validationMessage = getValidationErrorMessage(error);
-	if (validationMessage) {
-		return validationMessage;
+	if (
+		isApiValidationError(error) &&
+		// Ensure that the validations array is not `[]` (empty array).
+		Array.isArray(error.response.data.validations) &&
+		error.response.data.validations.length > 0
+	) {
+		return getValidationErrorMessage(error);
 	}
 
 	if (error instanceof Error) {
