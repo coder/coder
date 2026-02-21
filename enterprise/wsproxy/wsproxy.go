@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"expvar"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -44,6 +45,12 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 )
+
+// expWsproxyDERPOnce guards the global expvar.Publish call for the wsproxy
+// DERP server, similar to expDERPOnce in coderd. We use a different variable
+// name ("wsproxy_derp") to avoid conflicts when both run in the same process
+// during tests.
+var expWsproxyDERPOnce sync.Once
 
 type Options struct {
 	Logger      slog.Logger
@@ -200,6 +207,10 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	if opts.PrometheusRegistry != nil {
 		opts.PrometheusRegistry.MustRegister(derpmetrics.NewCollector(derpServer))
 	}
+	// Publish DERP server metrics via expvar, served at /debug/expvar.
+	expWsproxyDERPOnce.Do(func() {
+		expvar.Publish("wsproxy_derp", derpServer.ExpVar())
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -448,6 +459,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
 	// TODO: @emyrk should this be authenticated or debounced?
 	r.Get("/healthz-report", s.healthReport)
+	r.Method("GET", "/debug/expvar", expvar.Handler())
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Title:      "Head to the Dashboard",
