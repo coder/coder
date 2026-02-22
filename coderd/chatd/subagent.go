@@ -391,9 +391,6 @@ func (s *SubagentService) MarkSubagentReported(
 
 	if chat.ParentChatID.Valid {
 		s.publishChildStatus(chat, database.ChatStatusCompleted)
-		if err := s.requeueParentChat(ctx, chat.ParentChatID.UUID); err != nil {
-			return SubagentAwaitResult{}, err
-		}
 	}
 
 	return result, nil
@@ -740,28 +737,6 @@ func (s *SubagentService) resolveRequestWaiters(
 		}
 		close(waiter)
 	}
-}
-
-func (s *SubagentService) requeueParentChat(ctx context.Context, parentChatID uuid.UUID) error {
-	parentChat, err := s.db.GetChatByID(ctx, parentChatID)
-	if err != nil {
-		return xerrors.Errorf("get parent chat: %w", err)
-	}
-	if parentChat.Status != database.ChatStatusWaiting && parentChat.Status != database.ChatStatusCompleted {
-		return nil
-	}
-
-	_, err = s.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        parentChat.ID,
-		Status:    database.ChatStatusPending,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
-	})
-	if err != nil {
-		return xerrors.Errorf("requeue parent chat: %w", err)
-	}
-
-	return nil
 }
 
 func (s *SubagentService) registerWaiter(

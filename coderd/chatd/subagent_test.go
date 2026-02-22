@@ -292,7 +292,7 @@ func TestSubagentService_MarkSubagentReportedDoesNotInsertParentMessages(t *test
 	require.Empty(t, messages)
 }
 
-func TestSubagentService_MarkSubagentReportedWakesParentToPending(t *testing.T) {
+func TestSubagentService_MarkSubagentReportedDoesNotWakeParent(t *testing.T) {
 	t.Parallel()
 
 	for _, parentStatus := range []database.ChatStatus{
@@ -322,7 +322,7 @@ func TestSubagentService_MarkSubagentReportedWakesParentToPending(t *testing.T) 
 
 			updatedParent, err := store.GetChatByID(context.Background(), parentID)
 			require.NoError(t, err)
-			require.Equal(t, database.ChatStatusPending, updatedParent.Status)
+			require.Equal(t, parentStatus, updatedParent.Status)
 		})
 	}
 }
