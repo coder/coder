@@ -52,13 +52,13 @@ type LocalWorkspaceBinding struct {
 	WorkspaceAgentID uuid.UUID
 }
 
-type LocalServiceOptions struct {
-	Logger       slog.Logger
-	Database     database.Store
-	AccessURL    *url.URL
-	HTTPClient   *http.Client
-	DeploymentID string
-	AgentStarter localChatAgentStarter
+type localModeOptions struct {
+	logger       slog.Logger
+	database     database.Store
+	accessURL    *url.URL
+	httpClient   *http.Client
+	deploymentID string
+	startAgentFn func(localChatAgentStartParams) (io.Closer, error)
 }
 
 type localChatExternalAgent struct {
@@ -74,48 +74,49 @@ type localChatAgentStartParams struct {
 	AgentName   string
 }
 
-type localChatAgentStarter func(localChatAgentStartParams) (io.Closer, error)
-
-type LocalService struct {
+type localMode struct {
 	logger       slog.Logger
 	db           database.Store
 	accessURL    *url.URL
 	httpClient   *http.Client
 	deploymentID string
 
-	localChatAgents *localChatAgentManager
-	agentLaunches   *localChatAgentLaunchLimiter
+	localChatAgentsMu     sync.Mutex
+	localChatAgents       map[uuid.UUID]*localChatManagedAgent
+	startLocalChatAgentFn func(localChatAgentStartParams) (io.Closer, error)
+	agentLaunches         *localChatAgentLaunchLimiter
 
 	localChatWorkspaceBootstrapGroup singleflight.Group[string, LocalWorkspaceBinding]
 	localChatAgentLaunchGroup        singleflight.Group[string, struct{}]
 }
 
-func NewLocalService(options LocalServiceOptions) *LocalService {
-	service := &LocalService{
-		logger:       options.Logger,
-		db:           options.Database,
-		accessURL:    options.AccessURL,
-		httpClient:   options.HTTPClient,
-		deploymentID: options.DeploymentID,
+func newLocalMode(options localModeOptions) *localMode {
+	service := &localMode{
+		logger:          options.logger,
+		db:              options.database,
+		accessURL:       options.accessURL,
+		httpClient:      options.httpClient,
+		deploymentID:    options.deploymentID,
+		localChatAgents: make(map[uuid.UUID]*localChatManagedAgent),
 		agentLaunches: newLocalChatAgentLaunchLimiter(
 			localChatAgentLaunchCooldown,
 		),
 	}
 
-	starter := options.AgentStarter
+	starter := options.startAgentFn
 	if starter == nil {
 		starter = service.launchLocalChatAgentInProcess
 	}
-	service.localChatAgents = newLocalChatAgentManager(starter)
+	service.startLocalChatAgentFn = starter
 
 	return service
 }
 
-func (s *LocalService) Close() error {
-	if s == nil || s.localChatAgents == nil {
+func (s *localMode) Close() error {
+	if s == nil {
 		return nil
 	}
-	return s.localChatAgents.CloseAll()
+	return s.closeAllLocalChatAgents()
 }
 
 type localChatManagedAgent struct {
@@ -123,31 +124,22 @@ type localChatManagedAgent struct {
 	closed  bool
 }
 
-type localChatAgentManager struct {
-	mu      sync.Mutex
-	agents  map[uuid.UUID]*localChatManagedAgent
-	startFn localChatAgentStarter
-}
-
-func newLocalChatAgentManager(startFn localChatAgentStarter) *localChatAgentManager {
-	return &localChatAgentManager{
-		agents:  make(map[uuid.UUID]*localChatManagedAgent),
-		startFn: startFn,
+func (s *localMode) startLocalChatAgent(params localChatAgentStartParams) error {
+	if s == nil {
+		return xerrors.New("local chat mode is not configured")
 	}
-}
 
-func (m *localChatAgentManager) Start(params localChatAgentStartParams) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	s.localChatAgentsMu.Lock()
+	defer s.localChatAgentsMu.Unlock()
 
-	if managed, ok := m.agents[params.AgentID]; ok && !managed.closed {
+	if managed, ok := s.localChatAgents[params.AgentID]; ok && !managed.closed {
 		return nil
 	}
-	if m.startFn == nil {
+	if s.startLocalChatAgentFn == nil {
 		return xerrors.New("local chat agent manager start function is not configured")
 	}
 
-	runtime, err := m.startFn(params)
+	runtime, err := s.startLocalChatAgentFn(params)
 	if err != nil {
 		return err
 	}
@@ -155,35 +147,46 @@ func (m *localChatAgentManager) Start(params localChatAgentStartParams) error {
 		return xerrors.New("local chat agent manager starter returned a nil runtime")
 	}
 
-	m.agents[params.AgentID] = &localChatManagedAgent{
+	if s.localChatAgents == nil {
+		s.localChatAgents = make(map[uuid.UUID]*localChatManagedAgent)
+	}
+	s.localChatAgents[params.AgentID] = &localChatManagedAgent{
 		runtime: runtime,
 	}
 	return nil
 }
 
-func (m *localChatAgentManager) HasRunning(agentID uuid.UUID) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *localMode) hasRunningLocalChatAgent(agentID uuid.UUID) bool {
+	if s == nil {
+		return false
+	}
 
-	managed, ok := m.agents[agentID]
+	s.localChatAgentsMu.Lock()
+	defer s.localChatAgentsMu.Unlock()
+
+	managed, ok := s.localChatAgents[agentID]
 	return ok && managed != nil && !managed.closed && managed.runtime != nil
 }
 
-func (m *localChatAgentManager) Close(agentID uuid.UUID) error {
-	m.mu.Lock()
-	managed, ok := m.agents[agentID]
-	if !ok {
-		m.mu.Unlock()
+func (s *localMode) closeLocalChatAgent(agentID uuid.UUID) error {
+	if s == nil {
 		return nil
 	}
-	delete(m.agents, agentID)
+
+	s.localChatAgentsMu.Lock()
+	managed, ok := s.localChatAgents[agentID]
+	if !ok {
+		s.localChatAgentsMu.Unlock()
+		return nil
+	}
+	delete(s.localChatAgents, agentID)
 	if managed.closed || managed.runtime == nil {
-		m.mu.Unlock()
+		s.localChatAgentsMu.Unlock()
 		return nil
 	}
 	managed.closed = true
 	runtime := managed.runtime
-	m.mu.Unlock()
+	s.localChatAgentsMu.Unlock()
 
 	if err := runtime.Close(); err != nil {
 		return xerrors.Errorf("close local chat agent runtime %q: %w", agentID, err)
@@ -191,11 +194,15 @@ func (m *localChatAgentManager) Close(agentID uuid.UUID) error {
 	return nil
 }
 
-func (m *localChatAgentManager) CloseAll() error {
-	m.mu.Lock()
-	managed := m.agents
-	m.agents = make(map[uuid.UUID]*localChatManagedAgent)
-	m.mu.Unlock()
+func (s *localMode) closeAllLocalChatAgents() error {
+	if s == nil {
+		return nil
+	}
+
+	s.localChatAgentsMu.Lock()
+	managed := s.localChatAgents
+	s.localChatAgents = make(map[uuid.UUID]*localChatManagedAgent)
+	s.localChatAgentsMu.Unlock()
 
 	var errs error
 	for agentID, runtime := range managed {
@@ -214,149 +221,118 @@ func (m *localChatAgentManager) CloseAll() error {
 	return errs
 }
 
-func (s *LocalService) EnsureWorkspaceBinding(
+func (s *localMode) EnsureWorkspaceBinding(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	sessionToken string,
 ) (LocalWorkspaceBinding, error) {
 	if s == nil {
-		return LocalWorkspaceBinding{}, xerrors.New("local chat service is not configured")
+		return LocalWorkspaceBinding{}, xerrors.New("local chat mode is not configured")
 	}
 
 	bootstrapKey := fmt.Sprintf("%s:%s", s.deploymentID, ownerID)
 	binding, err, _ := s.localChatWorkspaceBootstrapGroup.Do(bootstrapKey, func() (LocalWorkspaceBinding, error) {
-		return s.ensureLocalChatWorkspaceBindingSingleflight(
-			ctx,
+		bootstrapCtx, cancel := context.WithTimeout(ctx, localChatBootstrapTimeout)
+		defer cancel()
+
+		if s.accessURL == nil {
+			return LocalWorkspaceBinding{}, xerrors.New("deployment access URL is not configured")
+		}
+		token := strings.TrimSpace(sessionToken)
+		if token == "" {
+			return LocalWorkspaceBinding{}, xerrors.New("session token is missing")
+		}
+		client := codersdk.New(s.accessURL, codersdk.WithSessionToken(token))
+		if s.httpClient != nil {
+			client.HTTPClient = s.httpClient
+		}
+
+		user, err := client.User(bootstrapCtx, codersdk.Me)
+		if err != nil {
+			return LocalWorkspaceBinding{}, xerrors.Errorf("get current user: %w", err)
+		}
+		if user.ID != ownerID {
+			return LocalWorkspaceBinding{}, xerrors.New(
+				"request token user does not match chat owner",
+			)
+		}
+
+		if len(user.OrganizationIDs) == 0 {
+			return LocalWorkspaceBinding{}, xerrors.New("user is not a member of an organization")
+		}
+
+		organizationID := user.OrganizationIDs[0]
+		defaultOrg, err := s.db.GetDefaultOrganization(bootstrapCtx)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return LocalWorkspaceBinding{}, xerrors.Errorf("resolve default organization: %w", err)
+		}
+		if err == nil {
+			for _, orgID := range user.OrganizationIDs {
+				if orgID == defaultOrg.ID {
+					organizationID = orgID
+					break
+				}
+			}
+		}
+
+		template, err := s.ensureLocalChatTemplate(
+			bootstrapCtx,
+			client,
+			organizationID,
 			ownerID,
-			sessionToken,
 		)
+		if err != nil {
+			return LocalWorkspaceBinding{}, err
+		}
+
+		workspace, err := s.ensureLocalChatWorkspace(
+			bootstrapCtx,
+			client,
+			template,
+			ownerID,
+		)
+		if err != nil {
+			return LocalWorkspaceBinding{}, err
+		}
+
+		agent, err := s.resolveLocalChatExternalAgent(
+			bootstrapCtx,
+			client,
+			workspace,
+		)
+		if err != nil {
+			return LocalWorkspaceBinding{}, err
+		}
+
+		if err := s.maybeLaunchLocalChatAgent(
+			bootstrapCtx,
+			workspace.ID,
+			agent,
+		); err != nil {
+			return LocalWorkspaceBinding{}, err
+		}
+
+		return LocalWorkspaceBinding{
+			WorkspaceID:      workspace.ID,
+			WorkspaceAgentID: agent.ID,
+		}, nil
 	})
 	if err != nil {
 		return LocalWorkspaceBinding{}, err
 	}
 	return binding, nil
 }
-
-func (s *LocalService) ensureLocalChatWorkspaceBindingSingleflight(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	sessionToken string,
-) (LocalWorkspaceBinding, error) {
-	bootstrapCtx, cancel := context.WithTimeout(ctx, localChatBootstrapTimeout)
-	defer cancel()
-
-	client, err := s.localChatClientFromSessionToken(sessionToken)
-	if err != nil {
-		return LocalWorkspaceBinding{}, err
-	}
-
-	user, err := client.User(bootstrapCtx, codersdk.Me)
-	if err != nil {
-		return LocalWorkspaceBinding{}, xerrors.Errorf("get current user: %w", err)
-	}
-	if user.ID != ownerID {
-		return LocalWorkspaceBinding{}, xerrors.New(
-			"request token user does not match chat owner",
-		)
-	}
-
-	organizationID, err := s.localChatOrganizationID(bootstrapCtx, user)
-	if err != nil {
-		return LocalWorkspaceBinding{}, err
-	}
-
-	template, err := s.ensureLocalChatTemplate(
-		bootstrapCtx,
-		client,
-		organizationID,
-		ownerID,
-	)
-	if err != nil {
-		return LocalWorkspaceBinding{}, err
-	}
-
-	workspace, err := s.ensureLocalChatWorkspace(
-		bootstrapCtx,
-		client,
-		template,
-		ownerID,
-	)
-	if err != nil {
-		return LocalWorkspaceBinding{}, err
-	}
-
-	agent, err := s.resolveLocalChatExternalAgent(
-		bootstrapCtx,
-		client,
-		workspace,
-	)
-	if err != nil {
-		return LocalWorkspaceBinding{}, err
-	}
-
-	if err := s.maybeLaunchLocalChatAgent(
-		bootstrapCtx,
-		workspace.ID,
-		agent,
-	); err != nil {
-		return LocalWorkspaceBinding{}, err
-	}
-
-	return LocalWorkspaceBinding{
-		WorkspaceID:      workspace.ID,
-		WorkspaceAgentID: agent.ID,
-	}, nil
-}
-
-func (s *LocalService) localChatClientFromSessionToken(
-	sessionToken string,
-) (*codersdk.Client, error) {
-	if s == nil || s.accessURL == nil {
-		return nil, xerrors.New("deployment access URL is not configured")
-	}
-
-	token := strings.TrimSpace(sessionToken)
-	if token == "" {
-		return nil, xerrors.New("session token is missing")
-	}
-
-	client := codersdk.New(s.accessURL, codersdk.WithSessionToken(token))
-	if s.httpClient != nil {
-		client.HTTPClient = s.httpClient
-	}
-	return client, nil
-}
-
-func (s *LocalService) localChatOrganizationID(
-	ctx context.Context,
-	user codersdk.User,
-) (uuid.UUID, error) {
-	if len(user.OrganizationIDs) == 0 {
-		return uuid.Nil, xerrors.New("user is not a member of an organization")
-	}
-
-	defaultOrg, err := s.db.GetDefaultOrganization(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, xerrors.Errorf("resolve default organization: %w", err)
-	}
-	if err == nil {
-		for _, orgID := range user.OrganizationIDs {
-			if orgID == defaultOrg.ID {
-				return orgID, nil
-			}
-		}
-	}
-
-	return user.OrganizationIDs[0], nil
-}
-
-func (s *LocalService) ensureLocalChatTemplate(
+func (s *localMode) ensureLocalChatTemplate(
 	ctx context.Context,
 	client *codersdk.Client,
 	organizationID uuid.UUID,
 	ownerID uuid.UUID,
 ) (codersdk.Template, error) {
-	templateName := localChatTemplateName(ownerID)
+	templateSuffix := strings.ReplaceAll(ownerID.String(), "-", "")
+	if len(templateSuffix) > localChatNameSuffixLength {
+		templateSuffix = templateSuffix[:localChatNameSuffixLength]
+	}
+	templateName := localChatTemplateNamePrefix + templateSuffix
 	template, err := client.TemplateByName(ctx, organizationID, templateName)
 	if err != nil {
 		if !isCodersdkStatusCode(err, http.StatusNotFound) {
@@ -424,7 +400,15 @@ func (s *LocalService) ensureLocalChatTemplate(
 			err,
 		)
 	}
-	if !localChatTemplateResourcesProvideAgent(resources) {
+	hasAgents := false
+	for _, resource := range resources {
+		if len(resource.Agents) == 0 {
+			continue
+		}
+		hasAgents = true
+		break
+	}
+	if !hasAgents {
 		s.logger.Warn(ctx, "local chat template active version does not expose workspace agents; creating replacement active version",
 			slog.F("template_id", template.ID),
 			slog.F("template_version_id", activeVersion.ID),
@@ -457,7 +441,7 @@ func (s *LocalService) ensureLocalChatTemplate(
 	return template, nil
 }
 
-func (s *LocalService) createLocalChatTemplateVersion(
+func (s *localMode) createLocalChatTemplateVersion(
 	ctx context.Context,
 	client *codersdk.Client,
 	organizationID uuid.UUID,
@@ -532,7 +516,7 @@ func (s *LocalService) createLocalChatTemplateVersion(
 	return version, nil
 }
 
-func (s *LocalService) resolveLocalChatTemplateProvisioner(
+func (s *localMode) resolveLocalChatTemplateProvisioner(
 	ctx context.Context,
 	organizationID uuid.UUID,
 ) (codersdk.ProvisionerType, error) {
@@ -583,7 +567,7 @@ func (s *LocalService) resolveLocalChatTemplateProvisioner(
 	}
 }
 
-func (s *LocalService) localChatTemplateArchiveForProvisioner(
+func (s *localMode) localChatTemplateArchiveForProvisioner(
 	ctx context.Context,
 	provisioner codersdk.ProvisionerType,
 ) ([]byte, error) {
@@ -592,24 +576,54 @@ func (s *LocalService) localChatTemplateArchiveForProvisioner(
 		return echo.TarWithOptions(
 			ctx,
 			s.logger.Named("chat-local-template"),
-			localChatTemplateResponses(runtime.GOOS, runtime.GOARCH),
+			&echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionGraph: []*proto.Response{{
+					Type: &proto.Response_Graph{
+						Graph: &proto.GraphComplete{
+							Resources: []*proto.Resource{{
+								Type: "coder_external_agent",
+								Name: localChatExternalResourceName,
+								Agents: []*proto.Agent{{
+									Name:            localChatExternalAgentName,
+									OperatingSystem: runtime.GOOS,
+									Architecture:    runtime.GOARCH,
+								}},
+							}},
+							HasExternalAgents: true,
+						},
+					},
+				}},
+				ProvisionApply: echo.ApplyComplete,
+			},
 		)
 	case codersdk.ProvisionerTypeTerraform:
-		return localChatTerraformTemplateArchive(localChatExternalAgentName)
-	default:
-		return nil, xerrors.Errorf(
-			"local chat template provisioner %q is not supported",
-			provisioner,
-		)
-	}
-}
-
-func localChatTerraformTemplateArchive(agentName string) ([]byte, error) {
-	agentResourceName := sanitizeLocalChatTerraformIdentifier(agentName)
-	if agentResourceName == "" {
-		agentResourceName = "localagent"
-	}
-	mainTF := fmt.Sprintf(`terraform {
+		agentResourceName := strings.TrimSpace(localChatExternalAgentName)
+		if agentResourceName != "" {
+			var b strings.Builder
+			b.Grow(len(agentResourceName) + 1)
+			for _, r := range agentResourceName {
+				if r >= 'A' && r <= 'Z' {
+					r = r - 'A' + 'a'
+				}
+				valid := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+				if !valid {
+					continue
+				}
+				b.WriteRune(r)
+			}
+			agentResourceName = b.String()
+			if agentResourceName != "" {
+				first := agentResourceName[0]
+				if first >= '0' && first <= '9' {
+					agentResourceName = "a" + agentResourceName
+				}
+			}
+		}
+		if agentResourceName == "" {
+			agentResourceName = "localagent"
+		}
+		mainTF := fmt.Sprintf(`terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
@@ -628,80 +642,55 @@ resource "coder_external_agent" "%s" {
 }
 `, agentResourceName, runtime.GOOS, runtime.GOARCH, localChatExternalResourceName, agentResourceName)
 
-	return localChatTemplateArchive(map[string]string{
-		"main.tf": mainTF,
-	})
+		files := map[string]string{
+			"main.tf": mainTF,
+		}
+		var buffer bytes.Buffer
+		tw := tar.NewWriter(&buffer)
+
+		fileNames := make([]string, 0, len(files))
+		for fileName := range files {
+			fileNames = append(fileNames, fileName)
+		}
+		sort.Strings(fileNames)
+
+		for _, fileName := range fileNames {
+			fileContent := []byte(files[fileName])
+			header := &tar.Header{
+				Name: fileName,
+				Mode: 0o644,
+				Size: int64(len(fileContent)),
+			}
+			if err := tw.WriteHeader(header); err != nil {
+				_ = tw.Close()
+				return nil, xerrors.Errorf(
+					"write local chat template file header %q: %w",
+					fileName,
+					err,
+				)
+			}
+			if _, err := tw.Write(fileContent); err != nil {
+				_ = tw.Close()
+				return nil, xerrors.Errorf(
+					"write local chat template file %q: %w",
+					fileName,
+					err,
+				)
+			}
+		}
+		if err := tw.Close(); err != nil {
+			return nil, xerrors.Errorf("close local chat template archive writer: %w", err)
+		}
+		return buffer.Bytes(), nil
+	default:
+		return nil, xerrors.Errorf(
+			"local chat template provisioner %q is not supported",
+			provisioner,
+		)
+	}
 }
 
-func sanitizeLocalChatTerraformIdentifier(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	var b strings.Builder
-	b.Grow(len(trimmed) + 1)
-	for _, r := range trimmed {
-		if r >= 'A' && r <= 'Z' {
-			r = r - 'A' + 'a'
-		}
-		valid := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
-		if !valid {
-			continue
-		}
-		b.WriteRune(r)
-	}
-	if b.Len() == 0 {
-		return ""
-	}
-	identifier := b.String()
-	first := identifier[0]
-	if first >= '0' && first <= '9' {
-		return "a" + identifier
-	}
-	return b.String()
-}
-
-func localChatTemplateArchive(files map[string]string) ([]byte, error) {
-	var buffer bytes.Buffer
-	tw := tar.NewWriter(&buffer)
-
-	fileNames := make([]string, 0, len(files))
-	for fileName := range files {
-		fileNames = append(fileNames, fileName)
-	}
-	sort.Strings(fileNames)
-
-	for _, fileName := range fileNames {
-		fileContent := []byte(files[fileName])
-		header := &tar.Header{
-			Name: fileName,
-			Mode: 0o644,
-			Size: int64(len(fileContent)),
-		}
-		if err := tw.WriteHeader(header); err != nil {
-			_ = tw.Close()
-			return nil, xerrors.Errorf(
-				"write local chat template file header %q: %w",
-				fileName,
-				err,
-			)
-		}
-		if _, err := tw.Write(fileContent); err != nil {
-			_ = tw.Close()
-			return nil, xerrors.Errorf(
-				"write local chat template file %q: %w",
-				fileName,
-				err,
-			)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		return nil, xerrors.Errorf("close local chat template archive writer: %w", err)
-	}
-	return buffer.Bytes(), nil
-}
-
-func (s *LocalService) ensureLocalChatTemplateVersionProvisionable(
+func (s *localMode) ensureLocalChatTemplateVersionProvisionable(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	jobID uuid.UUID,
@@ -748,41 +737,6 @@ func (s *LocalService) ensureLocalChatTemplateVersionProvisionable(
 		organizationID,
 		provisionerdserver.StaleInterval,
 	)
-}
-
-func localChatTemplateResponses(agentOS string, agentArch string) *echo.Responses {
-	return &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionGraph: []*proto.Response{{
-			Type: &proto.Response_Graph{
-				Graph: &proto.GraphComplete{
-					Resources: []*proto.Resource{{
-						Type: "coder_external_agent",
-						Name: localChatExternalResourceName,
-						Agents: []*proto.Agent{{
-							Name:            localChatExternalAgentName,
-							OperatingSystem: agentOS,
-							Architecture:    agentArch,
-						}},
-					}},
-					HasExternalAgents: true,
-				},
-			},
-		}},
-		ProvisionApply: echo.ApplyComplete,
-	}
-}
-
-func localChatTemplateResourcesProvideAgent(
-	resources []codersdk.WorkspaceResource,
-) bool {
-	for _, resource := range resources {
-		if len(resource.Agents) == 0 {
-			continue
-		}
-		return true
-	}
-	return false
 }
 
 func waitForLocalChatTemplateVersionCompletion(
@@ -832,13 +786,17 @@ func waitForLocalChatTemplateVersionCompletion(
 	}
 }
 
-func (s *LocalService) ensureLocalChatWorkspace(
+func (s *localMode) ensureLocalChatWorkspace(
 	ctx context.Context,
 	client *codersdk.Client,
 	template codersdk.Template,
 	ownerID uuid.UUID,
 ) (codersdk.Workspace, error) {
-	workspaceName := localChatWorkspaceName(ownerID)
+	workspaceSuffix := strings.ReplaceAll(ownerID.String(), "-", "")
+	if len(workspaceSuffix) > localChatNameSuffixLength {
+		workspaceSuffix = workspaceSuffix[:localChatNameSuffixLength]
+	}
+	workspaceName := localChatWorkspaceNamePrefix + workspaceSuffix
 	workspace, err := client.WorkspaceByOwnerAndName(
 		ctx,
 		codersdk.Me,
@@ -891,25 +849,7 @@ func (s *LocalService) ensureLocalChatWorkspace(
 		)
 	}
 
-	workspace, err = s.ensureLocalChatWorkspaceReady(
-		ctx,
-		client,
-		workspace.ID,
-		template.ActiveVersionID,
-	)
-	if err != nil {
-		return codersdk.Workspace{}, err
-	}
-	return workspace, nil
-}
-
-func (s *LocalService) ensureLocalChatWorkspaceReady(
-	ctx context.Context,
-	client *codersdk.Client,
-	workspaceID uuid.UUID,
-	templateVersionID uuid.UUID,
-) (codersdk.Workspace, error) {
-	workspace, err := waitForLocalChatWorkspaceBuildCompletion(ctx, client, workspaceID)
+	workspace, err = waitForLocalChatWorkspaceBuildCompletion(ctx, client, workspace.ID)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
@@ -930,7 +870,7 @@ func (s *LocalService) ensureLocalChatWorkspaceReady(
 		workspace, err = waitForLocalChatWorkspaceBuildCompletion(
 			ctx,
 			client,
-			workspaceID,
+			workspace.ID,
 		)
 		if err != nil {
 			return codersdk.Workspace{}, err
@@ -946,28 +886,35 @@ func (s *LocalService) ensureLocalChatWorkspaceReady(
 		)
 	}
 
-	hasAgents, err := s.localChatWorkspaceHasAgentsInLatestBuild(ctx, workspace.ID)
+	agentsInLatestBuild, err := s.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		ctx,
+		workspace.ID,
+	)
 	if err != nil {
-		return codersdk.Workspace{}, err
+		return codersdk.Workspace{}, xerrors.Errorf(
+			"resolve local chat workspace %q agents in latest build: %w",
+			workspace.ID,
+			err,
+		)
 	}
-	if !hasAgents {
+	if len(agentsInLatestBuild) == 0 {
 		s.logger.Warn(ctx, "local chat workspace latest build has no agents; rebuilding with active local template version",
 			slog.F("workspace_id", workspace.ID),
-			slog.F("template_version_id", templateVersionID),
+			slog.F("template_version_id", template.ActiveVersionID),
 		)
 		_, err := client.CreateWorkspaceBuild(
 			ctx,
 			workspace.ID,
 			codersdk.CreateWorkspaceBuildRequest{
 				Transition:        codersdk.WorkspaceTransitionStart,
-				TemplateVersionID: templateVersionID,
+				TemplateVersionID: template.ActiveVersionID,
 			},
 		)
 		if err != nil {
 			return codersdk.Workspace{}, xerrors.Errorf(
 				"rebuild local chat workspace %q with template version %q: %w",
 				workspace.ID,
-				templateVersionID,
+				template.ActiveVersionID,
 				err,
 			)
 		}
@@ -983,31 +930,13 @@ func (s *LocalService) ensureLocalChatWorkspaceReady(
 			return codersdk.Workspace{}, xerrors.Errorf(
 				"local chat workspace %q rebuild with template version %q finished with status %q: %s",
 				workspace.ID,
-				templateVersionID,
+				template.ActiveVersionID,
 				workspace.LatestBuild.Job.Status,
 				strings.TrimSpace(workspace.LatestBuild.Job.Error),
 			)
 		}
 	}
 	return workspace, nil
-}
-
-func (s *LocalService) localChatWorkspaceHasAgentsInLatestBuild(
-	ctx context.Context,
-	workspaceID uuid.UUID,
-) (bool, error) {
-	agents, err := s.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-		ctx,
-		workspaceID,
-	)
-	if err != nil {
-		return false, xerrors.Errorf(
-			"resolve local chat workspace %q agents in latest build: %w",
-			workspaceID,
-			err,
-		)
-	}
-	return len(agents) > 0, nil
 }
 
 func waitForLocalChatWorkspaceBuildCompletion(
@@ -1043,24 +972,56 @@ func waitForLocalChatWorkspaceBuildCompletion(
 	}
 }
 
-func (s *LocalService) resolveLocalChatExternalAgent(
+func (s *localMode) resolveLocalChatExternalAgent(
 	ctx context.Context,
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
 ) (localChatExternalAgent, error) {
-	agent, ok := localChatExternalAgentFromResources(workspace.LatestBuild.Resources)
-	if ok {
-		return agent, nil
+	for _, resource := range workspace.LatestBuild.Resources {
+		if resource.Type != "coder_external_agent" {
+			continue
+		}
+		for _, resourceAgent := range resource.Agents {
+			agentName := strings.TrimSpace(resourceAgent.Name)
+			if resourceAgent.ID == uuid.Nil || agentName == "" {
+				continue
+			}
+			return localChatExternalAgent{
+				ID:     resourceAgent.ID,
+				Name:   agentName,
+				Status: resourceAgent.Status,
+			}, nil
+		}
 	}
-	agent, ok, err := s.localChatExternalAgentFromWorkspaceAgentsInDB(
+	agents, err := s.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
 		ctx,
 		workspace.ID,
 	)
 	if err != nil {
-		return localChatExternalAgent{}, err
+		return localChatExternalAgent{}, xerrors.Errorf(
+			"resolve local chat workspace %q agents from database: %w",
+			workspace.ID,
+			err,
+		)
 	}
-	if ok {
-		return agent, nil
+	for _, agent := range agents {
+		agentName := strings.TrimSpace(agent.Name)
+		if agentName == localChatExternalAgentName {
+			return localChatExternalAgent{
+				ID:   agent.ID,
+				Name: agentName,
+			}, nil
+		}
+	}
+	for _, agent := range agents {
+		agentName := strings.TrimSpace(agent.Name)
+		if agentName == "" {
+			continue
+		}
+		return localChatExternalAgent{
+			ID:   agent.ID,
+			Name: agentName,
+		}, nil
 	}
 	if workspace.LatestBuild.ID == uuid.Nil {
 		return localChatExternalAgent{}, xerrors.Errorf(
@@ -1077,37 +1038,30 @@ func (s *LocalService) resolveLocalChatExternalAgent(
 			err,
 		)
 	}
-	agent, ok = localChatExternalAgentFromResources(build.Resources)
-	if !ok {
-		agent, ok, err = s.localChatExternalAgentFromWorkspaceAgentsInDB(
-			ctx,
-			workspace.ID,
-		)
-		if err != nil {
-			return localChatExternalAgent{}, err
+	for _, resource := range build.Resources {
+		if resource.Type != "coder_external_agent" {
+			continue
 		}
-		if !ok {
-			return localChatExternalAgent{}, xerrors.Errorf(
-				"local chat workspace %q does not expose an external agent",
-				workspace.ID,
-			)
+		for _, resourceAgent := range resource.Agents {
+			agentName := strings.TrimSpace(resourceAgent.Name)
+			if resourceAgent.ID == uuid.Nil || agentName == "" {
+				continue
+			}
+			return localChatExternalAgent{
+				ID:     resourceAgent.ID,
+				Name:   agentName,
+				Status: resourceAgent.Status,
+			}, nil
 		}
 	}
-	return agent, nil
-}
-
-func (s *LocalService) localChatExternalAgentFromWorkspaceAgentsInDB(
-	ctx context.Context,
-	workspaceID uuid.UUID,
-) (localChatExternalAgent, bool, error) {
-	agents, err := s.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+	agents, err = s.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
 		ctx,
-		workspaceID,
+		workspace.ID,
 	)
 	if err != nil {
-		return localChatExternalAgent{}, false, xerrors.Errorf(
+		return localChatExternalAgent{}, xerrors.Errorf(
 			"resolve local chat workspace %q agents from database: %w",
-			workspaceID,
+			workspace.ID,
 			err,
 		)
 	}
@@ -1117,7 +1071,7 @@ func (s *LocalService) localChatExternalAgentFromWorkspaceAgentsInDB(
 			return localChatExternalAgent{
 				ID:   agent.ID,
 				Name: agentName,
-			}, true, nil
+			}, nil
 		}
 	}
 	for _, agent := range agents {
@@ -1128,38 +1082,20 @@ func (s *LocalService) localChatExternalAgentFromWorkspaceAgentsInDB(
 		return localChatExternalAgent{
 			ID:   agent.ID,
 			Name: agentName,
-		}, true, nil
+		}, nil
 	}
-	return localChatExternalAgent{}, false, nil
+	return localChatExternalAgent{}, xerrors.Errorf(
+		"local chat workspace %q does not expose an external agent",
+		workspace.ID,
+	)
 }
 
-func localChatExternalAgentFromResources(
-	resources []codersdk.WorkspaceResource,
-) (localChatExternalAgent, bool) {
-	for _, resource := range resources {
-		if resource.Type != "coder_external_agent" {
-			continue
-		}
-		for _, agent := range resource.Agents {
-			if agent.ID == uuid.Nil || strings.TrimSpace(agent.Name) == "" {
-				continue
-			}
-			return localChatExternalAgent{
-				ID:     agent.ID,
-				Name:   strings.TrimSpace(agent.Name),
-				Status: agent.Status,
-			}, true
-		}
-	}
-	return localChatExternalAgent{}, false
-}
-
-func (s *LocalService) MaybeLaunchAgentForChat(
+func (s *localMode) MaybeLaunchAgentForChat(
 	ctx context.Context,
 	chat database.Chat,
 ) error {
 	if s == nil {
-		return xerrors.New("local chat service is not configured")
+		return xerrors.New("local chat mode is not configured")
 	}
 	if workspaceModeFromChat(chat) != codersdk.ChatWorkspaceModeLocal {
 		return nil
@@ -1174,7 +1110,7 @@ func (s *LocalService) MaybeLaunchAgentForChat(
 
 	workspaceID := chat.WorkspaceID.UUID
 	workspaceAgentID := chat.WorkspaceAgentID.UUID
-	if s.localChatAgents != nil && s.localChatAgents.HasRunning(workspaceAgentID) {
+	if s.hasRunningLocalChatAgent(workspaceAgentID) {
 		return nil
 	}
 
@@ -1212,15 +1148,15 @@ func (s *LocalService) MaybeLaunchAgentForChat(
 	return nil
 }
 
-func (s *LocalService) maybeLaunchLocalChatAgent(
+func (s *localMode) maybeLaunchLocalChatAgent(
 	ctx context.Context,
 	workspaceID uuid.UUID,
 	agent localChatExternalAgent,
 ) error {
 	if s == nil {
-		return xerrors.New("local chat service is not configured")
+		return xerrors.New("local chat mode is not configured")
 	}
-	if s.localChatAgents != nil && s.localChatAgents.HasRunning(agent.ID) {
+	if s.hasRunningLocalChatAgent(agent.ID) {
 		return nil
 	}
 	if !s.agentLaunches.Allow(agent.ID, time.Now()) {
@@ -1228,22 +1164,37 @@ func (s *LocalService) maybeLaunchLocalChatAgent(
 	}
 
 	_, err, _ := s.localChatAgentLaunchGroup.Do(agent.ID.String(), func() (struct{}, error) {
-		if s.localChatAgents == nil {
-			return struct{}{}, xerrors.New(
-				"local chat agent manager is not configured",
-			)
-		}
-		if s.localChatAgents.HasRunning(agent.ID) {
+		if s.hasRunningLocalChatAgent(agent.ID) {
 			return struct{}{}, nil
 		}
 
-		credentials, err := s.localChatExternalAgentCredentialsFromDB(
-			ctx,
-			workspaceID,
-			agent,
-		)
+		row, err := s.db.GetWorkspaceAgentAndWorkspaceByID(ctx, agent.ID)
 		if err != nil {
-			return struct{}{}, err
+			return struct{}{}, xerrors.Errorf(
+				"get local chat external agent %q from database: %w",
+				agent.ID,
+				err,
+			)
+		}
+		if row.WorkspaceTable.ID != workspaceID {
+			return struct{}{}, xerrors.Errorf(
+				"local chat external agent %q does not belong to workspace %q",
+				agent.ID,
+				workspaceID,
+			)
+		}
+		if strings.TrimSpace(row.WorkspaceAgent.Name) == "" ||
+			strings.TrimSpace(row.WorkspaceAgent.Name) != strings.TrimSpace(agent.Name) {
+			return struct{}{}, xerrors.Errorf(
+				"local chat external agent %q name mismatch: expected %q, got %q",
+				agent.ID,
+				agent.Name,
+				row.WorkspaceAgent.Name,
+			)
+		}
+
+		credentials := codersdk.ExternalAgentCredentials{
+			AgentToken: row.WorkspaceAgent.AuthToken.String(),
 		}
 		if strings.TrimSpace(credentials.AgentToken) == "" {
 			return struct{}{}, xerrors.New(
@@ -1251,7 +1202,7 @@ func (s *LocalService) maybeLaunchLocalChatAgent(
 			)
 		}
 
-		if err := s.localChatAgents.Start(localChatAgentStartParams{
+		if err := s.startLocalChatAgent(localChatAgentStartParams{
 			WorkspaceID: workspaceID,
 			AgentID:     agent.ID,
 			AgentName:   agent.Name,
@@ -1270,42 +1221,7 @@ func (s *LocalService) maybeLaunchLocalChatAgent(
 	return nil
 }
 
-func (s *LocalService) localChatExternalAgentCredentialsFromDB(
-	ctx context.Context,
-	workspaceID uuid.UUID,
-	agent localChatExternalAgent,
-) (codersdk.ExternalAgentCredentials, error) {
-	row, err := s.db.GetWorkspaceAgentAndWorkspaceByID(ctx, agent.ID)
-	if err != nil {
-		return codersdk.ExternalAgentCredentials{}, xerrors.Errorf(
-			"get local chat external agent %q from database: %w",
-			agent.ID,
-			err,
-		)
-	}
-	if row.WorkspaceTable.ID != workspaceID {
-		return codersdk.ExternalAgentCredentials{}, xerrors.Errorf(
-			"local chat external agent %q does not belong to workspace %q",
-			agent.ID,
-			workspaceID,
-		)
-	}
-	if strings.TrimSpace(row.WorkspaceAgent.Name) == "" ||
-		strings.TrimSpace(row.WorkspaceAgent.Name) != strings.TrimSpace(agent.Name) {
-		return codersdk.ExternalAgentCredentials{}, xerrors.Errorf(
-			"local chat external agent %q name mismatch: expected %q, got %q",
-			agent.ID,
-			agent.Name,
-			row.WorkspaceAgent.Name,
-		)
-	}
-
-	return codersdk.ExternalAgentCredentials{
-		AgentToken: row.WorkspaceAgent.AuthToken.String(),
-	}, nil
-}
-
-func (s *LocalService) launchLocalChatAgentInProcess(
+func (s *localMode) launchLocalChatAgentInProcess(
 	params localChatAgentStartParams,
 ) (_ io.Closer, err error) {
 	defer func() {
@@ -1332,41 +1248,22 @@ func (s *LocalService) launchLocalChatAgentInProcess(
 		slog.F("agent_id", params.AgentID),
 		slog.F("agent_name", params.AgentName),
 	)
+	var environmentVariables map[string]string
+	executablePath, executableErr := os.Executable()
+	if executableErr == nil && strings.TrimSpace(executablePath) != "" {
+		environmentVariables = map[string]string{
+			"GIT_ASKPASS": executablePath,
+		}
+	}
 	tempDir := os.TempDir()
 	ag := agent.New(agent.Options{
 		Client:               client,
 		Logger:               logger,
-		EnvironmentVariables: localChatAgentEnvironmentVariables(),
+		EnvironmentVariables: environmentVariables,
 		LogDir:               tempDir,
 		ScriptDataDir:        tempDir,
 	})
 	return ag, nil
-}
-
-func localChatAgentEnvironmentVariables() map[string]string {
-	executablePath, err := os.Executable()
-	if err != nil || strings.TrimSpace(executablePath) == "" {
-		return nil
-	}
-	return map[string]string{
-		"GIT_ASKPASS": executablePath,
-	}
-}
-
-func localChatTemplateName(ownerID uuid.UUID) string {
-	return localChatTemplateNamePrefix + localChatNameSuffix(ownerID)
-}
-
-func localChatWorkspaceName(ownerID uuid.UUID) string {
-	return localChatWorkspaceNamePrefix + localChatNameSuffix(ownerID)
-}
-
-func localChatNameSuffix(ownerID uuid.UUID) string {
-	compact := strings.ReplaceAll(ownerID.String(), "-", "")
-	if len(compact) <= localChatNameSuffixLength {
-		return compact
-	}
-	return compact[:localChatNameSuffixLength]
 }
 
 func isCodersdkStatusCode(err error, statusCode int) bool {

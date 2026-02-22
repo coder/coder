@@ -34,98 +34,56 @@ const (
 	chatWorkspaceBuildLogPollInterval  = 2 * time.Second
 )
 
-// WorkspaceCreatorAdapter provides coderd-specific operations for chat
-// workspace creation.
-type WorkspaceCreatorAdapter interface {
-	PrepareWorkspaceCreate(
+type workspaceCreator struct {
+	prepareWorkspaceCreateFn func(
 		ctx context.Context,
 		chat database.Chat,
 	) (context.Context, *http.Request, string, error)
-	AuthorizedTemplates(ctx context.Context, r *http.Request) ([]database.Template, error)
-	CreateWorkspace(
-		ctx context.Context,
-		r *http.Request,
-		ownerID uuid.UUID,
-		req codersdk.CreateWorkspaceRequest,
-	) (codersdk.Workspace, error)
-	Database() database.Store
-	Pubsub() pubsub.Pubsub
-	Logger() slog.Logger
-}
-
-// WorkspaceCreatorAdapterFuncs adapts simple callbacks to WorkspaceCreatorAdapter.
-type WorkspaceCreatorAdapterFuncs struct {
-	PrepareWorkspaceCreateFunc func(
-		ctx context.Context,
-		chat database.Chat,
-	) (context.Context, *http.Request, string, error)
-	AuthorizedTemplatesFunc func(
+	authorizedTemplatesFn func(
 		ctx context.Context,
 		r *http.Request,
 	) ([]database.Template, error)
-	CreateWorkspaceFunc func(
+	createWorkspaceFn func(
 		ctx context.Context,
 		r *http.Request,
 		ownerID uuid.UUID,
 		req codersdk.CreateWorkspaceRequest,
 	) (codersdk.Workspace, error)
-	DatabaseStore database.Store
-	PubsubStore   pubsub.Pubsub
-	LoggerStore   slog.Logger
-}
-
-func (a WorkspaceCreatorAdapterFuncs) PrepareWorkspaceCreate(
-	ctx context.Context,
-	chat database.Chat,
-) (context.Context, *http.Request, string, error) {
-	if a.PrepareWorkspaceCreateFunc == nil {
-		return nil, nil, "", xerrors.New("chat workspace creator prepare callback is not configured")
-	}
-	return a.PrepareWorkspaceCreateFunc(ctx, chat)
-}
-
-func (a WorkspaceCreatorAdapterFuncs) AuthorizedTemplates(
-	ctx context.Context,
-	r *http.Request,
-) ([]database.Template, error) {
-	if a.AuthorizedTemplatesFunc == nil {
-		return nil, xerrors.New("chat workspace creator templates callback is not configured")
-	}
-	return a.AuthorizedTemplatesFunc(ctx, r)
-}
-
-func (a WorkspaceCreatorAdapterFuncs) CreateWorkspace(
-	ctx context.Context,
-	r *http.Request,
-	ownerID uuid.UUID,
-	req codersdk.CreateWorkspaceRequest,
-) (codersdk.Workspace, error) {
-	if a.CreateWorkspaceFunc == nil {
-		return codersdk.Workspace{}, xerrors.New("chat workspace creator create callback is not configured")
-	}
-	return a.CreateWorkspaceFunc(ctx, r, ownerID, req)
-}
-
-func (a WorkspaceCreatorAdapterFuncs) Database() database.Store {
-	return a.DatabaseStore
-}
-
-func (a WorkspaceCreatorAdapterFuncs) Pubsub() pubsub.Pubsub {
-	return a.PubsubStore
-}
-
-func (a WorkspaceCreatorAdapterFuncs) Logger() slog.Logger {
-	return a.LoggerStore
-}
-
-type workspaceCreator struct {
-	adapter WorkspaceCreatorAdapter
+	db     database.Store
+	pubsub pubsub.Pubsub
+	logger slog.Logger
 }
 
 // NewWorkspaceCreator returns the default create-workspace implementation used
 // by the chat processor.
-func NewWorkspaceCreator(adapter WorkspaceCreatorAdapter) WorkspaceCreator {
-	return &workspaceCreator{adapter: adapter}
+func NewWorkspaceCreator(
+	prepareWorkspaceCreate func(
+		ctx context.Context,
+		chat database.Chat,
+	) (context.Context, *http.Request, string, error),
+	authorizedTemplates func(
+		ctx context.Context,
+		r *http.Request,
+	) ([]database.Template, error),
+	createWorkspace func(
+		ctx context.Context,
+		r *http.Request,
+		ownerID uuid.UUID,
+		req codersdk.CreateWorkspaceRequest,
+	) (codersdk.Workspace, error),
+	db database.Store,
+	ps pubsub.Pubsub,
+	logger slog.Logger,
+) CreateWorkspaceFunc {
+	creator := &workspaceCreator{
+		prepareWorkspaceCreateFn: prepareWorkspaceCreate,
+		authorizedTemplatesFn:    authorizedTemplates,
+		createWorkspaceFn:        createWorkspace,
+		db:                       db,
+		pubsub:                   ps,
+		logger:                   logger,
+	}
+	return creator.CreateWorkspace
 }
 
 type templateSelectionReasonError struct {
@@ -152,14 +110,17 @@ func (c *workspaceCreator) CreateWorkspace(
 	ctx context.Context,
 	req CreateWorkspaceToolRequest,
 ) (CreateWorkspaceToolResult, error) {
-	if c == nil || c.adapter == nil {
+	if c == nil {
 		return CreateWorkspaceToolResult{}, xerrors.New("chat workspace creator is not configured")
 	}
-	if c.adapter.Database() == nil {
+	if c.db == nil {
 		return CreateWorkspaceToolResult{}, xerrors.New("chat workspace creator database is not configured")
 	}
+	if c.prepareWorkspaceCreateFn == nil {
+		return CreateWorkspaceToolResult{}, xerrors.New("chat workspace creator prepare callback is not configured")
+	}
 
-	ctx, httpReq, accessURL, err := c.adapter.PrepareWorkspaceCreate(ctx, req.Chat)
+	ctx, httpReq, accessURL, err := c.prepareWorkspaceCreateFn(ctx, req.Chat)
 	if err != nil {
 		return CreateWorkspaceToolResult{}, err
 	}
@@ -196,7 +157,10 @@ func (c *workspaceCreator) CreateWorkspace(
 		}, nil
 	}
 
-	workspace, err := c.adapter.CreateWorkspace(ctx, httpReq, req.Chat.OwnerID, createReq)
+	if c.createWorkspaceFn == nil {
+		return CreateWorkspaceToolResult{}, xerrors.New("chat workspace creator create callback is not configured")
+	}
+	workspace, err := c.createWorkspaceFn(ctx, httpReq, req.Chat.OwnerID, createReq)
 	if err != nil {
 		return CreateWorkspaceToolResult{}, err
 	}
@@ -206,7 +170,7 @@ func (c *workspaceCreator) CreateWorkspace(
 	}
 
 	workspaceAgentID := uuid.Nil
-	agents, err := c.adapter.Database().GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+	agents, err := c.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 	if err == nil && len(agents) > 0 {
 		workspaceAgentID = agents[0].ID
 	}
@@ -609,7 +573,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 	jobID uuid.UUID,
 	emit CreateWorkspaceBuildLogHandler,
 ) {
-	if c == nil || c.adapter == nil || emit == nil || jobID == uuid.Nil || c.adapter.Pubsub() == nil {
+	if c == nil || emit == nil || jobID == uuid.Nil || c.pubsub == nil || c.db == nil {
 		return
 	}
 
@@ -618,7 +582,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 
 	after := int64(0)
 	streamLogs := func() error {
-		logs, err := c.adapter.Database().GetProvisionerLogsAfterID(streamCtx, database.GetProvisionerLogsAfterIDParams{
+		logs, err := c.db.GetProvisionerLogsAfterID(streamCtx, database.GetProvisionerLogsAfterIDParams{
 			JobID:        jobID,
 			CreatedAfter: after,
 		})
@@ -638,7 +602,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 	}
 
 	if err := streamLogs(); err != nil {
-		c.adapter.Logger().Debug(ctx, "failed to stream initial workspace build logs",
+		c.logger.Debug(ctx, "failed to stream initial workspace build logs",
 			slog.F("job_id", jobID),
 			slog.Error(err),
 		)
@@ -647,7 +611,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 
 	complete, err := c.isProvisionerJobComplete(streamCtx, jobID)
 	if err != nil {
-		c.adapter.Logger().Debug(ctx, "failed to check workspace build status",
+		c.logger.Debug(ctx, "failed to check workspace build status",
 			slog.F("job_id", jobID),
 			slog.Error(err),
 		)
@@ -659,7 +623,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 
 	notifications := make(chan provisionersdk.ProvisionerJobLogsNotifyMessage, 64)
 	notifyErrors := make(chan error, 1)
-	subCancel, err := c.adapter.Pubsub().SubscribeWithErr(
+	subCancel, err := c.pubsub.SubscribeWithErr(
 		provisionersdk.ProvisionerJobLogsNotifyChannel(jobID),
 		func(_ context.Context, message []byte, subErr error) {
 			if subErr != nil {
@@ -689,7 +653,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 		},
 	)
 	if err != nil {
-		c.adapter.Logger().Debug(ctx, "failed to subscribe to workspace build logs",
+		c.logger.Debug(ctx, "failed to subscribe to workspace build logs",
 			slog.F("job_id", jobID),
 			slog.Error(err),
 		)
@@ -700,7 +664,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 	// Re-query logs after subscribing to avoid dropping events between the
 	// initial query and pubsub registration.
 	if err := streamLogs(); err != nil {
-		c.adapter.Logger().Debug(ctx, "failed to stream workspace build logs after subscribe",
+		c.logger.Debug(ctx, "failed to stream workspace build logs after subscribe",
 			slog.F("job_id", jobID),
 			slog.Error(err),
 		)
@@ -709,7 +673,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 
 	complete, err = c.isProvisionerJobComplete(streamCtx, jobID)
 	if err != nil {
-		c.adapter.Logger().Debug(ctx, "failed to check workspace build status after subscribe",
+		c.logger.Debug(ctx, "failed to check workspace build status after subscribe",
 			slog.F("job_id", jobID),
 			slog.Error(err),
 		)
@@ -727,14 +691,14 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 		case <-streamCtx.Done():
 			return
 		case subErr := <-notifyErrors:
-			c.adapter.Logger().Debug(ctx, "workspace build log subscription ended with error",
+			c.logger.Debug(ctx, "workspace build log subscription ended with error",
 				slog.F("job_id", jobID),
 				slog.Error(subErr),
 			)
 			return
 		case notification := <-notifications:
 			if err := streamLogs(); err != nil {
-				c.adapter.Logger().Debug(ctx, "failed to stream workspace build logs from notification",
+				c.logger.Debug(ctx, "failed to stream workspace build logs from notification",
 					slog.F("job_id", jobID),
 					slog.Error(err),
 				)
@@ -746,7 +710,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 		case <-pollTicker.C:
 			complete, err := c.isProvisionerJobComplete(streamCtx, jobID)
 			if err != nil {
-				c.adapter.Logger().Debug(ctx, "failed to poll workspace build status",
+				c.logger.Debug(ctx, "failed to poll workspace build status",
 					slog.F("job_id", jobID),
 					slog.Error(err),
 				)
@@ -756,7 +720,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 				continue
 			}
 			if err := streamLogs(); err != nil {
-				c.adapter.Logger().Debug(ctx, "failed to stream final workspace build logs",
+				c.logger.Debug(ctx, "failed to stream final workspace build logs",
 					slog.F("job_id", jobID),
 					slog.Error(err),
 				)
@@ -767,7 +731,7 @@ func (c *workspaceCreator) streamWorkspaceBuildLogs(
 }
 
 func (c *workspaceCreator) isProvisionerJobComplete(ctx context.Context, jobID uuid.UUID) (bool, error) {
-	job, err := c.adapter.Database().GetProvisionerJobByID(ctx, jobID)
+	job, err := c.db.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return true, nil
@@ -815,11 +779,11 @@ func (c *workspaceCreator) resolveTemplateSelection(
 	}
 
 	if templateVersionID != uuid.Nil {
-		templateVersion, err := c.adapter.Database().GetTemplateVersionByID(ctx, templateVersionID)
+		templateVersion, err := c.db.GetTemplateVersionByID(ctx, templateVersionID)
 		if err != nil {
 			return database.Template{}, newTemplateSelectionReasonError("template version was not found or is not accessible")
 		}
-		selectedTemplate, err = c.adapter.Database().GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
+		selectedTemplate, err = c.db.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 		if err != nil {
 			return database.Template{}, xerrors.Errorf("get template for template version: %w", err)
 		}
@@ -837,7 +801,7 @@ func (c *workspaceCreator) resolveTemplateSelection(
 
 	switch {
 	case templateID != uuid.Nil:
-		template, err := c.adapter.Database().GetTemplateByID(ctx, templateID)
+		template, err := c.db.GetTemplateByID(ctx, templateID)
 		if err != nil {
 			return database.Template{}, newTemplateSelectionReasonError("template was not found or is not accessible")
 		}
@@ -871,7 +835,7 @@ func (c *workspaceCreator) resolveTemplateSelection(
 	}
 
 	if templateVersionRef != "" {
-		templateVersion, err := c.adapter.Database().GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
+		templateVersion, err := c.db.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
 			TemplateID: uuid.NullUUID{
 				UUID:  selectedTemplate.ID,
 				Valid: true,
@@ -902,7 +866,7 @@ func (c *workspaceCreator) resolveTemplateReference(
 	}
 
 	if parsedID, err := uuid.Parse(templateRef); err == nil {
-		template, err := c.adapter.Database().GetTemplateByID(ctx, parsedID)
+		template, err := c.db.GetTemplateByID(ctx, parsedID)
 		if err != nil {
 			return database.Template{}, newTemplateSelectionReasonError("template was not found or is not accessible")
 		}
@@ -947,7 +911,11 @@ func (c *workspaceCreator) authorizedTemplates(
 	ctx context.Context,
 	r *http.Request,
 ) ([]database.Template, error) {
-	templates, err := c.adapter.AuthorizedTemplates(ctx, r)
+	if c.authorizedTemplatesFn == nil {
+		return nil, xerrors.New("chat workspace creator templates callback is not configured")
+	}
+
+	templates, err := c.authorizedTemplatesFn(ctx, r)
 	if err != nil {
 		return nil, err
 	}

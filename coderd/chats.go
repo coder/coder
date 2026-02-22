@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
@@ -420,15 +421,15 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	if workspaceMode == codersdk.ChatWorkspaceModeLocal &&
 		(chatHierarchy.Request.WorkspaceID == nil || chatHierarchy.Request.WorkspaceAgentID == nil) {
-		if api.chatLocalService == nil {
+		if api.chatProcessor == nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to initialize local workspace.",
-				Detail:  "Local workspace service is not configured.",
+				Detail:  "Chat processor is not configured.",
 			})
 			return
 		}
 
-		localBinding, localErr := api.chatLocalService.EnsureWorkspaceBinding(
+		localBinding, localErr := api.chatProcessor.EnsureLocalWorkspaceBinding(
 			ctx,
 			apiKey.UserID,
 			httpmw.APITokenFromRequest(r),
@@ -951,23 +952,7 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 			api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindStatusChange)
 		}
 
-		// Handle local workspace agent launch (outside the tx).
 		if !response.Queued {
-			if api.chatLocalService != nil {
-				if err := api.chatLocalService.MaybeLaunchAgentForChat(ctx, chat); err != nil {
-					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-						Message: "Failed to initialize local workspace agent.",
-						Detail:  err.Error(),
-					})
-					return
-				}
-			} else if chatWorkspaceModeFromModelConfig(chat.ModelConfig) == codersdk.ChatWorkspaceModeLocal {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to initialize local workspace agent.",
-					Detail:  "Local workspace service is not configured.",
-				})
-				return
-			}
 			api.recordChatWorkspaceRequestMetadata(ctx, chatID, r)
 		}
 
@@ -1483,15 +1468,15 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
 }
 
-func (api *API) newChatWorkspaceCreator() chatd.WorkspaceCreator {
-	return chatd.NewWorkspaceCreator(chatd.WorkspaceCreatorAdapterFuncs{
-		PrepareWorkspaceCreateFunc: api.prepareChatWorkspaceCreate,
-		AuthorizedTemplatesFunc:    api.authorizedChatWorkspaceTemplates,
-		CreateWorkspaceFunc:        api.createChatWorkspace,
-		DatabaseStore:              api.Database,
-		PubsubStore:                api.Pubsub,
-		LoggerStore:                api.Logger,
-	})
+func (api *API) newChatWorkspaceCreator() chatd.CreateWorkspaceFunc {
+	return chatd.NewWorkspaceCreator(
+		api.prepareChatWorkspaceCreate,
+		api.authorizedChatWorkspaceTemplates,
+		api.createChatWorkspace,
+		api.Database,
+		api.Pubsub,
+		api.Logger,
+	)
 }
 
 func (api *API) prepareChatWorkspaceCreate(
@@ -3103,7 +3088,7 @@ func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.Cha
 }
 
 func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
-	return chatd.SDKChatMessage(m)
+	return db2sdk.ChatMessage(m)
 }
 
 func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage {

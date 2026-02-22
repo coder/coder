@@ -2,6 +2,7 @@
 package db2sdk
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/sqlc-dev/pqtype"
@@ -1049,4 +1051,377 @@ func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
 		return map[string]any{}
 	}
 	return m
+}
+
+type chatToolResultBlock struct {
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Result     any    `json:"result"`
+	IsError    bool   `json:"is_error,omitempty"`
+}
+
+func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
+	msg := codersdk.ChatMessage{
+		ID:                  m.ID,
+		ChatID:              m.ChatID,
+		CreatedAt:           m.CreatedAt,
+		Role:                m.Role,
+		Hidden:              m.Hidden,
+		InputTokens:         nullInt64Ptr(m.InputTokens),
+		OutputTokens:        nullInt64Ptr(m.OutputTokens),
+		TotalTokens:         nullInt64Ptr(m.TotalTokens),
+		ReasoningTokens:     nullInt64Ptr(m.ReasoningTokens),
+		CacheCreationTokens: nullInt64Ptr(m.CacheCreationTokens),
+		CacheReadTokens:     nullInt64Ptr(m.CacheReadTokens),
+		ContextLimit:        nullInt64Ptr(m.ContextLimit),
+	}
+	if m.Content.Valid {
+		msg.Content = m.Content.RawMessage
+		parts, err := chatMessageParts(m.Role, m.Content)
+		if err == nil {
+			msg.Parts = parts
+		}
+	}
+	if m.ToolCallID.Valid {
+		msg.ToolCallID = &m.ToolCallID.String
+	}
+	if m.Thinking.Valid {
+		msg.Thinking = &m.Thinking.String
+	}
+	return msg
+}
+
+func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
+	switch role {
+	case string(fantasy.MessageRoleSystem):
+		content, err := parseSystemContent(raw)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(content) == "" {
+			return nil, nil
+		}
+		return []codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: content,
+		}}, nil
+	case string(fantasy.MessageRoleUser), string(fantasy.MessageRoleAssistant):
+		content, err := parseContentBlocks(role, raw)
+		if err != nil {
+			return nil, err
+		}
+		parts := make([]codersdk.ChatMessagePart, 0, len(content))
+		for _, block := range content {
+			part := contentBlockToPart(block)
+			if part.Type == "" {
+				continue
+			}
+			parts = append(parts, part)
+		}
+		return parts, nil
+	case string(fantasy.MessageRoleTool):
+		results, err := parseToolResults(raw)
+		if err != nil {
+			return nil, err
+		}
+		parts := make([]codersdk.ChatMessagePart, 0, len(results))
+		for _, result := range results {
+			part := toolResultToPart(result)
+			if part.Type == "" {
+				continue
+			}
+			parts = append(parts, part)
+		}
+		return parts, nil
+	default:
+		return nil, nil
+	}
+}
+
+func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return "", nil
+	}
+	var content string
+	if err := json.Unmarshal(raw.RawMessage, &content); err != nil {
+		return "", xerrors.Errorf("parse system content: %w", err)
+	}
+	return content, nil
+}
+
+func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil, nil
+	}
+
+	if role == string(fantasy.MessageRoleUser) {
+		var text string
+		if err := json.Unmarshal(raw.RawMessage, &text); err == nil {
+			return []fantasy.Content{
+				fantasy.TextContent{Text: text},
+			}, nil
+		}
+	}
+
+	var blocks []json.RawMessage
+	if err := json.Unmarshal(raw.RawMessage, &blocks); err != nil {
+		return nil, xerrors.Errorf("parse content blocks: %w", err)
+	}
+
+	content := make([]fantasy.Content, 0, len(blocks))
+	for _, block := range blocks {
+		decoded, err := fantasy.UnmarshalContent(block)
+		if err != nil {
+			return nil, xerrors.Errorf("parse content block: %w", err)
+		}
+		content = append(content, decoded)
+	}
+
+	return content, nil
+}
+
+func parseToolResults(raw pqtype.NullRawMessage) ([]chatToolResultBlock, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil, nil
+	}
+
+	var results []chatToolResultBlock
+	if err := json.Unmarshal(raw.RawMessage, &results); err != nil {
+		return nil, xerrors.Errorf("parse tool results: %w", err)
+	}
+	return results, nil
+}
+
+func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
+	switch value := block.(type) {
+	case fantasy.TextContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: value.Text,
+		}
+	case *fantasy.TextContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: value.Text,
+		}
+	case fantasy.ReasoningContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
+		}
+	case *fantasy.ReasoningContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
+		}
+	case fantasy.ToolCallContent:
+		return codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: value.ToolCallID,
+			ToolName:   value.ToolName,
+			Args:       []byte(value.Input),
+		}
+	case *fantasy.ToolCallContent:
+		return codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: value.ToolCallID,
+			ToolName:   value.ToolName,
+			Args:       []byte(value.Input),
+		}
+	case fantasy.SourceContent:
+		return codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeSource,
+			SourceID: value.ID,
+			URL:      value.URL,
+			Title:    value.Title,
+		}
+	case *fantasy.SourceContent:
+		return codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeSource,
+			SourceID: value.ID,
+			URL:      value.URL,
+			Title:    value.Title,
+		}
+	case fantasy.FileContent:
+		return codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeFile,
+			MediaType: value.MediaType,
+			Data:      value.Data,
+		}
+	case *fantasy.FileContent:
+		return codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeFile,
+			MediaType: value.MediaType,
+			Data:      value.Data,
+		}
+	case fantasy.ToolResultContent:
+		return toolResultToPart(toolResultBlockFromContent(value))
+	case *fantasy.ToolResultContent:
+		return toolResultToPart(toolResultBlockFromContent(*value))
+	default:
+		return codersdk.ChatMessagePart{}
+	}
+}
+
+func toolResultBlockFromContent(content fantasy.ToolResultContent) chatToolResultBlock {
+	result := chatToolResultBlock{
+		ToolCallID: content.ToolCallID,
+		ToolName:   content.ToolName,
+	}
+	switch output := content.Result.(type) {
+	case fantasy.ToolResultOutputContentError:
+		result.IsError = true
+		if output.Error != nil {
+			result.Result = map[string]any{"error": output.Error.Error()}
+		} else {
+			result.Result = map[string]any{"error": ""}
+		}
+	case fantasy.ToolResultOutputContentText:
+		decoded := map[string]any{}
+		if err := json.Unmarshal([]byte(output.Text), &decoded); err == nil {
+			result.Result = decoded
+		} else {
+			result.Result = map[string]any{"output": output.Text}
+		}
+	case fantasy.ToolResultOutputContentMedia:
+		result.Result = map[string]any{
+			"data":      output.Data,
+			"mime_type": output.MediaType,
+			"text":      output.Text,
+		}
+	default:
+		result.Result = map[string]any{}
+	}
+	return result
+}
+
+func toolResultToPart(result chatToolResultBlock) codersdk.ChatMessagePart {
+	return codersdk.ChatMessagePart{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: result.ToolCallID,
+		ToolName:   result.ToolName,
+		Result:     toRawJSON(result.Result),
+		IsError:    result.IsError,
+		ResultMeta: toolResultMetadata(result.Result),
+	}
+}
+
+func toRawJSON(value any) json.RawMessage {
+	if value == nil {
+		return nil
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func toolResultMetadata(value any) *codersdk.ChatToolResultMetadata {
+	fields, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	meta := codersdk.ChatToolResultMetadata{}
+	if s, ok := stringValue(fields["error"]); ok {
+		meta.Error = s
+	}
+	if s, ok := stringValue(fields["output"]); ok {
+		meta.Output = s
+	}
+	if n, ok := intValue(fields["exit_code"]); ok {
+		meta.ExitCode = &n
+	}
+	if s, ok := stringValue(fields["content"]); ok {
+		meta.Content = s
+	}
+	if s, ok := stringValue(fields["mime_type"]); ok {
+		meta.MimeType = s
+	}
+	if b, ok := boolValue(fields["created"]); ok {
+		meta.Created = &b
+	}
+	if s, ok := stringValue(fields["workspace_id"]); ok {
+		meta.WorkspaceID = s
+	}
+	if s, ok := stringValue(fields["workspace_agent_id"]); ok {
+		meta.WorkspaceAgentID = s
+	}
+	if s, ok := stringValue(fields["workspace_name"]); ok {
+		meta.WorkspaceName = s
+	}
+	if s, ok := stringValue(fields["workspace_url"]); ok {
+		meta.WorkspaceURL = s
+	}
+	if s, ok := stringValue(fields["reason"]); ok {
+		meta.Reason = s
+	}
+
+	if meta.Error == "" &&
+		meta.Output == "" &&
+		meta.ExitCode == nil &&
+		meta.Content == "" &&
+		meta.MimeType == "" &&
+		meta.Created == nil &&
+		meta.WorkspaceID == "" &&
+		meta.WorkspaceAgentID == "" &&
+		meta.WorkspaceName == "" &&
+		meta.WorkspaceURL == "" &&
+		meta.Reason == "" {
+		return nil
+	}
+
+	return &meta
+}
+
+func stringValue(value any) (string, bool) {
+	switch typed := value.(type) {
+	case string:
+		return typed, true
+	default:
+		return "", false
+	}
+}
+
+func boolValue(value any) (bool, bool) {
+	switch typed := value.(type) {
+	case bool:
+		return typed, true
+	default:
+		return false, false
+	}
+}
+
+func intValue(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int8:
+		return int(typed), true
+	case int16:
+		return int(typed), true
+	case int32:
+		return int(typed), true
+	case int64:
+		return int(typed), true
+	case float64:
+		return int(typed), true
+	case json.Number:
+		n, err := typed.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+func nullInt64Ptr(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Int64
+	return &value
 }
