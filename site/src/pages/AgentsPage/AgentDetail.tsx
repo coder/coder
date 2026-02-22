@@ -109,7 +109,6 @@ const extractContextUsageFromMessage = (
 	const withUsage = message as ChatMessageWithUsage;
 	const inputTokens = asTokenCount(withUsage.input_tokens);
 	const outputTokens = asTokenCount(withUsage.output_tokens);
-	const totalTokens = asTokenCount(withUsage.total_tokens);
 	const reasoningTokens = asTokenCount(withUsage.reasoning_tokens);
 	const cacheCreationTokens = asTokenCount(withUsage.cache_creation_tokens);
 	const cacheReadTokens = asTokenCount(withUsage.cache_read_tokens);
