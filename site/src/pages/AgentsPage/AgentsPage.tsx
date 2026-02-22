@@ -1,6 +1,8 @@
 import type { ChatModelsResponse } from "api/api";
+import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
-import { chatModels, chats, createChat, deleteChat } from "api/queries/chats";
+import { chatModels, chats, chatsKey, createChat, deleteChat } from "api/queries/chats";
+import type * as TypesGen from "api/typesGenerated";
 import { deploymentConfig } from "api/queries/deployment";
 import { workspaces } from "api/queries/workspaces";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -11,7 +13,6 @@ import {
 	DialogClose,
 	DialogContent,
 	DialogDescription,
-	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
@@ -26,7 +27,7 @@ import {
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { useAuthenticated } from "hooks";
 import type { LucideIcon } from "lucide-react";
-import { BoxesIcon, KeyRoundIcon, Loader2Icon, MonitorIcon, UserIcon, XIcon } from "lucide-react";
+import { BoxesIcon, KeyRoundIcon, MonitorIcon, UserIcon, XIcon } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -56,23 +57,6 @@ import {
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const selectedWorkspaceModeStorageKey = "agents.selected-workspace-mode";
-const defaultContextCompressionThreshold = "70";
-
-const contextCompressionThresholdStorageKey = (modelID: string) =>
-	`agents.context-compression-threshold.${modelID || "default"}`;
-
-const parseContextCompressionThreshold = (
-	value: string,
-): number | undefined => {
-	const parsedValue = Number.parseInt(value.trim(), 10);
-	if (!Number.isFinite(parsedValue)) {
-		return undefined;
-	}
-	if (parsedValue < 0 || parsedValue > 100) {
-		return undefined;
-	}
-	return parsedValue;
-};
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -82,7 +66,6 @@ type CreateChatOptions = {
 	workspaceMode?: "local";
 	model?: string;
 	systemPrompt?: string;
-	contextCompressionThreshold?: number;
 };
 
 type ConfigureAgentsSection = "providers" | "system-prompt" | "models";
@@ -123,7 +106,7 @@ export const AgentsPage: FC = () => {
 	});
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(deleteChat(queryClient));
-	const [archiveTargetChatId, setArchiveTargetChatId] = useState<string | null>(
+	const [archivingChatId, setArchivingChatId] = useState<string | null>(
 		null,
 	);
 	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
@@ -165,9 +148,36 @@ export const AgentsPage: FC = () => {
 	const topBarTitleRef = useRef<HTMLDivElement>(null);
 	const topBarActionsRef = useRef<HTMLDivElement>(null);
 	const rightPanelRef = useRef<HTMLDivElement>(null);
-	const requestArchiveAgent = useCallback((chatId: string) => {
-		setArchiveTargetChatId(chatId);
-	}, []);
+	const chatList = chatsQuery.data ?? [];
+	const requestArchiveAgent = useCallback(
+		async (chatId: string) => {
+			if (archiveMutation.isPending) {
+				return;
+			}
+
+			setArchivingChatId(chatId);
+			const nextChatId = (queryClient.getQueryData(chats().queryKey) as typeof chatList)?.find(
+				(chat) => chat.id !== chatId,
+			)?.id;
+
+			try {
+				await archiveMutation.mutateAsync(chatId);
+				clearChatErrorReason(chatId);
+				displaySuccess("Agent archived.");
+
+				if (chatId === agentId) {
+					navigate(nextChatId ? `/agents/${nextChatId}` : "/agents", {
+						replace: true,
+					});
+				}
+			} catch (error) {
+				displayError(getErrorMessage(error, "Failed to archive agent."));
+			} finally {
+				setArchivingChatId(null);
+			}
+		},
+		[archiveMutation, queryClient, chatList, agentId, navigate, clearChatErrorReason],
+	);
 	const outletContext: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -189,7 +199,6 @@ export const AgentsPage: FC = () => {
 			workspaceMode,
 			model,
 			systemPrompt,
-			contextCompressionThreshold,
 		} = options;
 		const createdChat = await createMutation.mutateAsync({
 			message,
@@ -200,7 +209,6 @@ export const AgentsPage: FC = () => {
 			workspace_mode: workspaceMode,
 			model,
 			system_prompt: systemPrompt,
-			context_compression_threshold: contextCompressionThreshold,
 		});
 
 		if (typeof window !== "undefined") {
@@ -218,6 +226,53 @@ export const AgentsPage: FC = () => {
 	};
 
 	useEffect(() => {
+		const ws = watchChats();
+		ws.addEventListener("message", (event) => {
+			const sse = event.parsedMessage;
+			if (sse?.type !== "data" || !sse.data) {
+				return;
+			}
+			const chatEvent = sse.data as {
+				kind: string;
+				chat: TypesGen.Chat;
+			};
+			if (!chatEvent?.chat?.id) {
+				return;
+			}
+			const updatedChat = chatEvent.chat;
+
+			if (chatEvent.kind === "deleted") {
+				queryClient.setQueryData(
+					chatsKey,
+					(prev: TypesGen.Chat[] | undefined) =>
+						prev?.filter((c) => c.id !== updatedChat.id),
+				);
+				return;
+			}
+
+			queryClient.setQueryData(
+				chatsKey,
+				(prev: TypesGen.Chat[] | undefined) => {
+					if (!prev) return prev;
+					const exists = prev.some((c) => c.id === updatedChat.id);
+					if (exists) {
+						return prev.map((c) =>
+							c.id === updatedChat.id
+								? { ...c, status: updatedChat.status, title: updatedChat.title, updated_at: updatedChat.updated_at }
+								: c,
+						);
+					}
+					if (chatEvent.kind === "created") {
+						return [updatedChat, ...prev];
+					}
+					return prev;
+				},
+			);
+		});
+		return () => ws.close();
+	}, [queryClient]);
+
+	useEffect(() => {
 		document.title = pageTitle("Agents");
 	}, []);
 
@@ -226,42 +281,6 @@ export const AgentsPage: FC = () => {
 			setIsRightPanelOpen(false);
 		}
 	}, [agentId]);
-
-	const chatList = chatsQuery.data ?? [];
-	const archiveTargetChat = archiveTargetChatId
-		? chatList.find((chat) => chat.id === archiveTargetChatId)
-		: undefined;
-
-	const handleCloseArchiveDialog = () => {
-		if (archiveMutation.isPending) {
-			return;
-		}
-		setArchiveTargetChatId(null);
-	};
-
-	const handleConfirmArchive = async () => {
-		if (!archiveTargetChatId || archiveMutation.isPending) {
-			return;
-		}
-
-		const archivedChatId = archiveTargetChatId;
-		const nextChatId = chatList.find((chat) => chat.id !== archivedChatId)?.id;
-
-		try {
-			await archiveMutation.mutateAsync(archivedChatId);
-			setArchiveTargetChatId(null);
-			clearChatErrorReason(archivedChatId);
-			displaySuccess("Agent archived.");
-
-			if (archivedChatId === agentId) {
-				navigate(nextChatId ? `/agents/${nextChatId}` : "/agents", {
-					replace: true,
-				});
-			}
-		} catch (error) {
-			displayError(getErrorMessage(error, "Failed to archive agent."));
-		}
-	};
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
@@ -280,7 +299,7 @@ export const AgentsPage: FC = () => {
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}
 					isArchiving={archiveMutation.isPending}
-					archivingChatId={archiveTargetChatId}
+					archivingChatId={archivingChatId}
 					isLoading={chatsQuery.isLoading}
 					loadError={chatsQuery.isError ? chatsQuery.error : undefined}
 					onRetryLoad={() => void chatsQuery.refetch()}
@@ -340,46 +359,7 @@ export const AgentsPage: FC = () => {
 				)}
 			</div>
 
-			<Dialog
-				open={archiveTargetChatId !== null}
-				onOpenChange={(nextOpen) => {
-					if (!nextOpen) {
-						handleCloseArchiveDialog();
-					}
-				}}
-			>
-				<DialogContent className="max-w-md p-6">
-					<DialogHeader className="space-y-2">
-						<DialogTitle>Archive agent</DialogTitle>
-						<DialogDescription>
-							{archiveTargetChat
-								? `Archive "${archiveTargetChat.title}"? This permanently deletes its chat history.`
-								: "Archive this agent? This permanently deletes its chat history."}
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter className="gap-2">
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={handleCloseArchiveDialog}
-							disabled={archiveMutation.isPending}
-						>
-							Cancel
-						</Button>
-						<Button
-							size="sm"
-							variant="destructive"
-							onClick={() => void handleConfirmArchive()}
-							disabled={archiveMutation.isPending}
-						>
-							{archiveMutation.isPending && (
-								<Loader2Icon className="h-4 w-4 animate-spin" />
-							)}
-							Archive
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+
 		</div>
 	);
 };
@@ -418,8 +398,6 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
 	}, []);
 	const [selectedModel, setSelectedModel] = useState(modelOptions[0]?.id ?? "");
-	const [contextCompressionThreshold, setContextCompressionThreshold] =
-		useState(defaultContextCompressionThreshold);
 	const [systemPrompt, setSystemPrompt] = useState("");
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
@@ -497,8 +475,6 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceModeRef.current = selectedWorkspaceMode;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const contextCompressionThresholdRef = useRef(contextCompressionThreshold);
-	contextCompressionThresholdRef.current = contextCompressionThreshold;
 	const systemPromptRef = useRef(systemPrompt);
 	systemPromptRef.current = systemPrompt;
 
@@ -511,17 +487,6 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		});
 	}, [modelOptions]);
 
-	useEffect(() => {
-		if (typeof window === "undefined") {
-			return;
-		}
-		const storedThreshold = localStorage.getItem(
-			contextCompressionThresholdStorageKey(selectedModel),
-		);
-		setContextCompressionThreshold(
-			storedThreshold ?? defaultContextCompressionThreshold,
-		);
-	}, [selectedModel]);
 
 	useEffect(() => {
 		if (
@@ -575,26 +540,11 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 	}, []);
 
-	const handleContextCompressionThresholdChange = useCallback(
-		(value: string) => {
-			setContextCompressionThreshold(value);
-			if (typeof window !== "undefined") {
-				localStorage.setItem(
-					contextCompressionThresholdStorageKey(selectedModelRef.current),
-					value,
-				);
-			}
-		},
-		[],
-	);
 
 	const handleSend = useCallback(
 		async (message: string) => {
 			const trimmedSystemPrompt = systemPromptRef.current.trim();
 			const localWorkspaceMode = selectedWorkspaceModeRef.current === "local";
-			const parsedCompressionThreshold = parseContextCompressionThreshold(
-				contextCompressionThresholdRef.current,
-			);
 			await onCreateChat({
 				message,
 				workspaceId: localWorkspaceMode
@@ -606,7 +556,6 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					canSetSystemPrompt && trimmedSystemPrompt
 						? trimmedSystemPrompt
 						: undefined,
-				contextCompressionThreshold: parsedCompressionThreshold,
 			});
 		},
 		[onCreateChat, canSetSystemPrompt],
@@ -661,10 +610,6 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					hasModelOptions={hasModelOptions}
 					inputStatusText={inputStatusText}
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
-					contextCompressionThreshold={contextCompressionThreshold}
-					onContextCompressionThresholdChange={
-						handleContextCompressionThresholdChange
-					}
 					leftActions={
 						<Select
 							value={

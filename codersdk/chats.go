@@ -143,7 +143,6 @@ type CreateChatRequest struct {
 	ParentChatID                *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
 	Model                       string            `json:"model,omitempty"`
 	ModelConfig                 json.RawMessage   `json:"model_config,omitempty"`
-	ContextCompressionThreshold *int32            `json:"context_compression_threshold,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -157,7 +156,6 @@ type CreateChatMessageRequest struct {
 	Content                     json.RawMessage `json:"content,omitempty"`
 	ToolCallID                  *string         `json:"tool_call_id,omitempty"`
 	Thinking                    *string         `json:"thinking,omitempty"`
-	ContextCompressionThreshold *int32          `json:"context_compression_threshold,omitempty"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.

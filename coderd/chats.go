@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bytes"
 	"charm.land/fantasy"
 	"context"
 	"database/sql"
@@ -29,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -116,6 +116,69 @@ type chatWorkspaceRequestMetadata struct {
 	Header     http.Header `json:"header,omitempty"`
 	RemoteAddr string      `json:"remote_addr,omitempty"`
 	RequestID  string      `json:"request_id,omitempty"`
+}
+
+// @Summary Watch chat list updates
+// @ID watch-chats
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Success 200 {object} codersdk.ServerSentEvent
+// @Router /chats/watch [get]
+func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to open chat watch stream.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer func() {
+		<-senderClosed
+	}()
+
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatEventChannel(apiKey.UserID),
+		pubsub.HandleChatEvent(
+			func(ctx context.Context, payload pubsub.ChatEvent, err error) {
+				if err != nil {
+					api.Logger.Error(ctx, "chat event subscription error", slog.Error(err))
+					return
+				}
+				_ = sendEvent(codersdk.ServerSentEvent{
+					Type: codersdk.ServerSentEventTypeData,
+					Data: payload,
+				})
+			},
+		))
+	if err != nil {
+		_ = sendEvent(codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: "Internal error subscribing to chat events.",
+				Detail:  err.Error(),
+			},
+		})
+		return
+	}
+	defer cancelSubscribe()
+
+	// Send initial ping to signal the connection is ready.
+	_ = sendEvent(codersdk.ServerSentEvent{
+		Type: codersdk.ServerSentEventTypePing,
+	})
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-senderClosed:
+			return
+		}
+	}
 }
 
 // @Summary List chats
@@ -412,7 +475,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	modelConfig, modelConfigErr = api.applyChatModelCompressionConfig(
 		ctx,
 		modelConfig,
-		req.ContextCompressionThreshold,
 	)
 	if modelConfigErr != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -531,6 +593,8 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
+	api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindCreated)
+
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
 }
 
@@ -636,7 +700,7 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check that the chat exists and user has access.
-	_, err := api.Database.GetChatByID(ctx, chatID)
+	chat, err := api.Database.GetChatByID(ctx, chatID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -649,7 +713,43 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.DeleteChatByID(ctx, chatID)
+	// Delete the chat and all its descendants in a transaction.
+	// Child chats (sub-agent chats) reference their parent via
+	// parent_chat_id with ON DELETE SET NULL, so without explicit
+	// cleanup they would become orphaned root-level items.
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Recursively collect all descendant chat IDs.
+		var descendantIDs []uuid.UUID
+		queue := []uuid.UUID{chatID}
+		for len(queue) > 0 {
+			parentID := queue[0]
+			queue = queue[1:]
+			children, err := tx.ListChildChatsByParentID(ctx, parentID)
+			if err != nil {
+				return xerrors.Errorf("list children of chat %s: %w", parentID, err)
+			}
+			for _, child := range children {
+				descendantIDs = append(descendantIDs, child.ID)
+				queue = append(queue, child.ID)
+			}
+		}
+
+		// Delete descendants first. The FK is ON DELETE SET NULL so
+		// order doesn't strictly matter, but deleting children before
+		// parents is cleaner.
+		for i := len(descendantIDs) - 1; i >= 0; i-- {
+			if err := tx.DeleteChatByID(ctx, descendantIDs[i]); err != nil {
+				return xerrors.Errorf("delete descendant chat %s: %w", descendantIDs[i], err)
+			}
+		}
+
+		// Delete the target chat itself.
+		if err := tx.DeleteChatByID(ctx, chatID); err != nil {
+			return xerrors.Errorf("delete chat: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat.",
@@ -657,6 +757,8 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindDeleted)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -704,39 +806,6 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
-	}
-
-	if req.Role == "user" && req.ContextCompressionThreshold != nil {
-		updatedModelConfig, modelConfigErr := api.applyChatModelCompressionConfig(
-			ctx,
-			chat.ModelConfig,
-			req.ContextCompressionThreshold,
-		)
-		if modelConfigErr != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid model configuration.",
-				Detail:  modelConfigErr.Error(),
-			})
-			return
-		}
-
-		if !bytes.Equal(chat.ModelConfig, updatedModelConfig) {
-			updatedChat, updateErr := api.Database.UpdateChatModelConfigByChatID(
-				ctx,
-				database.UpdateChatModelConfigByChatIDParams{
-					ID:          chat.ID,
-					ModelConfig: updatedModelConfig,
-				},
-			)
-			if updateErr != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to update chat model configuration.",
-					Detail:  updateErr.Error(),
-				})
-				return
-			}
-			chat = updatedChat
-		}
 	}
 
 	// For user messages, atomically decide whether to queue or send based on
@@ -875,6 +944,11 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 		// Publish stream events after the transaction has committed.
 		if publishFn != nil {
 			publishFn()
+		}
+
+		if !response.Queued {
+			chat.Status = database.ChatStatusPending
+			api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindStatusChange)
 		}
 
 		// Handle local workspace agent launch (outside the tx).
@@ -1324,6 +1398,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindStatusChange)
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
 }
 
@@ -1731,6 +1807,32 @@ func (api *API) publishChatStatusEvent(chat database.Chat) {
 			Status: codersdk.ChatStatus(chat.Status),
 		},
 	})
+}
+
+// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
+// LISTEN/NOTIFY so that all server replicas can push real-time updates to
+// watching sidebar WebSocket connections.
+func (api *API) publishChatPubsubEvent(ctx context.Context, chat database.Chat, kind pubsub.ChatEventKind) {
+	sdkChat := convertChat(chat, nil)
+	event := pubsub.ChatEvent{
+		Kind: kind,
+		Chat: sdkChat,
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to marshal chat pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := api.Pubsub.Publish(pubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+		api.Logger.Error(ctx, "failed to publish chat pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.F("kind", kind),
+			slog.Error(err),
+		)
+	}
 }
 
 func (api *API) resolveChatDiffContents(
@@ -2782,15 +2884,11 @@ func parseCanonicalChatModelRef(modelRef string) (string, string, bool) {
 func (api *API) applyChatModelCompressionConfig(
 	ctx context.Context,
 	modelConfigRaw json.RawMessage,
-	requestedThreshold *int32,
 ) (json.RawMessage, error) {
 	config := map[string]any{}
 	if len(modelConfigRaw) > 0 {
 		if err := json.Unmarshal(modelConfigRaw, &config); err != nil {
-			if requestedThreshold == nil {
-				return modelConfigRaw, nil
-			}
-			return nil, xerrors.Errorf("parse model config: %w", err)
+			return modelConfigRaw, nil
 		}
 	}
 	if config == nil {
@@ -2816,19 +2914,9 @@ func (api *API) applyChatModelCompressionConfig(
 		}
 	}
 
-	thresholdFallback := defaultChatContextCompressionThreshold
-	if existingThreshold, ok := chatCompressionThresholdFromModelConfig(config); ok {
-		thresholdFallback = existingThreshold
+	if _, ok := chatCompressionThresholdFromModelConfig(config); !ok {
+		config[chatContextCompressionThresholdModelConfigKey] = defaultChatContextCompressionThreshold
 	}
-
-	threshold, err := normalizeChatCompressionThreshold(
-		requestedThreshold,
-		thresholdFallback,
-	)
-	if err != nil {
-		return nil, err
-	}
-	config[chatContextCompressionThresholdModelConfigKey] = threshold
 
 	encoded, err := json.Marshal(config)
 	if err != nil {

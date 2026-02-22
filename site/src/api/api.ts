@@ -146,6 +146,13 @@ export const watchChat = (
 	});
 };
 
+export const watchChats =
+	(): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+		return new OneWayWebSocket({
+			apiRoute: "/api/v2/chats/watch",
+		});
+	};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {

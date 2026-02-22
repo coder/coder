@@ -30,6 +30,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -101,6 +103,7 @@ type Processor struct {
 	workspaceCreator WorkspaceCreator
 	modelResolver    ModelResolver
 	streamManager    *StreamManager
+	pubsub           pubsub.Pubsub
 	subagentService  *SubagentService
 	providerKeys     ProviderAPIKeys
 	providerKeysFn   ProviderAPIKeysResolver
@@ -323,6 +326,13 @@ func WithStreamManager(manager *StreamManager) Option {
 	}
 }
 
+// WithPubsub sets the pubsub used to broadcast chat lifecycle events.
+func WithPubsub(ps pubsub.Pubsub) Option {
+	return func(p *Processor) {
+		p.pubsub = ps
+	}
+}
+
 // WithProviderAPIKeys sets fallback provider API keys used for model calls.
 func WithProviderAPIKeys(keys ProviderAPIKeys) Option {
 	return func(p *Processor) {
@@ -461,6 +471,65 @@ func (p *Processor) publishStatus(chatID uuid.UUID, status database.ChatStatus) 
 		Type:   codersdk.ChatStreamEventTypeStatus,
 		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
 	})
+}
+
+// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
+// pubsub so that all replicas can push updates to watching clients.
+func (p *Processor) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind) {
+	if p.pubsub == nil {
+		return
+	}
+	event := coderdpubsub.ChatEvent{
+		Kind: kind,
+		Chat: convertChatForPubsub(chat),
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := p.pubsub.Publish(coderdpubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
+		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
+			slog.F("chat_id", chat.ID),
+			slog.F("kind", kind),
+			slog.Error(err),
+		)
+	}
+}
+
+// convertChatForPubsub converts a database.Chat to codersdk.Chat for pubsub events.
+// This is a lightweight conversion — we don't include diff status since
+// the watch subscriber can fetch that separately if needed.
+func convertChatForPubsub(c database.Chat) codersdk.Chat {
+	chat := codersdk.Chat{
+		ID:        c.ID,
+		OwnerID:   c.OwnerID,
+		Title:     c.Title,
+		Status:    codersdk.ChatStatus(c.Status),
+		CreatedAt: c.CreatedAt,
+		UpdatedAt: c.UpdatedAt,
+	}
+	if c.ParentChatID.Valid {
+		parentChatID := c.ParentChatID.UUID
+		chat.ParentChatID = &parentChatID
+	}
+	if c.RootChatID.Valid {
+		rootChatID := c.RootChatID.UUID
+		chat.RootChatID = &rootChatID
+	} else if !c.ParentChatID.Valid {
+		rootChatID := c.ID
+		chat.RootChatID = &rootChatID
+	}
+	if c.WorkspaceID.Valid {
+		chat.WorkspaceID = &c.WorkspaceID.UUID
+	}
+	if c.WorkspaceAgentID.Valid {
+		chat.WorkspaceAgentID = &c.WorkspaceAgentID.UUID
+	}
+	return chat
 }
 
 func (p *Processor) publishError(chatID uuid.UUID, message string) {
@@ -688,6 +757,8 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 		}
 
 		p.publishStatus(chat.ID, status)
+		chat.Status = status
+		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
 		if p.subagentService != nil {
 			p.subagentService.publishChildStatus(chat, status)
 		}
@@ -767,9 +838,8 @@ func (p *Processor) runChat(
 }
 
 type chatContextCompressionConfig struct {
-	ContextLimit      int64
-	ThresholdPercent  int32
-	ThresholdExplicit bool
+	ContextLimit     int64
+	ThresholdPercent int32
 }
 
 type chatContextUsageSnapshot struct {
@@ -864,17 +934,6 @@ func (p *Processor) resolveChatContextCompressionConfig(
 	if chatConfig.ContextLimit > 0 {
 		config.ContextLimit = chatConfig.ContextLimit
 	}
-	if chatConfig.ContextCompressionThreshold != nil {
-		config.ThresholdPercent = normalizeContextCompressionThreshold(
-			*chatConfig.ContextCompressionThreshold,
-		)
-		config.ThresholdExplicit = true
-	}
-
-	if config.ContextLimit > 0 && config.ThresholdExplicit {
-		return config, nil
-	}
-
 	modelName := strings.TrimSpace(chatConfig.Model)
 	if modelName == "" {
 		modelName = defaultChatModel
@@ -903,11 +962,9 @@ func (p *Processor) resolveChatContextCompressionConfig(
 	if config.ContextLimit <= 0 {
 		config.ContextLimit = modelConfig.ContextLimit
 	}
-	if !config.ThresholdExplicit {
-		config.ThresholdPercent = normalizeContextCompressionThreshold(
-			modelConfig.CompressionThreshold,
-		)
-	}
+	config.ThresholdPercent = normalizeContextCompressionThreshold(
+		modelConfig.CompressionThreshold,
+	)
 	return config, nil
 }
 
@@ -1198,6 +1255,14 @@ func (p *Processor) runChatWithAgent(
 		getWorkspaceConn,
 	)
 
+	// Resolve the model config's context_limit so we can use it as a
+	// fallback when the LLM provider doesn't include context_limit in
+	// its response metadata (which is the common case).
+	var modelConfigContextLimit int64
+	if compressionConfig, err := p.resolveChatContextCompressionConfig(ctx, chat); err == nil {
+		modelConfigContextLimit = compressionConfig.ContextLimit
+	}
+
 	persistAssistant := func(
 		content []fantasy.Content,
 		usage fantasy.Usage,
@@ -1375,10 +1440,18 @@ func (p *Processor) runChatWithAgent(
 			toolResults := append([]ToolResultBlock(nil), stepToolResults...)
 			stepStateMu.Unlock()
 
+			contextLimit := extractContextLimit(stepResult.ProviderMetadata)
+			if !contextLimit.Valid && modelConfigContextLimit > 0 {
+				contextLimit = sql.NullInt64{
+					Int64: modelConfigContextLimit,
+					Valid: true,
+				}
+			}
+
 			if err := persistAssistant(
 				stepAssistantContent(stepResult.Content, toolResults),
 				stepResult.Usage,
-				extractContextLimit(stepResult.ProviderMetadata),
+				contextLimit,
 			); err != nil {
 				return err
 			}
@@ -1695,7 +1768,10 @@ func (p *Processor) maybeGenerateChatTitle(
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
+		return
 	}
+	chat.Title = title
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
 }
 
 func (p *Processor) generateChatTitle(ctx context.Context, input string) (string, error) {
@@ -2820,11 +2896,10 @@ func intValue(value any) (int, bool) {
 }
 
 type chatModelConfig struct {
-	Provider                    string                     `json:"provider,omitempty"`
-	Model                       string                     `json:"model"`
-	WorkspaceMode               codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
-	ContextLimit                int64                      `json:"context_limit,omitempty"`
-	ContextCompressionThreshold *int32                     `json:"context_compression_threshold,omitempty"`
+	Provider      string                     `json:"provider,omitempty"`
+	Model         string                     `json:"model"`
+	WorkspaceMode codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	ContextLimit  int64                      `json:"context_limit,omitempty"`
 }
 
 func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {

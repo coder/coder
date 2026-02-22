@@ -3,14 +3,13 @@ import {
 	type ModelSelectorOption,
 } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { ArrowUpIcon, ListPlusIcon, Loader2Icon, Square } from "lucide-react";
-import { memo, type ReactNode, useCallback, useState } from "react";
+import { memo, type ReactNode, useCallback, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatProviderLabel } from "./modelOptions";
 
@@ -53,9 +52,7 @@ interface AgentChatInputProps {
 	// Extra controls rendered in the left action area (e.g. workspace
 	// selector on the create page).
 	leftActions?: ReactNode;
-	// Optional context compression threshold percentage input (0-100).
-	contextCompressionThreshold?: string;
-	onContextCompressionThresholdChange?: (value: string) => void;
+
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
@@ -240,12 +237,11 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isInterruptPending = false,
 		hasQueuedMessages = false,
 		leftActions,
-		contextCompressionThreshold,
-		onContextCompressionThresholdChange,
-		contextUsage,
+			contextUsage,
 		sticky = false,
 	}) => {
 		const [input, setInput] = useState(initialValue);
+		const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 		const handleSubmit = useCallback(async () => {
 			const text = input.trim();
@@ -258,6 +254,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				onInputChange?.("");
 			} catch {
 				// Keep input on failure so the user can retry.
+			} finally {
+				// Re-focus the textarea so the user can keep typing.
+				textareaRef.current?.focus();
 			}
 		}, [input, isDisabled, hasModelOptions, onSend, onInputChange]);
 
@@ -275,6 +274,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			<div className="mx-auto w-full max-w-3xl pb-4">
 				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
 					<TextareaAutosize
+						ref={textareaRef}
 						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						value={input}
@@ -300,26 +300,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								className="h-8 w-auto justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent [&>span]:!text-content-secondary"
 							/>
 							{leftActions}
-							{onContextCompressionThresholdChange &&
-								contextCompressionThreshold !== undefined && (
-									<div className="flex items-center gap-1">
-										<Input
-											type="number"
-											min={0}
-											max={100}
-											step={1}
-											value={contextCompressionThreshold}
-											onChange={(event) =>
-												onContextCompressionThresholdChange(
-													event.target.value,
-												)
-											}
-											className="h-7 w-16 border-border-default/70 bg-transparent px-2 text-xs"
-											disabled={isDisabled}
-										/>
-										<span className="text-xs text-content-secondary">%</span>
-									</div>
-								)}
 							{inputStatusText && (
 								<span className="hidden text-xs text-content-secondary sm:inline">
 									{inputStatusText}
