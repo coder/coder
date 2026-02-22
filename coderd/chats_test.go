@@ -1083,12 +1083,14 @@ func TestChatProviders(t *testing.T) {
 			Provider:    "openai",
 			DisplayName: "OpenAI",
 			APIKey:      "openai-key",
+			BaseURL:     "https://proxy.example.com/v1",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "openai", provider.Provider)
 		require.Equal(t, "OpenAI", provider.DisplayName)
 		require.True(t, provider.Enabled)
 		require.True(t, provider.HasAPIKey)
+		require.Equal(t, "https://proxy.example.com/v1", provider.BaseURL)
 	})
 
 	t.Run("CreateNonAdminForbidden", func(t *testing.T) {
@@ -1143,15 +1145,54 @@ func TestChatProviders(t *testing.T) {
 		require.NoError(t, err)
 
 		enabled := false
+		baseURL := "https://proxy-updated.example.com/v1"
 		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
 			DisplayName: "OpenAI Updated",
 			Enabled:     &enabled,
+			BaseURL:     &baseURL,
 		})
 		require.NoError(t, err)
 		require.Equal(t, provider.ID, updated.ID)
 		require.Equal(t, "OpenAI Updated", updated.DisplayName)
 		require.False(t, updated.Enabled)
 		require.True(t, updated.HasAPIKey)
+		require.Equal(t, "https://proxy-updated.example.com/v1", updated.BaseURL)
+
+		emptyBaseURL := ""
+		updated, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			BaseURL: &emptyBaseURL,
+		})
+		require.NoError(t, err)
+		require.Empty(t, updated.BaseURL)
+	})
+
+	t.Run("InvalidBaseURLRejected", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+			BaseURL:  "not-a-url",
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusBadRequest, coderdtest.SDKError(t, err).StatusCode())
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		invalidBaseURL := "ftp://proxy.example.com"
+		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			BaseURL: &invalidBaseURL,
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusBadRequest, coderdtest.SDKError(t, err).StatusCode())
 	})
 
 	t.Run("UpdateNonAdminForbidden", func(t *testing.T) {

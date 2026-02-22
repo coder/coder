@@ -600,6 +600,10 @@ func New(options *Options) *API {
 	chatProviderAPIKeys := chatd.ProviderAPIKeys{
 		OpenAI:    options.DeploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
 		Anthropic: options.DeploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
+		BaseURLByProvider: map[string]string{
+			"openai":    options.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
+			"anthropic": options.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
+		},
 	}
 	if value := strings.TrimSpace(os.Getenv("OPENAI_API_KEY")); value != "" {
 		chatProviderAPIKeys.OpenAI = value
@@ -619,6 +623,7 @@ func New(options *Options) *API {
 			configuredProviders = append(configuredProviders, chatd.ConfiguredProvider{
 				Provider: provider.Provider,
 				APIKey:   provider.APIKey,
+				BaseURL:  provider.BaseUrl,
 			})
 		}
 
@@ -657,11 +662,8 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper:          options.DatabaseRolluper,
-		chatStreamManager:   chatd.NewStreamManager(options.Logger.Named("chat-streams")),
-		chatProcessor:       options.ChatProcessor,
-		chatProviderAPIKeys: chatProviderAPIKeys,
-		chatModelCatalog:    chatd.NewModelCatalog(chatProviderAPIKeys),
+		dbRolluper:    options.DatabaseRolluper,
+		chatProcessor: options.ChatProcessor,
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -811,7 +813,6 @@ func New(options *Options) *API {
 			},
 			AgentConn:       api.agentProvider.AgentConn,
 			CreateWorkspace: api.newChatWorkspaceCreator(),
-			StreamManager:   api.chatStreamManager,
 			Pubsub:          options.Pubsub,
 			Local:           chatLocalConfig,
 		})
@@ -1995,14 +1996,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// chatStreamManager broadcasts in-flight chat updates.
-	chatStreamManager *chatd.StreamManager
 	// chatProcessor handles background processing of pending chats.
 	chatProcessor *chatd.Processor
-	// chatProviderAPIKeys contains deployment-config fallback provider API keys.
-	chatProviderAPIKeys chatd.ProviderAPIKeys
-	// chatModelCatalog lists available provider models for chats.
-	chatModelCatalog *chatd.ModelCatalog
 }
 
 // Close waits for all WebSocket connections to drain before returning.

@@ -326,6 +326,10 @@ func New(cfg Config) *Processor {
 			return ProviderAPIKeys{}, nil
 		}
 	}
+	streamManager := cfg.StreamManager
+	if streamManager == nil {
+		streamManager = NewStreamManager(cfg.Logger.Named("chat-streams"))
+	}
 
 	var localMode *localMode
 	if cfg.Local != nil {
@@ -347,7 +351,7 @@ func New(cfg Config) *Processor {
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		testing:                    cfg.Testing,
-		streamManager:              cfg.StreamManager,
+		streamManager:              streamManager,
 		pubsub:                     cfg.Pubsub,
 		localMode:                  localMode,
 		resolveProviderAPIKeysFn:   resolveProviderAPIKeys,
@@ -457,6 +461,93 @@ func (p *Processor) EnsureLocalAgentRuntimeForChat(
 		return xerrors.New("local chat mode is not configured")
 	}
 	return p.localMode.MaybeLaunchAgentForChat(ctx, chat)
+}
+
+// ListModels returns the currently available chat model catalog.
+func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse, error) {
+	if p == nil {
+		return codersdk.ChatModelsResponse{}, errors.New("chat processor is not configured")
+	}
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
+	enabledProviders, err := p.db.GetEnabledChatProviders(ctx)
+	if err != nil {
+		return codersdk.ChatModelsResponse{}, err
+	}
+	enabledModels, err := p.db.GetEnabledChatModelConfigs(ctx)
+	if err != nil {
+		return codersdk.ChatModelsResponse{}, err
+	}
+
+	configuredProviders := make([]ConfiguredProvider, 0, len(enabledProviders))
+	for _, provider := range enabledProviders {
+		configuredProviders = append(configuredProviders, ConfiguredProvider{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
+		})
+	}
+	configuredModels := make([]configuredModel, 0, len(enabledModels))
+	for _, model := range enabledModels {
+		configuredModels = append(configuredModels, configuredModel{
+			Provider:    model.Provider,
+			Model:       model.Model,
+			DisplayName: model.DisplayName,
+		})
+	}
+
+	keys, err := p.resolveProviderAPIKeys(ctx)
+	if err != nil {
+		return codersdk.ChatModelsResponse{}, err
+	}
+	catalog := newModelCatalog(keys)
+	if response, ok := catalog.listConfiguredModels(configuredProviders, configuredModels); ok {
+		return response, nil
+	}
+	return catalog.listConfiguredProviderAvailability(configuredProviders), nil
+}
+
+// EffectiveProviderKeys merges configured provider keys over resolver keys.
+func (p *Processor) EffectiveProviderKeys(
+	ctx context.Context,
+	configuredProviders []ConfiguredProvider,
+) (ProviderAPIKeys, error) {
+	if p == nil {
+		return ProviderAPIKeys{}, errors.New("chat processor is not configured")
+	}
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	keys, err := p.resolveProviderAPIKeys(ctx)
+	if err != nil {
+		return ProviderAPIKeys{}, err
+	}
+	return MergeProviderAPIKeys(keys, configuredProviders), nil
+}
+
+func (p *Processor) PublishStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
+	if p == nil || p.streamManager == nil {
+		return
+	}
+	p.streamManager.Publish(chatID, event)
+}
+
+func (p *Processor) SubscribeStream(chatID uuid.UUID) (
+	[]codersdk.ChatStreamEvent,
+	<-chan codersdk.ChatStreamEvent,
+	func(),
+	bool,
+) {
+	if p == nil || p.streamManager == nil {
+		return nil, nil, nil, false
+	}
+	snapshot, events, cancel := p.streamManager.Subscribe(chatID)
+	return snapshot, events, cancel, true
+}
+
+func (p *Processor) StopStream(chatID uuid.UUID) {
+	if p == nil || p.streamManager == nil {
+		return
+	}
+	p.streamManager.StopStream(chatID)
 }
 
 func (p *Processor) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -3250,27 +3341,64 @@ func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (fant
 	if apiKey == "" {
 		return nil, missingProviderAPIKeyError(provider)
 	}
+	baseURL := providerKeys.BaseURL(provider)
 
 	var providerClient fantasy.Provider
 	switch provider {
 	case fantasyanthropic.Name:
-		providerClient, err = fantasyanthropic.New(fantasyanthropic.WithAPIKey(apiKey))
+		options := []fantasyanthropic.Option{
+			fantasyanthropic.WithAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyanthropic.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyanthropic.New(options...)
 	case fantasyazure.Name:
-		return nil, xerrors.New(
-			"azure provider requires a base URL, but chat provider configs do not support base URLs yet",
+		if baseURL == "" {
+			return nil, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
+		}
+		providerClient, err = fantasyazure.New(
+			fantasyazure.WithAPIKey(apiKey),
+			fantasyazure.WithBaseURL(baseURL),
+			fantasyazure.WithUseResponsesAPI(),
 		)
 	case fantasybedrock.Name:
 		providerClient, err = fantasybedrock.New(fantasybedrock.WithAPIKey(apiKey))
 	case fantasygoogle.Name:
-		providerClient, err = fantasygoogle.New(fantasygoogle.WithGeminiAPIKey(apiKey))
+		options := []fantasygoogle.Option{
+			fantasygoogle.WithGeminiAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasygoogle.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
-		providerClient, err = fantasyopenai.New(fantasyopenai.WithAPIKey(apiKey), fantasyopenai.WithUseResponsesAPI())
+		options := []fantasyopenai.Option{
+			fantasyopenai.WithAPIKey(apiKey),
+			fantasyopenai.WithUseResponsesAPI(),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyopenai.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
-		providerClient, err = fantasyopenaicompat.New(fantasyopenaicompat.WithAPIKey(apiKey))
+		options := []fantasyopenaicompat.Option{
+			fantasyopenaicompat.WithAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyopenaicompat.New(options...)
 	case fantasyopenrouter.Name:
 		providerClient, err = fantasyopenrouter.New(fantasyopenrouter.WithAPIKey(apiKey))
 	case fantasyvercel.Name:
-		providerClient, err = fantasyvercel.New(fantasyvercel.WithAPIKey(apiKey))
+		options := []fantasyvercel.Option{
+			fantasyvercel.WithAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyvercel.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyvercel.New(options...)
 	default:
 		return nil, xerrors.Errorf("unsupported model provider %q", provider)
 	}

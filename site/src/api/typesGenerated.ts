@@ -782,6 +782,7 @@ export interface ChatProviderConfig {
     readonly display_name: string;
     readonly enabled: boolean;
     readonly has_api_key: boolean;
+    readonly base_url?: string;
     readonly source: ChatProviderConfigSource;
     readonly created_at?: string;
     readonly updated_at?: string;
@@ -1041,6 +1042,7 @@ export interface CreateChatProviderConfigRequest {
     readonly provider: string;
     readonly display_name?: string;
     readonly api_key?: string;
+    readonly base_url?: string;
     readonly enabled?: boolean;
 }
 
@@ -4930,6 +4932,7 @@ export interface UpdateChatModelConfigRequest {
 export interface UpdateChatProviderConfigRequest {
     readonly display_name?: string;
     readonly api_key?: string;
+    readonly base_url?: string;
     readonly enabled?: boolean;
 }
 

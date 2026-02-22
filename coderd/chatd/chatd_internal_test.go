@@ -37,9 +37,12 @@ func TestMergeProviderAPIKeys(t *testing.T) {
 			ByProvider: map[string]string{
 				"openrouter": " deployment-openrouter ",
 			},
+			BaseURLByProvider: map[string]string{
+				"openai": " https://openai.example.com/v1 ",
+			},
 		},
 		[]ConfiguredProvider{
-			{Provider: "openai", APIKey: "   "},
+			{Provider: "openai", APIKey: "   ", BaseURL: "https://db-openai.example.com/v1"},
 			{Provider: "anthropic", APIKey: " provider-anthropic "},
 			{Provider: "openrouter", APIKey: "provider-openrouter"},
 		},
@@ -48,22 +51,23 @@ func TestMergeProviderAPIKeys(t *testing.T) {
 	require.Equal(t, "deployment-openai", merged.OpenAI)
 	require.Equal(t, "provider-anthropic", merged.Anthropic)
 	require.Equal(t, "provider-openrouter", merged.APIKey("openrouter"))
+	require.Equal(t, "https://db-openai.example.com/v1", merged.BaseURL("openai"))
 }
 
 func TestModelCatalogListConfiguredModels_UsesFallbackAPIKeys(t *testing.T) {
 	t.Parallel()
 
-	catalog := NewModelCatalog(
+	catalog := newModelCatalog(
 		ProviderAPIKeys{
 			OpenAI: "deployment-openai",
 		},
 	)
 
-	response, ok := catalog.ListConfiguredModels(
+	response, ok := catalog.listConfiguredModels(
 		[]ConfiguredProvider{
 			{Provider: "openai", APIKey: "   "},
 		},
-		[]ConfiguredModel{
+		[]configuredModel{
 			{
 				Provider:    "openai",
 				Model:       "gpt-5.2",
@@ -93,13 +97,13 @@ func TestModelCatalogListConfiguredModels_UsesFallbackAPIKeys(t *testing.T) {
 func TestModelCatalogListConfiguredModels_NoEnabledModels(t *testing.T) {
 	t.Parallel()
 
-	catalog := NewModelCatalog(
+	catalog := newModelCatalog(
 		ProviderAPIKeys{
 			OpenAI: "deployment-openai",
 		},
 	)
 
-	response, ok := catalog.ListConfiguredModels(
+	response, ok := catalog.listConfiguredModels(
 		[]ConfiguredProvider{
 			{Provider: "openai", APIKey: ""},
 		},
@@ -132,13 +136,13 @@ func TestNormalizeProviderSupportsFantasyProviders(t *testing.T) {
 func TestModelCatalogListConfiguredProviderAvailability_AllSupported(t *testing.T) {
 	t.Parallel()
 
-	catalog := NewModelCatalog(
+	catalog := newModelCatalog(
 		ProviderAPIKeys{
 			OpenAI: "deployment-openai",
 		},
 	)
 
-	response := catalog.ListConfiguredProviderAvailability(
+	response := catalog.listConfiguredProviderAvailability(
 		[]ConfiguredProvider{
 			{Provider: "openrouter", APIKey: "openrouter-key"},
 		},
@@ -191,8 +195,30 @@ func TestModelFromConfig_AzureRequiresBaseURL(t *testing.T) {
 	require.EqualError(
 		t,
 		err,
-		"azure provider requires a base URL, but chat provider configs do not support base URLs yet",
+		"AZURE_OPENAI_BASE_URL is not set",
 	)
+}
+
+func TestModelFromConfig_AzureWithBaseURL(t *testing.T) {
+	t.Parallel()
+
+	model, err := modelFromConfig(
+		chatModelConfig{
+			Provider: "azure",
+			Model:    "gpt-4o-mini",
+		},
+		ProviderAPIKeys{
+			ByProvider: map[string]string{
+				"azure": "azure-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"azure": "https://example.openai.azure.com",
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "azure", model.Provider())
+	require.Equal(t, "gpt-4o-mini", model.Model())
 }
 
 // Consolidated from conversion_test.go.

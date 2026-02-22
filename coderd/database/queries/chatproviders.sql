@@ -37,12 +37,14 @@ INSERT INTO chat_providers (
     provider,
     display_name,
     api_key,
+    base_url,
     api_key_key_id,
     enabled
 ) VALUES (
     @provider::text,
     @display_name::text,
     @api_key::text,
+    @base_url::text,
     sqlc.narg('api_key_key_id')::text,
     @enabled::boolean
 )
@@ -55,6 +57,7 @@ UPDATE
 SET
     display_name = @display_name::text,
     api_key = @api_key::text,
+    base_url = @base_url::text,
     api_key_key_id = sqlc.narg('api_key_key_id')::text,
     enabled = @enabled::boolean,
     updated_at = NOW()

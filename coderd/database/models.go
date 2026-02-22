@@ -3877,6 +3877,7 @@ type ChatProvider struct {
 	Enabled     bool           `db:"enabled" json:"enabled"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	BaseUrl     string         `db:"base_url" json:"base_url"`
 }
 
 type ChatQueuedMessage struct {
