@@ -126,7 +126,7 @@ const extractContextUsageFromMessage = (
 		components.length > 0
 			? components.reduce((total, value) => total + value, 0)
 			: undefined;
-	const usedTokens = totalTokens ?? derivedUsedTokens;
+	const usedTokens = derivedUsedTokens;
 
 	const hasUsage =
 		usedTokens !== undefined ||
