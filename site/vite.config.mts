@@ -173,7 +173,6 @@ export default defineConfig({
 			"@mui/material/Snackbar",
 			"@mui/material/Stack",
 			"@mui/material/SvgIcon",
-			"@mui/material/Switch",
 			"@mui/material/TableRow",
 			"@mui/material/TextField",
 			"@mui/material/ToggleButton",
