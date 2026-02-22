@@ -2386,7 +2386,7 @@ func (q *sqlQuerier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) e
 
 const getChatProviderByID = `-- name: GetChatProviderByID :one
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at, base_url
 FROM
     chat_providers
 WHERE
@@ -2405,13 +2405,14 @@ func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (Cha
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BaseUrl,
 	)
 	return i, err
 }
 
 const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at, base_url
 FROM
     chat_providers
 WHERE
@@ -2430,13 +2431,14 @@ func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider str
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BaseUrl,
 	)
 	return i, err
 }
 
 const getChatProviders = `-- name: GetChatProviders :many
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at, base_url
 FROM
     chat_providers
 ORDER BY
@@ -2461,6 +2463,7 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BaseUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -2477,7 +2480,7 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 
 const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many
 SELECT
-    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at, base_url
 FROM
     chat_providers
 WHERE
@@ -2504,6 +2507,7 @@ func (q *sqlQuerier) GetEnabledChatProviders(ctx context.Context) ([]ChatProvide
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BaseUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -2523,6 +2527,7 @@ INSERT INTO chat_providers (
     provider,
     display_name,
     api_key,
+    base_url,
     api_key_key_id,
     enabled
 ) VALUES (
@@ -2530,16 +2535,18 @@ INSERT INTO chat_providers (
     $2::text,
     $3::text,
     $4::text,
-    $5::boolean
+    $5::text,
+    $6::boolean
 )
 RETURNING
-    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at, base_url
 `
 
 type InsertChatProviderParams struct {
 	Provider    string         `db:"provider" json:"provider"`
 	DisplayName string         `db:"display_name" json:"display_name"`
 	APIKey      string         `db:"api_key" json:"api_key"`
+	BaseUrl     string         `db:"base_url" json:"base_url"`
 	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
 }
@@ -2549,6 +2556,7 @@ func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProvi
 		arg.Provider,
 		arg.DisplayName,
 		arg.APIKey,
+		arg.BaseUrl,
 		arg.ApiKeyKeyID,
 		arg.Enabled,
 	)
@@ -2562,6 +2570,7 @@ func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProvi
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BaseUrl,
 	)
 	return i, err
 }
@@ -2572,18 +2581,20 @@ UPDATE
 SET
     display_name = $1::text,
     api_key = $2::text,
-    api_key_key_id = $3::text,
-    enabled = $4::boolean,
+    base_url = $3::text,
+    api_key_key_id = $4::text,
+    enabled = $5::boolean,
     updated_at = NOW()
 WHERE
-    id = $5::uuid
+    id = $6::uuid
 RETURNING
-    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at
+    id, provider, display_name, api_key, api_key_key_id, enabled, created_at, updated_at, base_url
 `
 
 type UpdateChatProviderParams struct {
 	DisplayName string         `db:"display_name" json:"display_name"`
 	APIKey      string         `db:"api_key" json:"api_key"`
+	BaseUrl     string         `db:"base_url" json:"base_url"`
 	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
 	ID          uuid.UUID      `db:"id" json:"id"`
@@ -2593,6 +2604,7 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 	row := q.db.QueryRowContext(ctx, updateChatProvider,
 		arg.DisplayName,
 		arg.APIKey,
+		arg.BaseUrl,
 		arg.ApiKeyKeyID,
 		arg.Enabled,
 		arg.ID,
@@ -2607,6 +2619,7 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BaseUrl,
 	)
 	return i, err
 }

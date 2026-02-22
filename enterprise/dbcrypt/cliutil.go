@@ -99,6 +99,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
 			DisplayName: provider.DisplayName,
 			APIKey:      provider.APIKey,
+			BaseUrl:     provider.BaseUrl,
 			ApiKeyKeyID: sql.NullString{}, // dbcrypt will update as required
 			Enabled:     provider.Enabled,
 			ID:          provider.ID,
@@ -210,6 +211,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
 			DisplayName: provider.DisplayName,
 			APIKey:      provider.APIKey,
+			BaseUrl:     provider.BaseUrl,
 			ApiKeyKeyID: sql.NullString{}, // we explicitly want to clear the key id
 			Enabled:     provider.Enabled,
 			ID:          provider.ID,

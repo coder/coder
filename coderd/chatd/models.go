@@ -71,19 +71,21 @@ func ProviderDisplayName(provider string) string {
 
 // ProviderAPIKeys contains API keys for provider calls.
 type ProviderAPIKeys struct {
-	OpenAI     string
-	Anthropic  string
-	ByProvider map[string]string
+	OpenAI            string
+	Anthropic         string
+	ByProvider        map[string]string
+	BaseURLByProvider map[string]string
 }
 
 // ConfiguredProvider is an enabled provider loaded from database config.
 type ConfiguredProvider struct {
 	Provider string
 	APIKey   string
+	BaseURL  string
 }
 
-// ConfiguredModel is an enabled model loaded from database config.
-type ConfiguredModel struct {
+// configuredModel is an enabled model loaded from database config.
+type configuredModel struct {
 	Provider    string
 	Model       string
 	DisplayName string
@@ -116,12 +118,22 @@ func (k ProviderAPIKeys) apiKey(provider string) string {
 	return k.APIKey(provider)
 }
 
+// BaseURL returns the configured base URL for a provider.
+func (k ProviderAPIKeys) BaseURL(provider string) string {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" || k.BaseURLByProvider == nil {
+		return ""
+	}
+	return strings.TrimSpace(k.BaseURLByProvider[normalized])
+}
+
 // MergeProviderAPIKeys overlays configured provider keys over fallback keys.
 func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
-		OpenAI:     strings.TrimSpace(fallback.OpenAI),
-		Anthropic:  strings.TrimSpace(fallback.Anthropic),
-		ByProvider: map[string]string{},
+		OpenAI:            strings.TrimSpace(fallback.OpenAI),
+		Anthropic:         strings.TrimSpace(fallback.Anthropic),
+		ByProvider:        map[string]string{},
+		BaseURLByProvider: map[string]string{},
 	}
 	for provider, apiKey := range fallback.ByProvider {
 		normalizedProvider := NormalizeProvider(provider)
@@ -130,6 +142,15 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		}
 		if key := strings.TrimSpace(apiKey); key != "" {
 			merged.ByProvider[normalizedProvider] = key
+		}
+	}
+	for provider, baseURL := range fallback.BaseURLByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if url := strings.TrimSpace(baseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
 		}
 	}
 
@@ -149,6 +170,9 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		if key := strings.TrimSpace(provider.APIKey); key != "" {
 			merged.ByProvider[normalizedProvider] = key
 		}
+		if url := strings.TrimSpace(provider.BaseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
+		}
 
 		switch normalizedProvider {
 		case fantasyopenai.Name:
@@ -165,21 +189,21 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 	return merged
 }
 
-type ModelCatalog struct {
+type modelCatalog struct {
 	keys ProviderAPIKeys
 }
 
-func NewModelCatalog(keys ProviderAPIKeys) *ModelCatalog {
-	return &ModelCatalog{
+func newModelCatalog(keys ProviderAPIKeys) *modelCatalog {
+	return &modelCatalog{
 		keys: keys,
 	}
 }
 
 // ListConfiguredModels returns a model catalog from enabled DB-backed model
 // configs. The second return value reports whether DB-backed models were used.
-func (c *ModelCatalog) ListConfiguredModels(
+func (c *modelCatalog) listConfiguredModels(
 	configuredProviders []ConfiguredProvider,
-	configuredModels []ConfiguredModel,
+	configuredModels []configuredModel,
 ) (codersdk.ChatModelsResponse, bool) {
 	if len(configuredModels) == 0 {
 		return codersdk.ChatModelsResponse{}, false
@@ -250,7 +274,7 @@ func (c *ModelCatalog) ListConfiguredModels(
 
 // ListConfiguredProviderAvailability returns provider availability derived from
 // deployment/env keys merged with enabled DB provider keys.
-func (c *ModelCatalog) ListConfiguredProviderAvailability(
+func (c *modelCatalog) listConfiguredProviderAvailability(
 	configuredProviders []ConfiguredProvider,
 ) codersdk.ChatModelsResponse {
 	keys := MergeProviderAPIKeys(c.keys, configuredProviders)

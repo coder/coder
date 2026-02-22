@@ -134,15 +134,15 @@ type ChatInput struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Input                       *ChatInput        `json:"input,omitempty"`
-	Message                     string            `json:"message,omitempty"`
-	SystemPrompt                string            `json:"system_prompt,omitempty"`
-	WorkspaceID                 *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID            *uuid.UUID        `json:"workspace_agent_id,omitempty" format:"uuid"`
-	WorkspaceMode               ChatWorkspaceMode `json:"workspace_mode,omitempty"`
-	ParentChatID                *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
-	Model                       string            `json:"model,omitempty"`
-	ModelConfig                 json.RawMessage   `json:"model_config,omitempty"`
+	Input            *ChatInput        `json:"input,omitempty"`
+	Message          string            `json:"message,omitempty"`
+	SystemPrompt     string            `json:"system_prompt,omitempty"`
+	WorkspaceID      *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceAgentID *uuid.UUID        `json:"workspace_agent_id,omitempty" format:"uuid"`
+	WorkspaceMode    ChatWorkspaceMode `json:"workspace_mode,omitempty"`
+	ParentChatID     *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
+	Model            string            `json:"model,omitempty"`
+	ModelConfig      json.RawMessage   `json:"model_config,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -152,10 +152,10 @@ type UpdateChatRequest struct {
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Role                        string          `json:"role"`
-	Content                     json.RawMessage `json:"content,omitempty"`
-	ToolCallID                  *string         `json:"tool_call_id,omitempty"`
-	Thinking                    *string         `json:"thinking,omitempty"`
+	Role       string          `json:"role"`
+	Content    json.RawMessage `json:"content,omitempty"`
+	ToolCallID *string         `json:"tool_call_id,omitempty"`
+	Thinking   *string         `json:"thinking,omitempty"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -217,6 +217,7 @@ type ChatProviderConfig struct {
 	DisplayName string                   `json:"display_name"`
 	Enabled     bool                     `json:"enabled"`
 	HasAPIKey   bool                     `json:"has_api_key"`
+	BaseURL     string                   `json:"base_url,omitempty"`
 	Source      ChatProviderConfigSource `json:"source"`
 	CreatedAt   time.Time                `json:"created_at,omitempty" format:"date-time"`
 	UpdatedAt   time.Time                `json:"updated_at,omitempty" format:"date-time"`
@@ -227,6 +228,7 @@ type CreateChatProviderConfigRequest struct {
 	Provider    string `json:"provider"`
 	DisplayName string `json:"display_name,omitempty"`
 	APIKey      string `json:"api_key,omitempty"`
+	BaseURL     string `json:"base_url,omitempty"`
 	Enabled     *bool  `json:"enabled,omitempty"`
 }
 
@@ -234,6 +236,7 @@ type CreateChatProviderConfigRequest struct {
 type UpdateChatProviderConfigRequest struct {
 	DisplayName string  `json:"display_name,omitempty"`
 	APIKey      *string `json:"api_key,omitempty"`
+	BaseURL     *string `json:"base_url,omitempty"`
 	Enabled     *bool   `json:"enabled,omitempty"`
 }
 
@@ -343,11 +346,11 @@ type ChatStreamError struct {
 
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
-	Type        ChatStreamEventType    `json:"type"`
-	ChatID      uuid.UUID              `json:"chat_id" format:"uuid"`
-	Message     *ChatMessage           `json:"message,omitempty"`
-	MessagePart *ChatStreamMessagePart `json:"message_part,omitempty"`
-	Status      *ChatStreamStatus      `json:"status,omitempty"`
+	Type           ChatStreamEventType    `json:"type"`
+	ChatID         uuid.UUID              `json:"chat_id" format:"uuid"`
+	Message        *ChatMessage           `json:"message,omitempty"`
+	MessagePart    *ChatStreamMessagePart `json:"message_part,omitempty"`
+	Status         *ChatStreamStatus      `json:"status,omitempty"`
 	Error          *ChatStreamError       `json:"error,omitempty"`
 	QueuedMessages []ChatQueuedMessage    `json:"queued_messages,omitempty"`
 }

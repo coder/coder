@@ -609,15 +609,14 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if api.chatModelCatalog == nil {
+	if api.chatProcessor == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Chat model catalog unavailable.",
-			Detail:  "Chat model catalog is not configured.",
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
 		})
 		return
 	}
-
-	configuredProviders, configuredModels, err := api.loadEnabledChatCatalogConfig(ctx)
+	response, err := api.chatProcessor.ListModels(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to load chat model configuration.",
@@ -625,12 +624,8 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if response, ok := api.chatModelCatalog.ListConfiguredModels(configuredProviders, configuredModels); ok {
-		httpapi.Write(ctx, rw, http.StatusOK, response)
-		return
-	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.chatModelCatalog.ListConfiguredProviderAvailability(configuredProviders))
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // @Summary Get a chat
@@ -854,8 +849,8 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 				sdkQueued := convertChatQueuedMessages(queuedMessages)
 				publishFn = func() {
-					if api.chatStreamManager != nil {
-						api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+					if api.chatProcessor != nil {
+						api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 							Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 							ChatID:         chatID,
 							QueuedMessages: sdkQueued,
@@ -910,13 +905,13 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 			sdkMessage := convertChatMessage(message)
 			publishFn = func() {
-				if api.chatStreamManager != nil {
-					api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+				if api.chatProcessor != nil {
+					api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 						Type:    codersdk.ChatStreamEventTypeMessage,
 						ChatID:  chatID,
 						Message: &sdkMessage,
 					})
-					api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+					api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 						Type:   codersdk.ChatStreamEventTypeStatus,
 						ChatID: chatID,
 						Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(updatedChat.Status)},
@@ -987,9 +982,9 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if api.chatStreamManager != nil {
+	if api.chatProcessor != nil {
 		chatMessage := convertChatMessage(message)
-		api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+		api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 			Type:    codersdk.ChatStreamEventTypeMessage,
 			ChatID:  chatID,
 			Message: &chatMessage,
@@ -1063,10 +1058,10 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Publish updated queue.
-	if api.chatStreamManager != nil {
+	if api.chatProcessor != nil {
 		queuedMessages, qErr := api.Database.GetChatQueuedMessages(ctx, chatID)
 		if qErr == nil {
-			api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+			api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 				Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 				ChatID:         chatID,
 				QueuedMessages: convertChatQueuedMessages(queuedMessages),
@@ -1206,18 +1201,18 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		sdkMsg := convertChatMessage(msg)
 		sdkQueue := convertChatQueuedMessages(remainingQueue)
 		publishFn = func() {
-			if api.chatStreamManager != nil {
-				api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+			if api.chatProcessor != nil {
+				api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 					Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 					ChatID:         chatID,
 					QueuedMessages: sdkQueue,
 				})
-				api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+				api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 					Type:    codersdk.ChatStreamEventTypeMessage,
 					ChatID:  chatID,
 					Message: &sdkMsg,
 				})
-				api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+				api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 					Type:   codersdk.ChatStreamEventTypeStatus,
 					ChatID: chatID,
 					Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(updatedChat.Status)},
@@ -1272,10 +1267,10 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if api.chatStreamManager == nil {
+	if api.chatProcessor == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",
-			Detail:  "Chat stream manager is not configured.",
+			Detail:  "Chat processor is not configured.",
 		})
 		return
 	}
@@ -1292,7 +1287,14 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 
-	snapshot, events, cancel := api.chatStreamManager.Subscribe(chatID)
+	snapshot, events, cancel, ok := api.chatProcessor.SubscribeStream(chatID)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat streaming is not available.",
+			Detail:  "Chat stream state is not configured.",
+		})
+		return
+	}
 	defer cancel()
 
 	for _, event := range snapshot {
@@ -1358,8 +1360,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		api.chatProcessor.InterruptChat(chatID)
 	}
 
-	if api.chatStreamManager != nil {
-		api.chatStreamManager.StopStream(chatID)
+	if api.chatProcessor != nil {
+		api.chatProcessor.StopStream(chatID)
 	}
 
 	updatedChat, err := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -1375,8 +1377,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	if api.chatStreamManager != nil {
-		api.chatStreamManager.Publish(chatID, codersdk.ChatStreamEvent{
+	if api.chatProcessor != nil {
+		api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeStatus,
 			ChatID: chatID,
 			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
@@ -1781,11 +1783,11 @@ func filterChatsByWorkspaceID(chats []database.Chat, workspaceID uuid.UUID) []da
 }
 
 func (api *API) publishChatStatusEvent(chat database.Chat) {
-	if api.chatStreamManager == nil {
+	if api.chatProcessor == nil {
 		return
 	}
 
-	api.chatStreamManager.Publish(chat.ID, codersdk.ChatStreamEvent{
+	api.chatProcessor.PublishStream(chat.ID, codersdk.ChatStreamEvent{
 		Type:   codersdk.ChatStreamEventTypeStatus,
 		ChatID: chat.ID,
 		Status: &codersdk.ChatStreamStatus{
@@ -3174,9 +3176,24 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		configuredProviders = append(configuredProviders, chatd.ConfiguredProvider{
 			Provider: normalizedProvider,
 			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
 		})
 	}
-	effectiveKeys := chatd.MergeProviderAPIKeys(api.chatProviderAPIKeys, configuredProviders)
+	if api.chatProcessor == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+	effectiveKeys, err := api.chatProcessor.EffectiveProviderKeys(ctx, configuredProviders)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to resolve provider API keys.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	supportedProviders := chatd.SupportedProviders()
 	resp := make([]codersdk.ChatProviderConfig, 0, len(supportedProviders))
@@ -3208,6 +3225,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 			DisplayName: chatd.ProviderDisplayName(provider),
 			Enabled:     enabled,
 			HasAPIKey:   hasAPIKey,
+			BaseURL:     effectiveKeys.BaseURL(provider),
 			Source:      source,
 		})
 	}
@@ -3240,11 +3258,20 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
+	baseURL, err := normalizeChatProviderBaseURL(req.BaseURL)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid provider base URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	inserted, err := api.Database.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:    provider,
 		DisplayName: strings.TrimSpace(req.DisplayName),
 		APIKey:      strings.TrimSpace(req.APIKey),
+		BaseUrl:     baseURL,
 		ApiKeyKeyID: sql.NullString{},
 		Enabled:     enabled,
 	})
@@ -3277,7 +3304,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		http.StatusCreated,
 		convertChatProviderConfig(
 			inserted,
-			api.hasEffectiveProviderAPIKey(inserted),
+			api.hasEffectiveProviderAPIKey(ctx, inserted),
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
 	)
@@ -3329,10 +3356,22 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		apiKey = strings.TrimSpace(*req.APIKey)
 		apiKeyKeyID = sql.NullString{}
 	}
+	baseURL := existing.BaseUrl
+	if req.BaseURL != nil {
+		baseURL, err = normalizeChatProviderBaseURL(*req.BaseURL)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid provider base URL.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
 
 	updated, err := api.Database.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
 		DisplayName: displayName,
 		APIKey:      apiKey,
+		BaseUrl:     baseURL,
 		ApiKeyKeyID: apiKeyKeyID,
 		Enabled:     enabled,
 		ID:          existing.ID,
@@ -3351,7 +3390,7 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		http.StatusOK,
 		convertChatProviderConfig(
 			updated,
-			api.hasEffectiveProviderAPIKey(updated),
+			api.hasEffectiveProviderAPIKey(ctx, updated),
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
 	)
@@ -3655,38 +3694,6 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) loadEnabledChatCatalogConfig(ctx context.Context) ([]chatd.ConfiguredProvider, []chatd.ConfiguredModel, error) {
-	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	enabledProviders, err := api.Database.GetEnabledChatProviders(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	enabledModels, err := api.Database.GetEnabledChatModelConfigs(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	providers := make([]chatd.ConfiguredProvider, 0, len(enabledProviders))
-	for _, provider := range enabledProviders {
-		providers = append(providers, chatd.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-		})
-	}
-
-	models := make([]chatd.ConfiguredModel, 0, len(enabledModels))
-	for _, model := range enabledModels {
-		models = append(models, chatd.ConfiguredModel{
-			Provider:    model.Provider,
-			Model:       model.Model,
-			DisplayName: model.DisplayName,
-		})
-	}
-
-	return providers, models, nil
-}
-
 func parseChatProviderID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	providerID, err := uuid.Parse(chi.URLParam(r, "providerConfig"))
 	if err != nil {
@@ -3727,6 +3734,7 @@ func convertChatProviderConfig(
 		DisplayName: displayName,
 		Enabled:     provider.Enabled,
 		HasAPIKey:   hasAPIKey,
+		BaseURL:     strings.TrimSpace(provider.BaseUrl),
 		Source:      source,
 		CreatedAt:   provider.CreatedAt,
 		UpdatedAt:   provider.UpdatedAt,
@@ -3751,13 +3759,43 @@ func normalizeChatProvider(provider string) string {
 	return chatd.NormalizeProvider(provider)
 }
 
+func normalizeChatProviderBaseURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", xerrors.New("Base URL must be an absolute URL with scheme and host.")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", xerrors.New("Base URL scheme must be http or https.")
+	}
+	return parsed.String(), nil
+}
+
 func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatd.SupportedProviders(), ", ") + "."
 }
 
-func (api *API) hasEffectiveProviderAPIKey(provider database.ChatProvider) bool {
+func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
 	if strings.TrimSpace(provider.APIKey) != "" {
 		return true
 	}
-	return api.chatProviderAPIKeys.APIKey(provider.Provider) != ""
+	if api.chatProcessor == nil {
+		return false
+	}
+	effectiveKeys, err := api.chatProcessor.EffectiveProviderKeys(ctx, nil)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to resolve provider API keys",
+			slog.F("provider", provider.Provider),
+			slog.Error(err),
+		)
+		return false
+	}
+	return effectiveKeys.APIKey(provider.Provider) != ""
 }
