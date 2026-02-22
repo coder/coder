@@ -571,6 +571,54 @@ func (*streamErrorNoToolModel) Stream(_ context.Context, _ fantasy.Call) (fantas
 	}), nil
 }
 
+type interruptDuringStreamModel struct {
+	fakeLanguageModelBase
+	started chan struct{}
+}
+
+func (*interruptDuringStreamModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
+}
+
+func (m *interruptDuringStreamModel) Stream(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+		parts := []fantasy.StreamPart{
+			{
+				Type:         fantasy.StreamPartTypeToolInputStart,
+				ID:           "interrupt-tool-1",
+				ToolCallName: readFileToolName,
+			},
+			{
+				Type:         fantasy.StreamPartTypeToolInputDelta,
+				ID:           "interrupt-tool-1",
+				ToolCallName: readFileToolName,
+				Delta:        `{"path":"main.go"`,
+			},
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "partial assistant output"},
+		}
+		for _, part := range parts {
+			if !yield(part) {
+				return
+			}
+		}
+
+		if m.started != nil {
+			select {
+			case <-m.started:
+			default:
+				close(m.started)
+			}
+		}
+
+		<-ctx.Done()
+		_ = yield(fantasy.StreamPart{
+			Type:  fantasy.StreamPartTypeError,
+			Error: ctx.Err(),
+		})
+	}), nil
+}
+
 type unsupportedStreamModel struct {
 	fakeLanguageModelBase
 	mu            sync.Mutex
@@ -1382,6 +1430,109 @@ func TestRunChatLoop_StreamErrorWithoutToolCallsErrors(t *testing.T) {
 	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
+}
+
+func TestRunChatLoop_InterruptPersistsPartialStep(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chat := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "interrupt partial", "run")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
+	manager := chatd.NewStreamManager(logger)
+	model := &interruptDuringStreamModel{
+		started: make(chan struct{}),
+	}
+
+	processor := chatd.NewProcessor(
+		logger.Named("processor"),
+		db,
+		chatd.WithStreamManager(manager),
+		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
+			return model, nil
+		}),
+		chatd.WithPollInterval(50*time.Millisecond),
+	)
+	defer processor.Close()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-model.started:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for streaming model to emit partial content")
+	}
+
+	require.True(t, processor.InterruptChat(chat.ID))
+
+	require.Eventually(t, func() bool {
+		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
+		return err == nil && storedChat.Status == database.ChatStatusWaiting
+	}, testutil.WaitLong, 25*time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
+		return err == nil && len(messages) >= 3
+	}, testutil.WaitLong, 25*time.Millisecond)
+
+	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 3)
+
+	assistantMessage := messages[1]
+	require.Equal(t, string(fantasy.MessageRoleAssistant), assistantMessage.Role)
+	assistantContent, err := parseAssistantContent(assistantMessage.Content)
+	require.NoError(t, err)
+	require.NotEmpty(t, assistantContent)
+
+	var (
+		foundText     bool
+		foundToolCall bool
+	)
+	for _, block := range assistantContent {
+		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
+			if strings.Contains(text.Text, "partial assistant output") {
+				foundText = true
+			}
+			continue
+		}
+		if toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
+			if toolCall.ToolCallID == "interrupt-tool-1" &&
+				toolCall.ToolName == readFileToolName &&
+				strings.Contains(toolCall.Input, `"path":"main.go"`) {
+				foundToolCall = true
+			}
+		}
+	}
+	require.True(t, foundText)
+	require.True(t, foundToolCall)
+
+	toolMessage := messages[2]
+	require.Equal(t, string(fantasy.MessageRoleTool), toolMessage.Role)
+
+	var toolResults []chatd.ToolResultBlock
+	require.NoError(t, json.Unmarshal(toolMessage.Content.RawMessage, &toolResults))
+	require.Len(t, toolResults, 1)
+	require.Equal(t, "interrupt-tool-1", toolResults[0].ToolCallID)
+	require.Equal(t, readFileToolName, toolResults[0].ToolName)
+	require.True(t, toolResults[0].IsError)
+
+	resultMap, ok := toolResults[0].Result.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "interrupted", resultMap["status"])
+
+	errorText, ok := resultMap["error"].(string)
+	require.True(t, ok)
+	require.Contains(t, strings.ToLower(errorText), "interrupted")
 }
 
 func TestCreateWorkspaceTool_NilCreator(t *testing.T) {

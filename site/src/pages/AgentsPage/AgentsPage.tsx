@@ -1,10 +1,16 @@
 import type { ChatModelsResponse } from "api/api";
 import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
-import { chatModels, chats, chatsKey, createChat, deleteChat } from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
+import {
+	chatModels,
+	chats,
+	chatsKey,
+	createChat,
+	deleteChat,
+} from "api/queries/chats";
 import { deploymentConfig } from "api/queries/deployment";
 import { workspaces } from "api/queries/workspaces";
+import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
@@ -17,6 +23,7 @@ import {
 	DialogTitle,
 } from "components/Dialog/Dialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Select,
 	SelectContent,
@@ -24,14 +31,20 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { useAuthenticated } from "hooks";
 import type { LucideIcon } from "lucide-react";
-import { BoxesIcon, KeyRoundIcon, MonitorIcon, UserIcon, XIcon } from "lucide-react";
+import {
+	BoxesIcon,
+	KeyRoundIcon,
+	MonitorIcon,
+	UserIcon,
+	XIcon,
+} from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
+	type FormEvent,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -57,6 +70,7 @@ import {
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const selectedWorkspaceModeStorageKey = "agents.selected-workspace-mode";
+const systemPromptStorageKey = "agents.system-prompt";
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -106,9 +120,7 @@ export const AgentsPage: FC = () => {
 	});
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(deleteChat(queryClient));
-	const [archivingChatId, setArchivingChatId] = useState<string | null>(
-		null,
-	);
+	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
 	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
@@ -156,9 +168,11 @@ export const AgentsPage: FC = () => {
 			}
 
 			setArchivingChatId(chatId);
-			const nextChatId = (queryClient.getQueryData(chats().queryKey) as typeof chatList)?.find(
-				(chat) => chat.id !== chatId,
-			)?.id;
+			const nextChatId = (
+				queryClient.getQueryData(chats().queryKey) as
+					| TypesGen.Chat[]
+					| undefined
+			)?.find((chat) => chat.id !== chatId)?.id;
 
 			try {
 				await archiveMutation.mutateAsync(chatId);
@@ -176,7 +190,7 @@ export const AgentsPage: FC = () => {
 				setArchivingChatId(null);
 			}
 		},
-		[archiveMutation, queryClient, chatList, agentId, navigate, clearChatErrorReason],
+		[archiveMutation, queryClient, agentId, navigate, clearChatErrorReason],
 	);
 	const outletContext: AgentsOutletContext = {
 		chatErrorReasons,
@@ -193,13 +207,8 @@ export const AgentsPage: FC = () => {
 		Boolean(deploymentConfigQuery.data?.config.ai?.chat?.local_workspace);
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
-		const {
-			message,
-			workspaceId,
-			workspaceMode,
-			model,
-			systemPrompt,
-		} = options;
+		const { message, workspaceId, workspaceMode, model, systemPrompt } =
+			options;
 		const createdChat = await createMutation.mutateAsync({
 			message,
 			input: {
@@ -258,7 +267,12 @@ export const AgentsPage: FC = () => {
 					if (exists) {
 						return prev.map((c) =>
 							c.id === updatedChat.id
-								? { ...c, status: updatedChat.status, title: updatedChat.title, updated_at: updatedChat.updated_at }
+								? {
+										...c,
+										status: updatedChat.status,
+										title: updatedChat.title,
+										updated_at: updatedChat.updated_at,
+									}
 								: c,
 						);
 					}
@@ -358,8 +372,6 @@ export const AgentsPage: FC = () => {
 					/>
 				)}
 			</div>
-
-
 		</div>
 	);
 };
@@ -378,7 +390,7 @@ interface AgentsEmptyStateProps {
 	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
 }
 
-const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
+export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
@@ -397,8 +409,17 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
 	}, []);
+	const initialSystemPrompt = useMemo(() => {
+		if (typeof window === "undefined") {
+			return "";
+		}
+		return localStorage.getItem(systemPromptStorageKey) ?? "";
+	}, []);
 	const [selectedModel, setSelectedModel] = useState(modelOptions[0]?.id ?? "");
-	const [systemPrompt, setSystemPrompt] = useState("");
+	const [savedSystemPrompt, setSavedSystemPrompt] =
+		useState(initialSystemPrompt);
+	const [systemPromptDraft, setSystemPromptDraft] =
+		useState(initialSystemPrompt);
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [activeConfigureSection, setActiveConfigureSection] =
@@ -475,8 +496,9 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceModeRef.current = selectedWorkspaceMode;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const systemPromptRef = useRef(systemPrompt);
-	systemPromptRef.current = systemPrompt;
+	const systemPromptRef = useRef(savedSystemPrompt);
+	systemPromptRef.current = savedSystemPrompt;
+	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
 
 	useEffect(() => {
 		setSelectedModel((current) => {
@@ -487,10 +509,11 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		});
 	}, [modelOptions]);
 
-
 	useEffect(() => {
 		if (
-			configureSectionOptions.some((section) => section.id === activeConfigureSection)
+			configureSectionOptions.some(
+				(section) => section.id === activeConfigureSection,
+			)
 		) {
 			return;
 		}
@@ -540,6 +563,24 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 	}, []);
 
+	const handleSaveSystemPrompt = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			if (!isSystemPromptDirty) {
+				return;
+			}
+
+			setSavedSystemPrompt(systemPromptDraft);
+			if (typeof window !== "undefined") {
+				if (systemPromptDraft) {
+					localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
+				} else {
+					localStorage.removeItem(systemPromptStorageKey);
+				}
+			}
+		},
+		[isSystemPromptDirty, systemPromptDraft],
+	);
 
 	const handleSend = useCallback(
 		async (message: string) => {
@@ -549,7 +590,7 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 				message,
 				workspaceId: localWorkspaceMode
 					? undefined
-					: selectedWorkspaceIdRef.current ?? undefined,
+					: (selectedWorkspaceIdRef.current ?? undefined),
 				workspaceMode: localWorkspaceMode ? "local" : undefined,
 				model: selectedModelRef.current || undefined,
 				systemPrompt:
@@ -615,7 +656,7 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 							value={
 								selectedWorkspaceMode === "local"
 									? localWorkspaceValue
-									: selectedWorkspaceId ?? autoCreateWorkspaceValue
+									: (selectedWorkspaceId ?? autoCreateWorkspaceValue)
 							}
 							onValueChange={handleWorkspaceChange}
 							disabled={isCreating || workspacesQuery.isLoading}
@@ -694,7 +735,9 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 										onClick={() => setActiveConfigureSection(section.id)}
 									>
 										<SectionIcon className="h-[18px] w-[18px] shrink-0" />
-										<span className="text-[13px] font-medium">{section.label}</span>
+										<span className="text-[13px] font-medium">
+											{section.label}
+										</span>
 									</Button>
 								);
 							})}
@@ -708,45 +751,62 @@ const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 								)?.label ?? "Settings"}
 							</h2>
 
-							<ScrollArea className="min-h-0 flex-1" viewportClassName="px-6 pb-6">
+							<ScrollArea
+								className="min-h-0 flex-1"
+								viewportClassName="px-6 pb-6"
+							>
 								{activeConfigureSection === "providers" &&
 									canManageChatModelConfigs && (
 										<ChatModelAdminPanel section="providers" />
 									)}
-								{activeConfigureSection === "system-prompt" && canSetSystemPrompt && (
-									<div className="space-y-4">
-										<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
-											Configure how the AI agent behaves across this
-											deployment.
-										</p>
-										<div className="space-y-2">
-											<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-												System Prompt
-											</h3>
-											<p className="m-0 text-xs text-content-secondary">
-												Admin-only instruction applied to all new chats.
+								{activeConfigureSection === "system-prompt" &&
+									canSetSystemPrompt && (
+										<form
+											className="space-y-4"
+											onSubmit={(event) => void handleSaveSystemPrompt(event)}
+										>
+											<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
+												Configure how the AI agent behaves across this
+												deployment.
 											</p>
-											<TextareaAutosize
-												className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
-												placeholder="Optional. Set deployment-wide instructions for all new chats."
-												value={systemPrompt}
-												onChange={(event) => setSystemPrompt(event.target.value)}
-												disabled={isCreating}
-												minRows={7}
-											/>
-											<div className="flex justify-end">
-												<Button
-													size="sm"
-													variant="outline"
-													onClick={() => setSystemPrompt("")}
-													disabled={isCreating || !systemPrompt}
-												>
-													Clear
-												</Button>
+											<div className="space-y-2">
+												<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+													System Prompt
+												</h3>
+												<p className="m-0 text-xs text-content-secondary">
+													Admin-only instruction applied to all new chats.
+												</p>
+												<TextareaAutosize
+													className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
+													placeholder="Optional. Set deployment-wide instructions for all new chats."
+													value={systemPromptDraft}
+													onChange={(event) =>
+														setSystemPromptDraft(event.target.value)
+													}
+													disabled={isCreating}
+													minRows={7}
+												/>
+												<div className="flex justify-end gap-2">
+													<Button
+														size="sm"
+														variant="outline"
+														type="button"
+														onClick={() => setSystemPromptDraft("")}
+														disabled={isCreating || !systemPromptDraft}
+													>
+														Clear
+													</Button>
+													<Button
+														size="sm"
+														type="submit"
+														disabled={isCreating || !isSystemPromptDirty}
+													>
+														Save
+													</Button>
+												</div>
 											</div>
-										</div>
-									</div>
-								)}
+										</form>
+									)}
 								{activeConfigureSection === "models" &&
 									canManageChatModelConfigs && (
 										<ChatModelAdminPanel section="models" />

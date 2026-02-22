@@ -1,11 +1,11 @@
-import type { ChatModelsResponse } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ChatModelsResponse } from "api/api";
+import type * as TypesGen from "api/typesGenerated";
+import type { ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { Mock } from "vitest";
 import { AgentDetail } from "./AgentDetail";
 
@@ -118,15 +118,17 @@ const createMockSocket = (): MockSocket => {
 	const errorListeners = new Set<(payload: unknown) => void>();
 
 	return {
-		addEventListener: vi.fn((type: string, listener: (payload: unknown) => void) => {
-			if (type === "message") {
-				messageListeners.add(listener);
-				return;
-			}
-			if (type === "error") {
-				errorListeners.add(listener);
-			}
-		}),
+		addEventListener: vi.fn(
+			(type: string, listener: (payload: unknown) => void) => {
+				if (type === "message") {
+					messageListeners.add(listener);
+					return;
+				}
+				if (type === "error") {
+					errorListeners.add(listener);
+				}
+			},
+		),
 		removeEventListener: vi.fn(
 			(type: string, listener: (payload: unknown) => void) => {
 				if (type === "message") {
@@ -181,23 +183,22 @@ const installQueryMocks = ({
 			}
 			if (queryKey[0] === "chat-models") {
 				return makeQueryResult({
-					data:
-						modelCatalog ?? {
-							providers: [
-								{
-									provider: "openai",
-									available: true,
-									models: [
-										{
-											id: "openai:gpt-4o",
-											provider: "openai",
-											model: "gpt-4o",
-											display_name: "GPT-4o",
-										},
-									],
-								},
-							],
-						},
+					data: modelCatalog ?? {
+						providers: [
+							{
+								provider: "openai",
+								available: true,
+								models: [
+									{
+										id: "openai:gpt-4o",
+										provider: "openai",
+										model: "gpt-4o",
+										display_name: "GPT-4o",
+									},
+								],
+							},
+						],
+					},
 				});
 			}
 			return makeQueryResult();
@@ -303,9 +304,9 @@ describe(AgentDetail.name, () => {
 		await waitFor(() => {
 			expect(setRightPanelOpen).toHaveBeenCalledWith(true);
 		});
-		expect(within(rightPanelRoot).getByTestId("files-changed-panel")).toHaveTextContent(
-			"chat-1",
-		);
+		expect(
+			within(rightPanelRoot).getByTestId("files-changed-panel"),
+		).toHaveTextContent("chat-1");
 
 		const user = userEvent.setup();
 		const menuTrigger = within(topBarActionsRoot).getByRole("button", {
@@ -393,7 +394,9 @@ describe(AgentDetail.name, () => {
 		await waitFor(() => {
 			expect(setRightPanelOpen).toHaveBeenCalledWith(false);
 		});
-		expect(within(rightPanelRoot).queryByTestId("files-changed-panel")).toBeNull();
+		expect(
+			within(rightPanelRoot).queryByTestId("files-changed-panel"),
+		).toBeNull();
 
 		topBarTitleRoot.remove();
 		topBarActionsRoot.remove();
@@ -482,7 +485,7 @@ describe(AgentDetail.name, () => {
 
 		expect(screen.getByText("Thinking...")).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: /Spawning Child agent/ }),
+			screen.getByRole("button", { name: /Spawn(?:ed|ing) Child agent/ }),
 		).toBeInTheDocument();
 
 		socket.emitMessage({
@@ -565,7 +568,7 @@ describe(AgentDetail.name, () => {
 							type: "tool-call",
 							tool_call_id: "tool-subagent-stream-1",
 							tool_name: "subagent",
-							args_delta: "{\"title\":\"Streamed Child\"",
+							args_delta: '{"title":"Streamed Child"',
 						},
 					},
 				},
@@ -589,7 +592,7 @@ describe(AgentDetail.name, () => {
 							type: "tool-call",
 							tool_call_id: "tool-subagent-stream-1",
 							tool_name: "subagent",
-							args_delta: ",\"prompt\":\"Finish setup\"}",
+							args_delta: ',"prompt":"Finish setup"}',
 						},
 					},
 				},

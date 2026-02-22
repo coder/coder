@@ -4,8 +4,8 @@ import {
 	chatDiffContentsKey,
 	chatDiffStatus,
 	chatDiffStatusKey,
-	chats,
 	chatModels,
+	chats,
 	chatsKey,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -41,7 +41,7 @@ import {
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
 } from "lucide-react";
-import { SESSION_TOKEN_PLACEHOLDER, getVSCodeHref } from "modules/apps/apps";
+import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
 import {
 	type FC,
 	memo,
@@ -57,7 +57,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { AgentChatInput, type AgentContextUsage } from "./AgentChatInput";
-import { QueuedMessagesList } from "./QueuedMessagesList";
 import type { AgentsOutletContext } from "./AgentsPage";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
@@ -66,6 +65,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { QueuedMessagesList } from "./QueuedMessagesList";
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -91,7 +91,6 @@ const asNonEmptyString = (value: unknown): string | undefined => {
 	const next = asString(value).trim();
 	return next.length > 0 ? next : undefined;
 };
-
 
 type ChatMessageWithUsage = TypesGen.ChatMessage & {
 	readonly input_tokens?: unknown;
@@ -166,7 +165,9 @@ type ChatWithHierarchyMetadata = TypesGen.Chat & {
 	readonly parent_chat_id?: string;
 };
 
-const getParentChatID = (chat: TypesGen.Chat | undefined): string | undefined => {
+const getParentChatID = (
+	chat: TypesGen.Chat | undefined,
+): string | undefined => {
 	return asNonEmptyString(
 		(chat as ChatWithHierarchyMetadata | undefined)?.parent_chat_id,
 	);
@@ -221,7 +222,7 @@ const parseToolResultIsError = (
 	if (typeof block.is_error === "boolean") {
 		return block.is_error;
 	}
-	if (!Boolean(block.error)) {
+	if (!block.error) {
 		return false;
 	}
 	// Some providers include generic error metadata even on successful
@@ -249,7 +250,7 @@ const parsePartialJSONString = (
 	input: string,
 	startIndex: number,
 ): { value: string; nextIndex: number } | "incomplete" | null => {
-	if (input[startIndex] !== "\"") {
+	if (input[startIndex] !== '"') {
 		return null;
 	}
 	let escaped = false;
@@ -263,7 +264,7 @@ const parsePartialJSONString = (
 			escaped = true;
 			continue;
 		}
-		if (char !== "\"") {
+		if (char !== '"') {
 			continue;
 		}
 		const token = input.slice(startIndex, i + 1);
@@ -280,7 +281,11 @@ const parsePartialJSONString = (
 };
 
 const isJSONValueBoundary = (char: string | undefined): boolean =>
-	char === undefined || char === "," || char === "}" || char === "]" || /\s/.test(char);
+	char === undefined ||
+	char === "," ||
+	char === "}" ||
+	char === "]" ||
+	/\s/.test(char);
 
 const findBalancedJSONEnd = (
 	input: string,
@@ -301,14 +306,14 @@ const findBalancedJSONEnd = (
 				escaped = true;
 				continue;
 			}
-			if (char === "\"") {
+			if (char === '"') {
 				inString = false;
 			}
 			continue;
 		}
 
 		switch (char) {
-			case "\"":
+			case '"':
 				inString = true;
 				break;
 			case "{":
@@ -359,7 +364,7 @@ const parsePartialJSONValue = (
 	}
 
 	const char = input[index];
-	if (char === "\"") {
+	if (char === '"') {
 		const parsed = parsePartialJSONString(input, index);
 		if (parsed === "incomplete") {
 			return { status: "incomplete" };
@@ -435,7 +440,10 @@ const parsePartialJSONValue = (
 		if (!token) {
 			return { status: "invalid" };
 		}
-		if (end === input.length && /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?)?$/.test(token)) {
+		if (
+			end === input.length &&
+			/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?)?$/.test(token)
+		) {
 			return { status: "incomplete" };
 		}
 		if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(token)) {
@@ -471,18 +479,32 @@ const extractIncompleteStringContent = (
 		if (escaped) {
 			// Handle common JSON escape sequences.
 			switch (char) {
-				case '"': result += '"'; break;
-				case '\\': result += '\\'; break;
-				case '/': result += '/'; break;
-				case 'n': result += '\n'; break;
-				case 'r': result += '\r'; break;
-				case 't': result += '\t'; break;
-				default: result += `\\${char}`; break;
+				case '"':
+					result += '"';
+					break;
+				case "\\":
+					result += "\\";
+					break;
+				case "/":
+					result += "/";
+					break;
+				case "n":
+					result += "\n";
+					break;
+				case "r":
+					result += "\r";
+					break;
+				case "t":
+					result += "\t";
+					break;
+				default:
+					result += `\\${char}`;
+					break;
 			}
 			escaped = false;
 			continue;
 		}
-		if (char === '\\') {
+		if (char === "\\") {
 			escaped = true;
 			continue;
 		}
@@ -497,7 +519,9 @@ const extractIncompleteStringContent = (
 	return result.length > 0 ? result : null;
 };
 
-const parsePartialJSONObject = (value: string): Record<string, unknown> | null => {
+const parsePartialJSONObject = (
+	value: string,
+): Record<string, unknown> | null => {
 	const trimmed = value.trim();
 	if (!trimmed.startsWith("{")) {
 		return null;
@@ -628,7 +652,8 @@ const mergeStreamPayload = (
 		};
 	}
 
-	const base = existingRawText ?? (typeof existingValue === "string" ? existingValue : "");
+	const base =
+		existingRawText ?? (typeof existingValue === "string" ? existingValue : "");
 	const rawText = `${base}${chunk}`;
 	const parsed = parseStreamingJSON(rawText);
 
@@ -660,12 +685,27 @@ type MergedTool = {
 	status: "completed" | "error" | "running";
 };
 
+type RenderBlock =
+	| {
+			type: "response";
+			text: string;
+	  }
+	| {
+			type: "thinking";
+			text: string;
+	  }
+	| {
+			type: "tool";
+			id: string;
+	  };
+
 type ParsedMessageContent = {
 	markdown: string;
 	reasoning: string;
 	toolCalls: ParsedToolCall[];
 	toolResults: ParsedToolResult[];
 	tools: MergedTool[];
+	blocks: RenderBlock[];
 };
 
 const emptyParsedMessageContent = (): ParsedMessageContent => ({
@@ -674,7 +714,36 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolCalls: [],
 	toolResults: [],
 	tools: [],
+	blocks: [],
 });
+
+const appendParsedTextBlock = (
+	blocks: RenderBlock[],
+	type: "response" | "thinking",
+	text: string,
+): RenderBlock[] => {
+	if (!text.trim()) {
+		return blocks;
+	}
+	const nextBlocks = [...blocks];
+	const last = nextBlocks[nextBlocks.length - 1];
+	if (last && last.type === type) {
+		nextBlocks[nextBlocks.length - 1] = {
+			type,
+			text: appendText(last.text, text),
+		};
+		return nextBlocks;
+	}
+	nextBlocks.push({ type, text });
+	return nextBlocks;
+};
+
+const ensureToolBlock = (blocks: RenderBlock[], id: string): RenderBlock[] => {
+	if (blocks.some((block) => block.type === "tool" && block.id === id)) {
+		return blocks;
+	}
+	return [...blocks, { type: "tool", id }];
+};
 
 const mergeTools = (
 	calls: ParsedToolCall[],
@@ -726,6 +795,7 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 		for (const [index, block] of content.entries()) {
 			if (typeof block === "string") {
 				parsed.markdown = appendText(parsed.markdown, block);
+				parsed.blocks = appendParsedTextBlock(parsed.blocks, "response", block);
 				continue;
 			}
 
@@ -736,17 +806,27 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 
 			switch (normalizeBlockType(typedBlock.type)) {
 				case "text":
-					parsed.markdown = appendText(
-						parsed.markdown,
-						asString(typedBlock.text),
-					);
+					{
+						const text = asString(typedBlock.text);
+						parsed.markdown = appendText(parsed.markdown, text);
+						parsed.blocks = appendParsedTextBlock(
+							parsed.blocks,
+							"response",
+							text,
+						);
+					}
 					break;
 				case "reasoning":
 				case "thinking":
-					parsed.reasoning = appendText(
-						parsed.reasoning,
-						asString(typedBlock.text),
-					);
+					{
+						const text = asString(typedBlock.text);
+						parsed.reasoning = appendText(parsed.reasoning, text);
+						parsed.blocks = appendParsedTextBlock(
+							parsed.blocks,
+							"thinking",
+							text,
+						);
+					}
 					break;
 				case "tool-call":
 				case "toolcall": {
@@ -761,6 +841,7 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 						name: name || "Tool",
 						args: typedBlock.args ?? typedBlock.input ?? typedBlock.arguments,
 					});
+					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
 				case "tool-result":
@@ -782,13 +863,19 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 						result,
 						isError: parseToolResultIsError(name, typedBlock, result),
 					});
+					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
 				default:
-					parsed.markdown = appendText(
-						parsed.markdown,
-						asString(typedBlock.text),
-					);
+					{
+						const text = asString(typedBlock.text);
+						parsed.markdown = appendText(parsed.markdown, text);
+						parsed.blocks = appendParsedTextBlock(
+							parsed.blocks,
+							"response",
+							text,
+						);
+					}
 					break;
 			}
 		}
@@ -801,33 +888,28 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 
 	const typedContent = asRecord(content);
 	if (!typedContent) {
+		const markdown = String(content);
 		return {
 			...emptyParsedMessageContent(),
-			markdown: String(content),
+			markdown,
+			blocks: appendParsedTextBlock([], "response", markdown),
 		};
 	}
 
 	if (Array.isArray(typedContent.parts)) {
-		const parsed = emptyParsedMessageContent();
-		for (const part of typedContent.parts) {
-			const typedPart = asRecord(part);
-			if (!typedPart) {
-				continue;
-			}
-			if (normalizeBlockType(typedPart.type) === "text") {
-				parsed.markdown = appendText(parsed.markdown, asString(typedPart.text));
-			}
-		}
-		return parsed;
+		return parseMessageContent(typedContent.parts);
 	}
 
 	if (typedContent.type) {
 		return parseMessageContent([typedContent]);
 	}
 
+	const markdown =
+		asString(typedContent.text) || asString(typedContent.content);
 	return {
 		...emptyParsedMessageContent(),
-		markdown: asString(typedContent.text) || asString(typedContent.content),
+		markdown,
+		blocks: appendParsedTextBlock([], "response", markdown),
 	};
 };
 
@@ -872,7 +954,6 @@ const resolveModelFromChatConfig = (
 	return modelOptions[0]?.id ?? "";
 };
 
-
 type StreamToolCall = {
 	id: string;
 	name: string;
@@ -889,18 +970,37 @@ type StreamToolResult = {
 };
 
 type StreamState = {
-	content: string;
-	reasoning: string;
+	blocks: RenderBlock[];
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
 };
 
 const createEmptyStreamState = (): StreamState => ({
-	content: "",
-	reasoning: "",
+	blocks: [],
 	toolCalls: {},
 	toolResults: {},
 });
+
+const appendStreamTextBlock = (
+	blocks: RenderBlock[],
+	type: "response" | "thinking",
+	text: string,
+): RenderBlock[] => {
+	if (!text) {
+		return blocks;
+	}
+	const nextBlocks = [...blocks];
+	const last = nextBlocks[nextBlocks.length - 1];
+	if (last && last.type === type) {
+		nextBlocks[nextBlocks.length - 1] = {
+			type,
+			text: `${last.text}${text}`,
+		};
+		return nextBlocks;
+	}
+	nextBlocks.push({ type, text });
+	return nextBlocks;
+};
 
 /**
  * Collects all tool results across every message into a single
@@ -976,6 +1076,8 @@ const ChatMessageItem = memo<{
 	parsed: ParsedMessageContent;
 }>(({ message, parsed }) => {
 	const isUser = message.role === "user";
+	const renderedToolIDs = new Set<string>();
+	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
 	// Skip messages that only carry tool results. Those results
 	// are shown inline with the tool-call message they belong to.
@@ -989,11 +1091,49 @@ const ChatMessageItem = memo<{
 	}
 
 	const hasRenderableContent =
-		parsed.markdown !== "" ||
-		parsed.reasoning !== "" ||
-		parsed.tools.length > 0;
+		parsed.blocks.length > 0 || parsed.tools.length > 0;
+	const orderedBlocks = parsed.blocks
+		.map((block, index) => {
+			switch (block.type) {
+				case "response":
+					return (
+						<Response key={`response-${message.id}-${index}`}>
+							{block.text}
+						</Response>
+					);
+				case "thinking":
+					return (
+						<Thinking key={`thinking-${message.id}-${index}`}>
+							{block.text}
+						</Thinking>
+					);
+				case "tool": {
+					const tool = toolByID.get(block.id);
+					if (!tool) {
+						return null;
+					}
+					renderedToolIDs.add(tool.id);
+					return (
+						<Tool
+							key={tool.id}
+							name={tool.name}
+							args={tool.args}
+							result={tool.result}
+							status={tool.status}
+							isError={tool.isError}
+						/>
+					);
+				}
+				default:
+					return null;
+			}
+		})
+		.filter((block) => block !== null);
+	const remainingTools = parsed.tools.filter(
+		(tool) => !renderedToolIDs.has(tool.id),
+	);
 	const conversationItemProps = {
-		role: (isUser ? "user" as const : "assistant" as const),
+		role: isUser ? ("user" as const) : ("assistant" as const),
 	};
 
 	return (
@@ -1008,9 +1148,8 @@ const ChatMessageItem = memo<{
 				<Message className="w-full">
 					<MessageContent className="whitespace-normal">
 						<div className="space-y-3">
-							{parsed.markdown && <Response>{parsed.markdown}</Response>}
-							{parsed.reasoning && <Thinking>{parsed.reasoning}</Thinking>}
-							{parsed.tools.map((tool) => (
+							{orderedBlocks}
+							{remainingTools.map((tool) => (
 								<Tool
 									key={tool.id}
 									name={tool.name}
@@ -1046,23 +1185,69 @@ const StreamingOutput = memo<{
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 }>(({ streamState, streamTools, subagentTitles, subagentStatusOverrides }) => {
 	const conversationItemProps = { role: "assistant" as const };
+	const renderedToolIDs = new Set<string>();
+	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
+	const orderedBlocks = (streamState?.blocks ?? [])
+		.map((block, index) => {
+			switch (block.type) {
+				case "response":
+					return (
+						<Response key={`stream-response-${index}`}>{block.text}</Response>
+					);
+				case "thinking":
+					return (
+						<Thinking key={`stream-thinking-${index}`}>{block.text}</Thinking>
+					);
+				case "tool": {
+					const tool = toolByID.get(block.id);
+					if (!tool) {
+						renderedToolIDs.add(block.id);
+						return (
+							<Tool
+								key={block.id}
+								name="Tool"
+								status="running"
+								isError={false}
+								subagentTitles={subagentTitles}
+								subagentStatusOverrides={subagentStatusOverrides}
+							/>
+						);
+					}
+					renderedToolIDs.add(tool.id);
+					return (
+						<Tool
+							key={tool.id}
+							name={tool.name}
+							args={tool.args}
+							result={tool.result}
+							status={tool.status}
+							isError={tool.isError}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+						/>
+					);
+				}
+				default:
+					return null;
+			}
+		})
+		.filter((block) => block !== null);
+	const remainingTools = streamTools.filter(
+		(tool) => !renderedToolIDs.has(tool.id),
+	);
 
 	return (
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
 					<div className="space-y-3">
-						{streamState?.content ? (
-							<Response>{streamState.content}</Response>
-						) : streamTools.length === 0 ? (
+						{orderedBlocks}
+						{orderedBlocks.length === 0 && streamTools.length === 0 ? (
 							<Shimmer as="span" className="text-sm">
 								Thinking...
 							</Shimmer>
 						) : null}
-						{streamState?.reasoning && (
-							<Thinking>{streamState.reasoning}</Thinking>
-						)}
-						{streamTools.map((tool) => (
+						{remainingTools.map((tool) => (
 							<Tool
 								key={tool.id}
 								name={tool.name}
@@ -1108,7 +1293,14 @@ const StickyUserMessage: FC<{
 			<div ref={sentinelRef} className="pointer-events-none h-px" />
 			<div
 				className="sticky -top-2 z-10 pt-1 drop-shadow-xl"
-				style={isStuck ? { clipPath: "inset(0 0 calc(100% - 5rem) 0 round 0 0 0.5rem 0.5rem)" } : undefined}
+				style={
+					isStuck
+						? {
+								clipPath:
+									"inset(0 0 calc(100% - 5rem) 0 round 0 0 0.5rem 0.5rem)",
+							}
+						: undefined
+				}
 			>
 				<ChatMessageItem message={message} parsed={parsed} />
 			</div>
@@ -1183,10 +1375,7 @@ export const AgentDetail: FC = () => {
 		if (agents.length === 0) {
 			return undefined;
 		}
-		return (
-			agents.find((agent) => agent.id === workspaceAgentId) ??
-			agents[0]
-		);
+		return agents.find((agent) => agent.id === workspaceAgentId) ?? agents[0];
 	}, [workspaceAgentId, workspaceQuery.data]);
 
 	// Auto-open the diff panel when diff status becomes available.
@@ -1293,7 +1482,6 @@ export const AgentDetail: FC = () => {
 		});
 	}, [chatQuery.data, modelOptions]);
 
-
 	useEffect(() => {
 		if (!agentId) {
 			return;
@@ -1353,31 +1541,49 @@ export const AgentDetail: FC = () => {
 					// treats them as low-priority — keeping user interactions
 					// (typing, clicking) responsive during rapid streaming.
 					switch (normalizeBlockType(part.type)) {
-						case "text":
+						case "text": {
+							const text = asString(part.text);
+							if (!text) {
+								return;
+							}
 							startTransition(() => {
 								setStreamState((prev) => {
 									const nextState: StreamState =
 										prev ?? createEmptyStreamState();
 									return {
 										...nextState,
-										content: `${nextState.content}${asString(part.text)}`,
+										blocks: appendStreamTextBlock(
+											nextState.blocks,
+											"response",
+											text,
+										),
 									};
 								});
 							});
 							return;
+						}
 						case "reasoning":
-						case "thinking":
+						case "thinking": {
+							const text = asString(part.text);
+							if (!text) {
+								return;
+							}
 							startTransition(() => {
 								setStreamState((prev) => {
 									const nextState: StreamState =
 										prev ?? createEmptyStreamState();
 									return {
 										...nextState,
-										reasoning: `${nextState.reasoning}${asString(part.text)}`,
+										blocks: appendStreamTextBlock(
+											nextState.blocks,
+											"thinking",
+											text,
+										),
 									};
 								});
 							});
 							return;
+						}
 						case "tool-call":
 						case "toolcall": {
 							const toolName = asString(part.tool_name);
@@ -1403,6 +1609,7 @@ export const AgentDetail: FC = () => {
 
 									return {
 										...nextState,
+										blocks: ensureToolBlock(nextState.blocks, toolCallID),
 										toolCalls: {
 											...nextState.toolCalls,
 											[toolCallID]: {
@@ -1454,6 +1661,7 @@ export const AgentDetail: FC = () => {
 
 									return {
 										...nextState,
+										blocks: ensureToolBlock(nextState.blocks, toolCallID),
 										toolResults: {
 											...nextState.toolResults,
 											[toolCallID]: {
@@ -1738,6 +1946,7 @@ export const AgentDetail: FC = () => {
 
 	// Reset the window when switching chats.
 	useEffect(() => {
+		void agentId;
 		setRenderedMessageCount(MESSAGES_PAGE_SIZE);
 	}, [agentId]);
 
@@ -1746,9 +1955,7 @@ export const AgentDetail: FC = () => {
 		if (renderedMessageCount >= visibleMessages.length) {
 			return visibleMessages;
 		}
-		return visibleMessages.slice(
-			visibleMessages.length - renderedMessageCount,
-		);
+		return visibleMessages.slice(visibleMessages.length - renderedMessageCount);
 	}, [visibleMessages, renderedMessageCount]);
 
 	// Sentinel ref: when it scrolls into view, load more messages.
@@ -1759,16 +1966,14 @@ export const AgentDetail: FC = () => {
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (entries[0]?.isIntersecting) {
-					setRenderedMessageCount((prev) =>
-						prev + MESSAGES_PAGE_SIZE,
-					);
+					setRenderedMessageCount((prev) => prev + MESSAGES_PAGE_SIZE);
 				}
 			},
 			{ rootMargin: "200px" },
 		);
 		observer.observe(node);
 		return () => observer.disconnect();
-	}, [hasMoreMessages, windowedMessages]);
+	}, [hasMoreMessages]);
 
 	// Each message is parsed once; the global tool-result map and
 	// final merged content are derived from the same parse.
@@ -1859,9 +2064,7 @@ export const AgentDetail: FC = () => {
 		chatStatus === "running" ||
 		chatStatus === "pending" ||
 		(!!streamState &&
-			(streamState.content !== "" ||
-				streamState.reasoning !== "" ||
-				streamTools.length > 0));
+			(streamState.blocks.length > 0 || streamTools.length > 0));
 
 	const topBarTitleRef = outletContext?.topBarTitleRef;
 	const topBarActionsRef = outletContext?.topBarActionsRef;
@@ -2052,7 +2255,10 @@ export const AgentDetail: FC = () => {
 				)}
 			{shouldShowDiffPanel &&
 				rightPanelRef?.current &&
-				createPortal(<FilesChangedPanel chatId={agentId} />, rightPanelRef.current)}
+				createPortal(
+					<FilesChangedPanel chatId={agentId} />,
+					rightPanelRef.current,
+				)}
 			<div
 				ref={scrollContainerRef}
 				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]"

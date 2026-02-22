@@ -237,12 +237,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		loadError,
 		onRetryLoad,
 	} = props;
-	const { chatId: activeChatId } = useParams<{ chatId: string }>();
+	const { agentId, chatId } = useParams<{
+		agentId?: string;
+		chatId?: string;
+	}>();
+	const activeChatId = agentId ?? chatId;
 	const [search, setSearch] = useState("");
 	const normalizedSearch = search.trim().toLowerCase();
-	const [expandedById, setExpandedById] = useState<Record<string, boolean>>(
-		{},
-	);
+	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
 	const chatById = useMemo(() => {
@@ -296,8 +298,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			return null;
 		}
 
-		const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
-			visibleChatIDs.has(childID),
+		const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter(
+			(childID) => visibleChatIDs.has(childID),
 		);
 		const hasChildren = childIDs.length > 0;
 		const isDelegated = Boolean(getParentChatID(chat));
@@ -322,7 +324,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 		const isExpanded = normalizedSearch
 			? true
-			: expandedById[chatID] ?? false;
+			: (expandedById[chatID] ?? false);
 
 		return (
 			<div key={chat.id} className="flex min-w-0 flex-col">
@@ -362,11 +364,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								aria-label={isExpanded ? "Collapse" : "Expand"}
 								aria-expanded={isExpanded}
 							>
-								{isExpanded ? (
-									<ChevronDownIcon />
-								) : (
-									<ChevronRightIcon />
-								)}
+								{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
 							</Button>
 						)}
 					</div>
@@ -456,11 +454,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</div>
 
-			{hasChildren && isExpanded && (
-				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
-					{childIDs.map((childID) => renderChatNode(childID, true))}
-				</div>
-			)}
+				{hasChildren && isExpanded && (
+					<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+						{childIDs.map((childID) => renderChatNode(childID, true))}
+					</div>
+				)}
 			</div>
 		);
 	};

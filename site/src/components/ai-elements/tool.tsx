@@ -1,7 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
-import type React from "react";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
@@ -13,7 +12,6 @@ import {
 	BotIcon,
 	CheckIcon,
 	ChevronDownIcon,
-	ChevronRightIcon,
 	CircleAlertIcon,
 	ExternalLinkIcon,
 	FileIcon,
@@ -23,6 +21,7 @@ import {
 	TerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
+import type React from "react";
 import { forwardRef, memo, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
@@ -86,8 +85,7 @@ const shortDurationMs = (durationMs: number | undefined): string => {
 	return `${hours}h`;
 };
 
-const normalizeStatus = (status: string): string =>
-	status.trim().toLowerCase();
+const normalizeStatus = (status: string): string => status.trim().toLowerCase();
 
 const isSubagentSuccessStatus = (status: string): boolean => {
 	switch (normalizeStatus(status)) {
@@ -331,7 +329,7 @@ const ToolLabel: React.FC<{ name: string; args: unknown; result: unknown }> = ({
 		case "chat_summarized":
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					Chat summarized
+					Summarized
 				</span>
 			);
 		default:
@@ -546,10 +544,7 @@ const ExecuteTool: React.FC<{
 			{/* Output preview / expanded */}
 			{hasOutput && (
 				<>
-					<div
-						className="h-px"
-						style={BORDER_BG_STYLE}
-					/>
+					<div className="h-px" style={BORDER_BG_STYLE} />
 					<ScrollArea
 						className="text-2xs"
 						viewportClassName={expanded ? "max-h-96" : ""}
@@ -1135,10 +1130,7 @@ const SubagentTool: React.FC<{
 				tabIndex={0}
 				onClick={() => hasExpandableContent && setExpanded((v) => !v)}
 				onKeyDown={(e) => {
-					if (
-						(e.key === "Enter" || e.key === " ") &&
-						hasExpandableContent
-					) {
+					if ((e.key === "Enter" || e.key === " ") && hasExpandableContent) {
 						setExpanded((v) => !v);
 					}
 				}}
@@ -1301,10 +1293,7 @@ const AgentReportTool: React.FC<{
 			</div>
 			{report.trim() && (
 				<>
-					<div
-						className="h-px"
-						style={BORDER_BG_STYLE}
-					/>
+					<div className="h-px" style={BORDER_BG_STYLE} />
 					<div className="px-3 py-2">
 						<div
 							ref={measureRef}
@@ -1326,198 +1315,301 @@ const AgentReportTool: React.FC<{
 	);
 };
 
-export const Tool = memo(forwardRef<HTMLDivElement, ToolProps>(
-	(
-		{
-			className,
-			name,
-			status = "completed",
-			args,
-			result,
-			isError = false,
-			subagentTitles,
-			subagentStatusOverrides,
-			...props
-		},
-		ref,
-	) => {
-		const parsedArgs = useMemo(() => parseArgs(args), [args]);
-		const resultOutput = useMemo(() => formatResultOutput(result), [result]);
-		const fileContent = useMemo(
-			() => getFileContentForViewer(name, args, result),
-			[name, args, result],
-		);
-		const writeFileDiff = useMemo(
-			() => getWriteFileDiff(name, args),
-			[name, args],
-		);
-		const { editFiles, editDiffs } = useMemo(() => {
-			if (name !== "edit_files") return { editFiles: [], editDiffs: [] };
-			const files = parseEditFilesArgs(args);
-			const diffs = files.map((f) => buildEditDiff(f.path, f.edits));
-			return { editFiles: files, editDiffs: diffs };
-		}, [name, args]);
-		const fileContentOptions = useMemo(
-			() =>
-				fileContent
-					? {
-							...FILE_VIEWER_OPTIONS,
-							disableFileHeader: fileContent.disableHeader,
-							disableLineNumbers: fileContent.disableLineNumbers,
-						}
-					: FILE_VIEWER_OPTIONS,
-			[fileContent],
-		);
+/**
+ * Collapsed-by-default rendering for `chat_summarized` tool calls.
+ * Shows "Summarized" and reveals the summary only when expanded.
+ */
+const ChatSummarizedTool: React.FC<{
+	summary: string;
+	status: ToolStatus;
+	isError: boolean;
+	errorMessage?: string;
+}> = ({ summary, status, isError, errorMessage }) => {
+	const [expanded, setExpanded] = useState(false);
+	const hasSummary = summary.trim().length > 0;
+	const isRunning = status === "running";
 
-		// Render execute tools with the specialized terminal-style block.
-		if (name === "execute") {
-			const parsed = parsedArgs;
-			const command = parsed ? asString(parsed.command) : "";
-			const rec = asRecord(result);
-			const output = rec ? asString(rec.output).trim() : "";
-
-			return (
-				<div ref={ref} className={cn("w-full py-0.5", className)} {...props}>
-					<ExecuteTool
-						command={command}
-						output={output}
-						status={status}
-						isError={isError}
+	return (
+		<div className="w-full">
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={() => hasSummary && setExpanded((v) => !v)}
+				onKeyDown={(e) => {
+					if ((e.key === "Enter" || e.key === " ") && hasSummary) {
+						setExpanded((v) => !v);
+					}
+				}}
+				className={cn(
+					"flex items-center gap-2",
+					hasSummary && "cursor-pointer",
+				)}
+			>
+				<span
+					className={cn(
+						"text-sm",
+						isError ? "text-content-destructive" : "text-content-secondary",
+					)}
+				>
+					{isRunning ? "Summarizing…" : "Summarized"}
+				</span>
+				{isError && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+						</TooltipTrigger>
+						<TooltipContent>
+							{errorMessage || "Failed to summarize chat"}
+						</TooltipContent>
+					</Tooltip>
+				)}
+				{isRunning && (
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
+				)}
+				{hasSummary && (
+					<ChevronDownIcon
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
 					/>
-				</div>
+				)}
+			</div>
+
+			{expanded && hasSummary && (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<div className="px-3 py-2">
+						<Response>{summary}</Response>
+					</div>
+				</ScrollArea>
+			)}
+		</div>
+	);
+};
+
+export const Tool = memo(
+	forwardRef<HTMLDivElement, ToolProps>(
+		(
+			{
+				className,
+				name,
+				status = "completed",
+				args,
+				result,
+				isError = false,
+				subagentTitles,
+				subagentStatusOverrides,
+				...props
+			},
+			ref,
+		) => {
+			const parsedArgs = useMemo(() => parseArgs(args), [args]);
+			const resultOutput = useMemo(() => formatResultOutput(result), [result]);
+			const fileContent = useMemo(
+				() => getFileContentForViewer(name, args, result),
+				[name, args, result],
 			);
-		}
-
-		// Render read_file with a collapsed-by-default viewer.
-		if (name === "read_file") {
-			const parsed = parsedArgs;
-			const path = parsed ? asString(parsed.path).trim() : "";
-			const rec = asRecord(result);
-			const content = rec ? asString(rec.content).trim() : "";
-
-			return (
-				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<ReadFileTool
-						path={path || "file"}
-						content={content}
-						status={status}
-						isError={isError}
-						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-					/>
-				</div>
+			const writeFileDiff = useMemo(
+				() => getWriteFileDiff(name, args),
+				[name, args],
 			);
-		}
-
-		// Render write_file with a collapsed-by-default diff viewer.
-		if (name === "write_file") {
-			const parsed = parsedArgs;
-			const path = parsed ? asString(parsed.path).trim() : "";
-			const rec = asRecord(result);
-
-			return (
-				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<WriteFileTool
-						path={path || "file"}
-						diff={writeFileDiff}
-						status={status}
-						isError={isError}
-						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-					/>
-				</div>
+			const { editFiles, editDiffs } = useMemo(() => {
+				if (name !== "edit_files") return { editFiles: [], editDiffs: [] };
+				const files = parseEditFilesArgs(args);
+				const diffs = files.map((f) => buildEditDiff(f.path, f.edits));
+				return { editFiles: files, editDiffs: diffs };
+			}, [name, args]);
+			const fileContentOptions = useMemo(
+				() =>
+					fileContent
+						? {
+								...FILE_VIEWER_OPTIONS,
+								disableFileHeader: fileContent.disableHeader,
+								disableLineNumbers: fileContent.disableLineNumbers,
+							}
+						: FILE_VIEWER_OPTIONS,
+				[fileContent],
 			);
-		}
 
-		// Render edit_files with a collapsed-by-default diff viewer.
-		if (name === "edit_files") {
-			const rec = asRecord(result);
+			// Render execute tools with the specialized terminal-style block.
+			if (name === "execute") {
+				const parsed = parsedArgs;
+				const command = parsed ? asString(parsed.command) : "";
+				const rec = asRecord(result);
+				const output = rec ? asString(rec.output).trim() : "";
 
-			return (
-				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<EditFilesTool
-						files={editFiles}
-						diffs={editDiffs}
-						status={status}
-						isError={isError}
-						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-					/>
-				</div>
-			);
-		}
+				return (
+					<div ref={ref} className={cn("w-full py-0.5", className)} {...props}>
+						<ExecuteTool
+							command={command}
+							output={output}
+							status={status}
+							isError={isError}
+						/>
+					</div>
+				);
+			}
 
-		// Render create_workspace with a collapsed-by-default viewer.
-		// During workspace creation, build logs stream as result_delta
-		// strings. Once the tool finishes, the result becomes a JSON
-		// object with workspace metadata.
-		if (name === "create_workspace") {
-			const rec = asRecord(result);
-			const buildLogs = typeof result === "string" ? result.trim() : "";
-			const wsName = rec ? asString(rec.workspace_name) : "";
-			const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
+			// Render read_file with a collapsed-by-default viewer.
+			if (name === "read_file") {
+				const parsed = parsedArgs;
+				const path = parsed ? asString(parsed.path).trim() : "";
+				const rec = asRecord(result);
+				const content = rec ? asString(rec.content).trim() : "";
 
-			return (
-				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<CreateWorkspaceTool
-						workspaceName={wsName}
-						resultJson={resultJson}
-						buildLogs={buildLogs}
-						status={status}
-						isError={isError}
-						errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
-					/>
-				</div>
-			);
-		}
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<ReadFileTool
+							path={path || "file"}
+							content={content}
+							status={status}
+							isError={isError}
+							errorMessage={
+								rec ? asString(rec.error || rec.message) : undefined
+							}
+						/>
+					</div>
+				);
+			}
 
-		// Render delegated sub-agent tools as a sub-agent link card.
-		if (
-			name === "subagent" ||
-			name === "subagent_await" ||
-			name === "subagent_message" ||
-			name === "subagent_terminate"
-		) {
-			const parsed = parsedArgs;
-			const rec = asRecord(result);
-			// subagent_await and subagent_message have chat_id in
-			// args, so check both result and args.
-			const chatId =
-				(rec ? asString(rec.chat_id) : "") ||
-				(parsed ? asString(parsed.chat_id) : "");
-			const resultSubagentStatus = rec
-				? asString(rec.status || rec.subagent_status)
-				: "";
-			const streamSubagentStatus =
-				(chatId && subagentStatusOverrides?.get(chatId)) || "";
-			const subagentStatus = streamSubagentStatus || resultSubagentStatus;
-			const durationMs = rec ? asNumber(rec.duration_ms) : undefined;
-			const report = rec ? asString(rec.report) : "";
-			const prompt = parsed ? asString(parsed.prompt) : "";
-			const subagentMessage = parsed ? asString(parsed.message) : "";
-			const title =
-				(rec ? asString(rec.title) : "") ||
-				(parsed ? asString(parsed.title) : "") ||
-				(chatId && subagentTitles?.get(chatId)) ||
-				"Sub-agent";
-			const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-			const subagentToolStatus = mapSubagentStatusToToolStatus(
-				subagentStatus,
-				status,
-			);
-			const subagentIsError =
-				subagentToolStatus === "error" ||
-				((status === "error" || isError) && !subagentCompleted);
+			// Render write_file with a collapsed-by-default diff viewer.
+			if (name === "write_file") {
+				const parsed = parsedArgs;
+				const path = parsed ? asString(parsed.path).trim() : "";
+				const rec = asRecord(result);
 
-			if (chatId) {
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<WriteFileTool
+							path={path || "file"}
+							diff={writeFileDiff}
+							status={status}
+							isError={isError}
+							errorMessage={
+								rec ? asString(rec.error || rec.message) : undefined
+							}
+						/>
+					</div>
+				);
+			}
+
+			// Render edit_files with a collapsed-by-default diff viewer.
+			if (name === "edit_files") {
+				const rec = asRecord(result);
+
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<EditFilesTool
+							files={editFiles}
+							diffs={editDiffs}
+							status={status}
+							isError={isError}
+							errorMessage={
+								rec ? asString(rec.error || rec.message) : undefined
+							}
+						/>
+					</div>
+				);
+			}
+
+			// Render create_workspace with a collapsed-by-default viewer.
+			// During workspace creation, build logs stream as result_delta
+			// strings. Once the tool finishes, the result becomes a JSON
+			// object with workspace metadata.
+			if (name === "create_workspace") {
+				const rec = asRecord(result);
+				const buildLogs = typeof result === "string" ? result.trim() : "";
+				const wsName = rec ? asString(rec.workspace_name) : "";
+				const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
+
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<CreateWorkspaceTool
+							workspaceName={wsName}
+							resultJson={resultJson}
+							buildLogs={buildLogs}
+							status={status}
+							isError={isError}
+							errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+						/>
+					</div>
+				);
+			}
+
+			// Render delegated sub-agent tools as a sub-agent link card.
+			if (
+				name === "subagent" ||
+				name === "subagent_await" ||
+				name === "subagent_message" ||
+				name === "subagent_terminate"
+			) {
+				const parsed = parsedArgs;
+				const rec = asRecord(result);
+				// subagent_await and subagent_message have chat_id in
+				// args, so check both result and args.
+				const chatId =
+					(rec ? asString(rec.chat_id) : "") ||
+					(parsed ? asString(parsed.chat_id) : "");
+				const resultSubagentStatus = rec
+					? asString(rec.status || rec.subagent_status)
+					: "";
+				const streamSubagentStatus =
+					(chatId && subagentStatusOverrides?.get(chatId)) || "";
+				const subagentStatus = streamSubagentStatus || resultSubagentStatus;
+				const durationMs = rec ? asNumber(rec.duration_ms) : undefined;
+				const report = rec ? asString(rec.report) : "";
+				const prompt = parsed ? asString(parsed.prompt) : "";
+				const subagentMessage = parsed ? asString(parsed.message) : "";
+				const title =
+					(rec ? asString(rec.title) : "") ||
+					(parsed ? asString(parsed.title) : "") ||
+					(chatId && subagentTitles?.get(chatId)) ||
+					"Sub-agent";
+				const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
+				const subagentToolStatus = mapSubagentStatusToToolStatus(
+					subagentStatus,
+					status,
+				);
+				const subagentIsError =
+					subagentToolStatus === "error" ||
+					((status === "error" || isError) && !subagentCompleted);
+
+				if (chatId) {
+					return (
+						<div ref={ref} className={cn("py-0.5", className)} {...props}>
+							<SubagentTool
+								toolName={name}
+								title={title}
+								chatId={chatId}
+								subagentStatus={subagentStatus}
+								prompt={prompt || undefined}
+								message={subagentMessage || undefined}
+								durationMs={durationMs}
+								report={report || undefined}
+								toolStatus={subagentToolStatus}
+								isError={subagentIsError}
+							/>
+						</div>
+					);
+				}
+
+				// No chat_id yet — the sub-agent is still being spawned.
+				// Show a pending row with the title (and expandable
+				// prompt) instead of falling through to the generic
+				// "wrench" rendering.
 				return (
 					<div ref={ref} className={cn("py-0.5", className)} {...props}>
 						<SubagentTool
 							toolName={name}
 							title={title}
-							chatId={chatId}
+							chatId=""
 							subagentStatus={subagentStatus}
 							prompt={prompt || undefined}
 							message={subagentMessage || undefined}
-							durationMs={durationMs}
-							report={report || undefined}
 							toolStatus={subagentToolStatus}
 							isError={subagentIsError}
 						/>
@@ -1525,97 +1617,64 @@ export const Tool = memo(forwardRef<HTMLDivElement, ToolProps>(
 				);
 			}
 
-			// No chat_id yet — the sub-agent is still being spawned.
-			// Show a pending row with the title (and expandable
-			// prompt) instead of falling through to the generic
-			// "wrench" rendering.
-			return (
-				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<SubagentTool
-						toolName={name}
-						title={title}
-						chatId=""
-						subagentStatus={subagentStatus}
-						prompt={prompt || undefined}
-						message={subagentMessage || undefined}
-						toolStatus={subagentToolStatus}
-						isError={subagentIsError}
-					/>
-				</div>
-			);
-		}
+			// Render subagent_report as a collapsible markdown report.
+			if (name === "subagent_report") {
+				const parsed = parsedArgs;
+				const rec = asRecord(result);
+				const report =
+					(parsed ? asString(parsed.report) : "") ||
+					(rec ? asString(rec.report) : "");
+				const title = (rec ? asString(rec.title) : "") || "Sub-agent report";
 
-		// Render subagent_report as a collapsible markdown report.
-		if (name === "subagent_report") {
-			const parsed = parsedArgs;
-			const rec = asRecord(result);
-			const report =
-				(parsed ? asString(parsed.report) : "") ||
-				(rec ? asString(rec.report) : "");
-			const title = (rec ? asString(rec.title) : "") || "Sub-agent report";
-
-			return (
-				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<AgentReportTool
-						title={title}
-						report={report}
-						toolStatus={status}
-						isError={isError}
-					/>
-				</div>
-			);
-		}
-
-		if (name === "chat_summarized") {
-			const rec = asRecord(result);
-			const summary =
-				(rec ? asString(rec.summary) : "") ||
-				(typeof result === "string" ? result : "");
-			return (
-				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<AgentReportTool
-						title="Chat summarized"
-						report={summary}
-						toolStatus={status}
-						isError={isError}
-					/>
-				</div>
-			);
-		}
-
-		return (
-			<div ref={ref} className={cn("py-0.5", className)} {...props}>
-				<div className="flex items-center gap-2">
-					<ToolIcon name={name} isError={status === "error" || isError} />
-					<ToolLabel name={name} args={args} result={result} />
-				</div>
-				{writeFileDiff ? (
-					<ScrollArea
-						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileDiff
-							fileDiff={writeFileDiff}
-							options={DIFF_VIEWER_OPTIONS}
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<AgentReportTool
+							title={title}
+							report={report}
+							toolStatus={status}
+							isError={isError}
 						/>
-					</ScrollArea>
-				) : fileContent ? (
-					<ScrollArea
-						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileViewer
-							file={{
-								name: fileContent.path,
-								contents: fileContent.content,
-							}}
-							options={fileContentOptions}
+					</div>
+				);
+			}
+
+			if (name === "chat_summarized") {
+				const rec = asRecord(result);
+				const summary =
+					(rec ? asString(rec.summary) : "") ||
+					(typeof result === "string" ? result : "");
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<ChatSummarizedTool
+							summary={summary}
+							status={status}
+							isError={isError}
+							errorMessage={
+								rec ? asString(rec.error || rec.message) : undefined
+							}
 						/>
-					</ScrollArea>
-				) : (
-					resultOutput && (
+					</div>
+				);
+			}
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<div className="flex items-center gap-2">
+						<ToolIcon name={name} isError={status === "error" || isError} />
+						<ToolLabel name={name} args={args} result={result} />
+					</div>
+					{writeFileDiff ? (
+						<ScrollArea
+							className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+							viewportClassName="max-h-64"
+							scrollBarClassName="w-1.5"
+						>
+							<FileDiff
+								fileDiff={writeFileDiff}
+								options={DIFF_VIEWER_OPTIONS}
+							/>
+						</ScrollArea>
+					) : fileContent ? (
 						<ScrollArea
 							className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
 							viewportClassName="max-h-64"
@@ -1623,18 +1682,34 @@ export const Tool = memo(forwardRef<HTMLDivElement, ToolProps>(
 						>
 							<FileViewer
 								file={{
-									name: "output.json",
-									contents: resultOutput,
+									name: fileContent.path,
+									contents: fileContent.content,
 								}}
-								options={FILE_VIEWER_OPTIONS_NO_HEADER}
-								style={DIFFS_FONT_STYLE}
+								options={fileContentOptions}
 							/>
 						</ScrollArea>
-					)
-				)}
-			</div>
-		);
-	},
-));
+					) : (
+						resultOutput && (
+							<ScrollArea
+								className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+								viewportClassName="max-h-64"
+								scrollBarClassName="w-1.5"
+							>
+								<FileViewer
+									file={{
+										name: "output.json",
+										contents: resultOutput,
+									}}
+									options={FILE_VIEWER_OPTIONS_NO_HEADER}
+									style={DIFFS_FONT_STYLE}
+								/>
+							</ScrollArea>
+						)
+					)}
+				</div>
+			);
+		},
+	),
+);
 
 Tool.displayName = "Tool";

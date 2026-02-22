@@ -1,7 +1,8 @@
+import { renderWithRouter } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { createMemoryRouter } from "react-router";
-import { renderWithRouter } from "testHelpers/renderHelpers";
 import { Tool } from "./tool";
 
 type ToolProps = ComponentProps<typeof Tool>;
@@ -41,7 +42,7 @@ describe(Tool.name, () => {
 		},
 	);
 
-	it("maps pending delegated status to running rendering", () => {
+	it("keeps completed tool rendering when delegated status remains pending", () => {
 		const { container } = renderTool({
 			name: "subagent",
 			result: { chat_id: "child-chat-id", status: "pending" },
@@ -53,9 +54,9 @@ describe(Tool.name, () => {
 			"/agents/child-chat-id",
 		);
 		expect(
-			screen.getByRole("button", { name: /Spawning Sub-agent/ }),
+			screen.getByRole("button", { name: /Spawned Sub-agent/ }),
 		).toBeInTheDocument();
-		expect(container.querySelector(".animate-spin")).toBeInTheDocument();
+		expect(container.querySelector(".animate-spin")).toBeNull();
 	});
 
 	it("uses stream override status for delegated status rendering", () => {
@@ -63,9 +64,7 @@ describe(Tool.name, () => {
 			name: "subagent",
 			result: { chat_id: "child-chat-id", status: "pending" },
 			status: "completed",
-			subagentStatusOverrides: new Map([
-				["child-chat-id", "completed"],
-			]),
+			subagentStatusOverrides: new Map([["child-chat-id", "completed"]]),
 		});
 
 		expect(
@@ -138,6 +137,26 @@ describe(Tool.name, () => {
 
 		expect(screen.getByText("Sub-agent report")).toBeInTheDocument();
 		expect(screen.getByText("Done.")).toBeInTheDocument();
+	});
+
+	it("renders chat_summarized collapsed and expands summary content", async () => {
+		const user = userEvent.setup();
+		renderTool({
+			name: "chat_summarized",
+			result: { summary: "Compaction summary text." },
+		});
+
+		const toggle = screen.getByRole("button", { name: "Summarized" });
+		expect(toggle).toBeInTheDocument();
+		expect(screen.queryByText("Compaction summary text.")).toBeNull();
+
+		await user.click(toggle);
+
+		expect(
+			await screen.findByText((text) =>
+				text.includes("Compaction summary text."),
+			),
+		).toBeInTheDocument();
 	});
 
 	it("renders subagent_terminate label", () => {

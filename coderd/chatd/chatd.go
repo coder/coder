@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -64,12 +65,15 @@ const (
 	defaultContextCompressionThresholdPercent = int32(70)
 	minContextCompressionThresholdPercent     = int32(0)
 	maxContextCompressionThresholdPercent     = int32(100)
+	contextCompressionSummaryReportMaxRunes   = 4096
 	contextCompressionSummaryPrompt           = "Summarize the current chat so a " +
 		"new assistant can continue seamlessly. Include the user's goals, " +
 		"decisions made, concrete technical details (files, commands, APIs), " +
 		"errors encountered and fixes, and open questions. Be dense and factual. " +
 		"Omit pleasantries and next-step suggestions."
 	contextCompressionSystemSummaryPrefix = "Summary of earlier chat context:"
+	contextCompressionSummaryTruncatedTag = "[summary truncated for live stream]"
+	interruptedToolResultErrorMessage     = "tool call was interrupted before it produced a result"
 
 	maxCreateWorkspaceBuildLogLines     = 120
 	maxCreateWorkspaceBuildLogChars     = 16 * 1024
@@ -226,7 +230,11 @@ func (m *StreamManager) StopStream(chatID uuid.UUID) {
 func (m *StreamManager) Publish(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	m.mu.Lock()
 	state := m.stateLocked(chatID)
-	if state.buffering && event.Type == codersdk.ChatStreamEventTypeMessagePart {
+	if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+		if !state.buffering {
+			m.mu.Unlock()
+			return
+		}
 		state.buffer = append(state.buffer, event)
 	}
 	subscribers := make([]chan codersdk.ChatStreamEvent, 0, len(state.subscribers))
@@ -1008,6 +1016,7 @@ func (p *Processor) persistChatContextSummary(
 	if summary == "" {
 		return nil
 	}
+	summaryReport, summaryReportTruncated := compactSummaryReport(summary)
 
 	systemSummary := strings.TrimSpace(
 		contextCompressionSystemSummaryPrefix + "\n\n" + summary,
@@ -1069,7 +1078,8 @@ func (p *Processor) persistChatContextSummary(
 		ToolCallID: toolCallID,
 		ToolName:   toolChatSummarized,
 		Result: map[string]any{
-			"summary":              summary,
+			"summary":              summaryReport,
+			"summary_truncated":    summaryReportTruncated,
 			"source":               "automatic",
 			"threshold_percent":    thresholdPercent,
 			"usage_percent":        usagePercent,
@@ -1102,6 +1112,25 @@ func (p *Processor) persistChatContextSummary(
 	p.publishMessage(chatID, assistantMessage)
 	p.publishMessage(chatID, toolMessage)
 	return nil
+}
+
+func compactSummaryReport(summary string) (string, bool) {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return "", false
+	}
+
+	if utf8.RuneCountInString(summary) <= contextCompressionSummaryReportMaxRunes {
+		return summary, false
+	}
+
+	truncated := strings.TrimSpace(
+		truncateRunes(summary, contextCompressionSummaryReportMaxRunes),
+	)
+	if truncated == "" {
+		return contextCompressionSummaryTruncatedTag, true
+	}
+	return truncated + "\n\n" + contextCompressionSummaryTruncatedTag, true
 }
 
 func normalizeContextCompressionThreshold(value int32) int32 {
@@ -1264,6 +1293,7 @@ func (p *Processor) runChatWithAgent(
 	}
 
 	persistAssistant := func(
+		persistCtx context.Context,
 		content []fantasy.Content,
 		usage fantasy.Usage,
 		contextLimit sql.NullInt64,
@@ -1278,7 +1308,7 @@ func (p *Processor) runChatWithAgent(
 		}
 
 		hasUsage := usage != (fantasy.Usage{})
-		assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 			ChatID:  chat.ID,
 			Role:    string(fantasy.MessageRoleAssistant),
 			Content: assistantContent,
@@ -1308,13 +1338,13 @@ func (p *Processor) runChatWithAgent(
 		return nil
 	}
 
-	persistToolResult := func(result ToolResultBlock) error {
+	persistToolResult := func(persistCtx context.Context, result ToolResultBlock) error {
 		resultContent, err := marshalToolResults([]ToolResultBlock{result})
 		if err != nil {
 			return err
 		}
 
-		toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 			ChatID:  chat.ID,
 			Role:    string(fantasy.MessageRoleTool),
 			Content: resultContent,
@@ -1334,15 +1364,203 @@ func (p *Processor) runChatWithAgent(
 	}
 
 	var (
-		stepStateMu     sync.Mutex
-		streamToolNames map[string]string
-		stepToolResults []ToolResultBlock
+		stepStateMu           sync.Mutex
+		streamToolNames       map[string]string
+		stepToolResults       []ToolResultBlock
+		stepAssistantDraft    []fantasy.Content
+		stepToolCallIndexByID map[string]int
 	)
 	resetStepState := func() {
 		stepStateMu.Lock()
 		streamToolNames = make(map[string]string)
 		stepToolResults = nil
+		stepAssistantDraft = nil
+		stepToolCallIndexByID = make(map[string]int)
 		stepStateMu.Unlock()
+	}
+	appendDraftText := func(text string) {
+		if text == "" {
+			return
+		}
+
+		stepStateMu.Lock()
+		defer stepStateMu.Unlock()
+
+		if len(stepAssistantDraft) > 0 {
+			lastIndex := len(stepAssistantDraft) - 1
+			switch last := stepAssistantDraft[lastIndex].(type) {
+			case fantasy.TextContent:
+				last.Text += text
+				stepAssistantDraft[lastIndex] = last
+				return
+			case *fantasy.TextContent:
+				last.Text += text
+				stepAssistantDraft[lastIndex] = fantasy.TextContent{Text: last.Text}
+				return
+			}
+		}
+		stepAssistantDraft = append(stepAssistantDraft, fantasy.TextContent{Text: text})
+	}
+	appendDraftReasoning := func(text string) {
+		if text == "" {
+			return
+		}
+
+		stepStateMu.Lock()
+		defer stepStateMu.Unlock()
+
+		if len(stepAssistantDraft) > 0 {
+			lastIndex := len(stepAssistantDraft) - 1
+			switch last := stepAssistantDraft[lastIndex].(type) {
+			case fantasy.ReasoningContent:
+				last.Text += text
+				stepAssistantDraft[lastIndex] = last
+				return
+			case *fantasy.ReasoningContent:
+				last.Text += text
+				stepAssistantDraft[lastIndex] = fantasy.ReasoningContent{Text: last.Text}
+				return
+			}
+		}
+		stepAssistantDraft = append(stepAssistantDraft, fantasy.ReasoningContent{Text: text})
+	}
+	upsertDraftToolCall := func(toolCallID, toolName, input string, appendInput bool) {
+		if toolCallID == "" {
+			return
+		}
+
+		stepStateMu.Lock()
+		defer stepStateMu.Unlock()
+
+		if strings.TrimSpace(toolName) != "" {
+			streamToolNames[toolCallID] = toolName
+		}
+
+		index, exists := stepToolCallIndexByID[toolCallID]
+		if !exists {
+			stepToolCallIndexByID[toolCallID] = len(stepAssistantDraft)
+			stepAssistantDraft = append(stepAssistantDraft, fantasy.ToolCallContent{
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				Input:      input,
+			})
+			return
+		}
+
+		if index < 0 || index >= len(stepAssistantDraft) {
+			stepToolCallIndexByID[toolCallID] = len(stepAssistantDraft)
+			stepAssistantDraft = append(stepAssistantDraft, fantasy.ToolCallContent{
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				Input:      input,
+			})
+			return
+		}
+
+		existingCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](stepAssistantDraft[index])
+		if !ok {
+			if ptrCall, ptrOK := fantasy.AsContentType[*fantasy.ToolCallContent](stepAssistantDraft[index]); ptrOK && ptrCall != nil {
+				existingCall = *ptrCall
+				ok = true
+			}
+		}
+		if !ok {
+			stepToolCallIndexByID[toolCallID] = len(stepAssistantDraft)
+			stepAssistantDraft = append(stepAssistantDraft, fantasy.ToolCallContent{
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				Input:      input,
+			})
+			return
+		}
+
+		if strings.TrimSpace(toolName) != "" {
+			existingCall.ToolName = toolName
+		}
+		if appendInput {
+			existingCall.Input += input
+		} else if input != "" || existingCall.Input == "" {
+			existingCall.Input = input
+		}
+		stepAssistantDraft[index] = existingCall
+	}
+	appendDraftSource := func(source fantasy.SourceContent) {
+		stepStateMu.Lock()
+		stepAssistantDraft = append(stepAssistantDraft, source)
+		stepStateMu.Unlock()
+	}
+	persistInterruptedStep := func() error {
+		stepStateMu.Lock()
+		draft := append([]fantasy.Content(nil), stepAssistantDraft...)
+		toolResults := append([]ToolResultBlock(nil), stepToolResults...)
+		toolNameByCallID := make(map[string]string, len(streamToolNames))
+		for id, name := range streamToolNames {
+			toolNameByCallID[id] = name
+		}
+		stepStateMu.Unlock()
+
+		if len(draft) == 0 && len(toolResults) == 0 {
+			return nil
+		}
+
+		resultByToolCallID := make(map[string]struct{}, len(toolResults))
+		for _, toolResult := range toolResults {
+			if toolResult.ToolCallID == "" {
+				continue
+			}
+			resultByToolCallID[toolResult.ToolCallID] = struct{}{}
+		}
+
+		missingResults := make([]ToolResultBlock, 0)
+		for _, block := range draft {
+			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+			if !ok {
+				if ptrCall, ptrOK := fantasy.AsContentType[*fantasy.ToolCallContent](block); ptrOK && ptrCall != nil {
+					toolCall = *ptrCall
+					ok = true
+				}
+			}
+			if !ok || toolCall.ToolCallID == "" {
+				continue
+			}
+			if _, exists := resultByToolCallID[toolCall.ToolCallID]; exists {
+				continue
+			}
+
+			toolName := strings.TrimSpace(toolCall.ToolName)
+			if toolName == "" {
+				toolName = strings.TrimSpace(toolNameByCallID[toolCall.ToolCallID])
+			}
+
+			missingResults = append(missingResults, ToolResultBlock{
+				ToolCallID: toolCall.ToolCallID,
+				ToolName:   toolName,
+				Result: map[string]any{
+					"status": "interrupted",
+					"error":  interruptedToolResultErrorMessage,
+				},
+				IsError: true,
+			})
+			resultByToolCallID[toolCall.ToolCallID] = struct{}{}
+		}
+
+		toolResults = append(toolResults, missingResults...)
+
+		persistCtx := context.WithoutCancel(ctx)
+		if err := persistAssistant(
+			persistCtx,
+			stepAssistantContent(draft, toolResults),
+			fantasy.Usage{},
+			sql.NullInt64{},
+		); err != nil {
+			return err
+		}
+		for _, toolResult := range toolResults {
+			if err := persistToolResult(persistCtx, toolResult); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	resetStepState()
 
@@ -1375,6 +1593,7 @@ func (p *Processor) runChatWithAgent(
 			return nil
 		},
 		OnTextDelta: func(_ string, text string) error {
+			appendDraftText(text)
 			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
 				Type: codersdk.ChatMessagePartTypeText,
 				Text: text,
@@ -1382,6 +1601,7 @@ func (p *Processor) runChatWithAgent(
 			return nil
 		},
 		OnReasoningDelta: func(_ string, text string) error {
+			appendDraftReasoning(text)
 			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
 				Type: codersdk.ChatMessagePartTypeReasoning,
 				Text: text,
@@ -1389,15 +1609,14 @@ func (p *Processor) runChatWithAgent(
 			return nil
 		},
 		OnToolInputStart: func(id, toolName string) error {
-			stepStateMu.Lock()
-			streamToolNames[id] = toolName
-			stepStateMu.Unlock()
+			upsertDraftToolCall(id, toolName, "", false)
 			return nil
 		},
 		OnToolInputDelta: func(id, delta string) error {
 			stepStateMu.Lock()
 			toolName := streamToolNames[id]
 			stepStateMu.Unlock()
+			upsertDraftToolCall(id, toolName, delta, true)
 			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
 				Type:       codersdk.ChatMessagePartTypeToolCall,
 				ToolCallID: id,
@@ -1407,9 +1626,7 @@ func (p *Processor) runChatWithAgent(
 			return nil
 		},
 		OnToolCall: func(toolCall fantasy.ToolCallContent) error {
-			stepStateMu.Lock()
-			streamToolNames[toolCall.ToolCallID] = toolCall.ToolName
-			stepStateMu.Unlock()
+			upsertDraftToolCall(toolCall.ToolCallID, toolCall.ToolName, toolCall.Input, false)
 			p.publishMessagePart(
 				chat.ID,
 				string(fantasy.MessageRoleAssistant),
@@ -1418,6 +1635,7 @@ func (p *Processor) runChatWithAgent(
 			return nil
 		},
 		OnSource: func(source fantasy.SourceContent) error {
+			appendDraftSource(source)
 			p.publishMessagePart(
 				chat.ID,
 				string(fantasy.MessageRoleAssistant),
@@ -1430,6 +1648,9 @@ func (p *Processor) runChatWithAgent(
 			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleTool), toolResultToPart(toolResult))
 
 			stepStateMu.Lock()
+			if toolResult.ToolCallID != "" && strings.TrimSpace(toolResult.ToolName) != "" {
+				streamToolNames[toolResult.ToolCallID] = toolResult.ToolName
+			}
 			stepToolResults = append(stepToolResults, toolResult)
 			stepStateMu.Unlock()
 
@@ -1449,6 +1670,7 @@ func (p *Processor) runChatWithAgent(
 			}
 
 			if err := persistAssistant(
+				ctx,
 				stepAssistantContent(stepResult.Content, toolResults),
 				stepResult.Usage,
 				contextLimit,
@@ -1456,7 +1678,7 @@ func (p *Processor) runChatWithAgent(
 				return err
 			}
 			for _, toolResult := range toolResults {
-				if err := persistToolResult(toolResult); err != nil {
+				if err := persistToolResult(ctx, toolResult); err != nil {
 					return err
 				}
 			}
@@ -1465,6 +1687,9 @@ func (p *Processor) runChatWithAgent(
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ctx), ErrChatInterrupted) {
+			if persistErr := persistInterruptedStep(); persistErr != nil {
+				p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(persistErr))
+			}
 			return nil, ErrChatInterrupted
 		}
 		return nil, xerrors.Errorf("stream response: %w", err)

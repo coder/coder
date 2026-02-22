@@ -1,8 +1,8 @@
-import type { Chat } from "api/typesGenerated";
+import { renderWithRouter } from "testHelpers/renderHelpers";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { Chat } from "api/typesGenerated";
 import { createMemoryRouter } from "react-router";
-import { renderWithRouter } from "testHelpers/renderHelpers";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 type SidebarChat = Chat & {
@@ -58,7 +58,7 @@ const renderSidebar = ({
 				),
 			},
 			{
-				path: "/agents/:chatId",
+				path: "/agents/:agentId",
 				element: (
 					<AgentsSidebar
 						chats={chats}
@@ -185,10 +185,9 @@ describe(AgentsSidebar.name, () => {
 			expect(screen.getByText("Active middle")).toBeInTheDocument();
 			expect(screen.getByText("Active leaf")).toBeInTheDocument();
 		});
-		expect(screen.getByTestId("agents-tree-toggle-root-active")).toHaveAttribute(
-			"aria-expanded",
-			"true",
-		);
+		expect(
+			screen.getByTestId("agents-tree-toggle-root-active"),
+		).toHaveAttribute("aria-expanded", "true");
 		expect(
 			screen.getByTestId("agents-tree-toggle-child-active"),
 		).toHaveAttribute("aria-expanded", "true");

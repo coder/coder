@@ -269,6 +269,151 @@ func TestSubagentService_HasActiveDescendants(t *testing.T) {
 	require.False(t, active)
 }
 
+func TestSubagentService_TerminateSubagentSubtreeInterruptsEntireSubtree(t *testing.T) {
+	t.Parallel()
+
+	rootID := uuid.New()
+	childID := uuid.New()
+	grandchildID := uuid.New()
+
+	store := newSubagentServiceTestStore(
+		testSubagentChat(rootID, uuid.Nil),
+		testSubagentChat(childID, rootID),
+		testSubagentChat(grandchildID, childID),
+	)
+	interrupter := &recordingSubagentInterrupter{}
+	service := newSubagentService(store, interrupter)
+
+	err := service.TerminateSubagentSubtree(context.Background(), rootID, childID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{childID, grandchildID}, interrupter.interruptedChats())
+}
+
+func TestSubagentService_TerminateSubagentSubtreeStopsSubtreeStreams(t *testing.T) {
+	t.Parallel()
+
+	rootID := uuid.New()
+	childID := uuid.New()
+	grandchildID := uuid.New()
+
+	store := newSubagentServiceTestStore(
+		testSubagentChat(rootID, uuid.Nil),
+		testSubagentChat(childID, rootID),
+		testSubagentChat(grandchildID, childID),
+	)
+	streamManager := NewStreamManager(testutil.Logger(t))
+	service := newSubagentService(store, nil)
+	service.setStreamManager(streamManager)
+
+	_, childEvents, cancelChild := streamManager.Subscribe(childID)
+	defer cancelChild()
+	_, grandchildEvents, cancelGrandchild := streamManager.Subscribe(grandchildID)
+	defer cancelGrandchild()
+
+	streamManager.StartStream(childID)
+	streamManager.StartStream(grandchildID)
+
+	streamManager.Publish(childID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: string(fantasy.MessageRoleAssistant),
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "child-before-terminate",
+			},
+		},
+	})
+	streamManager.Publish(grandchildID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: string(fantasy.MessageRoleAssistant),
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "grandchild-before-terminate",
+			},
+		},
+	})
+
+	select {
+	case event := <-childEvents:
+		require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, event.Type)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for child stream event before termination")
+	}
+	select {
+	case event := <-grandchildEvents:
+		require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, event.Type)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for grandchild stream event before termination")
+	}
+
+	err := service.TerminateSubagentSubtree(context.Background(), rootID, childID)
+	require.NoError(t, err)
+
+	streamManager.Publish(childID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: string(fantasy.MessageRoleAssistant),
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "child-after-terminate",
+			},
+		},
+	})
+	streamManager.Publish(grandchildID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: string(fantasy.MessageRoleAssistant),
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "grandchild-after-terminate",
+			},
+		},
+	})
+	streamManager.Publish(childID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeStatus,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatusWaiting,
+		},
+	})
+	streamManager.Publish(grandchildID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeStatus,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatusWaiting,
+		},
+	})
+
+	select {
+	case event := <-childEvents:
+		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for child status event after termination")
+	}
+	select {
+	case event := <-grandchildEvents:
+		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for grandchild status event after termination")
+	}
+
+	require.Never(t, func() bool {
+		select {
+		case <-childEvents:
+			return true
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 10*time.Millisecond)
+	require.Never(t, func() bool {
+		select {
+		case <-grandchildEvents:
+			return true
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 10*time.Millisecond)
+}
+
 func TestSubagentService_MarkSubagentReportedDoesNotInsertParentMessages(t *testing.T) {
 	t.Parallel()
 
@@ -290,6 +435,26 @@ func TestSubagentService_MarkSubagentReportedDoesNotInsertParentMessages(t *test
 	// chat. The parent receives the report via subagent_await.
 	messages := store.chatMessagesByChatID(parentID)
 	require.Empty(t, messages)
+}
+
+type recordingSubagentInterrupter struct {
+	mu      sync.Mutex
+	chatIDs []uuid.UUID
+}
+
+func (i *recordingSubagentInterrupter) InterruptChat(chatID uuid.UUID) bool {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.chatIDs = append(i.chatIDs, chatID)
+	return true
+}
+
+func (i *recordingSubagentInterrupter) interruptedChats() []uuid.UUID {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	return append([]uuid.UUID(nil), i.chatIDs...)
 }
 
 func TestSubagentService_MarkSubagentReportedDoesNotWakeParent(t *testing.T) {

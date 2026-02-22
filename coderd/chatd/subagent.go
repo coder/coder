@@ -575,7 +575,11 @@ func (s *SubagentService) TerminateSubagentSubtree(
 	}
 
 	for _, chat := range subtree {
-		if chat.Status == database.ChatStatusRunning && s.interrupter != nil {
+		if s.streamer != nil {
+			s.streamer.StopStream(chat.ID)
+		}
+
+		if s.interrupter != nil {
 			s.interrupter.InterruptChat(chat.ID)
 		}
 

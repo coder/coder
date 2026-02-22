@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -1072,6 +1073,155 @@ func TestStreamManager_SnapshotBuffersOnlyMessageParts(t *testing.T) {
 	require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, snapshot[0].Type)
 	require.NotNil(t, snapshot[0].MessagePart)
 	require.Equal(t, "chunk", snapshot[0].MessagePart.Part.Text)
+}
+
+func TestStreamManager_StopStreamDropsMessagePartEvents(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	manager := NewStreamManager(testutil.Logger(t))
+	_, events, cancel := manager.Subscribe(chatID)
+	defer cancel()
+
+	manager.StartStream(chatID)
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: string(fantasy.MessageRoleAssistant),
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "before-stop",
+			},
+		},
+	})
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, event.Type)
+		require.NotNil(t, event.MessagePart)
+		require.Equal(t, "before-stop", event.MessagePart.Part.Text)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for initial stream message part")
+	}
+
+	manager.StopStream(chatID)
+
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: string(fantasy.MessageRoleAssistant),
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "after-stop",
+			},
+		},
+	})
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeStatus,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatusWaiting,
+		},
+	})
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
+		require.NotNil(t, event.Status)
+		require.Equal(t, codersdk.ChatStatusWaiting, event.Status.Status)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for status event after stream stop")
+	}
+
+	require.Never(t, func() bool {
+		select {
+		case <-events:
+			return true
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestPersistChatContextSummary_TruncatesSummaryReport(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	processor := &Processor{db: db}
+
+	chatID := uuid.New()
+	const summaryTail = "tail-marker-for-full-summary"
+	summary := strings.Repeat(
+		"x",
+		contextCompressionSummaryReportMaxRunes+128,
+	) + summaryTail
+
+	gomock.InOrder(
+		db.EXPECT().InsertChatMessage(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, params database.InsertChatMessageParams) (database.ChatMessage, error) {
+				require.Equal(t, string(fantasy.MessageRoleSystem), params.Role)
+				require.True(t, params.Hidden)
+				require.True(t, params.Compressed.Valid)
+				require.True(t, params.Compressed.Bool)
+
+				var systemSummary string
+				require.NoError(t, json.Unmarshal(params.Content.RawMessage, &systemSummary))
+				require.Contains(t, systemSummary, summaryTail)
+				return database.ChatMessage{}, nil
+			}),
+		db.EXPECT().InsertChatMessage(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, params database.InsertChatMessageParams) (database.ChatMessage, error) {
+				require.Equal(t, string(fantasy.MessageRoleAssistant), params.Role)
+				require.False(t, params.Hidden)
+				require.True(t, params.Compressed.Valid)
+				require.True(t, params.Compressed.Bool)
+				return database.ChatMessage{}, nil
+			}),
+		db.EXPECT().InsertChatMessage(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, params database.InsertChatMessageParams) (database.ChatMessage, error) {
+				require.Equal(t, string(fantasy.MessageRoleTool), params.Role)
+				require.False(t, params.Hidden)
+				require.True(t, params.Compressed.Valid)
+				require.True(t, params.Compressed.Bool)
+
+				var blocks []ToolResultBlock
+				require.NoError(t, json.Unmarshal(params.Content.RawMessage, &blocks))
+				require.Len(t, blocks, 1)
+				require.Equal(t, toolChatSummarized, blocks[0].ToolName)
+
+				result, ok := blocks[0].Result.(map[string]any)
+				require.True(t, ok)
+
+				report, ok := result["summary"].(string)
+				require.True(t, ok)
+				require.NotContains(t, report, summaryTail)
+				require.Contains(t, report, contextCompressionSummaryTruncatedTag)
+				require.LessOrEqual(
+					t,
+					utf8.RuneCountInString(report),
+					contextCompressionSummaryReportMaxRunes+
+						utf8.RuneCountInString(contextCompressionSummaryTruncatedTag)+2,
+				)
+
+				truncated, ok := result["summary_truncated"].(bool)
+				require.True(t, ok)
+				require.True(t, truncated)
+				return database.ChatMessage{}, nil
+			}),
+	)
+
+	err := processor.persistChatContextSummary(
+		context.Background(),
+		chatID,
+		summary,
+		70,
+		12345,
+		200000,
+		75.5,
+	)
+	require.NoError(t, err)
 }
 
 func TestToolResultMetadata_ReadFileFields(t *testing.T) {
