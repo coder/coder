@@ -165,7 +165,6 @@ export default defineConfig({
 			"@mui/material/Menu",
 			"@mui/material/MenuItem",
 			"@mui/material/MenuList",
-			"@mui/material/Paper",
 			"@mui/material/Radio",
 			"@mui/material/RadioGroup",
 			"@mui/material/Select",
