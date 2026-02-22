@@ -130,8 +130,6 @@ export default defineConfig({
 			"@emotion/react",
 			"@emotion/react/jsx-runtime",
 			"@emotion/styled",
-			"@mui/material/Alert",
-			"@mui/material/AlertTitle",
 			"@mui/material/Autocomplete",
 			"@mui/material/Card",
 			"@mui/material/CardActionArea",

@@ -3,8 +3,6 @@
  * This file provides MUI theme overrides for legacy compatibility only.
  */
 
-/** @deprecated MUI Alert classes are deprecated. Use shadcn/ui Alert component instead. */
-import { alertClasses } from "@mui/material/Alert";
 /** @deprecated MUI ThemeOptions is deprecated. Migrate to Tailwind CSS theme system. */
 import type { ThemeOptions } from "@mui/material/styles";
 import {
@@ -282,49 +280,6 @@ export const components = {
 			arrow: ({ theme }) => ({
 				color: theme.palette.divider,
 			}),
-		},
-	},
-	MuiAlert: {
-		defaultProps: {
-			variant: "outlined",
-		},
-		styleOverrides: {
-			root: ({ theme }) => ({
-				background: theme.palette.background.paper,
-			}),
-			action: {
-				paddingTop: 2, // Idk why it is not aligned as expected
-			},
-			icon: {
-				fontSize: 16,
-				marginTop: "4px", // The size of text is 24 so (24 - 16)/2 = 4
-			},
-			message: ({ theme }) => ({
-				color: theme.palette.text.primary,
-			}),
-			outlinedWarning: ({ theme }) => ({
-				[`& .${alertClasses.icon}`]: {
-					color: theme.palette.warning.light,
-				},
-			}),
-			outlinedInfo: ({ theme }) => ({
-				[`& .${alertClasses.icon}`]: {
-					color: theme.palette.primary.light,
-				},
-			}),
-			outlinedError: ({ theme }) => ({
-				[`& .${alertClasses.icon}`]: {
-					color: theme.palette.error.light,
-				},
-			}),
-		},
-	},
-	MuiAlertTitle: {
-		styleOverrides: {
-			root: {
-				fontSize: "inherit",
-				marginBottom: 0,
-			},
 		},
 	},
 } satisfies ThemeOptions["components"];
